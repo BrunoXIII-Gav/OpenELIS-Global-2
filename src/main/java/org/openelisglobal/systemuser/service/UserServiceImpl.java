@@ -294,27 +294,7 @@ public class UserServiceImpl implements UserService {
         }
 
         List<Test> allTests = testService.getTestsByTestSectionIds(testUnitIds);
-        Set<String> sampleIds = new HashSet<>();
-        // clear cache to create a fresh Map of testId To TypeOfSample
-        List<IdValuePair> userSampleTypes = new ArrayList<>();
-        if (allTests != null) {
-            typeOfSampleService.clearCache();
-            allTests.forEach(test -> {
-                List<TypeOfSample> sampleTypes = typeOfSampleService.getTypeOfSampleForTest(test.getId());
-                if (sampleTypes != null) {
-                    sampleIds.addAll(sampleTypes.stream().map(e -> e.getId()).collect(Collectors.toList()));
-                }
-            });
-        }
-
-        sampleIds.forEach(id -> {
-            TypeOfSample type = typeOfSampleService.get(id);
-            if (type != null) {
-                userSampleTypes.add(new IdValuePair(type.getId(), type.getLocalizedName()));
-            }
-        });
-
-        return userSampleTypes;
+        return getSampleTypesForTests(allTests);
     }
 
     @Override
@@ -330,44 +310,36 @@ public class UserServiceImpl implements UserService {
             // testSections.stream().filter(el->el.getId().equals(testSection.getId())).map(e->e.getId()).collect(Collectors.toList());
         }
         List<Test> allTests = testService.getTestsByTestSectionIds(testUnitIds);
-        // List<String> allTBTestIds =
-        // typeOfSampleService.getAllActiveTestsByTestUnit(true,
-        // testUnitIds).stream().map(e->e.getId()).collect(Collectors.toList());
-        // List<IdValuePair> allSampleTypes =
-        // DisplayListService.getInstance().getList(ListType.SAMPLE_TYPE_ACTIVE);
-        Set<String> sampleIds = new HashSet<>();
+        return getSampleTypesForTests(allTests);
+    }
 
-        List<IdValuePair> userSampleTypes = new ArrayList<>();
-        if (allTests != null) {
-            typeOfSampleService.clearCache();
-            allTests.forEach(test -> sampleIds.addAll(typeOfSampleService.getTypeOfSampleForTest(test.getId()).stream()
-                    .map(e -> e.getId()).collect(Collectors.toList())));
+    private List<IdValuePair> getSampleTypesForTests(List<Test> tests) {
+        if (tests == null || tests.isEmpty()) {
+            return new ArrayList<>();
         }
 
-        sampleIds.forEach(id -> {
-            TypeOfSample type = typeOfSampleService.get(id);
-            if (type != null) {
-                userSampleTypes.add(new IdValuePair(type.getId(), type.getLocalizedName()));
-            }
-        });
-
         // clear cache to create a fresh Map of testId To TypeOfSample
-        // typeOfSampleService.clearCache();
+        typeOfSampleService.clearCache();
+        Map<String, String> sampleTypeById = new java.util.LinkedHashMap<>();
 
-        // List<String> allSampleTypesIds =
-        // DisplayListService.getInstance().getList(ListType.SAMPLE_TYPE_ACTIVE).stream().map(e->e.getId()).collect(Collectors.toList());
-        // allSampleTypesIds.forEach(sid->{
-        // List<String> testIds = typeOfSampleService.getActiveTestsBySampleTypeId(sid,
-        // false).stream().map(e->e.getId()).collect(Collectors.toList());
-        // if(allTBTestIds.stream().anyMatch(testIds::contains)) {
-        // sampleIds.add(sid);
-        // }
-        // });
+        for (Test test : tests) {
+            List<TypeOfSample> sampleTypes = typeOfSampleService.getTypeOfSampleForTest(test.getId());
+            if (sampleTypes == null) {
+                continue;
+            }
+            for (TypeOfSample type : sampleTypes) {
+                if (type == null || StringUtils.isBlank(type.getId())) {
+                    continue;
+                }
+                sampleTypeById.putIfAbsent(type.getId(), type.getLocalizedName());
+            }
+        }
 
-        // List<IdValuePair> userSampleTypes = allSampleTypes.stream().filter(type ->
-        // sampleIds.contains(type.getId()))
-        // .collect(Collectors.toList());
-        return userSampleTypes;
+        return sampleTypeById.entrySet().stream()
+                .map(entry -> new IdValuePair(entry.getKey(), entry.getValue()))
+                .sorted((left, right) -> StringUtils.defaultString(left.getValue())
+                        .compareToIgnoreCase(StringUtils.defaultString(right.getValue())))
+                .collect(Collectors.toList());
     }
 
     @Override
