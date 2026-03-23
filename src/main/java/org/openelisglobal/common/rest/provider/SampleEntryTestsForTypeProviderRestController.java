@@ -24,6 +24,8 @@ import org.openelisglobal.panelitem.valueholder.PanelItem;
 import org.openelisglobal.role.service.RoleService;
 import org.openelisglobal.spring.util.SpringContext;
 import org.openelisglobal.systemuser.service.UserService;
+import org.openelisglobal.sample.bean.SampleTypeAdditionalFieldPayload;
+import org.openelisglobal.sample.service.SampleTypeAdditionalFieldService;
 import org.openelisglobal.test.service.TestSectionService;
 import org.openelisglobal.test.service.TestServiceImpl;
 import org.openelisglobal.test.valueholder.Test;
@@ -55,6 +57,9 @@ public class SampleEntryTestsForTypeProviderRestController extends BaseRestContr
     private UserService userService = SpringContext.getBean(UserService.class);
 
     private RoleService roleService = SpringContext.getBean(RoleService.class);
+
+    private SampleTypeAdditionalFieldService sampleTypeAdditionalFieldService = SpringContext
+            .getBean(SampleTypeAdditionalFieldService.class);
 
     ArrayList<PanelTestMap> panelsMapList = new ArrayList<>();
 
@@ -147,6 +152,12 @@ public class SampleEntryTestsForTypeProviderRestController extends BaseRestContr
         List<PanelTestMap> panelMap = linkTestsToPanels(panelList, tests);
 
         addPanels(panelMap);
+        if (GenericValidator.isBlankOrNull(sampleType)) {
+            sampleEntryTests.setAdditionalFields(new ArrayList<>());
+        } else {
+            sampleEntryTests
+                    .setAdditionalFields(sampleTypeAdditionalFieldService.getFieldsForSampleType(sampleType, false));
+        }
     }
 
     private void addTests(List<Test> tests) {
@@ -250,6 +261,7 @@ public class SampleEntryTestsForTypeProviderRestController extends BaseRestContr
         private ArrayList<PanelTestMap> panels;
 
         private ArrayList<TestMap> tests;
+        private List<SampleTypeAdditionalFieldPayload> additionalFields;
 
         public SampleEntryTests() {
         }
@@ -276,6 +288,14 @@ public class SampleEntryTestsForTypeProviderRestController extends BaseRestContr
 
         public void setTests(ArrayList<TestMap> tests) {
             this.tests = tests;
+        }
+
+        public List<SampleTypeAdditionalFieldPayload> getAdditionalFields() {
+            return additionalFields;
+        }
+
+        public void setAdditionalFields(List<SampleTypeAdditionalFieldPayload> additionalFields) {
+            this.additionalFields = additionalFields;
         }
     }
 
