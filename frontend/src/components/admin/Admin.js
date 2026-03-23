@@ -75,6 +75,7 @@ import TestSectionTestAssign from "./testManagementConfigMenu/TestSectionTestAss
 import SampleTypeOrder from "./testManagementConfigMenu/SampleTypeOrder.js";
 import SampleTypeCreate from "./testManagementConfigMenu/SampleTypeCreate.js";
 import SampleTypeTestAssign from "./testManagementConfigMenu/SampleTypeTestAssign.js";
+import SampleTypeAdditionalFields from "./testManagementConfigMenu/SampleTypeAdditionalFields.js";
 import UomManagement from "./testManagementConfigMenu/UomManagement.js";
 import UomCreate from "./testManagementConfigMenu/UomCreate.js";
 import PanelManagement from "./testManagementConfigMenu/PanelManagement.js";
@@ -314,6 +315,14 @@ function Admin() {
               <FormattedMessage id="sidenav.label.admin.formEntry.sampleEntryconfig" />
             </SideNavMenuItem>
             <SideNavMenuItem
+              data-cy="sampleAdditionalFieldsConfig"
+              onClick={handleNavigation(
+                `${path}/SampleTypeAdditionalFields?source=sampleEntryConfig`,
+              )}
+            >
+              <FormattedMessage id="configuration.sampleType.additional.fields" />
+            </SideNavMenuItem>
+            <SideNavMenuItem
               data-cy="validationConfigMenu"
               onClick={handleNavigation(`${path}/ValidationConfigurationMenu`)}
             >
@@ -457,6 +466,10 @@ function Admin() {
         <Route
           path={`${path}/SampleTypeTestAssign`}
           component={SampleTypeTestAssign}
+        />
+        <Route
+          path={`${path}/SampleTypeAdditionalFields`}
+          component={SampleTypeAdditionalFields}
         />
         <Route path={`${path}/UomManagement`} component={UomManagement} />
         <Route path={`${path}/UomCreate`} component={UomCreate} />
