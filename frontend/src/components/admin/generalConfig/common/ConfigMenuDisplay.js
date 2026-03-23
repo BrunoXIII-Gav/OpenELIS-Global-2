@@ -18,6 +18,8 @@ import {
   TableSelectAll,
   TableContainer,
   Pagination,
+  ClickableTile,
+  UnorderedList,
 } from "@carbon/react";
 import {
   getFromOpenElisServer,
@@ -196,6 +198,21 @@ function ConfigMenuDisplay(props) {
                   </Heading>
                 </Section>
                 <br />
+                {props.menuType === "SampleEntryConfigMenu" ? (
+                  <>
+                    <Section>
+                      <UnorderedList>
+                        <ClickableTile
+                          href="/MasterListsPage/SampleTypeAdditionalFields?source=sampleEntryConfig"
+                          id="SampleTypeAdditionalFieldsFromSampleEntry"
+                        >
+                          <FormattedMessage id="configuration.sampleType.additional.fields" />
+                        </ClickableTile>
+                      </UnorderedList>
+                    </Section>
+                    <br />
+                  </>
+                ) : null}
                 <Section>
                   <Form onSubmit={handleModify}>
                     <Column lg={16} md={8} sm={4}>
