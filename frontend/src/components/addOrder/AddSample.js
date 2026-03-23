@@ -1,5 +1,5 @@
 import React, { useEffect, useRef, useState } from "react";
-import { Button, Link, Row, Stack, Column, Grid } from "@carbon/react";
+import { Button, Link, Column, Grid } from "@carbon/react";
 import { Add } from "@carbon/react/icons";
 import { getFromOpenElisServer } from "../utils/Utils";
 import SampleType from "./SampleType";
@@ -22,6 +22,7 @@ const AddSample = (props) => {
       sampleXML: null,
       panels: [],
       tests: [],
+      additionalFields: [],
     });
     console.debug(JSON.stringify(updateSamples));
     setSamples(updateSamples);
@@ -30,36 +31,40 @@ const AddSample = (props) => {
   const sampleTypeObject = (object) => {
     let newState = [...samples];
     switch (true) {
-      case object.sampleTypeId !== undefined && object.sampleTypeId !== "":
+      case Object.prototype.hasOwnProperty.call(object, "sampleTypeId"):
         newState[object.sampleObjectIndex].sampleTypeId = object.sampleTypeId;
         break;
-      case object.sampleRejected:
+      case Object.prototype.hasOwnProperty.call(object, "sampleRejected"):
         newState[object.sampleObjectIndex].sampleRejected =
           object.sampleRejected;
         break;
-      case object.rejectionReason !== undefined &&
-        object.rejectionReason !== null:
+      case Object.prototype.hasOwnProperty.call(object, "rejectionReason"):
         newState[object.sampleObjectIndex].rejectionReason =
           object.rejectionReason;
         break;
-      case object.selectedTests !== undefined &&
-        object.selectedTests.length > 0:
-        newState[object.sampleObjectIndex].tests = object.selectedTests;
+      case Object.prototype.hasOwnProperty.call(object, "selectedTests"):
+        newState[object.sampleObjectIndex].tests = object.selectedTests || [];
         break;
-      case object.selectedPanels !== undefined &&
-        object.selectedPanels.length > 0:
-        newState[object.sampleObjectIndex].panels = object.selectedPanels;
+      case Object.prototype.hasOwnProperty.call(object, "selectedPanels"):
+        newState[object.sampleObjectIndex].panels = object.selectedPanels || [];
         break;
-      case object.sampleXML !== undefined && object.sampleXML !== null:
+      case Object.prototype.hasOwnProperty.call(object, "sampleXML"):
         newState[object.sampleObjectIndex].sampleXML = object.sampleXML;
         break;
-      case object.requestReferralEnabled:
+      case Object.prototype.hasOwnProperty.call(
+        object,
+        "requestReferralEnabled",
+      ):
         newState[object.sampleObjectIndex].requestReferralEnabled =
           object.requestReferralEnabled;
         break;
-      case object.referralItems !== undefined &&
-        object.referralItems.length > 0:
-        newState[object.sampleObjectIndex].referralItems = object.referralItems;
+      case Object.prototype.hasOwnProperty.call(object, "referralItems"):
+        newState[object.sampleObjectIndex].referralItems =
+          object.referralItems || [];
+        break;
+      case Object.prototype.hasOwnProperty.call(object, "additionalFields"):
+        newState[object.sampleObjectIndex].additionalFields =
+          object.additionalFields || [];
         break;
       default:
         console.debug(JSON.stringify(newState));
