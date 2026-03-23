@@ -20,6 +20,7 @@ import org.openelisglobal.sample.form.SamplePatientEntryForm;
 import org.openelisglobal.sample.service.PatientManagementUpdate;
 import org.openelisglobal.sample.service.SamplePatientEntryService;
 import org.openelisglobal.sample.service.SampleService;
+import org.openelisglobal.sample.service.SampleTypeAdditionalFieldService;
 import org.openelisglobal.sample.valueholder.Sample;
 import org.openelisglobal.samplehuman.service.SampleHumanService;
 import org.openelisglobal.samplehuman.valueholder.SampleHuman;
@@ -53,6 +54,9 @@ public class SamplePatientEntryServiceTest extends BaseWebContextSensitiveTest {
     @Autowired
     private PatientService patientService;
 
+    @Autowired
+    private SampleTypeAdditionalFieldService sampleTypeAdditionalFieldService;
+
     private PatientManagementUpdate patientManagementUpdate;
 
     @Before
@@ -67,6 +71,12 @@ public class SamplePatientEntryServiceTest extends BaseWebContextSensitiveTest {
 
         Organization org = organizationService.get("1");
         assertNotNull("Organization should exist in test data", org);
+    }
+
+    @Test
+    public void sampleTypeAdditionalFieldService_shouldBeWired() {
+        assertNotNull("SampleTypeAdditionalFieldService should be wired in Spring context",
+                sampleTypeAdditionalFieldService);
     }
 
     @Test
