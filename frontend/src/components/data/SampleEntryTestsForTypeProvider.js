@@ -15,4 +15,5 @@ export const sampleTypeTestsStructure = {
       userBenchChoice: false,
     },
   ],
+  additionalFields: [],
 };
