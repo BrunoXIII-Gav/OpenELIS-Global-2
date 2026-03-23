@@ -1,0 +1,73 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<databaseChangeLog
+    xmlns="http://www.liquibase.org/xml/ns/dbchangelog"
+    xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+    xsi:schemaLocation="http://www.liquibase.org/xml/ns/dbchangelog http://www.liquibase.org/xml/ns/dbchangelog/dbchangelog-3.8.xsd">
+
+    <changeSet id="sample-additional-fields-004-add-last-updated-definition" author="codex">
+        <preConditions onFail="MARK_RAN">
+            <and>
+                <tableExists schemaName="clinlims" tableName="sample_type_additional_field_def" />
+                <not>
+                    <columnExists schemaName="clinlims" tableName="sample_type_additional_field_def"
+                        columnName="last_updated" />
+                </not>
+            </and>
+        </preConditions>
+
+        <addColumn schemaName="clinlims" tableName="sample_type_additional_field_def">
+            <column name="last_updated" type="timestamp" defaultValueComputed="CURRENT_TIMESTAMP">
+                <constraints nullable="false" />
+            </column>
+        </addColumn>
+
+        <rollback>
+            <dropColumn schemaName="clinlims" tableName="sample_type_additional_field_def" columnName="last_updated" />
+        </rollback>
+    </changeSet>
+
+    <changeSet id="sample-additional-fields-005-add-last-updated-option" author="codex">
+        <preConditions onFail="MARK_RAN">
+            <and>
+                <tableExists schemaName="clinlims" tableName="sample_type_additional_field_option" />
+                <not>
+                    <columnExists schemaName="clinlims" tableName="sample_type_additional_field_option"
+                        columnName="last_updated" />
+                </not>
+            </and>
+        </preConditions>
+
+        <addColumn schemaName="clinlims" tableName="sample_type_additional_field_option">
+            <column name="last_updated" type="timestamp" defaultValueComputed="CURRENT_TIMESTAMP">
+                <constraints nullable="false" />
+            </column>
+        </addColumn>
+
+        <rollback>
+            <dropColumn schemaName="clinlims" tableName="sample_type_additional_field_option" columnName="last_updated" />
+        </rollback>
+    </changeSet>
+
+    <changeSet id="sample-additional-fields-006-add-last-updated-value" author="codex">
+        <preConditions onFail="MARK_RAN">
+            <and>
+                <tableExists schemaName="clinlims" tableName="sample_item_additional_field_value" />
+                <not>
+                    <columnExists schemaName="clinlims" tableName="sample_item_additional_field_value"
+                        columnName="last_updated" />
+                </not>
+            </and>
+        </preConditions>
+
+        <addColumn schemaName="clinlims" tableName="sample_item_additional_field_value">
+            <column name="last_updated" type="timestamp" defaultValueComputed="CURRENT_TIMESTAMP">
+                <constraints nullable="false" />
+            </column>
+        </addColumn>
+
+        <rollback>
+            <dropColumn schemaName="clinlims" tableName="sample_item_additional_field_value" columnName="last_updated" />
+        </rollback>
+    </changeSet>
+
+</databaseChangeLog>
