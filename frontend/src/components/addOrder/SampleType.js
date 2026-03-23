@@ -7,6 +7,7 @@ import {
   Select,
   SelectItem,
   Tag,
+  TextArea,
   TextInput,
   Tile,
 } from "@carbon/react";
@@ -35,7 +36,7 @@ const SampleType = (props) => {
   const componentMounted = useRef(false);
   const sampleTypesRef = useRef(null);
 
-  const { index, rejectSampleReasons, removeSample, sample } = props;
+  const { index, rejectSampleReasons, sample } = props;
 
   const [sampleTypes, setSampleTypes] = useState([]);
   const [selectedSampleType, setSelectedSampleType] = useState({
@@ -63,7 +64,10 @@ const SampleType = (props) => {
   const [uomList, setUomList] = useState([]);
   const [sampleXml, setSampleXml] = useState(
     sample?.sampleXML != null
-      ? sample.sampleXML
+      ? {
+          ...sample.sampleXML,
+          additionalFieldValues: sample.sampleXML.additionalFieldValues || {},
+        }
       : {
           collectionDate:
             configurationProperties?.AUTOFILL_COLLECTION_DATE === "true"
@@ -78,11 +82,10 @@ const SampleType = (props) => {
             configurationProperties?.AUTOFILL_COLLECTION_DATE === "true"
               ? configurationProperties.currentTimeAsText
               : "",
+          additionalFieldValues: {},
         },
   );
   const [loading, setLoading] = useState(true);
-
-  const defaultSelect = { id: "", value: "Choose Rejection Reason" };
 
   function handleCollectionDate(date) {
     setSampleXml({
@@ -157,6 +160,35 @@ const SampleType = (props) => {
       ...sampleXml,
       uom: value,
     });
+  }
+
+  function handleAdditionalFieldValueChange(fieldKey, value) {
+    setSampleXml((previous) => ({
+      ...previous,
+      additionalFieldValues: {
+        ...(previous.additionalFieldValues || {}),
+        [fieldKey]: value,
+      },
+    }));
+  }
+
+  function handleAdditionalMultiSelectOption(fieldKey, optionKey, checked) {
+    const currentValues = (sampleXml.additionalFieldValues?.[fieldKey] || "")
+      .split(",")
+      .map((value) => value.trim())
+      .filter((value) => value !== "");
+    const currentSet = new Set(currentValues);
+
+    if (checked) {
+      currentSet.add(optionKey);
+    } else {
+      currentSet.delete(optionKey);
+    }
+
+    handleAdditionalFieldValueChange(
+      fieldKey,
+      Array.from(currentSet).join(","),
+    );
   }
 
   useEffect(() => {
@@ -265,19 +297,6 @@ const SampleType = (props) => {
     }
   };
 
-  function removeReferralRequest(test) {
-    let index = 0;
-    for (let x in referralRequests) {
-      if (referralRequests[x].testId === test.id) {
-        const newReferralRequests = referralRequests;
-        newReferralRequests.splice(index, 1);
-        setReferralRequests([...newReferralRequests]);
-        break;
-      }
-      index++;
-    }
-  }
-
   const handleFetchSampleTypeTests = (e, index) => {
     setSelectedTests([]);
     setReferralRequests([]);
@@ -290,7 +309,12 @@ const SampleType = (props) => {
       name: selectedSampleTypeOption,
       element_index: index,
     });
+    setSampleXml((previous) => ({
+      ...previous,
+      additionalFieldValues: {},
+    }));
     props.sampleTypeObject({ sampleTypeId: value, sampleObjectIndex: index });
+    props.sampleTypeObject({ additionalFields: [], sampleObjectIndex: index });
   };
 
   const updateSampleXml = (sampleXML, index) => {
@@ -306,7 +330,11 @@ const SampleType = (props) => {
 
   const fetchSampleTypeTests = (res) => {
     if (componentMounted.current) {
-      setSampleTypeTests(res);
+      setSampleTypeTests({
+        ...sampleTypeTestsStructure,
+        ...(res || {}),
+        additionalFields: res?.additionalFields || [],
+      });
     }
   };
 
@@ -428,6 +456,50 @@ const SampleType = (props) => {
   }, [selectedSampleType.id]);
 
   useEffect(() => {
+    const additionalFields = sampleTypeTests?.additionalFields || [];
+    props.sampleTypeObject({
+      additionalFields: additionalFields,
+      sampleObjectIndex: index,
+    });
+
+    if (additionalFields.length === 0) {
+      return;
+    }
+
+    setSampleXml((previous) => {
+      const existingValues = previous.additionalFieldValues || {};
+      const updatedValues = { ...existingValues };
+      let changed = previous.additionalFieldValues == null;
+
+      additionalFields.forEach((field) => {
+        const fieldKey = field.fieldKey;
+        const defaultValue = field.defaultValue;
+        const hasExistingValue =
+          existingValues[fieldKey] !== undefined &&
+          existingValues[fieldKey] !== null &&
+          String(existingValues[fieldKey]).trim() !== "";
+        if (
+          !hasExistingValue &&
+          defaultValue !== undefined &&
+          defaultValue !== null
+        ) {
+          updatedValues[fieldKey] = defaultValue;
+          changed = true;
+        }
+      });
+
+      if (!changed) {
+        return previous;
+      }
+
+      return {
+        ...previous,
+        additionalFieldValues: updatedValues,
+      };
+    });
+  }, [sampleTypeTests.additionalFields, index]);
+
+  useEffect(() => {
     getFromOpenElisServer(`/rest/UomCreate`, fetchUomCreate);
   }, []);
 
@@ -487,6 +559,124 @@ const SampleType = (props) => {
       componentMounted.current = false;
     };
   }, []);
+
+  const renderAdditionalField = (field) => {
+    const fieldType = (field.fieldType || "TEXT").toUpperCase();
+    const fieldKey = field.fieldKey;
+    const value = sampleXml.additionalFieldValues?.[fieldKey] || "";
+    const options = field.options || [];
+    const required = Boolean(field.required);
+    const fieldLabel = field.displayName || field.fieldKey;
+
+    if (fieldType === "BOOLEAN") {
+      return (
+        <Checkbox
+          id={`additional_field_${index}_${fieldKey}`}
+          labelText={fieldLabel}
+          checked={value === "true"}
+          onChange={(event) =>
+            handleAdditionalFieldValueChange(
+              fieldKey,
+              event.target.checked ? "true" : "false",
+            )
+          }
+        />
+      );
+    }
+
+    if (fieldType === "SELECT" || fieldType === "RADIO") {
+      return (
+        <Select
+          id={`additional_field_${index}_${fieldKey}`}
+          labelText={fieldLabel}
+          value={value}
+          required={required}
+          onChange={(event) =>
+            handleAdditionalFieldValueChange(fieldKey, event.target.value)
+          }
+        >
+          <SelectItem
+            text={intl.formatMessage({ id: "label.select" })}
+            value=""
+          />
+          {options.map((option, optionIndex) => (
+            <SelectItem
+              key={`additional_field_option_${fieldKey}_${optionIndex}`}
+              text={option.optionLabel}
+              value={option.optionKey}
+            />
+          ))}
+        </Select>
+      );
+    }
+
+    if (fieldType === "MULTISELECT") {
+      const selectedValues = new Set(
+        value
+          .split(",")
+          .map((entry) => entry.trim())
+          .filter((entry) => entry !== ""),
+      );
+
+      return (
+        <FormGroup legendText={fieldLabel}>
+          {options.map((option, optionIndex) => (
+            <Checkbox
+              key={`additional_field_option_${fieldKey}_${optionIndex}`}
+              id={`additional_field_${index}_${fieldKey}_${optionIndex}`}
+              labelText={option.optionLabel}
+              checked={selectedValues.has(option.optionKey)}
+              onChange={(event) =>
+                handleAdditionalMultiSelectOption(
+                  fieldKey,
+                  option.optionKey,
+                  event.target.checked,
+                )
+              }
+            />
+          ))}
+        </FormGroup>
+      );
+    }
+
+    if (fieldType === "TEXTAREA") {
+      return (
+        <TextArea
+          id={`additional_field_${index}_${fieldKey}`}
+          labelText={fieldLabel}
+          value={value}
+          required={required}
+          maxLength={field.maxLength || undefined}
+          onChange={(event) =>
+            handleAdditionalFieldValueChange(fieldKey, event.target.value)
+          }
+        />
+      );
+    }
+
+    const htmlInputType =
+      fieldType === "NUMBER"
+        ? "number"
+        : fieldType === "DATE"
+          ? "date"
+          : fieldType === "DATETIME"
+            ? "datetime-local"
+            : "text";
+
+    return (
+      <TextInput
+        id={`additional_field_${index}_${fieldKey}`}
+        labelText={fieldLabel}
+        value={value}
+        required={required}
+        type={htmlInputType}
+        maxLength={field.maxLength || undefined}
+        onChange={(event) =>
+          handleAdditionalFieldValueChange(fieldKey, event.target.value)
+        }
+      />
+    );
+  };
 
   return (
     <>
@@ -585,6 +775,26 @@ const SampleType = (props) => {
             className="inputText"
           />
         </div>
+
+        {sampleTypeTests.additionalFields &&
+          sampleTypeTests.additionalFields.length > 0 && (
+            <div className="additionalFields">
+              <h4>
+                <FormattedMessage id="sample.additional.fields.heading" />
+              </h4>
+              <div className="inlineDiv">
+                {sampleTypeTests.additionalFields.map((field, fieldIndex) => (
+                  <div
+                    key={`additional_field_${index}_${field.fieldKey}_${fieldIndex}`}
+                    className="inputText"
+                    style={{ width: "100%" }}
+                  >
+                    {renderAdditionalField(field)}
+                  </div>
+                ))}
+              </div>
+            </div>
+          )}
 
         {configurationProperties.GPS_ENABLED === "true" && (
           <div className="gpsDiv">
