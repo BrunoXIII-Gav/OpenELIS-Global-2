@@ -3,8 +3,11 @@ package org.openelisglobal.sample.service;
 import jakarta.servlet.http.HttpServletRequest;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.Map;
+import java.util.Objects;
 import java.util.Optional;
 import java.util.UUID;
+import java.util.stream.Collectors;
 import org.apache.commons.validator.GenericValidator;
 import org.openelisglobal.address.service.OrganizationAddressService;
 import org.openelisglobal.address.valueholder.OrganizationAddress;
@@ -51,6 +54,7 @@ import org.openelisglobal.provider.service.ProviderService;
 import org.openelisglobal.requester.service.SampleRequesterService;
 import org.openelisglobal.requester.valueholder.SampleRequester;
 import org.openelisglobal.sample.action.util.SamplePatientUpdateData;
+import org.openelisglobal.sample.bean.SampleTypeAdditionalFieldPayload;
 import org.openelisglobal.sample.form.SamplePatientEntryForm;
 import org.openelisglobal.sample.valueholder.SampleAdditionalField;
 import org.openelisglobal.samplehuman.service.SampleHumanService;
@@ -110,6 +114,8 @@ public class SamplePatientEntryServiceImpl implements SamplePatientEntryService 
     private ImmunohistochemistrySampleService immunohistochemistrySampleService;
     @Autowired
     private ProgramSampleService programSampleService;
+    @Autowired
+    private SampleTypeAdditionalFieldService sampleTypeAdditionalFieldService;
 
     @Transactional
     @Override
@@ -260,11 +266,22 @@ public class SamplePatientEntryServiceImpl implements SamplePatientEntryService 
             }
         }
 
+        Map<String, List<SampleTypeAdditionalFieldPayload>> activeFieldCacheBySampleType = sampleTypeAdditionalFieldService
+                .getActiveFieldsForSampleTypes(updateData.getSampleItemsTests().stream()
+                        .map(sampleTest -> sampleTest.item != null && sampleTest.item.getTypeOfSample() != null
+                                ? sampleTest.item.getTypeOfSample().getId()
+                                : null)
+                        .filter(Objects::nonNull).distinct().collect(Collectors.toList()));
+
         for (SampleTestCollection sampleTestCollection : updateData.getSampleItemsTests()) {
             if (GenericValidator.isBlankOrNull(sampleTestCollection.item.getFhirUuidAsString())) {
                 sampleTestCollection.item.setFhirUuid(UUID.randomUUID());
             }
             String sampleId = sampleItemService.insert(sampleTestCollection.item);
+            sampleTypeAdditionalFieldService.validateAndPersistSampleItemValues(
+                    sampleTestCollection.item.getTypeOfSample().getId(), sampleId,
+                    sampleTestCollection.additionalFieldValues, updateData.getCurrentUserId(),
+                    activeFieldCacheBySampleType);
             SampleItem savedItem = sampleItemService.get(sampleId);
             if (savedItem.isRejected()) {
                 String rejectReasonId = savedItem.getRejectReasonId();
