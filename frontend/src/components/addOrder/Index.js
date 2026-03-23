@@ -27,6 +27,7 @@ export let sampleObject = {
   sampleXML: null,
   panels: [],
   tests: [],
+  additionalFields: [],
   requestReferralEnabled: false,
   referralItems: [],
 };
@@ -644,6 +645,28 @@ const Index = () => {
   }, []);
 
   const attacheSamplesToFormValues = () => {
+    const escapeXmlAttribute = (value) => {
+      if (value === undefined || value === null) {
+        return "";
+      }
+      return String(value)
+        .replace(/&/g, "&amp;")
+        .replace(/'/g, "&apos;")
+        .replace(/"/g, "&quot;")
+        .replace(/</g, "&lt;")
+        .replace(/>/g, "&gt;");
+    };
+
+    const escapeXmlText = (value) => {
+      if (value === undefined || value === null) {
+        return "";
+      }
+      return String(value)
+        .replace(/&/g, "&amp;")
+        .replace(/</g, "&lt;")
+        .replace(/>/g, "&gt;");
+    };
+
     let sampleXmlString = "";
     let referralItems = [];
     if (samples.length > 0) {
@@ -681,7 +704,31 @@ const Index = () => {
             const gpsCaptureMethod =
               sampleItem.sampleXML?.gpsCaptureMethod || "";
 
-            sampleXmlString += `<sample sampleID='${sampleItem.sampleTypeId}' date='${sampleItem.sampleXML.collectionDate}' time='${sampleItem.sampleXML.collectionTime}' collector='${sampleItem.sampleXML.collector}' quantity='${sampleItem.sampleXML.quantity}' uom='${sampleItem.sampleXML.uom}' tests='${tests}' testSectionMap='' testSampleTypeMap='' panels='${panels}' rejected='${sampleItem.sampleXML.rejected}' rejectReasonId='${sampleItem.sampleXML.rejectionReason}' initialConditionIds='' storageLocationId='${storageLocationId}' storageLocationType='${storageLocationType}' storagePositionCoordinate='${storagePositionCoordinate}' gpsLatitude='${gpsLatitude}' gpsLongitude='${gpsLongitude}' gpsAccuracy='${gpsAccuracy}' gpsCaptureMethod='${gpsCaptureMethod}'/>`;
+            const additionalFieldValues =
+              sampleItem.sampleXML?.additionalFieldValues || {};
+            const additionalFieldEntries = Object.entries(additionalFieldValues)
+              .filter(([key, value]) => {
+                return (
+                  key !== undefined &&
+                  key !== null &&
+                  key !== "" &&
+                  value !== undefined &&
+                  value !== null &&
+                  String(value).trim() !== ""
+                );
+              })
+              .map(([key, value]) => {
+                return `<field key='${escapeXmlAttribute(key)}'>${escapeXmlText(
+                  value,
+                )}</field>`;
+              })
+              .join("");
+
+            sampleXmlString += `<sample sampleID='${escapeXmlAttribute(sampleItem.sampleTypeId)}' date='${escapeXmlAttribute(sampleItem.sampleXML.collectionDate)}' time='${escapeXmlAttribute(sampleItem.sampleXML.collectionTime)}' collector='${escapeXmlAttribute(sampleItem.sampleXML.collector)}' quantity='${escapeXmlAttribute(sampleItem.sampleXML.quantity)}' uom='${escapeXmlAttribute(sampleItem.sampleXML.uom)}' tests='${escapeXmlAttribute(tests)}' testSectionMap='' testSampleTypeMap='' panels='${escapeXmlAttribute(panels)}' rejected='${escapeXmlAttribute(sampleItem.sampleXML.rejected)}' rejectReasonId='${escapeXmlAttribute(sampleItem.sampleXML.rejectionReason)}' initialConditionIds='' storageLocationId='${escapeXmlAttribute(storageLocationId)}' storageLocationType='${escapeXmlAttribute(storageLocationType)}' storagePositionCoordinate='${escapeXmlAttribute(storagePositionCoordinate)}' gpsLatitude='${escapeXmlAttribute(gpsLatitude)}' gpsLongitude='${escapeXmlAttribute(gpsLongitude)}' gpsAccuracy='${escapeXmlAttribute(gpsAccuracy)}' gpsCaptureMethod='${escapeXmlAttribute(gpsCaptureMethod)}'>`;
+            if (additionalFieldEntries !== "") {
+              sampleXmlString += `<additionalFields>${additionalFieldEntries}</additionalFields>`;
+            }
+            sampleXmlString += `</sample>`;
           }
           if (sampleItem.referralItems.length > 0) {
             const referredInstitutes = Object.keys(sampleItem.referralItems)
