@@ -36,6 +36,9 @@
         <class>org.openelisglobal.storage.valueholder.StorageBox</class>
         <class>org.openelisglobal.storage.valueholder.SampleStorageAssignment</class>
         <class>org.openelisglobal.storage.valueholder.SampleStorageMovement</class>
+        <class>org.openelisglobal.sample.valueholder.SampleTypeAdditionalFieldDefinition</class>
+        <class>org.openelisglobal.sample.valueholder.SampleTypeAdditionalFieldOption</class>
+        <class>org.openelisglobal.sample.valueholder.SampleItemAdditionalFieldValue</class>
 
         <!-- Alert System entities (003-freezer-monitoring) -->
         <class>org.openelisglobal.alert.valueholder.Alert</class>
