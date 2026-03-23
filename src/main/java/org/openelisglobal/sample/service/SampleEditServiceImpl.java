@@ -3,6 +3,9 @@ package org.openelisglobal.sample.service;
 import jakarta.servlet.http.HttpServletRequest;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.Map;
+import java.util.Objects;
+import java.util.stream.Collectors;
 import org.apache.commons.validator.GenericValidator;
 import org.openelisglobal.analysis.service.AnalysisService;
 import org.openelisglobal.analysis.valueholder.Analysis;
@@ -41,6 +44,7 @@ import org.openelisglobal.result.action.util.ResultsUpdateDataSet;
 import org.openelisglobal.result.service.ResultService;
 import org.openelisglobal.result.valueholder.Result;
 import org.openelisglobal.sample.bean.SampleEditItem;
+import org.openelisglobal.sample.bean.SampleTypeAdditionalFieldPayload;
 import org.openelisglobal.sample.form.SampleEditForm;
 import org.openelisglobal.sample.valueholder.Sample;
 import org.openelisglobal.samplehuman.service.SampleHumanService;
@@ -110,6 +114,8 @@ public class SampleEditServiceImpl implements SampleEditService {
     NoteService noteService;
     @Autowired
     private SampleStorageService sampleStorageService;
+    @Autowired
+    private SampleTypeAdditionalFieldService sampleTypeAdditionalFieldService;
     private List<String> analysisList = new ArrayList<>();
 
     @Transactional
@@ -206,8 +212,18 @@ public class SampleEditServiceImpl implements SampleEditService {
          * observationDAO.insertOrUpdateData(paymentObservation); }
          */
 
+        Map<String, List<SampleTypeAdditionalFieldPayload>> activeFieldCacheBySampleType = sampleTypeAdditionalFieldService
+                .getActiveFieldsForSampleTypes(addedSamples.stream()
+                        .map(sampleTest -> sampleTest.item != null && sampleTest.item.getTypeOfSample() != null
+                                ? sampleTest.item.getTypeOfSample().getId()
+                                : null)
+                        .filter(Objects::nonNull).distinct().collect(Collectors.toList()));
+
         for (SampleTestCollection sampleTestCollection : addedSamples) {
             String sampleId = sampleItemService.insert(sampleTestCollection.item);
+            sampleTypeAdditionalFieldService.validateAndPersistSampleItemValues(
+                    sampleTestCollection.item.getTypeOfSample().getId(), sampleId,
+                    sampleTestCollection.additionalFieldValues, sysUserId, activeFieldCacheBySampleType);
             SampleItem savedItem = sampleItemService.get(sampleId);
             if (savedItem.isRejected()) {
                 String rejectReasonId = savedItem.getRejectReasonId();
