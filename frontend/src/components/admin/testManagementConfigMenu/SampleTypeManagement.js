@@ -105,6 +105,13 @@ function TestSectionManagement() {
                 >
                   <FormattedMessage id="configuration.panel.assign" />
                 </ClickableTile>
+                <br />
+                <ClickableTile
+                  href="/MasterListsPage/SampleTypeAdditionalFields"
+                  id="SampleTypeAdditionalFields"
+                >
+                  <FormattedMessage id="configuration.sampleType.additional.fields" />
+                </ClickableTile>
               </UnorderedList>
             </Column>
           </Grid>
