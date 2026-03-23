@@ -16,6 +16,7 @@ package org.openelisglobal.common.services;
 import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.Iterator;
+import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.StringTokenizer;
@@ -183,6 +184,7 @@ public class SampleAddService {
                 String gpsLongitude = sampleItem.attributeValue("gpsLongitude");
                 String gpsAccuracy = sampleItem.attributeValue("gpsAccuracy");
                 String gpsCaptureMethod = sampleItem.attributeValue("gpsCaptureMethod");
+                Map<String, String> additionalFieldValues = parseAdditionalFieldValues(sampleItem);
 
                 sampleItemsTests
                         .add(new SampleTestCollection(item, tests,
@@ -190,7 +192,7 @@ public class SampleAddService {
                                         : collectionDateTime,
                                 initialConditionList, testIdToUserSectionMap, testIdToSampleTypeMap, sampleNature,
                                 storageLocationId, storageLocationType, storagePositionCoordinate, gpsLatitude,
-                                gpsLongitude, gpsAccuracy, gpsCaptureMethod));
+                                gpsLongitude, gpsAccuracy, gpsCaptureMethod, additionalFieldValues));
             }
         } catch (DocumentException e) {
             LogEvent.logDebug(e);
@@ -286,6 +288,32 @@ public class SampleAddService {
         }
     }
 
+    @SuppressWarnings("rawtypes")
+    private Map<String, String> parseAdditionalFieldValues(Element sampleItem) {
+        Map<String, String> values = new LinkedHashMap<>();
+        Element additionalFields = sampleItem.element("additionalFields");
+        if (additionalFields == null) {
+            return values;
+        }
+
+        for (Iterator i = additionalFields.elementIterator("field"); i.hasNext();) {
+            Element field = (Element) i.next();
+            String key = StringUtils.trimToNull(field.attributeValue("key"));
+            if (key == null) {
+                continue;
+            }
+
+            String value = field.attributeValue("value");
+            if (value == null) {
+                value = field.getText();
+            }
+            if (value != null) {
+                values.put(key, value.trim());
+            }
+        }
+        return values;
+    }
+
     public final class SampleTestCollection {
         public SampleItem item;
 
@@ -308,6 +336,7 @@ public class SampleAddService {
         public String gpsLongitude;
         public String gpsAccuracy;
         public String gpsCaptureMethod;
+        public Map<String, String> additionalFieldValues;
 
         public SampleTestCollection(SampleItem item, List<Test> tests, String collectionDate,
                 List<ObservationHistory> initialConditionList, Map<String, String> testIdToUserSectionMap,
@@ -319,6 +348,7 @@ public class SampleAddService {
             this.testIdToUserSampleTypeMap = testIdToUserSampleTypeMap;
             initialSampleConditionIdList = initialConditionList;
             this.sampleNature = sampleNature;
+            this.additionalFieldValues = new HashMap<>();
         }
 
         public SampleTestCollection(SampleItem item, List<Test> tests, String collectionDate,
@@ -343,6 +373,18 @@ public class SampleAddService {
             this.gpsLongitude = gpsLongitude;
             this.gpsAccuracy = gpsAccuracy;
             this.gpsCaptureMethod = gpsCaptureMethod;
+        }
+
+        public SampleTestCollection(SampleItem item, List<Test> tests, String collectionDate,
+                List<ObservationHistory> initialConditionList, Map<String, String> testIdToUserSectionMap,
+                Map<String, String> testIdToUserSampleTypeMap, ObservationHistory sampleNature,
+                String storageLocationId, String storageLocationType, String storagePositionCoordinate,
+                String gpsLatitude, String gpsLongitude, String gpsAccuracy, String gpsCaptureMethod,
+                Map<String, String> additionalFieldValues) {
+            this(item, tests, collectionDate, initialConditionList, testIdToUserSectionMap, testIdToUserSampleTypeMap,
+                    sampleNature, storageLocationId, storageLocationType, storagePositionCoordinate, gpsLatitude,
+                    gpsLongitude, gpsAccuracy, gpsCaptureMethod);
+            this.additionalFieldValues = additionalFieldValues == null ? new HashMap<>() : additionalFieldValues;
         }
     }
 }
