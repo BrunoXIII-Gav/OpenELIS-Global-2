@@ -4,6 +4,20 @@ import { Add } from "@carbon/react/icons";
 import { getFromOpenElisServer } from "../utils/Utils";
 import SampleType from "./SampleType";
 import { FormattedMessage } from "react-intl";
+
+const buildEmptySample = (index) => ({
+  index,
+  sampleRejected: false,
+  rejectionReason: "",
+  requestReferralEnabled: false,
+  referralItems: [],
+  sampleTypeId: "",
+  sampleXML: null,
+  panels: [],
+  tests: [],
+  additionalFields: [],
+});
+
 const AddSample = (props) => {
   const { samples, setSamples, error } = props;
   const componentMounted = useRef(false);
@@ -11,72 +25,86 @@ const AddSample = (props) => {
   const [rejectSampleReasons, setRejectSampleReasons] = useState([]);
 
   const handleAddNewSample = () => {
-    let updateSamples = [...samples];
-    updateSamples.push({
-      index: updateSamples.length + 1,
-      sampleRejected: false,
-      rejectionReason: "",
-      requestReferralEnabled: false,
-      referralItems: [],
-      sampleTypeId: "",
-      sampleXML: null,
-      panels: [],
-      tests: [],
-      additionalFields: [],
+    setSamples((previous) => {
+      const updateSamples = [
+        ...previous,
+        buildEmptySample(previous.length + 1),
+      ];
+      console.debug(JSON.stringify(updateSamples));
+      return updateSamples;
     });
-    console.debug(JSON.stringify(updateSamples));
-    setSamples(updateSamples);
   };
 
   const sampleTypeObject = (object) => {
-    let newState = [...samples];
-    switch (true) {
-      case Object.prototype.hasOwnProperty.call(object, "sampleTypeId"):
-        newState[object.sampleObjectIndex].sampleTypeId = object.sampleTypeId;
-        break;
-      case Object.prototype.hasOwnProperty.call(object, "sampleRejected"):
-        newState[object.sampleObjectIndex].sampleRejected =
-          object.sampleRejected;
-        break;
-      case Object.prototype.hasOwnProperty.call(object, "rejectionReason"):
-        newState[object.sampleObjectIndex].rejectionReason =
-          object.rejectionReason;
-        break;
-      case Object.prototype.hasOwnProperty.call(object, "selectedTests"):
-        newState[object.sampleObjectIndex].tests = object.selectedTests || [];
-        break;
-      case Object.prototype.hasOwnProperty.call(object, "selectedPanels"):
-        newState[object.sampleObjectIndex].panels = object.selectedPanels || [];
-        break;
-      case Object.prototype.hasOwnProperty.call(object, "sampleXML"):
-        newState[object.sampleObjectIndex].sampleXML = object.sampleXML;
-        break;
-      case Object.prototype.hasOwnProperty.call(
-        object,
-        "requestReferralEnabled",
-      ):
-        newState[object.sampleObjectIndex].requestReferralEnabled =
-          object.requestReferralEnabled;
-        break;
-      case Object.prototype.hasOwnProperty.call(object, "referralItems"):
-        newState[object.sampleObjectIndex].referralItems =
-          object.referralItems || [];
-        break;
-      case Object.prototype.hasOwnProperty.call(object, "additionalFields"):
-        newState[object.sampleObjectIndex].additionalFields =
-          object.additionalFields || [];
-        break;
-      default:
-        console.debug(JSON.stringify(newState));
-        props.setSamples(newState);
+    const sampleIndex = object.sampleObjectIndex;
+    if (sampleIndex === undefined || sampleIndex === null) {
+      return;
     }
-    props.setSamples(newState);
+
+    setSamples((previous) => {
+      const newState = [...previous];
+      const previousSample = newState[sampleIndex];
+      if (!previousSample) {
+        return previous;
+      }
+
+      const updatedSample = { ...previousSample };
+
+      if (Object.prototype.hasOwnProperty.call(object, "sampleTypeId")) {
+        updatedSample.sampleTypeId = object.sampleTypeId;
+      } else if (
+        Object.prototype.hasOwnProperty.call(object, "sampleRejected")
+      ) {
+        updatedSample.sampleRejected = object.sampleRejected;
+      } else if (
+        Object.prototype.hasOwnProperty.call(object, "rejectionReason")
+      ) {
+        updatedSample.rejectionReason = object.rejectionReason;
+      } else if (
+        Object.prototype.hasOwnProperty.call(object, "selectedTests")
+      ) {
+        updatedSample.tests = [...(object.selectedTests || [])];
+      } else if (
+        Object.prototype.hasOwnProperty.call(object, "selectedPanels")
+      ) {
+        updatedSample.panels = [...(object.selectedPanels || [])];
+      } else if (Object.prototype.hasOwnProperty.call(object, "sampleXML")) {
+        updatedSample.sampleXML = object.sampleXML
+          ? {
+              ...object.sampleXML,
+              additionalFieldValues: {
+                ...(object.sampleXML.additionalFieldValues || {}),
+              },
+            }
+          : object.sampleXML;
+      } else if (
+        Object.prototype.hasOwnProperty.call(object, "requestReferralEnabled")
+      ) {
+        updatedSample.requestReferralEnabled = object.requestReferralEnabled;
+      } else if (
+        Object.prototype.hasOwnProperty.call(object, "referralItems")
+      ) {
+        updatedSample.referralItems = [...(object.referralItems || [])];
+      } else if (
+        Object.prototype.hasOwnProperty.call(object, "additionalFields")
+      ) {
+        updatedSample.additionalFields = [...(object.additionalFields || [])];
+      }
+
+      newState[sampleIndex] = updatedSample;
+      console.debug(JSON.stringify(newState));
+      return newState;
+    });
   };
 
   const removeSample = (index) => {
-    let updateSamples = samples.splice(index, 1);
-    console.debug(JSON.stringify(updateSamples));
-    setSamples(updateSamples);
+    setSamples((previous) => {
+      const updateSamples = previous.filter(
+        (_, sampleIndex) => sampleIndex !== index,
+      );
+      console.debug(JSON.stringify(updateSamples));
+      return updateSamples;
+    });
   };
 
   const fetchRejectSampleReasons = (res) => {
