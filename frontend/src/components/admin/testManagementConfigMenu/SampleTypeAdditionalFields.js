@@ -24,6 +24,7 @@ import {
   deleteFromOpenElisServer,
   getFromOpenElisServer,
   postToOpenElisServerJsonResponse,
+  putToOpenElisServer,
 } from "../../utils/Utils";
 import { FormattedMessage, useIntl } from "react-intl";
 import PageBreadCrumb from "../../common/PageBreadCrumb";
@@ -77,8 +78,7 @@ const SampleTypeAdditionalFields = () => {
   const [fields, setFields] = useState([]);
   const [formState, setFormState] = useState(initialFormState);
   const fromSampleEntryConfig =
-    new URLSearchParams(location.search).get("source") ===
-    "sampleEntryConfig";
+    new URLSearchParams(location.search).get("source") === "sampleEntryConfig";
   const breadcrumbs = buildBreadcrumbs(fromSampleEntryConfig);
 
   const optionsRequired = OPTION_BASED_TYPES.has(formState.fieldType);
@@ -237,6 +237,69 @@ const SampleTypeAdditionalFields = () => {
     );
   };
 
+  const reactivateFieldOptions = (options, onComplete) => {
+    const inactiveOptions = (Array.isArray(options) ? options : []).filter(
+      (option) => option?.id && !option.active,
+    );
+
+    if (inactiveOptions.length === 0) {
+      onComplete(true);
+      return;
+    }
+
+    let processed = 0;
+    let allSucceeded = true;
+
+    inactiveOptions.forEach((option) => {
+      putToOpenElisServer(
+        `/rest/sample-type-additional-fields/options/${option.id}`,
+        JSON.stringify({ active: true }),
+        (status) => {
+          if (!(status >= 200 && status < 300)) {
+            allSucceeded = false;
+          }
+
+          processed += 1;
+          if (processed === inactiveOptions.length) {
+            onComplete(allSucceeded);
+          }
+        },
+      );
+    });
+  };
+
+  const handleReactivateField = (field) => {
+    putToOpenElisServer(
+      `/rest/sample-type-additional-fields/${field.id}`,
+      JSON.stringify({ active: true }),
+      (status) => {
+        if (!(status >= 200 && status < 300)) {
+          showNotification(
+            NotificationKinds.error,
+            intl.formatMessage({ id: "error.save.msg" }),
+          );
+          return;
+        }
+
+        reactivateFieldOptions(field.options, (optionsReactivated) => {
+          if (!optionsReactivated) {
+            showNotification(
+              NotificationKinds.error,
+              intl.formatMessage({ id: "error.save.msg" }),
+            );
+            return;
+          }
+
+          showNotification(
+            NotificationKinds.success,
+            intl.formatMessage({ id: "catalog.item.activate.success" }),
+          );
+          fetchFields(selectedSampleTypeId);
+        });
+      },
+    );
+  };
+
   useEffect(() => {
     componentMounted.current = true;
     getFromOpenElisServer(
@@ -298,11 +361,11 @@ const SampleTypeAdditionalFields = () => {
                   />
                   {(Array.isArray(sampleTypes) ? sampleTypes : []).map(
                     (sampleType, index) => (
-                    <SelectItem
-                      key={`sample_type_option_${index}`}
-                      value={sampleType.id}
-                      text={sampleType.value}
-                    />
+                      <SelectItem
+                        key={`sample_type_option_${index}`}
+                        value={sampleType.id}
+                        text={sampleType.value}
+                      />
                     ),
                   )}
                 </Select>
@@ -564,7 +627,13 @@ const SampleTypeAdditionalFields = () => {
                                   <FormattedMessage id="label.disable" />
                                 </Button>
                               ) : (
-                                ""
+                                <Button
+                                  kind="tertiary"
+                                  size="sm"
+                                  onClick={() => handleReactivateField(field)}
+                                >
+                                  <FormattedMessage id="button.activate" />
+                                </Button>
                               )}
                             </TableCell>
                           </TableRow>
