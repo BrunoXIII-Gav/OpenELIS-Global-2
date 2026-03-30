@@ -119,6 +119,9 @@ export const SampleOrderFormValues = {
   rejectReasonList: null,
 };
 
+export const createSampleOrderFormValues = () =>
+  JSON.parse(JSON.stringify(SampleOrderFormValues));
+
 export const ReferralItem = {
   referralId: null,
   accessionNumber: null,
