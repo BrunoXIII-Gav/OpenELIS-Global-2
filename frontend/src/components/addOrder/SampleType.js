@@ -40,14 +40,16 @@ const SampleType = (props) => {
 
   const [sampleTypes, setSampleTypes] = useState([]);
   const [selectedSampleType, setSelectedSampleType] = useState({
-    id: null,
+    id: sample?.sampleTypeId || null,
     name: "",
     element_index: 0,
   });
   const [sampleTypeTests, setSampleTypeTests] = useState(
     sampleTypeTestsStructure,
   );
-  const [selectedTests, setSelectedTests] = useState([]);
+  const [selectedTests, setSelectedTests] = useState([
+    ...(sample?.tests || []),
+  ]);
   const [searchBoxTests, setSearchBoxTests] = useState([]);
   const [requestTestReferral, setRequestTestReferral] = useState(false);
   const [referralReasons, setReferralReasons] = useState([]);
@@ -58,7 +60,9 @@ const SampleType = (props) => {
     useContext(NotificationContext);
   const [rejectionReasonsDisabled, setRejectionReasonsDisabled] =
     useState(true);
-  const [selectedPanels, setSelectedPanels] = useState([]);
+  const [selectedPanels, setSelectedPanels] = useState([
+    ...(sample?.panels || []),
+  ]);
   const [panelSearchTerm, setPanelSearchTerm] = useState("");
   const [searchBoxPanels, setSearchBoxPanels] = useState([]);
   const [uomList, setUomList] = useState([]);
@@ -285,20 +289,14 @@ const SampleType = (props) => {
   };
 
   const removedTestFromSelectedTests = (test) => {
-    let index = 0;
-    for (let i in selectedTests) {
-      if (selectedTests[i].id === test.id) {
-        const newTests = selectedTests;
-        newTests.splice(index, 1);
-        setSelectedTests([...newTests]);
-        break;
-      }
-      index++;
-    }
+    setSelectedTests((previous) =>
+      previous.filter((selectedTest) => selectedTest.id !== test.id),
+    );
   };
 
   const handleFetchSampleTypeTests = (e, index) => {
     setSelectedTests([]);
+    setSelectedPanels([]);
     setReferralRequests([]);
     const { value } = e.target;
     const selectedSampleTypeOption =
@@ -390,17 +388,10 @@ const SampleType = (props) => {
   }
 
   const removedPanelFromSelectedPanels = (panel) => {
-    let index = 0;
-    for (let i in selectedPanels) {
-      if (selectedPanels[i].id === panel.id) {
-        triggerPanelCheckBoxChange(false, selectedPanels[i].testIds);
-        const newPanels = selectedPanels;
-        newPanels.splice(index, 1);
-        setSelectedPanels([...newPanels]);
-        break;
-      }
-      index++;
-    }
+    triggerPanelCheckBoxChange(false, panel.testIds);
+    setSelectedPanels((previous) =>
+      previous.filter((selectedPanel) => selectedPanel.id !== panel.id),
+    );
   };
 
   const handlePanelSearchChange = (event) => {
@@ -518,30 +509,20 @@ const SampleType = (props) => {
 
   useEffect(() => {
     props.sampleTypeObject({
-      selectedTests: selectedTests,
+      selectedTests: [...selectedTests],
       sampleObjectIndex: index,
     });
   }, [selectedTests]);
 
   useEffect(() => {
     props.sampleTypeObject({
-      selectedPanels: selectedPanels,
+      selectedPanels: [...selectedPanels],
       sampleObjectIndex: index,
     });
     for (let i in selectedPanels) {
       triggerPanelCheckBoxChange(true, selectedPanels[i].testIds);
     }
   }, [selectedPanels, sampleTypeTests]);
-
-  const repopulateUI = () => {
-    if (props.sample !== null) {
-      setSelectedTests(props.sample.tests);
-      setSelectedPanels(props.sample.panels);
-      setSelectedSampleType({
-        id: props.sample.sampleTypeId,
-      });
-    }
-  };
 
   useEffect(() => {
     componentMounted.current = true;
@@ -553,7 +534,6 @@ const SampleType = (props) => {
       "/rest/referral-organizations",
       displayReferralOrgOptions,
     );
-    repopulateUI();
     getFromOpenElisServer("/rest/user-sample-types", fetchSamplesTypes);
     return () => {
       componentMounted.current = false;
