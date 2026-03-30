@@ -1,8 +1,8 @@
 import React, { useEffect } from "react";
 import { Button, Row } from "@carbon/react";
 import config from "../../config.json";
-import { SampleOrderFormValues } from "../formModel/innitialValues/OrderEntryFormValues";
-import { sampleObject } from "./Index";
+import { createSampleOrderFormValues } from "../formModel/innitialValues/OrderEntryFormValues";
+import { createSampleObject } from "./Index";
 import { FormattedMessage } from "react-intl";
 
 const OrderSuccessMessage = (props) => {
@@ -27,13 +27,12 @@ const OrderSuccessMessage = (props) => {
     const providerFax = orderFormValues.sampleOrderItems.providerFax;
     const providerEmail = orderFormValues.sampleOrderItems.providerEmail;
 
-    setOrderFormValues(SampleOrderFormValues);
-
+    const emptyOrderForm = createSampleOrderFormValues();
     setOrderFormValues({
-      ...SampleOrderFormValues,
+      ...emptyOrderForm,
       rememberSiteAndRequester: true,
       sampleOrderItems: {
-        ...SampleOrderFormValues.sampleOrderItems,
+        ...emptyOrderForm.sampleOrderItems,
         referringSiteId: siteId,
         referringSiteName: siteName,
         providerId: providerId,
@@ -49,9 +48,9 @@ const OrderSuccessMessage = (props) => {
 
   useEffect(() => {
     if (!orderFormValues.rememberSiteAndRequester) {
-      setOrderFormValues(SampleOrderFormValues);
+      setOrderFormValues(createSampleOrderFormValues());
     }
-    setSamples([sampleObject]);
+    setSamples([createSampleObject()]);
   }, []);
 
   return (

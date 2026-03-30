@@ -4,7 +4,9 @@ import PatientInfo from "./PatientInfo";
 import AddSample from "./AddSample";
 import AddOrder from "./AddOrder";
 import "./add-order.scss";
-import { SampleOrderFormValues } from "../formModel/innitialValues/OrderEntryFormValues";
+import {
+  createSampleOrderFormValues,
+} from "../formModel/innitialValues/OrderEntryFormValues";
 import { NotificationContext, ConfigurationContext } from "../layout/Layout";
 import { AlertDialog, NotificationKinds } from "../common/CustomNotification";
 import { getFromOpenElisServer, postToOpenElisServer } from "../utils/Utils";
@@ -19,7 +21,7 @@ let breadcrumbs = [
   { label: "sidenav.label.addorder", link: "/SamplePatientEntry" },
 ];
 
-export let sampleObject = {
+export const createSampleObject = () => ({
   index: 0,
   sampleRejected: false,
   rejectionReason: "",
@@ -30,7 +32,8 @@ export let sampleObject = {
   additionalFields: [],
   requestReferralEnabled: false,
   referralItems: [],
-};
+});
+export const sampleObject = createSampleObject();
 const Index = () => {
   const intl = useIntl();
 
@@ -47,8 +50,10 @@ const Index = () => {
     "sampleOrderItems.labNo": false,
   });
   const [page, setPage] = useState(firstPageNumber);
-  const [orderFormValues, setOrderFormValues] = useState(SampleOrderFormValues);
-  const [samples, setSamples] = useState([sampleObject]);
+  const [orderFormValues, setOrderFormValues] = useState(
+    createSampleOrderFormValues,
+  );
+  const [samples, setSamples] = useState(() => [createSampleObject()]);
   const [errors, setErrors] = useState([]);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [phoneValidation, setPhoneValidation] = useState({
@@ -74,13 +79,13 @@ const Index = () => {
       const externalId = urlParams.get("ID");
       checkOrderReferral(externalId);
     } else {
-      setOrderFormValues({
-        ...orderFormValues,
+      setOrderFormValues((previous) => ({
+        ...previous,
         sampleOrderItems: {
-          ...orderFormValues.sampleOrderItems,
+          ...previous.sampleOrderItems,
           externalOrderNumber: "",
         },
-      });
+      }));
     }
   }, [configurationProperties.ACCEPT_EXTERNAL_ORDERS]);
 
@@ -582,31 +587,33 @@ const Index = () => {
       return;
     }
     setIsSubmitting(true);
-    if ("years" in orderFormValues.patientProperties) {
-      delete orderFormValues.patientProperties.years;
+    const payload = JSON.parse(JSON.stringify(orderFormValues));
+
+    if ("years" in payload.patientProperties) {
+      delete payload.patientProperties.years;
     }
-    if ("months" in orderFormValues.patientProperties) {
-      delete orderFormValues.patientProperties.months;
+    if ("months" in payload.patientProperties) {
+      delete payload.patientProperties.months;
     }
-    if ("days" in orderFormValues.patientProperties) {
-      delete orderFormValues.patientProperties.days;
+    if ("days" in payload.patientProperties) {
+      delete payload.patientProperties.days;
     }
-    if ("questionnaire" in orderFormValues.sampleOrderItems) {
-      delete orderFormValues.sampleOrderItems.questionnaire;
+    if ("questionnaire" in payload.sampleOrderItems) {
+      delete payload.sampleOrderItems.questionnaire;
     }
     //remove display Lists rom the form
-    orderFormValues.sampleOrderItems.priorityList = [];
-    orderFormValues.sampleOrderItems.programList = [];
-    orderFormValues.sampleOrderItems.referringSiteList = [];
-    orderFormValues.initialSampleConditionList = [];
-    orderFormValues.testSectionList = [];
-    orderFormValues.sampleOrderItems.providersList = [];
-    orderFormValues.sampleOrderItems.paymentOptions = [];
-    orderFormValues.sampleOrderItems.testLocationCodeList = [];
-    console.log(JSON.stringify(orderFormValues));
+    payload.sampleOrderItems.priorityList = [];
+    payload.sampleOrderItems.programList = [];
+    payload.sampleOrderItems.referringSiteList = [];
+    payload.initialSampleConditionList = [];
+    payload.testSectionList = [];
+    payload.sampleOrderItems.providersList = [];
+    payload.sampleOrderItems.paymentOptions = [];
+    payload.sampleOrderItems.testLocationCodeList = [];
+    console.log(JSON.stringify(payload));
     postToOpenElisServer(
       "/rest/SamplePatientEntry",
-      JSON.stringify(orderFormValues),
+      JSON.stringify(payload),
       handlePost,
     );
   };
@@ -634,14 +641,13 @@ const Index = () => {
     const labNumber = new URLSearchParams(window.location.search).get(
       "labNumber",
     );
-    const newOrderFormValues = {
-      ...orderFormValues,
+    setOrderFormValues((previous) => ({
+      ...previous,
       sampleOrderItems: {
-        ...orderFormValues.sampleOrderItems,
+        ...previous.sampleOrderItems,
         labNo: labNumber ? labNumber : "",
       },
-    };
-    setOrderFormValues(newOrderFormValues);
+    }));
   }, []);
 
   const attacheSamplesToFormValues = () => {
