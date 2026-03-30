@@ -212,6 +212,25 @@ public class SampleEditRestController extends BaseSampleEntryController {
         return ResponseEntity.ok(patient);
     }
 
+    @GetMapping(value = "patient-orders", produces = MediaType.APPLICATION_JSON_VALUE)
+    @ResponseBody
+    public List<PatientOrderSummary> getPatientOrders(@RequestParam(required = false) String patientId) {
+        if (GenericValidator.isBlankOrNull(patientId)) {
+            return Collections.emptyList();
+        }
+
+        List<Sample> samples = sampleService.getSamplesForPatient(patientId);
+        if (samples == null || samples.isEmpty()) {
+            return Collections.emptyList();
+        }
+
+        return samples.stream().filter(sample -> !GenericValidator.isBlankOrNull(sample.getAccessionNumber()))
+                .sorted((sample1, sample2) -> Integer.compare(parseSampleId(sample2.getId()), parseSampleId(sample1.getId())))
+                .map(sample -> new PatientOrderSummary(sample.getId(), sample.getAccessionNumber(),
+                        sample.getEnteredDateForDisplay(), sample.getReceivedDateForDisplay()))
+                .toList();
+    }
+
     @PostMapping(value = "SampleEdit", produces = MediaType.APPLICATION_JSON_VALUE)
     @ResponseBody
     public void saveSampleEdit(HttpServletRequest request,
@@ -294,6 +313,14 @@ public class SampleEditRestController extends BaseSampleEntryController {
             }
         }
         return accessionNumber;
+    }
+
+    private int parseSampleId(String sampleId) {
+        try {
+            return Integer.parseInt(sampleId);
+        } catch (NumberFormatException e) {
+            return 0;
+        }
     }
 
     private Sample getSample(String accessionNumber) {
@@ -476,6 +503,56 @@ public class SampleEditRestController extends BaseSampleEntryController {
             } catch (NumberFormatException e) {
                 return o1.getTestName().compareTo(o2.getTestName());
             }
+        }
+    }
+
+    public static class PatientOrderSummary {
+        private String sampleId;
+        private String accessionNumber;
+        private String enteredDateForDisplay;
+        private String receivedDateForDisplay;
+
+        public PatientOrderSummary() {
+        }
+
+        public PatientOrderSummary(String sampleId, String accessionNumber, String enteredDateForDisplay,
+                String receivedDateForDisplay) {
+            this.sampleId = sampleId;
+            this.accessionNumber = accessionNumber;
+            this.enteredDateForDisplay = enteredDateForDisplay;
+            this.receivedDateForDisplay = receivedDateForDisplay;
+        }
+
+        public String getSampleId() {
+            return sampleId;
+        }
+
+        public void setSampleId(String sampleId) {
+            this.sampleId = sampleId;
+        }
+
+        public String getAccessionNumber() {
+            return accessionNumber;
+        }
+
+        public void setAccessionNumber(String accessionNumber) {
+            this.accessionNumber = accessionNumber;
+        }
+
+        public String getEnteredDateForDisplay() {
+            return enteredDateForDisplay;
+        }
+
+        public void setEnteredDateForDisplay(String enteredDateForDisplay) {
+            this.enteredDateForDisplay = enteredDateForDisplay;
+        }
+
+        public String getReceivedDateForDisplay() {
+            return receivedDateForDisplay;
+        }
+
+        public void setReceivedDateForDisplay(String receivedDateForDisplay) {
+            this.receivedDateForDisplay = receivedDateForDisplay;
         }
     }
 }
