@@ -143,7 +143,7 @@ public class TestAddController extends BaseController {
         Localization reportingNameLocalization = createReportingNameLocalization(testAddParams);
 
         try {
-            testAddService.addTests(testSets, nameLocalization, reportingNameLocalization, currentUserId);
+            testAddService.addTests(testSets, nameLocalization, reportingNameLocalization, List.of(), currentUserId);
         } catch (HibernateException e) {
             LogEvent.logDebug(e);
         }
@@ -316,6 +316,9 @@ public class TestAddController extends BaseController {
             TestAddParams testAddParams) {
         TypeOfTestResultServiceImpl.ResultType type = SpringContext.getBean(TypeOfTestResultService.class)
                 .getResultTypeById(testAddParams.resultTypeId);
+        if (type == null) {
+            throw new IllegalArgumentException("Invalid result type id: " + testAddParams.resultTypeId);
+        }
 
         if (TypeOfTestResultServiceImpl.ResultType.isTextOnlyVariant(type)
                 || TypeOfTestResultServiceImpl.ResultType.isNumeric(type)) {
@@ -326,6 +329,10 @@ public class TestAddController extends BaseController {
             testResult.setSignificantDigits(significantDigits);
             testResults.add(testResult);
         } else if (TypeOfTestResultServiceImpl.ResultType.isDictionaryVariant(type.getCharacterValue())) {
+            if (testAddParams.dictionaryParamList == null || testAddParams.dictionaryParamList.isEmpty()) {
+                throw new IllegalArgumentException(
+                        "Dictionary result type requires at least one dictionary value.");
+            }
             int sortOrder = 10;
             for (DictionaryParams params : testAddParams.dictionaryParamList) {
                 TestResult testResult = new TestResult();
