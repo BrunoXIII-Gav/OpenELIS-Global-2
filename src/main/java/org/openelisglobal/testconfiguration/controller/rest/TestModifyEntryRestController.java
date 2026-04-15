@@ -37,6 +37,9 @@ import org.openelisglobal.test.service.TestSectionService;
 import org.openelisglobal.test.service.TestService;
 import org.openelisglobal.test.valueholder.Test;
 import org.openelisglobal.test.valueholder.TestSection;
+import org.openelisglobal.testadditionalfield.bean.TestAdditionalFieldOptionPayload;
+import org.openelisglobal.testadditionalfield.bean.TestAdditionalFieldPayload;
+import org.openelisglobal.testadditionalfield.service.TestAdditionalFieldService;
 import org.openelisglobal.testconfiguration.beans.ResultLimitBean;
 import org.openelisglobal.testconfiguration.beans.TestCatalogBean;
 import org.openelisglobal.testconfiguration.controller.TestModifyEntryController;
@@ -51,6 +54,7 @@ import org.openelisglobal.testconfiguration.validator.TestModifyEntryFormValidat
 import org.openelisglobal.testresult.service.TestResultService;
 import org.openelisglobal.testresult.valueholder.TestResult;
 import org.openelisglobal.typeofsample.service.TypeOfSampleService;
+import org.openelisglobal.typeofsample.service.TypeOfSampleTestService;
 import org.openelisglobal.typeofsample.valueholder.TypeOfSample;
 import org.openelisglobal.typeofsample.valueholder.TypeOfSampleTest;
 import org.openelisglobal.typeoftestresult.service.TypeOfTestResultService;
@@ -67,6 +71,8 @@ import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
+import org.springframework.web.server.ResponseStatusException;
+import org.springframework.http.HttpStatus;
 
 @RestController
 @RequestMapping("/rest")
@@ -83,9 +89,13 @@ public class TestModifyEntryRestController extends BaseController {
     @Autowired
     private TypeOfSampleService typeOfSampleService;
     @Autowired
+    private TypeOfSampleTestService typeOfSampleTestService;
+    @Autowired
     private TestService testService;
     @Autowired
     private TestResultService testResultService;
+    @Autowired
+    private ResultLimitService resultLimitService;
     @Autowired
     private UnitOfMeasureService unitOfMeasureService;
     @Autowired
@@ -96,6 +106,8 @@ public class TestModifyEntryRestController extends BaseController {
     private TestSectionService testSectionService;
     @Autowired
     private TestModifyEntryController testModifyEntryController;
+    @Autowired
+    private TestAdditionalFieldService testAdditionalFieldService;
 
     @InitBinder
     public void initBinder(WebDataBinder binder) {
@@ -173,9 +185,11 @@ public class TestModifyEntryRestController extends BaseController {
 
             bean.setTestUnit(testService.getTestSectionName(test));
             bean.setPanel(createPanelList(testService, test));
+            bean.setPanelIds(createPanelIds(testService, test));
             bean.setResultType(resultType);
             TypeOfSample typeOfSample = testService.getTypeOfSample(test);
             bean.setSampleType(typeOfSample != null ? typeOfSample.getLocalizedName() : "n/a");
+            bean.setSampleTypeId(typeOfSample != null ? typeOfSample.getId() : null);
             Boolean orderable = test.getOrderable();
             bean.setOrderable(orderable != null && orderable ? "Orderable" : "Not orderable");
             Boolean notifyResults = test.isNotifyResults();
@@ -186,6 +200,7 @@ public class TestModifyEntryRestController extends BaseController {
             bean.setLoinc(test.getLoinc());
             bean.setActive(test.isActive() ? "Active" : "Not active");
             bean.setUom(testService.getUOM(test, false));
+            bean.setAdditionalFields(testAdditionalFieldService.getFieldsForTest(test.getId(), false));
             if (TypeOfTestResultServiceImpl.ResultType.NUMERIC.matches(resultType)
                     && testResultService.getAllActiveTestResultsPerTest(test).size() != 0) {
                 bean.setSignificantDigits(
@@ -379,6 +394,17 @@ public class TestModifyEntryRestController extends BaseController {
         return panelString;
     }
 
+    private List<String> createPanelIds(TestService testService, Test test) {
+        List<String> panelIds = new ArrayList<>();
+        List<Panel> panelList = testService.getPanels(test);
+        for (Panel panel : panelList) {
+            if (panel != null && panel.getId() != null) {
+                panelIds.add(panel.getId());
+            }
+        }
+        return panelIds;
+    }
+
     private List<List<IdValuePair>> createGroupedDictionaryList() {
         List<TestResult> testResults = getSortedTestResults();
 
@@ -460,11 +486,7 @@ public class TestModifyEntryRestController extends BaseController {
             @RequestBody @Valid TestModifyEntryForm form, BindingResult result) {
         formValidator.validate(form, result);
         if (result.hasErrors()) {
-            // saveErrors(result);
-            setupDisplayItems(form);
-            // return findForward(FWD_FAIL_INSERT, form);
-            // return form;
-
+            throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "Validation failed for test modification");
         }
         String currentUserId = getSysUserId(request);
         String changeList = form.getJsonWad();
@@ -478,33 +500,38 @@ public class TestModifyEntryRestController extends BaseController {
         }
 
         TestAddParams testAddParams = extractTestAddParms(obj, parser);
+        if (StringUtils.isBlank(testAddParams.testId)) {
+            throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "Missing testId in TestModifyEntry payload");
+        }
 
         Localization nameLocalization = createNameLocalization(testAddParams);
         Localization reportingNameLocalization = createReportingNameLocalization(testAddParams);
 
-        List<TestSet> testSets = createTestSets(testAddParams);
+        List<TestSet> testSets;
+        try {
+            testSets = createTestSets(testAddParams);
+        } catch (Exception e) {
+            LogEvent.logError(e);
+            throw new ResponseStatusException(HttpStatus.BAD_REQUEST,
+                    StringUtils.defaultIfBlank(e.getMessage(), "Invalid TestModifyEntry payload"), e);
+        }
 
         try {
             testModifyService.updateTestSets(testSets, testAddParams, nameLocalization, reportingNameLocalization,
                     currentUserId);
         } catch (HibernateException e) {
             LogEvent.logError(e);
-            result.reject("error.hibernate.exception");
-            setupDisplayItems(form);
-            // return findForward(FWD_FAIL_INSERT, form);
-            return form;
+            throw new ResponseStatusException(HttpStatus.INTERNAL_SERVER_ERROR, "Database error while modifying test",
+                    e);
         } catch (Exception e) {
             LogEvent.logError(e);
-            result.reject("error.exception");
-            setupDisplayItems(form);
-            // return findForward(FWD_FAIL_INSERT, form);
-            return form;
+            throw new ResponseStatusException(HttpStatus.BAD_REQUEST,
+                    StringUtils.defaultIfBlank(e.getMessage(), "Error while modifying test"), e);
         }
 
         testService.refreshTestNames();
         SpringContext.getBean(TypeOfSampleService.class).clearCache();
 
-        // return findForward(FWD_SUCCESS_INSERT, form);
         return form;
     }
 
@@ -520,6 +547,9 @@ public class TestModifyEntryRestController extends BaseController {
             TestAddParams testAddParams) {
         TypeOfTestResultServiceImpl.ResultType type = SpringContext.getBean(TypeOfTestResultService.class)
                 .getResultTypeById(testAddParams.resultTypeId);
+        if (type == null) {
+            throw new IllegalArgumentException("Invalid result type id: " + testAddParams.resultTypeId);
+        }
 
         if (TypeOfTestResultServiceImpl.ResultType.isTextOnlyVariant(type)
                 || TypeOfTestResultServiceImpl.ResultType.isNumeric(type)) {
@@ -530,6 +560,10 @@ public class TestModifyEntryRestController extends BaseController {
             testResult.setSignificantDigits(significantDigits);
             testResults.add(testResult);
         } else if (TypeOfTestResultServiceImpl.ResultType.isDictionaryVariant(type.getCharacterValue())) {
+            if (testAddParams.dictionaryParamList == null || testAddParams.dictionaryParamList.isEmpty()) {
+                throw new IllegalArgumentException(
+                        "Dictionary result type requires at least one dictionary value.");
+            }
             int sortOrder = 10;
             for (DictionaryParams params : testAddParams.dictionaryParamList) {
                 TestResult testResult = new TestResult();
@@ -688,23 +722,27 @@ public class TestModifyEntryRestController extends BaseController {
         TestAddParams testAddParams = testModifyEntryController.new TestAddParams();
         try {
 
-            testAddParams.testId = (String) obj.get("testId");
-            testAddParams.testNameEnglish = (String) obj.get("testNameEnglish");
-            testAddParams.testNameFrench = (String) obj.get("testNameFrench");
-            testAddParams.testReportNameEnglish = (String) obj.get("testReportNameEnglish");
-            testAddParams.testReportNameFrench = (String) obj.get("testReportNameFrench");
-            testAddParams.testSectionId = (String) obj.get("testSection");
-            testAddParams.dictionaryReferenceId = (String) obj.get("dictionaryReference");
+            testAddParams.testId = asString(obj.get("testId"));
+            if (StringUtils.isBlank(testAddParams.testId)) {
+                testAddParams.testId = asString(obj.get("id"));
+            }
+            testAddParams.testNameEnglish = asString(obj.get("testNameEnglish"));
+            testAddParams.testNameFrench = asString(obj.get("testNameFrench"));
+            testAddParams.testReportNameEnglish = asString(obj.get("testReportNameEnglish"));
+            testAddParams.testReportNameFrench = asString(obj.get("testReportNameFrench"));
+            testAddParams.testSectionId = asString(obj.get("testSection"));
+            testAddParams.dictionaryReferenceId = asString(obj.get("dictionaryReference"));
             extractPanels(obj, parser, testAddParams);
-            testAddParams.uomId = (String) obj.get("uom");
-            testAddParams.loinc = (String) obj.get("loinc");
-            testAddParams.resultTypeId = (String) obj.get("resultType");
+            testAddParams.uomId = asString(obj.get("uom"));
+            testAddParams.loinc = asString(obj.get("loinc"));
+            testAddParams.resultTypeId = asString(obj.get("resultType"));
             extractSampleTypes(obj, parser, testAddParams);
-            testAddParams.active = (String) obj.get("active");
-            testAddParams.orderable = (String) obj.get("orderable");
-            testAddParams.notifyResults = (String) obj.get("notifyResults");
-            testAddParams.inLabOnly = (String) obj.get("inLabOnly");
-            testAddParams.antimicrobialResistance = (String) obj.get("antimicrobialResistance");
+            extractAdditionalFields(obj, testAddParams);
+            testAddParams.active = asString(obj.get("active"));
+            testAddParams.orderable = asString(obj.get("orderable"));
+            testAddParams.notifyResults = asString(obj.get("notifyResults"));
+            testAddParams.inLabOnly = asString(obj.get("inLabOnly"));
+            testAddParams.antimicrobialResistance = asString(obj.get("antimicrobialResistance"));
             if (TypeOfTestResultServiceImpl.ResultType.isNumericById(testAddParams.resultTypeId)) {
                 testAddParams.lowValid = obj.get("lowValid").toString();
                 testAddParams.highValid = obj.get("highValid").toString();
@@ -715,14 +753,7 @@ public class TestModifyEntryRestController extends BaseController {
                 testAddParams.significantDigits = obj.get("significantDigits").toString();
                 extractLimits(obj, parser, testAddParams);
             } else if (TypeOfTestResultServiceImpl.ResultType.isDictionaryVarientById(testAddParams.resultTypeId)) {
-                JSONArray dictionaryArray = (JSONArray) obj.get("dictionary");
-                for (int i = 0; i < dictionaryArray.size(); i++) {
-                    DictionaryParams params = testModifyEntryController.new DictionaryParams();
-                    params.dictionaryId = (String) ((JSONObject) dictionaryArray.get(i)).get("id");
-                    params.isQuantifiable = "Y".equals(((JSONObject) dictionaryArray.get(i)).get("qualified"));
-                    params.isDefault = params.dictionaryId.equals(obj.get("defaultTestResult"));
-                    testAddParams.dictionaryParamList.add(params);
-                }
+                populateDictionaryParams(obj, testAddParams);
             }
 
         } catch (ParseException e) {
@@ -730,6 +761,59 @@ public class TestModifyEntryRestController extends BaseController {
         }
 
         return testAddParams;
+    }
+
+    private void populateDictionaryParams(JSONObject obj, TestAddParams testAddParams) {
+        String defaultTestResult = asString(obj.get("defaultTestResult"));
+        Object rawDictionary = obj.get("dictionary");
+
+        if (rawDictionary instanceof JSONArray dictionaryArray && !dictionaryArray.isEmpty()) {
+            for (Object dictionaryItem : dictionaryArray) {
+                if (!(dictionaryItem instanceof JSONObject)) {
+                    continue;
+                }
+                JSONObject dictionaryObject = (JSONObject) dictionaryItem;
+                String dictionaryId = asString(dictionaryObject.get("id"));
+                if (StringUtils.isBlank(dictionaryId)) {
+                    continue;
+                }
+                DictionaryParams params = testModifyEntryController.new DictionaryParams();
+                params.dictionaryId = dictionaryId;
+                params.isQuantifiable = "Y".equals(asString(dictionaryObject.get("qualified")));
+                params.isDefault = StringUtils.equals(dictionaryId, defaultTestResult);
+                testAddParams.dictionaryParamList.add(params);
+            }
+        }
+
+        if (!testAddParams.dictionaryParamList.isEmpty()) {
+            return;
+        }
+
+        // Defensive fallback for modify flow: preserve existing dictionary setup
+        // if the client payload omitted dictionary values.
+        List<TestResult> existingResults = testResultService.getActiveTestResultsByTest(testAddParams.testId);
+        for (TestResult existingResult : existingResults) {
+            if (!TypeOfTestResultServiceImpl.ResultType.isDictionaryVariant(existingResult.getTestResultType())) {
+                continue;
+            }
+            DictionaryParams params = testModifyEntryController.new DictionaryParams();
+            params.dictionaryId = existingResult.getValue();
+            params.isQuantifiable = existingResult.getIsQuantifiable();
+            params.isDefault = existingResult.getDefault();
+            testAddParams.dictionaryParamList.add(params);
+        }
+
+        if (StringUtils.isNotBlank(testAddParams.dictionaryReferenceId) && !"0".equals(testAddParams.dictionaryReferenceId)) {
+            return;
+        }
+
+        List<ResultLimit> existingLimits = resultLimitService.getAllResultLimitsForTest(testAddParams.testId);
+        if (!existingLimits.isEmpty()) {
+            String existingDictionaryNormalId = existingLimits.get(0).getDictionaryNormalId();
+            if (StringUtils.isNotBlank(existingDictionaryNormalId)) {
+                testAddParams.dictionaryReferenceId = existingDictionaryNormalId;
+            }
+        }
     }
 
     private void extractLimits(JSONObject obj, JSONParser parser, TestAddParams testAddParams) throws ParseException {
@@ -773,27 +857,160 @@ public class TestModifyEntryRestController extends BaseController {
     }
 
     private void extractPanels(JSONObject obj, JSONParser parser, TestAddParams testAddParams) throws ParseException {
-        JSONArray panelArray = (JSONArray) obj.get("panels");
+        Object rawPanels = obj.get("panels");
+        if (!(rawPanels instanceof JSONArray panelArray)) {
+            return;
+        }
 
         for (int i = 0; i < panelArray.size(); i++) {
-            testAddParams.panelList.add((String) (((JSONObject) panelArray.get(i)).get("id")));
+            if (!(panelArray.get(i) instanceof JSONObject)) {
+                continue;
+            }
+            String panelId = asString(((JSONObject) panelArray.get(i)).get("id"));
+            if (StringUtils.isNotBlank(panelId)) {
+                testAddParams.panelList.add(panelId);
+            }
         }
     }
 
     private void extractSampleTypes(JSONObject obj, JSONParser parser, TestAddParams testAddParams)
             throws ParseException {
-        JSONArray sampleTypeArray = (JSONArray) obj.get("sampleTypes");
+        Object rawSampleTypes = obj.get("sampleTypes");
+        if (rawSampleTypes instanceof JSONArray sampleTypeArray && !sampleTypeArray.isEmpty()) {
+            for (int i = 0; i < sampleTypeArray.size(); i++) {
+                if (!(sampleTypeArray.get(i) instanceof JSONObject)) {
+                    continue;
+                }
+                JSONObject sampleTypeObject = (JSONObject) sampleTypeArray.get(i);
+                String sampleTypeId = asString(sampleTypeObject.get("typeId"));
+                if (StringUtils.isBlank(sampleTypeId)) {
+                    continue;
+                }
 
-        for (int i = 0; i < sampleTypeArray.size(); i++) {
-            SampleTypeListAndTestOrder sampleTypeTests = testModifyEntryController.new SampleTypeListAndTestOrder();
-            sampleTypeTests.sampleTypeId = (String) (((JSONObject) sampleTypeArray.get(i)).get("typeId"));
+                SampleTypeListAndTestOrder sampleTypeTests = testModifyEntryController.new SampleTypeListAndTestOrder();
+                sampleTypeTests.sampleTypeId = sampleTypeId;
 
-            JSONArray testArray = (JSONArray) (((JSONObject) sampleTypeArray.get(i)).get("tests"));
-            for (int j = 0; j < testArray.size(); j++) {
-                sampleTypeTests.orderedTests.add(String.valueOf(((JSONObject) testArray.get(j)).get("id")));
+                Object rawTests = sampleTypeObject.get("tests");
+                if (rawTests instanceof JSONArray testArray) {
+                    for (int j = 0; j < testArray.size(); j++) {
+                        if (!(testArray.get(j) instanceof JSONObject)) {
+                            continue;
+                        }
+                        String orderedTestId = asString(((JSONObject) testArray.get(j)).get("id"));
+                        if (StringUtils.isNotBlank(orderedTestId)) {
+                            sampleTypeTests.orderedTests.add(orderedTestId);
+                        }
+                    }
+                }
+                if (sampleTypeTests.orderedTests.isEmpty()) {
+                    sampleTypeTests.orderedTests.add("0");
+                }
+                testAddParams.sampleList.add(sampleTypeTests);
             }
+        }
+
+        if (!testAddParams.sampleList.isEmpty()) {
+            return;
+        }
+
+        // Defensive fallback for modify flow when sampleTypes are omitted by client.
+        List<TypeOfSampleTest> existingSampleTypeTests = typeOfSampleTestService
+                .getTypeOfSampleTestsForTest(testAddParams.testId);
+        for (TypeOfSampleTest existingSampleTypeTest : existingSampleTypeTests) {
+            String sampleTypeId = asString(existingSampleTypeTest.getTypeOfSampleId());
+            if (StringUtils.isBlank(sampleTypeId)) {
+                continue;
+            }
+            SampleTypeListAndTestOrder sampleTypeTests = testModifyEntryController.new SampleTypeListAndTestOrder();
+            sampleTypeTests.sampleTypeId = sampleTypeId;
+            sampleTypeTests.orderedTests.add("0");
             testAddParams.sampleList.add(sampleTypeTests);
         }
+    }
+
+    private void extractAdditionalFields(JSONObject obj, TestAddParams testAddParams) {
+        Object rawAdditionalFields = obj.get("additionalFields");
+        if (!(rawAdditionalFields instanceof JSONArray)) {
+            return;
+        }
+
+        JSONArray additionalFields = (JSONArray) rawAdditionalFields;
+        int fallbackSortOrder = 1;
+        for (Object rawField : additionalFields) {
+            if (!(rawField instanceof JSONObject)) {
+                continue;
+            }
+
+            JSONObject fieldObject = (JSONObject) rawField;
+            TestAdditionalFieldPayload payload = new TestAdditionalFieldPayload();
+            payload.setId(asInteger(fieldObject.get("id"), null));
+            payload.setTestId(testAddParams.testId);
+            payload.setFieldKey(asString(fieldObject.get("fieldKey")));
+            payload.setDisplayName(asString(fieldObject.get("displayName")));
+            payload.setFieldType(asString(fieldObject.get("fieldType")));
+            payload.setRequired(asBoolean(fieldObject.get("required"), false));
+            payload.setActive(asBoolean(fieldObject.get("active"), true));
+            payload.setSortOrder(asInteger(fieldObject.get("sortOrder"), fallbackSortOrder));
+            payload.setDefaultValue(asString(fieldObject.get("defaultValue")));
+            payload.setMaxLength(asInteger(fieldObject.get("maxLength"), null));
+            payload.setMetadataJson(asString(fieldObject.get("metadataJson")));
+
+            Object rawOptions = fieldObject.get("options");
+            if (rawOptions instanceof JSONArray optionsArray) {
+                int fallbackOptionSort = 1;
+                for (Object rawOption : optionsArray) {
+                    if (!(rawOption instanceof JSONObject)) {
+                        continue;
+                    }
+                    JSONObject optionObject = (JSONObject) rawOption;
+                    TestAdditionalFieldOptionPayload optionPayload = new TestAdditionalFieldOptionPayload();
+                    optionPayload.setId(asInteger(optionObject.get("id"), null));
+                    optionPayload.setOptionKey(asString(optionObject.get("optionKey")));
+                    optionPayload.setOptionLabel(asString(optionObject.get("optionLabel")));
+                    optionPayload.setActive(asBoolean(optionObject.get("active"), true));
+                    optionPayload.setSortOrder(asInteger(optionObject.get("sortOrder"), fallbackOptionSort));
+                    payload.getOptions().add(optionPayload);
+                    fallbackOptionSort++;
+                }
+            }
+
+            if (payload.getDisplayName() != null && payload.getFieldType() != null) {
+                testAddParams.additionalFields.add(payload);
+                fallbackSortOrder++;
+            }
+        }
+    }
+
+    private String asString(Object value) {
+        if (value == null) {
+            return null;
+        }
+        String asString = String.valueOf(value).trim();
+        return asString.isEmpty() ? null : asString;
+    }
+
+    private Integer asInteger(Object value, Integer defaultValue) {
+        if (value == null) {
+            return defaultValue;
+        }
+        if (value instanceof Number number) {
+            return number.intValue();
+        }
+        try {
+            return Integer.valueOf(String.valueOf(value));
+        } catch (NumberFormatException e) {
+            return defaultValue;
+        }
+    }
+
+    private Boolean asBoolean(Object value, boolean defaultValue) {
+        if (value == null) {
+            return defaultValue;
+        }
+        if (value instanceof Boolean bool) {
+            return bool;
+        }
+        return Boolean.parseBoolean(String.valueOf(value));
     }
 
     private List<Test> filterTestsBySampleType(List<Test> testList, String sampleTypeId) {
