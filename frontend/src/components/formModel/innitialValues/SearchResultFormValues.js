@@ -104,6 +104,9 @@ export default {
       upperNormalRange: "",
       userChoiceReflex: "",
       valid: "",
+      additionalFieldDefinitions: [],
+      additionalFieldValues: {},
+      additionalFieldShadowValues: {},
     },
   ],
 
