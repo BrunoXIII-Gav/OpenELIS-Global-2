@@ -137,7 +137,8 @@ public class LogbookResultsRestController extends LogbookResultsBaseController {
             "paging.currentPage", "testResult*.resultFile", "testResult*.resultFile.fileName",
             "testResult*.resultFile.fileType", "testResult*.resultFile.base64Content", "testResult*.refer",
             "testResult*.referralItem.referralReasonId", "testResult*.referralItem.referredInstituteId",
-            "testResult*.referralItem.referredTestId", "testResult*.referralItem.referredSendDate" };
+            "testResult*.referralItem.referredTestId", "testResult*.referralItem.referredSendDate",
+            "testResult*.additionalFieldValues", "testResult*.additionalFieldShadowValues" };
 
     @Autowired
     private DictionaryService dictionaryService;
