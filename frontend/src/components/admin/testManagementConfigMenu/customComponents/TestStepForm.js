@@ -80,33 +80,58 @@ export const TestStepForm = ({
   const [ageRangeFields, setAgeRangeFields] = useState([0]);
   const [ageRanges, setAgeRanges] = useState([{ raw: "Infinity", unit: "Y" }]);
 
+  const normalizeResultTypeId = (data) => {
+    const next = { ...data };
+    if (!next?.resultType || !Array.isArray(resultTypeCodes)) {
+      return next;
+    }
+
+    const asString = String(next.resultType);
+    const idMatch = resultTypeCodes.find((item) => String(item.id) === asString);
+    if (idMatch) {
+      next.resultType = String(idMatch.id);
+      return next;
+    }
+
+    const codeMatch = resultTypeCodes.find((item) => item.value === asString);
+    if (codeMatch) {
+      next.resultType = String(codeMatch.id);
+    }
+
+    return next;
+  };
+
   useEffect(() => {
     if (resultTypeCodes.length > 0) {
       const codedList = resultTypeCodes
         .filter((item) => ["D", "M", "C"].includes(item.value))
-        .map((item) => item.id);
+        .map((item) => String(item.id));
       setCodedResultList(codedList);
 
       const freeTextList = resultTypeCodes
         .filter((item) => ["R", "A"].includes(item.value))
-        .map((item) => item.id);
+        .map((item) => String(item.id));
       setFreeResultList(freeTextList);
 
       const numericEntry = resultTypeCodes.find((item) => item.value === "N");
       if (numericEntry) {
-        setNumericResultId(numericEntry.id);
+        setNumericResultId(String(numericEntry.id));
       }
     }
   }, [resultTypeCodes]);
 
   const handleNextStep = (newData, final = false) => {
-    setFormData((prev) => ({ ...prev, ...newData }));
+    const normalizedData = normalizeResultTypeId(newData || {});
+    const mergedData = { ...formData, ...normalizedData };
+    setFormData(mergedData);
 
     if (!final) {
-      postCall(formData);
+      postCall(mergedData);
     }
 
-    const selectedResultTypeId = newData?.resultType || formData.resultType;
+    const selectedResultTypeId = String(
+      normalizedData?.resultType || mergedData.resultType || "",
+    );
 
     setCurrentStep((prev) => {
       if (prev === 3) {
@@ -137,7 +162,9 @@ export const TestStepForm = ({
 
   const handlePreviousStep = (newData) => {
     setFormData((prev) => ({ ...prev, ...newData }));
-    const selectedResultTypeId = newData?.resultType || formData.resultType;
+    const selectedResultTypeId = String(
+      newData?.resultType || formData.resultType || "",
+    );
 
     setCurrentStep((prevStep) => {
       if (prevStep === 6) {
@@ -237,16 +264,27 @@ export const TestStepForm = ({
         (item) => item.value === initialData.testSection,
       );
 
-      const selectedPanelObjects = panelList.filter((panel) =>
-        initialData?.panels?.includes(panel.value),
+      const initialPanelIds = Array.isArray(initialData?.panelIds)
+        ? initialData.panelIds.map((id) => String(id))
+        : [];
+      const selectedPanelObjects = panelList.filter(
+        (panel) =>
+          (initialPanelIds.length > 0 &&
+            initialPanelIds.includes(String(panel.id))) ||
+          initialData?.panels?.includes(panel.value),
       );
 
       const selectedUom = uomList.find(
         (item) => item.value === initialData.uom,
       );
 
+      const initialSampleTypeIds = Array.isArray(initialData.sampleTypeIds)
+        ? initialData.sampleTypeIds.map((id) => String(id))
+        : [];
       const selectedSampleTypeFilteredObject = sampleTypeList.filter(
         (sampleType) =>
+          (initialSampleTypeIds.length > 0 &&
+            initialSampleTypeIds.includes(String(sampleType.id))) ||
           initialData.sampleTypes.includes(String(sampleType.value)),
       );
 
@@ -299,22 +337,52 @@ export const TestStepForm = ({
       }
 
       const codeById = Object.fromEntries(
-        resultTypeCodes.map((item) => [item.id, item.value]),
+        resultTypeCodes.map((item) => [String(item.id), item.value]),
       );
-      const mappedResultType = resultTypeList.find(
-        (type) => codeById[type.id] === initialData.resultType,
+      const mappedResultTypeByCode = resultTypeList.find(
+        (type) => codeById[String(type.id)] === initialData?.resultType,
       );
+      const mappedResultTypeById = resultTypeList.find(
+        (type) => String(type.id) === String(initialData?.resultType),
+      );
+      const mappedResultType = mappedResultTypeByCode || mappedResultTypeById;
+      const mappedResultTypeId = String(
+        mappedResultType?.id || formData.resultType || "",
+      );
+      const mappedResultTypeCode = mappedResultType
+        ? codeById[String(mappedResultType.id)]
+        : initialData?.resultType;
 
-      if (mappedResultType) {
+      if (mappedResultType && mappedResultTypeCode) {
         setSelectedResultTypeList({
           ...mappedResultType,
-          code: codeById[mappedResultType.id],
+          code: mappedResultTypeCode,
         });
+      } else if (initialData?.resultType) {
+        setSelectedResultTypeList((prev) => ({
+          ...prev,
+          code: initialData.resultType,
+        }));
       }
 
       if (initialData.dictionary && Array.isArray(initialData.dictionary)) {
         const matchedDictFlat = initialData.dictionary
           .map((val) => {
+            if (
+              val &&
+              typeof val === "object" &&
+              Object.prototype.hasOwnProperty.call(val, "id")
+            ) {
+              const matchedById = dictionaryList.find(
+                (dictItem) => String(dictItem.id) === String(val.id),
+              );
+              return {
+                id: String(val.id),
+                value: matchedById?.value || String(val.id),
+                qualified: val.qualified === "Y" ? "Y" : "N",
+              };
+            }
+
             const isString = typeof val === "string";
             const valueRaw = isString ? val : (val?.value ?? "");
 
@@ -386,13 +454,20 @@ export const TestStepForm = ({
       setAgeRanges(extractedAgeRanges);
       setAgeRangeFields(normalizedLimits.map((_, i) => i));
 
+      const hydratedSampleTypes = selectedSampleTypeFilteredObject.map(
+        (sampleType) => ({
+          typeId: String(sampleType.id),
+          tests: initialData?.testId ? [{ id: Number(initialData.testId) }] : [],
+        }),
+      );
+
       setFormData((prev) => ({
         ...prev,
         testSection: selectedLabUnit?.id || "",
         panels: selectedPanelObjects.map((panel) => ({ id: panel?.id })),
         uom: selectedUom?.id || "",
-        sampleTypes: [],
-        resultType: mappedResultType?.id || "",
+        sampleTypes: hydratedSampleTypes,
+        resultType: mappedResultTypeId || prev.resultType || "",
         resultLimits: normalizedLimits,
       }));
     }
@@ -600,6 +675,7 @@ export const TestStepForm = ({
       setDictionaryList={setDictionaryList}
       dictionaryListTag={dictionaryListTag}
       resultTypeList={resultTypeList}
+      resultTypeCodes={resultTypeCodes}
       setDictionaryListTag={setDictionaryListTag}
       selectedResultTypeList={selectedResultTypeList}
       setSelectedResultTypeList={setSelectedResultTypeList}
@@ -1162,6 +1238,20 @@ export const StepThreeTestResultTypeAndLoinc = ({
   resultTypeCodes,
   setSelectedResultTypeList,
 }) => {
+  const intl = useIntl();
+  const additionalFieldTypeOptions = [
+    "TEXT",
+    "TEXTAREA",
+    "NUMBER",
+    "DATE",
+    "DATETIME",
+    "BOOLEAN",
+    "SELECT",
+    "MULTISELECT",
+    "RADIO",
+  ];
+  const optionBasedTypes = new Set(["SELECT", "MULTISELECT", "RADIO"]);
+
   const handleSubmit = (values) => {
     handleNextStep(values, true);
   };
@@ -1174,6 +1264,28 @@ export const StepThreeTestResultTypeAndLoinc = ({
           resultType: Yup.string()
             .notOneOf(["0", ""], "Please select a valid Result Type")
             .required("Result Type is required"),
+          additionalFields: Yup.array().of(
+            Yup.object().shape({
+              displayName: Yup.string()
+                .trim()
+                .required("Display Name is required"),
+              fieldType: Yup.string().required("Field Type is required"),
+              options: Yup.array().when("fieldType", {
+                is: (fieldType) => optionBasedTypes.has(fieldType),
+                then: (schema) =>
+                  schema
+                    .of(
+                      Yup.object().shape({
+                        optionLabel: Yup.string()
+                          .trim()
+                          .required("Option Label is required"),
+                      }),
+                    )
+                    .min(1, "At least one option is required"),
+                otherwise: (schema) => schema.notRequired(),
+              }),
+            }),
+          ),
           // loinc: Yup.string().matches(
           //   /^(?!-)(?:\d+-)*\d+$/,
           //   "Loinc must contain only numbers",
@@ -1213,18 +1325,18 @@ export const StepThreeTestResultTypeAndLoinc = ({
           const handelResultType = (e) => {
             const selectedId = e.target.value;
             const idToCode = Object.fromEntries(
-              resultTypeCodes.map((item) => [item.id, item.value]),
+              resultTypeCodes.map((item) => [String(item.id), item.value]),
             );
             const selectedResultTypeObject = resultTypeList.find(
-              (item) => item.id == selectedId,
+              (item) => String(item.id) === String(selectedId),
             );
 
-            setFieldValue("resultType", selectedId);
+            setFieldValue("resultType", String(selectedId));
 
             if (selectedResultTypeObject) {
               setSelectedResultTypeList({
                 ...selectedResultTypeObject,
-                code: idToCode[selectedId],
+                code: idToCode[String(selectedId)],
               });
             }
           };
@@ -1246,6 +1358,96 @@ export const StepThreeTestResultTypeAndLoinc = ({
           };
           const handleInLabOnly = (e) => {
             setFieldValue("inLabOnly", e.target.checked ? "Y" : "N");
+          };
+
+          const normalizedAdditionalFields = Array.isArray(
+            values.additionalFields,
+          )
+            ? values.additionalFields
+            : [];
+
+          const handleAddAdditionalField = () => {
+            const nextFields = [
+              ...normalizedAdditionalFields,
+              {
+                fieldKey: "",
+                displayName: "",
+                fieldType: "TEXT",
+                required: false,
+                active: true,
+                sortOrder: normalizedAdditionalFields.length + 1,
+                defaultValue: "",
+                maxLength: "",
+                metadataJson: "",
+                options: [],
+              },
+            ];
+            setFieldValue("additionalFields", nextFields);
+          };
+
+          const handleRemoveAdditionalField = (fieldIndex) => {
+            const nextFields = normalizedAdditionalFields
+              .filter((_, index) => index !== fieldIndex)
+              .map((field, index) => ({ ...field, sortOrder: index + 1 }));
+            setFieldValue("additionalFields", nextFields);
+          };
+
+          const handleAdditionalFieldChange = (fieldIndex, key, newValue) => {
+            const nextFields = [...normalizedAdditionalFields];
+            const target = { ...(nextFields[fieldIndex] || {}) };
+            target[key] = newValue;
+            if (key === "fieldType" && !optionBasedTypes.has(newValue)) {
+              target.options = [];
+            }
+            nextFields[fieldIndex] = target;
+            setFieldValue("additionalFields", nextFields);
+          };
+
+          const handleAddFieldOption = (fieldIndex) => {
+            const nextFields = [...normalizedAdditionalFields];
+            const target = { ...(nextFields[fieldIndex] || {}) };
+            const options = Array.isArray(target.options) ? target.options : [];
+            target.options = [
+              ...options,
+              {
+                optionKey: "",
+                optionLabel: "",
+                sortOrder: options.length + 1,
+                active: true,
+              },
+            ];
+            nextFields[fieldIndex] = target;
+            setFieldValue("additionalFields", nextFields);
+          };
+
+          const handleRemoveFieldOption = (fieldIndex, optionIndex) => {
+            const nextFields = [...normalizedAdditionalFields];
+            const target = { ...(nextFields[fieldIndex] || {}) };
+            const options = Array.isArray(target.options) ? target.options : [];
+            target.options = options
+              .filter((_, index) => index !== optionIndex)
+              .map((option, index) => ({ ...option, sortOrder: index + 1 }));
+            nextFields[fieldIndex] = target;
+            setFieldValue("additionalFields", nextFields);
+          };
+
+          const handleFieldOptionChange = (
+            fieldIndex,
+            optionIndex,
+            key,
+            newValue,
+          ) => {
+            const nextFields = [...normalizedAdditionalFields];
+            const target = { ...(nextFields[fieldIndex] || {}) };
+            const options = Array.isArray(target.options)
+              ? [...target.options]
+              : [];
+            const option = { ...(options[optionIndex] || {}) };
+            option[key] = newValue;
+            options[optionIndex] = option;
+            target.options = options;
+            nextFields[fieldIndex] = target;
+            setFieldValue("additionalFields", nextFields);
           };
 
           return (
@@ -1275,7 +1477,7 @@ export const StepThreeTestResultTypeAndLoinc = ({
                       {resultTypeList?.map((test) => (
                         <SelectItem
                           key={test.id}
-                          value={test.id}
+                          value={String(test.id)}
                           text={`${test.value}`}
                         />
                       ))}
@@ -1297,6 +1499,279 @@ export const StepThreeTestResultTypeAndLoinc = ({
                       invalid={touched.loinc && !!errors.loinc}
                       invalidText={touched.loinc && errors.loinc}
                     />
+                  </div>
+                  <br />
+                  <div>
+                    <Heading level={5} size="compact-01">
+                      <FormattedMessage id="test.additionalFields.title" />
+                    </Heading>
+                    <p
+                      style={{ marginTop: "0.25rem", marginBottom: "0.75rem" }}
+                    >
+                      <FormattedMessage id="test.additionalFields.description" />
+                    </p>
+                    {normalizedAdditionalFields.map((field, fieldIndex) => {
+                      const fieldType = field?.fieldType || "TEXT";
+                      const supportsOptions = optionBasedTypes.has(fieldType);
+                      return (
+                        <Section
+                          key={`additional-field-${fieldIndex}`}
+                          style={{
+                            border: "1px solid #e0e0e0",
+                            padding: "1rem",
+                            marginBottom: "0.75rem",
+                          }}
+                        >
+                          <Grid condensed fullWidth>
+                            <Column lg={4} md={4} sm={4}>
+                              <TextInput
+                                id={`additional-field-display-name-${fieldIndex}`}
+                                labelText={intl.formatMessage({
+                                  id: "test.additionalFields.displayName",
+                                })}
+                                value={field?.displayName || ""}
+                                onChange={(event) =>
+                                  handleAdditionalFieldChange(
+                                    fieldIndex,
+                                    "displayName",
+                                    event.target.value,
+                                  )
+                                }
+                              />
+                            </Column>
+                            <Column lg={4} md={4} sm={4}>
+                              <TextInput
+                                id={`additional-field-key-${fieldIndex}`}
+                                labelText={intl.formatMessage({
+                                  id: "test.additionalFields.fieldKey",
+                                })}
+                                value={field?.fieldKey || ""}
+                                onChange={(event) =>
+                                  handleAdditionalFieldChange(
+                                    fieldIndex,
+                                    "fieldKey",
+                                    event.target.value,
+                                  )
+                                }
+                              />
+                            </Column>
+                            <Column lg={3} md={4} sm={4}>
+                              <Select
+                                id={`additional-field-type-${fieldIndex}`}
+                                labelText={intl.formatMessage({
+                                  id: "test.additionalFields.fieldType",
+                                })}
+                                value={fieldType}
+                                onChange={(event) =>
+                                  handleAdditionalFieldChange(
+                                    fieldIndex,
+                                    "fieldType",
+                                    event.target.value,
+                                  )
+                                }
+                              >
+                                {additionalFieldTypeOptions.map(
+                                  (typeOption) => (
+                                    <SelectItem
+                                      key={`${fieldIndex}-${typeOption}`}
+                                      value={typeOption}
+                                      text={typeOption}
+                                    />
+                                  ),
+                                )}
+                              </Select>
+                            </Column>
+                            <Column lg={2} md={2} sm={2}>
+                              <TextInput
+                                id={`additional-field-max-length-${fieldIndex}`}
+                                labelText={intl.formatMessage({
+                                  id: "test.additionalFields.maxLength",
+                                })}
+                                type="number"
+                                value={field?.maxLength || ""}
+                                onChange={(event) =>
+                                  handleAdditionalFieldChange(
+                                    fieldIndex,
+                                    "maxLength",
+                                    event.target.value,
+                                  )
+                                }
+                              />
+                            </Column>
+                            <Column lg={3} md={4} sm={4}>
+                              <TextInput
+                                id={`additional-field-default-value-${fieldIndex}`}
+                                labelText={intl.formatMessage({
+                                  id: "test.additionalFields.defaultValue",
+                                })}
+                                value={field?.defaultValue || ""}
+                                onChange={(event) =>
+                                  handleAdditionalFieldChange(
+                                    fieldIndex,
+                                    "defaultValue",
+                                    event.target.value,
+                                  )
+                                }
+                              />
+                            </Column>
+                            <Column lg={16} md={8} sm={4}>
+                              <div
+                                style={{
+                                  display: "flex",
+                                  gap: "1rem",
+                                  alignItems: "center",
+                                  marginTop: "0.75rem",
+                                }}
+                              >
+                                <Checkbox
+                                  id={`additional-field-required-${fieldIndex}`}
+                                  labelText={intl.formatMessage({
+                                    id: "test.additionalFields.required",
+                                  })}
+                                  checked={field?.required === true}
+                                  onChange={(event) =>
+                                    handleAdditionalFieldChange(
+                                      fieldIndex,
+                                      "required",
+                                      event.target.checked,
+                                    )
+                                  }
+                                />
+                                <Checkbox
+                                  id={`additional-field-active-${fieldIndex}`}
+                                  labelText={intl.formatMessage({
+                                    id: "test.additionalFields.active",
+                                  })}
+                                  checked={field?.active !== false}
+                                  onChange={(event) =>
+                                    handleAdditionalFieldChange(
+                                      fieldIndex,
+                                      "active",
+                                      event.target.checked,
+                                    )
+                                  }
+                                />
+                                <Button
+                                  kind="danger--tertiary"
+                                  size="sm"
+                                  type="button"
+                                  onClick={() =>
+                                    handleRemoveAdditionalField(fieldIndex)
+                                  }
+                                >
+                                  <FormattedMessage id="test.additionalFields.removeField" />
+                                </Button>
+                              </div>
+                            </Column>
+                            {supportsOptions && (
+                              <Column lg={16} md={8} sm={4}>
+                                <div style={{ marginTop: "0.75rem" }}>
+                                  <Heading level={6} size="compact-01">
+                                    <FormattedMessage id="test.additionalFields.options" />
+                                  </Heading>
+                                  {(field?.options || []).map(
+                                    (option, optionIndex) => (
+                                      <Grid
+                                        key={`field-${fieldIndex}-option-${optionIndex}`}
+                                        condensed
+                                        fullWidth
+                                        style={{ marginTop: "0.5rem" }}
+                                      >
+                                        <Column lg={5} md={4} sm={4}>
+                                          <TextInput
+                                            id={`additional-field-option-label-${fieldIndex}-${optionIndex}`}
+                                            labelText={intl.formatMessage({
+                                              id: "test.additionalFields.optionLabel",
+                                            })}
+                                            value={option?.optionLabel || ""}
+                                            onChange={(event) =>
+                                              handleFieldOptionChange(
+                                                fieldIndex,
+                                                optionIndex,
+                                                "optionLabel",
+                                                event.target.value,
+                                              )
+                                            }
+                                          />
+                                        </Column>
+                                        <Column lg={5} md={4} sm={4}>
+                                          <TextInput
+                                            id={`additional-field-option-key-${fieldIndex}-${optionIndex}`}
+                                            labelText={intl.formatMessage({
+                                              id: "test.additionalFields.optionKey",
+                                            })}
+                                            value={option?.optionKey || ""}
+                                            onChange={(event) =>
+                                              handleFieldOptionChange(
+                                                fieldIndex,
+                                                optionIndex,
+                                                "optionKey",
+                                                event.target.value,
+                                              )
+                                            }
+                                          />
+                                        </Column>
+                                        <Column lg={3} md={2} sm={2}>
+                                          <Checkbox
+                                            id={`additional-field-option-active-${fieldIndex}-${optionIndex}`}
+                                            labelText={intl.formatMessage({
+                                              id: "test.additionalFields.active",
+                                            })}
+                                            checked={option?.active !== false}
+                                            onChange={(event) =>
+                                              handleFieldOptionChange(
+                                                fieldIndex,
+                                                optionIndex,
+                                                "active",
+                                                event.target.checked,
+                                              )
+                                            }
+                                          />
+                                        </Column>
+                                        <Column lg={3} md={2} sm={2}>
+                                          <Button
+                                            kind="danger--tertiary"
+                                            size="sm"
+                                            type="button"
+                                            onClick={() =>
+                                              handleRemoveFieldOption(
+                                                fieldIndex,
+                                                optionIndex,
+                                              )
+                                            }
+                                          >
+                                            <FormattedMessage id="test.additionalFields.removeOption" />
+                                          </Button>
+                                        </Column>
+                                      </Grid>
+                                    ),
+                                  )}
+                                  <Button
+                                    kind="tertiary"
+                                    size="sm"
+                                    type="button"
+                                    style={{ marginTop: "0.5rem" }}
+                                    onClick={() =>
+                                      handleAddFieldOption(fieldIndex)
+                                    }
+                                  >
+                                    <FormattedMessage id="test.additionalFields.addOption" />
+                                  </Button>
+                                </div>
+                              </Column>
+                            )}
+                          </Grid>
+                        </Section>
+                      );
+                    })}
+                    <Button
+                      type="button"
+                      kind="tertiary"
+                      size="sm"
+                      onClick={handleAddAdditionalField}
+                    >
+                      <FormattedMessage id="test.additionalFields.addField" />
+                    </Button>
                   </div>
                   <br />
                   <div>
@@ -1388,10 +1863,6 @@ export const StepFourSelectSampleTypeAndTestDisplayOrder = ({
 
   useEffect(() => {
     if (!selectedSampleTypeResp.length) {
-      setFormData((prev) => ({
-        ...prev,
-        sampleTypes: [],
-      }));
       return;
     }
 
@@ -1566,12 +2037,9 @@ export const StepFourSelectSampleTypeAndTestDisplayOrder = ({
                       {Array.isArray(selectedSampleTypeResp) &&
                       selectedSampleTypeResp.length > 0 ? (
                         selectedSampleTypeResp.map((item) => (
-                          <>
-                            <div
-                              className="gridBoundary"
-                              key={item.sampleTypeId}
-                            >
-                              <Section key={item.sampleTypeId}>
+                          <div key={item.sampleTypeId}>
+                            <div className="gridBoundary">
+                              <Section>
                                 <CustomCommonSortableOrderList
                                   key={item.sampleTypeId}
                                   test={item.tests}
@@ -1595,7 +2063,7 @@ export const StepFourSelectSampleTypeAndTestDisplayOrder = ({
                               </Section>
                             </div>
                             <br />
-                          </>
+                          </div>
                         ))
                       ) : (
                         <></>
@@ -1643,6 +2111,7 @@ export const StepFiveSelectListOptionsAndResultOrder = ({
   dictionaryListTag,
   setDictionaryListTag,
   selectedResultTypeList,
+  resultTypeCodes,
   setSelectedResultTypeList,
   singleSelectDictionaryList,
   setSingleSelectDictionaryList,
@@ -1656,10 +2125,16 @@ export const StepFiveSelectListOptionsAndResultOrder = ({
   const handleSubmit = (values) => {
     handleNextStep(values, true);
   };
+  const fallbackResultTypeCode =
+    resultTypeCodes.find(
+      (item) => String(item.id) === String(formData?.resultType || ""),
+    )?.value || "";
+  const selectedResultTypeCode =
+    selectedResultTypeList?.code || fallbackResultTypeCode;
   return (
     <>
       {currentStep === 4 &&
-      ["D", "M", "C"].includes(selectedResultTypeList?.code) ? (
+      ["D", "M", "C"].includes(selectedResultTypeCode) ? (
         <>
           <Formik
             initialValues={formData}
@@ -1691,12 +2166,16 @@ export const StepFiveSelectListOptionsAndResultOrder = ({
             validateOnChange={true}
             validateOnBlur={true}
             onSubmit={(values, actions) => {
-              const transformedDictionary = (values.dictionary || []).map(
-                (item) => ({
-                  // value: item.id,
-                  id: item.id, // maybe a fix
-                  qualified: item.qualified,
-                }),
+              const transformedDictionary = Array.from(
+                new Map(
+                  (values.dictionary || []).map((item) => [
+                    String(item.id),
+                    {
+                      id: String(item.id),
+                      qualified: item.qualified === "Y" ? "Y" : "N",
+                    },
+                  ]),
+                ).values(),
               );
 
               const payload = {
@@ -1717,6 +2196,7 @@ export const StepFiveSelectListOptionsAndResultOrder = ({
             }) => {
               const handelSelectListOptions = (e) => {
                 const selectedId = e.target.value;
+                if (!selectedId || selectedId === "0") return;
 
                 const selectedObject = dictionaryList.find(
                   (item) => item.id === selectedId,
@@ -1724,17 +2204,23 @@ export const StepFiveSelectListOptionsAndResultOrder = ({
 
                 if (!selectedObject) return;
 
-                setSingleSelectDictionaryList((prev) => [
-                  ...prev,
-                  selectedObject,
-                ]);
+                setSingleSelectDictionaryList((prev) =>
+                  prev.some((item) => String(item.id) === String(selectedObject.id))
+                    ? prev
+                    : [...prev, selectedObject],
+                );
 
-                setMultiSelectDictionaryList((prev) => [
-                  ...prev,
-                  selectedObject,
-                ]);
+                setMultiSelectDictionaryList((prev) =>
+                  prev.some((item) => String(item.id) === String(selectedObject.id))
+                    ? prev
+                    : [...prev, selectedObject],
+                );
 
-                setDictionaryListTag((prev) => [...prev, selectedObject]);
+                setDictionaryListTag((prev) =>
+                  prev.some((item) => String(item.id) === String(selectedObject.id))
+                    ? prev
+                    : [...prev, selectedObject],
+                );
 
                 if (
                   selectedObject &&
@@ -1833,7 +2319,7 @@ export const StepFiveSelectListOptionsAndResultOrder = ({
                         onChange={(e) => handelSelectListOptions(e)}
                         invalid={touched.dictionary && !!errors.dictionary}
                         invalidText={touched.dictionary && errors.dictionary}
-                        value={values.dictionary.map((item) => item.id)}
+                        value="0"
                       >
                         <SelectItem value="0" text="Select List Option" />
                         {dictionaryList?.map((test) => (
@@ -1851,7 +2337,7 @@ export const StepFiveSelectListOptionsAndResultOrder = ({
                             {dictionaryListTag.map((dict, index) => (
                               <Tag
                                 filter
-                                key={`list-options_${index}`}
+                                key={`list-options_${dict.id}_${index}`}
                                 onClose={() =>
                                   handleRemoveDictionaryListSelectIdTestTag(
                                     index,
@@ -1996,9 +2482,7 @@ export const StepFiveSelectListOptionsAndResultOrder = ({
                               ? "At least one dictionary item must be qualified as 'Y'"
                               : "")
                         }
-                        value={values.dictionary
-                          .filter((item) => item.qualified === "Y")
-                          .map((item) => item.id)}
+                        value="0"
                         name="dictionary"
                       >
                         <SelectItem
@@ -2126,9 +2610,11 @@ export const StepFiveSelectListOptionsAndResultOrder = ({
                                 </Section>
                               </Section>
                               {gdl &&
-                                gdl.map((gdlVal) => {
+                                gdl.map((gdlVal, gdlIndex) => {
                                   return (
-                                    <div key={gdlVal.id}>{gdlVal.value}</div>
+                                    <div key={`${index}-${gdlIndex}-${gdlVal.id}`}>
+                                      {gdlVal.value}
+                                    </div>
                                   );
                                 })}
                             </ClickableTile>
