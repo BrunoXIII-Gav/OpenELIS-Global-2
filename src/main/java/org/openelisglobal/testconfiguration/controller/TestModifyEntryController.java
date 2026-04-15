@@ -36,6 +36,7 @@ import org.openelisglobal.test.service.TestSectionService;
 import org.openelisglobal.test.service.TestService;
 import org.openelisglobal.test.valueholder.Test;
 import org.openelisglobal.test.valueholder.TestSection;
+import org.openelisglobal.testadditionalfield.bean.TestAdditionalFieldPayload;
 import org.openelisglobal.testconfiguration.beans.ResultLimitBean;
 import org.openelisglobal.testconfiguration.beans.TestCatalogBean;
 import org.openelisglobal.testconfiguration.form.TestModifyEntryForm;
@@ -145,9 +146,11 @@ public class TestModifyEntryController extends BaseController {
 
             bean.setTestUnit(testService.getTestSectionName(test));
             bean.setPanel(createPanelList(testService, test));
+            bean.setPanelIds(createPanelIds(testService, test));
             bean.setResultType(resultType);
             TypeOfSample typeOfSample = testService.getTypeOfSample(test);
             bean.setSampleType(typeOfSample != null ? typeOfSample.getLocalizedName() : "n/a");
+            bean.setSampleTypeId(typeOfSample != null ? typeOfSample.getId() : null);
             Boolean orderable = test.getOrderable();
             bean.setOrderable(orderable != null && orderable ? "Orderable" : "Not orderable");
             Boolean notifyResults = test.isNotifyResults();
@@ -351,6 +354,17 @@ public class TestModifyEntryController extends BaseController {
         return panelString;
     }
 
+    private List<String> createPanelIds(TestService testService, Test test) {
+        List<String> panelIds = new ArrayList<>();
+        List<Panel> panelList = testService.getPanels(test);
+        for (Panel panel : panelList) {
+            if (panel != null && panel.getId() != null) {
+                panelIds.add(panel.getId());
+            }
+        }
+        return panelIds;
+    }
+
     private List<List<IdValuePair>> createGroupedDictionaryList() {
         List<TestResult> testResults = getSortedTestResults();
 
@@ -488,6 +502,9 @@ public class TestModifyEntryController extends BaseController {
             TestAddParams testAddParams) {
         TypeOfTestResultServiceImpl.ResultType type = SpringContext.getBean(TypeOfTestResultService.class)
                 .getResultTypeById(testAddParams.resultTypeId);
+        if (type == null) {
+            throw new IllegalArgumentException("Invalid result type id: " + testAddParams.resultTypeId);
+        }
 
         if (TypeOfTestResultServiceImpl.ResultType.isTextOnlyVariant(type)
                 || TypeOfTestResultServiceImpl.ResultType.isNumeric(type)) {
@@ -498,6 +515,10 @@ public class TestModifyEntryController extends BaseController {
             testResult.setSignificantDigits(significantDigits);
             testResults.add(testResult);
         } else if (TypeOfTestResultServiceImpl.ResultType.isDictionaryVariant(type.getCharacterValue())) {
+            if (testAddParams.dictionaryParamList == null || testAddParams.dictionaryParamList.isEmpty()) {
+                throw new IllegalArgumentException(
+                        "Dictionary result type requires at least one dictionary value.");
+            }
             int sortOrder = 10;
             for (DictionaryParams params : testAddParams.dictionaryParamList) {
                 TestResult testResult = new TestResult();
@@ -813,6 +834,7 @@ public class TestModifyEntryController extends BaseController {
         public String dictionaryReferenceId;
         public ArrayList<ResultLimitParams> limits = new ArrayList<>();
         public ArrayList<DictionaryParams> dictionaryParamList = new ArrayList<>();
+        public ArrayList<TestAdditionalFieldPayload> additionalFields = new ArrayList<>();
     }
 
     public class SampleTypeListAndTestOrder {
