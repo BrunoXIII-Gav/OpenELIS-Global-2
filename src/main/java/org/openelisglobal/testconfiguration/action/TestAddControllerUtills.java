@@ -20,6 +20,8 @@ import org.openelisglobal.test.service.TestSectionService;
 import org.openelisglobal.test.service.TestService;
 import org.openelisglobal.test.valueholder.Test;
 import org.openelisglobal.test.valueholder.TestSection;
+import org.openelisglobal.testadditionalfield.bean.TestAdditionalFieldOptionPayload;
+import org.openelisglobal.testadditionalfield.bean.TestAdditionalFieldPayload;
 import org.openelisglobal.testconfiguration.controller.TestAddController;
 import org.openelisglobal.testconfiguration.controller.TestAddController.TestSet;
 import org.openelisglobal.testresult.valueholder.TestResult;
@@ -192,6 +194,9 @@ public class TestAddControllerUtills {
             TestAddParams testAddParams) {
         TypeOfTestResultServiceImpl.ResultType type = SpringContext.getBean(TypeOfTestResultService.class)
                 .getResultTypeById(testAddParams.resultTypeId);
+        if (type == null) {
+            throw new IllegalArgumentException("Invalid result type id: " + testAddParams.resultTypeId);
+        }
 
         if (TypeOfTestResultServiceImpl.ResultType.isTextOnlyVariant(type)
                 || TypeOfTestResultServiceImpl.ResultType.isNumeric(type)) {
@@ -202,6 +207,10 @@ public class TestAddControllerUtills {
             testResult.setSignificantDigits(significantDigits);
             testResults.add(testResult);
         } else if (TypeOfTestResultServiceImpl.ResultType.isDictionaryVariant(type.getCharacterValue())) {
+            if (testAddParams.dictionaryParamList == null || testAddParams.dictionaryParamList.isEmpty()) {
+                throw new IllegalArgumentException(
+                        "Dictionary result type requires at least one dictionary value.");
+            }
             int sortOrder = 10;
             for (DictionaryParams params : testAddParams.dictionaryParamList) {
                 TestResult testResult = new TestResult();
@@ -231,6 +240,7 @@ public class TestAddControllerUtills {
             testAddParams.loinc = (String) obj.get("loinc");
             testAddParams.resultTypeId = (String) obj.get("resultType");
             extractSampleTypes(obj, parser, testAddParams);
+            extractAdditionalFields(obj, testAddParams);
             testAddParams.active = (String) obj.get("active");
             testAddParams.orderable = (String) obj.get("orderable");
             testAddParams.notifyResults = (String) obj.get("notifyResults");
@@ -331,6 +341,89 @@ public class TestAddControllerUtills {
         }
     }
 
+    private void extractAdditionalFields(JSONObject obj, TestAddParams testAddParams) {
+        Object rawAdditionalFields = obj.get("additionalFields");
+        if (!(rawAdditionalFields instanceof JSONArray)) {
+            return;
+        }
+
+        JSONArray additionalFields = (JSONArray) rawAdditionalFields;
+        int fallbackSortOrder = 1;
+        for (Object rawField : additionalFields) {
+            if (!(rawField instanceof JSONObject)) {
+                continue;
+            }
+
+            JSONObject fieldObject = (JSONObject) rawField;
+            TestAdditionalFieldPayload payload = new TestAdditionalFieldPayload();
+            payload.setFieldKey(asString(fieldObject.get("fieldKey")));
+            payload.setDisplayName(asString(fieldObject.get("displayName")));
+            payload.setFieldType(asString(fieldObject.get("fieldType")));
+            payload.setRequired(asBoolean(fieldObject.get("required"), false));
+            payload.setActive(asBoolean(fieldObject.get("active"), true));
+            payload.setSortOrder(asInteger(fieldObject.get("sortOrder"), fallbackSortOrder));
+            payload.setDefaultValue(asString(fieldObject.get("defaultValue")));
+            payload.setMaxLength(asInteger(fieldObject.get("maxLength"), null));
+            payload.setMetadataJson(asString(fieldObject.get("metadataJson")));
+
+            Object rawOptions = fieldObject.get("options");
+            if (rawOptions instanceof JSONArray optionsArray) {
+                int fallbackOptionSort = 1;
+                for (Object rawOption : optionsArray) {
+                    if (!(rawOption instanceof JSONObject)) {
+                        continue;
+                    }
+
+                    JSONObject optionObject = (JSONObject) rawOption;
+                    TestAdditionalFieldOptionPayload optionPayload = new TestAdditionalFieldOptionPayload();
+                    optionPayload.setOptionKey(asString(optionObject.get("optionKey")));
+                    optionPayload.setOptionLabel(asString(optionObject.get("optionLabel")));
+                    optionPayload.setActive(asBoolean(optionObject.get("active"), true));
+                    optionPayload.setSortOrder(asInteger(optionObject.get("sortOrder"), fallbackOptionSort));
+                    payload.getOptions().add(optionPayload);
+                    fallbackOptionSort++;
+                }
+            }
+
+            if (payload.getDisplayName() != null && payload.getFieldType() != null) {
+                testAddParams.additionalFields.add(payload);
+                fallbackSortOrder++;
+            }
+        }
+    }
+
+    private String asString(Object value) {
+        if (value == null) {
+            return null;
+        }
+        String asString = String.valueOf(value).trim();
+        return asString.isEmpty() ? null : asString;
+    }
+
+    private Integer asInteger(Object value, Integer defaultValue) {
+        if (value == null) {
+            return defaultValue;
+        }
+        if (value instanceof Number number) {
+            return number.intValue();
+        }
+        try {
+            return Integer.valueOf(String.valueOf(value));
+        } catch (NumberFormatException e) {
+            return defaultValue;
+        }
+    }
+
+    private Boolean asBoolean(Object value, boolean defaultValue) {
+        if (value == null) {
+            return defaultValue;
+        }
+        if (value instanceof Boolean bool) {
+            return bool;
+        }
+        return Boolean.parseBoolean(String.valueOf(value));
+    }
+
     public class TestAddParams {
         String testId;
         String testNameEnglish;
@@ -358,6 +451,7 @@ public class TestAddControllerUtills {
         String dictionaryReferenceId;
         ArrayList<ResultLimitParams> limits = new ArrayList<>();
         ArrayList<DictionaryParams> dictionaryParamList = new ArrayList<>();
+        public ArrayList<TestAdditionalFieldPayload> additionalFields = new ArrayList<>();
     }
 
     public class SampleTypeListAndTestOrder {

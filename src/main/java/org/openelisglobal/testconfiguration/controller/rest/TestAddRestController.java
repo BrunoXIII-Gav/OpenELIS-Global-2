@@ -117,7 +117,8 @@ public class TestAddRestController extends BaseRestController {
         Localization reportingNameLocalization = testAddControllerUtills.createReportingNameLocalization(testAddParams);
 
         try {
-            testAddService.addTests(testSets, nameLocalization, reportingNameLocalization, currentUserId);
+            testAddService.addTests(testSets, nameLocalization, reportingNameLocalization,
+                    testAddParams.additionalFields, currentUserId);
         } catch (HibernateException e) {
             LogEvent.logDebug(e);
         }

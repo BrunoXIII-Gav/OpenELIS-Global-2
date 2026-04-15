@@ -18,6 +18,7 @@ package org.openelisglobal.testconfiguration.beans;
 
 import java.util.List;
 import org.openelisglobal.localization.valueholder.Localization;
+import org.openelisglobal.testadditionalfield.bean.TestAdditionalFieldPayload;
 
 public class TestCatalogBean {
     private String id;
@@ -25,7 +26,9 @@ public class TestCatalogBean {
     private Localization reportLocalization;
     private String testUnit;
     private String sampleType;
+    private String sampleTypeId;
     private String panel;
+    private List<String> panelIds;
     private String resultType;
     private String uom = "n/a";
     private String significantDigits = "n/a";
@@ -43,6 +46,7 @@ public class TestCatalogBean {
     private int testSortOrder = Integer.MAX_VALUE;
     private boolean inLabOnly;
     private boolean antimicrobialResistance;
+    private List<TestAdditionalFieldPayload> additionalFields;
 
     public String getId() {
         return id;
@@ -84,12 +88,28 @@ public class TestCatalogBean {
         this.sampleType = sampleType;
     }
 
+    public String getSampleTypeId() {
+        return sampleTypeId;
+    }
+
+    public void setSampleTypeId(String sampleTypeId) {
+        this.sampleTypeId = sampleTypeId;
+    }
+
     public String getPanel() {
         return panel;
     }
 
     public void setPanel(String panel) {
         this.panel = panel;
+    }
+
+    public List<String> getPanelIds() {
+        return panelIds;
+    }
+
+    public void setPanelIds(List<String> panelIds) {
+        this.panelIds = panelIds;
     }
 
     public String getResultType() {
@@ -226,5 +246,13 @@ public class TestCatalogBean {
 
     public void setAntimicrobialResistance(boolean antimicrobialResistance) {
         this.antimicrobialResistance = antimicrobialResistance;
+    }
+
+    public List<TestAdditionalFieldPayload> getAdditionalFields() {
+        return additionalFields;
+    }
+
+    public void setAdditionalFields(List<TestAdditionalFieldPayload> additionalFields) {
+        this.additionalFields = additionalFields;
     }
 }

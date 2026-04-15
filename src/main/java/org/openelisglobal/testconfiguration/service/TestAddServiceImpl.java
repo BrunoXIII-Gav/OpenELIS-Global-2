@@ -13,6 +13,8 @@ import org.openelisglobal.test.service.TestSectionService;
 import org.openelisglobal.test.service.TestService;
 import org.openelisglobal.test.valueholder.Test;
 import org.openelisglobal.test.valueholder.TestSection;
+import org.openelisglobal.testadditionalfield.bean.TestAdditionalFieldPayload;
+import org.openelisglobal.testadditionalfield.service.TestAdditionalFieldService;
 import org.openelisglobal.testconfiguration.controller.TestAddController.TestSet;
 import org.openelisglobal.testresult.service.TestResultService;
 import org.openelisglobal.testresult.valueholder.TestResult;
@@ -43,11 +45,13 @@ public class TestAddServiceImpl implements TestAddService {
     private TypeOfSampleService typeOfSampleService;
     @Autowired
     private PanelService panelService;
+    @Autowired
+    private TestAdditionalFieldService testAdditionalFieldService;
 
     @Override
     @Transactional
     public void addTests(List<TestSet> testSets, Localization nameLocalization, Localization reportingNameLocalization,
-            String currentUserId) {
+            List<TestAdditionalFieldPayload> additionalFields, String currentUserId) {
         nameLocalization.setSysUserId(currentUserId);
         localizationService.insert(nameLocalization);
         reportingNameLocalization.setSysUserId(currentUserId);
@@ -106,6 +110,8 @@ public class TestAddServiceImpl implements TestAddService {
                 resultLimit.setTestId(set.test.getId());
                 resultLimitService.insert(resultLimit);
             }
+
+            testAdditionalFieldService.replaceFieldsForTest(set.test.getId(), additionalFields, currentUserId);
         }
     }
 }

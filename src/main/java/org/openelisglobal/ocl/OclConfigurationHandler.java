@@ -230,7 +230,7 @@ public class OclConfigurationHandler implements DomainConfigurationHandler {
         Localization nameLocalization = testAddControllerUtills.createNameLocalization(testAddParams);
         Localization reportingNameLocalization = testAddControllerUtills.createReportingNameLocalization(testAddParams);
         try {
-            testAddService.addTests(testSets, nameLocalization, reportingNameLocalization, "1");
+            testAddService.addTests(testSets, nameLocalization, reportingNameLocalization, List.of(), "1");
         } catch (HibernateException e) {
             LogEvent.logDebug(e);
         }

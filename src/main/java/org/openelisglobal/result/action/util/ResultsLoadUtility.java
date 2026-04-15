@@ -87,6 +87,8 @@ import org.openelisglobal.test.beanItems.TestResultItem;
 import org.openelisglobal.test.beanItems.TestResultItem.ResultDisplayType;
 import org.openelisglobal.test.service.TestService;
 import org.openelisglobal.test.valueholder.Test;
+import org.openelisglobal.testadditionalfield.bean.TestAdditionalFieldPayload;
+import org.openelisglobal.testadditionalfield.service.TestAdditionalFieldService;
 import org.openelisglobal.testreflex.action.util.TestReflexUtil;
 import org.openelisglobal.testreflex.valueholder.TestReflex;
 import org.openelisglobal.testresult.service.TestResultService;
@@ -153,6 +155,8 @@ public class ResultsLoadUtility {
     private SampleQaEventService sampleQaEventService;
     @Autowired
     private TestResultService testResultService;
+    @Autowired
+    private TestAdditionalFieldService testAdditionalFieldService;
 
     private final StatusRules statusRules = new StatusRules();
 
@@ -171,6 +175,7 @@ public class ResultsLoadUtility {
     private String currentUserName = "";
     private int reflexGroup = 1;
     private boolean lockCurrentResults = false;
+    private final Map<String, List<TestAdditionalFieldPayload>> additionalFieldDefinitionCache = new HashMap<>();
 
     @PostConstruct
     public void initializeGlobalVariables() {
@@ -211,6 +216,7 @@ public class ResultsLoadUtility {
     public List<TestResultItem> getGroupedTestsForSample(Sample sample, Patient patient) {
 
         reflexGroup = 1;
+        additionalFieldDefinitionCache.clear();
         // TODO: Re-enable after new inventory frontend integration
         // activeKits = null;
         samples = new ArrayList<>();
@@ -230,6 +236,7 @@ public class ResultsLoadUtility {
 
     public List<TestResultItem> getGroupedTestsForPatient(Patient patient) {
         reflexGroup = 1;
+        additionalFieldDefinitionCache.clear();
         // TODO: Re-enable after new inventory frontend integration
         // activeKits = null;
         inventoryNeeded = false;
@@ -289,6 +296,7 @@ public class ResultsLoadUtility {
         // activeKits = null;
         inventoryNeeded = false;
         reflexGroup = 1;
+        additionalFieldDefinitionCache.clear();
 
         List<TestResultItem> selectedTestList = new ArrayList<>();
 
@@ -753,6 +761,12 @@ public class ResultsLoadUtility {
         // setDictionaryResults must come after setResultType, it may override it
         testItem.setResultType(testService.getResultType(test));
         setDictionaryResults(testItem, isConclusion, result, testResults);
+        List<TestAdditionalFieldPayload> additionalFieldDefinitions = getAdditionalFieldsForTest(test.getId());
+        Map<String, String> additionalFieldValues = testAdditionalFieldService
+                .getAnalysisValuesForFields(analysis.getId(), additionalFieldDefinitions);
+        testItem.setAdditionalFieldDefinitions(additionalFieldDefinitions);
+        testItem.setAdditionalFieldValues(new HashMap<>(additionalFieldValues));
+        testItem.setAdditionalFieldShadowValues(new HashMap<>(additionalFieldValues));
 
         testItem.setTechnician(techSignature);
         testItem.setTechnicianSignatureId(techSignatureId);
@@ -801,6 +815,14 @@ public class ResultsLoadUtility {
             testItem.setDefaultResultValue(test.getDefaultTestResult().getValue());
         }
         return testItem;
+    }
+
+    private List<TestAdditionalFieldPayload> getAdditionalFieldsForTest(String testId) {
+        if (GenericValidator.isBlankOrNull(testId)) {
+            return new ArrayList<>();
+        }
+        return additionalFieldDefinitionCache.computeIfAbsent(testId,
+                ignored -> testAdditionalFieldService.getFieldsForTest(testId, false));
     }
 
     private boolean isReadOnly(boolean isConclusion, boolean isCD4Conclusion) {

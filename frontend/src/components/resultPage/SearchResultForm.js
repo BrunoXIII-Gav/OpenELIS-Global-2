@@ -21,7 +21,8 @@ import {
   SelectItem,
   Loading,
   Link,
-  FileUploader,
+  RadioButtonGroup,
+  RadioButton,
 } from "@carbon/react";
 import { Copy, ArrowLeft, ArrowRight } from "@carbon/icons-react";
 import CustomLabNumberInput from "../common/CustomLabNumberInput";
@@ -1200,7 +1201,7 @@ export function SearchResults(props) {
                 type="number"
                 value={row.resultValue}
                 style={validationState[row.id]?.style}
-                onBlur={(e) => {
+                onBlur={() => {
                   if (
                     validationState[row.id]?.isInvalid &&
                     configurationProperties.ALERT_FOR_INVALID_RESULTS
@@ -1431,6 +1432,254 @@ export function SearchResults(props) {
     }
   };
 
+  const handleAdditionalFieldChange = (
+    rowId,
+    fieldKey,
+    fieldType,
+    nextValue,
+  ) => {
+    const form = {
+      ...props.results,
+      testResult: [...props.results.testResult],
+    };
+    const row = { ...(form.testResult[rowId] || {}) };
+    const additionalFieldValues = { ...(row.additionalFieldValues || {}) };
+
+    if (fieldType === "MULTISELECT" && Array.isArray(nextValue)) {
+      additionalFieldValues[fieldKey] = nextValue.join(",");
+    } else if (fieldType === "BOOLEAN") {
+      additionalFieldValues[fieldKey] =
+        nextValue === true || nextValue === "true" ? "true" : "false";
+    } else {
+      additionalFieldValues[fieldKey] = nextValue == null ? "" : `${nextValue}`;
+    }
+
+    row.additionalFieldValues = additionalFieldValues;
+    row.isModified = "true";
+    form.testResult[rowId] = row;
+    props.setResultForm(form);
+  };
+
+  const renderAdditionalFieldInput = (data, fieldDefinition) => {
+    const fieldType = fieldDefinition?.fieldType || "TEXT";
+    const fieldKey = fieldDefinition?.fieldKey;
+    const activeOptions = Array.isArray(fieldDefinition?.options)
+      ? fieldDefinition.options.filter((option) => option?.active !== false)
+      : [];
+    const fieldValue =
+      data?.additionalFieldValues &&
+      Object.prototype.hasOwnProperty.call(data.additionalFieldValues, fieldKey)
+        ? data.additionalFieldValues[fieldKey]
+        : "";
+    const fieldLabel = fieldDefinition?.displayName || fieldKey;
+    const inputId = `additional-field-${data.id}-${fieldKey}`;
+
+    if (!fieldKey) {
+      return null;
+    }
+
+    switch (fieldType) {
+      case "TEXTAREA":
+        return (
+          <TextArea
+            id={inputId}
+            labelText={fieldLabel}
+            rows={2}
+            value={fieldValue || ""}
+            onChange={(event) =>
+              handleAdditionalFieldChange(
+                data.id,
+                fieldKey,
+                fieldType,
+                event.target.value,
+              )
+            }
+          />
+        );
+      case "NUMBER":
+        return (
+          <TextInput
+            id={inputId}
+            labelText={fieldLabel}
+            type="number"
+            value={fieldValue || ""}
+            onChange={(event) =>
+              handleAdditionalFieldChange(
+                data.id,
+                fieldKey,
+                fieldType,
+                event.target.value,
+              )
+            }
+          />
+        );
+      case "DATE":
+        return (
+          <TextInput
+            id={inputId}
+            labelText={fieldLabel}
+            type="date"
+            value={fieldValue || ""}
+            onChange={(event) =>
+              handleAdditionalFieldChange(
+                data.id,
+                fieldKey,
+                fieldType,
+                event.target.value,
+              )
+            }
+          />
+        );
+      case "DATETIME":
+        return (
+          <TextInput
+            id={inputId}
+            labelText={fieldLabel}
+            type="datetime-local"
+            value={fieldValue || ""}
+            onChange={(event) =>
+              handleAdditionalFieldChange(
+                data.id,
+                fieldKey,
+                fieldType,
+                event.target.value,
+              )
+            }
+          />
+        );
+      case "BOOLEAN":
+        return (
+          <Checkbox
+            id={inputId}
+            labelText={fieldLabel}
+            checked={fieldValue === "true"}
+            onChange={(event) =>
+              handleAdditionalFieldChange(
+                data.id,
+                fieldKey,
+                fieldType,
+                event.target.checked,
+              )
+            }
+          />
+        );
+      case "SELECT":
+        return (
+          <Select
+            id={inputId}
+            labelText={fieldLabel}
+            value={fieldValue || ""}
+            onChange={(event) =>
+              handleAdditionalFieldChange(
+                data.id,
+                fieldKey,
+                fieldType,
+                event.target.value,
+              )
+            }
+          >
+            <SelectItem value="" text="" />
+            {activeOptions.map((option) => (
+              <SelectItem
+                key={`${inputId}-${option.optionKey}`}
+                value={option.optionKey}
+                text={option.optionLabel || option.optionKey}
+              />
+            ))}
+          </Select>
+        );
+      case "RADIO":
+        return (
+          <div>
+            <label htmlFor={inputId} style={{ display: "block" }}>
+              {fieldLabel}
+            </label>
+            <RadioButtonGroup
+              id={inputId}
+              legendText=""
+              name={inputId}
+              valueSelected={fieldValue || ""}
+              onChange={(valueSelected) =>
+                handleAdditionalFieldChange(
+                  data.id,
+                  fieldKey,
+                  fieldType,
+                  valueSelected,
+                )
+              }
+            >
+              {activeOptions.map((option) => (
+                <RadioButton
+                  key={`${inputId}-${option.optionKey}`}
+                  id={`${inputId}-${option.optionKey}`}
+                  labelText={option.optionLabel || option.optionKey}
+                  value={option.optionKey}
+                />
+              ))}
+            </RadioButtonGroup>
+          </div>
+        );
+      case "MULTISELECT": {
+        const selectedValues = (fieldValue || "")
+          .split(",")
+          .map((value) => value.trim())
+          .filter((value) => value.length > 0);
+        return (
+          <div>
+            <label
+              htmlFor={inputId}
+              style={{ display: "block", marginBottom: "0.25rem" }}
+            >
+              {fieldLabel}
+            </label>
+            <select
+              id={inputId}
+              multiple
+              value={selectedValues}
+              onChange={(event) => {
+                const values = Array.from(event.target.selectedOptions).map(
+                  (option) => option.value,
+                );
+                handleAdditionalFieldChange(
+                  data.id,
+                  fieldKey,
+                  fieldType,
+                  values,
+                );
+              }}
+              style={{ width: "100%", minHeight: "5rem" }}
+            >
+              {activeOptions.map((option) => (
+                <option
+                  key={`${inputId}-${option.optionKey}`}
+                  value={option.optionKey}
+                >
+                  {option.optionLabel || option.optionKey}
+                </option>
+              ))}
+            </select>
+          </div>
+        );
+      }
+      default:
+        return (
+          <TextInput
+            id={inputId}
+            labelText={fieldLabel}
+            value={fieldValue || ""}
+            onChange={(event) =>
+              handleAdditionalFieldChange(
+                data.id,
+                fieldKey,
+                fieldType,
+                event.target.value,
+              )
+            }
+          />
+        );
+    }
+  };
+
   const renderReferral = ({ data }) => {
     // Fetch location when row is expanded using sampleItemId
     const analysisId = data.id;
@@ -1578,6 +1827,28 @@ export function SearchResults(props) {
             />
           </Column>
         </Grid>
+        {Array.isArray(data.additionalFieldDefinitions) &&
+          data.additionalFieldDefinitions.length > 0 && (
+            <Grid style={{ marginTop: "1rem" }}>
+              <Column lg={16}>
+                <h5 style={{ marginBottom: "0.75rem" }}>
+                  <FormattedMessage id="results.additionalFields.title" />
+                </h5>
+              </Column>
+              {data.additionalFieldDefinitions
+                .filter((fieldDefinition) => fieldDefinition?.active !== false)
+                .map((fieldDefinition, index) => (
+                  <Column
+                    lg={4}
+                    md={4}
+                    sm={4}
+                    key={`additional-field-render-${data.id}-${fieldDefinition.fieldKey || index}`}
+                  >
+                    {renderAdditionalFieldInput(data, fieldDefinition)}
+                  </Column>
+                ))}
+            </Grid>
+          )}
         {/* Storage Location Widget - INT-002: Integration point */}
         <Grid style={{ marginTop: "1rem" }}>
           <Column lg={16}>

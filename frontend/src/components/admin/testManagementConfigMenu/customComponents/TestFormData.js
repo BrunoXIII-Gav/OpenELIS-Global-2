@@ -8,6 +8,7 @@ export const TestFormData = {
   uom: "",
   loinc: "",
   resultType: "",
+  additionalFields: [],
   orderable: "Y",
   notifyResults: "N",
   inLabOnly: "N",
@@ -17,6 +18,8 @@ export const TestFormData = {
   dictionaryReference: "",
   defaultTestResult: "",
   sampleTypes: [],
+  sampleTypeIds: [],
+  panelIds: [],
   lowValid: "-Infinity",
   highValid: "Infinity",
   lowReportingRange: "-Infinity",
@@ -88,7 +91,26 @@ const extractRange = (rangeStr) => {
 };
 
 export const mapTestCatBeanToFormData = (test) => {
-  console.log(JSON.stringify(test));
+  const mappedDictionary = Array.isArray(test.dictionaryIds)
+    ? test.dictionaryIds
+        .map((rawId, index) => {
+          if (!rawId) return null;
+          const idToken = String(rawId).trim().split(" ")[0];
+          if (!idToken) return null;
+          const rawValue = Array.isArray(test.dictionaryValues)
+            ? String(test.dictionaryValues[index] ?? "")
+            : "";
+          const isQualified =
+            String(rawId).toLowerCase().includes("qualifiable") ||
+            rawValue.toLowerCase().includes("qualifiable");
+          return {
+            id: idToken,
+            qualified: isQualified ? "Y" : "N",
+          };
+        })
+        .filter(Boolean)
+    : [];
+
   return {
     testId: test.id,
     testNameEnglish: test.localization?.english || "",
@@ -97,23 +119,62 @@ export const mapTestCatBeanToFormData = (test) => {
     testReportNameFrench: test.reportLocalization?.french || "",
     testSection: test.testUnit || "",
     panels:
-      typeof test.panel === "string" && test.panel !== "None"
+      Array.isArray(test.panelIds) && test.panelIds.length > 0
+        ? []
+        : typeof test.panel === "string" && test.panel !== "None"
         ? test.panel.split(",").map((p) => p.trim())
         : [],
+    panelIds: Array.isArray(test.panelIds) ? test.panelIds : [],
     uom: test.uom || "",
     loinc: test.loinc || "",
     resultType: test.resultType || "",
+    additionalFields: Array.isArray(test.additionalFields)
+      ? test.additionalFields
+          .filter((field) => field?.displayName && field?.fieldType)
+          .map((field, index) => ({
+            id: field.id ?? undefined,
+            fieldKey: field.fieldKey || "",
+            displayName: field.displayName || "",
+            fieldType: field.fieldType || "TEXT",
+            required: !!field.required,
+            active: field.active !== false,
+            sortOrder:
+              typeof field.sortOrder === "number" ? field.sortOrder : index + 1,
+            defaultValue: field.defaultValue || "",
+            maxLength:
+              field.maxLength === null || field.maxLength === undefined
+                ? ""
+                : String(field.maxLength),
+            metadataJson: field.metadataJson || "",
+            options: Array.isArray(field.options)
+              ? field.options
+                  .filter((option) => option?.optionLabel)
+                  .map((option, optionIndex) => ({
+                    id: option.id ?? undefined,
+                    optionKey: option.optionKey || "",
+                    optionLabel: option.optionLabel || "",
+                    sortOrder:
+                      typeof option.sortOrder === "number"
+                        ? option.sortOrder
+                        : optionIndex + 1,
+                    active: option.active !== false,
+                  }))
+              : [],
+          }))
+      : [],
     orderable: test.orderable === "Orderable" ? "Y" : "N",
     notifyResults: test.notifyResults ? "Y" : "N",
     inLabOnly: test.inLabOnly ? "Y" : "N",
     antimicrobialResistance: test.antimicrobialResistance ? "Y" : "N",
     active: test.active === "Active" ? "Y" : "N",
-    dictionary: test.dictionaryValues || [],
-    dictionaryReference: Number.isNaN(Number(test.referenceValue))
-      ? ""
-      : test.referenceValue,
+    dictionary: mappedDictionary,
+    dictionaryReference:
+      test.referenceId && test.referenceId !== "n/a"
+        ? String(test.referenceId).split(" ")[0]
+        : "",
     defaultTestResult: "",
     sampleTypes: test.sampleType ? [test.sampleType] : [],
+    sampleTypeIds: test.sampleTypeId ? [String(test.sampleTypeId)] : [],
     lowValid: extractRange(test.resultLimits?.[0]?.validRange)[0],
     highValid: extractRange(test.resultLimits?.[0]?.validRange)[1],
     lowReportingRange: extractRange(test.resultLimits?.[0]?.reportingRange)[0],

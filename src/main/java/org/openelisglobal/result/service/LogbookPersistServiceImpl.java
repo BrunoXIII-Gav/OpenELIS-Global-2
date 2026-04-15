@@ -2,9 +2,11 @@ package org.openelisglobal.result.service;
 
 import java.util.ArrayList;
 import java.util.Arrays;
+import java.util.Collections;
 import java.util.HashMap;
 import java.util.HashSet;
 import java.util.List;
+import java.util.Map;
 import java.util.Set;
 import java.util.UUID;
 import org.openelisglobal.analysis.service.AnalysisService;
@@ -26,6 +28,9 @@ import org.openelisglobal.result.action.util.ResultsUpdateDataSet;
 import org.openelisglobal.sample.service.SampleService;
 import org.openelisglobal.sample.valueholder.Sample;
 import org.openelisglobal.spring.util.SpringContext;
+import org.openelisglobal.test.beanItems.TestResultItem;
+import org.openelisglobal.testadditionalfield.bean.TestAdditionalFieldPayload;
+import org.openelisglobal.testadditionalfield.service.TestAdditionalFieldService;
 import org.openelisglobal.testcalculated.action.util.TestCalculatedUtil;
 import org.openelisglobal.testreflex.action.util.TestReflexBean;
 import org.openelisglobal.testreflex.action.util.TestReflexUtil;
@@ -54,6 +59,8 @@ public class LogbookPersistServiceImpl implements LogbookResultsPersistService {
     private ReferralResultService referralResultService;
     @Autowired
     private ReferralSetService referralSetService;
+    @Autowired
+    private TestAdditionalFieldService testAdditionalFieldService;
 
     @Override
     @Transactional
@@ -122,6 +129,8 @@ public class LogbookPersistServiceImpl implements LogbookResultsPersistService {
             analysisService.update(analysis);
         }
 
+        persistAdditionalFieldValues(actionDataSet, sysUserId);
+
         ResultSaveService.removeDeletedResultsInTransaction(actionDataSet.getDeletableResults(), sysUserId);
 
         List<Analysis> reflexAnalysises = setTestReflexes(actionDataSet, sysUserId);
@@ -132,6 +141,29 @@ public class LogbookPersistServiceImpl implements LogbookResultsPersistService {
             updater.transactionalUpdate(actionDataSet);
         }
         return reflexAnalysises;
+    }
+
+    private void persistAdditionalFieldValues(ResultsUpdateDataSet actionDataSet, String sysUserId) {
+        List<TestResultItem> allModifiedItems = new ArrayList<>();
+        allModifiedItems.addAll(actionDataSet.getModifiedItems());
+        allModifiedItems.addAll(actionDataSet.getAnalysisOnlyChangeResults());
+        if (allModifiedItems.isEmpty()) {
+            return;
+        }
+
+        List<String> testIds = allModifiedItems.stream().map(TestResultItem::getTestId)
+                .filter(testId -> testId != null && !testId.trim().isEmpty()).distinct().toList();
+
+        Map<String, List<TestAdditionalFieldPayload>> activeFieldsByTestCache = testIds.isEmpty() ? Collections.emptyMap()
+                : testAdditionalFieldService.getActiveFieldsForTests(testIds);
+
+        for (TestResultItem item : allModifiedItems) {
+            if (item.getAdditionalFieldDefinitions() == null || item.getAdditionalFieldDefinitions().isEmpty()) {
+                continue;
+            }
+            testAdditionalFieldService.validateAndPersistAnalysisValues(item.getTestId(), item.getAnalysisId(),
+                    item.getAdditionalFieldValues(), sysUserId, activeFieldsByTestCache);
+        }
     }
 
     private void saveReferralsWithRequiredObjects(ReferralSet referralSet, String sysUserId) {

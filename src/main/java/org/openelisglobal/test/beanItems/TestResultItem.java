@@ -22,7 +22,9 @@ import java.io.Serializable;
 import java.text.DecimalFormat;
 import java.util.ArrayList;
 import java.util.Base64;
+import java.util.HashMap;
 import java.util.List;
+import java.util.Map;
 import org.openelisglobal.analysis.valueholder.ResultFile;
 import org.openelisglobal.common.action.IActionConstants;
 import org.openelisglobal.common.provider.validation.AccessionNumberValidatorFactory.AccessionFormat;
@@ -33,6 +35,7 @@ import org.openelisglobal.referral.action.beanitems.ReferralItem;
 import org.openelisglobal.result.action.util.ResultItem;
 import org.openelisglobal.result.form.LogbookResultsForm;
 import org.openelisglobal.result.valueholder.Result;
+import org.openelisglobal.testadditionalfield.bean.TestAdditionalFieldPayload;
 import org.openelisglobal.validation.annotations.SafeHtml;
 import org.openelisglobal.validation.annotations.ValidAccessionNumber;
 import org.openelisglobal.validation.annotations.ValidDate;
@@ -217,6 +220,10 @@ public class TestResultItem implements ResultItem, Serializable {
 
     @SafeHtml(level = SafeHtml.SafeListLevel.NONE, groups = { LogbookResultsForm.LogbookResults.class })
     private String qualifiedResultValue = "";
+
+    private List<TestAdditionalFieldPayload> additionalFieldDefinitions = new ArrayList<>();
+    private Map<String, String> additionalFieldValues = new HashMap<>();
+    private Map<String, String> additionalFieldShadowValues = new HashMap<>();
 
     private String qualifiedResultId;
     private boolean hasQualifiedResult = false;
@@ -1017,6 +1024,32 @@ public class TestResultItem implements ResultItem, Serializable {
 
     public void setResultFile(ResultFileForm resultFile) {
         this.resultFile = resultFile;
+    }
+
+    public List<TestAdditionalFieldPayload> getAdditionalFieldDefinitions() {
+        return additionalFieldDefinitions;
+    }
+
+    public void setAdditionalFieldDefinitions(List<TestAdditionalFieldPayload> additionalFieldDefinitions) {
+        this.additionalFieldDefinitions = additionalFieldDefinitions == null ? new ArrayList<>()
+                : additionalFieldDefinitions;
+    }
+
+    public Map<String, String> getAdditionalFieldValues() {
+        return additionalFieldValues;
+    }
+
+    public void setAdditionalFieldValues(Map<String, String> additionalFieldValues) {
+        this.additionalFieldValues = additionalFieldValues == null ? new HashMap<>() : additionalFieldValues;
+    }
+
+    public Map<String, String> getAdditionalFieldShadowValues() {
+        return additionalFieldShadowValues;
+    }
+
+    public void setAdditionalFieldShadowValues(Map<String, String> additionalFieldShadowValues) {
+        this.additionalFieldShadowValues = additionalFieldShadowValues == null ? new HashMap<>()
+                : additionalFieldShadowValues;
     }
 
     public static class ResultFileForm extends ResultFile {

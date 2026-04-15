@@ -2,6 +2,7 @@ package org.openelisglobal.testconfiguration.service;
 
 import java.util.List;
 import java.util.Locale;
+import org.apache.commons.validator.GenericValidator;
 import org.openelisglobal.common.services.DisplayListService;
 import org.openelisglobal.localization.service.LocalizationService;
 import org.openelisglobal.localization.valueholder.Localization;
@@ -15,6 +16,7 @@ import org.openelisglobal.test.service.TestSectionService;
 import org.openelisglobal.test.service.TestService;
 import org.openelisglobal.test.valueholder.Test;
 import org.openelisglobal.test.valueholder.TestSection;
+import org.openelisglobal.testadditionalfield.service.TestAdditionalFieldService;
 import org.openelisglobal.testconfiguration.controller.TestModifyEntryController.TestAddParams;
 import org.openelisglobal.testconfiguration.controller.TestModifyEntryController.TestSet;
 import org.openelisglobal.testresult.service.TestResultService;
@@ -55,11 +57,22 @@ public class TestModifyServiceImpl implements TestModifyService {
     private PanelService panelService;
     @Autowired
     private TestSectionService testSectionService;
+    @Autowired
+    private TestAdditionalFieldService testAdditionalFieldService;
 
     @Override
     @Transactional
     public void updateTestSets(List<TestSet> testSets, TestAddParams testAddParams, Localization nameLocalization,
             Localization reportingNameLocalization, String currentUserId) {
+        if (testAddParams == null || GenericValidator.isBlankOrNull(testAddParams.testId)) {
+            throw new IllegalArgumentException("Missing testId for test modification.");
+        }
+
+        if (testSets == null || testSets.isEmpty()) {
+            throw new IllegalArgumentException(
+                    "No sample types were provided for test modification. Refusing to persist an empty test set.");
+        }
+
         List<TypeOfSampleTest> typeOfSampleTest = typeOfSampleTestService
                 .getTypeOfSampleTestsForTest(testAddParams.testId);
         String[] typeOfSamplesTestIDs = new String[typeOfSampleTest.size()];
@@ -149,6 +162,9 @@ public class TestModifyServiceImpl implements TestModifyService {
                 resultLimitService.insert(resultLimit);
             }
         }
+
+        testAdditionalFieldService.replaceFieldsForTest(testAddParams.testId, testAddParams.additionalFields,
+                currentUserId);
     }
 
     private void updateTestSortOrder(String testId, String sortOrder, String currentUserId) {
@@ -175,16 +191,24 @@ public class TestModifyServiceImpl implements TestModifyService {
             boolean notifyResults, boolean inLabOnly, boolean antimicrobialResistance, String isActive,
             Boolean orderable) {
         Test test = testService.get(testId);
-        TestSection testSection = testSectionService.get(testSectionId);
 
         if (test != null) {
             test.setSysUserId(userId);
             test.setLoinc(loinc);
-            test.setUnitOfMeasure(unitOfMeasureService.getUnitOfMeasureById(uomId));
+            if ("0".equals(uomId)) {
+                test.setUnitOfMeasure(null);
+            } else if (!GenericValidator.isBlankOrNull(uomId)) {
+                test.setUnitOfMeasure(unitOfMeasureService.getUnitOfMeasureById(uomId));
+            }
             test.setNotifyResults(notifyResults);
             test.setInLabOnly(inLabOnly);
             test.setAntimicrobialResistance(antimicrobialResistance);
-            test.setTestSection(testSection);
+            if (!GenericValidator.isBlankOrNull(testSectionId)) {
+                TestSection testSection = testSectionService.get(testSectionId);
+                if (testSection != null) {
+                    test.setTestSection(testSection);
+                }
+            }
             test.setIsActive(isActive);
             test.setOrderable(orderable);
             testService.update(test);
