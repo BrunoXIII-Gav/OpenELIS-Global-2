@@ -1,0 +1,197 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<databaseChangeLog
+    xmlns="http://www.liquibase.org/xml/ns/dbchangelog"
+    xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+    xsi:schemaLocation="http://www.liquibase.org/xml/ns/dbchangelog http://www.liquibase.org/xml/ns/dbchangelog/dbchangelog-3.8.xsd">
+
+    <changeSet id="test-additional-fields-001-create-definition-table" author="codex">
+        <preConditions onFail="MARK_RAN">
+            <not>
+                <tableExists tableName="test_additional_field_def" schemaName="clinlims" />
+            </not>
+        </preConditions>
+
+        <createTable tableName="test_additional_field_def" schemaName="clinlims">
+            <column name="id" type="numeric(10,0)">
+                <constraints primaryKey="true" nullable="false" />
+            </column>
+            <column name="test_id" type="numeric(10,0)">
+                <constraints nullable="false" />
+            </column>
+            <column name="field_key" type="varchar(80)">
+                <constraints nullable="false" />
+            </column>
+            <column name="display_name" type="varchar(150)">
+                <constraints nullable="false" />
+            </column>
+            <column name="field_type" type="varchar(30)">
+                <constraints nullable="false" />
+            </column>
+            <column name="required" type="boolean" defaultValueBoolean="false">
+                <constraints nullable="false" />
+            </column>
+            <column name="active" type="boolean" defaultValueBoolean="true">
+                <constraints nullable="false" />
+            </column>
+            <column name="sort_order" type="int" defaultValueNumeric="0">
+                <constraints nullable="false" />
+            </column>
+            <column name="default_value" type="varchar(500)" />
+            <column name="max_length" type="int" />
+            <column name="metadata_json" type="text" />
+            <column name="sys_user_id" type="numeric(10,0)">
+                <constraints nullable="false" />
+            </column>
+            <column name="last_updated" type="TIMESTAMP" defaultValueComputed="NOW()">
+                <constraints nullable="false" />
+            </column>
+        </createTable>
+
+        <createSequence schemaName="clinlims" sequenceName="test_additional_field_def_seq" startValue="1" incrementBy="1" />
+
+        <addForeignKeyConstraint baseTableSchemaName="clinlims" baseTableName="test_additional_field_def"
+            baseColumnNames="test_id" referencedTableSchemaName="clinlims"
+            referencedTableName="test" referencedColumnNames="id"
+            constraintName="fk_test_additional_field_def_test" onDelete="CASCADE" />
+
+        <addUniqueConstraint schemaName="clinlims" tableName="test_additional_field_def"
+            columnNames="test_id,field_key" constraintName="uk_test_additional_field_def_key" />
+
+        <createIndex schemaName="clinlims" tableName="test_additional_field_def"
+            indexName="idx_test_additional_field_def_test">
+            <column name="test_id" />
+            <column name="active" />
+            <column name="sort_order" />
+        </createIndex>
+
+        <rollback>
+            <dropIndex schemaName="clinlims" tableName="test_additional_field_def"
+                indexName="idx_test_additional_field_def_test" />
+            <dropTable schemaName="clinlims" tableName="test_additional_field_def" />
+            <dropSequence schemaName="clinlims" sequenceName="test_additional_field_def_seq" />
+        </rollback>
+    </changeSet>
+
+    <changeSet id="test-additional-fields-002-create-option-table" author="codex">
+        <preConditions onFail="MARK_RAN">
+            <not>
+                <tableExists tableName="test_additional_field_option" schemaName="clinlims" />
+            </not>
+        </preConditions>
+
+        <createTable tableName="test_additional_field_option" schemaName="clinlims">
+            <column name="id" type="numeric(10,0)">
+                <constraints primaryKey="true" nullable="false" />
+            </column>
+            <column name="field_def_id" type="numeric(10,0)">
+                <constraints nullable="false" />
+            </column>
+            <column name="option_key" type="varchar(80)">
+                <constraints nullable="false" />
+            </column>
+            <column name="option_label" type="varchar(150)">
+                <constraints nullable="false" />
+            </column>
+            <column name="sort_order" type="int" defaultValueNumeric="0">
+                <constraints nullable="false" />
+            </column>
+            <column name="active" type="boolean" defaultValueBoolean="true">
+                <constraints nullable="false" />
+            </column>
+            <column name="sys_user_id" type="numeric(10,0)">
+                <constraints nullable="false" />
+            </column>
+            <column name="last_updated" type="TIMESTAMP" defaultValueComputed="NOW()">
+                <constraints nullable="false" />
+            </column>
+        </createTable>
+
+        <createSequence schemaName="clinlims" sequenceName="test_additional_field_option_seq" startValue="1" incrementBy="1" />
+
+        <addForeignKeyConstraint baseTableSchemaName="clinlims" baseTableName="test_additional_field_option"
+            baseColumnNames="field_def_id" referencedTableSchemaName="clinlims"
+            referencedTableName="test_additional_field_def" referencedColumnNames="id"
+            constraintName="fk_test_additional_field_option_def" onDelete="CASCADE" />
+
+        <addUniqueConstraint schemaName="clinlims" tableName="test_additional_field_option"
+            columnNames="field_def_id,option_key" constraintName="uk_test_additional_field_option_key" />
+
+        <createIndex schemaName="clinlims" tableName="test_additional_field_option"
+            indexName="idx_test_additional_field_option_def">
+            <column name="field_def_id" />
+            <column name="active" />
+            <column name="sort_order" />
+        </createIndex>
+
+        <rollback>
+            <dropIndex schemaName="clinlims" tableName="test_additional_field_option"
+                indexName="idx_test_additional_field_option_def" />
+            <dropTable schemaName="clinlims" tableName="test_additional_field_option" />
+            <dropSequence schemaName="clinlims" sequenceName="test_additional_field_option_seq" />
+        </rollback>
+    </changeSet>
+
+    <changeSet id="test-additional-fields-003-create-analysis-value-table" author="codex">
+        <preConditions onFail="MARK_RAN">
+            <not>
+                <tableExists tableName="analysis_additional_field_value" schemaName="clinlims" />
+            </not>
+        </preConditions>
+
+        <createTable tableName="analysis_additional_field_value" schemaName="clinlims">
+            <column name="id" type="numeric(10,0)">
+                <constraints primaryKey="true" nullable="false" />
+            </column>
+            <column name="analysis_id" type="numeric(10,0)">
+                <constraints nullable="false" />
+            </column>
+            <column name="field_def_id" type="numeric(10,0)">
+                <constraints nullable="false" />
+            </column>
+            <column name="field_value" type="text">
+                <constraints nullable="false" />
+            </column>
+            <column name="sys_user_id" type="numeric(10,0)">
+                <constraints nullable="false" />
+            </column>
+            <column name="last_updated" type="TIMESTAMP" defaultValueComputed="NOW()">
+                <constraints nullable="false" />
+            </column>
+        </createTable>
+
+        <createSequence schemaName="clinlims" sequenceName="analysis_additional_field_value_seq" startValue="1" incrementBy="1" />
+
+        <addForeignKeyConstraint baseTableSchemaName="clinlims" baseTableName="analysis_additional_field_value"
+            baseColumnNames="analysis_id" referencedTableSchemaName="clinlims"
+            referencedTableName="analysis" referencedColumnNames="id"
+            constraintName="fk_analysis_additional_field_value_analysis" onDelete="CASCADE" />
+
+        <addForeignKeyConstraint baseTableSchemaName="clinlims" baseTableName="analysis_additional_field_value"
+            baseColumnNames="field_def_id" referencedTableSchemaName="clinlims"
+            referencedTableName="test_additional_field_def" referencedColumnNames="id"
+            constraintName="fk_analysis_additional_field_value_def" onDelete="RESTRICT" />
+
+        <addUniqueConstraint schemaName="clinlims" tableName="analysis_additional_field_value"
+            columnNames="analysis_id,field_def_id" constraintName="uk_analysis_additional_field_value_analysis_field" />
+
+        <createIndex schemaName="clinlims" tableName="analysis_additional_field_value"
+            indexName="idx_analysis_additional_field_value_analysis">
+            <column name="analysis_id" />
+        </createIndex>
+
+        <createIndex schemaName="clinlims" tableName="analysis_additional_field_value"
+            indexName="idx_analysis_additional_field_value_field">
+            <column name="field_def_id" />
+        </createIndex>
+
+        <rollback>
+            <dropIndex schemaName="clinlims" tableName="analysis_additional_field_value"
+                indexName="idx_analysis_additional_field_value_analysis" />
+            <dropIndex schemaName="clinlims" tableName="analysis_additional_field_value"
+                indexName="idx_analysis_additional_field_value_field" />
+            <dropTable schemaName="clinlims" tableName="analysis_additional_field_value" />
+            <dropSequence schemaName="clinlims" sequenceName="analysis_additional_field_value_seq" />
+        </rollback>
+    </changeSet>
+
+</databaseChangeLog>
