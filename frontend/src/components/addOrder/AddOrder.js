@@ -1,10 +1,14 @@
 import React, { useContext, useEffect, useRef, useState } from "react";
 import {
   Checkbox,
+  FileUploader,
   Link,
+  RadioButton,
+  RadioButtonGroup,
   Select,
   SelectItem,
   Stack,
+  TextArea,
   TextInput,
   TimePicker,
   Column,
@@ -12,7 +16,7 @@ import {
 } from "@carbon/react";
 import CustomLabNumberInput from "../common/CustomLabNumberInput";
 import CustomDatePicker from "../common/CustomDatePicker";
-import { getFromOpenElisServer } from "../utils/Utils";
+import { getFromOpenElisServer, toBase64 } from "../utils/Utils";
 import { NotificationContext } from "../layout/Layout";
 import { priorities } from "../data/orderOptions";
 import { NotificationKinds } from "../common/CustomNotification";
@@ -20,6 +24,31 @@ import AutoComplete from "../common/AutoComplete";
 import OrderResultReporting from "./OrderResultReporting";
 import { FormattedMessage, useIntl } from "react-intl";
 import { ConfigurationContext } from "../layout/Layout";
+import config from "../../config.json";
+
+const DEFAULT_FIXED_FIELD_ORDER = [
+  { fieldKey: "priority", sortOrder: 10 },
+  { fieldKey: "requestDate", sortOrder: 20 },
+  { fieldKey: "receivedDateForDisplay", sortOrder: 30 },
+  { fieldKey: "receivedTime", sortOrder: 40 },
+  { fieldKey: "nextVisitDate", sortOrder: 50 },
+  { fieldKey: "referringSiteName", sortOrder: 60 },
+  { fieldKey: "referringSiteDepartmentId", sortOrder: 70 },
+  { fieldKey: "provisionalClinicalDiagnosis", sortOrder: 80 },
+  { fieldKey: "providerFirstName", sortOrder: 90 },
+  { fieldKey: "providerLastName", sortOrder: 100 },
+  { fieldKey: "providerWorkPhone", sortOrder: 110 },
+  { fieldKey: "providerFax", sortOrder: 120 },
+  { fieldKey: "providerEmail", sortOrder: 130 },
+  { fieldKey: "paymentOptionSelection", sortOrder: 140 },
+  { fieldKey: "testLocationCode", sortOrder: 150 },
+  { fieldKey: "otherLocationCode", sortOrder: 160 },
+  { fieldKey: "rememberSiteAndRequester", sortOrder: 170 },
+];
+
+const DEFAULT_CONDITION_OPERATOR = "equals";
+const DEFAULT_CONDITION_LOGIC = "ALL";
+
 const AddOrder = (props) => {
   const { setNotificationVisible, addNotification } =
     useContext(NotificationContext);
@@ -45,6 +74,1074 @@ const AddOrder = (props) => {
   const [siteNames, setSiteNames] = useState([]);
   const [innitialized, setInnitialized] = useState(false);
   const [departments, setDepartments] = useState([]);
+  const [waitingForFixedFieldConfig, setWaitingForFixedFieldConfig] =
+    useState(true);
+
+  const hasLoadedFixedFieldConfig =
+    Array.isArray(orderFormValues?.sampleOrderItems?.fixedFieldConfigs) &&
+    orderFormValues.sampleOrderItems.fixedFieldConfigs.length > 0;
+
+  const getFixedFieldConfig = (fieldKey) => {
+    const configs = orderFormValues?.sampleOrderItems?.fixedFieldConfigs || [];
+    return (
+      configs.find(
+        (config) => config?.fieldKey?.toLowerCase() === fieldKey?.toLowerCase(),
+      ) || null
+    );
+  };
+
+  const isFieldVisible = (fieldKey) => {
+    if (waitingForFixedFieldConfig && !hasLoadedFixedFieldConfig) {
+      return false;
+    }
+    const config = getFixedFieldConfig(fieldKey);
+    return config ? config.visible !== false : true;
+  };
+
+  const isFieldRequired = (fieldKey, fallback = false) => {
+    const config = getFixedFieldConfig(fieldKey);
+    return config && config.required != null ? !!config.required : fallback;
+  };
+
+  const isFieldReadonly = (fieldKey) => {
+    const config = getFixedFieldConfig(fieldKey);
+    return config ? config.readonly === true : false;
+  };
+
+  const parseFieldMetadata = (field) => {
+    if (!field?.metadataJson) {
+      return {};
+    }
+    try {
+      return JSON.parse(field.metadataJson);
+    } catch (_error) {
+      return {};
+    }
+  };
+
+  const getDynamicConditionContext = () => {
+    const sampleOrderItems = orderFormValues?.sampleOrderItems || {};
+    return {
+      ...(sampleOrderItems.additionalFieldValues || {}),
+      priority: sampleOrderItems.priority,
+      requestDate: sampleOrderItems.requestDate,
+      receivedDateForDisplay: sampleOrderItems.receivedDateForDisplay,
+      receivedTime: sampleOrderItems.receivedTime,
+      nextVisitDate: sampleOrderItems.nextVisitDate,
+      referringSiteName: sampleOrderItems.referringSiteName,
+      referringSiteDepartmentId: sampleOrderItems.referringSiteDepartmentId,
+      provisionalClinicalDiagnosis:
+        sampleOrderItems.provisionalClinicalDiagnosis,
+      providerFirstName: sampleOrderItems.providerFirstName,
+      providerLastName: sampleOrderItems.providerLastName,
+      providerWorkPhone: sampleOrderItems.providerWorkPhone,
+      providerFax: sampleOrderItems.providerFax,
+      providerEmail: sampleOrderItems.providerEmail,
+      paymentOptionSelection: sampleOrderItems.paymentOptionSelection,
+      testLocationCode: sampleOrderItems.testLocationCode,
+      otherLocationCode: sampleOrderItems.otherLocationCode,
+      rememberSiteAndRequester: orderFormValues?.rememberSiteAndRequester
+        ? "true"
+        : "false",
+    };
+  };
+
+  const evaluateSingleCondition = (condition, context) => {
+    if (!condition || !condition.fieldKey) {
+      return false;
+    }
+
+    const operator = (
+      condition.operator || DEFAULT_CONDITION_OPERATOR
+    ).toLowerCase();
+    const leftValue = String(context?.[condition.fieldKey] ?? "").trim();
+    const rightValue = String(condition.value ?? "").trim();
+    const rightValues = Array.isArray(condition.values)
+      ? condition.values.map((value) => String(value ?? "").trim())
+      : rightValue
+        ? [rightValue]
+        : [];
+
+    switch (operator) {
+      case "equals":
+        return leftValue.toLowerCase() === rightValue.toLowerCase();
+      case "notequals":
+        return leftValue.toLowerCase() !== rightValue.toLowerCase();
+      case "in":
+        return rightValues.some(
+          (value) => leftValue.toLowerCase() === value.toLowerCase(),
+        );
+      case "notin":
+        return rightValues.every(
+          (value) => leftValue.toLowerCase() !== value.toLowerCase(),
+        );
+      case "hasvalue":
+        return !!leftValue;
+      case "istrue":
+        return ["true", "yes", "1"].includes(leftValue.toLowerCase());
+      case "isfalse":
+        return ["false", "no", "0"].includes(leftValue.toLowerCase());
+      default:
+        return false;
+    }
+  };
+
+  const evaluateConditions = (conditions, logic, context) => {
+    if (!Array.isArray(conditions) || conditions.length === 0) {
+      return true;
+    }
+    const useAny =
+      String(logic || DEFAULT_CONDITION_LOGIC).toUpperCase() === "ANY";
+    if (useAny) {
+      return conditions.some((condition) =>
+        evaluateSingleCondition(condition, context),
+      );
+    }
+    return conditions.every((condition) =>
+      evaluateSingleCondition(condition, context),
+    );
+  };
+
+  const isDynamicFieldVisible = (field) => {
+    if (!field || !field.fieldKey || field.active === false) {
+      return false;
+    }
+    const metadata = parseFieldMetadata(field);
+    const rules = metadata?.rules || {};
+    return evaluateConditions(
+      rules.visibleWhen,
+      rules.logic || DEFAULT_CONDITION_LOGIC,
+      getDynamicConditionContext(),
+    );
+  };
+
+  const isDynamicFieldRequired = (field) => {
+    if (field?.required) {
+      return true;
+    }
+    const metadata = parseFieldMetadata(field);
+    const rules = metadata?.rules || {};
+    if (!Array.isArray(rules.requiredWhen) || rules.requiredWhen.length === 0) {
+      return false;
+    }
+    return evaluateConditions(
+      rules.requiredWhen,
+      rules.logic || DEFAULT_CONDITION_LOGIC,
+      getDynamicConditionContext(),
+    );
+  };
+
+  const handleAdditionalFieldValueChange = (fieldKey, value) => {
+    setOrderFormValues({
+      ...orderFormValues,
+      sampleOrderItems: {
+        ...orderFormValues.sampleOrderItems,
+        additionalFieldValues: {
+          ...(orderFormValues.sampleOrderItems.additionalFieldValues || {}),
+          [fieldKey]: value,
+        },
+      },
+    });
+  };
+
+  const handleAdditionalFieldFileChange = (fieldKey, filePayload) => {
+    setOrderFormValues({
+      ...orderFormValues,
+      sampleOrderItems: {
+        ...orderFormValues.sampleOrderItems,
+        additionalFieldFiles: {
+          ...(orderFormValues.sampleOrderItems.additionalFieldFiles || {}),
+          [fieldKey]: filePayload,
+        },
+      },
+    });
+  };
+
+  const removeAdditionalFieldFile = (fieldKey) => {
+    const existingFiles = orderFormValues.sampleOrderItems.additionalFieldFiles;
+    const existingFile = existingFiles?.[fieldKey];
+    if (existingFile?.fileName) {
+      handleAdditionalFieldFileChange(fieldKey, { deleteFile: true });
+      return;
+    }
+    if (!existingFiles) {
+      return;
+    }
+    const nextFiles = { ...existingFiles };
+    delete nextFiles[fieldKey];
+    setOrderFormValues({
+      ...orderFormValues,
+      sampleOrderItems: {
+        ...orderFormValues.sampleOrderItems,
+        additionalFieldFiles: nextFiles,
+      },
+    });
+  };
+
+  const handleAdditionalFileUpload = async (field, event) => {
+    const file = event?.target?.files?.[0];
+    if (!file || !field?.fieldKey) {
+      return;
+    }
+
+    try {
+      const base64Content = await toBase64(file);
+      handleAdditionalFieldFileChange(field.fieldKey, {
+        fileName: file.name,
+        fileType: file.type,
+        fileSize: file.size,
+        base64Content,
+        deleteFile: false,
+      });
+    } catch (_error) {
+      setNotificationVisible(true);
+      addNotification({
+        kind: NotificationKinds.error,
+        title: intl.formatMessage({ id: "notification.title" }),
+        message: intl.formatMessage({ id: "server.error.msg" }),
+      });
+    }
+  };
+
+  const buildAdditionalFieldFileUrl = (fieldKey, download = false) => {
+    const sampleId = orderFormValues?.sampleOrderItems?.sampleId;
+    if (!sampleId || !fieldKey) {
+      return null;
+    }
+    return `${config.serverBaseUrl}/rest/order-additional-fields/files/${sampleId}/${fieldKey}?download=${download}`;
+  };
+
+  const openBase64FilePreview = (fileType, base64Content) => {
+    if (!base64Content) {
+      return;
+    }
+
+    const normalizedBase64 = base64Content.includes(";base64,")
+      ? base64Content.split(";base64,", 2)[1]
+      : base64Content;
+
+    try {
+      const binaryString = window.atob(normalizedBase64);
+      const byteArray = Uint8Array.from(binaryString, (character) =>
+        character.charCodeAt(0),
+      );
+      const blob = new Blob([byteArray], {
+        type: fileType || "application/octet-stream",
+      });
+      const objectUrl = URL.createObjectURL(blob);
+      window.open(objectUrl, "_blank", "noopener,noreferrer");
+      window.setTimeout(() => URL.revokeObjectURL(objectUrl), 60_000);
+    } catch (_error) {
+      setNotificationVisible(true);
+      addNotification({
+        kind: NotificationKinds.error,
+        title: intl.formatMessage({ id: "notification.title" }),
+        message: intl.formatMessage({ id: "server.error.msg" }),
+      });
+    }
+  };
+
+  const openAdditionalFieldFilePreview = (fieldKey, currentFile) => {
+    if (currentFile?.base64Content) {
+      openBase64FilePreview(currentFile.fileType, currentFile.base64Content);
+      return;
+    }
+
+    const previewUrl = buildAdditionalFieldFileUrl(fieldKey, false);
+    if (!previewUrl) {
+      return;
+    }
+    window.open(previewUrl, "_blank", "noopener,noreferrer");
+  };
+
+  const downloadAdditionalFieldFile = (fieldKey) => {
+    const downloadUrl = buildAdditionalFieldFileUrl(fieldKey, true);
+    if (!downloadUrl) {
+      return;
+    }
+    window.open(downloadUrl, "_blank", "noopener,noreferrer");
+  };
+
+  const handleAdditionalMultiSelectOption = (fieldKey, optionKey, checked) => {
+    const currentValuesRaw =
+      orderFormValues.sampleOrderItems.additionalFieldValues?.[fieldKey] || "";
+    const selectedValues = new Set(
+      currentValuesRaw
+        .split(",")
+        .map((value) => value.trim())
+        .filter(Boolean),
+    );
+
+    if (checked) {
+      selectedValues.add(optionKey);
+    } else {
+      selectedValues.delete(optionKey);
+    }
+
+    handleAdditionalFieldValueChange(
+      fieldKey,
+      Array.from(selectedValues).join(","),
+    );
+  };
+
+  const renderDynamicField = (field) => {
+    if (!isDynamicFieldVisible(field)) {
+      return null;
+    }
+
+    const fieldType = (field.fieldType || "TEXT").toUpperCase();
+    const currentValue =
+      orderFormValues.sampleOrderItems.additionalFieldValues?.[field.fieldKey];
+    const hasValue = currentValue !== undefined && currentValue !== null;
+    const value = hasValue ? currentValue : field.defaultValue || "";
+    const options = (field.options || []).filter((option) => option.active);
+    const required = isDynamicFieldRequired(field);
+    const readonly = isFieldReadonly(field.fieldKey);
+    const fieldMetadata = parseFieldMetadata(field);
+    const documentConfig = fieldMetadata?.document || {};
+    const acceptedMimeTypes = Array.isArray(documentConfig.accept)
+      ? documentConfig.accept
+      : ["application/pdf"];
+    const currentFile =
+      orderFormValues.sampleOrderItems.additionalFieldFiles?.[field.fieldKey];
+    const label = (
+      <>
+        {field.displayName}
+        {required ? <span className="requiredlabel">*</span> : null}
+      </>
+    );
+
+    switch (fieldType) {
+      case "TEXTAREA":
+        return (
+          <Column key={field.fieldKey} lg={8} md={4} sm={4}>
+            <TextArea
+              id={`order-dynamic-${field.fieldKey}`}
+              labelText={label}
+              value={value}
+              onChange={(event) =>
+                handleAdditionalFieldValueChange(
+                  field.fieldKey,
+                  event.target.value,
+                )
+              }
+              maxLength={field.maxLength || undefined}
+              readOnly={readonly}
+            />
+          </Column>
+        );
+      case "NUMBER":
+        return (
+          <Column key={field.fieldKey} lg={8} md={4} sm={4}>
+            <TextInput
+              id={`order-dynamic-${field.fieldKey}`}
+              labelText={label}
+              type="number"
+              value={value}
+              onChange={(event) =>
+                handleAdditionalFieldValueChange(
+                  field.fieldKey,
+                  event.target.value,
+                )
+              }
+              readOnly={readonly}
+            />
+          </Column>
+        );
+      case "DATE":
+        return (
+          <Column key={field.fieldKey} lg={8} md={4} sm={4}>
+            <TextInput
+              id={`order-dynamic-${field.fieldKey}`}
+              labelText={label}
+              type="date"
+              value={value}
+              onChange={(event) =>
+                handleAdditionalFieldValueChange(
+                  field.fieldKey,
+                  event.target.value,
+                )
+              }
+              readOnly={readonly}
+            />
+          </Column>
+        );
+      case "DATETIME":
+        return (
+          <Column key={field.fieldKey} lg={8} md={4} sm={4}>
+            <TextInput
+              id={`order-dynamic-${field.fieldKey}`}
+              labelText={label}
+              type="datetime-local"
+              value={value}
+              onChange={(event) =>
+                handleAdditionalFieldValueChange(
+                  field.fieldKey,
+                  event.target.value,
+                )
+              }
+              readOnly={readonly}
+            />
+          </Column>
+        );
+      case "BOOLEAN":
+        return (
+          <Column key={field.fieldKey} lg={8} md={4} sm={4}>
+            <Checkbox
+              id={`order-dynamic-${field.fieldKey}`}
+              labelText={field.displayName}
+              checked={String(value).toLowerCase() === "true"}
+              onChange={(_event, { checked }) =>
+                handleAdditionalFieldValueChange(
+                  field.fieldKey,
+                  checked ? "true" : "false",
+                )
+              }
+              disabled={readonly}
+            />
+          </Column>
+        );
+      case "SELECT":
+        return (
+          <Column key={field.fieldKey} lg={8} md={4} sm={4}>
+            <Select
+              id={`order-dynamic-${field.fieldKey}`}
+              labelText={label}
+              value={value}
+              onChange={(event) =>
+                handleAdditionalFieldValueChange(
+                  field.fieldKey,
+                  event.target.value,
+                )
+              }
+              disabled={readonly}
+            >
+              <SelectItem value="" text="" />
+              {options.map((option) => (
+                <SelectItem
+                  key={`${field.fieldKey}-${option.optionKey}`}
+                  value={option.optionKey}
+                  text={option.optionLabel}
+                />
+              ))}
+            </Select>
+          </Column>
+        );
+      case "RADIO":
+        return (
+          <Column key={field.fieldKey} lg={8} md={4} sm={4}>
+            <RadioButtonGroup
+              legendText={label}
+              name={`order-dynamic-radio-${field.fieldKey}`}
+              valueSelected={value}
+              onChange={(selectedValue) =>
+                handleAdditionalFieldValueChange(field.fieldKey, selectedValue)
+              }
+            >
+              {options.map((option) => (
+                <RadioButton
+                  key={`${field.fieldKey}-${option.optionKey}`}
+                  id={`order-dynamic-${field.fieldKey}-${option.optionKey}`}
+                  labelText={option.optionLabel}
+                  value={option.optionKey}
+                  disabled={readonly}
+                />
+              ))}
+            </RadioButtonGroup>
+          </Column>
+        );
+      case "MULTISELECT": {
+        const selectedValues = new Set(
+          String(value)
+            .split(",")
+            .map((entry) => entry.trim())
+            .filter(Boolean),
+        );
+        return (
+          <Column key={field.fieldKey} lg={8} md={4} sm={4}>
+            <label htmlFor={`order-dynamic-${field.fieldKey}`}>{label}</label>
+            <div id={`order-dynamic-${field.fieldKey}`}>
+              {options.map((option) => (
+                <Checkbox
+                  key={`${field.fieldKey}-${option.optionKey}`}
+                  id={`order-dynamic-${field.fieldKey}-${option.optionKey}`}
+                  labelText={option.optionLabel}
+                  checked={selectedValues.has(option.optionKey)}
+                  onChange={(_event, { checked }) =>
+                    handleAdditionalMultiSelectOption(
+                      field.fieldKey,
+                      option.optionKey,
+                      checked,
+                    )
+                  }
+                  disabled={readonly}
+                />
+              ))}
+            </div>
+          </Column>
+        );
+      }
+      case "DOCUMENT":
+        return (
+          <Column key={field.fieldKey} lg={8} md={4} sm={4}>
+            <div style={{ marginBottom: "0.5rem" }}>{label}</div>
+            <FileUploader
+              buttonLabel={<FormattedMessage id="label.button.uploadfile" />}
+              filenameStatus={currentFile?.fileName ? "complete" : ""}
+              accept={acceptedMimeTypes}
+              multiple={false}
+              onChange={(event) => handleAdditionalFileUpload(field, event)}
+              filename={currentFile?.fileName}
+              disabled={readonly}
+            />
+            {currentFile?.fileName ? (
+              <div style={{ marginTop: "0.5rem" }}>
+                <Link
+                  onClick={() =>
+                    openAdditionalFieldFilePreview(field.fieldKey, currentFile)
+                  }
+                >
+                  {currentFile.fileName}
+                </Link>
+                {orderFormValues?.sampleOrderItems?.sampleId ? (
+                  <>
+                    {"  "}
+                    <Link
+                      onClick={() =>
+                        downloadAdditionalFieldFile(field.fieldKey)
+                      }
+                    >
+                      <FormattedMessage id="order.additional.fields.document.download" />
+                    </Link>
+                  </>
+                ) : null}
+                {!readonly ? (
+                  <>
+                    {"  "}
+                    <Link
+                      onClick={() => removeAdditionalFieldFile(field.fieldKey)}
+                    >
+                      <FormattedMessage id="label.button.remove" />
+                    </Link>
+                  </>
+                ) : null}
+              </div>
+            ) : null}
+          </Column>
+        );
+      case "TEXT":
+      default:
+        return (
+          <Column key={field.fieldKey} lg={8} md={4} sm={4}>
+            <TextInput
+              id={`order-dynamic-${field.fieldKey}`}
+              labelText={label}
+              value={value}
+              onChange={(event) =>
+                handleAdditionalFieldValueChange(
+                  field.fieldKey,
+                  event.target.value,
+                )
+              }
+              maxLength={field.maxLength || undefined}
+              readOnly={readonly}
+            />
+          </Column>
+        );
+    }
+  };
+
+  const getEffectiveFixedFieldConfigs = () => {
+    const configs = orderFormValues?.sampleOrderItems?.fixedFieldConfigs;
+    if (Array.isArray(configs) && configs.length > 0) {
+      return configs;
+    }
+    return DEFAULT_FIXED_FIELD_ORDER;
+  };
+
+  const getOrderedOrderFieldDescriptors = () => {
+    const fixedFields = getEffectiveFixedFieldConfigs()
+      .map((config) => ({
+        type: "fixed",
+        fieldKey: config.fieldKey,
+        sortOrder: Number(config?.sortOrder ?? 0),
+      }))
+      .filter((field) => isFieldVisible(field.fieldKey));
+
+    const customFields = (
+      orderFormValues?.sampleOrderItems?.additionalFields || []
+    )
+      .filter(
+        (field) =>
+          field &&
+          field.active !== false &&
+          field.fieldKey &&
+          isDynamicFieldVisible(field),
+      )
+      .map((field) => ({
+        type: "custom",
+        field,
+        sortOrder: Number(field?.sortOrder ?? 0),
+      }));
+
+    const staticFields = [
+      { type: "static", fieldKey: "requesterSearch", sortOrder: 75 },
+    ];
+
+    const typeRank = {
+      fixed: 0,
+      static: 1,
+      custom: 2,
+    };
+
+    return [...fixedFields, ...staticFields, ...customFields].sort(
+      (left, right) => {
+        if (left.sortOrder !== right.sortOrder) {
+          return left.sortOrder - right.sortOrder;
+        }
+
+        const leftRank = typeRank[left.type] ?? 99;
+        const rightRank = typeRank[right.type] ?? 99;
+        if (leftRank !== rightRank) {
+          return leftRank - rightRank;
+        }
+
+        const leftKey =
+          left.type === "custom" ? left.field.fieldKey : left.fieldKey;
+        const rightKey =
+          right.type === "custom" ? right.field.fieldKey : right.fieldKey;
+        return String(leftKey || "").localeCompare(String(rightKey || ""));
+      },
+    );
+  };
+
+  const renderRequesterSearchField = () => (
+    <Column key="requesterSearch" lg={8} md={4} sm={4}>
+      <AutoComplete
+        name="requesterId"
+        id="requesterId"
+        allowFreeText={
+          !(configurationProperties.restrictFreeTextProviderEntry === "true")
+        }
+        onSelect={handleProviderSelectOptions}
+        onChange={clearProviderId}
+        label={
+          <>
+            <FormattedMessage id="order.search.requester.label" />{" "}
+            <span className="requiredlabel">*</span>
+          </>
+        }
+        style={{ width: "!important 100%" }}
+        invalidText={
+          <FormattedMessage id="order.invalid.requester.name.label" />
+        }
+        suggestions={providers.length > 0 ? providers : []}
+        required
+      />
+    </Column>
+  );
+
+  const renderFixedOrderField = (fieldKey) => {
+    switch (fieldKey) {
+      case "priority":
+        return (
+          <Column key={fieldKey} lg={8} md={4} sm={4}>
+            <Select
+              id="priorityId"
+              name="priority"
+              labelText={intl.formatMessage({
+                id: "workplan.priority.list",
+              })}
+              value={orderFormValues.sampleOrderItems.priority}
+              onChange={handlePriority}
+              disabled={isFieldReadonly("priority")}
+            >
+              {priorities.map((priority, index) => {
+                return (
+                  <SelectItem
+                    key={index}
+                    text={priority.label}
+                    value={priority.value}
+                  />
+                );
+              })}
+            </Select>
+          </Column>
+        );
+      case "requestDate":
+        return (
+          <Column key={fieldKey} lg={8} md={4} sm={4}>
+            <CustomDatePicker
+              id={"order_requestDate"}
+              labelText={intl.formatMessage({ id: "sample.requestDate" })}
+              autofillDate={true}
+              value={
+                orderFormValues.sampleOrderItems.requestDate
+                  ? orderFormValues.sampleOrderItems.requestDate
+                  : configurationProperties.currentDateAsText
+              }
+              disallowFutureDate={true}
+              onChange={(date) => handleDatePickerChange("requestDate", date)}
+            />
+          </Column>
+        );
+      case "receivedDateForDisplay":
+        return (
+          <Column key={fieldKey} lg={8} md={4} sm={4}>
+            <CustomDatePicker
+              id={"order_receivedDate"}
+              labelText={intl.formatMessage({ id: "sample.receivedDate" })}
+              autofillDate={true}
+              value={
+                orderFormValues.sampleOrderItems.receivedDateForDisplay
+                  ? orderFormValues.sampleOrderItems.receivedDateForDisplay
+                  : configurationProperties.currentDateAsText
+              }
+              disallowFutureDate={true}
+              onChange={(date) => handleDatePickerChange("receivedDate", date)}
+            />
+          </Column>
+        );
+      case "receivedTime":
+        return (
+          <Column key={fieldKey} lg={8} md={4} sm={4}>
+            <TimePicker
+              id="order_receivedTime"
+              labelText={intl.formatMessage({ id: "order.reception.time" })}
+              onChange={handleReceivedTime}
+              value={
+                orderFormValues.sampleOrderItems.receivedTime
+                  ? orderFormValues.sampleOrderItems.receivedTime
+                  : configurationProperties.currentTimeAsText
+              }
+              disabled={isFieldReadonly("receivedTime")}
+            />
+          </Column>
+        );
+      case "nextVisitDate":
+        return (
+          <Column key={fieldKey} lg={8} md={4} sm={4}>
+            <CustomDatePicker
+              id={"order_nextVisitDate"}
+              labelText={intl.formatMessage({
+                id: "sample.entry.nextVisit.date",
+              })}
+              value={orderFormValues.sampleOrderItems.nextVisitDate}
+              autofillDate={false}
+              disallowPastDate={true}
+              onChange={(date) => handleDatePickerChange("nextVisitDate", date)}
+            />
+          </Column>
+        );
+      case "referringSiteName":
+        return (
+          <Column key={fieldKey} lg={8} md={4} sm={4}>
+            <AutoComplete
+              name="siteName"
+              id="siteName"
+              allowFreeText={
+                !(
+                  configurationProperties.restrictFreeTextRefSiteEntry ===
+                  "true"
+                )
+              }
+              value={
+                orderFormValues.sampleOrderItems.referringSiteId != ""
+                  ? orderFormValues.sampleOrderItems.referringSiteId
+                  : orderFormValues.sampleOrderItems.referringSiteName
+              }
+              onChange={handleSiteName}
+              onSelect={handleAutoCompleteSiteName}
+              label={
+                <>
+                  <FormattedMessage id="order.search.site.name" />{" "}
+                  {isFieldRequired("referringSiteName", true) ? (
+                    <span className="requiredlabel">*</span>
+                  ) : null}
+                </>
+              }
+              style={{ width: "!important 100%" }}
+              suggestions={siteNames.length > 0 ? siteNames : []}
+              required={isFieldRequired("referringSiteName", true)}
+            />
+          </Column>
+        );
+      case "referringSiteDepartmentId":
+        return (
+          <Column key={fieldKey} lg={8} md={4} sm={4}>
+            <Select
+              id="requesterDepartmentId"
+              name="requesterDepartmentId"
+              labelText={intl.formatMessage({
+                id: "order.department.label",
+              })}
+              onChange={handleRequesterDept}
+              value={orderFormValues.sampleOrderItems.referringSiteDepartmentId}
+              disabled={isFieldReadonly("referringSiteDepartmentId")}
+            >
+              <SelectItem value="" text="" />
+              {departments.map((department, index) => (
+                <SelectItem
+                  key={index}
+                  text={department.value}
+                  value={department.id}
+                />
+              ))}
+            </Select>
+          </Column>
+        );
+      case "provisionalClinicalDiagnosis":
+        return (
+          <Column key={fieldKey} lg={8} md={4} sm={4}>
+            <TextInput
+              name="provisionalDiagnosis"
+              placeholder={intl.formatMessage({
+                id: "input.placeholder.provisionalClinicalDiagnosis",
+              })}
+              onChange={handleProvisionalClinicalDiagnosisChange}
+              value={
+                orderFormValues.sampleOrderItems.provisionalClinicalDiagnosis
+              }
+              labelText={intl.formatMessage({
+                id: "order.requester.provisionalDiagnosis.label",
+              })}
+              id="provisionalDiagnosisId"
+              readOnly={isFieldReadonly("provisionalClinicalDiagnosis")}
+            />
+          </Column>
+        );
+      case "providerFirstName":
+        return (
+          <Column key={fieldKey} lg={8} md={4} sm={4}>
+            <TextInput
+              name="requesterFirstName"
+              placeholder={intl.formatMessage({
+                id: "input.placeholder.requesterFirstName",
+              })}
+              labelText={
+                <>
+                  <FormattedMessage id="order.requester.firstName.label" />
+                  {isFieldRequired("providerFirstName", true) ? (
+                    <span className="requiredlabel">*</span>
+                  ) : null}
+                </>
+              }
+              disabled={
+                configurationProperties.restrictFreeTextProviderEntry ===
+                  "true" || isFieldReadonly("providerFirstName")
+              }
+              onChange={handleRequesterFirstName}
+              onClick={() => handleChange("sampleOrderItems.providerFirstName")}
+              value={orderFormValues.sampleOrderItems.providerFirstName}
+              invalid={
+                changed["sampleOrderItems.providerFirstName"] &&
+                error("sampleOrderItems.providerFirstName")
+                  ? true
+                  : false
+              }
+              invalidText={error("sampleOrderItems.providerFirstName")}
+              id="requesterFirstName"
+            />
+          </Column>
+        );
+      case "providerLastName":
+        return (
+          <Column key={fieldKey} lg={8} md={4} sm={4}>
+            <TextInput
+              name="requesterLastName"
+              placeholder={intl.formatMessage({
+                id: "input.placeholder.requesterLastName",
+              })}
+              labelText={
+                <>
+                  <FormattedMessage id="order.requester.lastName.label" />
+                  {isFieldRequired("providerLastName", true) ? (
+                    <span className="requiredlabel">*</span>
+                  ) : null}
+                </>
+              }
+              disabled={
+                configurationProperties.restrictFreeTextProviderEntry ===
+                  "true" || isFieldReadonly("providerLastName")
+              }
+              value={orderFormValues.sampleOrderItems.providerLastName}
+              onClick={() => handleChange("sampleOrderItems.providerLastName")}
+              onChange={handleRequesterLastName}
+              id="requesterLastName"
+              invalid={
+                changed["sampleOrderItems.providerLastName"] &&
+                error("sampleOrderItems.providerLastName")
+                  ? true
+                  : false
+              }
+              invalidText={error("sampleOrderItems.providerLastName")}
+            />
+          </Column>
+        );
+      case "providerWorkPhone":
+        return (
+          <Column key={fieldKey} lg={8} sm={4}>
+            <TextInput
+              name="providerWorkPhone"
+              placeholder={intl.formatMessage({
+                id: "input.placeholder.providerWorkPhone",
+              })}
+              disabled={
+                configurationProperties.restrictFreeTextProviderEntry ===
+                  "true" || isFieldReadonly("providerWorkPhone")
+              }
+              onChange={handleRequesterWorkPhone}
+              value={orderFormValues.sampleOrderItems.providerWorkPhone}
+              onMouseLeave={handlePhoneNoValidation}
+              labelText={intl.formatMessage({
+                id: "order.requester.phone.label",
+              })}
+              id="providerWorkPhoneId"
+            />
+          </Column>
+        );
+      case "providerFax":
+        return (
+          <Column key={fieldKey} lg={8} md={4} sm={4}>
+            <TextInput
+              name="providerFax"
+              placeholder={intl.formatMessage({
+                id: "input.placeholder.providerFax",
+              })}
+              labelText={intl.formatMessage({
+                id: "order.requester.fax.label",
+              })}
+              disabled={
+                configurationProperties.restrictFreeTextProviderEntry ===
+                  "true" || isFieldReadonly("providerFax")
+              }
+              onChange={handleRequesterFax}
+              value={orderFormValues.sampleOrderItems.providerFax}
+              id="providerFaxId"
+            />
+          </Column>
+        );
+      case "providerEmail":
+        return (
+          <Column key={fieldKey} lg={8} md={4} sm={4}>
+            <TextInput
+              name="providerEmail"
+              placeholder={intl.formatMessage({
+                id: "input.placeholder.providerEmail",
+              })}
+              labelText={intl.formatMessage({
+                id: "order.requester.email.label",
+              })}
+              disabled={
+                configurationProperties.restrictFreeTextProviderEntry ===
+                  "true" || isFieldReadonly("providerEmail")
+              }
+              onChange={handleRequesterEmail}
+              value={orderFormValues.sampleOrderItems.providerEmail}
+              id="providerEmailId"
+              invalid={error("sampleOrderItems.providerEmail") ? true : false}
+              invalidText={intl.formatMessage({
+                id: "error.invalid.email",
+              })}
+            />
+          </Column>
+        );
+      case "paymentOptionSelection":
+        return (
+          <Column key={fieldKey} lg={8} md={4} sm={4}>
+            <Select
+              id="paymentOptionSelectionId"
+              name="paymentOptionSelections"
+              value={orderFormValues.sampleOrderItems.paymentOptionSelection}
+              labelText={intl.formatMessage({
+                id: "order.payment.status.label",
+              })}
+              onChange={handlePaymentStatus}
+              disabled={isFieldReadonly("paymentOptionSelection")}
+            >
+              <SelectItem value="" text="" />
+              {paymentOptions &&
+                paymentOptions.map((option) => {
+                  return (
+                    <SelectItem
+                      key={option.id}
+                      value={option.id}
+                      text={option.value}
+                    />
+                  );
+                })}
+            </Select>
+          </Column>
+        );
+      case "testLocationCode":
+        return (
+          <Column key={fieldKey} lg={8} md={4} sm={4}>
+            <Select
+              id="testLocationCodeId"
+              name="testLocationCode"
+              value={orderFormValues.sampleOrderItems.testLocationCode}
+              labelText={
+                <FormattedMessage id="order.sampling.performed.label" />
+              }
+              onChange={(e) => handleSamplingPerformed(e)}
+              disabled={isFieldReadonly("testLocationCode")}
+            >
+              <SelectItem value="" text="" />
+              {samplingPerformed.map((option) => {
+                return (
+                  <SelectItem
+                    key={option.id}
+                    value={option.id}
+                    text={option.value}
+                  />
+                );
+              })}
+            </Select>
+          </Column>
+        );
+      case "otherLocationCode":
+        return (
+          <Column key={fieldKey} lg={8} md={4} sm={4}>
+            <TextInput
+              name="testLocationCodeOther"
+              labelText={intl.formatMessage({ id: "order.if.other.label" })}
+              onChange={handleOtherLocationCode}
+              value={orderFormValues.sampleOrderItems.otherLocationCode}
+              disabled={
+                !otherSamplingVisible || isFieldReadonly("otherLocationCode")
+              }
+              id="testLocationCodeOtherId"
+            />
+          </Column>
+        );
+      case "rememberSiteAndRequester":
+        return (
+          <Column key={fieldKey} lg={8} md={4} sm={4}>
+            <Checkbox
+              labelText={
+                <FormattedMessage id="order.remember.site.and.requester.label" />
+              }
+              id="rememberSiteAndRequester"
+              onChange={handleRememberCheckBox}
+              checked={!!orderFormValues.rememberSiteAndRequester}
+              disabled={isFieldReadonly("rememberSiteAndRequester")}
+            />
+          </Column>
+        );
+      default:
+        return null;
+    }
+  };
+
+  const renderOrderedOrderField = (descriptor) => {
+    if (descriptor.type === "custom") {
+      return renderDynamicField(descriptor.field);
+    }
+    if (descriptor.type === "static") {
+      return renderRequesterSearchField();
+    }
+    return renderFixedOrderField(descriptor.fieldKey);
+  };
 
   useEffect(() => {
     componentMounted.current = true;
@@ -54,6 +1151,12 @@ const AddOrder = (props) => {
       componentMounted.current = false;
     };
   }, []);
+
+  useEffect(() => {
+    const selectedLocationCode =
+      orderFormValues?.sampleOrderItems?.testLocationCode;
+    setOtherSamplingVisible(selectedLocationCode === "1310");
+  }, [orderFormValues?.sampleOrderItems?.testLocationCode]);
 
   const handleDatePickerChange = (datePicker, date) => {
     let obj = null;
@@ -432,11 +1535,69 @@ const AddOrder = (props) => {
   };
 
   const getSampleEntryPreform = (response) => {
+    if (componentMounted.current && response?.sampleOrderItems) {
+      setSiteNames(response.sampleOrderItems.referringSiteList || []);
+      setPaymentOptions(response.sampleOrderItems.paymentOptions || []);
+      setSamplingPerformed(
+        response.sampleOrderItems.testLocationCodeList || [],
+      );
+      setProviders(response.sampleOrderItems.providersList || []);
+
+      const responseAdditionalFields =
+        response?.sampleOrderItems?.additionalFields || [];
+      const responseFixedFieldConfigs =
+        response?.sampleOrderItems?.fixedFieldConfigs || [];
+      const responseAdditionalFieldFiles =
+        response?.sampleOrderItems?.additionalFieldFiles || {};
+
+      setOrderFormValues((previous) => {
+        if (!previous?.sampleOrderItems) {
+          return previous;
+        }
+
+        const shouldAdoptAdditionalFields =
+          !isModifyOrder ||
+          !(previous.sampleOrderItems.additionalFields || []).length;
+        const shouldAdoptFixedConfigs = !(
+          previous.sampleOrderItems.fixedFieldConfigs || []
+        ).length;
+        const shouldAdoptAdditionalFiles = !(
+          previous.sampleOrderItems.additionalFieldFiles &&
+          Object.keys(previous.sampleOrderItems.additionalFieldFiles).length
+        );
+
+        if (
+          !shouldAdoptAdditionalFields &&
+          !shouldAdoptFixedConfigs &&
+          !shouldAdoptAdditionalFiles
+        ) {
+          return previous;
+        }
+
+        return {
+          ...previous,
+          sampleOrderItems: {
+            ...previous.sampleOrderItems,
+            additionalFields: shouldAdoptAdditionalFields
+              ? responseAdditionalFields
+              : previous.sampleOrderItems.additionalFields,
+            fixedFieldConfigs: shouldAdoptFixedConfigs
+              ? responseFixedFieldConfigs
+              : previous.sampleOrderItems.fixedFieldConfigs,
+            additionalFieldValues:
+              previous.sampleOrderItems.additionalFieldValues || {},
+            additionalFieldFiles: shouldAdoptAdditionalFiles
+              ? responseAdditionalFieldFiles
+              : previous.sampleOrderItems.additionalFieldFiles,
+          },
+        };
+      });
+      setWaitingForFixedFieldConfig(false);
+      return;
+    }
+
     if (componentMounted.current) {
-      setSiteNames(response.sampleOrderItems.referringSiteList);
-      setPaymentOptions(response.sampleOrderItems.paymentOptions);
-      setSamplingPerformed(response.sampleOrderItems.testLocationCodeList);
-      setProviders(response.sampleOrderItems.providersList);
+      setWaitingForFixedFieldConfig(false);
     }
   };
 
@@ -519,403 +1680,9 @@ const AddOrder = (props) => {
                 </div>
               </div>
             </Column>
-            <Column lg={8} md={4} sm={4}>
-              <Select
-                id="priorityId"
-                name="priority"
-                labelText={intl.formatMessage({ id: "workplan.priority.list" })}
-                value={orderFormValues.sampleOrderItems.priority}
-                onChange={handlePriority}
-                required
-              >
-                {priorities.map((priority, index) => {
-                  return (
-                    <SelectItem
-                      key={index}
-                      text={priority.label}
-                      value={priority.value}
-                    />
-                  );
-                })}
-              </Select>
-            </Column>
-            <Column lg={16} md={8} sm={3}>
-              {" "}
-              &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp;{" "}
-            </Column>
-            <Column lg={8} md={4} sm={4}>
-              <CustomDatePicker
-                id={"order_requestDate"}
-                labelText={intl.formatMessage({ id: "sample.requestDate" })}
-                autofillDate={true}
-                value={
-                  orderFormValues.sampleOrderItems.requestDate
-                    ? orderFormValues.sampleOrderItems.requestDate
-                    : configurationProperties.currentDateAsText
-                }
-                disallowFutureDate={true}
-                onChange={(date) => handleDatePickerChange("requestDate", date)}
-              />
-            </Column>
-            <Column lg={8} md={4} sm={4}>
-              <CustomDatePicker
-                id={"order_receivedDate"}
-                labelText={intl.formatMessage({ id: "sample.receivedDate" })}
-                autofillDate={true}
-                value={
-                  orderFormValues.sampleOrderItems.receivedDateForDisplay
-                    ? orderFormValues.sampleOrderItems.receivedDateForDisplay
-                    : configurationProperties.currentDateAsText
-                }
-                disallowFutureDate={true}
-                onChange={(date) =>
-                  handleDatePickerChange("receivedDate", date)
-                }
-              />
-            </Column>
-            <Column lg={16} md={8} sm={3}>
-              {" "}
-              &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp;{" "}
-            </Column>
-            <Column lg={8} md={4} sm={4}>
-              <TimePicker
-                id="order_receivedTime"
-                labelText={intl.formatMessage({ id: "order.reception.time" })}
-                onChange={handleReceivedTime}
-                value={
-                  orderFormValues.sampleOrderItems.receivedTime
-                    ? orderFormValues.sampleOrderItems.receivedTime
-                    : configurationProperties.currentTimeAsText
-                }
-              />
-            </Column>
-            <Column lg={8} md={4} sm={4}>
-              <CustomDatePicker
-                id={"order_nextVisitDate"}
-                labelText={intl.formatMessage({
-                  id: "sample.entry.nextVisit.date",
-                })}
-                value={orderFormValues.sampleOrderItems.nextVisitDate}
-                autofillDate={false}
-                disallowPastDate={true}
-                onChange={(date) =>
-                  handleDatePickerChange("nextVisitDate", date)
-                }
-              />
-            </Column>
-            <Column lg={16} md={8} sm={3}>
-              {" "}
-              &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp;{" "}
-            </Column>
-            <Column lg={8} md={4} sm={4}>
-              <AutoComplete
-                name="siteName"
-                id="siteName"
-                allowFreeText={
-                  !(
-                    configurationProperties.restrictFreeTextRefSiteEntry ===
-                    "true"
-                  )
-                }
-                value={
-                  orderFormValues.sampleOrderItems.referringSiteId != ""
-                    ? orderFormValues.sampleOrderItems.referringSiteId
-                    : orderFormValues.sampleOrderItems.referringSiteName
-                }
-                onChange={handleSiteName}
-                onSelect={handleAutoCompleteSiteName}
-                label={
-                  <>
-                    <FormattedMessage id="order.search.site.name" />{" "}
-                    <span className="requiredlabel">*</span>
-                  </>
-                }
-                style={{ width: "!important 100%" }}
-                suggestions={siteNames.length > 0 ? siteNames : []}
-                required
-              />
-              {/* )} */}
-            </Column>
-            <Column lg={8} md={4} sm={4}>
-              <Select
-                id="requesterDepartmentId"
-                name="requesterDepartmentId"
-                labelText={intl.formatMessage({ id: "order.department.label" })}
-                onChange={handleRequesterDept}
-                required
-                value={
-                  orderFormValues.sampleOrderItems.referringSiteDepartmentId
-                }
-              >
-                <SelectItem value="" text="" />
-                {departments.map((department, index) => (
-                  <SelectItem
-                    key={index}
-                    text={department.value}
-                    value={department.id}
-                  />
-                ))}
-              </Select>
-            </Column>
-            <Column lg={16} md={8} sm={3}>
-              {" "}
-              &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp;{" "}
-            </Column>
-            <Column lg={8} md={4} sm={4}>
-              <AutoComplete
-                name="requesterId"
-                id="requesterId"
-                allowFreeText={
-                  !(
-                    configurationProperties.restrictFreeTextProviderEntry ===
-                    "true"
-                  )
-                }
-                onSelect={handleProviderSelectOptions}
-                onChange={clearProviderId}
-                label={
-                  <>
-                    <FormattedMessage id="order.search.requester.label" />{" "}
-                    <span className="requiredlabel">*</span>
-                  </>
-                }
-                style={{ width: "!important 100%" }}
-                invalidText={
-                  <FormattedMessage id="order.invalid.requester.name.label" />
-                }
-                suggestions={providers.length > 0 ? providers : []}
-                required
-              />
-            </Column>
-            <Column lg={8} md={4} sm={4}>
-              <TextInput
-                name="provisionalDiagnosis"
-                placeholder={intl.formatMessage({
-                  id: "input.placeholder.provisionalClinicalDiagnosis",
-                })}
-                onChange={handleProvisionalClinicalDiagnosisChange}
-                value={
-                  orderFormValues.sampleOrderItems.provisionalClinicalDiagnosis
-                }
-                labelText={intl.formatMessage({
-                  id: "order.requester.provisionalDiagnosis.label",
-                })}
-                id="provisionalDiagnosisId"
-              />
-            </Column>
-            {/* <Column lg={8} md={4} sm={4}>
-              {" "}
-            </Column> */}
-            <Column lg={16} md={4} sm={3}>
-              {" "}
-              &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp;{" "}
-            </Column>
-            <Column lg={8} md={4} sm={4}>
-              <TextInput
-                name="requesterFirstName"
-                placeholder={intl.formatMessage({
-                  id: "input.placeholder.requesterFirstName",
-                })}
-                labelText={
-                  <>
-                    <FormattedMessage id="order.requester.firstName.label" />
-                    <span className="requiredlabel">*</span>
-                  </>
-                }
-                disabled={
-                  configurationProperties.restrictFreeTextProviderEntry ===
-                  "true"
-                }
-                onChange={handleRequesterFirstName}
-                onClick={() =>
-                  handleChange("sampleOrderItems.providerFirstName")
-                }
-                value={orderFormValues.sampleOrderItems.providerFirstName}
-                invalid={
-                  changed["sampleOrderItems.providerFirstName"] &&
-                  error("sampleOrderItems.providerFirstName")
-                    ? true
-                    : false
-                }
-                invalidText={error("sampleOrderItems.providerFirstName")}
-                id="requesterFirstName"
-              />
-            </Column>
-
-            <Column lg={8} md={4} sm={4}>
-              <TextInput
-                name="requesterLastName"
-                placeholder={intl.formatMessage({
-                  id: "input.placeholder.requesterLastName",
-                })}
-                labelText={
-                  <>
-                    <FormattedMessage id="order.requester.lastName.label" />
-                    <span className="requiredlabel">*</span>
-                  </>
-                }
-                disabled={
-                  configurationProperties.restrictFreeTextProviderEntry ===
-                  "true"
-                }
-                value={orderFormValues.sampleOrderItems.providerLastName}
-                onClick={() =>
-                  handleChange("sampleOrderItems.providerLastName")
-                }
-                onChange={handleRequesterLastName}
-                id="requesterLastName"
-                invalid={
-                  changed["sampleOrderItems.providerLastName"] &&
-                  error("sampleOrderItems.providerLastName")
-                    ? true
-                    : false
-                }
-                invalidText={error("sampleOrderItems.providerLastName")}
-              />
-            </Column>
-            <Column lg={16} md={8} sm={3}>
-              {" "}
-              &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp;{" "}
-            </Column>
-            <Column lg={8} sm={4}>
-              <TextInput
-                name="providerWorkPhone"
-                placeholder={intl.formatMessage({
-                  id: "input.placeholder.providerWorkPhone",
-                })}
-                disabled={
-                  configurationProperties.restrictFreeTextProviderEntry ===
-                  "true"
-                }
-                onChange={handleRequesterWorkPhone}
-                value={orderFormValues.sampleOrderItems.providerWorkPhone}
-                onMouseLeave={handlePhoneNoValidation}
-                labelText={intl.formatMessage({
-                  id: "order.requester.phone.label",
-                })}
-                id="providerWorkPhoneId"
-              />
-            </Column>
-
-            <Column lg={8} md={4} sm={4}>
-              <TextInput
-                name="providerFax"
-                placeholder={intl.formatMessage({
-                  id: "input.placeholder.providerFax",
-                })}
-                labelText={intl.formatMessage({
-                  id: "order.requester.fax.label",
-                })}
-                disabled={
-                  configurationProperties.restrictFreeTextProviderEntry ===
-                  "true"
-                }
-                onChange={handleRequesterFax}
-                value={orderFormValues.sampleOrderItems.providerFax}
-                id="providerFaxId"
-              />
-            </Column>
-            <Column lg={16} md={8} sm={3}>
-              {" "}
-              &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp;{" "}
-            </Column>
-            <Column lg={8} md={4} sm={4}>
-              <TextInput
-                name="providerEmail"
-                placeholder={intl.formatMessage({
-                  id: "input.placeholder.providerEmail",
-                })}
-                labelText={intl.formatMessage({
-                  id: "order.requester.email.label",
-                })}
-                disabled={
-                  configurationProperties.restrictFreeTextProviderEntry ===
-                  "true"
-                }
-                onChange={handleRequesterEmail}
-                value={orderFormValues.sampleOrderItems.providerEmail}
-                id="providerEmailId"
-                invalid={error("sampleOrderItems.providerEmail") ? true : false}
-                invalidText={intl.formatMessage({
-                  id: "error.invalid.email",
-                })}
-              />
-            </Column>
-
-            <Column lg={8} md={4} sm={4}>
-              <Select
-                id="paymentOptionSelectionId"
-                name="paymentOptionSelections"
-                value={orderFormValues.sampleOrderItems.paymentOptionSelection}
-                labelText={intl.formatMessage({
-                  id: "order.payment.status.label",
-                })}
-                onChange={handlePaymentStatus}
-                required
-              >
-                <SelectItem value="" text="" />
-                {paymentOptions &&
-                  paymentOptions.map((option) => {
-                    return (
-                      <SelectItem
-                        key={option.id}
-                        value={option.id}
-                        text={option.value}
-                      />
-                    );
-                  })}
-              </Select>
-            </Column>
-            <Column lg={16} md={8} sm={3}>
-              {" "}
-              &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp;{" "}
-            </Column>
-            <Column lg={8} md={4} sm={4}>
-              <Select
-                id="testLocationCodeId"
-                name="testLocationCode"
-                value={orderFormValues.sampleOrderItems.testLocationCode}
-                labelText={
-                  <FormattedMessage id="order.sampling.performed.label" />
-                }
-                onChange={(e) => handleSamplingPerformed(e)}
-                required
-              >
-                <SelectItem value="" text="" />
-                {samplingPerformed.map((option) => {
-                  return (
-                    <SelectItem
-                      key={option.id}
-                      value={option.id}
-                      text={option.value}
-                    />
-                  );
-                })}
-              </Select>
-            </Column>
-            <Column lg={8} md={4} sm={4}>
-              <TextInput
-                name="testLocationCodeOther"
-                labelText={intl.formatMessage({ id: "order.if.other.label" })}
-                onChange={handleOtherLocationCode}
-                value={orderFormValues.sampleOrderItems.otherLocationCode}
-                disabled={!otherSamplingVisible}
-                id="testLocationCodeOtherId"
-              />
-            </Column>
-            <Column lg={16} md={8} sm={3}>
-              {" "}
-              &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp;{" "}
-            </Column>
-            <Column lg={8} md={4} sm={4}>
-              <Checkbox
-                labelText={
-                  <FormattedMessage id="order.remember.site.and.requester.label" />
-                }
-                id="rememberSiteAndRequester"
-                onChange={handleRememberCheckBox}
-              />
-            </Column>
+            {getOrderedOrderFieldDescriptors().map((descriptor) =>
+              renderOrderedOrderField(descriptor),
+            )}
           </Grid>
         </div>
         <div className="orderLegendBody">
