@@ -88,6 +88,8 @@ const defaultNewField = {
   fieldKey: "",
   fieldType: "TEXT",
   required: false,
+  searchable: false,
+  searchUnique: false,
   active: true,
   defaultValue: "",
   maxLength: "",
@@ -371,6 +373,8 @@ const OrderAdditionalFieldsManagement = () => {
       fieldKey: newField.fieldKey,
       fieldType: newField.fieldType,
       required: newField.required,
+      searchable: newField.searchable,
+      searchUnique: newField.searchUnique,
       active: true,
       defaultValue: newField.defaultValue || null,
       maxLength: newField.maxLength
@@ -435,6 +439,8 @@ const OrderAdditionalFieldsManagement = () => {
       displayName: field.displayName,
       fieldType: field.fieldType,
       required: field.required,
+      searchable: field.searchable,
+      searchUnique: field.searchUnique,
       defaultValue: field.defaultValue,
       maxLength: field.maxLength,
       sortOrder: normalizeSortOrder(field.sortOrder),
@@ -472,6 +478,8 @@ const OrderAdditionalFieldsManagement = () => {
       displayName: field.displayName,
       fieldType: field.fieldType,
       required: field.required,
+      searchable: field.searchable,
+      searchUnique: field.searchUnique,
       active: field.active,
       defaultValue: field.defaultValue,
       maxLength: field.maxLength,
@@ -895,6 +903,38 @@ const OrderAdditionalFieldsManagement = () => {
                   }
                 />
               </Column>
+              <Column lg={8} md={4} sm={4}>
+                <Checkbox
+                  id="order-additional-searchable"
+                  labelText={intl.formatMessage({
+                    id: "order.additional.fields.searchable",
+                  })}
+                  checked={newField.searchable}
+                  onChange={(_event, { checked }) =>
+                    setNewField((previous) => ({
+                      ...previous,
+                      searchable: checked,
+                      searchUnique: checked ? previous.searchUnique : false,
+                    }))
+                  }
+                />
+              </Column>
+              <Column lg={8} md={4} sm={4}>
+                <Checkbox
+                  id="order-additional-search-unique"
+                  labelText={intl.formatMessage({
+                    id: "order.additional.fields.searchUnique",
+                  })}
+                  checked={newField.searchUnique}
+                  disabled={!newField.searchable}
+                  onChange={(_event, { checked }) =>
+                    setNewField((previous) => ({
+                      ...previous,
+                      searchUnique: checked,
+                    }))
+                  }
+                />
+              </Column>
             </Grid>
 
             {(newField.fieldType === "SELECT" ||
@@ -1020,6 +1060,8 @@ const OrderAdditionalFieldsManagement = () => {
                 fieldType: field.fieldType,
                 sortOrder: field.sortOrder,
                 required: field.required,
+                searchable: field.searchable,
+                searchUnique: field.searchUnique,
                 active: field.active,
                 options: field.options || [],
               }))}
@@ -1052,6 +1094,18 @@ const OrderAdditionalFieldsManagement = () => {
                   key: "required",
                   header: intl.formatMessage({
                     id: "order.additional.fields.required",
+                  }),
+                },
+                {
+                  key: "searchable",
+                  header: intl.formatMessage({
+                    id: "order.additional.fields.searchable",
+                  }),
+                },
+                {
+                  key: "searchUnique",
+                  header: intl.formatMessage({
+                    id: "order.additional.fields.searchUnique",
                   }),
                 },
                 {
@@ -1127,7 +1181,51 @@ const OrderAdditionalFieldsManagement = () => {
                               )}
                             </TableCell>
                             <TableCell>
-                              {row.cells[5].value ? (
+                              <Checkbox
+                                id={`custom-field-searchable-${row.id}`}
+                                labelText=""
+                                checked={!!sourceField?.searchable}
+                                onChange={(_event, { checked }) => {
+                                  setFields((previous) =>
+                                    previous.map((field) => {
+                                      if (String(field.id) !== row.id) {
+                                        return field;
+                                      }
+                                      return {
+                                        ...field,
+                                        searchable: checked,
+                                        searchUnique: checked
+                                          ? field.searchUnique
+                                          : false,
+                                      };
+                                    }),
+                                  );
+                                }}
+                              />
+                            </TableCell>
+                            <TableCell>
+                              <Checkbox
+                                id={`custom-field-search-unique-${row.id}`}
+                                labelText=""
+                                checked={!!sourceField?.searchUnique}
+                                disabled={!sourceField?.searchable}
+                                onChange={(_event, { checked }) => {
+                                  setFields((previous) =>
+                                    previous.map((field) => {
+                                      if (String(field.id) !== row.id) {
+                                        return field;
+                                      }
+                                      return {
+                                        ...field,
+                                        searchUnique: checked,
+                                      };
+                                    }),
+                                  );
+                                }}
+                              />
+                            </TableCell>
+                            <TableCell>
+                              {row.cells[7].value ? (
                                 <Tag type="green">
                                   <FormattedMessage id="status.active" />
                                 </Tag>
@@ -1149,12 +1247,12 @@ const OrderAdditionalFieldsManagement = () => {
                               {"  "}
                               <Button
                                 kind={
-                                  row.cells[5].value ? "danger" : "secondary"
+                                  row.cells[7].value ? "danger" : "secondary"
                                 }
                                 size="sm"
                                 onClick={() => toggleFieldStatus(sourceField)}
                               >
-                                {row.cells[5].value ? (
+                                {row.cells[7].value ? (
                                   <FormattedMessage id="order.additional.fields.disable" />
                                 ) : (
                                   <FormattedMessage id="order.additional.fields.enable" />

@@ -15,6 +15,8 @@ public class OrderAdditionalFieldPayload {
     private String defaultValue;
     private Integer maxLength;
     private String metadataJson;
+    private Boolean searchable;
+    private Boolean searchUnique;
     private List<OrderAdditionalFieldOptionPayload> options = new ArrayList<>();
 
     public Integer getId() {
@@ -95,6 +97,22 @@ public class OrderAdditionalFieldPayload {
 
     public void setMetadataJson(String metadataJson) {
         this.metadataJson = metadataJson;
+    }
+
+    public Boolean getSearchable() {
+        return searchable;
+    }
+
+    public void setSearchable(Boolean searchable) {
+        this.searchable = searchable;
+    }
+
+    public Boolean getSearchUnique() {
+        return searchUnique;
+    }
+
+    public void setSearchUnique(Boolean searchUnique) {
+        this.searchUnique = searchUnique;
     }
 
     public List<OrderAdditionalFieldOptionPayload> getOptions() {

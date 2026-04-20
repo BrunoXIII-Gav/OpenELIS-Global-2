@@ -61,6 +61,12 @@ public class OrderAdditionalFieldDefinition extends BaseObject<Integer> {
     @Column(name = "metadata_json")
     private String metadataJson;
 
+    @Column(name = "searchable", nullable = false)
+    private Boolean searchable;
+
+    @Column(name = "search_unique", nullable = false)
+    private Boolean searchUnique;
+
     @Column(name = "sys_user_id", nullable = false)
     private Integer sysUserId;
 
@@ -144,6 +150,22 @@ public class OrderAdditionalFieldDefinition extends BaseObject<Integer> {
 
     public void setMetadataJson(String metadataJson) {
         this.metadataJson = metadataJson;
+    }
+
+    public Boolean getSearchable() {
+        return searchable;
+    }
+
+    public void setSearchable(Boolean searchable) {
+        this.searchable = searchable;
+    }
+
+    public Boolean getSearchUnique() {
+        return searchUnique;
+    }
+
+    public void setSearchUnique(Boolean searchUnique) {
+        this.searchUnique = searchUnique;
     }
 
     @Override

@@ -49,6 +49,15 @@ public class SampleEditItem {
     @ValidTime(groups = { SampleEditForm.SampleEdit.class })
     private String collectionTime;
 
+    @Pattern(regexp = ValidationHelper.FLOAT_REGEX, groups = { SampleEditForm.SampleEdit.class })
+    private String quantity;
+
+    @Pattern(regexp = ValidationHelper.ID_REGEX, groups = { SampleEditForm.SampleEdit.class })
+    private String unitOfMeasureId;
+
+    @SafeHtml(level = SafeHtml.SafeListLevel.NONE, groups = { Default.class, SampleEditForm.SampleEdit.class })
+    private String collector;
+
     private boolean sampleItemChanged = false;
 
     private boolean hasResults = false;
@@ -175,6 +184,30 @@ public class SampleEditItem {
 
     public void setCollectionTime(String collectionTime) {
         this.collectionTime = collectionTime;
+    }
+
+    public String getQuantity() {
+        return quantity;
+    }
+
+    public void setQuantity(String quantity) {
+        this.quantity = quantity;
+    }
+
+    public String getUnitOfMeasureId() {
+        return unitOfMeasureId;
+    }
+
+    public void setUnitOfMeasureId(String unitOfMeasureId) {
+        this.unitOfMeasureId = unitOfMeasureId;
+    }
+
+    public String getCollector() {
+        return collector;
+    }
+
+    public void setCollector(String collector) {
+        this.collector = collector;
     }
 
     public boolean isSampleItemChanged() {

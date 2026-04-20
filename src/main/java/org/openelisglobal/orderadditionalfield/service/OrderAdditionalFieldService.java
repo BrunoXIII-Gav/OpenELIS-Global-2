@@ -40,6 +40,8 @@ public interface OrderAdditionalFieldService {
 
     Optional<OrderAdditionalFieldFilePayload> getSampleFile(String sampleId, String fieldKey);
 
+    Optional<Integer> findSampleIdBySearchableFieldValue(String searchValue);
+
     List<OrderFixedFieldConfigPayload> getFixedFieldConfigs();
 
     void upsertFixedFieldConfigs(List<OrderFixedFieldConfigPayload> payloads, String currentUserId);

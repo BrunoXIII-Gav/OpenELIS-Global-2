@@ -122,6 +122,7 @@ public class OrderAdditionalFieldServiceImpl implements OrderAdditionalFieldServ
         }
 
         FieldType fieldType = parseFieldType(payload.getFieldType());
+        validateSearchConfiguration(payload, fieldType);
 
         OrderAdditionalFieldDefinition definition = new OrderAdditionalFieldDefinition();
         definition.setFieldKey(normalizedFieldKey);
@@ -133,6 +134,8 @@ public class OrderAdditionalFieldServiceImpl implements OrderAdditionalFieldServ
         definition.setDefaultValue(StringUtils.defaultIfBlank(payload.getDefaultValue(), null));
         definition.setMaxLength(payload.getMaxLength());
         definition.setMetadataJson(normalizeMetadataJson(payload.getMetadataJson()));
+        definition.setSearchable(Boolean.TRUE.equals(payload.getSearchable()));
+        definition.setSearchUnique(Boolean.TRUE.equals(payload.getSearchUnique()));
         definition.setSysUserId(currentUserId);
 
         Integer definitionId = definitionDAO.insert(definition);
@@ -180,6 +183,17 @@ public class OrderAdditionalFieldServiceImpl implements OrderAdditionalFieldServ
         if (payload.getMetadataJson() != null) {
             definition.setMetadataJson(normalizeMetadataJson(payload.getMetadataJson()));
         }
+        if (payload.getSearchable() != null) {
+            definition.setSearchable(payload.getSearchable());
+            if (!payload.getSearchable()) {
+                definition.setSearchUnique(false);
+            }
+        }
+        if (payload.getSearchUnique() != null) {
+            definition.setSearchUnique(payload.getSearchUnique());
+        }
+
+        validateSearchConfiguration(mapDefinitionToPayload(definition), parseFieldType(definition.getFieldType()));
 
         definition.setSysUserId(currentUserId);
         definitionDAO.update(definition);
@@ -411,6 +425,7 @@ public class OrderAdditionalFieldServiceImpl implements OrderAdditionalFieldServ
             entity.setFieldDefinitionId(definition.getId());
             entity.setFieldValue(normalizedValue);
             entity.setSysUserId(currentUserId);
+            enforceSearchUniqueness(definition, sampleNumericId, normalizedValue);
 
             if (entity.getId() == null) {
                 valueDAO.insert(entity);
@@ -476,6 +491,22 @@ public class OrderAdditionalFieldServiceImpl implements OrderAdditionalFieldServ
         Optional<SampleOrderAdditionalFieldFile> file = fileDAO.findBySampleIdAndFieldDefinitionId(sampleNumericId,
                 definition.getId());
         return file.map(existing -> mapFileToPayload(existing, true));
+    }
+
+    @Override
+    @Transactional(readOnly = true)
+    public Optional<Integer> findSampleIdBySearchableFieldValue(String searchValue) {
+        if (StringUtils.isBlank(searchValue)) {
+            return Optional.empty();
+        }
+
+        List<Integer> uniqueCandidates = valueDAO.findDistinctSampleIdsBySearchableFieldValue(searchValue, true, 2);
+        if (uniqueCandidates.size() == 1) {
+            return Optional.of(uniqueCandidates.get(0));
+        }
+
+        List<Integer> candidates = valueDAO.findDistinctSampleIdsBySearchableFieldValue(searchValue, false, 2);
+        return candidates.size() == 1 ? Optional.of(candidates.get(0)) : Optional.empty();
     }
 
     @Override
@@ -565,6 +596,8 @@ public class OrderAdditionalFieldServiceImpl implements OrderAdditionalFieldServ
         payload.setDefaultValue(definition.getDefaultValue());
         payload.setMaxLength(definition.getMaxLength());
         payload.setMetadataJson(definition.getMetadataJson());
+        payload.setSearchable(definition.getSearchable());
+        payload.setSearchUnique(definition.getSearchUnique());
         return payload;
     }
 
@@ -642,6 +675,18 @@ public class OrderAdditionalFieldServiceImpl implements OrderAdditionalFieldServ
         if (!FIELD_KEY_PATTERN.matcher(fieldKey).matches()) {
             throw new IllegalArgumentException(
                     "fieldKey must start with a letter and can contain letters, numbers, '-' and '_' only");
+        }
+    }
+
+    private void validateSearchConfiguration(OrderAdditionalFieldPayload payload, FieldType fieldType) {
+        boolean searchable = Boolean.TRUE.equals(payload.getSearchable());
+        boolean searchUnique = Boolean.TRUE.equals(payload.getSearchUnique());
+
+        if (searchUnique && !searchable) {
+            throw new IllegalArgumentException("searchUnique requires searchable=true");
+        }
+        if (searchable && fieldType == FieldType.DOCUMENT) {
+            throw new IllegalArgumentException("DOCUMENT fields cannot be configured as searchable");
         }
     }
 
@@ -1041,6 +1086,22 @@ public class OrderAdditionalFieldServiceImpl implements OrderAdditionalFieldServ
             return null;
         default:
             throw new IllegalArgumentException("Unsupported fieldType: " + definition.getFieldType());
+        }
+    }
+
+    private void enforceSearchUniqueness(OrderAdditionalFieldPayload definition, Integer sampleNumericId,
+            String normalizedValue) {
+        if (!Boolean.TRUE.equals(definition.getSearchable()) || !Boolean.TRUE.equals(definition.getSearchUnique())
+                || StringUtils.isBlank(normalizedValue)) {
+            return;
+        }
+
+        boolean existsDuplicate = valueDAO.existsByFieldDefinitionIdAndFieldValueIgnoreCaseAndSampleIdNot(
+                definition.getId(), normalizedValue, sampleNumericId);
+        if (existsDuplicate) {
+            throw new IllegalArgumentException(String.format(
+                    "Duplicate value '%s' is not allowed for searchable unique field '%s'",
+                    normalizedValue, definition.getFieldKey()));
         }
     }
 

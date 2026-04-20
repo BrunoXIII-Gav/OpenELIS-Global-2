@@ -30,7 +30,7 @@ function SearchOrder() {
 
   const handleSearch = (e) => {
     e.preventDefault();
-    var labNumber = accessionNumber ? accessionNumber.split("-")[0] : "";
+    var labNumber = accessionNumber ? accessionNumber.trim() : "";
     window.location.href = "/ModifyOrder?accessionNumber=" + labNumber;
   };
 

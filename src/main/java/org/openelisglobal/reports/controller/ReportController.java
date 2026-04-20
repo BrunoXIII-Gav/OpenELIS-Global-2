@@ -24,10 +24,13 @@ import org.openelisglobal.common.form.BaseForm;
 import org.openelisglobal.common.log.LogEvent;
 import org.openelisglobal.common.services.IReportTrackingService;
 import org.openelisglobal.common.services.ReportTrackingService.ReportType;
+import org.openelisglobal.orderadditionalfield.service.OrderAdditionalFieldService;
 import org.openelisglobal.reports.action.implementation.IReportCreator;
 import org.openelisglobal.reports.action.implementation.IReportParameterSetter;
 import org.openelisglobal.reports.action.implementation.ReportImplementationFactory;
 import org.openelisglobal.reports.form.ReportForm;
+import org.openelisglobal.sample.service.SampleService;
+import org.openelisglobal.sample.valueholder.Sample;
 import org.openelisglobal.spring.util.SpringContext;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Controller;
@@ -54,6 +57,10 @@ public class ReportController extends BaseController {
 
     @Autowired
     private ServletContext context;
+    @Autowired
+    private SampleService sampleService;
+    @Autowired
+    private OrderAdditionalFieldService orderAdditionalFieldService;
 
     private String reportPath = null;
     private String imagesPath = null;
@@ -94,6 +101,7 @@ public class ReportController extends BaseController {
             return findForward(FWD_FAIL, form);
         }
 
+        normalizeAccessionSearchInputs(form);
         LogEvent.logTrace("ReportController", "Log GET ", request.getParameter("report"));
         printReport(request, response, form);
 
@@ -147,6 +155,44 @@ public class ReportController extends BaseController {
         List<String> refIds = reportCreator.getReportedOrders() != null ? reportCreator.getReportedOrders()
                 : new ArrayList<>();
         SpringContext.getBean(IReportTrackingService.class).addReports(refIds, type, reportName, getSysUserId(request));
+    }
+
+    private void normalizeAccessionSearchInputs(ReportForm form) {
+        if (form == null) {
+            return;
+        }
+
+        String lower = form.getAccessionDirect();
+        if (!GenericValidator.isBlankOrNull(lower)) {
+            Sample sample = resolveSampleByAccessionOrSearchableValue(lower);
+            if (sample != null && !GenericValidator.isBlankOrNull(sample.getAccessionNumber())) {
+                form.setAccessionDirect(sample.getAccessionNumber());
+            }
+        }
+
+        String upper = form.getHighAccessionDirect();
+        if (!GenericValidator.isBlankOrNull(upper)) {
+            Sample sample = resolveSampleByAccessionOrSearchableValue(upper);
+            if (sample != null && !GenericValidator.isBlankOrNull(sample.getAccessionNumber())) {
+                form.setHighAccessionDirect(sample.getAccessionNumber());
+            }
+        }
+    }
+
+    private Sample resolveSampleByAccessionOrSearchableValue(String accessionOrSearchTerm) {
+        String searchValue = accessionOrSearchTerm == null ? null : accessionOrSearchTerm.trim();
+        Sample sample = orderAdditionalFieldService.findSampleIdBySearchableFieldValue(searchValue)
+                .map(sampleId -> sampleService.get(String.valueOf(sampleId)))
+                .orElse(null);
+        if (sample != null) {
+            return sample;
+        }
+
+        sample = sampleService.getSampleByAccessionNumber(searchValue);
+        if (sample == null && searchValue != null && searchValue.contains("-")) {
+            sample = sampleService.getSampleByAccessionNumber(searchValue.substring(0, searchValue.indexOf('-')));
+        }
+        return sample;
     }
 
     private String getReportPath() {

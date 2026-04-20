@@ -29,6 +29,7 @@ import org.openelisglobal.dataexchange.fhir.service.FhirTransformService;
 import org.openelisglobal.internationalization.MessageUtil;
 import org.openelisglobal.observationhistory.service.ObservationHistoryService;
 import org.openelisglobal.observationhistory.service.ObservationHistoryServiceImpl.ObservationType;
+import org.openelisglobal.orderadditionalfield.service.OrderAdditionalFieldService;
 import org.openelisglobal.patient.service.PatientService;
 import org.openelisglobal.patient.valueholder.Patient;
 import org.openelisglobal.person.service.PersonService;
@@ -55,6 +56,8 @@ public class PatientSearchRestController extends BaseRestController {
     private FhirUtil fhirUtil;
     @Autowired
     SampleService sampleService;
+    @Autowired
+    private OrderAdditionalFieldService orderAdditionalFieldService;
     @Autowired
     PatientService patientService;
     @Autowired
@@ -126,7 +129,16 @@ public class PatientSearchRestController extends BaseRestController {
 
     private Patient getPatientForLabNumber(String labNumber) {
 
-        Sample sample = sampleService.getSampleByAccessionNumber(labNumber);
+        String searchValue = labNumber == null ? null : labNumber.trim();
+        Sample sample = orderAdditionalFieldService.findSampleIdBySearchableFieldValue(searchValue)
+                .map(sampleId -> sampleService.get(String.valueOf(sampleId)))
+                .orElse(null);
+        if (sample == null) {
+            sample = sampleService.getSampleByAccessionNumber(searchValue);
+            if (sample == null && searchValue != null && searchValue.contains("-")) {
+                sample = sampleService.getSampleByAccessionNumber(searchValue.substring(0, searchValue.indexOf('-')));
+            }
+        }
 
         if (sample != null && !GenericValidator.isBlankOrNull(sample.getId())) {
             return sampleHumanService.getPatientForSample(sample);

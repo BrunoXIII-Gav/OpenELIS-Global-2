@@ -60,6 +60,8 @@ import org.openelisglobal.test.service.TestService;
 import org.openelisglobal.test.valueholder.Test;
 import org.openelisglobal.test.valueholder.TestSection;
 import org.openelisglobal.typeofsample.service.TypeOfSampleTestService;
+import org.openelisglobal.unitofmeasure.service.UnitOfMeasureService;
+import org.openelisglobal.unitofmeasure.valueholder.UnitOfMeasure;
 import org.openelisglobal.userrole.service.UserRoleService;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -120,6 +122,8 @@ public class SampleEditServiceImpl implements SampleEditService {
     private SampleTypeAdditionalFieldService sampleTypeAdditionalFieldService;
     @Autowired
     private OrderAdditionalFieldService orderAdditionalFieldService;
+    @Autowired
+    private UnitOfMeasureService unitOfMeasureService;
     private List<String> analysisList = new ArrayList<>();
 
     @Transactional
@@ -380,6 +384,29 @@ public class SampleEditServiceImpl implements SampleEditService {
                                 : editItem.getCollectionTime());
                         sampleItem.setCollectionDate(DateUtil.convertStringDateToTimestamp(collectionTime));
                     }
+
+                    sampleItem.setCollector(
+                            GenericValidator.isBlankOrNull(editItem.getCollector()) ? null : editItem.getCollector());
+
+                    if (GenericValidator.isBlankOrNull(editItem.getQuantity())) {
+                        sampleItem.setQuantity(null);
+                    } else {
+                        try {
+                            sampleItem.setQuantity(Double.valueOf(editItem.getQuantity()));
+                        } catch (NumberFormatException e) {
+                            logger.warn("Invalid quantity '{}' for sample item {}", editItem.getQuantity(),
+                                    sampleItem.getId());
+                        }
+                    }
+
+                    if (GenericValidator.isBlankOrNull(editItem.getUnitOfMeasureId())) {
+                        sampleItem.setUnitOfMeasure(null);
+                    } else {
+                        UnitOfMeasure unitOfMeasure = unitOfMeasureService
+                                .getUnitOfMeasureById(editItem.getUnitOfMeasureId());
+                        sampleItem.setUnitOfMeasure(unitOfMeasure);
+                    }
+
                     sampleItem.setSysUserId(sysUserId);
                     modifyList.add(sampleItem);
                 }

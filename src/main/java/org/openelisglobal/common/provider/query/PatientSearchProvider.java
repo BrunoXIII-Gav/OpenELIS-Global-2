@@ -34,6 +34,7 @@ import org.openelisglobal.observationhistory.service.ObservationHistoryServiceIm
 import org.openelisglobal.patient.service.PatientService;
 import org.openelisglobal.patient.valueholder.Patient;
 import org.openelisglobal.person.service.PersonService;
+import org.openelisglobal.orderadditionalfield.service.OrderAdditionalFieldService;
 import org.openelisglobal.sample.service.SampleService;
 import org.openelisglobal.sample.valueholder.Sample;
 import org.openelisglobal.samplehuman.service.SampleHumanService;
@@ -45,6 +46,7 @@ public class PatientSearchProvider extends BaseQueryProvider {
 
     SampleService sampleService = SpringContext.getBean(SampleService.class);
     SampleHumanService sampleHumanService = SpringContext.getBean(SampleHumanService.class);
+    OrderAdditionalFieldService orderAdditionalFieldService = SpringContext.getBean(OrderAdditionalFieldService.class);
 
     @Override
     public void processRequest(HttpServletRequest request, HttpServletResponse response)
@@ -108,7 +110,16 @@ public class PatientSearchProvider extends BaseQueryProvider {
 
     private Patient getPatientForLabNumber(String labNumber) {
 
-        Sample sample = sampleService.getSampleByAccessionNumber(labNumber);
+        String searchValue = labNumber == null ? null : labNumber.trim();
+        Sample sample = orderAdditionalFieldService.findSampleIdBySearchableFieldValue(searchValue)
+                .map(sampleId -> sampleService.get(String.valueOf(sampleId)))
+                .orElse(null);
+        if (sample == null) {
+            sample = sampleService.getSampleByAccessionNumber(searchValue);
+            if (sample == null && searchValue != null && searchValue.contains("-")) {
+                sample = sampleService.getSampleByAccessionNumber(searchValue.substring(0, searchValue.indexOf('-')));
+            }
+        }
 
         if (sample != null && !GenericValidator.isBlankOrNull(sample.getId())) {
             return sampleHumanService.getPatientForSample(sample);

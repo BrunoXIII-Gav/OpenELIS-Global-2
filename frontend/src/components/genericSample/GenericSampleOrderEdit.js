@@ -188,11 +188,10 @@ export default function GenericSampleOrderEdit({
     setSearchError("");
     setOrderFound(false);
 
-    // Extract base accession number (remove any suffix like "-1")
-    const baseAccessionNumber = accessionNumber.split("-")[0];
+    const searchTerm = accessionNumber.trim();
 
     getFromOpenElisServer(
-      `${searchEndpoint}?accessionNumber=${encodeURIComponent(baseAccessionNumber)}`,
+      `${searchEndpoint}?accessionNumber=${encodeURIComponent(searchTerm)}`,
       (data) => {
         setSearching(false);
         if (data && data.defaultFields && data.defaultFields.labNo) {
@@ -225,7 +224,7 @@ export default function GenericSampleOrderEdit({
           }
 
           setOrderFound(true);
-          setSearchAccessionNumber(baseAccessionNumber);
+          setSearchAccessionNumber(data.defaultFields.labNo || searchTerm);
 
           // Call callback if provided
           if (onSearchComplete) {

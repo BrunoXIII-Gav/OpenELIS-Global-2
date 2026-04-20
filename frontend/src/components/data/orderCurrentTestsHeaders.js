@@ -10,6 +10,18 @@ export const OrderCurrentTestsHeaders = [
     header: <FormattedMessage id="sample.type" />,
   },
   {
+    key: "quantity",
+    header: <FormattedMessage id="sample.quantity.label" />,
+  },
+  {
+    key: "unitOfMeasureId",
+    header: <FormattedMessage id="sample.uom.label" />,
+  },
+  {
+    key: "collector",
+    header: <FormattedMessage id="collector.label" />,
+  },
+  {
     key: "collectionDate",
     header: <FormattedMessage id="sample.collection.date" />,
   },
