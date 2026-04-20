@@ -297,6 +297,18 @@ function TestManagementConfigMenu() {
                 </ClickableTile>
                 <br />
                 <ClickableTile
+                  href="/MasterListsPage/OrderAdditionalFields"
+                  id="OrderAdditionalFields"
+                >
+                  <FormattedMessage id="order.additional.fields.menu" />
+                  <UnorderedList nested>
+                    <ListItem>
+                      <FormattedMessage id="order.additional.fields.menu.explain" />
+                    </ListItem>
+                  </UnorderedList>
+                </ClickableTile>
+                <br />
+                <ClickableTile
                   href="/MasterListsPage/UomManagement"
                   id="UomManagement"
                 >
