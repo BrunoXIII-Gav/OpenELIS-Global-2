@@ -31,6 +31,7 @@ import org.openelisglobal.patient.action.bean.PatientSearch;
 import org.openelisglobal.patient.service.PatientService;
 import org.openelisglobal.patient.valueholder.Patient;
 import org.openelisglobal.person.service.PersonService;
+import org.openelisglobal.orderadditionalfield.service.OrderAdditionalFieldService;
 import org.openelisglobal.sample.bean.SampleEditItem;
 import org.openelisglobal.sample.controller.BaseSampleEntryController;
 import org.openelisglobal.sample.form.SampleEditForm;
@@ -115,6 +116,8 @@ public class SampleEditRestController extends BaseSampleEntryController {
     private SampleEditService sampleEditService;
     @Autowired
     private UserService userService;
+    @Autowired
+    private OrderAdditionalFieldService orderAdditionalFieldService;
 
     @GetMapping(value = "SampleEdit", produces = MediaType.APPLICATION_JSON_VALUE)
     @ResponseBody
@@ -143,6 +146,8 @@ public class SampleEditRestController extends BaseSampleEntryController {
             Sample sample = getSample(accessionNumber);
 
             if (sample != null && !GenericValidator.isBlankOrNull(sample.getId())) {
+                accessionNumber = sample.getAccessionNumber();
+                form.setAccessionNumber(accessionNumber);
 
                 List<SampleItem> sampleItemList = getSampleItems(sample);
                 setPatientInfo(form, sample);
@@ -297,7 +302,19 @@ public class SampleEditRestController extends BaseSampleEntryController {
     }
 
     private Sample getSample(String accessionNumber) {
-        return sampleService.getSampleByAccessionNumber(accessionNumber);
+        String searchValue = accessionNumber == null ? null : accessionNumber.trim();
+        Sample sample = orderAdditionalFieldService.findSampleIdBySearchableFieldValue(searchValue)
+                .map(sampleId -> sampleService.get(String.valueOf(sampleId)))
+                .orElse(null);
+        if (sample != null) {
+            return sample;
+        }
+
+        sample = sampleService.getSampleByAccessionNumber(searchValue);
+        if (sample == null && searchValue != null && searchValue.contains("-")) {
+            sample = sampleService.getSampleByAccessionNumber(searchValue.substring(0, searchValue.indexOf('-')));
+        }
+        return sample;
     }
 
     private List<SampleItem> getSampleItems(Sample sample) {
@@ -378,6 +395,10 @@ public class SampleEditRestController extends BaseSampleEntryController {
             firstItem.setCanRemoveSample(canRemove);
             firstItem.setCollectionDate(collectionDate == null ? "" : collectionDate);
             firstItem.setCollectionTime(collectionTime);
+            firstItem.setQuantity(sampleItem.getQuantity() == null ? "" : sampleItem.getQuantity().toString());
+            firstItem.setCollector(sampleItem.getCollector() == null ? "" : sampleItem.getCollector());
+            firstItem.setUnitOfMeasureId(
+                    sampleItem.getUnitOfMeasure() == null ? "" : sampleItem.getUnitOfMeasure().getId());
             currentTestList.addAll(analysisSampleItemList);
         }
     }

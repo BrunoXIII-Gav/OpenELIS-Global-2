@@ -16,6 +16,8 @@ import {
   Column,
   TextInput,
   Checkbox,
+  Select,
+  SelectItem,
 } from "@carbon/react";
 import { Add } from "@carbon/react/icons";
 import { getFromOpenElisServer } from "../utils/Utils";
@@ -40,6 +42,7 @@ const EditSample = (props) => {
   const [pageSize2, setPageSize2] = useState(5);
 
   const [rejectSampleReasons, setRejectSampleReasons] = useState([]);
+  const [uomList, setUomList] = useState([]);
 
   const handleAddNewSample = () => {
     let updateSamples = [...samples];
@@ -60,7 +63,7 @@ const EditSample = (props) => {
   };
   const formatTestsObject = (tests) => {
     return tests.map((test) => {
-      test.id = test.testId;
+      test.id = `${test.sampleItemId || "no-item"}-${test.testId || "no-test"}-${test.analysisId || "no-analysis"}`;
       if (!test.accessionNumber) {
         test.accessionNumber = "";
       }
@@ -73,7 +76,37 @@ const EditSample = (props) => {
       if (!test.collectionTime) {
         test.collectionTime = "";
       }
+      if (!test.quantity) {
+        test.quantity = "";
+      }
+      if (!test.unitOfMeasureId) {
+        test.unitOfMeasureId = "";
+      }
+      if (!test.collector) {
+        test.collector = "";
+      }
       return test;
+    });
+  };
+
+  const isSameRow = (test, rowId) =>
+    String(test.id || test.testId) === String(rowId);
+
+  const updateExistingTestField = (rowId, fieldName, value) => {
+    const updatedTests = (orderFormValues.existingTests || []).map((test) => {
+      if (isSameRow(test, rowId)) {
+        return {
+          ...test,
+          [fieldName]: value,
+          sampleItemChanged: true,
+        };
+      }
+      return test;
+    });
+
+    setOrderFormValues({
+      ...orderFormValues,
+      existingTests: updatedTests,
     });
   };
   const handleChecked = (e, testId) => {
@@ -82,7 +115,7 @@ const EditSample = (props) => {
     if (e.currentTarget.name === "add") {
       tests = orderFormValues.possibleTests;
       updatedTests = tests.map((test) => {
-        if (test.testId === testId) {
+        if (isSameRow(test, testId)) {
           return { ...test, add: e.currentTarget.checked };
         } else {
           return test;
@@ -95,7 +128,7 @@ const EditSample = (props) => {
     } else if (e.currentTarget.name === "removeSample") {
       tests = orderFormValues.existingTests;
       updatedTests = tests.map((test) => {
-        if (test.testId === testId) {
+        if (isSameRow(test, testId)) {
           return { ...test, removeSample: e.currentTarget.checked };
         }
         {
@@ -109,7 +142,7 @@ const EditSample = (props) => {
     } else if (e.currentTarget.name === "canceled") {
       tests = orderFormValues.existingTests;
       updatedTests = tests.map((test) => {
-        if (test.testId === testId) {
+        if (isSameRow(test, testId)) {
           return { ...test, canceled: e.currentTarget.checked };
         }
         {
@@ -193,6 +226,12 @@ const EditSample = (props) => {
     }
   };
 
+  const fetchUoms = (res) => {
+    if (componentMounted.current) {
+      setUomList(Array.isArray(res?.existingUomList) ? res.existingUomList : []);
+    }
+  };
+
   const handleRemoveSample = (e, sample) => {
     e.preventDefault();
     let filtered = samples.filter(function (element) {
@@ -207,17 +246,7 @@ const EditSample = (props) => {
       "/rest/test-rejection-reasons",
       fetchRejectSampleReasons,
     );
-    window.scrollTo(0, 0);
-    return () => {
-      componentMounted.current = false;
-    };
-  }, []);
-
-  useEffect(() => {
-    getFromOpenElisServer(
-      "/rest/test-rejection-reasons",
-      fetchRejectSampleReasons,
-    );
+    getFromOpenElisServer("/rest/UomCreate", fetchUoms);
     window.scrollTo(0, 0);
     return () => {
       componentMounted.current = false;
@@ -235,21 +264,93 @@ const EditSample = (props) => {
     } else if (cell.info.header === "collectionDate") {
       return (
         <TableCell key={cell.id}>
-          <TextInput
-            id={cell.id + cell.info.header}
-            labelText=""
-            value={cell.value}
-          ></TextInput>
+          {accession !== "" ? (
+            <TextInput
+              id={cell.id + cell.info.header}
+              labelText=""
+              value={cell.value || ""}
+              onChange={(e) =>
+                updateExistingTestField(row.id, "collectionDate", e.target.value)
+              }
+            ></TextInput>
+          ) : (
+            ""
+          )}
         </TableCell>
       );
     } else if (cell.info.header === "collectionTime") {
       return (
         <TableCell key={cell.id}>
-          <TextInput
-            id={cell.id + cell.info.header}
-            labelText=""
-            value={cell.value}
-          ></TextInput>
+          {accession !== "" ? (
+            <TextInput
+              id={cell.id + cell.info.header}
+              labelText=""
+              value={cell.value || ""}
+              onChange={(e) =>
+                updateExistingTestField(row.id, "collectionTime", e.target.value)
+              }
+            ></TextInput>
+          ) : (
+            ""
+          )}
+        </TableCell>
+      );
+    } else if (cell.info.header === "quantity") {
+      return (
+        <TableCell key={cell.id}>
+          {accession !== "" ? (
+            <TextInput
+              id={cell.id + cell.info.header}
+              labelText=""
+              type="number"
+              min="0"
+              value={cell.value || ""}
+              onChange={(e) =>
+                updateExistingTestField(row.id, "quantity", e.target.value)
+              }
+            ></TextInput>
+          ) : (
+            ""
+          )}
+        </TableCell>
+      );
+    } else if (cell.info.header === "unitOfMeasureId") {
+      return (
+        <TableCell key={cell.id}>
+          {accession !== "" ? (
+            <Select
+              id={cell.id + cell.info.header}
+              labelText=""
+              value={cell.value || ""}
+              onChange={(e) =>
+                updateExistingTestField(row.id, "unitOfMeasureId", e.target.value)
+              }
+            >
+              <SelectItem value="" text="Select units" />
+              {uomList.map((uom) => (
+                <SelectItem key={uom.id} value={uom.id} text={uom.value} />
+              ))}
+            </Select>
+          ) : (
+            ""
+          )}
+        </TableCell>
+      );
+    } else if (cell.info.header === "collector") {
+      return (
+        <TableCell key={cell.id}>
+          {accession !== "" ? (
+            <TextInput
+              id={cell.id + cell.info.header}
+              labelText=""
+              value={cell.value || ""}
+              onChange={(e) =>
+                updateExistingTestField(row.id, "collector", e.target.value)
+              }
+            ></TextInput>
+          ) : (
+            ""
+          )}
         </TableCell>
       );
     } else if (cell.info.header === "removeSample") {
