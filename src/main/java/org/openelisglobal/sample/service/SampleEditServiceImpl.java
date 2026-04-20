@@ -30,6 +30,8 @@ import org.openelisglobal.observationhistory.service.ObservationHistoryService;
 import org.openelisglobal.observationhistory.valueholder.ObservationHistory;
 import org.openelisglobal.organization.service.OrganizationService;
 import org.openelisglobal.organization.valueholder.Organization;
+import org.openelisglobal.orderadditionalfield.bean.OrderAdditionalFieldFilePayload;
+import org.openelisglobal.orderadditionalfield.service.OrderAdditionalFieldService;
 import org.openelisglobal.panel.valueholder.Panel;
 import org.openelisglobal.patient.valueholder.Patient;
 import org.openelisglobal.person.service.PersonService;
@@ -110,6 +112,8 @@ public class SampleEditServiceImpl implements SampleEditService {
     NoteService noteService;
     @Autowired
     private SampleStorageService sampleStorageService;
+    @Autowired
+    private OrderAdditionalFieldService orderAdditionalFieldService;
     private List<String> analysisList = new ArrayList<>();
 
     @Transactional
@@ -198,6 +202,11 @@ public class SampleEditServiceImpl implements SampleEditService {
         if (sampleChanged) {
             sampleService.update(updatedSample);
         }
+
+        orderAdditionalFieldService.validateAndPersistSampleValues(updatedSample.getId(),
+                form.getSampleOrderItems() == null ? null : form.getSampleOrderItems().getAdditionalFieldValues(),
+                form.getSampleOrderItems() == null ? null : form.getSampleOrderItems().getAdditionalFieldFiles(),
+                sysUserId, null);
 
         // seems like this is unused
         /*
