@@ -124,7 +124,7 @@ export default function GenericSampleOrderEdit({
     }
     if (showUom) {
       getFromOpenElisServer("/rest/UomCreate", (res) => {
-        setUoms(res.existingUomList || []);
+        setUoms(Array.isArray(res?.existingUomList) ? res.existingUomList : []);
       });
     }
     if (showNotebookSelection) {

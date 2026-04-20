@@ -42,6 +42,8 @@ import org.openelisglobal.observationhistory.valueholder.ObservationHistory;
 import org.openelisglobal.organization.service.OrganizationService;
 import org.openelisglobal.organization.valueholder.Organization;
 import org.openelisglobal.organization.valueholder.OrganizationType;
+import org.openelisglobal.orderadditionalfield.bean.OrderAdditionalFieldFilePayload;
+import org.openelisglobal.orderadditionalfield.service.OrderAdditionalFieldService;
 import org.openelisglobal.panel.valueholder.Panel;
 import org.openelisglobal.patient.action.bean.PatientManagementInfo;
 import org.openelisglobal.person.service.PersonService;
@@ -116,6 +118,8 @@ public class SamplePatientEntryServiceImpl implements SamplePatientEntryService 
     private ProgramSampleService programSampleService;
     @Autowired
     private SampleTypeAdditionalFieldService sampleTypeAdditionalFieldService;
+    @Autowired
+    private OrderAdditionalFieldService orderAdditionalFieldService;
 
     @Transactional
     @Override
@@ -133,7 +137,12 @@ public class SamplePatientEntryServiceImpl implements SamplePatientEntryService 
         updateData.setPatientId(patientUpdate.getPatientId(form));
 
         persistProviderData(updateData);
-        persistSampleData(updateData);
+        Map<String, String> orderAdditionalFieldValues = form.getSampleOrderItems() == null ? null
+                : form.getSampleOrderItems().getAdditionalFieldValues();
+        Map<String, OrderAdditionalFieldFilePayload> orderAdditionalFieldFiles = form.getSampleOrderItems() == null
+                ? null
+                : form.getSampleOrderItems().getAdditionalFieldFiles();
+        persistSampleData(updateData, orderAdditionalFieldValues, orderAdditionalFieldFiles);
         persistRequesterData(updateData);
         if (useInitialSampleCondition) {
             persistInitialSampleConditions(updateData);
@@ -207,7 +216,8 @@ public class SamplePatientEntryServiceImpl implements SamplePatientEntryService 
         }
     }
 
-    private void persistSampleData(SamplePatientUpdateData updateData) {
+    private void persistSampleData(SamplePatientUpdateData updateData, Map<String, String> orderAdditionalFieldValues,
+            Map<String, OrderAdditionalFieldFilePayload> orderAdditionalFieldFiles) {
         String analysisRevision = ConfigurationProperties.getInstance().getPropertyValue("analysis.default.revision");
 
         if (updateData.getSampleItemsTests() != null && !updateData.getSampleItemsTests().isEmpty()) {
@@ -245,6 +255,8 @@ public class SamplePatientEntryServiceImpl implements SamplePatientEntryService 
         updateData.getSample().setFhirUuid(UUID.randomUUID());
         sampleService.insertDataWithAccessionNumber(updateData.getSample());
         updateData.getSample().setPriority(updateData.getPriority());
+        orderAdditionalFieldService.validateAndPersistSampleValues(updateData.getSample().getId(),
+                orderAdditionalFieldValues, orderAdditionalFieldFiles, updateData.getCurrentUserId(), null);
 
         for (SampleAdditionalField field : updateData.getSampleFields()) {
             field.setSample(updateData.getSample());

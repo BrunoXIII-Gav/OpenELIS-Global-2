@@ -23,9 +23,13 @@ import jakarta.validation.constraints.Pattern;
 import java.io.Serializable;
 import java.util.Collection;
 import java.util.List;
+import java.util.Map;
 import org.hl7.fhir.r4.model.QuestionnaireResponse;
 import org.openelisglobal.common.formfields.FormFields.Field;
 import org.openelisglobal.common.util.IdValuePair;
+import org.openelisglobal.orderadditionalfield.bean.OrderAdditionalFieldPayload;
+import org.openelisglobal.orderadditionalfield.bean.OrderAdditionalFieldFilePayload;
+import org.openelisglobal.orderadditionalfield.bean.OrderFixedFieldConfigPayload;
 import org.openelisglobal.common.util.validator.CustomDateValidator.DateRelation;
 import org.openelisglobal.common.validator.ValidationHelper;
 import org.openelisglobal.sample.form.SampleEditForm;
@@ -215,6 +219,14 @@ public class SampleOrderItem implements Serializable {
     private QuestionnaireResponse additionalQuestions;
 
     private String programId;
+
+    private List<OrderAdditionalFieldPayload> additionalFields;
+
+    private Map<String, String> additionalFieldValues;
+
+    private Map<String, OrderAdditionalFieldFilePayload> additionalFieldFiles;
+
+    private List<OrderFixedFieldConfigPayload> fixedFieldConfigs;
 
     // for display
     private List<IdValuePair> priorityList;
@@ -603,5 +615,37 @@ public class SampleOrderItem implements Serializable {
 
     public void setProgramId(String programId) {
         this.programId = programId;
+    }
+
+    public List<OrderAdditionalFieldPayload> getAdditionalFields() {
+        return additionalFields;
+    }
+
+    public void setAdditionalFields(List<OrderAdditionalFieldPayload> additionalFields) {
+        this.additionalFields = additionalFields;
+    }
+
+    public Map<String, String> getAdditionalFieldValues() {
+        return additionalFieldValues;
+    }
+
+    public void setAdditionalFieldValues(Map<String, String> additionalFieldValues) {
+        this.additionalFieldValues = additionalFieldValues;
+    }
+
+    public Map<String, OrderAdditionalFieldFilePayload> getAdditionalFieldFiles() {
+        return additionalFieldFiles;
+    }
+
+    public void setAdditionalFieldFiles(Map<String, OrderAdditionalFieldFilePayload> additionalFieldFiles) {
+        this.additionalFieldFiles = additionalFieldFiles;
+    }
+
+    public List<OrderFixedFieldConfigPayload> getFixedFieldConfigs() {
+        return fixedFieldConfigs;
+    }
+
+    public void setFixedFieldConfigs(List<OrderFixedFieldConfigPayload> fixedFieldConfigs) {
+        this.fixedFieldConfigs = fixedFieldConfigs;
     }
 }

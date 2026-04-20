@@ -1,0 +1,94 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<databaseChangeLog
+    xmlns="http://www.liquibase.org/xml/ns/dbchangelog"
+    xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+    xsi:schemaLocation="http://www.liquibase.org/xml/ns/dbchangelog
+    http://www.liquibase.org/xml/ns/dbchangelog/dbchangelog-3.8.xsd">
+
+    <changeSet id="014-014-01-create-sample-order-additional-field-file" author="order-additional-fields">
+        <preConditions onFail="MARK_RAN">
+            <not>
+                <tableExists tableName="sample_order_additional_field_file"/>
+            </not>
+        </preConditions>
+
+        <createTable tableName="sample_order_additional_field_file">
+            <column name="id" type="NUMERIC(10,0)">
+                <constraints primaryKey="true" nullable="false"/>
+            </column>
+            <column name="sample_id" type="NUMERIC(10,0)">
+                <constraints nullable="false"/>
+            </column>
+            <column name="field_def_id" type="NUMERIC(10,0)">
+                <constraints nullable="false"/>
+            </column>
+            <column name="file_name" type="VARCHAR(255)">
+                <constraints nullable="false"/>
+            </column>
+            <column name="file_type" type="VARCHAR(120)">
+                <constraints nullable="false"/>
+            </column>
+            <column name="file_size" type="BIGINT">
+                <constraints nullable="false"/>
+            </column>
+            <column name="file_content" type="BYTEA">
+                <constraints nullable="false"/>
+            </column>
+            <column name="uploaded_at" type="TIMESTAMP" defaultValueComputed="NOW()">
+                <constraints nullable="false"/>
+            </column>
+            <column name="sys_user_id" type="NUMERIC(10,0)">
+                <constraints nullable="false"/>
+            </column>
+            <column name="last_updated" type="TIMESTAMP" defaultValueComputed="NOW()">
+                <constraints nullable="false"/>
+            </column>
+        </createTable>
+
+        <addForeignKeyConstraint baseTableName="sample_order_additional_field_file"
+            baseColumnNames="sample_id"
+            constraintName="fk_sample_order_additional_field_file_sample"
+            referencedTableName="sample"
+            referencedColumnNames="id"
+            onDelete="CASCADE"/>
+
+        <addForeignKeyConstraint baseTableName="sample_order_additional_field_file"
+            baseColumnNames="field_def_id"
+            constraintName="fk_sample_order_additional_field_file_field"
+            referencedTableName="order_additional_field_def"
+            referencedColumnNames="id"/>
+
+        <addUniqueConstraint tableName="sample_order_additional_field_file"
+            columnNames="sample_id, field_def_id"
+            constraintName="uq_sample_order_additional_field_file_pair"/>
+
+        <createIndex tableName="sample_order_additional_field_file"
+            indexName="idx_sample_order_additional_field_file_sample">
+            <column name="sample_id"/>
+        </createIndex>
+
+        <createIndex tableName="sample_order_additional_field_file"
+            indexName="idx_sample_order_additional_field_file_field">
+            <column name="field_def_id"/>
+        </createIndex>
+
+        <rollback>
+            <dropTable tableName="sample_order_additional_field_file"/>
+        </rollback>
+    </changeSet>
+
+    <changeSet id="014-014-02-create-sample-order-additional-field-file-seq" author="order-additional-fields">
+        <preConditions onFail="MARK_RAN">
+            <not>
+                <sequenceExists sequenceName="sample_order_additional_field_file_seq"/>
+            </not>
+        </preConditions>
+
+        <createSequence sequenceName="sample_order_additional_field_file_seq" startValue="1" incrementBy="1"/>
+
+        <rollback>
+            <dropSequence sequenceName="sample_order_additional_field_file_seq"/>
+        </rollback>
+    </changeSet>
+
+</databaseChangeLog>

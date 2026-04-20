@@ -17,7 +17,9 @@
 package org.openelisglobal.common.services;
 
 import java.util.ArrayList;
+import java.util.HashMap;
 import java.util.List;
+import java.util.Map;
 import java.util.UUID;
 import org.apache.commons.validator.GenericValidator;
 import org.hl7.fhir.r4.model.QuestionnaireResponse;
@@ -40,6 +42,9 @@ import org.openelisglobal.program.valueholder.ProgramSample;
 import org.openelisglobal.provider.service.ProviderService;
 import org.openelisglobal.provider.valueholder.Provider;
 import org.openelisglobal.requester.valueholder.SampleRequester;
+import org.openelisglobal.orderadditionalfield.bean.OrderAdditionalFieldPayload;
+import org.openelisglobal.orderadditionalfield.bean.OrderAdditionalFieldFilePayload;
+import org.openelisglobal.orderadditionalfield.service.OrderAdditionalFieldService;
 import org.openelisglobal.sample.bean.SampleOrderItem;
 import org.openelisglobal.sample.service.SampleService;
 import org.openelisglobal.sample.valueholder.Sample;
@@ -61,6 +66,8 @@ public class SampleOrderService {
     private static OrganizationService orgService = SpringContext.getBean(OrganizationService.class);
     private ObservationHistoryService observationHistoryService = SpringContext
             .getBean(ObservationHistoryService.class);
+    private OrderAdditionalFieldService orderAdditionalFieldService = SpringContext
+            .getBean(OrderAdditionalFieldService.class);
 
     boolean needRequesterList = FormFields.getInstance().useField(FormFields.Field.RequesterSiteList);
     private boolean needPaymentOptions = ConfigurationProperties.getInstance()
@@ -125,6 +132,12 @@ public class SampleOrderService {
             orderItems.setProgramList(
                     DisplayListService.getInstance().getList(DisplayListService.ListType.DICTIONARY_PROGRAM));
         }
+
+        List<OrderAdditionalFieldPayload> additionalFields = orderAdditionalFieldService.getFields(false);
+        orderItems.setAdditionalFields(additionalFields);
+        orderItems.setFixedFieldConfigs(orderAdditionalFieldService.getFixedFieldConfigs());
+        orderItems.setAdditionalFieldValues(buildDefaultAdditionalFieldValues(additionalFields));
+        orderItems.setAdditionalFieldFiles(new HashMap<>());
 
         return orderItems;
     }
@@ -197,10 +210,48 @@ public class SampleOrderService {
             sampleOrder.setReferringSiteCode(requesterService.getReferringSiteCode());
             sampleOrder.setReferringSiteName(requesterService.getReferringSiteName());
 
+            List<OrderAdditionalFieldPayload> additionalFields = sampleOrder.getAdditionalFields();
+            if (additionalFields == null) {
+                additionalFields = orderAdditionalFieldService.getFields(false);
+                sampleOrder.setAdditionalFields(additionalFields);
+            }
+            Map<String, String> persistedValues = orderAdditionalFieldService.getSampleValues(sample.getId(),
+                    additionalFields);
+            Map<String, String> mergedValues = buildDefaultAdditionalFieldValues(additionalFields);
+            if (persistedValues != null && !persistedValues.isEmpty()) {
+                mergedValues.putAll(persistedValues);
+            }
+            sampleOrder.setAdditionalFieldValues(mergedValues);
+            Map<String, OrderAdditionalFieldFilePayload> persistedFileValues = orderAdditionalFieldService
+                    .getSampleFileValues(sample.getId(), additionalFields);
+            sampleOrder.setAdditionalFieldFiles(
+                    persistedFileValues == null ? new HashMap<>() : new HashMap<>(persistedFileValues));
+
             sampleOrder.setReadOnly(readOnly);
         }
 
         return sampleOrder;
+    }
+
+    private Map<String, String> buildDefaultAdditionalFieldValues(List<OrderAdditionalFieldPayload> additionalFields) {
+        Map<String, String> defaults = new HashMap<>();
+        if (additionalFields == null) {
+            return defaults;
+        }
+
+        for (OrderAdditionalFieldPayload field : additionalFields) {
+            if (field == null || GenericValidator.isBlankOrNull(field.getFieldKey())) {
+                continue;
+            }
+            if ("DOCUMENT".equalsIgnoreCase(field.getFieldType())) {
+                continue;
+            }
+            if (!GenericValidator.isBlankOrNull(field.getDefaultValue())) {
+                defaults.put(field.getFieldKey(), field.getDefaultValue());
+            }
+        }
+
+        return defaults;
     }
 
     public SampleOrderPersistenceArtifacts getPersistenceArtifacts(Sample sample, String currentUserId) {

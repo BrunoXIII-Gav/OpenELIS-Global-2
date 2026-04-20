@@ -1,0 +1,1179 @@
+import React, { useContext, useEffect, useMemo, useState } from "react";
+import {
+  Button,
+  Checkbox,
+  Column,
+  DataTable,
+  Grid,
+  Heading,
+  Section,
+  Select,
+  SelectItem,
+  Stack,
+  Table,
+  TableBody,
+  TableCell,
+  TableContainer,
+  TableHead,
+  TableHeader,
+  TableRow,
+  Tag,
+  TextArea,
+  TextInput,
+} from "@carbon/react";
+import { FormattedMessage, useIntl } from "react-intl";
+import {
+  deleteFromOpenElisServer,
+  getFromOpenElisServer,
+  postToOpenElisServerJsonResponse,
+  putToOpenElisServerFullResponse,
+} from "../../utils/Utils";
+import PageBreadCrumb from "../../common/PageBreadCrumb";
+import { NotificationContext } from "../../layout/Layout";
+import {
+  AlertDialog,
+  NotificationKinds,
+} from "../../common/CustomNotification";
+
+const FIELD_TYPE_OPTIONS = [
+  "TEXT",
+  "TEXTAREA",
+  "NUMBER",
+  "DATE",
+  "DATETIME",
+  "BOOLEAN",
+  "SELECT",
+  "MULTISELECT",
+  "RADIO",
+  "DOCUMENT",
+];
+
+const CONDITION_LOGIC_OPTIONS = ["ALL", "ANY"];
+
+const CONDITION_OPERATOR_OPTIONS = [
+  "equals",
+  "notequals",
+  "in",
+  "notin",
+  "hasvalue",
+  "istrue",
+  "isfalse",
+];
+
+const VALUE_OPTIONAL_OPERATORS = new Set(["hasvalue", "istrue", "isfalse"]);
+
+const MULTI_VALUE_OPERATORS = new Set(["in", "notin"]);
+
+const createEmptyCondition = () => ({
+  fieldKey: "",
+  operator: "equals",
+  value: "",
+});
+
+const breadcrumbs = [
+  { label: "home.label", link: "/" },
+  { label: "breadcrums.admin.managment", link: "/MasterListsPage" },
+  {
+    label: "master.lists.page.test.management",
+    link: "/MasterListsPage/testManagementConfigMenu",
+  },
+  {
+    label: "order.additional.fields.menu",
+    link: "/MasterListsPage/OrderAdditionalFields",
+  },
+];
+
+const defaultNewField = {
+  displayName: "",
+  fieldKey: "",
+  fieldType: "TEXT",
+  required: false,
+  active: true,
+  defaultValue: "",
+  maxLength: "",
+  sortOrder: "",
+  optionLines: "",
+  rulesLogic: "ALL",
+  visibleWhen: [],
+  requiredWhen: [],
+  documentAccept: "application/pdf",
+  documentMaxSizeMb: "5",
+};
+
+const OrderAdditionalFieldsManagement = () => {
+  const intl = useIntl();
+  const { notificationVisible, setNotificationVisible, addNotification } =
+    useContext(NotificationContext);
+
+  const [fields, setFields] = useState([]);
+  const [fixedConfigs, setFixedConfigs] = useState([]);
+  const [newField, setNewField] = useState(defaultNewField);
+  const [savingField, setSavingField] = useState(false);
+  const [savingFixed, setSavingFixed] = useState(false);
+  const [savingSortFieldId, setSavingSortFieldId] = useState(null);
+
+  const loadFields = () => {
+    getFromOpenElisServer(
+      "/rest/order-additional-fields?includeInactive=true",
+      (response) => {
+        setFields(response || []);
+      },
+    );
+  };
+
+  const loadFixedConfigs = () => {
+    getFromOpenElisServer("/rest/order-additional-fields/fixed", (response) => {
+      setFixedConfigs(response || []);
+    });
+  };
+
+  useEffect(() => {
+    loadFields();
+    loadFixedConfigs();
+  }, []);
+
+  const fixedRows = useMemo(
+    () =>
+      [...fixedConfigs].sort((left, right) => {
+        const leftSort = left?.sortOrder ?? 0;
+        const rightSort = right?.sortOrder ?? 0;
+        return leftSort - rightSort;
+      }),
+    [fixedConfigs],
+  );
+
+  const conditionFieldOptions = useMemo(() => {
+    const map = new Map();
+
+    fixedRows.forEach((config) => {
+      if (!config?.fieldKey) {
+        return;
+      }
+      map.set(config.fieldKey, {
+        value: config.fieldKey,
+        text: config.fieldKey,
+      });
+    });
+
+    (fields || []).forEach((field) => {
+      if (!field?.fieldKey) {
+        return;
+      }
+      map.set(field.fieldKey, {
+        value: field.fieldKey,
+        text: `${field.displayName || field.fieldKey} (${field.fieldKey})`,
+      });
+    });
+
+    return Array.from(map.values()).sort((left, right) =>
+      left.text.localeCompare(right.text),
+    );
+  }, [fields, fixedRows]);
+
+  const showNotification = (kind, message) => {
+    setNotificationVisible(true);
+    addNotification({
+      kind,
+      title: intl.formatMessage({ id: "notification.title" }),
+      message,
+    });
+  };
+
+  const parseOptions = (optionLines) => {
+    if (!optionLines || !optionLines.trim()) {
+      return [];
+    }
+
+    return optionLines
+      .split("\n")
+      .map((line) => line.trim())
+      .filter(Boolean)
+      .map((line, index) => {
+        const splitLine = line.split("|");
+        if (splitLine.length >= 2) {
+          return {
+            optionKey: splitLine[0].trim(),
+            optionLabel: splitLine.slice(1).join("|").trim(),
+            active: true,
+            sortOrder: index + 1,
+          };
+        }
+        return {
+          optionKey: splitLine[0].trim().toLowerCase().replace(/\s+/g, "_"),
+          optionLabel: splitLine[0].trim(),
+          active: true,
+          sortOrder: index + 1,
+        };
+      })
+      .filter((option) => option.optionLabel);
+  };
+
+  const parseCsvValues = (rawValue) =>
+    String(rawValue || "")
+      .split(",")
+      .map((value) => value.trim())
+      .filter(Boolean);
+
+  const updateCondition = (groupKey, index, property, value) => {
+    setNewField((previous) => ({
+      ...previous,
+      [groupKey]: (previous[groupKey] || []).map((condition, conditionIndex) =>
+        conditionIndex === index
+          ? {
+              ...condition,
+              [property]: value,
+            }
+          : condition,
+      ),
+    }));
+  };
+
+  const addCondition = (groupKey) => {
+    setNewField((previous) => ({
+      ...previous,
+      [groupKey]: [...(previous[groupKey] || []), createEmptyCondition()],
+    }));
+  };
+
+  const removeCondition = (groupKey, index) => {
+    setNewField((previous) => ({
+      ...previous,
+      [groupKey]: (previous[groupKey] || []).filter(
+        (_condition, conditionIndex) => conditionIndex !== index,
+      ),
+    }));
+  };
+
+  const normalizeCondition = (condition) => {
+    const fieldKey = String(condition?.fieldKey || "").trim();
+    const operator = String(condition?.operator || "equals").trim();
+    const rawValue = String(condition?.value || "").trim();
+    if (!fieldKey || !operator) {
+      return null;
+    }
+
+    if (VALUE_OPTIONAL_OPERATORS.has(operator)) {
+      return {
+        fieldKey,
+        operator,
+      };
+    }
+
+    if (MULTI_VALUE_OPERATORS.has(operator)) {
+      const values = parseCsvValues(rawValue);
+      if (!values.length) {
+        return null;
+      }
+      return {
+        fieldKey,
+        operator,
+        values,
+      };
+    }
+
+    if (!rawValue) {
+      return null;
+    }
+
+    return {
+      fieldKey,
+      operator,
+      value: rawValue,
+    };
+  };
+
+  const isConditionValid = (condition) =>
+    normalizeCondition(condition) !== null;
+
+  const buildMetadataFromForm = (formValue) => {
+    const hasInvalidVisibleCondition = (formValue.visibleWhen || []).some(
+      (condition) => !isConditionValid(condition),
+    );
+    const hasInvalidRequiredCondition = (formValue.requiredWhen || []).some(
+      (condition) => !isConditionValid(condition),
+    );
+
+    if (hasInvalidVisibleCondition || hasInvalidRequiredCondition) {
+      return {
+        errorMessageId: "order.additional.fields.rules.invalid",
+        metadataJson: null,
+      };
+    }
+
+    const visibleWhen = (formValue.visibleWhen || [])
+      .map(normalizeCondition)
+      .filter(Boolean);
+    const requiredWhen = (formValue.requiredWhen || [])
+      .map(normalizeCondition)
+      .filter(Boolean);
+
+    const metadata = {};
+
+    if (visibleWhen.length > 0 || requiredWhen.length > 0) {
+      metadata.rules = {
+        logic: formValue.rulesLogic || "ALL",
+      };
+      if (visibleWhen.length > 0) {
+        metadata.rules.visibleWhen = visibleWhen;
+      }
+      if (requiredWhen.length > 0) {
+        metadata.rules.requiredWhen = requiredWhen;
+      }
+    }
+
+    if ((formValue.fieldType || "").toUpperCase() === "DOCUMENT") {
+      const acceptedMimeTypes = parseCsvValues(formValue.documentAccept);
+      const maxSizeMb = Number.parseInt(formValue.documentMaxSizeMb, 10);
+      if (acceptedMimeTypes.length > 0 || Number.isFinite(maxSizeMb)) {
+        metadata.document = {};
+        if (acceptedMimeTypes.length > 0) {
+          metadata.document.accept = acceptedMimeTypes;
+        }
+        if (Number.isFinite(maxSizeMb) && maxSizeMb > 0) {
+          metadata.document.maxSizeMb = maxSizeMb;
+        }
+      }
+    }
+
+    return {
+      metadataJson:
+        Object.keys(metadata).length > 0 ? JSON.stringify(metadata) : null,
+      errorMessageId: null,
+    };
+  };
+
+  const normalizeSortOrder = (sortOrder) => {
+    if (sortOrder === null || sortOrder === undefined || sortOrder === "") {
+      return null;
+    }
+    const parsed = Number.parseInt(sortOrder, 10);
+    return Number.isNaN(parsed) ? null : parsed;
+  };
+
+  const createField = (event) => {
+    event.preventDefault();
+    setSavingField(true);
+
+    const metadataBuildResult = buildMetadataFromForm(newField);
+    if (metadataBuildResult.errorMessageId) {
+      setSavingField(false);
+      showNotification(
+        NotificationKinds.error,
+        intl.formatMessage({
+          id: metadataBuildResult.errorMessageId,
+        }),
+      );
+      return;
+    }
+
+    const payload = {
+      displayName: newField.displayName,
+      fieldKey: newField.fieldKey,
+      fieldType: newField.fieldType,
+      required: newField.required,
+      active: true,
+      defaultValue: newField.defaultValue || null,
+      maxLength: newField.maxLength
+        ? Number.parseInt(newField.maxLength, 10)
+        : null,
+      sortOrder: normalizeSortOrder(newField.sortOrder),
+      metadataJson: metadataBuildResult.metadataJson,
+      options: parseOptions(newField.optionLines),
+    };
+
+    postToOpenElisServerJsonResponse(
+      "/rest/order-additional-fields",
+      JSON.stringify(payload),
+      (response) => {
+        setSavingField(false);
+        if (response?.id) {
+          setNewField(defaultNewField);
+          showNotification(
+            NotificationKinds.success,
+            intl.formatMessage({ id: "order.additional.fields.saved" }),
+          );
+          loadFields();
+          return;
+        }
+
+        showNotification(
+          NotificationKinds.error,
+          response?.message || intl.formatMessage({ id: "server.error.msg" }),
+        );
+      },
+    );
+  };
+
+  const toggleFieldStatus = (field) => {
+    if (!field?.id) {
+      return;
+    }
+
+    if (field.active) {
+      deleteFromOpenElisServer(
+        `/rest/order-additional-fields/${field.id}`,
+        (status) => {
+          if (status === 204) {
+            loadFields();
+            showNotification(
+              NotificationKinds.success,
+              intl.formatMessage({ id: "order.additional.fields.updated" }),
+            );
+            return;
+          }
+          showNotification(
+            NotificationKinds.error,
+            intl.formatMessage({ id: "server.error.msg" }),
+          );
+        },
+      );
+      return;
+    }
+
+    const payload = {
+      active: true,
+      displayName: field.displayName,
+      fieldType: field.fieldType,
+      required: field.required,
+      defaultValue: field.defaultValue,
+      maxLength: field.maxLength,
+      sortOrder: normalizeSortOrder(field.sortOrder),
+      metadataJson: field.metadataJson,
+      options: field.options || [],
+    };
+
+    putToOpenElisServerFullResponse(
+      `/rest/order-additional-fields/${field.id}`,
+      JSON.stringify(payload),
+      (response) => {
+        if (response.status >= 200 && response.status < 300) {
+          loadFields();
+          showNotification(
+            NotificationKinds.success,
+            intl.formatMessage({ id: "order.additional.fields.updated" }),
+          );
+          return;
+        }
+        showNotification(
+          NotificationKinds.error,
+          intl.formatMessage({ id: "server.error.msg" }),
+        );
+      },
+    );
+  };
+
+  const saveFieldSortOrder = (field) => {
+    if (!field?.id) {
+      return;
+    }
+
+    setSavingSortFieldId(field.id);
+    const payload = {
+      displayName: field.displayName,
+      fieldType: field.fieldType,
+      required: field.required,
+      active: field.active,
+      defaultValue: field.defaultValue,
+      maxLength: field.maxLength,
+      sortOrder: normalizeSortOrder(field.sortOrder),
+      metadataJson: field.metadataJson,
+      options: field.options || [],
+    };
+
+    putToOpenElisServerFullResponse(
+      `/rest/order-additional-fields/${field.id}`,
+      JSON.stringify(payload),
+      (response) => {
+        setSavingSortFieldId(null);
+        if (response.status >= 200 && response.status < 300) {
+          loadFields();
+          showNotification(
+            NotificationKinds.success,
+            intl.formatMessage({ id: "order.additional.fields.saved" }),
+          );
+          return;
+        }
+        showNotification(
+          NotificationKinds.error,
+          intl.formatMessage({ id: "server.error.msg" }),
+        );
+      },
+    );
+  };
+
+  const updateFixedConfig = (fieldKey, property, rawValue) => {
+    setFixedConfigs((previous) =>
+      previous.map((config) => {
+        if (config.fieldKey !== fieldKey) {
+          return config;
+        }
+        return {
+          ...config,
+          [property]: rawValue,
+        };
+      }),
+    );
+  };
+
+  const saveFixedConfigs = () => {
+    setSavingFixed(true);
+    putToOpenElisServerFullResponse(
+      "/rest/order-additional-fields/fixed",
+      JSON.stringify(fixedConfigs),
+      (response) => {
+        setSavingFixed(false);
+        if (response.status >= 200 && response.status < 300) {
+          showNotification(
+            NotificationKinds.success,
+            intl.formatMessage({ id: "order.additional.fields.saved" }),
+          );
+          loadFixedConfigs();
+          return;
+        }
+        showNotification(
+          NotificationKinds.error,
+          intl.formatMessage({ id: "server.error.msg" }),
+        );
+      },
+    );
+  };
+
+  const renderConditionGroup = (groupKey, titleMessageId) => {
+    const conditions = newField[groupKey] || [];
+
+    return (
+      <Stack gap={4}>
+        <Heading>
+          <FormattedMessage id={titleMessageId} />
+        </Heading>
+        {conditions.length === 0 ? (
+          <p>
+            <FormattedMessage id="order.additional.fields.rules.empty" />
+          </p>
+        ) : null}
+        {conditions.map((condition, index) => {
+          const selectedOperator = condition.operator || "equals";
+          const showValueInput =
+            !VALUE_OPTIONAL_OPERATORS.has(selectedOperator);
+          return (
+            <Grid fullWidth key={`${groupKey}-${index}`}>
+              <Column lg={5} md={4} sm={4}>
+                <Select
+                  id={`${groupKey}-field-${index}`}
+                  labelText={intl.formatMessage({
+                    id: "order.additional.fields.rules.field",
+                  })}
+                  value={condition.fieldKey}
+                  onChange={(event) =>
+                    updateCondition(
+                      groupKey,
+                      index,
+                      "fieldKey",
+                      event.target.value,
+                    )
+                  }
+                >
+                  <SelectItem value="" text="" />
+                  {conditionFieldOptions.map((option) => (
+                    <SelectItem
+                      key={`${groupKey}-field-option-${option.value}`}
+                      value={option.value}
+                      text={option.text}
+                    />
+                  ))}
+                </Select>
+              </Column>
+              <Column lg={5} md={4} sm={4}>
+                <Select
+                  id={`${groupKey}-operator-${index}`}
+                  labelText={intl.formatMessage({
+                    id: "order.additional.fields.rules.operator",
+                  })}
+                  value={selectedOperator}
+                  onChange={(event) =>
+                    updateCondition(
+                      groupKey,
+                      index,
+                      "operator",
+                      event.target.value,
+                    )
+                  }
+                >
+                  {CONDITION_OPERATOR_OPTIONS.map((operator) => (
+                    <SelectItem
+                      key={`${groupKey}-operator-option-${operator}`}
+                      value={operator}
+                      text={intl.formatMessage({
+                        id: `order.additional.fields.rules.operator.${operator}`,
+                      })}
+                    />
+                  ))}
+                </Select>
+              </Column>
+              <Column lg={4} md={4} sm={4}>
+                {showValueInput ? (
+                  <TextInput
+                    id={`${groupKey}-value-${index}`}
+                    labelText={intl.formatMessage({
+                      id: MULTI_VALUE_OPERATORS.has(selectedOperator)
+                        ? "order.additional.fields.rules.values"
+                        : "order.additional.fields.rules.value",
+                    })}
+                    value={condition.value || ""}
+                    onChange={(event) =>
+                      updateCondition(
+                        groupKey,
+                        index,
+                        "value",
+                        event.target.value,
+                      )
+                    }
+                  />
+                ) : null}
+              </Column>
+              <Column lg={2} md={4} sm={4}>
+                <Button
+                  kind="ghost"
+                  size="sm"
+                  onClick={() => removeCondition(groupKey, index)}
+                >
+                  <FormattedMessage id="order.additional.fields.rules.remove" />
+                </Button>
+              </Column>
+            </Grid>
+          );
+        })}
+        <Button kind="ghost" size="sm" onClick={() => addCondition(groupKey)}>
+          <FormattedMessage id="order.additional.fields.rules.add" />
+        </Button>
+      </Stack>
+    );
+  };
+
+  return (
+    <>
+      {notificationVisible ? <AlertDialog /> : null}
+      <div className="adminPageContent">
+        <PageBreadCrumb breadcrumbs={breadcrumbs} />
+        <Grid fullWidth>
+          <Column lg={16} md={8} sm={4}>
+            <Section>
+              <Heading>
+                <FormattedMessage id="order.additional.fields.title" />
+              </Heading>
+            </Section>
+          </Column>
+        </Grid>
+        <div className="orderLegendBody">
+          <Stack gap={6}>
+            <Heading>
+              <FormattedMessage id="order.additional.fields.fixed.title" />
+            </Heading>
+            <TableContainer>
+              <Table>
+                <TableHead>
+                  <TableRow>
+                    <TableHeader>
+                      <FormattedMessage id="order.additional.fields.fieldKey" />
+                    </TableHeader>
+                    <TableHeader>
+                      <FormattedMessage id="order.additional.fields.visible" />
+                    </TableHeader>
+                    <TableHeader>
+                      <FormattedMessage id="order.additional.fields.required" />
+                    </TableHeader>
+                    <TableHeader>
+                      <FormattedMessage id="order.additional.fields.readonly" />
+                    </TableHeader>
+                    <TableHeader>
+                      <FormattedMessage id="order.additional.fields.sortOrder" />
+                    </TableHeader>
+                  </TableRow>
+                </TableHead>
+                <TableBody>
+                  {fixedRows.map((config) => (
+                    <TableRow key={config.fieldKey}>
+                      <TableCell>{config.fieldKey}</TableCell>
+                      <TableCell>
+                        <Checkbox
+                          id={`fixed-visible-${config.fieldKey}`}
+                          labelText=""
+                          checked={config.visible !== false}
+                          onChange={(_event, { checked }) =>
+                            updateFixedConfig(
+                              config.fieldKey,
+                              "visible",
+                              checked,
+                            )
+                          }
+                        />
+                      </TableCell>
+                      <TableCell>
+                        <Checkbox
+                          id={`fixed-required-${config.fieldKey}`}
+                          labelText=""
+                          checked={!!config.required}
+                          onChange={(_event, { checked }) =>
+                            updateFixedConfig(
+                              config.fieldKey,
+                              "required",
+                              checked,
+                            )
+                          }
+                        />
+                      </TableCell>
+                      <TableCell>
+                        <Checkbox
+                          id={`fixed-readonly-${config.fieldKey}`}
+                          labelText=""
+                          checked={!!config.readonly}
+                          onChange={(_event, { checked }) =>
+                            updateFixedConfig(
+                              config.fieldKey,
+                              "readonly",
+                              checked,
+                            )
+                          }
+                        />
+                      </TableCell>
+                      <TableCell>
+                        <TextInput
+                          id={`fixed-sort-${config.fieldKey}`}
+                          labelText=""
+                          type="number"
+                          value={String(config.sortOrder ?? 0)}
+                          onChange={(event) =>
+                            updateFixedConfig(
+                              config.fieldKey,
+                              "sortOrder",
+                              Number.parseInt(event.target.value || "0", 10),
+                            )
+                          }
+                        />
+                      </TableCell>
+                    </TableRow>
+                  ))}
+                </TableBody>
+              </Table>
+            </TableContainer>
+            <Button
+              onClick={saveFixedConfigs}
+              disabled={savingFixed}
+              data-cy="save-fixed-order-fields"
+            >
+              <FormattedMessage id="order.additional.fields.saveFixed" />
+            </Button>
+          </Stack>
+        </div>
+
+        <br />
+
+        <div className="orderLegendBody">
+          <Stack gap={6}>
+            <Heading>
+              <FormattedMessage id="order.additional.fields.custom.title" />
+            </Heading>
+            <Grid fullWidth>
+              <Column lg={8} md={4} sm={4}>
+                <TextInput
+                  id="order-additional-display-name"
+                  labelText={intl.formatMessage({
+                    id: "order.additional.fields.displayName",
+                  })}
+                  value={newField.displayName}
+                  onChange={(event) =>
+                    setNewField((previous) => ({
+                      ...previous,
+                      displayName: event.target.value,
+                    }))
+                  }
+                />
+              </Column>
+              <Column lg={8} md={4} sm={4}>
+                <TextInput
+                  id="order-additional-field-key"
+                  labelText={intl.formatMessage({
+                    id: "order.additional.fields.fieldKey",
+                  })}
+                  value={newField.fieldKey}
+                  onChange={(event) =>
+                    setNewField((previous) => ({
+                      ...previous,
+                      fieldKey: event.target.value,
+                    }))
+                  }
+                />
+              </Column>
+            </Grid>
+            <Grid fullWidth>
+              <Column lg={8} md={4} sm={4}>
+                <Select
+                  id="order-additional-field-type"
+                  labelText={intl.formatMessage({
+                    id: "order.additional.fields.fieldType",
+                  })}
+                  value={newField.fieldType}
+                  onChange={(event) =>
+                    setNewField((previous) => ({
+                      ...previous,
+                      fieldType: event.target.value,
+                    }))
+                  }
+                >
+                  {FIELD_TYPE_OPTIONS.map((fieldType) => (
+                    <SelectItem
+                      key={fieldType}
+                      value={fieldType}
+                      text={fieldType}
+                    />
+                  ))}
+                </Select>
+              </Column>
+              <Column lg={8} md={4} sm={4}>
+                <TextInput
+                  id="order-additional-default-value"
+                  labelText={intl.formatMessage({
+                    id: "order.additional.fields.defaultValue",
+                  })}
+                  value={newField.defaultValue}
+                  onChange={(event) =>
+                    setNewField((previous) => ({
+                      ...previous,
+                      defaultValue: event.target.value,
+                    }))
+                  }
+                />
+              </Column>
+            </Grid>
+            <Grid fullWidth>
+              <Column lg={8} md={4} sm={4}>
+                <TextInput
+                  id="order-additional-max-length"
+                  labelText={intl.formatMessage({
+                    id: "order.additional.fields.maxLength",
+                  })}
+                  type="number"
+                  value={newField.maxLength}
+                  onChange={(event) =>
+                    setNewField((previous) => ({
+                      ...previous,
+                      maxLength: event.target.value,
+                    }))
+                  }
+                />
+              </Column>
+              <Column lg={8} md={4} sm={4}>
+                <TextInput
+                  id="order-additional-sort-order"
+                  labelText={intl.formatMessage({
+                    id: "order.additional.fields.sortOrder",
+                  })}
+                  type="number"
+                  value={newField.sortOrder}
+                  onChange={(event) =>
+                    setNewField((previous) => ({
+                      ...previous,
+                      sortOrder: event.target.value,
+                    }))
+                  }
+                />
+              </Column>
+            </Grid>
+            <Grid fullWidth>
+              <Column lg={8} md={4} sm={4}>
+                <Checkbox
+                  id="order-additional-required"
+                  labelText={intl.formatMessage({
+                    id: "order.additional.fields.required",
+                  })}
+                  checked={newField.required}
+                  onChange={(_event, { checked }) =>
+                    setNewField((previous) => ({
+                      ...previous,
+                      required: checked,
+                    }))
+                  }
+                />
+              </Column>
+            </Grid>
+
+            {(newField.fieldType === "SELECT" ||
+              newField.fieldType === "MULTISELECT" ||
+              newField.fieldType === "RADIO") && (
+              <TextArea
+                id="order-additional-options"
+                labelText={intl.formatMessage({
+                  id: "order.additional.fields.options",
+                })}
+                helperText={intl.formatMessage({
+                  id: "order.additional.fields.options.helper",
+                })}
+                value={newField.optionLines}
+                onChange={(event) =>
+                  setNewField((previous) => ({
+                    ...previous,
+                    optionLines: event.target.value,
+                  }))
+                }
+              />
+            )}
+            <Stack gap={5}>
+              <Heading>
+                <FormattedMessage id="order.additional.fields.rules.title" />
+              </Heading>
+              <Grid fullWidth>
+                <Column lg={6} md={4} sm={4}>
+                  <Select
+                    id="order-additional-rules-logic"
+                    labelText={intl.formatMessage({
+                      id: "order.additional.fields.rules.logic",
+                    })}
+                    value={newField.rulesLogic}
+                    onChange={(event) =>
+                      setNewField((previous) => ({
+                        ...previous,
+                        rulesLogic: event.target.value,
+                      }))
+                    }
+                  >
+                    {CONDITION_LOGIC_OPTIONS.map((logic) => (
+                      <SelectItem
+                        key={`logic-${logic}`}
+                        value={logic}
+                        text={intl.formatMessage({
+                          id: `order.additional.fields.rules.logic.${logic.toLowerCase()}`,
+                        })}
+                      />
+                    ))}
+                  </Select>
+                </Column>
+              </Grid>
+
+              {renderConditionGroup(
+                "visibleWhen",
+                "order.additional.fields.rules.visibleWhen",
+              )}
+              {renderConditionGroup(
+                "requiredWhen",
+                "order.additional.fields.rules.requiredWhen",
+              )}
+            </Stack>
+
+            {newField.fieldType === "DOCUMENT" && (
+              <Stack gap={4}>
+                <Heading>
+                  <FormattedMessage id="order.additional.fields.document.title" />
+                </Heading>
+                <Grid fullWidth>
+                  <Column lg={8} md={4} sm={4}>
+                    <TextInput
+                      id="order-additional-document-accept"
+                      labelText={intl.formatMessage({
+                        id: "order.additional.fields.document.accept",
+                      })}
+                      helperText={intl.formatMessage({
+                        id: "order.additional.fields.document.accept.helper",
+                      })}
+                      value={newField.documentAccept}
+                      onChange={(event) =>
+                        setNewField((previous) => ({
+                          ...previous,
+                          documentAccept: event.target.value,
+                        }))
+                      }
+                    />
+                  </Column>
+                  <Column lg={8} md={4} sm={4}>
+                    <TextInput
+                      id="order-additional-document-max-size"
+                      labelText={intl.formatMessage({
+                        id: "order.additional.fields.document.maxSizeMb",
+                      })}
+                      type="number"
+                      min="1"
+                      value={newField.documentMaxSizeMb}
+                      onChange={(event) =>
+                        setNewField((previous) => ({
+                          ...previous,
+                          documentMaxSizeMb: event.target.value,
+                        }))
+                      }
+                    />
+                  </Column>
+                </Grid>
+              </Stack>
+            )}
+
+            <Button
+              onClick={createField}
+              disabled={savingField}
+              data-cy="create-order-additional-field"
+            >
+              <FormattedMessage id="order.additional.fields.create" />
+            </Button>
+
+            <DataTable
+              rows={(fields || []).map((field) => ({
+                id: String(field.id),
+                displayName: field.displayName,
+                fieldKey: field.fieldKey,
+                fieldType: field.fieldType,
+                sortOrder: field.sortOrder,
+                required: field.required,
+                active: field.active,
+                options: field.options || [],
+              }))}
+              headers={[
+                {
+                  key: "displayName",
+                  header: intl.formatMessage({
+                    id: "order.additional.fields.displayName",
+                  }),
+                },
+                {
+                  key: "fieldKey",
+                  header: intl.formatMessage({
+                    id: "order.additional.fields.fieldKey",
+                  }),
+                },
+                {
+                  key: "fieldType",
+                  header: intl.formatMessage({
+                    id: "order.additional.fields.fieldType",
+                  }),
+                },
+                {
+                  key: "sortOrder",
+                  header: intl.formatMessage({
+                    id: "order.additional.fields.sortOrder",
+                  }),
+                },
+                {
+                  key: "required",
+                  header: intl.formatMessage({
+                    id: "order.additional.fields.required",
+                  }),
+                },
+                {
+                  key: "active",
+                  header: intl.formatMessage({
+                    id: "order.additional.fields.active",
+                  }),
+                },
+                {
+                  key: "actions",
+                  header: intl.formatMessage({
+                    id: "order.additional.fields.actions",
+                  }),
+                },
+              ]}
+            >
+              {({ rows, headers, getHeaderProps, getTableProps }) => (
+                <TableContainer>
+                  <Table {...getTableProps()}>
+                    <TableHead>
+                      <TableRow>
+                        {headers.map((header) => (
+                          <TableHeader
+                            key={header.key}
+                            {...getHeaderProps({ header })}
+                          >
+                            {header.header}
+                          </TableHeader>
+                        ))}
+                      </TableRow>
+                    </TableHead>
+                    <TableBody>
+                      {rows.map((row) => {
+                        const sourceField = fields.find(
+                          (field) => String(field.id) === row.id,
+                        );
+                        return (
+                          <TableRow key={row.id}>
+                            <TableCell>{row.cells[0].value}</TableCell>
+                            <TableCell>{row.cells[1].value}</TableCell>
+                            <TableCell>{row.cells[2].value}</TableCell>
+                            <TableCell>
+                              <TextInput
+                                id={`custom-field-sort-order-${row.id}`}
+                                labelText=""
+                                type="number"
+                                value={String(row.cells[3].value ?? "")}
+                                onChange={(event) => {
+                                  const nextSortOrder = event.target.value;
+                                  setFields((previous) =>
+                                    previous.map((field) => {
+                                      if (String(field.id) !== row.id) {
+                                        return field;
+                                      }
+                                      return {
+                                        ...field,
+                                        sortOrder: nextSortOrder,
+                                      };
+                                    }),
+                                  );
+                                }}
+                              />
+                            </TableCell>
+                            <TableCell>
+                              {row.cells[4].value ? (
+                                <Tag type="green">
+                                  <FormattedMessage id="yes.option" />
+                                </Tag>
+                              ) : (
+                                <Tag type="gray">
+                                  <FormattedMessage id="no.option" />
+                                </Tag>
+                              )}
+                            </TableCell>
+                            <TableCell>
+                              {row.cells[5].value ? (
+                                <Tag type="green">
+                                  <FormattedMessage id="status.active" />
+                                </Tag>
+                              ) : (
+                                <Tag type="red">
+                                  <FormattedMessage id="status.inactive" />
+                                </Tag>
+                              )}
+                            </TableCell>
+                            <TableCell>
+                              <Button
+                                kind="tertiary"
+                                size="sm"
+                                disabled={savingSortFieldId === sourceField?.id}
+                                onClick={() => saveFieldSortOrder(sourceField)}
+                              >
+                                <FormattedMessage id="button.save" />
+                              </Button>
+                              {"  "}
+                              <Button
+                                kind={
+                                  row.cells[5].value ? "danger" : "secondary"
+                                }
+                                size="sm"
+                                onClick={() => toggleFieldStatus(sourceField)}
+                              >
+                                {row.cells[5].value ? (
+                                  <FormattedMessage id="order.additional.fields.disable" />
+                                ) : (
+                                  <FormattedMessage id="order.additional.fields.enable" />
+                                )}
+                              </Button>
+                            </TableCell>
+                          </TableRow>
+                        );
+                      })}
+                    </TableBody>
+                  </Table>
+                </TableContainer>
+              )}
+            </DataTable>
+          </Stack>
+        </div>
+      </div>
+    </>
+  );
+};
+
+export default OrderAdditionalFieldsManagement;

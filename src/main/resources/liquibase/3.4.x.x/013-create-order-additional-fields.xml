@@ -1,0 +1,250 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<databaseChangeLog
+    xmlns="http://www.liquibase.org/xml/ns/dbchangelog"
+    xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+    xsi:schemaLocation="http://www.liquibase.org/xml/ns/dbchangelog
+    http://www.liquibase.org/xml/ns/dbchangelog/dbchangelog-3.8.xsd">
+
+    <changeSet id="013-013-01-create-order-additional-field-def" author="order-additional-fields">
+        <preConditions onFail="MARK_RAN">
+            <not>
+                <tableExists tableName="order_additional_field_def"/>
+            </not>
+        </preConditions>
+        <createTable tableName="order_additional_field_def">
+            <column name="id" type="NUMERIC(10,0)">
+                <constraints primaryKey="true" nullable="false"/>
+            </column>
+            <column name="field_key" type="VARCHAR(80)">
+                <constraints nullable="false"/>
+            </column>
+            <column name="display_name" type="VARCHAR(150)">
+                <constraints nullable="false"/>
+            </column>
+            <column name="field_type" type="VARCHAR(30)">
+                <constraints nullable="false"/>
+            </column>
+            <column name="required" type="BOOLEAN" defaultValueBoolean="false">
+                <constraints nullable="false"/>
+            </column>
+            <column name="active" type="BOOLEAN" defaultValueBoolean="true">
+                <constraints nullable="false"/>
+            </column>
+            <column name="sort_order" type="INTEGER" defaultValueNumeric="0">
+                <constraints nullable="false"/>
+            </column>
+            <column name="default_value" type="VARCHAR(500)"/>
+            <column name="max_length" type="INTEGER"/>
+            <column name="metadata_json" type="TEXT"/>
+            <column name="sys_user_id" type="NUMERIC(10,0)">
+                <constraints nullable="false"/>
+            </column>
+            <column name="last_updated" type="TIMESTAMP" defaultValueComputed="NOW()">
+                <constraints nullable="false"/>
+            </column>
+        </createTable>
+        <addUniqueConstraint tableName="order_additional_field_def"
+            columnNames="field_key"
+            constraintName="uq_order_additional_field_def_field_key"/>
+        <createIndex tableName="order_additional_field_def" indexName="idx_order_additional_field_def_sort_order">
+            <column name="sort_order"/>
+        </createIndex>
+        <rollback>
+            <dropTable tableName="order_additional_field_def"/>
+        </rollback>
+    </changeSet>
+
+    <changeSet id="013-013-02-create-order-additional-field-def-seq" author="order-additional-fields">
+        <preConditions onFail="MARK_RAN">
+            <not>
+                <sequenceExists sequenceName="order_additional_field_def_seq"/>
+            </not>
+        </preConditions>
+        <createSequence sequenceName="order_additional_field_def_seq" startValue="1" incrementBy="1"/>
+        <rollback>
+            <dropSequence sequenceName="order_additional_field_def_seq"/>
+        </rollback>
+    </changeSet>
+
+    <changeSet id="013-013-03-create-order-additional-field-option" author="order-additional-fields">
+        <preConditions onFail="MARK_RAN">
+            <not>
+                <tableExists tableName="order_additional_field_option"/>
+            </not>
+        </preConditions>
+        <createTable tableName="order_additional_field_option">
+            <column name="id" type="NUMERIC(10,0)">
+                <constraints primaryKey="true" nullable="false"/>
+            </column>
+            <column name="field_def_id" type="NUMERIC(10,0)">
+                <constraints nullable="false"/>
+            </column>
+            <column name="option_key" type="VARCHAR(80)">
+                <constraints nullable="false"/>
+            </column>
+            <column name="option_label" type="VARCHAR(150)">
+                <constraints nullable="false"/>
+            </column>
+            <column name="sort_order" type="INTEGER" defaultValueNumeric="0">
+                <constraints nullable="false"/>
+            </column>
+            <column name="active" type="BOOLEAN" defaultValueBoolean="true">
+                <constraints nullable="false"/>
+            </column>
+            <column name="sys_user_id" type="NUMERIC(10,0)">
+                <constraints nullable="false"/>
+            </column>
+            <column name="last_updated" type="TIMESTAMP" defaultValueComputed="NOW()">
+                <constraints nullable="false"/>
+            </column>
+        </createTable>
+        <addForeignKeyConstraint baseTableName="order_additional_field_option"
+            baseColumnNames="field_def_id"
+            constraintName="fk_order_additional_field_option_def"
+            referencedTableName="order_additional_field_def"
+            referencedColumnNames="id"
+            onDelete="CASCADE"/>
+        <addUniqueConstraint tableName="order_additional_field_option"
+            columnNames="field_def_id, option_key"
+            constraintName="uq_order_additional_field_option_key"/>
+        <createIndex tableName="order_additional_field_option" indexName="idx_order_additional_field_option_def">
+            <column name="field_def_id"/>
+        </createIndex>
+        <rollback>
+            <dropTable tableName="order_additional_field_option"/>
+        </rollback>
+    </changeSet>
+
+    <changeSet id="013-013-04-create-order-additional-field-option-seq" author="order-additional-fields">
+        <preConditions onFail="MARK_RAN">
+            <not>
+                <sequenceExists sequenceName="order_additional_field_option_seq"/>
+            </not>
+        </preConditions>
+        <createSequence sequenceName="order_additional_field_option_seq" startValue="1" incrementBy="1"/>
+        <rollback>
+            <dropSequence sequenceName="order_additional_field_option_seq"/>
+        </rollback>
+    </changeSet>
+
+    <changeSet id="013-013-05-create-sample-order-additional-field-value" author="order-additional-fields">
+        <preConditions onFail="MARK_RAN">
+            <not>
+                <tableExists tableName="sample_order_additional_field_value"/>
+            </not>
+        </preConditions>
+        <createTable tableName="sample_order_additional_field_value">
+            <column name="id" type="NUMERIC(10,0)">
+                <constraints primaryKey="true" nullable="false"/>
+            </column>
+            <column name="sample_id" type="NUMERIC(10,0)">
+                <constraints nullable="false"/>
+            </column>
+            <column name="field_def_id" type="NUMERIC(10,0)">
+                <constraints nullable="false"/>
+            </column>
+            <column name="field_value" type="TEXT">
+                <constraints nullable="false"/>
+            </column>
+            <column name="sys_user_id" type="NUMERIC(10,0)">
+                <constraints nullable="false"/>
+            </column>
+            <column name="last_updated" type="TIMESTAMP" defaultValueComputed="NOW()">
+                <constraints nullable="false"/>
+            </column>
+        </createTable>
+        <addForeignKeyConstraint baseTableName="sample_order_additional_field_value"
+            baseColumnNames="sample_id"
+            constraintName="fk_sample_order_additional_field_value_sample"
+            referencedTableName="sample"
+            referencedColumnNames="id"
+            onDelete="CASCADE"/>
+        <addForeignKeyConstraint baseTableName="sample_order_additional_field_value"
+            baseColumnNames="field_def_id"
+            constraintName="fk_sample_order_additional_field_value_field"
+            referencedTableName="order_additional_field_def"
+            referencedColumnNames="id"/>
+        <addUniqueConstraint tableName="sample_order_additional_field_value"
+            columnNames="sample_id, field_def_id"
+            constraintName="uq_sample_order_additional_field_value_pair"/>
+        <createIndex tableName="sample_order_additional_field_value"
+            indexName="idx_sample_order_additional_field_value_sample">
+            <column name="sample_id"/>
+        </createIndex>
+        <createIndex tableName="sample_order_additional_field_value"
+            indexName="idx_sample_order_additional_field_value_field">
+            <column name="field_def_id"/>
+        </createIndex>
+        <rollback>
+            <dropTable tableName="sample_order_additional_field_value"/>
+        </rollback>
+    </changeSet>
+
+    <changeSet id="013-013-06-create-sample-order-additional-field-value-seq" author="order-additional-fields">
+        <preConditions onFail="MARK_RAN">
+            <not>
+                <sequenceExists sequenceName="sample_order_additional_field_value_seq"/>
+            </not>
+        </preConditions>
+        <createSequence sequenceName="sample_order_additional_field_value_seq" startValue="1" incrementBy="1"/>
+        <rollback>
+            <dropSequence sequenceName="sample_order_additional_field_value_seq"/>
+        </rollback>
+    </changeSet>
+
+    <changeSet id="013-013-07-create-order-fixed-field-config" author="order-additional-fields">
+        <preConditions onFail="MARK_RAN">
+            <not>
+                <tableExists tableName="order_fixed_field_config"/>
+            </not>
+        </preConditions>
+        <createTable tableName="order_fixed_field_config">
+            <column name="id" type="NUMERIC(10,0)">
+                <constraints primaryKey="true" nullable="false"/>
+            </column>
+            <column name="field_key" type="VARCHAR(80)">
+                <constraints nullable="false"/>
+            </column>
+            <column name="visible" type="BOOLEAN" defaultValueBoolean="true">
+                <constraints nullable="false"/>
+            </column>
+            <column name="required" type="BOOLEAN" defaultValueBoolean="false">
+                <constraints nullable="false"/>
+            </column>
+            <column name="readonly" type="BOOLEAN" defaultValueBoolean="false">
+                <constraints nullable="false"/>
+            </column>
+            <column name="sort_order" type="INTEGER" defaultValueNumeric="0">
+                <constraints nullable="false"/>
+            </column>
+            <column name="sys_user_id" type="NUMERIC(10,0)">
+                <constraints nullable="false"/>
+            </column>
+            <column name="last_updated" type="TIMESTAMP" defaultValueComputed="NOW()">
+                <constraints nullable="false"/>
+            </column>
+        </createTable>
+        <addUniqueConstraint tableName="order_fixed_field_config"
+            columnNames="field_key"
+            constraintName="uq_order_fixed_field_config_key"/>
+        <createIndex tableName="order_fixed_field_config" indexName="idx_order_fixed_field_config_sort_order">
+            <column name="sort_order"/>
+        </createIndex>
+        <rollback>
+            <dropTable tableName="order_fixed_field_config"/>
+        </rollback>
+    </changeSet>
+
+    <changeSet id="013-013-08-create-order-fixed-field-config-seq" author="order-additional-fields">
+        <preConditions onFail="MARK_RAN">
+            <not>
+                <sequenceExists sequenceName="order_fixed_field_config_seq"/>
+            </not>
+        </preConditions>
+        <createSequence sequenceName="order_fixed_field_config_seq" startValue="1" incrementBy="1"/>
+        <rollback>
+            <dropSequence sequenceName="order_fixed_field_config_seq"/>
+        </rollback>
+    </changeSet>
+
+</databaseChangeLog>
