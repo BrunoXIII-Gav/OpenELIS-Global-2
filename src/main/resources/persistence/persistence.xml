@@ -89,6 +89,13 @@
         <class>org.openelisglobal.analyzer.valueholder.UnitMapping</class>
         <class>org.openelisglobal.analyzer.valueholder.QualitativeResultMapping</class>
 
+        <!-- Order Additional Fields entities -->
+        <class>org.openelisglobal.orderadditionalfield.valueholder.OrderAdditionalFieldDefinition</class>
+        <class>org.openelisglobal.orderadditionalfield.valueholder.OrderAdditionalFieldOption</class>
+        <class>org.openelisglobal.orderadditionalfield.valueholder.SampleOrderAdditionalFieldValue</class>
+        <class>org.openelisglobal.orderadditionalfield.valueholder.SampleOrderAdditionalFieldFile</class>
+        <class>org.openelisglobal.orderadditionalfield.valueholder.OrderFixedFieldConfig</class>
+
         <properties>
             <property name="hibernate.cfg_xml_file"
                 value="classpath:hibernate/hibernate.cfg.xml" />
