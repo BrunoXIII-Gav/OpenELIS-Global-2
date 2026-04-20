@@ -89,6 +89,7 @@ import TestSectionRenameEntry from "./testManagementConfigMenu/TestSectionRename
 import UomRenameEntry from "./testManagementConfigMenu/UomRenameEntry.js";
 import SelectListRenameEntry from "./testManagementConfigMenu/SelectListRenameEntry.js";
 import MethodRenameEntry from "./testManagementConfigMenu/MethodRenameEntry.js";
+import OrderAdditionalFieldsManagement from "./testManagementConfigMenu/OrderAdditionalFieldsManagement.js";
 
 function Admin() {
   const intl = useIntl();
@@ -454,6 +455,10 @@ function Admin() {
         />
         <Route path={`${path}/SampleTypeCreate`} component={SampleTypeCreate} />
         <Route path={`${path}/SampleTypeOrder`} component={SampleTypeOrder} />
+        <Route
+          path={`${path}/OrderAdditionalFields`}
+          component={OrderAdditionalFieldsManagement}
+        />
         <Route
           path={`${path}/SampleTypeTestAssign`}
           component={SampleTypeTestAssign}
