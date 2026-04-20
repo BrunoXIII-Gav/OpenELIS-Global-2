@@ -433,7 +433,9 @@ const SampleType = (props) => {
 
   const fetchUomCreate = (res) => {
     if (componentMounted.current) {
-      setUomList(res.existingUomList || []);
+      setUomList(
+        Array.isArray(res?.existingUomList) ? res.existingUomList : [],
+      );
     }
   };
 
