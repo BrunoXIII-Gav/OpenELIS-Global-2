@@ -47,4 +47,39 @@ public class SampleOrderAdditionalFieldValueDAOImpl extends BaseDAOImpl<SampleOr
         query.setParameterList("fieldDefinitionIds", fieldDefinitionIds);
         return query.list();
     }
+
+    @Override
+    public List<Integer> findDistinctSampleIdsBySearchableFieldValue(String searchValue, boolean uniqueOnly, int limit) {
+        if (searchValue == null || searchValue.trim().isEmpty() || limit <= 0) {
+            return Collections.emptyList();
+        }
+
+        String hql = "select distinct v.sampleId from SampleOrderAdditionalFieldValue v, OrderAdditionalFieldDefinition d "
+                + "where v.fieldDefinitionId = d.id and d.active = true and d.searchable = true "
+                + (uniqueOnly ? "and d.searchUnique = true " : "")
+                + "and lower(v.fieldValue) = :searchValue "
+                + "order by v.sampleId desc";
+        Query<Integer> query = entityManager.unwrap(Session.class).createQuery(hql, Integer.class);
+        query.setParameter("searchValue", searchValue.trim().toLowerCase());
+        query.setMaxResults(limit);
+        return query.list();
+    }
+
+    @Override
+    public boolean existsByFieldDefinitionIdAndFieldValueIgnoreCaseAndSampleIdNot(Integer fieldDefinitionId,
+            String fieldValue, Integer excludedSampleId) {
+        if (fieldDefinitionId == null || fieldValue == null || fieldValue.trim().isEmpty()) {
+            return false;
+        }
+
+        String hql = "select count(v.id) from SampleOrderAdditionalFieldValue v "
+                + "where v.fieldDefinitionId = :fieldDefinitionId and lower(v.fieldValue) = :fieldValue "
+                + "and (:excludedSampleId is null or v.sampleId <> :excludedSampleId)";
+        Query<Long> query = entityManager.unwrap(Session.class).createQuery(hql, Long.class);
+        query.setParameter("fieldDefinitionId", fieldDefinitionId);
+        query.setParameter("fieldValue", fieldValue.trim().toLowerCase());
+        query.setParameter("excludedSampleId", excludedSampleId);
+        Long count = query.uniqueResult();
+        return count != null && count > 0;
+    }
 }

@@ -171,7 +171,7 @@ export function SearchResultForm(props) {
       values.accessionNumber !== ""
         ? values.accessionNumber
         : values.startLabNo;
-    let labNo = accessionNumber ? accessionNumber.split("-")[0] : "";
+    let labNo = accessionNumber ? accessionNumber.trim() : "";
     const endLabNo = values.endLabNo ? values.endLabNo : "";
     values.unitType = values.unitType ? values.unitType : "";
 

@@ -3131,6 +3131,8 @@
   "order.additional.fields.fieldKey": "Clave del campo",
   "order.additional.fields.fieldType": "Tipo de campo",
   "order.additional.fields.required": "Requerido",
+  "order.additional.fields.searchable": "Buscable",
+  "order.additional.fields.searchUnique": "Valor de búsqueda único",
   "order.additional.fields.readonly": "Solo lectura",
   "order.additional.fields.visible": "Visible",
   "order.additional.fields.sortOrder": "Orden",

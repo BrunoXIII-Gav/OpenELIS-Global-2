@@ -37,6 +37,7 @@ import org.openelisglobal.common.services.historyservices.SampleHistoryService;
 import org.openelisglobal.internationalization.MessageUtil;
 import org.openelisglobal.observationhistory.service.ObservationHistoryService;
 import org.openelisglobal.observationhistory.service.ObservationHistoryServiceImpl.ObservationType;
+import org.openelisglobal.orderadditionalfield.service.OrderAdditionalFieldService;
 import org.openelisglobal.patient.action.bean.PatientManagementBridge;
 import org.openelisglobal.patient.action.bean.PatientManagementInfo;
 import org.openelisglobal.patient.util.PatientUtil;
@@ -68,6 +69,8 @@ public class AuditTrailViewWorkerImpl implements AuditTrailViewWorker {
     protected ProgramSampleService programSampleService;
     @Autowired
     protected ObservationHistoryService observationHistoryService;
+    @Autowired
+    protected OrderAdditionalFieldService orderAdditionalFieldService;
 
     private String accessionNumber = null;
     private Sample sample;
@@ -109,8 +112,12 @@ public class AuditTrailViewWorkerImpl implements AuditTrailViewWorker {
         if (GenericValidator.isBlankOrNull(accessionNumber)) {
             throw new IllegalStateException("AuditTrialViewWorker is not initialized");
         }
+        getSample();
+        if (sample == null || GenericValidator.isBlankOrNull(sample.getAccessionNumber())) {
+            return new SampleOrderItem();
+        }
 
-        SampleOrderService orderService = new SampleOrderService(accessionNumber, true);
+        SampleOrderService orderService = new SampleOrderService(sample.getAccessionNumber(), true);
         return orderService.getSampleOrderItem();
     }
 
@@ -147,7 +154,17 @@ public class AuditTrailViewWorkerImpl implements AuditTrailViewWorker {
 
     private void getSample() {
         if (sample == null) {
-            sample = sampleService.getSampleByAccessionNumber(accessionNumber);
+            String searchValue = accessionNumber == null ? null : accessionNumber.trim();
+            sample = orderAdditionalFieldService.findSampleIdBySearchableFieldValue(searchValue)
+                    .map(sampleId -> sampleService.get(String.valueOf(sampleId)))
+                    .orElse(null);
+            if (sample == null) {
+                sample = sampleService.getSampleByAccessionNumber(searchValue);
+                if (sample == null && searchValue != null && searchValue.contains("-")) {
+                    sample = sampleService
+                            .getSampleByAccessionNumber(searchValue.substring(0, searchValue.indexOf('-')));
+                }
+            }
         }
     }
 

@@ -1,0 +1,78 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<databaseChangeLog
+  xmlns="http://www.liquibase.org/xml/ns/dbchangelog"
+  xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+  xsi:schemaLocation="http://www.liquibase.org/xml/ns/dbchangelog http://www.liquibase.org/xml/ns/dbchangelog/dbchangelog-3.8.xsd">
+
+  <changeSet id="015-01-add-searchable-column-order-additional-field-def" author="codex">
+    <preConditions onFail="MARK_RAN">
+      <not>
+        <columnExists tableName="order_additional_field_def" columnName="searchable"/>
+      </not>
+    </preConditions>
+
+    <addColumn tableName="order_additional_field_def">
+      <column name="searchable" type="BOOLEAN" defaultValueBoolean="false">
+        <constraints nullable="false"/>
+      </column>
+    </addColumn>
+
+    <rollback>
+      <dropColumn tableName="order_additional_field_def" columnName="searchable"/>
+    </rollback>
+  </changeSet>
+
+  <changeSet id="015-02-add-search-unique-column-order-additional-field-def" author="codex">
+    <preConditions onFail="MARK_RAN">
+      <not>
+        <columnExists tableName="order_additional_field_def" columnName="search_unique"/>
+      </not>
+    </preConditions>
+
+    <addColumn tableName="order_additional_field_def">
+      <column name="search_unique" type="BOOLEAN" defaultValueBoolean="false">
+        <constraints nullable="false"/>
+      </column>
+    </addColumn>
+
+    <rollback>
+      <dropColumn tableName="order_additional_field_def" columnName="search_unique"/>
+    </rollback>
+  </changeSet>
+
+  <changeSet id="015-03-create-searchable-index-order-additional-field-def" author="codex">
+    <preConditions onFail="MARK_RAN">
+      <tableExists tableName="order_additional_field_def"/>
+      <not>
+        <indexExists tableName="order_additional_field_def" indexName="idx_order_additional_field_def_searchable"/>
+      </not>
+    </preConditions>
+    <createIndex tableName="order_additional_field_def" indexName="idx_order_additional_field_def_searchable">
+      <column name="searchable"/>
+      <column name="active"/>
+    </createIndex>
+
+    <rollback>
+      <dropIndex tableName="order_additional_field_def" indexName="idx_order_additional_field_def_searchable"/>
+    </rollback>
+  </changeSet>
+
+  <changeSet id="015-04-create-lookup-index-sample-order-additional-field-value" author="codex">
+    <preConditions onFail="MARK_RAN">
+      <tableExists tableName="sample_order_additional_field_value"/>
+      <not>
+        <indexExists tableName="sample_order_additional_field_value" indexName="idx_sample_order_additional_field_value_lookup"/>
+      </not>
+    </preConditions>
+    <createIndex tableName="sample_order_additional_field_value"
+      indexName="idx_sample_order_additional_field_value_lookup">
+      <column name="field_def_id"/>
+      <column name="field_value"/>
+    </createIndex>
+
+    <rollback>
+      <dropIndex tableName="sample_order_additional_field_value" indexName="idx_sample_order_additional_field_value_lookup"/>
+    </rollback>
+  </changeSet>
+
+</databaseChangeLog>

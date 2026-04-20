@@ -52,6 +52,7 @@ import org.openelisglobal.notebook.service.NoteBookSampleService;
 import org.openelisglobal.notebook.service.NoteBookService;
 import org.openelisglobal.notebook.valueholder.NoteBook;
 import org.openelisglobal.notebook.valueholder.NoteBookSample;
+import org.openelisglobal.orderadditionalfield.service.OrderAdditionalFieldService;
 import org.openelisglobal.program.service.ProgramSampleService;
 import org.openelisglobal.program.service.ProgramService;
 import org.openelisglobal.program.valueholder.Program;
@@ -121,6 +122,8 @@ public class GenericSampleOrderServiceImpl implements GenericSampleOrderService 
 
     @Autowired
     private FhirConfig fhirConfig;
+    @Autowired
+    private OrderAdditionalFieldService orderAdditionalFieldService;
 
     @Override
     public Map<String, Object> saveGenericSampleOrder(GenericSampleOrderForm form, String sysUserId)
@@ -681,6 +684,22 @@ public class GenericSampleOrderServiceImpl implements GenericSampleOrderService 
         }
     }
 
+    private Sample resolveSampleByAccessionOrSearchableValue(String accessionOrSearchTerm) {
+        String searchValue = accessionOrSearchTerm == null ? null : accessionOrSearchTerm.trim();
+        Sample sample = orderAdditionalFieldService.findSampleIdBySearchableFieldValue(searchValue)
+                .map(sampleId -> sampleService.get(String.valueOf(sampleId)))
+                .orElse(null);
+        if (sample != null) {
+            return sample;
+        }
+
+        sample = sampleService.getSampleByAccessionNumber(searchValue);
+        if (sample == null && searchValue != null && searchValue.contains("-")) {
+            sample = sampleService.getSampleByAccessionNumber(searchValue.substring(0, searchValue.indexOf('-')));
+        }
+        return sample;
+    }
+
     @Transactional(readOnly = true)
     @Override
     public GenericSampleOrderForm getGenericSampleOrderByAccessionNumber(String accessionNumber) {
@@ -690,7 +709,7 @@ public class GenericSampleOrderServiceImpl implements GenericSampleOrderService 
             return form;
         }
 
-        Sample sample = sampleService.getSampleByAccessionNumber(accessionNumber);
+        Sample sample = resolveSampleByAccessionOrSearchableValue(accessionNumber);
         if (sample == null || GenericValidator.isBlankOrNull(sample.getId())) {
             return form;
         }
@@ -858,7 +877,7 @@ public class GenericSampleOrderServiceImpl implements GenericSampleOrderService 
         Map<String, Object> result = new HashMap<>();
 
         try {
-            Sample sample = sampleService.getSampleByAccessionNumber(accessionNumber);
+            Sample sample = resolveSampleByAccessionOrSearchableValue(accessionNumber);
             if (sample == null || GenericValidator.isBlankOrNull(sample.getId())) {
                 result.put("success", false);
                 result.put("error", "Sample not found with accession number: " + accessionNumber);

@@ -10,4 +10,9 @@ public interface SampleOrderAdditionalFieldValueDAO extends BaseDAO<SampleOrderA
     Optional<SampleOrderAdditionalFieldValue> findBySampleIdAndFieldDefinitionId(Integer sampleId, Integer fieldDefinitionId);
 
     List<SampleOrderAdditionalFieldValue> findBySampleIdAndFieldDefinitionIds(Integer sampleId, List<Integer> fieldDefinitionIds);
+
+    List<Integer> findDistinctSampleIdsBySearchableFieldValue(String searchValue, boolean uniqueOnly, int limit);
+
+    boolean existsByFieldDefinitionIdAndFieldValueIgnoreCaseAndSampleIdNot(Integer fieldDefinitionId, String fieldValue,
+            Integer excludedSampleId);
 }

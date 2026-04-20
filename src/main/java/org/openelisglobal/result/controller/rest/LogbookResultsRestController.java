@@ -55,6 +55,7 @@ import org.openelisglobal.note.service.NoteServiceImpl.NoteType;
 import org.openelisglobal.note.valueholder.Note;
 import org.openelisglobal.notifications.dao.NotificationDAO;
 import org.openelisglobal.notifications.entity.Notification;
+import org.openelisglobal.orderadditionalfield.service.OrderAdditionalFieldService;
 import org.openelisglobal.organization.service.OrganizationService;
 import org.openelisglobal.patient.service.PatientService;
 import org.openelisglobal.patient.valueholder.Patient;
@@ -165,6 +166,8 @@ public class LogbookResultsRestController extends LogbookResultsBaseController {
     private RoleService roleService;
     @Autowired
     private SampleService sampleService;
+    @Autowired
+    private OrderAdditionalFieldService orderAdditionalFieldService;
     @Autowired
     PatientService patientService;
     @Autowired
@@ -315,15 +318,30 @@ public class LogbookResultsRestController extends LogbookResultsBaseController {
                 if (doRange) {
                     tests = resultsLoadUtility.getUnfinishedTestResultItemsByAccession(labNumber,
                             upperRangeAccessionNumber, doRange, finished);
+                    if (tests.isEmpty() && StringUtils.isBlank(upperRangeAccessionNumber)
+                            && StringUtils.isNotBlank(labNumber)) {
+                        Sample sample = resolveSampleByAccessionOrSearchableValue(labNumber);
+                        if (sample != null && !GenericValidator.isBlankOrNull(sample.getId())) {
+                            form.setAccessionNumber(sample.getAccessionNumber());
+                            patient = getPatient(sample);
+                            tests = resultsLoadUtility.getGroupedTestsForSample(sample, patient);
+                            if (patient != null) {
+                                patientName = patientService.getLastFirstName(patient);
+                                patientInfo = patient.getNationalId() + ", " + patient.getGender() + ", "
+                                        + patient.getBirthDateForDisplay();
+                            }
+                        }
+                    }
                 } else {
                     resultsLoadUtility.setLockCurrentResults(modifyResultsRoleBased() && userNotInRole(request));
                     LogEvent.logInfo(this.getClass().getSimpleName(), "getLogbookResults",
-                            "Searching for sample with labNumber: " + labNumber);
-                    Sample sample = sampleService.getSampleByAccessionNumber(labNumber);
+                            "Searching for sample with search value: " + labNumber);
+                    Sample sample = resolveSampleByAccessionOrSearchableValue(labNumber);
                     if (sample != null) {
                         LogEvent.logInfo(this.getClass().getSimpleName(), "getLogbookResults", "Found sample: id="
                                 + sample.getId() + ", accessionNumber=" + sample.getAccessionNumber());
                         if (!GenericValidator.isBlankOrNull(sample.getId())) {
+                            form.setAccessionNumber(sample.getAccessionNumber());
                             patient = getPatient(sample);
 
                             tests = resultsLoadUtility.getGroupedTestsForSample(sample, patient);
@@ -926,6 +944,22 @@ public class LogbookResultsRestController extends LogbookResultsBaseController {
 
     private Patient getPatient(Sample sample) {
         return sampleHumanService.getPatientForSample(sample);
+    }
+
+    private Sample resolveSampleByAccessionOrSearchableValue(String accessionOrSearchTerm) {
+        String searchValue = accessionOrSearchTerm == null ? null : accessionOrSearchTerm.trim();
+        Sample sample = orderAdditionalFieldService.findSampleIdBySearchableFieldValue(searchValue)
+                .map(sampleId -> sampleService.get(String.valueOf(sampleId)))
+                .orElse(null);
+        if (sample != null) {
+            return sample;
+        }
+
+        sample = sampleService.getSampleByAccessionNumber(searchValue);
+        if (sample == null && searchValue != null && searchValue.contains("-")) {
+            sample = sampleService.getSampleByAccessionNumber(searchValue.substring(0, searchValue.indexOf('-')));
+        }
+        return sample;
     }
 
     private ResultFile createResultFile(TestResultItem.ResultFileForm fileForm) {

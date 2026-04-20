@@ -109,7 +109,7 @@ const SearchForm = (props) => {
     setPagination(false);
     setIsLoading(true);
     var accessionNumber = values.accessionNumber
-      ? values.accessionNumber.split("-")[0]
+      ? values.accessionNumber.trim()
       : "";
     var unitType = values.unitType ? values.unitType : "";
     var defaultDate = values.defaultDate ? values.defaultDate : "";

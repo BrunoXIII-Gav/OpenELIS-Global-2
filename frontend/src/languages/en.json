@@ -3159,6 +3159,8 @@
   "order.additional.fields.fieldKey": "Field Key",
   "order.additional.fields.fieldType": "Field Type",
   "order.additional.fields.required": "Required",
+  "order.additional.fields.searchable": "Searchable",
+  "order.additional.fields.searchUnique": "Unique Search Value",
   "order.additional.fields.readonly": "Read Only",
   "order.additional.fields.visible": "Visible",
   "order.additional.fields.sortOrder": "Sort Order",

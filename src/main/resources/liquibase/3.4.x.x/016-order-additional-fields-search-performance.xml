@@ -1,0 +1,28 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<databaseChangeLog
+  xmlns="http://www.liquibase.org/xml/ns/dbchangelog"
+  xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+  xsi:schemaLocation="http://www.liquibase.org/xml/ns/dbchangelog http://www.liquibase.org/xml/ns/dbchangelog/dbchangelog-3.8.xsd">
+
+  <changeSet id="016-01-create-functional-index-order-additional-field-value-lower" author="codex">
+    <preConditions onFail="MARK_RAN">
+      <tableExists tableName="sample_order_additional_field_value"/>
+      <not>
+        <indexExists tableName="sample_order_additional_field_value"
+          indexName="idx_sample_order_additional_field_value_lookup_lower"/>
+      </not>
+    </preConditions>
+
+    <createIndex tableName="sample_order_additional_field_value"
+      indexName="idx_sample_order_additional_field_value_lookup_lower">
+      <column name="field_def_id"/>
+      <column name="lower(field_value)" computed="true"/>
+    </createIndex>
+
+    <rollback>
+      <dropIndex tableName="sample_order_additional_field_value"
+        indexName="idx_sample_order_additional_field_value_lookup_lower"/>
+    </rollback>
+  </changeSet>
+
+</databaseChangeLog>

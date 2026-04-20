@@ -33,6 +33,7 @@ import org.openelisglobal.internationalization.MessageUtil;
 import org.openelisglobal.note.service.NoteService;
 import org.openelisglobal.note.service.NoteServiceImpl.NoteType;
 import org.openelisglobal.note.valueholder.Note;
+import org.openelisglobal.orderadditionalfield.service.OrderAdditionalFieldService;
 import org.openelisglobal.patient.valueholder.Patient;
 import org.openelisglobal.referencetables.service.ReferenceTablesService;
 import org.openelisglobal.reports.service.DocumentTrackService;
@@ -82,6 +83,8 @@ public class AccessionValidationRestController extends BaseResultValidationContr
     SearchResultsService searchService;
     @Autowired
     private SampleService sampleService;
+    @Autowired
+    private OrderAdditionalFieldService orderAdditionalFieldService;
 
     private static final String[] ALLOWED_FIELDS = new String[] { "testSectionId", "paging.currentPage", "testSection",
             "testName", "resultList*.accessionNumber", "resultList*.analysisId", "resultList*.testId",
@@ -193,6 +196,12 @@ public class AccessionValidationRestController extends BaseResultValidationContr
                 if (doRange) {
                     resultList = resultsValidationUtility.getResultValidationList(getValidationStatus(),
                             form.getTestSectionId(), form.getAccessionNumber(), form.getTestDate());
+                    if (resultList.isEmpty() && StringUtils.isNotBlank(form.getAccessionNumber())) {
+                        Sample sample = getSample(form.getAccessionNumber());
+                        if (sample != null) {
+                            resultList = resultsValidationUtility.getValidationAnalysisBySample(sample);
+                        }
+                    }
                 } else {
                     if (StringUtils.isNotBlank(form.getAccessionNumber())) {
                         Sample sample = getSample(form.getAccessionNumber());
@@ -602,7 +611,19 @@ public class AccessionValidationRestController extends BaseResultValidationContr
     }
 
     private Sample getSample(String accessionNumber) {
-        return sampleService.getSampleByAccessionNumber(accessionNumber);
+        String searchValue = accessionNumber == null ? null : accessionNumber.trim();
+        Sample sample = orderAdditionalFieldService.findSampleIdBySearchableFieldValue(searchValue)
+                .map(sampleId -> sampleService.get(String.valueOf(sampleId)))
+                .orElse(null);
+        if (sample != null) {
+            return sample;
+        }
+
+        sample = sampleService.getSampleByAccessionNumber(searchValue);
+        if (sample == null && searchValue != null && searchValue.contains("-")) {
+            sample = sampleService.getSampleByAccessionNumber(searchValue.substring(0, searchValue.indexOf('-')));
+        }
+        return sample;
     }
 
     private Patient getPatient(Sample sample) {
