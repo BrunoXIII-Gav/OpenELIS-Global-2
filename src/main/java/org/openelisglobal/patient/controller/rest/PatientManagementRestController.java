@@ -94,7 +94,9 @@ public class PatientManagementRestController extends BaseRestController {
     public ResponseEntity<Map<String, String>> getPhoto(@PathVariable String id, @PathVariable boolean isThumbnail)
             throws LIMSRuntimeException {
         String photo = photoService.getPhotoByPatientId(id, isThumbnail);
-        return ResponseEntity.ok(Map.of("data", photo));
+        // Map.of does not allow null values and throws Objects.requireNonNull.
+        // Return empty string when no photo exists to keep response shape stable.
+        return ResponseEntity.ok(Map.of("data", photo == null ? "" : photo));
     }
 
 }

@@ -10,9 +10,7 @@ import {
 } from "@carbon/react";
 import {
   getFromOpenElisServer,
-  postToOpenElisServer,
   postToOpenElisServerFullResponse,
-  postToOpenElisServerJsonResponse,
 } from "../../utils/Utils.js";
 import { NotificationContext } from "../../layout/Layout.js";
 import { FormattedMessage, injectIntl, useIntl } from "react-intl";
@@ -31,7 +29,7 @@ let breadcrumbs = [
   },
   {
     label: "sidenav.label.admin.testmgt.ManageMethod",
-    link: "/MasterListsPage/MethodManagment",
+    link: "/MasterListsPage/MethodManagement",
   },
 ];
 
@@ -122,6 +120,15 @@ function ManageMethod() {
               <Button onClick={openAddModal}>
                 {" "}
                 <FormattedMessage id="modal.add.method" />
+              </Button>
+              {"  "}
+              <Button
+                kind="tertiary"
+                onClick={() =>
+                  window.location.assign("/MasterListsPage/MethodTestAssign")
+                }
+              >
+                <FormattedMessage id="configuration.method.assign" />
               </Button>
             </Section>
           </Column>

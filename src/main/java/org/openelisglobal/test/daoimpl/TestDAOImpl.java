@@ -771,7 +771,7 @@ public class TestDAOImpl extends BaseDAOImpl<Test, String> implements TestDAO {
         List<Integer> methodIds = Arrays.asList(method.split(",")).stream().map(e -> Integer.parseInt(e))
                 .collect(Collectors.toList());
         String sql = "SELECT t.* From test t JOIN tb_method_test tm ON t.id = tm.test_id where tm.method_id in"
-                + " (:method) and t.is_active='Y' ORDER BY t.name";
+                + " (:method) and tm.is_active='Y' and t.is_active='Y' ORDER BY t.name";
         try {
             Query<Test> query = entityManager.unwrap(Session.class).createNativeQuery(sql, Test.class);
             query.setParameter("method", methodIds);
@@ -805,7 +805,7 @@ public class TestDAOImpl extends BaseDAOImpl<Test, String> implements TestDAO {
                 .collect(Collectors.toList());
 
         String sql = "SELECT p.* From panel p JOIN tb_method_panel tm ON p.id = tm.panel_id where tm.method_id"
-                + " in (:method) and p.is_active='Y' ORDER BY p.name";
+                + " in (:method) and tm.is_active='Y' and p.is_active='Y' ORDER BY p.name";
         try {
             Query<Panel> query = entityManager.unwrap(Session.class).createNativeQuery(sql, Panel.class);
             query.setParameter("method", methodIds);

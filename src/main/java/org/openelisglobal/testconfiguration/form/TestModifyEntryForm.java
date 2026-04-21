@@ -60,6 +60,9 @@ public class TestModifyEntryForm extends BaseForm {
     // for display
     private List testCatBeanList;
 
+    // for display
+    private List methodList;
+
     public TestModifyEntryForm() {
         setFormName("testModifyEntryForm");
     }
@@ -198,5 +201,13 @@ public class TestModifyEntryForm extends BaseForm {
 
     public void setTestCatBeanList(List testCatBeanList) {
         this.testCatBeanList = testCatBeanList;
+    }
+
+    public List getMethodList() {
+        return methodList;
+    }
+
+    public void setMethodList(List methodList) {
+        this.methodList = methodList;
     }
 }

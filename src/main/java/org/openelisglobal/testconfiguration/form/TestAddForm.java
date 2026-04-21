@@ -37,6 +37,9 @@ public class TestAddForm extends BaseForm {
     // for display
     private List groupedDictionaryList;
 
+    // for display
+    private List methodList;
+
     @Pattern(regexp = "^[0-9-]*$")
     private String loinc;
 
@@ -122,5 +125,13 @@ public class TestAddForm extends BaseForm {
 
     public void setGroupedDictionaryList(List groupedDictionaryList) {
         this.groupedDictionaryList = groupedDictionaryList;
+    }
+
+    public List getMethodList() {
+        return methodList;
+    }
+
+    public void setMethodList(List methodList) {
+        this.methodList = methodList;
     }
 }

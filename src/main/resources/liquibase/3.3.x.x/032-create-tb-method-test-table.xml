@@ -1,0 +1,58 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<databaseChangeLog
+    xmlns="http://www.liquibase.org/xml/ns/dbchangelog"
+    xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+    xsi:schemaLocation="http://www.liquibase.org/xml/ns/dbchangelog
+      http://www.liquibase.org/xml/ns/dbchangelog/dbchangelog-3.8.xsd">
+
+    <changeSet author="openelis" id="1">
+        <preConditions onFail="MARK_RAN">
+            <not>
+                <sequenceExists sequenceName="tb_method_test_seq" schemaName="clinlims" />
+            </not>
+        </preConditions>
+        <createSequence
+            sequenceName="tb_method_test_seq"
+            schemaName="clinlims"
+            incrementBy="1"
+            startValue="1"
+            cacheSize="200"
+            cycle="false" />
+    </changeSet>
+
+    <changeSet author="openelis" id="2">
+        <preConditions onFail="MARK_RAN">
+            <not>
+                <tableExists tableName="tb_method_test" schemaName="clinlims" />
+            </not>
+        </preConditions>
+        <createTable tableName="tb_method_test" schemaName="clinlims">
+            <column name="id" type="integer" defaultValueComputed="nextval('tb_method_test_seq')">
+                <constraints primaryKey="true" nullable="false" />
+            </column>
+            <column name="test_id" type="numeric(10)">
+                <constraints nullable="false" />
+            </column>
+            <column name="method_id" type="numeric(10)">
+                <constraints nullable="false" />
+            </column>
+            <column name="is_active" type="varchar(2)" defaultValue="Y">
+                <constraints nullable="false" />
+            </column>
+        </createTable>
+    </changeSet>
+
+    <changeSet author="openelis" id="3">
+        <preConditions onFail="MARK_RAN">
+            <tableExists tableName="tb_method_test" schemaName="clinlims" />
+            <not>
+                <columnExists tableName="tb_method_test" columnName="last_updated" schemaName="clinlims" />
+            </not>
+        </preConditions>
+        <addColumn tableName="tb_method_test" schemaName="clinlims">
+            <column name="last_updated" type="timestamp" defaultValueComputed="${now}">
+                <constraints nullable="false" />
+            </column>
+        </addColumn>
+    </changeSet>
+</databaseChangeLog>
