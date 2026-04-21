@@ -25,6 +25,8 @@ public class TestCatalogBean {
     private Localization localization;
     private Localization reportLocalization;
     private String testUnit;
+    private String methodId;
+    private String methodName;
     private String sampleType;
     private String sampleTypeId;
     private String panel;
@@ -86,6 +88,22 @@ public class TestCatalogBean {
 
     public void setSampleType(String sampleType) {
         this.sampleType = sampleType;
+    }
+
+    public String getMethodId() {
+        return methodId;
+    }
+
+    public void setMethodId(String methodId) {
+        this.methodId = methodId;
+    }
+
+    public String getMethodName() {
+        return methodName;
+    }
+
+    public void setMethodName(String methodName) {
+        this.methodName = methodName;
     }
 
     public String getSampleTypeId() {

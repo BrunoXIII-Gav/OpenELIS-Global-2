@@ -90,6 +90,13 @@ function MethodManagement() {
               >
                 <FormattedMessage id="configuration.method.create" />
               </ListItem>
+              <ListItem
+                onClick={() => {
+                  window.location.assign("/MasterListsPage/MethodTestAssign");
+                }}
+              >
+                <FormattedMessage id="configuration.method.assign" />
+              </ListItem>
             </UnorderedList>
           </Column>
         </Grid>

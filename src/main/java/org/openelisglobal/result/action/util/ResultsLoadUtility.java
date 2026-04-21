@@ -50,6 +50,8 @@ import org.openelisglobal.dictionary.valueholder.Dictionary;
 import org.openelisglobal.internationalization.MessageUtil;
 import org.openelisglobal.localization.service.LocalizationService;
 import org.openelisglobal.localization.valueholder.Localization;
+import org.openelisglobal.method.service.MethodService;
+import org.openelisglobal.method.valueholder.Method;
 import org.openelisglobal.note.service.NoteService;
 import org.openelisglobal.note.service.NoteServiceImpl.NoteType;
 import org.openelisglobal.observationhistory.service.ObservationHistoryService;
@@ -85,7 +87,9 @@ import org.openelisglobal.systemuser.service.SystemUserService;
 import org.openelisglobal.systemuser.valueholder.SystemUser;
 import org.openelisglobal.test.beanItems.TestResultItem;
 import org.openelisglobal.test.beanItems.TestResultItem.ResultDisplayType;
+import org.openelisglobal.test.service.TbMethodTestService;
 import org.openelisglobal.test.service.TestService;
+import org.openelisglobal.test.valueholder.TbMethodTest;
 import org.openelisglobal.test.valueholder.Test;
 import org.openelisglobal.testadditionalfield.bean.TestAdditionalFieldPayload;
 import org.openelisglobal.testadditionalfield.service.TestAdditionalFieldService;
@@ -157,6 +161,10 @@ public class ResultsLoadUtility {
     private TestResultService testResultService;
     @Autowired
     private TestAdditionalFieldService testAdditionalFieldService;
+    @Autowired
+    private TbMethodTestService tbMethodTestService;
+    @Autowired
+    private MethodService methodService;
 
     private final StatusRules statusRules = new StatusRules();
 
@@ -176,6 +184,8 @@ public class ResultsLoadUtility {
     private int reflexGroup = 1;
     private boolean lockCurrentResults = false;
     private final Map<String, List<TestAdditionalFieldPayload>> additionalFieldDefinitionCache = new HashMap<>();
+    private final Map<String, List<IdValuePair>> methodOptionsByTestIdCache = new HashMap<>();
+    private final Map<String, String> methodLabelByIdCache = new HashMap<>();
 
     @PostConstruct
     public void initializeGlobalVariables() {
@@ -217,6 +227,8 @@ public class ResultsLoadUtility {
 
         reflexGroup = 1;
         additionalFieldDefinitionCache.clear();
+        methodOptionsByTestIdCache.clear();
+        methodLabelByIdCache.clear();
         // TODO: Re-enable after new inventory frontend integration
         // activeKits = null;
         samples = new ArrayList<>();
@@ -237,6 +249,8 @@ public class ResultsLoadUtility {
     public List<TestResultItem> getGroupedTestsForPatient(Patient patient) {
         reflexGroup = 1;
         additionalFieldDefinitionCache.clear();
+        methodOptionsByTestIdCache.clear();
+        methodLabelByIdCache.clear();
         // TODO: Re-enable after new inventory frontend integration
         // activeKits = null;
         inventoryNeeded = false;
@@ -297,6 +311,8 @@ public class ResultsLoadUtility {
         inventoryNeeded = false;
         reflexGroup = 1;
         additionalFieldDefinitionCache.clear();
+        methodOptionsByTestIdCache.clear();
+        methodLabelByIdCache.clear();
 
         List<TestResultItem> selectedTestList = new ArrayList<>();
 
@@ -754,6 +770,7 @@ public class ResultsLoadUtility {
         testItem.setResultDisplayType(resultDisplayType);
         testItem.setAnalysisMethod(analysisService.getAnalysisType(analysis));
         testItem.setTestMethod(analysisService.getMethodId(analysis));
+        testItem.setMethods(getMethodOptionsForTest(test, testItem.getTestMethod(), testMethodName));
         testItem.setResult(result);
         testItem.setResultValue(getFormattedResultValue(result));
         testItem.setMultiSelectResultValues(analysisService.getJSONMultiSelectResults(analysis));
@@ -1029,6 +1046,76 @@ public class ResultsLoadUtility {
     //
     // return true;
     // }
+
+    private List<IdValuePair> getMethodOptionsForTest(Test test, String selectedMethodId, String fallbackMethodName) {
+        List<IdValuePair> resolved = new ArrayList<>();
+        if (test == null || GenericValidator.isBlankOrNull(test.getId())) {
+            return resolved;
+        }
+
+        String testId = test.getId();
+        if (methodOptionsByTestIdCache.containsKey(testId)) {
+            resolved = new ArrayList<>(methodOptionsByTestIdCache.get(testId));
+        } else {
+            Set<String> seenMethodIds = new HashSet<>();
+            List<TbMethodTest> links = tbMethodTestService.getAllMatching("testId", testId);
+
+            for (TbMethodTest link : links) {
+                if (!"Y".equals(link.getIsActive()) || GenericValidator.isBlankOrNull(link.getMethodId())) {
+                    continue;
+                }
+                String methodId = link.getMethodId();
+                if (seenMethodIds.contains(methodId)) {
+                    continue;
+                }
+                seenMethodIds.add(methodId);
+                resolved.add(new IdValuePair(methodId, resolveMethodLabel(methodId)));
+            }
+
+            // Backward-compatible fallback: if no mapped methods exist, use the single
+            // test.method value so existing environments keep working.
+            if (resolved.isEmpty() && test.getMethod() != null && !GenericValidator.isBlankOrNull(test.getMethod().getId())) {
+                String methodId = test.getMethod().getId();
+                String methodLabel = GenericValidator.isBlankOrNull(fallbackMethodName) ? resolveMethodLabel(methodId)
+                        : fallbackMethodName;
+                resolved.add(new IdValuePair(methodId, methodLabel));
+            }
+
+            resolved.sort((a, b) -> a.getValue().compareToIgnoreCase(b.getValue()));
+            methodOptionsByTestIdCache.put(testId, new ArrayList<>(resolved));
+        }
+
+        if (!GenericValidator.isBlankOrNull(selectedMethodId)) {
+            boolean alreadyPresent = resolved.stream().anyMatch(option -> selectedMethodId.equals(option.getId()));
+            if (!alreadyPresent) {
+                resolved.add(new IdValuePair(selectedMethodId, resolveMethodLabel(selectedMethodId)));
+            }
+        }
+
+        return resolved;
+    }
+
+    private String resolveMethodLabel(String methodId) {
+        if (GenericValidator.isBlankOrNull(methodId)) {
+            return "";
+        }
+        if (methodLabelByIdCache.containsKey(methodId)) {
+            return methodLabelByIdCache.get(methodId);
+        }
+
+        Method method = methodService.get(methodId);
+        String label = methodId;
+        if (method != null && !GenericValidator.isBlankOrNull(method.getId())) {
+            if (!GenericValidator.isBlankOrNull(method.getMethodName())) {
+                label = method.getMethodName();
+            } else if (!GenericValidator.isBlankOrNull(method.getLocalizedValue())) {
+                label = method.getLocalizedValue();
+            }
+        }
+
+        methodLabelByIdCache.put(methodId, label);
+        return label;
+    }
 
     private String getCurrentDate() {
         if (GenericValidator.isBlankOrNull(currentDate)) {

@@ -18,6 +18,8 @@ import org.apache.commons.validator.GenericValidator;
 import org.apache.logging.log4j.core.util.KeyValuePair;
 import org.openelisglobal.common.action.IActionConstants;
 import org.openelisglobal.common.constants.Constants;
+import org.openelisglobal.common.formfields.FormFields;
+import org.openelisglobal.common.formfields.FormFields.Field;
 import org.openelisglobal.common.rest.provider.bean.TestDisplayBean;
 import org.openelisglobal.common.rest.provider.form.DisplayListPagingForm;
 import org.openelisglobal.common.rest.util.DisplayListPaging;
@@ -390,6 +392,11 @@ public class DisplayListController extends BaseRestController {
         configs.put("LAST_NAME_REGEX", LAST_NAME_REGEX);
         configs.put(Property.USE_NEW_ADDRESS_HIERARCHY.toString(),
                 ConfigurationProperties.getInstance().getPropertyValue(Property.USE_NEW_ADDRESS_HIERARCHY));
+        String resultsReferralEnabled = ConfigurationProperties.getInstance().getPropertyValue("enableResultsReferral");
+        if (GenericValidator.isBlankOrNull(resultsReferralEnabled)) {
+            resultsReferralEnabled = FormFields.getInstance().useField(Field.ResultsReferral) ? "true" : "false";
+        }
+        configs.put("RESULTS_REFERRAL_ENABLED", resultsReferralEnabled);
         return configs;
     }
 

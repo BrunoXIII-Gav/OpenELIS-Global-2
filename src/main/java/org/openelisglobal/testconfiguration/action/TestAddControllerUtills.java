@@ -208,8 +208,7 @@ public class TestAddControllerUtills {
             testResults.add(testResult);
         } else if (TypeOfTestResultServiceImpl.ResultType.isDictionaryVariant(type.getCharacterValue())) {
             if (testAddParams.dictionaryParamList == null || testAddParams.dictionaryParamList.isEmpty()) {
-                throw new IllegalArgumentException(
-                        "Dictionary result type requires at least one dictionary value.");
+                throw new IllegalArgumentException("Dictionary result type requires at least one dictionary value.");
             }
             int sortOrder = 10;
             for (DictionaryParams params : testAddParams.dictionaryParamList) {
@@ -234,6 +233,7 @@ public class TestAddControllerUtills {
             testAddParams.testReportNameEnglish = (String) obj.get("testReportNameEnglish");
             testAddParams.testReportNameFrench = (String) obj.get("testReportNameFrench");
             testAddParams.testSectionId = (String) obj.get("testSection");
+            testAddParams.methodId = asString(obj.get("methodId"));
             testAddParams.dictionaryReferenceId = (String) obj.get("dictionaryReference");
             extractPanels(obj, parser, testAddParams);
             testAddParams.uomId = (String) obj.get("uom");
@@ -431,6 +431,7 @@ public class TestAddControllerUtills {
         String testReportNameEnglish;
         String testReportNameFrench;
         String testSectionId;
+        String methodId;
         ArrayList<String> panelList = new ArrayList<>();
         String uomId;
         public String loinc;

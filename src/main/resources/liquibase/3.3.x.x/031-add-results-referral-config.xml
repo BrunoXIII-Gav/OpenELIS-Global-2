@@ -1,0 +1,25 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<databaseChangeLog
+    xmlns="http://www.liquibase.org/xml/ns/dbchangelog"
+    xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+    xsi:schemaLocation="http://www.liquibase.org/xml/ns/dbchangelog
+      http://www.liquibase.org/xml/ns/dbchangelog/dbchangelog-3.8.xsd">
+
+    <changeSet author="openelis" id="1">
+        <preConditions onFail="MARK_RAN">
+            <sqlCheck expectedResult="0">SELECT count(*) FROM clinlims.site_information WHERE name = 'enableResultsReferral'</sqlCheck>
+        </preConditions>
+        <comment>Add configurable toggle to show/hide referral controls on Results page</comment>
+        <insert schemaName="clinlims" tableName="site_information">
+            <column name="id" valueSequenceNext="site_information_seq" />
+            <column name="name" value="enableResultsReferral" />
+            <column name="lastupdated" valueComputed="${now}" />
+            <column name="description" value="Enable referral controls on Results page" />
+            <column name="value" value="true" />
+            <column name="encrypted" value="false" />
+            <column name="domain_id" valueComputed="(SELECT id FROM site_information_domain WHERE name = 'resultConfiguration')" />
+            <column name="value_type" value="boolean" />
+            <column name="group" value="0" />
+        </insert>
+    </changeSet>
+</databaseChangeLog>

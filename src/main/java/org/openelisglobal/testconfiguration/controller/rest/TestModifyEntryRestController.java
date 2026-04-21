@@ -62,6 +62,7 @@ import org.openelisglobal.typeoftestresult.service.TypeOfTestResultServiceImpl;
 import org.openelisglobal.unitofmeasure.service.UnitOfMeasureService;
 import org.openelisglobal.unitofmeasure.valueholder.UnitOfMeasure;
 import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.http.HttpStatus;
 import org.springframework.validation.BindingResult;
 import org.springframework.web.bind.WebDataBinder;
 import org.springframework.web.bind.annotation.GetMapping;
@@ -72,7 +73,6 @@ import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
 import org.springframework.web.server.ResponseStatusException;
-import org.springframework.http.HttpStatus;
 
 @RestController
 @RequestMapping("/rest")
@@ -561,8 +561,7 @@ public class TestModifyEntryRestController extends BaseController {
             testResults.add(testResult);
         } else if (TypeOfTestResultServiceImpl.ResultType.isDictionaryVariant(type.getCharacterValue())) {
             if (testAddParams.dictionaryParamList == null || testAddParams.dictionaryParamList.isEmpty()) {
-                throw new IllegalArgumentException(
-                        "Dictionary result type requires at least one dictionary value.");
+                throw new IllegalArgumentException("Dictionary result type requires at least one dictionary value.");
             }
             int sortOrder = 10;
             for (DictionaryParams params : testAddParams.dictionaryParamList) {
@@ -731,6 +730,7 @@ public class TestModifyEntryRestController extends BaseController {
             testAddParams.testReportNameEnglish = asString(obj.get("testReportNameEnglish"));
             testAddParams.testReportNameFrench = asString(obj.get("testReportNameFrench"));
             testAddParams.testSectionId = asString(obj.get("testSection"));
+            testAddParams.methodId = asString(obj.get("methodId"));
             testAddParams.dictionaryReferenceId = asString(obj.get("dictionaryReference"));
             extractPanels(obj, parser, testAddParams);
             testAddParams.uomId = asString(obj.get("uom"));
@@ -803,7 +803,8 @@ public class TestModifyEntryRestController extends BaseController {
             testAddParams.dictionaryParamList.add(params);
         }
 
-        if (StringUtils.isNotBlank(testAddParams.dictionaryReferenceId) && !"0".equals(testAddParams.dictionaryReferenceId)) {
+        if (StringUtils.isNotBlank(testAddParams.dictionaryReferenceId)
+                && !"0".equals(testAddParams.dictionaryReferenceId)) {
             return;
         }
 

@@ -782,7 +782,6 @@ export function SearchResults(props) {
   const [pageSize, setPageSize] = useState(100);
   const [acceptAsIs, setAcceptAsIs] = useState([]);
   const [referalOrganizations, setReferalOrganizations] = useState([]);
-  const [methods, setMethods] = useState([]);
   const [referralReasons, setReferralReasons] = useState([]);
   const [rejectReasons, setRejectReasons] = useState([]);
   const [rejectedItems, setRejectedItems] = useState({});
@@ -801,7 +800,6 @@ export function SearchResults(props) {
       "/rest/displayList/REFERRAL_ORGANIZATIONS",
       loadReferalOrganizations,
     );
-    getFromOpenElisServer("/rest/displayList/METHODS", loadMethods);
     getFromOpenElisServer(
       "/rest/displayList/REFERRAL_REASONS",
       loadReferalReasons,
@@ -862,12 +860,6 @@ export function SearchResults(props) {
     }
   };
 
-  const loadMethods = (values) => {
-    if (componentMounted.current) {
-      setMethods(values);
-    }
-  };
-
   const loadReferalReasons = (values) => {
     if (componentMounted.current) {
       setReferralReasons(values);
@@ -879,6 +871,13 @@ export function SearchResults(props) {
       setRejectReasons(values);
     }
   };
+
+  const isResultsReferralEnabled =
+    configurationProperties.RESULTS_REFERRAL_ENABLED === "true";
+  const hasReferralSelectionData =
+    referalOrganizations.length > 0 && referralReasons.length > 0;
+  const showReferralControls =
+    isResultsReferralEnabled && hasReferralSelectionData;
 
   const downloadFile = (fileName, content, fileType) => {
     var win = window.open();
@@ -1695,30 +1694,34 @@ export function SearchResults(props) {
       typeof locationData === "object"
         ? locationData.locationPath || ""
         : locationData || "";
+    const rowMethods = Array.isArray(data.methods) ? data.methods : [];
+    const showMethodSelector = rowMethods.length > 0;
 
     return (
       <>
         <Grid>
-          <Column lg={2}>
-            <Select
-              id={"testMethod" + data.id}
-              name={"testResult[" + data.id + "].testMethod"}
-              labelText={intl.formatMessage({
-                id: "referral.label.testmethod",
-              })}
-              onChange={(e) => handleChange(e, data.id)}
-              value={data.testMethod}
-            >
-              <SelectItem text="" value="" />
-              {methods.map((method, method_index) => (
-                <SelectItem
-                  text={method.value}
-                  value={method.id}
-                  key={method_index}
-                />
-              ))}
-            </Select>
-          </Column>
+          {showMethodSelector && (
+            <Column lg={2}>
+              <Select
+                id={"testMethod" + data.id}
+                name={"testResult[" + data.id + "].testMethod"}
+                labelText={intl.formatMessage({
+                  id: "referral.label.testmethod",
+                })}
+                onChange={(e) => handleChange(e, data.id)}
+                value={data.testMethod}
+              >
+                <SelectItem text="" value="" />
+                {rowMethods.map((method, method_index) => (
+                  <SelectItem
+                    text={method.value}
+                    value={method.id}
+                    key={method_index}
+                  />
+                ))}
+              </Select>
+            </Column>
+          )}
           <Column lg={2}>
             <CompactFileInput
               data={data}
@@ -1741,91 +1744,111 @@ export function SearchResults(props) {
               </Link>
             )}
           </Column>
-          <Column lg={2}>
-            <Checkbox
-              labelText={intl.formatMessage({ id: "results.label.refer" })}
-              name={"testResult[" + data.id + "].refer"}
-              id={"testResult[" + data.id + "].refer"}
-              checked={data.refer === "true"}
-              disabled={data.referredOut}
-              data-cy="referalcheckbox"
-              onChange={(e) => {
-                e.target.value = e.target.checked;
-                handleChange(e, data.id);
-              }}
-            />
-          </Column>
-          <Column lg={2}>
-            <Select
-              id={"referralReason" + data.id}
-              name={"testResult[" + data.id + "].referralItem.referralReasonId"}
-              // noLabel={true}
-              labelText={intl.formatMessage({ id: "referral.label.reason" })}
-              onChange={(e) => handleChange(e, data.id)}
-              value={data?.referralItem?.referralReasonId}
-              disabled={!referTest[data.id]}
-            >
-              {/* {...updateShadowResult(e, this, param.rowId)} */}
-              <SelectItem text="" value="" />
-              {referralReasons.map((reason, reason_index) => (
-                <SelectItem
-                  text={reason.value}
-                  value={reason.id}
-                  key={reason_index}
+          {showReferralControls && (
+            <>
+              <Column lg={2}>
+                <Checkbox
+                  labelText={intl.formatMessage({ id: "results.label.refer" })}
+                  name={"testResult[" + data.id + "].refer"}
+                  id={"testResult[" + data.id + "].refer"}
+                  checked={data.refer === "true"}
+                  disabled={data.referredOut}
+                  data-cy="referalcheckbox"
+                  onChange={(e) => {
+                    e.target.value = e.target.checked;
+                    handleChange(e, data.id);
+                  }}
                 />
-              ))}
-            </Select>
-          </Column>
-          <Column lg={2}>
-            <Select
-              id={"institute" + data.id}
-              name={
-                "testResult[" + data.id + "].referralItem.referredInstituteId"
-              }
-              // noLabel={true}
-              labelText={intl.formatMessage({ id: "referral.label.institute" })}
-              onChange={(e) => handleChange(e, data.id)}
-              value={data?.referralItem?.referredInstituteId}
-              disabled={!referTest[data.id]}
-            >
-              {/* {...updateShadowResult(e, this, param.rowId)} */}
+              </Column>
+              <Column lg={2}>
+                <Select
+                  id={"referralReason" + data.id}
+                  name={
+                    "testResult[" + data.id + "].referralItem.referralReasonId"
+                  }
+                  // noLabel={true}
+                  labelText={intl.formatMessage({
+                    id: "referral.label.reason",
+                  })}
+                  onChange={(e) => handleChange(e, data.id)}
+                  value={data?.referralItem?.referralReasonId}
+                  disabled={!referTest[data.id]}
+                >
+                  {/* {...updateShadowResult(e, this, param.rowId)} */}
+                  <SelectItem text="" value="" />
+                  {referralReasons.map((reason, reason_index) => (
+                    <SelectItem
+                      text={reason.value}
+                      value={reason.id}
+                      key={reason_index}
+                    />
+                  ))}
+                </Select>
+              </Column>
+              <Column lg={2}>
+                <Select
+                  id={"institute" + data.id}
+                  name={
+                    "testResult[" +
+                    data.id +
+                    "].referralItem.referredInstituteId"
+                  }
+                  // noLabel={true}
+                  labelText={intl.formatMessage({
+                    id: "referral.label.institute",
+                  })}
+                  onChange={(e) => handleChange(e, data.id)}
+                  value={data?.referralItem?.referredInstituteId}
+                  disabled={!referTest[data.id]}
+                >
+                  {/* {...updateShadowResult(e, this, param.rowId)} */}
 
-              <SelectItem text="" value="" />
-              {referalOrganizations.map((org, org_index) => (
-                <SelectItem text={org.value} value={org.id} key={org_index} />
-              ))}
-            </Select>
-          </Column>
-          <Column lg={3}>
-            <Select
-              id={"testToPerform" + data.id}
-              name={"testResult[" + data.id + "].referralItem.referredTestId"}
-              // noLabel={true}
-              labelText={intl.formatMessage({
-                id: "referral.label.testtoperform",
-              })}
-              onChange={(e) => handleChange(e, data.id)}
-              value={data?.referralItem?.referredTestId}
-              disabled={!referTest[data.id]}
-            >
-              {/* {...updateShadowResult(e, this, param.rowId)} */}
+                  <SelectItem text="" value="" />
+                  {referalOrganizations.map((org, org_index) => (
+                    <SelectItem
+                      text={org.value}
+                      value={org.id}
+                      key={org_index}
+                    />
+                  ))}
+                </Select>
+              </Column>
+              <Column lg={3}>
+                <Select
+                  id={"testToPerform" + data.id}
+                  name={
+                    "testResult[" + data.id + "].referralItem.referredTestId"
+                  }
+                  // noLabel={true}
+                  labelText={intl.formatMessage({
+                    id: "referral.label.testtoperform",
+                  })}
+                  onChange={(e) => handleChange(e, data.id)}
+                  value={data?.referralItem?.referredTestId}
+                  disabled={!referTest[data.id]}
+                >
+                  {/* {...updateShadowResult(e, this, param.rowId)} */}
 
-              <SelectItem text={data.testName} value={data.id} />
-            </Select>
-          </Column>
-          <Column lg={2}>
-            <CustomDatePicker
-              id={"sentDate_" + data.id}
-              labelText={intl.formatMessage({
-                id: "referral.label.sentdate",
-              })}
-              onChange={(date) => handleDatePickerChange(date, data.id)}
-              name={"testResult[" + data.id + "].referralItem.referredSendDate"}
-              value={data?.referralItem?.referredSendDate}
-              disabled={!referTest[data.id]}
-              disallowFutureDate={true}
-            />
-          </Column>
+                  <SelectItem text={data.testName} value={data.id} />
+                </Select>
+              </Column>
+              <Column lg={2}>
+                <CustomDatePicker
+                  id={"sentDate_" + data.id}
+                  labelText={intl.formatMessage({
+                    id: "referral.label.sentdate",
+                  })}
+                  onChange={(date) => handleDatePickerChange(date, data.id)}
+                  name={
+                    "testResult[" + data.id + "].referralItem.referredSendDate"
+                  }
+                  value={data?.referralItem?.referredSendDate}
+                  disabled={!referTest[data.id]}
+                  disallowFutureDate={true}
+                />
+              </Column>
+            </>
+          )}
         </Grid>
         {Array.isArray(data.additionalFieldDefinitions) &&
           data.additionalFieldDefinitions.length > 0 && (

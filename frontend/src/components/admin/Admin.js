@@ -67,6 +67,7 @@ import TestAdd from "./testManagementConfigMenu/TestAdd.js";
 import TestModifyEntry from "./testManagementConfigMenu/TestModifyEntry.js";
 import TestOrderability from "./testManagementConfigMenu/TestOrderability.js";
 import MethodCreate from "./testManagementConfigMenu/MethodCreate.js";
+import MethodTestAssign from "./testManagementConfigMenu/MethodTestAssign.js";
 import TestSectionManagement from "./testManagementConfigMenu/TestSectionManagement.js";
 import TestSectionCreate from "./testManagementConfigMenu/TestSectionCreate.js";
 import TestSectionOrder from "./testManagementConfigMenu/TestSectionOrder.js";
@@ -445,6 +446,7 @@ function Admin() {
         <Route path={`${path}/TestModifyEntry`} component={TestModifyEntry} />
         <Route path={`${path}/TestOrderability`} component={TestOrderability} />
         <Route path={`${path}/MethodCreate`} component={MethodCreate} />
+        <Route path={`${path}/MethodTestAssign`} component={MethodTestAssign} />
         <Route
           path={`${path}/TestSectionManagement`}
           component={TestSectionManagement}
