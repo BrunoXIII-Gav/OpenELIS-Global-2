@@ -107,6 +107,80 @@ export const resetBranding = (callback, extraParams) => {
 // DOM Utility Functions
 // =============================================================================
 
+const resolveRgbFromCssColor = (color) => {
+  if (!color || typeof document === "undefined") return null;
+
+  const probe = document.createElement("span");
+  probe.style.color = color;
+  probe.style.display = "none";
+  document.body.appendChild(probe);
+  const resolved = window.getComputedStyle(probe).color;
+  document.body.removeChild(probe);
+
+  const match = resolved.match(
+    /rgba?\(\s*(\d{1,3})[\s,]+(\d{1,3})[\s,]+(\d{1,3})/i,
+  );
+  if (!match) return null;
+
+  return {
+    r: Number(match[1]),
+    g: Number(match[2]),
+    b: Number(match[3]),
+  };
+};
+
+const isLightColor = (rgb) => {
+  if (!rgb) return false;
+  const { r, g, b } = rgb;
+  const luminance = (0.2126 * r + 0.7152 * g + 0.0722 * b) / 255;
+  return luminance > 0.6;
+};
+
+const normalizeColor = (value) => (value || "").trim().toLowerCase();
+
+const getEffectivePrimaryColor = (branding) => {
+  const primary = normalizeColor(branding?.primaryColor);
+  const header = normalizeColor(branding?.headerColor);
+  const isDefaultPrimary = primary === "" || primary === "#0f62fe";
+  const hasCustomHeader = header !== "" && header !== "#295785";
+  return isDefaultPrimary && hasCustomHeader
+    ? branding.headerColor
+    : branding.primaryColor;
+};
+
+const applyThemeTokenOverrides = (primaryColor, secondaryColor) => {
+  if (typeof document === "undefined") return;
+
+  const themeContainers = document.querySelectorAll(
+    "[data-carbon-theme], .cds--white",
+  );
+
+  themeContainers.forEach((el) => {
+    if (primaryColor) {
+      el.style.setProperty("--cds-button-primary", primaryColor);
+      el.style.setProperty("--cds-button-primary-hover", primaryColor);
+      el.style.setProperty("--cds-button-primary-active", primaryColor);
+      el.style.setProperty("--cds-button-tertiary", primaryColor);
+      el.style.setProperty("--cds-link-primary", primaryColor);
+      el.style.setProperty("--cds-link-primary-hover", primaryColor);
+      el.style.setProperty("--cds-focus", primaryColor);
+      el.style.setProperty("--cds-border-interactive", primaryColor);
+      el.style.setProperty("--cds-interactive-01", primaryColor);
+      el.style.setProperty("--cds-interactive", primaryColor);
+      el.style.setProperty("--cds-background-brand", primaryColor);
+      el.style.setProperty("--cds-icon-interactive", primaryColor);
+      el.style.setProperty("--cds-text-interactive", primaryColor);
+    }
+
+    if (secondaryColor) {
+      el.style.setProperty("--cds-button-secondary", secondaryColor);
+      el.style.setProperty("--cds-button-secondary-hover", secondaryColor);
+      el.style.setProperty("--cds-button-secondary-active", secondaryColor);
+      el.style.setProperty("--cds-interactive-02", secondaryColor);
+    }
+  });
+};
+
 /**
  * Apply branding colors to the document root element.
  * Sets CSS custom properties that Carbon components will use.
@@ -116,16 +190,71 @@ export const applyBrandingColors = (branding) => {
   if (!branding) return;
 
   const root = document.documentElement;
+  const effectivePrimaryColor = getEffectivePrimaryColor(branding);
+  // Safety: ensure global background tokens are not overridden by branding.
+  // They control broad layout surfaces and can unintentionally paint the full app.
+  root.style.removeProperty("--cds-background");
+  root.style.removeProperty("--cds-layer-01");
 
   if (branding.headerColor) {
     root.style.setProperty("--site-branding-header", branding.headerColor);
+
+    const headerRgb = resolveRgbFromCssColor(branding.headerColor);
+    const lightHeader = isLightColor(headerRgb);
+    root.style.setProperty(
+      "--site-branding-header-text",
+      lightHeader ? "#161616" : "#f4f4f4",
+    );
+    root.style.setProperty(
+      "--site-branding-header-overlay",
+      lightHeader ? "black" : "white",
+    );
+    root.style.setProperty(
+      "--site-branding-sidenav-text",
+      lightHeader ? "#161616" : "#f4f4f4",
+    );
+    root.style.setProperty(
+      "--site-branding-sidenav-overlay",
+      lightHeader ? "black" : "white",
+    );
   }
-  if (branding.primaryColor) {
-    root.style.setProperty("--cds-interactive-01", branding.primaryColor);
+  if (effectivePrimaryColor) {
+    root.style.setProperty("--cds-button-primary", effectivePrimaryColor);
+    root.style.setProperty("--cds-button-primary-hover", effectivePrimaryColor);
+    root.style.setProperty(
+      "--cds-button-primary-active",
+      effectivePrimaryColor,
+    );
+    root.style.setProperty("--cds-button-tertiary", effectivePrimaryColor);
+    root.style.setProperty("--cds-link-primary", effectivePrimaryColor);
+    root.style.setProperty("--cds-link-primary-hover", effectivePrimaryColor);
+    root.style.setProperty("--cds-focus", effectivePrimaryColor);
+    root.style.setProperty("--cds-border-interactive", effectivePrimaryColor);
+    root.style.setProperty("--cds-interactive-01", effectivePrimaryColor);
+    root.style.setProperty("--cds-interactive", effectivePrimaryColor);
+    root.style.setProperty("--cds-background-brand", effectivePrimaryColor);
+    root.style.setProperty("--cds-icon-interactive", effectivePrimaryColor);
+    root.style.setProperty("--cds-text-interactive", effectivePrimaryColor);
+    root.style.setProperty("--site-branding-primary", effectivePrimaryColor);
   }
   if (branding.secondaryColor) {
+    root.style.setProperty("--cds-button-secondary", branding.secondaryColor);
+    root.style.setProperty(
+      "--cds-button-secondary-hover",
+      branding.secondaryColor,
+    );
+    root.style.setProperty(
+      "--cds-button-secondary-active",
+      branding.secondaryColor,
+    );
     root.style.setProperty("--cds-interactive-02", branding.secondaryColor);
+    root.style.setProperty(
+      "--site-branding-secondary",
+      branding.secondaryColor,
+    );
   }
+
+  applyThemeTokenOverrides(effectivePrimaryColor, branding.secondaryColor);
 };
 
 /**

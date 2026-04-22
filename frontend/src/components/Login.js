@@ -32,6 +32,7 @@ function Login(props) {
   const [samlRedirectInitiated, setSamlRedirectInitiated] = useState(false);
   const [loginLogoUrl, setLoginLogoUrl] = useState(null);
   const [logoVersion, setLogoVersion] = useState(0); // Version counter for cache-busting
+  const [showLoginNotice, setShowLoginNotice] = useState(true);
   const firstInput = createRef();
 
   // Auto-redirect to SAML if configured to bypass login page
@@ -71,6 +72,7 @@ function Login(props) {
   useEffect(() => {
     getBranding((response) => {
       if (response) {
+        setShowLoginNotice(response.showLoginNotice !== false);
         // Check useHeaderLogoForLogin flag
         if (response.useHeaderLogoForLogin && response.headerLogoUrl) {
           setLoginLogoUrl(response.headerLogoUrl);
@@ -118,11 +120,15 @@ function Login(props) {
           </picture>
         </Column>
         <Column lg={6} md={0} sm={0} />
-        <Column lg={6} md={0} sm={0} />
-        <Column lg={4} md={8} sm={4}>
-          <FormattedMessage id="login.notice.message" />
-        </Column>
-        <Column lg={6} md={0} sm={0} />
+        {showLoginNotice && (
+          <>
+            <Column lg={6} md={0} sm={0} />
+            <Column lg={4} md={8} sm={4}>
+              <FormattedMessage id="login.notice.message" />
+            </Column>
+            <Column lg={6} md={0} sm={0} />
+          </>
+        )}
       </>
     );
   };

@@ -78,9 +78,11 @@ public class SiteBrandingServiceImpl extends BaseObjectServiceImpl<SiteBranding,
     @Override
     public SiteBranding saveBranding(SiteBranding branding) {
         logger.debug(
-                "saveBranding() called with branding id={}, headerColor={}, primaryColor={}, secondaryColor={}, colorMode={}, useHeaderLogoForLogin={}",
+                "saveBranding() called with branding id={}, headerColor={}, primaryColor={}, secondaryColor={}, colorMode={}, useHeaderLogoForLogin={}, showLoginNotice={}, showHeaderBannerText={}, showHeaderVersion={}, showHeaderSearchIcon={}, showHeaderNotificationIcon={}, showHeaderHelpIcon={}",
                 branding.getId(), branding.getHeaderColor(), branding.getPrimaryColor(), branding.getSecondaryColor(),
-                branding.getColorMode(), branding.getUseHeaderLogoForLogin());
+                branding.getColorMode(), branding.getUseHeaderLogoForLogin(), branding.getShowLoginNotice(),
+                branding.getShowHeaderBannerText(), branding.getShowHeaderVersion(), branding.getShowHeaderSearchIcon(),
+                branding.getShowHeaderNotificationIcon(), branding.getShowHeaderHelpIcon());
 
         try {
 
@@ -140,6 +142,24 @@ public class SiteBrandingServiceImpl extends BaseObjectServiceImpl<SiteBranding,
             }
             if (branding.getUseHeaderLogoForLogin() != null) {
                 existingBranding.setUseHeaderLogoForLogin(branding.getUseHeaderLogoForLogin());
+            }
+            if (branding.getShowLoginNotice() != null) {
+                existingBranding.setShowLoginNotice(branding.getShowLoginNotice());
+            }
+            if (branding.getShowHeaderBannerText() != null) {
+                existingBranding.setShowHeaderBannerText(branding.getShowHeaderBannerText());
+            }
+            if (branding.getShowHeaderVersion() != null) {
+                existingBranding.setShowHeaderVersion(branding.getShowHeaderVersion());
+            }
+            if (branding.getShowHeaderSearchIcon() != null) {
+                existingBranding.setShowHeaderSearchIcon(branding.getShowHeaderSearchIcon());
+            }
+            if (branding.getShowHeaderNotificationIcon() != null) {
+                existingBranding.setShowHeaderNotificationIcon(branding.getShowHeaderNotificationIcon());
+            }
+            if (branding.getShowHeaderHelpIcon() != null) {
+                existingBranding.setShowHeaderHelpIcon(branding.getShowHeaderHelpIcon());
             }
             if (branding.getHeaderLogoPath() != null) {
                 existingBranding.setHeaderLogoPath(branding.getHeaderLogoPath());
@@ -233,6 +253,12 @@ public class SiteBrandingServiceImpl extends BaseObjectServiceImpl<SiteBranding,
         branding.setSecondaryColor("#393939");
         branding.setColorMode("light");
         branding.setUseHeaderLogoForLogin(false);
+        branding.setShowLoginNotice(true);
+        branding.setShowHeaderBannerText(true);
+        branding.setShowHeaderVersion(true);
+        branding.setShowHeaderSearchIcon(true);
+        branding.setShowHeaderNotificationIcon(true);
+        branding.setShowHeaderHelpIcon(true);
         branding.setLastupdatedFields();
         // Set default sysUserId for initial creation (will be updated on first save)
         branding.setSysUserId("system");
@@ -524,6 +550,12 @@ public class SiteBrandingServiceImpl extends BaseObjectServiceImpl<SiteBranding,
         managedBranding.setPrimaryColor("#0f62fe");
         managedBranding.setSecondaryColor("#393939");
         managedBranding.setColorMode("light");
+        managedBranding.setShowLoginNotice(true);
+        managedBranding.setShowHeaderBannerText(true);
+        managedBranding.setShowHeaderVersion(true);
+        managedBranding.setShowHeaderSearchIcon(true);
+        managedBranding.setShowHeaderNotificationIcon(true);
+        managedBranding.setShowHeaderHelpIcon(true);
         managedBranding.setSysUserId(branding.getSysUserId());
         managedBranding.setLastupdatedFields();
 

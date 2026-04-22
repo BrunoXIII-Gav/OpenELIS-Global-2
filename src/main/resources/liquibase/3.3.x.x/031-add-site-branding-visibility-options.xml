@@ -1,0 +1,50 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<databaseChangeLog
+    xmlns="http://www.liquibase.org/xml/ns/dbchangelog"
+    xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+    xsi:schemaLocation="http://www.liquibase.org/xml/ns/dbchangelog
+    http://www.liquibase.org/xml/ns/dbchangelog/dbchangelog-3.8.xsd">
+
+    <changeSet id="031-add-site-branding-visibility-options" author="openelis">
+        <preConditions onFail="MARK_RAN">
+            <and>
+                <tableExists tableName="site_branding"/>
+                <not>
+                    <columnExists tableName="site_branding" columnName="show_login_notice"/>
+                </not>
+            </and>
+        </preConditions>
+
+        <comment>Add site branding visibility options for login notice, header text, and header icons</comment>
+
+        <addColumn tableName="site_branding">
+            <column name="show_login_notice" type="BOOLEAN" defaultValueBoolean="true">
+                <constraints nullable="false"/>
+            </column>
+            <column name="show_header_banner_text" type="BOOLEAN" defaultValueBoolean="true">
+                <constraints nullable="false"/>
+            </column>
+            <column name="show_header_version" type="BOOLEAN" defaultValueBoolean="true">
+                <constraints nullable="false"/>
+            </column>
+            <column name="show_header_search_icon" type="BOOLEAN" defaultValueBoolean="true">
+                <constraints nullable="false"/>
+            </column>
+            <column name="show_header_notification_icon" type="BOOLEAN" defaultValueBoolean="true">
+                <constraints nullable="false"/>
+            </column>
+            <column name="show_header_help_icon" type="BOOLEAN" defaultValueBoolean="true">
+                <constraints nullable="false"/>
+            </column>
+        </addColumn>
+
+        <rollback>
+            <dropColumn tableName="site_branding" columnName="show_header_help_icon"/>
+            <dropColumn tableName="site_branding" columnName="show_header_notification_icon"/>
+            <dropColumn tableName="site_branding" columnName="show_header_search_icon"/>
+            <dropColumn tableName="site_branding" columnName="show_header_version"/>
+            <dropColumn tableName="site_branding" columnName="show_header_banner_text"/>
+            <dropColumn tableName="site_branding" columnName="show_login_notice"/>
+        </rollback>
+    </changeSet>
+</databaseChangeLog>

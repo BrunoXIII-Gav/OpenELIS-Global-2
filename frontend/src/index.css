@@ -25,6 +25,33 @@ code {
   border-bottom: none;
 }
 
+/*
+ * Site Branding - Carbon Theme Zones
+ *
+ * Most content is wrapped in <Theme theme="white">, which defines Carbon
+ * tokens in that subtree. Bridge those tokens to branding variables so
+ * buttons/links do not fall back to default blue/purple.
+ */
+.cds--white {
+  --cds-button-primary: var(--site-branding-primary, #0f62fe);
+  --cds-button-primary-hover: var(--site-branding-primary, #0f62fe);
+  --cds-button-primary-active: var(--site-branding-primary, #0f62fe);
+  --cds-button-tertiary: var(--site-branding-primary, #0f62fe);
+  --cds-link-primary: var(--site-branding-primary, #0f62fe);
+  --cds-link-primary-hover: var(--site-branding-primary, #0f62fe);
+  --cds-focus: var(--site-branding-primary, #0f62fe);
+  --cds-border-interactive: var(--site-branding-primary, #0f62fe);
+  --cds-interactive-01: var(--site-branding-primary, #0f62fe);
+  --cds-interactive: var(--site-branding-primary, #0f62fe);
+  --cds-background-brand: var(--site-branding-primary, #0f62fe);
+  --cds-icon-interactive: var(--site-branding-primary, #0f62fe);
+  --cds-text-interactive: var(--site-branding-primary, #0f62fe);
+  --cds-button-secondary: var(--site-branding-secondary, #393939);
+  --cds-button-secondary-hover: var(--site-branding-secondary, #393939);
+  --cds-button-secondary-active: var(--site-branding-secondary, #393939);
+  --cds-interactive-02: var(--site-branding-secondary, #393939);
+}
+
 .slide-over-root {
   position: fixed;
   top: 0;
