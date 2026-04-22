@@ -59,4 +59,6 @@
   <include relativeToChangelogFile="true" file="031-add-results-referral-config.xml"/>
   <!-- Ensure tb_method_test exists for method options in Results across all contexts -->
   <include relativeToChangelogFile="true" file="032-create-tb-method-test-table.xml"/>
+  <!-- Site Branding visibility controls -->
+  <include relativeToChangelogFile="true" file="033-add-site-branding-visibility-options.xml"/>
 </databaseChangeLog>

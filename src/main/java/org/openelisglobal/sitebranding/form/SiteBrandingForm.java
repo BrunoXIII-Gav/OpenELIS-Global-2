@@ -31,6 +31,18 @@ public class SiteBrandingForm {
     @Size(max = 10, message = "Color mode must not exceed 10 characters")
     private String colorMode;
 
+    private Boolean showLoginNotice = true;
+
+    private Boolean showHeaderBannerText = true;
+
+    private Boolean showHeaderVersion = true;
+
+    private Boolean showHeaderSearchIcon = true;
+
+    private Boolean showHeaderNotificationIcon = true;
+
+    private Boolean showHeaderHelpIcon = true;
+
     private String lastModified;
 
     private String lastModifiedBy;
@@ -107,6 +119,54 @@ public class SiteBrandingForm {
 
     public void setColorMode(String colorMode) {
         this.colorMode = colorMode;
+    }
+
+    public Boolean getShowLoginNotice() {
+        return showLoginNotice;
+    }
+
+    public void setShowLoginNotice(Boolean showLoginNotice) {
+        this.showLoginNotice = showLoginNotice;
+    }
+
+    public Boolean getShowHeaderBannerText() {
+        return showHeaderBannerText;
+    }
+
+    public void setShowHeaderBannerText(Boolean showHeaderBannerText) {
+        this.showHeaderBannerText = showHeaderBannerText;
+    }
+
+    public Boolean getShowHeaderVersion() {
+        return showHeaderVersion;
+    }
+
+    public void setShowHeaderVersion(Boolean showHeaderVersion) {
+        this.showHeaderVersion = showHeaderVersion;
+    }
+
+    public Boolean getShowHeaderSearchIcon() {
+        return showHeaderSearchIcon;
+    }
+
+    public void setShowHeaderSearchIcon(Boolean showHeaderSearchIcon) {
+        this.showHeaderSearchIcon = showHeaderSearchIcon;
+    }
+
+    public Boolean getShowHeaderNotificationIcon() {
+        return showHeaderNotificationIcon;
+    }
+
+    public void setShowHeaderNotificationIcon(Boolean showHeaderNotificationIcon) {
+        this.showHeaderNotificationIcon = showHeaderNotificationIcon;
+    }
+
+    public Boolean getShowHeaderHelpIcon() {
+        return showHeaderHelpIcon;
+    }
+
+    public void setShowHeaderHelpIcon(Boolean showHeaderHelpIcon) {
+        this.showHeaderHelpIcon = showHeaderHelpIcon;
     }
 
     public String getLastModified() {

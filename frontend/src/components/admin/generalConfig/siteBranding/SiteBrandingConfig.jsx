@@ -16,6 +16,7 @@ import {
   Loading,
   Modal,
   InlineLoading,
+  Checkbox,
 } from "@carbon/react";
 import {
   getBranding,
@@ -95,6 +96,12 @@ function SiteBrandingConfig() {
           secondaryColor: "#393939",
           colorMode: "light",
           useHeaderLogoForLogin: false,
+          showLoginNotice: true,
+          showHeaderBannerText: true,
+          showHeaderVersion: true,
+          showHeaderSearchIcon: true,
+          showHeaderNotificationIcon: true,
+          showHeaderHelpIcon: true,
         };
         setBranding(defaultBranding);
         setSavedBranding(JSON.parse(JSON.stringify(defaultBranding)));
@@ -136,6 +143,12 @@ function SiteBrandingConfig() {
         secondaryColor: (obj.secondaryColor || "").trim().toLowerCase(),
         colorMode: (obj.colorMode || "").trim().toLowerCase(),
         useHeaderLogoForLogin: Boolean(obj.useHeaderLogoForLogin),
+        showLoginNotice: obj.showLoginNotice !== false,
+        showHeaderBannerText: obj.showHeaderBannerText !== false,
+        showHeaderVersion: obj.showHeaderVersion !== false,
+        showHeaderSearchIcon: obj.showHeaderSearchIcon !== false,
+        showHeaderNotificationIcon: obj.showHeaderNotificationIcon !== false,
+        showHeaderHelpIcon: obj.showHeaderHelpIcon !== false,
       };
     };
 
@@ -176,6 +189,78 @@ function SiteBrandingConfig() {
 
   // Task Reference: T046 - Update favicon in document head
   // Apply branding colors to the DOM immediately
+  const resolveRgbFromCssColor = (color) => {
+    if (!color) return null;
+
+    const probe = document.createElement("span");
+    probe.style.color = color;
+    probe.style.display = "none";
+    document.body.appendChild(probe);
+    const resolved = window.getComputedStyle(probe).color;
+    document.body.removeChild(probe);
+
+    const match = resolved.match(
+      /rgba?\(\s*(\d{1,3})[\s,]+(\d{1,3})[\s,]+(\d{1,3})/i,
+    );
+    if (!match) return null;
+
+    return {
+      r: Number(match[1]),
+      g: Number(match[2]),
+      b: Number(match[3]),
+    };
+  };
+
+  const isLightColor = (rgb) => {
+    if (!rgb) return false;
+    const { r, g, b } = rgb;
+    const luminance = (0.2126 * r + 0.7152 * g + 0.0722 * b) / 255;
+    return luminance > 0.6;
+  };
+
+  const normalizeColor = (value) => (value || "").trim().toLowerCase();
+
+  const getEffectivePrimaryColor = (brandingData) => {
+    const primary = normalizeColor(brandingData?.primaryColor);
+    const header = normalizeColor(brandingData?.headerColor);
+    const isDefaultPrimary = primary === "" || primary === "#0f62fe";
+    const hasCustomHeader = header !== "" && header !== "#295785";
+    return isDefaultPrimary && hasCustomHeader
+      ? brandingData.headerColor
+      : brandingData.primaryColor;
+  };
+
+  const applyThemeTokenOverrides = (primaryColor, secondaryColor) => {
+    const themeContainers = document.querySelectorAll(
+      "[data-carbon-theme], .cds--white",
+    );
+
+    themeContainers.forEach((el) => {
+      if (primaryColor) {
+        el.style.setProperty("--cds-button-primary", primaryColor);
+        el.style.setProperty("--cds-button-primary-hover", primaryColor);
+        el.style.setProperty("--cds-button-primary-active", primaryColor);
+        el.style.setProperty("--cds-button-tertiary", primaryColor);
+        el.style.setProperty("--cds-link-primary", primaryColor);
+        el.style.setProperty("--cds-link-primary-hover", primaryColor);
+        el.style.setProperty("--cds-focus", primaryColor);
+        el.style.setProperty("--cds-border-interactive", primaryColor);
+        el.style.setProperty("--cds-interactive-01", primaryColor);
+        el.style.setProperty("--cds-interactive", primaryColor);
+        el.style.setProperty("--cds-background-brand", primaryColor);
+        el.style.setProperty("--cds-icon-interactive", primaryColor);
+        el.style.setProperty("--cds-text-interactive", primaryColor);
+      }
+
+      if (secondaryColor) {
+        el.style.setProperty("--cds-button-secondary", secondaryColor);
+        el.style.setProperty("--cds-button-secondary-hover", secondaryColor);
+        el.style.setProperty("--cds-button-secondary-active", secondaryColor);
+        el.style.setProperty("--cds-interactive-02", secondaryColor);
+      }
+    });
+  };
+
   const applyBrandingColors = (brandingData) => {
     if (!brandingData) {
       console.warn("applyBrandingColors called with null/undefined data");
@@ -183,6 +268,10 @@ function SiteBrandingConfig() {
     }
 
     const root = document.documentElement;
+    const effectivePrimaryColor = getEffectivePrimaryColor(brandingData);
+    // Safety: never tie global background tokens to branding values.
+    root.style.removeProperty("--cds-background");
+    root.style.removeProperty("--cds-layer-01");
 
     console.debug("Applying branding colors to DOM:", {
       header: brandingData.headerColor,
@@ -195,20 +284,58 @@ function SiteBrandingConfig() {
         "--site-branding-header",
         brandingData.headerColor,
       );
+
+      const headerRgb = resolveRgbFromCssColor(brandingData.headerColor);
+      const lightHeader = isLightColor(headerRgb);
+      root.style.setProperty(
+        "--site-branding-sidenav-text",
+        lightHeader ? "#161616" : "#f4f4f4",
+      );
+      root.style.setProperty(
+        "--site-branding-sidenav-overlay",
+        lightHeader ? "black" : "white",
+      );
       console.debug("Set --site-branding-header to:", brandingData.headerColor);
     }
-    if (brandingData.primaryColor) {
-      root.style.setProperty("--cds-interactive-01", brandingData.primaryColor);
+    if (effectivePrimaryColor) {
+      root.style.setProperty("--cds-button-primary", effectivePrimaryColor);
       root.style.setProperty(
-        "--site-branding-primary",
-        brandingData.primaryColor,
+        "--cds-button-primary-hover",
+        effectivePrimaryColor,
       );
+      root.style.setProperty(
+        "--cds-button-primary-active",
+        effectivePrimaryColor,
+      );
+      root.style.setProperty("--cds-button-tertiary", effectivePrimaryColor);
+      root.style.setProperty("--cds-link-primary", effectivePrimaryColor);
+      root.style.setProperty("--cds-link-primary-hover", effectivePrimaryColor);
+      root.style.setProperty("--cds-focus", effectivePrimaryColor);
+      root.style.setProperty("--cds-border-interactive", effectivePrimaryColor);
+      root.style.setProperty("--cds-interactive-01", effectivePrimaryColor);
+      root.style.setProperty("--cds-interactive", effectivePrimaryColor);
+      root.style.setProperty("--cds-background-brand", effectivePrimaryColor);
+      root.style.setProperty("--cds-icon-interactive", effectivePrimaryColor);
+      root.style.setProperty("--cds-text-interactive", effectivePrimaryColor);
+      root.style.setProperty("--site-branding-primary", effectivePrimaryColor);
       console.debug(
         "Set --cds-interactive-01 and --site-branding-primary to:",
-        brandingData.primaryColor,
+        effectivePrimaryColor,
       );
     }
     if (brandingData.secondaryColor) {
+      root.style.setProperty(
+        "--cds-button-secondary",
+        brandingData.secondaryColor,
+      );
+      root.style.setProperty(
+        "--cds-button-secondary-hover",
+        brandingData.secondaryColor,
+      );
+      root.style.setProperty(
+        "--cds-button-secondary-active",
+        brandingData.secondaryColor,
+      );
       root.style.setProperty(
         "--cds-interactive-02",
         brandingData.secondaryColor,
@@ -223,12 +350,17 @@ function SiteBrandingConfig() {
       );
     }
 
+    applyThemeTokenOverrides(
+      effectivePrimaryColor,
+      brandingData.secondaryColor,
+    );
+
     // Verify the properties were set
     const computedPrimary = getComputedStyle(root)
-      .getPropertyValue("--cds-interactive-01")
+      .getPropertyValue("--cds-button-primary")
       .trim();
     console.debug(
-      "Verified CSS property --cds-interactive-01 is now:",
+      "Verified CSS property --cds-button-primary is now:",
       computedPrimary,
     );
   };
@@ -279,6 +411,12 @@ function SiteBrandingConfig() {
       secondaryColor: branding.secondaryColor?.trim() || "#393939",
       colorMode: branding.colorMode?.trim() || "light",
       useHeaderLogoForLogin: branding.useHeaderLogoForLogin || false,
+      showLoginNotice: branding.showLoginNotice !== false,
+      showHeaderBannerText: branding.showHeaderBannerText !== false,
+      showHeaderVersion: branding.showHeaderVersion !== false,
+      showHeaderSearchIcon: branding.showHeaderSearchIcon !== false,
+      showHeaderNotificationIcon: branding.showHeaderNotificationIcon !== false,
+      showHeaderHelpIcon: branding.showHeaderHelpIcon !== false,
       // Do not include headerLogoUrl, loginLogoUrl, or faviconUrl
       // These are managed via separate logo upload endpoints
     };
@@ -396,8 +534,75 @@ function SiteBrandingConfig() {
           "#295785",
         );
         document.documentElement.style.setProperty(
+          "--site-branding-sidenav-text",
+          "#f4f4f4",
+        );
+        document.documentElement.style.setProperty(
+          "--site-branding-sidenav-overlay",
+          "white",
+        );
+        document.documentElement.style.removeProperty("--cds-background");
+        document.documentElement.style.removeProperty("--cds-layer-01");
+        document.documentElement.style.setProperty(
+          "--cds-button-primary",
+          "#0f62fe",
+        );
+        document.documentElement.style.setProperty(
+          "--cds-button-primary-hover",
+          "#0f62fe",
+        );
+        document.documentElement.style.setProperty(
+          "--cds-button-primary-active",
+          "#0f62fe",
+        );
+        document.documentElement.style.setProperty(
+          "--cds-button-tertiary",
+          "#0f62fe",
+        );
+        document.documentElement.style.setProperty(
+          "--cds-link-primary",
+          "#0f62fe",
+        );
+        document.documentElement.style.setProperty(
+          "--cds-link-primary-hover",
+          "#0f62fe",
+        );
+        document.documentElement.style.setProperty("--cds-focus", "#0f62fe");
+        document.documentElement.style.setProperty(
+          "--cds-border-interactive",
+          "#0f62fe",
+        );
+        document.documentElement.style.setProperty(
           "--cds-interactive-01",
           "#0f62fe",
+        );
+        document.documentElement.style.setProperty(
+          "--cds-interactive",
+          "#0f62fe",
+        );
+        document.documentElement.style.setProperty(
+          "--cds-background-brand",
+          "#0f62fe",
+        );
+        document.documentElement.style.setProperty(
+          "--cds-icon-interactive",
+          "#0f62fe",
+        );
+        document.documentElement.style.setProperty(
+          "--cds-text-interactive",
+          "#0f62fe",
+        );
+        document.documentElement.style.setProperty(
+          "--cds-button-secondary",
+          "#393939",
+        );
+        document.documentElement.style.setProperty(
+          "--cds-button-secondary-hover",
+          "#393939",
+        );
+        document.documentElement.style.setProperty(
+          "--cds-button-secondary-active",
+          "#393939",
         );
         document.documentElement.style.setProperty(
           "--cds-interactive-02",
@@ -557,6 +762,18 @@ function SiteBrandingConfig() {
                 "--site-branding-header",
                 color,
               );
+              const headerRgb = resolveRgbFromCssColor(color);
+              const lightHeader = isLightColor(headerRgb);
+              document.documentElement.style.setProperty(
+                "--site-branding-sidenav-text",
+                lightHeader ? "#161616" : "#f4f4f4",
+              );
+              document.documentElement.style.setProperty(
+                "--site-branding-sidenav-overlay",
+                lightHeader ? "black" : "white",
+              );
+              document.documentElement.style.removeProperty("--cds-background");
+              document.documentElement.style.removeProperty("--cds-layer-01");
             }}
           />
         </Column>
@@ -574,7 +791,52 @@ function SiteBrandingConfig() {
               setBranding((prev) => ({ ...prev, primaryColor: color }));
               // Apply color immediately for preview
               document.documentElement.style.setProperty(
+                "--cds-button-primary",
+                color,
+              );
+              document.documentElement.style.setProperty(
+                "--cds-button-primary-hover",
+                color,
+              );
+              document.documentElement.style.setProperty(
+                "--cds-button-primary-active",
+                color,
+              );
+              document.documentElement.style.setProperty(
+                "--cds-button-tertiary",
+                color,
+              );
+              document.documentElement.style.setProperty(
+                "--cds-link-primary",
+                color,
+              );
+              document.documentElement.style.setProperty(
+                "--cds-link-primary-hover",
+                color,
+              );
+              document.documentElement.style.setProperty("--cds-focus", color);
+              document.documentElement.style.setProperty(
+                "--cds-border-interactive",
+                color,
+              );
+              document.documentElement.style.setProperty(
                 "--cds-interactive-01",
+                color,
+              );
+              document.documentElement.style.setProperty(
+                "--cds-interactive",
+                color,
+              );
+              document.documentElement.style.setProperty(
+                "--cds-background-brand",
+                color,
+              );
+              document.documentElement.style.setProperty(
+                "--cds-icon-interactive",
+                color,
+              );
+              document.documentElement.style.setProperty(
+                "--cds-text-interactive",
                 color,
               );
               document.documentElement.style.setProperty(
@@ -598,6 +860,18 @@ function SiteBrandingConfig() {
               setBranding((prev) => ({ ...prev, secondaryColor: color }));
               // Apply color immediately for preview
               document.documentElement.style.setProperty(
+                "--cds-button-secondary",
+                color,
+              );
+              document.documentElement.style.setProperty(
+                "--cds-button-secondary-hover",
+                color,
+              );
+              document.documentElement.style.setProperty(
+                "--cds-button-secondary-active",
+                color,
+              );
+              document.documentElement.style.setProperty(
                 "--cds-interactive-02",
                 color,
               );
@@ -607,6 +881,121 @@ function SiteBrandingConfig() {
               );
             }}
           />
+        </Column>
+      </Grid>
+
+      <Grid fullWidth={true}>
+        <Column lg={16} md={8} sm={4}>
+          <Section>
+            <h4>
+              <FormattedMessage
+                id="site.branding.visibility.section"
+                defaultMessage="Visibility Options"
+              />
+            </h4>
+            <p>
+              <FormattedMessage
+                id="site.branding.visibility.description"
+                defaultMessage="Control what is shown in login and header UI."
+              />
+            </p>
+            <div style={{ marginTop: "1rem" }}>
+              <Checkbox
+                id="branding-show-login-notice"
+                labelText={intl.formatMessage({
+                  id: "site.branding.visibility.login.notice",
+                  defaultMessage: "Show login notice text",
+                })}
+                checked={branding?.showLoginNotice !== false}
+                onChange={(event) =>
+                  setBranding((prev) => ({
+                    ...prev,
+                    showLoginNotice: event.target.checked,
+                  }))
+                }
+              />
+            </div>
+            <div style={{ marginTop: "0.75rem" }}>
+              <Checkbox
+                id="branding-show-header-banner-text"
+                labelText={intl.formatMessage({
+                  id: "site.branding.visibility.header.banner",
+                  defaultMessage: "Show header facility name",
+                })}
+                checked={branding?.showHeaderBannerText !== false}
+                onChange={(event) =>
+                  setBranding((prev) => ({
+                    ...prev,
+                    showHeaderBannerText: event.target.checked,
+                  }))
+                }
+              />
+            </div>
+            <div style={{ marginTop: "0.75rem" }}>
+              <Checkbox
+                id="branding-show-header-version"
+                labelText={intl.formatMessage({
+                  id: "site.branding.visibility.header.version",
+                  defaultMessage: "Show header version number",
+                })}
+                checked={branding?.showHeaderVersion !== false}
+                onChange={(event) =>
+                  setBranding((prev) => ({
+                    ...prev,
+                    showHeaderVersion: event.target.checked,
+                  }))
+                }
+              />
+            </div>
+            <div style={{ marginTop: "0.75rem" }}>
+              <Checkbox
+                id="branding-show-header-search"
+                labelText={intl.formatMessage({
+                  id: "site.branding.visibility.header.search",
+                  defaultMessage: "Show header search icon",
+                })}
+                checked={branding?.showHeaderSearchIcon !== false}
+                onChange={(event) =>
+                  setBranding((prev) => ({
+                    ...prev,
+                    showHeaderSearchIcon: event.target.checked,
+                  }))
+                }
+              />
+            </div>
+            <div style={{ marginTop: "0.75rem" }}>
+              <Checkbox
+                id="branding-show-header-notification"
+                labelText={intl.formatMessage({
+                  id: "site.branding.visibility.header.notification",
+                  defaultMessage: "Show header notification icon",
+                })}
+                checked={branding?.showHeaderNotificationIcon !== false}
+                onChange={(event) =>
+                  setBranding((prev) => ({
+                    ...prev,
+                    showHeaderNotificationIcon: event.target.checked,
+                  }))
+                }
+              />
+            </div>
+            <div style={{ marginTop: "0.75rem" }}>
+              <Checkbox
+                id="branding-show-header-help"
+                labelText={intl.formatMessage({
+                  id: "site.branding.visibility.header.help",
+                  defaultMessage: "Show header help icon",
+                })}
+                checked={branding?.showHeaderHelpIcon !== false}
+                onChange={(event) =>
+                  setBranding((prev) => ({
+                    ...prev,
+                    showHeaderHelpIcon: event.target.checked,
+                  }))
+                }
+              />
+            </div>
+          </Section>
         </Column>
       </Grid>
 

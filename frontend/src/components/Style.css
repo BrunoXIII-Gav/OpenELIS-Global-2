@@ -10,10 +10,65 @@
 
 #mainHeader {
   z-index: 8001;
+  --site-branding-header-text: #f4f4f4;
+  --site-branding-header-overlay: white;
+}
+
+.cds--side-nav {
+  --site-branding-sidenav-bg: var(--site-branding-header, #295785);
+  --site-branding-sidenav-text: #f4f4f4;
+  --site-branding-sidenav-overlay: white;
+  --site-branding-sidenav-hover: rgba(255, 255, 255, 0.08);
+  --site-branding-sidenav-active: rgba(255, 255, 255, 0.14);
+}
+
+nav.cds--side-nav .cds--side-nav__link,
+nav.cds--side-nav .cds--side-nav__submenu,
+nav.cds--side-nav .cds--side-nav__submenu-title,
+nav.cds--side-nav .cds--side-nav__link-text {
+  color: var(--site-branding-sidenav-text, #f4f4f4) !important;
+}
+
+nav.cds--side-nav .cds--side-nav__icon > svg,
+nav.cds--side-nav .cds--side-nav__submenu-chevron > svg {
+  fill: currentColor !important;
 }
 
 .headerPanel {
   height: max-content;
+}
+
+#mainHeader .cds--header__action,
+#mainHeader .cds--header__action > svg {
+  color: var(--site-branding-header-text, #f4f4f4);
+}
+
+#mainHeader .cds--header__action:hover,
+#mainHeader .cds--header__action:active,
+#mainHeader .cds--header__action.cds--header__action--active {
+  background-color: color-mix(
+    in srgb,
+    var(--site-branding-header, #295785) 88%,
+    var(--site-branding-header-overlay, white)
+  ) !important;
+  color: var(--site-branding-header-text, #f4f4f4) !important;
+}
+
+#mainHeader .headerPanel,
+#mainHeader .cds--header-panel {
+  background-color: var(--site-branding-header, #295785) !important;
+  border-left: 1px solid
+    color-mix(
+      in srgb,
+      var(--site-branding-header, #295785) 84%,
+      var(--site-branding-header-overlay, white)
+    ) !important;
+  color: var(--site-branding-header-text, #f4f4f4) !important;
+}
+
+#mainHeader .headerPanel .userDetails,
+#mainHeader .headerPanel .userDetails svg {
+  color: var(--site-branding-header-text, #f4f4f4) !important;
 }
 
 .banner p {
@@ -37,7 +92,11 @@ li.clickableUserDetails {
 }
 
 li.clickableUserDetails:hover {
-  background: #072655;
+  background-color: color-mix(
+    in srgb,
+    var(--site-branding-header, #295785) 82%,
+    var(--site-branding-header-overlay, white)
+  ) !important;
 }
 
 .adminPageContent {
@@ -416,7 +475,15 @@ button {
 }
 
 .cds--side-nav__link a:hover {
-  background-color: var(--cds-background, #295785);
+  background-color: var(
+    --site-branding-sidenav-hover,
+    rgba(255, 255, 255, 0.08)
+  );
+  background-color: color-mix(
+    in srgb,
+    var(--site-branding-sidenav-bg, #295785) 88%,
+    var(--site-branding-sidenav-overlay, white)
+  );
 }
 
 .reduced-padding-nav-menu-item > a.cds--side-nav__link {
@@ -435,7 +502,15 @@ button {
 }
 
 .top-level-menu-item > a:hover {
-  background-color: var(--cds-background-hover, #072655);
+  background-color: var(
+    --site-branding-sidenav-hover,
+    rgba(255, 255, 255, 0.08)
+  );
+  background-color: color-mix(
+    in srgb,
+    var(--site-branding-sidenav-bg, #295785) 88%,
+    var(--site-branding-sidenav-overlay, white)
+  );
 }
 
 /* Removed pointer-events: none - was blocking subnav clicks after onClick refactor */
@@ -511,6 +586,7 @@ button {
 
 /* Allow sidenav to scroll long menus (e.g. Admin) while hiding scrollbar */
 .cds--side-nav {
+  background-color: var(--site-branding-sidenav-bg, #295785) !important;
   overflow-y: auto !important;
   overflow-x: visible !important;
   scrollbar-width: none; /* Firefox */
@@ -518,6 +594,7 @@ button {
 }
 
 .cds--side-nav__navigation {
+  background-color: var(--site-branding-sidenav-bg, #295785) !important;
   overflow-y: auto !important;
   overflow-x: visible !important;
 }
@@ -551,8 +628,13 @@ button {
 .cds--side-nav__menu-item .cds--side-nav__link[aria-current="page"] {
   border-left: 4px solid var(--cds-link-primary, #0f62fe) !important;
   background-color: var(
-    --cds-layer-selected-01,
-    rgba(255, 255, 255, 0.1)
+    --site-branding-sidenav-active,
+    rgba(255, 255, 255, 0.14)
+  ) !important;
+  background-color: color-mix(
+    in srgb,
+    var(--site-branding-sidenav-bg, #295785) 82%,
+    var(--site-branding-sidenav-overlay, white)
   ) !important; /* Restore active background */
   padding-left: calc(
     1rem - 4px
@@ -568,8 +650,13 @@ button {
 nav.cds--side-nav .cds--side-nav__link--current,
 nav.cds--side-nav .cds--side-nav__link[aria-current="page"] {
   background-color: var(
-    --cds-layer-selected-01,
-    rgba(255, 255, 255, 0.1)
+    --site-branding-sidenav-active,
+    rgba(255, 255, 255, 0.14)
+  ) !important;
+  background-color: color-mix(
+    in srgb,
+    var(--site-branding-sidenav-bg, #295785) 82%,
+    var(--site-branding-sidenav-overlay, white)
   ) !important;
 }
 
@@ -588,8 +675,13 @@ nav.cds--side-nav .cds--side-nav__link[aria-current="page"]::before {
 /* Hover state - applies to ALL links */
 .cds--side-nav__menu-item .cds--side-nav__link:hover {
   background-color: var(
-    --cds-layer-hover-01,
-    rgba(255, 255, 255, 0.05)
+    --site-branding-sidenav-hover,
+    rgba(255, 255, 255, 0.08)
+  ) !important;
+  background-color: color-mix(
+    in srgb,
+    var(--site-branding-sidenav-bg, #295785) 88%,
+    var(--site-branding-sidenav-overlay, white)
   ) !important;
 }
 
@@ -597,8 +689,13 @@ nav.cds--side-nav .cds--side-nav__link[aria-current="page"]::before {
 .cds--side-nav__menu-item .cds--side-nav__link--current:hover,
 .cds--side-nav__menu-item .cds--side-nav__link[aria-current="page"]:hover {
   background-color: var(
-    --cds-layer-selected-01,
-    rgba(255, 255, 255, 0.1)
+    --site-branding-sidenav-active,
+    rgba(255, 255, 255, 0.14)
+  ) !important;
+  background-color: color-mix(
+    in srgb,
+    var(--site-branding-sidenav-bg, #295785) 82%,
+    var(--site-branding-sidenav-overlay, white)
   ) !important; /* Keep active background on hover */
   border-right: none !important;
   border-top: none !important;
@@ -644,8 +741,13 @@ nav.cds--side-nav .cds--side-nav__link:focus-visible::before {
 .cds--side-nav__menu-item
   .cds--side-nav__link[aria-current="page"]:focus-visible {
   background-color: var(
-    --cds-layer-selected-01,
-    rgba(255, 255, 255, 0.1)
+    --site-branding-sidenav-active,
+    rgba(255, 255, 255, 0.14)
+  ) !important;
+  background-color: color-mix(
+    in srgb,
+    var(--site-branding-sidenav-bg, #295785) 82%,
+    var(--site-branding-sidenav-overlay, white)
   ) !important;
   outline: none !important;
   box-shadow: none !important;
@@ -727,17 +829,30 @@ nav.cds--side-nav
 .selectLocale .cds--label,
 .selectLocale .cds--form__helper-text {
   background: transparent !important;
-  color: #ffffff !important;
+  color: var(--site-branding-header-text, #f4f4f4) !important;
 }
 
-/* Ensure select input sits on blue header without white fill */
-.selectLocale .cds--select-input__wrapper {
-  background: transparent !important;
+/* Ensure locale select blends with branded header panel */
+#mainHeader .headerPanel .selectLocale .cds--select-input__wrapper {
+  background-color: color-mix(
+    in srgb,
+    var(--site-branding-header, #295785) 84%,
+    var(--site-branding-header-overlay, white)
+  ) !important;
+}
+
+#mainHeader .headerPanel .selectLocale .cds--select-input {
+  color: #161616 !important;
+}
+
+#mainHeader .headerPanel .selectLocale .cds--select__arrow {
+  color: #161616 !important;
+  fill: #161616 !important;
 }
 
 #mainHeader .headerPanel .cds--white.cds--layer-one {
   background: transparent !important;
-  color: #ffffff !important;
+  color: var(--site-branding-header-text, #f4f4f4) !important;
   box-shadow: none !important;
 }
 
@@ -764,8 +879,13 @@ nav.cds--side-nav
 
 .cds--side-nav__item--active .cds--side-nav__submenu:hover {
   background-color: var(
-    --cds-background-hover,
-    rgba(255, 255, 255, 0.05)
+    --site-branding-sidenav-hover,
+    rgba(255, 255, 255, 0.08)
+  ) !important;
+  background-color: color-mix(
+    in srgb,
+    var(--site-branding-sidenav-bg, #295785) 88%,
+    var(--site-branding-sidenav-overlay, white)
   ) !important;
 }
 

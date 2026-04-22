@@ -57,6 +57,30 @@ public class SiteBranding extends BaseObject<Integer> {
     @Column(name = "color_mode", length = 10, nullable = false)
     private String colorMode = "light";
 
+    /** Show legal/security notice on login page */
+    @Column(name = "show_login_notice", nullable = false)
+    private Boolean showLoginNotice = true;
+
+    /** Show facility name banner text in header */
+    @Column(name = "show_header_banner_text", nullable = false)
+    private Boolean showHeaderBannerText = true;
+
+    /** Show release/version text in header */
+    @Column(name = "show_header_version", nullable = false)
+    private Boolean showHeaderVersion = true;
+
+    /** Show search icon/action in header */
+    @Column(name = "show_header_search_icon", nullable = false)
+    private Boolean showHeaderSearchIcon = true;
+
+    /** Show notifications icon/action in header */
+    @Column(name = "show_header_notification_icon", nullable = false)
+    private Boolean showHeaderNotificationIcon = true;
+
+    /** Show help icon/action in header */
+    @Column(name = "show_header_help_icon", nullable = false)
+    private Boolean showHeaderHelpIcon = true;
+
     // Override BaseObject's @Transient sysUserId to map to actual database column
     @Column(name = "sys_user_id", length = 255, nullable = false)
     private String sysUserId;
@@ -133,6 +157,54 @@ public class SiteBranding extends BaseObject<Integer> {
 
     public void setColorMode(String colorMode) {
         this.colorMode = colorMode;
+    }
+
+    public Boolean getShowLoginNotice() {
+        return showLoginNotice;
+    }
+
+    public void setShowLoginNotice(Boolean showLoginNotice) {
+        this.showLoginNotice = showLoginNotice;
+    }
+
+    public Boolean getShowHeaderBannerText() {
+        return showHeaderBannerText;
+    }
+
+    public void setShowHeaderBannerText(Boolean showHeaderBannerText) {
+        this.showHeaderBannerText = showHeaderBannerText;
+    }
+
+    public Boolean getShowHeaderVersion() {
+        return showHeaderVersion;
+    }
+
+    public void setShowHeaderVersion(Boolean showHeaderVersion) {
+        this.showHeaderVersion = showHeaderVersion;
+    }
+
+    public Boolean getShowHeaderSearchIcon() {
+        return showHeaderSearchIcon;
+    }
+
+    public void setShowHeaderSearchIcon(Boolean showHeaderSearchIcon) {
+        this.showHeaderSearchIcon = showHeaderSearchIcon;
+    }
+
+    public Boolean getShowHeaderNotificationIcon() {
+        return showHeaderNotificationIcon;
+    }
+
+    public void setShowHeaderNotificationIcon(Boolean showHeaderNotificationIcon) {
+        this.showHeaderNotificationIcon = showHeaderNotificationIcon;
+    }
+
+    public Boolean getShowHeaderHelpIcon() {
+        return showHeaderHelpIcon;
+    }
+
+    public void setShowHeaderHelpIcon(Boolean showHeaderHelpIcon) {
+        this.showHeaderHelpIcon = showHeaderHelpIcon;
     }
 
     // Override BaseObject's sysUserId methods to use the mapped field

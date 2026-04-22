@@ -57,10 +57,20 @@ function OEHeader({
   defaultMode = "close",
   storageKeyPrefix = "main",
 }) {
+  const defaultVisibility = {
+    showHeaderBannerText: true,
+    showHeaderVersion: true,
+    showHeaderSearchIcon: true,
+    showHeaderNotificationIcon: true,
+    showHeaderHelpIcon: true,
+  };
+
   const { configurationProperties } = useContext(ConfigurationContext);
   const { userSessionDetails, logout } = useContext(UserSessionDetailsContext);
   const [headerLogoUrl, setHeaderLogoUrl] = useState(null);
   const [logoVersion, setLogoVersion] = useState(0); // Version counter for cache-busting
+  const [brandingVisibility, setBrandingVisibility] =
+    useState(defaultVisibility);
 
   const userSwitchRef = createRef();
   const headerPanelRef = createRef();
@@ -110,9 +120,28 @@ function OEHeader({
   // Colors are handled by App.js
   const loadHeaderLogo = () => {
     getBranding((response) => {
-      if (response && response.headerLogoUrl) {
-        setHeaderLogoUrl(response.headerLogoUrl);
+      if (response) {
+        setHeaderLogoUrl(response.headerLogoUrl || null);
+        setBrandingVisibility({
+          showHeaderBannerText: response.showHeaderBannerText !== false,
+          showHeaderVersion: response.showHeaderVersion !== false,
+          showHeaderSearchIcon: response.showHeaderSearchIcon !== false,
+          showHeaderNotificationIcon:
+            response.showHeaderNotificationIcon !== false,
+          showHeaderHelpIcon: response.showHeaderHelpIcon !== false,
+        });
+        if (response.showHeaderSearchIcon === false) {
+          setSearchBar(false);
+        }
+        if (response.showHeaderNotificationIcon === false) {
+          setNotificationsOpen(false);
+        }
+        if (response.showHeaderHelpIcon === false) {
+          setHelpOpen(false);
+        }
         setLogoVersion((prev) => prev + 1);
+      } else {
+        setBrandingVisibility(defaultVisibility);
       }
     });
   };
@@ -635,72 +664,84 @@ function OEHeader({
             <HeaderName href="/" prefix="" style={{ padding: "0px" }}>
               <span id="header-logo">{logo()}</span>
               <div className="banner">
-                <h5>{configurationProperties?.BANNER_TEXT}</h5>
-                <p>
-                  <FormattedMessage id="header.label.version" /> &nbsp;{" "}
-                  {configurationProperties?.releaseNumber}
-                </p>
+                {brandingVisibility.showHeaderBannerText && (
+                  <h5>{configurationProperties?.BANNER_TEXT}</h5>
+                )}
+                {brandingVisibility.showHeaderVersion && (
+                  <p>
+                    <FormattedMessage id="header.label.version" /> &nbsp;{" "}
+                    {configurationProperties?.releaseNumber}
+                  </p>
+                )}
               </div>
             </HeaderName>
             <HeaderGlobalBar>
               {userSessionDetails.authenticated && (
                 <>
-                  {searchBar && <SearchBar />}
-                  <HeaderGlobalAction
-                    id="search-Icon"
-                    aria-label="Search"
-                    onClick={() => handlePanelToggle(searchBar ? "" : "search")}
-                  >
-                    {!searchBar ? <Search size={20} /> : <Close size={20} />}
-                  </HeaderGlobalAction>
-                  <HeaderGlobalAction
-                    id="notification-Icon"
-                    aria-label="Notifications"
-                    onClick={() =>
-                      handlePanelToggle(
-                        notificationsOpen ? "" : "notifications",
-                      )
-                    }
-                  >
-                    <div
-                      style={{
-                        position: "relative",
-                        display: "flex",
-                        alignItems: "center",
-                        justifyContent: "center",
-                        height: "100%",
-                      }}
+                  {brandingVisibility.showHeaderSearchIcon && searchBar && (
+                    <SearchBar />
+                  )}
+                  {brandingVisibility.showHeaderSearchIcon && (
+                    <HeaderGlobalAction
+                      id="search-Icon"
+                      aria-label="Search"
+                      onClick={() =>
+                        handlePanelToggle(searchBar ? "" : "search")
+                      }
                     >
-                      {!notificationsOpen ? (
-                        <Notification size={20} />
-                      ) : (
-                        <Close size={20} />
-                      )}
-                      {unReadNotifications?.length > 0 && (
-                        <span
-                          style={{
-                            position: "absolute",
-                            top: "-5px",
-                            right: "-5px",
-                            backgroundColor: "red",
-                            color: "white",
-                            borderRadius: "50%",
-                            width: "22px",
-                            height: "22px",
-                            display: "flex",
-                            alignItems: "center",
-                            justifyContent: "center",
-                            fontSize: "12px",
-                            animation: "pulse 5s infinite",
-                            opacity: 1,
-                            transition: "background-color 0.3s ease-in-out",
-                          }}
-                        >
-                          {unReadNotifications.length}
-                        </span>
-                      )}
-                    </div>
-                  </HeaderGlobalAction>
+                      {!searchBar ? <Search size={20} /> : <Close size={20} />}
+                    </HeaderGlobalAction>
+                  )}
+                  {brandingVisibility.showHeaderNotificationIcon && (
+                    <HeaderGlobalAction
+                      id="notification-Icon"
+                      aria-label="Notifications"
+                      onClick={() =>
+                        handlePanelToggle(
+                          notificationsOpen ? "" : "notifications",
+                        )
+                      }
+                    >
+                      <div
+                        style={{
+                          position: "relative",
+                          display: "flex",
+                          alignItems: "center",
+                          justifyContent: "center",
+                          height: "100%",
+                        }}
+                      >
+                        {!notificationsOpen ? (
+                          <Notification size={20} />
+                        ) : (
+                          <Close size={20} />
+                        )}
+                        {unReadNotifications?.length > 0 && (
+                          <span
+                            style={{
+                              position: "absolute",
+                              top: "-5px",
+                              right: "-5px",
+                              backgroundColor: "red",
+                              color: "white",
+                              borderRadius: "50%",
+                              width: "22px",
+                              height: "22px",
+                              display: "flex",
+                              alignItems: "center",
+                              justifyContent: "center",
+                              fontSize: "12px",
+                              animation: "pulse 5s infinite",
+                              opacity: 1,
+                              transition: "background-color 0.3s ease-in-out",
+                            }}
+                          >
+                            {unReadNotifications.length}
+                          </span>
+                        )}
+                      </div>
+                    </HeaderGlobalAction>
+                  )}
                 </>
               )}
               <HeaderGlobalAction
@@ -711,10 +752,12 @@ function OEHeader({
               >
                 {panelSwitchIcon()}
               </HeaderGlobalAction>
-              <HelpMenu
-                helpOpen={helpOpen}
-                handlePanelToggle={handlePanelToggle}
-              />
+              {brandingVisibility.showHeaderHelpIcon && (
+                <HelpMenu
+                  helpOpen={helpOpen}
+                  handlePanelToggle={handlePanelToggle}
+                />
+              )}
             </HeaderGlobalBar>
             <HeaderPanel
               aria-label="Header Panel"
@@ -774,13 +817,15 @@ function OEHeader({
                     </Select>
                   </Theme>
                 </li>
-                <li className="userDetails">
-                  <label className="cds--label">
-                    {" "}
-                    <FormattedMessage id="header.label.version" />:{" "}
-                    {configurationProperties?.releaseNumber}
-                  </label>
-                </li>
+                {brandingVisibility.showHeaderVersion && (
+                  <li className="userDetails">
+                    <label className="cds--label">
+                      {" "}
+                      <FormattedMessage id="header.label.version" />:{" "}
+                      {configurationProperties?.releaseNumber}
+                    </label>
+                  </li>
+                )}
               </ul>
             </HeaderPanel>
             {userSessionDetails.authenticated && (
