@@ -10,13 +10,13 @@ import {
   Stack,
   TextArea,
   TextInput,
-  TimePicker,
   Column,
   Grid,
 } from "@carbon/react";
 import CustomLabNumberInput from "../common/CustomLabNumberInput";
 import CustomDatePicker from "../common/CustomDatePicker";
 import { getFromOpenElisServer, toBase64 } from "../utils/Utils";
+import CustomTimePicker from "../common/CustomTimePicker";
 import { NotificationContext } from "../layout/Layout";
 import { priorities } from "../data/orderOptions";
 import { NotificationKinds } from "../common/CustomNotification";
@@ -805,7 +805,7 @@ const AddOrder = (props) => {
       case "receivedTime":
         return (
           <Column key={fieldKey} lg={8} md={4} sm={4}>
-            <TimePicker
+            <CustomTimePicker
               id="order_receivedTime"
               labelText={intl.formatMessage({ id: "order.reception.time" })}
               onChange={handleReceivedTime}

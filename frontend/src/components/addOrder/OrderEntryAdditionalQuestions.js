@@ -27,18 +27,6 @@ export const ProgramSelect = ({
   };
 
   useEffect(() => {
-    if (!orderFormValues?.sampleOrderItems?.programId) {
-      programChange({
-        target: {
-          value: programs.find((program) => {
-            return program.value === "Routine Testing";
-          })?.id,
-        },
-      });
-    }
-  }, [programs]);
-
-  useEffect(() => {
     componentMounted.current = true;
     getFromOpenElisServer("/rest/user-programs", fetchPrograms);
     return () => {
@@ -50,26 +38,24 @@ export const ProgramSelect = ({
     <>
       <Grid fullWidth={true}>
         <Column lg={16} md={8} sm={4}>
-          {programs.length > 0 && (
-            <Select
-              id="additionalQuestionsSelect"
-              labelText={intl.formatMessage({ id: "label.program" })}
-              onChange={programChange}
-              value={orderFormValues?.sampleOrderItems?.programId}
-              disabled={editable ? editable : false}
-            >
-              <SelectItem value="" text="" />
-              {programs.map((program) => {
-                return (
-                  <SelectItem
-                    key={program.id}
-                    value={program.id}
-                    text={program.value}
-                  />
-                );
-              })}
-            </Select>
-          )}
+          <Select
+            id="additionalQuestionsSelect"
+            labelText={intl.formatMessage({ id: "label.program" })}
+            onChange={programChange}
+            value={orderFormValues?.sampleOrderItems?.programId ?? ""}
+            disabled={editable ? editable : false}
+          >
+            <SelectItem value="" text="" />
+            {programs.map((program) => {
+              return (
+                <SelectItem
+                  key={program.id}
+                  value={program.id}
+                  text={program.value}
+                />
+              );
+            })}
+          </Select>
         </Column>
       </Grid>
     </>
