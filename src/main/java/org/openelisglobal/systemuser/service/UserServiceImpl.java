@@ -456,10 +456,26 @@ public class UserServiceImpl implements UserService {
         }
 
         List<IdValuePair> allPrograms = DisplayListService.getInstance().getList(ListType.PROGRAM);
-        return allPrograms.stream()
-                .filter(p -> programService.get(p.getId()).getTestSection() == null
-                        || testUnitIds.contains(programService.get(p.getId()).getTestSection().getId()))
-                .collect(Collectors.toList());
+        return allPrograms.stream().filter(p -> {
+            var program = programService.get(p.getId());
+            if (program == null) {
+                return false;
+            }
+            if (program.getTestSection() != null) {
+                return testUnitIds.contains(program.getTestSection().getId());
+            }
+            return isRoutineProgram(program, p);
+        }).collect(Collectors.toList());
+    }
+
+    private boolean isRoutineProgram(org.openelisglobal.program.valueholder.Program program, IdValuePair displayValue) {
+        String programCode = StringUtils.defaultString(program.getCode());
+        String programName = StringUtils.defaultString(program.getProgramName());
+        String label = displayValue == null ? "" : StringUtils.defaultString(displayValue.getValue());
+
+        return "RTN_Id".equalsIgnoreCase(programCode) || "Routine Testing".equalsIgnoreCase(programName)
+                || "Routine Testing".equalsIgnoreCase(label) || "Routine".equalsIgnoreCase(programName)
+                || "Routine".equalsIgnoreCase(label);
     }
 
 }

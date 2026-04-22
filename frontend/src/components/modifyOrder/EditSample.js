@@ -1,4 +1,4 @@
-import React, { useEffect, useRef, useState } from "react";
+import React, { useContext, useEffect, useRef, useState } from "react";
 import {
   Button,
   Link,
@@ -21,6 +21,7 @@ import { Add } from "@carbon/react/icons";
 import { getFromOpenElisServer } from "../utils/Utils";
 import SampleType from "../addOrder/SampleType";
 import { FormattedMessage, useIntl } from "react-intl";
+import { ConfigurationContext } from "../layout/Layout";
 import {
   OrderCurrentTestsHeaders,
   OrderPossibleTestsHeaders,
@@ -32,6 +33,7 @@ const EditSample = (props) => {
   const componentMounted = useRef(false);
 
   const intl = useIntl();
+  const { configurationProperties } = useContext(ConfigurationContext);
 
   const [elementsCounter, setElementsCounter] = useState(0);
   const [page, setPage] = useState(1);
@@ -40,6 +42,8 @@ const EditSample = (props) => {
   const [pageSize2, setPageSize2] = useState(5);
 
   const [rejectSampleReasons, setRejectSampleReasons] = useState([]);
+  const isFrenchLocale =
+    configurationProperties?.DEFAULT_DATE_LOCALE === "fr-FR";
 
   const handleAddNewSample = () => {
     let updateSamples = [...samples];
@@ -58,22 +62,101 @@ const EditSample = (props) => {
     setSamples(updateSamples);
     setElementsCounter(count);
   };
-  const formatTestsObject = (tests) => {
-    return tests.map((test) => {
-      test.id = test.testId;
-      if (!test.accessionNumber) {
-        test.accessionNumber = "";
-      }
-      if (!test.sampleType) {
-        test.sampleType = "";
-      }
-      if (!test.collectionDate) {
-        test.collectionDate = "";
-      }
-      if (!test.collectionTime) {
-        test.collectionTime = "";
-      }
-      return test;
+  const normalizeCollectionDate = (collectionDate) => {
+    if (!collectionDate) {
+      return "";
+    }
+    const shortYearDate = collectionDate.match(/^(\d{2})\/(\d{2})\/(\d{2})$/);
+    if (shortYearDate) {
+      return `${shortYearDate[1]}/${shortYearDate[2]}/20${shortYearDate[3]}`;
+    }
+    return collectionDate;
+  };
+
+  const normalizeCollectionTime = (collectionTime) => {
+    if (!collectionTime) {
+      return "";
+    }
+    const match = collectionTime.match(/^(\d{2}:\d{2})/);
+    return match ? match[1] : collectionTime;
+  };
+
+  const formatTestsObject = (tests) =>
+    tests.map((test) => ({
+      ...test,
+      id: test.testId,
+      accessionNumber: test.accessionNumber || "",
+      sampleType: test.sampleType || "",
+      collectionDate: normalizeCollectionDate(test.collectionDate),
+      collectionTime: normalizeCollectionTime(test.collectionTime),
+    }));
+
+  const toIsoDateValue = (displayDate) => {
+    if (!displayDate) {
+      return "";
+    }
+    if (/^\d{4}-\d{2}-\d{2}$/.test(displayDate)) {
+      return displayDate;
+    }
+    const parts = displayDate.split("/");
+    if (parts.length !== 3) {
+      return "";
+    }
+    let year = parts[2];
+    if (year.length === 2) {
+      year = `20${year}`;
+    }
+    const first = parts[0];
+    const second = parts[1];
+    let month = isFrenchLocale ? second : first;
+    let day = isFrenchLocale ? first : second;
+
+    // Handle legacy values that may not match the configured locale.
+    if (Number(month) > 12 && Number(day) <= 12) {
+      const swap = month;
+      month = day;
+      day = swap;
+    }
+
+    if (
+      !year ||
+      !month ||
+      !day ||
+      Number.isNaN(Number(month)) ||
+      Number.isNaN(Number(day))
+    ) {
+      return "";
+    }
+    return `${year.padStart(4, "0")}-${month.padStart(2, "0")}-${day.padStart(2, "0")}`;
+  };
+
+  const toDisplayDateValue = (isoDate) => {
+    if (!isoDate) {
+      return "";
+    }
+    const [year, month, day] = isoDate.split("-");
+    if (!year || !month || !day) {
+      return "";
+    }
+    return isFrenchLocale
+      ? `${day}/${month}/${year}`
+      : `${month}/${day}/${year}`;
+  };
+
+  const handleExistingTestFieldChange = (testId, field, value) => {
+    const updatedExistingTests = orderFormValues.existingTests.map((test) =>
+      test.testId === testId
+        ? {
+            ...test,
+            [field]: value,
+            sampleItemChanged: true,
+          }
+        : test,
+    );
+
+    setOrderFormValues({
+      ...orderFormValues,
+      existingTests: updatedExistingTests,
     });
   };
   const handleChecked = (e, testId) => {
@@ -213,17 +296,6 @@ const EditSample = (props) => {
     };
   }, []);
 
-  useEffect(() => {
-    getFromOpenElisServer(
-      "/rest/test-rejection-reasons",
-      fetchRejectSampleReasons,
-    );
-    window.scrollTo(0, 0);
-    return () => {
-      componentMounted.current = false;
-    };
-  }, []);
-
   const renderCell = (cell, row) => {
     var accession = row.cells.find(
       (e) => e.info.header === "accessionNumber",
@@ -234,23 +306,51 @@ const EditSample = (props) => {
       return <TableCell key={cell.id}>{cell.value}</TableCell>;
     } else if (cell.info.header === "collectionDate") {
       return (
-        <TableCell key={cell.id}>
-          <TextInput
-            id={cell.id + cell.info.header}
-            labelText=""
-            value={cell.value}
-          ></TextInput>
-        </TableCell>
+        <>
+          {accession !== "" ? (
+            <TableCell key={cell.id}>
+              <TextInput
+                id={cell.id + cell.info.header}
+                type="date"
+                labelText=""
+                value={toIsoDateValue(cell.value)}
+                onChange={(e) =>
+                  handleExistingTestFieldChange(
+                    row.id,
+                    "collectionDate",
+                    toDisplayDateValue(e.target.value),
+                  )
+                }
+              ></TextInput>
+            </TableCell>
+          ) : (
+            <TableCell key={cell.id}></TableCell>
+          )}
+        </>
       );
     } else if (cell.info.header === "collectionTime") {
       return (
-        <TableCell key={cell.id}>
-          <TextInput
-            id={cell.id + cell.info.header}
-            labelText=""
-            value={cell.value}
-          ></TextInput>
-        </TableCell>
+        <>
+          {accession !== "" ? (
+            <TableCell key={cell.id}>
+              <TextInput
+                id={cell.id + cell.info.header}
+                type="time"
+                labelText=""
+                value={normalizeCollectionTime(cell.value)}
+                onChange={(e) =>
+                  handleExistingTestFieldChange(
+                    row.id,
+                    "collectionTime",
+                    e.target.value,
+                  )
+                }
+              ></TextInput>
+            </TableCell>
+          ) : (
+            <TableCell key={cell.id}></TableCell>
+          )}
+        </>
       );
     } else if (cell.info.header === "removeSample") {
       return (

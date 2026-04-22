@@ -1,5 +1,5 @@
 import React, { useEffect, useState } from "react";
-import { TimePicker } from "@carbon/react";
+import { TextInput } from "@carbon/react";
 
 const CustomTimePicker = (props) => {
   const [currentTime, setCurrentTime] = useState(
@@ -11,17 +11,22 @@ const CustomTimePicker = (props) => {
     setCurrentTime(time);
     props.onChange(time);
   }
+
   useEffect(() => {
-    props.onChange(currentTime);
-  }, [currentTime]);
+    setCurrentTime(props.value ? props.value : "");
+  }, [props.value]);
 
   return (
     <>
-      <TimePicker
+      <TextInput
         id={props.id}
+        type="time"
         value={currentTime == null ? "" : currentTime}
         onChange={(e) => handleTimePicker(e)}
         labelText={props.labelText == null ? "" : props.labelText}
+        invalid={props.invalid}
+        invalidText={props.invalidText}
+        disabled={props.disabled}
       />
     </>
   );
