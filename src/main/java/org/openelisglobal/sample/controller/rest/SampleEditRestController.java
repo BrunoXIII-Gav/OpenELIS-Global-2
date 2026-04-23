@@ -38,6 +38,7 @@ import org.openelisglobal.sample.form.SampleEditForm;
 import org.openelisglobal.sample.form.SampleEditForm.SampleEdit;
 import org.openelisglobal.sample.service.SampleEditService;
 import org.openelisglobal.sample.service.SampleService;
+import org.openelisglobal.sample.service.SampleTypeAdditionalFieldService;
 import org.openelisglobal.sample.util.AccessionNumberUtil;
 import org.openelisglobal.sample.validator.SampleEditFormValidator;
 import org.openelisglobal.sample.valueholder.Sample;
@@ -118,6 +119,8 @@ public class SampleEditRestController extends BaseSampleEntryController {
     private UserService userService;
     @Autowired
     private OrderAdditionalFieldService orderAdditionalFieldService;
+    @Autowired
+    private SampleTypeAdditionalFieldService sampleTypeAdditionalFieldService;
 
     @GetMapping(value = "SampleEdit", produces = MediaType.APPLICATION_JSON_VALUE)
     @ResponseBody
@@ -378,6 +381,9 @@ public class SampleEditRestController extends BaseSampleEntryController {
             String accessionNumber, boolean allowedToCancelAll) {
 
         TypeOfSample typeOfSample = typeOfSampleService.get(sampleItem.getTypeOfSampleId());
+        var additionalFields = sampleTypeAdditionalFieldService.getFieldsForSampleType(typeOfSample.getId(), false);
+        var additionalFieldValues = sampleTypeAdditionalFieldService
+                .getFieldValuesForSampleItem(typeOfSample.getId(), sampleItem.getId());
 
         List<Analysis> analysisList = analysisService.getAnalysesBySampleItemsExcludingByStatusIds(sampleItem,
                 excludedAnalysisStatusList);
@@ -426,6 +432,8 @@ public class SampleEditRestController extends BaseSampleEntryController {
             firstItem.setCollector(sampleItem.getCollector() == null ? "" : sampleItem.getCollector());
             firstItem.setUnitOfMeasureId(
                     sampleItem.getUnitOfMeasure() == null ? "" : sampleItem.getUnitOfMeasure().getId());
+            firstItem.setAdditionalFields(additionalFields);
+            firstItem.setAdditionalFieldValues(additionalFieldValues);
             currentTestList.addAll(analysisSampleItemList);
         }
     }

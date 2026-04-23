@@ -1,6 +1,7 @@
 import React, { useContext, useEffect, useRef, useState } from "react";
 import {
   Button,
+  FormGroup,
   Link,
   Row,
   Stack,
@@ -14,6 +15,7 @@ import {
   TableCell,
   Pagination,
   Column,
+  TextArea,
   TextInput,
   Checkbox,
   Select,
@@ -168,6 +170,243 @@ const EditSample = (props) => {
       ...orderFormValues,
       existingTests: updatedTests,
     });
+  };
+
+  const getExistingSamplesForAdditionalFields = () => {
+    const samplesBySampleItemId = new Map();
+    (orderFormValues.existingTests || []).forEach((test) => {
+      if (!test?.sampleItemId) {
+        return;
+      }
+
+      const additionalFields = Array.isArray(test.additionalFields)
+        ? [...test.additionalFields].sort(
+            (a, b) => (a?.sortOrder || 0) - (b?.sortOrder || 0),
+          )
+        : [];
+      const additionalFieldValues = test.additionalFieldValues || {};
+      const current = samplesBySampleItemId.get(test.sampleItemId);
+
+      if (!current) {
+        samplesBySampleItemId.set(test.sampleItemId, {
+          sampleItemId: test.sampleItemId,
+          accessionNumber: test.accessionNumber || "",
+          sampleType: test.sampleType || "",
+          additionalFields,
+          additionalFieldValues: { ...additionalFieldValues },
+        });
+        return;
+      }
+
+      if (!current.accessionNumber && test.accessionNumber) {
+        current.accessionNumber = test.accessionNumber;
+      }
+      if (!current.sampleType && test.sampleType) {
+        current.sampleType = test.sampleType;
+      }
+      if (
+        (!current.additionalFields || current.additionalFields.length === 0) &&
+        additionalFields.length > 0
+      ) {
+        current.additionalFields = additionalFields;
+      }
+      if (Object.keys(additionalFieldValues).length > 0) {
+        current.additionalFieldValues = {
+          ...current.additionalFieldValues,
+          ...additionalFieldValues,
+        };
+      }
+    });
+
+    return Array.from(samplesBySampleItemId.values()).filter(
+      (sample) =>
+        Array.isArray(sample.additionalFields) &&
+        sample.additionalFields.length > 0,
+    );
+  };
+
+  const updateExistingSampleAdditionalFields = (sampleItemId, updater) => {
+    const updatedTests = (orderFormValues.existingTests || []).map((test) => {
+      if (String(test.sampleItemId) !== String(sampleItemId)) {
+        return test;
+      }
+      const currentValues = test.additionalFieldValues || {};
+      return {
+        ...test,
+        additionalFieldValues: updater(currentValues),
+        sampleItemChanged: true,
+      };
+    });
+
+    setOrderFormValues({
+      ...orderFormValues,
+      existingTests: updatedTests,
+    });
+  };
+
+  const handleAdditionalFieldValueChange = (sampleItemId, fieldKey, value) => {
+    updateExistingSampleAdditionalFields(sampleItemId, (currentValues) => ({
+      ...currentValues,
+      [fieldKey]: value,
+    }));
+  };
+
+  const handleAdditionalMultiSelectOption = (
+    sampleItemId,
+    fieldKey,
+    optionKey,
+    checked,
+  ) => {
+    updateExistingSampleAdditionalFields(sampleItemId, (currentValues) => {
+      const selectedValues = new Set(
+        String(currentValues?.[fieldKey] || "")
+          .split(",")
+          .map((entry) => entry.trim())
+          .filter((entry) => entry !== ""),
+      );
+      if (checked) {
+        selectedValues.add(optionKey);
+      } else {
+        selectedValues.delete(optionKey);
+      }
+      return {
+        ...currentValues,
+        [fieldKey]: Array.from(selectedValues).join(","),
+      };
+    });
+  };
+
+  const renderExistingSampleAdditionalField = (sample, field) => {
+    const fieldType = (field.fieldType || "TEXT").toUpperCase();
+    const fieldKey = field.fieldKey;
+    const value = sample.additionalFieldValues?.[fieldKey] || "";
+    const options = field.options || [];
+    const required = Boolean(field.required);
+    const fieldLabel = field.displayName || field.fieldKey;
+    const fieldId = `edit_sample_additional_${sample.sampleItemId}_${fieldKey}`;
+
+    if (fieldType === "BOOLEAN") {
+      return (
+        <Checkbox
+          id={fieldId}
+          labelText={fieldLabel}
+          checked={value === "true"}
+          onChange={(event) =>
+            handleAdditionalFieldValueChange(
+              sample.sampleItemId,
+              fieldKey,
+              event.target.checked ? "true" : "false",
+            )
+          }
+        />
+      );
+    }
+
+    if (fieldType === "SELECT" || fieldType === "RADIO") {
+      return (
+        <Select
+          id={fieldId}
+          labelText={fieldLabel}
+          value={value}
+          required={required}
+          onChange={(event) =>
+            handleAdditionalFieldValueChange(
+              sample.sampleItemId,
+              fieldKey,
+              event.target.value,
+            )
+          }
+        >
+          <SelectItem
+            text={intl.formatMessage({ id: "label.select" })}
+            value=""
+          />
+          {options.map((option, optionIndex) => (
+            <SelectItem
+              key={`edit_sample_additional_option_${fieldKey}_${optionIndex}`}
+              text={option.optionLabel}
+              value={option.optionKey}
+            />
+          ))}
+        </Select>
+      );
+    }
+
+    if (fieldType === "MULTISELECT") {
+      const selectedValues = new Set(
+        value
+          .split(",")
+          .map((entry) => entry.trim())
+          .filter((entry) => entry !== ""),
+      );
+
+      return (
+        <FormGroup legendText={fieldLabel}>
+          {options.map((option, optionIndex) => (
+            <Checkbox
+              key={`edit_sample_additional_option_${fieldKey}_${optionIndex}`}
+              id={`${fieldId}_${optionIndex}`}
+              labelText={option.optionLabel}
+              checked={selectedValues.has(option.optionKey)}
+              onChange={(event) =>
+                handleAdditionalMultiSelectOption(
+                  sample.sampleItemId,
+                  fieldKey,
+                  option.optionKey,
+                  event.target.checked,
+                )
+              }
+            />
+          ))}
+        </FormGroup>
+      );
+    }
+
+    if (fieldType === "TEXTAREA") {
+      return (
+        <TextArea
+          id={fieldId}
+          labelText={fieldLabel}
+          value={value}
+          required={required}
+          maxLength={field.maxLength || undefined}
+          onChange={(event) =>
+            handleAdditionalFieldValueChange(
+              sample.sampleItemId,
+              fieldKey,
+              event.target.value,
+            )
+          }
+        />
+      );
+    }
+
+    const htmlInputType =
+      fieldType === "NUMBER"
+        ? "number"
+        : fieldType === "DATE"
+          ? "date"
+          : fieldType === "DATETIME"
+            ? "datetime-local"
+            : "text";
+
+    return (
+      <TextInput
+        id={fieldId}
+        labelText={fieldLabel}
+        value={value}
+        required={required}
+        type={htmlInputType}
+        maxLength={field.maxLength || undefined}
+        onChange={(event) =>
+          handleAdditionalFieldValueChange(
+            sample.sampleItemId,
+            fieldKey,
+            event.target.value,
+          )
+        }
+      />
+    );
   };
   const handleChecked = (e, testId) => {
     var tests = [];
@@ -492,6 +731,9 @@ const EditSample = (props) => {
     }
   };
 
+  const existingSamplesWithAdditionalFields =
+    getExistingSamplesForAdditionalFields();
+
   return (
     <>
       <div className="orderLegendBody">
@@ -575,6 +817,37 @@ const EditSample = (props) => {
           />
         </Column>
       </div>
+      {existingSamplesWithAdditionalFields.length > 0 && (
+        <div className="orderLegendBody">
+          <Column lg={16}>
+            <h3>
+              <FormattedMessage id="sample.additional.fields.heading" />
+            </h3>
+            {existingSamplesWithAdditionalFields.map((sample) => (
+              <div
+                className="sampleType"
+                key={`existing_sample_additional_fields_${sample.sampleItemId}`}
+              >
+                <h4>
+                  {sample.accessionNumber || sample.sampleItemId}{" "}
+                  {sample.sampleType ? `- ${sample.sampleType}` : ""}
+                </h4>
+                <div className="inlineDiv">
+                  {sample.additionalFields.map((field, fieldIndex) => (
+                    <div
+                      key={`existing_sample_additional_field_${sample.sampleItemId}_${field.fieldKey}_${fieldIndex}`}
+                      className="inputText"
+                      style={{ width: "100%" }}
+                    >
+                      {renderExistingSampleAdditionalField(sample, field)}
+                    </div>
+                  ))}
+                </div>
+              </div>
+            ))}
+          </Column>
+        </div>
+      )}
       <div className="orderLegendBody">
         <Column lg={16}>
           <DataTable

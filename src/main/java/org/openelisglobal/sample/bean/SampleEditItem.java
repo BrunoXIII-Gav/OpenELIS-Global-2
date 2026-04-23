@@ -2,6 +2,8 @@ package org.openelisglobal.sample.bean;
 
 import jakarta.validation.constraints.Pattern;
 import jakarta.validation.groups.Default;
+import java.util.List;
+import java.util.Map;
 import org.openelisglobal.common.util.validator.CustomDateValidator.DateRelation;
 import org.openelisglobal.common.validator.ValidationHelper;
 import org.openelisglobal.sample.form.SampleEditForm;
@@ -57,6 +59,10 @@ public class SampleEditItem {
 
     @SafeHtml(level = SafeHtml.SafeListLevel.NONE, groups = { Default.class, SampleEditForm.SampleEdit.class })
     private String collector;
+
+    private List<SampleTypeAdditionalFieldPayload> additionalFields;
+
+    private Map<String, String> additionalFieldValues;
 
     private boolean sampleItemChanged = false;
 
@@ -208,6 +214,22 @@ public class SampleEditItem {
 
     public void setCollector(String collector) {
         this.collector = collector;
+    }
+
+    public List<SampleTypeAdditionalFieldPayload> getAdditionalFields() {
+        return additionalFields;
+    }
+
+    public void setAdditionalFields(List<SampleTypeAdditionalFieldPayload> additionalFields) {
+        this.additionalFields = additionalFields;
+    }
+
+    public Map<String, String> getAdditionalFieldValues() {
+        return additionalFieldValues;
+    }
+
+    public void setAdditionalFieldValues(Map<String, String> additionalFieldValues) {
+        this.additionalFieldValues = additionalFieldValues;
     }
 
     public boolean isSampleItemChanged() {

@@ -112,6 +112,34 @@ public class SampleTypeAdditionalFieldServiceImpl implements SampleTypeAdditiona
     }
 
     @Override
+    public Map<String, String> getFieldValuesForSampleItem(String sampleTypeId, String sampleItemId) {
+        Integer numericSampleTypeId = parseNumericId(sampleTypeId, "sampleTypeId");
+        Integer numericSampleItemId = parseNumericId(sampleItemId, "sampleItemId");
+
+        List<SampleTypeAdditionalFieldDefinition> definitions = definitionDAO.findBySampleTypeId(numericSampleTypeId,
+                false);
+        if (definitions == null || definitions.isEmpty()) {
+            return Collections.emptyMap();
+        }
+
+        Map<Integer, String> fieldKeyByDefinitionId = definitions.stream()
+                .collect(Collectors.toMap(SampleTypeAdditionalFieldDefinition::getId,
+                        SampleTypeAdditionalFieldDefinition::getFieldKey));
+
+        Map<String, String> valuesByFieldKey = new HashMap<>();
+        List<SampleItemAdditionalFieldValue> savedValues = valueDAO.findBySampleItemId(numericSampleItemId);
+        for (SampleItemAdditionalFieldValue savedValue : savedValues) {
+            String fieldKey = fieldKeyByDefinitionId.get(savedValue.getFieldDefinitionId());
+            if (StringUtils.isBlank(fieldKey)) {
+                continue;
+            }
+            valuesByFieldKey.put(fieldKey, StringUtils.defaultString(savedValue.getFieldValue()));
+        }
+
+        return valuesByFieldKey;
+    }
+
+    @Override
     public SampleTypeAdditionalFieldPayload createField(SampleTypeAdditionalFieldPayload payload, String currentUserId) {
         validatePayloadRequiredValues(payload);
         Integer sampleTypeNumericId = parseNumericId(payload.getSampleTypeId(), "sampleTypeId");
