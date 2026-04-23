@@ -11,6 +11,8 @@ public interface SampleTypeAdditionalFieldService {
 
     Map<String, List<SampleTypeAdditionalFieldPayload>> getActiveFieldsForSampleTypes(List<String> sampleTypeIds);
 
+    Map<String, String> getFieldValuesForSampleItem(String sampleTypeId, String sampleItemId);
+
     SampleTypeAdditionalFieldPayload createField(SampleTypeAdditionalFieldPayload payload, String currentUserId);
 
     SampleTypeAdditionalFieldPayload updateField(Integer fieldId, SampleTypeAdditionalFieldPayload payload,

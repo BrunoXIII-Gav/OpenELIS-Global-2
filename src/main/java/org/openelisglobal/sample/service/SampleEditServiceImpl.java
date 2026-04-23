@@ -2,9 +2,11 @@ package org.openelisglobal.sample.service;
 
 import jakarta.servlet.http.HttpServletRequest;
 import java.util.ArrayList;
+import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
+import java.util.Set;
 import java.util.stream.Collectors;
 import org.apache.commons.validator.GenericValidator;
 import org.openelisglobal.analysis.service.AnalysisService;
@@ -371,9 +373,12 @@ public class SampleEditServiceImpl implements SampleEditService {
 
     private List<SampleItem> createSampleItemUpdateList(List<SampleEditItem> existingTests, String sysUserId) {
         List<SampleItem> modifyList = new ArrayList<>();
+        Set<String> processedSampleItemIds = new HashSet<>();
 
         for (SampleEditItem editItem : existingTests) {
-            if (editItem.isSampleItemChanged()) {
+            if (editItem.isSampleItemChanged()
+                    && !GenericValidator.isBlankOrNull(editItem.getSampleItemId())
+                    && processedSampleItemIds.add(editItem.getSampleItemId())) {
                 SampleItem sampleItem = sampleItemService.get(editItem.getSampleItemId());
                 if (sampleItem != null) {
                     String collectionTime = editItem.getCollectionDate();
@@ -409,6 +414,9 @@ public class SampleEditServiceImpl implements SampleEditService {
 
                     sampleItem.setSysUserId(sysUserId);
                     modifyList.add(sampleItem);
+
+                    sampleTypeAdditionalFieldService.validateAndPersistSampleItemValues(sampleItem.getTypeOfSampleId(),
+                            sampleItem.getId(), editItem.getAdditionalFieldValues(), sysUserId, null);
                 }
             }
         }
