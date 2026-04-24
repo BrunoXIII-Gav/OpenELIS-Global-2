@@ -1,7 +1,5 @@
 import config from "../../config.json";
 
-let unauthorizedRedirectInProgress = false;
-
 export const getFromOpenElisServer = (endPoint, callback, signal = null) => {
   fetch(
     config.serverBaseUrl + endPoint,
@@ -19,12 +17,9 @@ export const getFromOpenElisServer = (endPoint, callback, signal = null) => {
       //     throw "No Login Session";
       // }
       if (!response.ok) {
-        // Global guard: avoid UI crashes in pages that assume successful JSON shape.
-        // Unauthorized responses should force user out of the protected flow.
-        if (response.status === 401 && !unauthorizedRedirectInProgress) {
-          unauthorizedRedirectInProgress = true;
-          window.location.href = window.location.origin;
-        }
+        // Return an empty response to callers and let each screen decide how to
+        // handle authorization errors. A global 401 redirect can break valid
+        // flows where one optional endpoint is not allowed for the user.
         callback(undefined);
         return;
       }
