@@ -150,8 +150,8 @@ describe("SampleType additional fields", () => {
         callback([{ id: "1", value: "Blood" }]);
         return;
       }
-      if (url === "/rest/displayList/UNIT_OF_MEASURE") {
-        callback([]);
+      if (url === "/rest/UomCreate") {
+        callback({ existingUomList: [] });
         return;
       }
       if (url === "/rest/sample-type-tests?sampleType=1") {

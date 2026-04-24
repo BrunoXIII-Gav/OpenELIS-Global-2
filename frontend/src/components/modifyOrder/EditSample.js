@@ -86,13 +86,10 @@ const EditSample = (props) => {
     return match ? match[1] : collectionTime;
   };
 
-  const buildRowId = (test) =>
-    `${test.sampleItemId || "no-item"}-${test.testId || "no-test"}-${test.analysisId || "no-analysis"}`;
-
   const formatTestsObject = (tests) =>
     tests.map((test) => ({
       ...test,
-      id: buildRowId(test),
+      id: `${test.sampleItemId || "no-item"}-${test.testId || "no-test"}-${test.analysisId || "no-analysis"}`,
       accessionNumber: test.accessionNumber || "",
       sampleType: test.sampleType || "",
       collectionDate: normalizeCollectionDate(test.collectionDate),
@@ -154,7 +151,8 @@ const EditSample = (props) => {
       : `${month}/${day}/${year}`;
   };
 
-  const isSameRow = (test, rowId) => String(buildRowId(test)) === String(rowId);
+  const isSameRow = (test, rowId) =>
+    String(test.id || test.testId) === String(rowId);
 
   const updateExistingTestField = (rowId, fieldName, value) => {
     const updatedTests = (orderFormValues.existingTests || []).map((test) => {
@@ -523,16 +521,12 @@ const EditSample = (props) => {
 
   const fetchRejectSampleReasons = (res) => {
     if (componentMounted.current) {
-      setRejectSampleReasons(Array.isArray(res) ? res : []);
+      setRejectSampleReasons(res);
     }
   };
 
   const fetchUoms = (res) => {
     if (componentMounted.current) {
-      if (Array.isArray(res)) {
-        setUomList(res);
-        return;
-      }
       setUomList(
         Array.isArray(res?.existingUomList) ? res.existingUomList : [],
       );
@@ -553,7 +547,7 @@ const EditSample = (props) => {
       "/rest/test-rejection-reasons",
       fetchRejectSampleReasons,
     );
-    getFromOpenElisServer("/rest/displayList/UNIT_OF_MEASURE", fetchUoms);
+    getFromOpenElisServer("/rest/UomCreate", fetchUoms);
     window.scrollTo(0, 0);
     return () => {
       componentMounted.current = false;

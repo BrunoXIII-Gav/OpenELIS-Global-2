@@ -517,15 +517,11 @@ const SampleType = (props) => {
   }, [sampleTypeTests.additionalFields, index]);
 
   useEffect(() => {
-    getFromOpenElisServer(`/rest/displayList/UNIT_OF_MEASURE`, fetchUomCreate);
+    getFromOpenElisServer(`/rest/UomCreate`, fetchUomCreate);
   }, []);
 
   const fetchUomCreate = (res) => {
     if (componentMounted.current) {
-      if (Array.isArray(res)) {
-        setUomList(res);
-        return;
-      }
       setUomList(
         Array.isArray(res?.existingUomList) ? res.existingUomList : [],
       );
