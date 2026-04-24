@@ -347,7 +347,7 @@ const SampleType = (props) => {
 
   const fetchSamplesTypes = (res) => {
     if (componentMounted.current) {
-      setSampleTypes(Array.isArray(res) ? res : []);
+      setSampleTypes(res);
       setLoading(false);
     }
   };
@@ -388,12 +388,12 @@ const SampleType = (props) => {
 
   const displayReferralReasonsOptions = (res) => {
     if (componentMounted.current) {
-      setReferralReasons(Array.isArray(res) ? res : []);
+      setReferralReasons(res);
     }
   };
   const displayReferralOrgOptions = (res) => {
     if (componentMounted.current) {
-      setReferralOrganizations(Array.isArray(res) ? res : []);
+      setReferralOrganizations(res);
     }
   };
 

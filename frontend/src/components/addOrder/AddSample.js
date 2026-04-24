@@ -109,7 +109,7 @@ const AddSample = (props) => {
 
   const fetchRejectSampleReasons = (res) => {
     if (componentMounted.current) {
-      setRejectSampleReasons(Array.isArray(res) ? res : []);
+      setRejectSampleReasons(res);
     }
   };
 
