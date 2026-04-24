@@ -46,7 +46,6 @@ import { getFromOpenElisServer, putToOpenElisServer } from "../utils/Utils";
 import SearchBar from "./search/searchBar";
 import { getBranding } from "../utils/BrandingUtils";
 import config from "../../config.json";
-import { Roles } from "../utils/Utils";
 
 function OEHeader({
   onChangeLanguage,
@@ -177,11 +176,6 @@ function OEHeader({
 
   const handleMenuItems = (tag, res) => {
     if (res) {
-      const roles = userSessionDetails?.roles;
-      const hasGlobalAdminRole =
-        (Array.isArray(roles) && roles.includes(Roles.GLOBAL_ADMIN)) ||
-        (roles instanceof Set && roles.has(Roles.GLOBAL_ADMIN));
-
       // FIX: Initialize expanded property for all menu items
       const initializeExpanded = (items) => {
         return items.map((item) => ({
@@ -194,15 +188,9 @@ function OEHeader({
       };
 
       const initializedMenus = initializeExpanded(res);
-      const roleFilteredMenus =
-        tag === "menu" && !hasGlobalAdminRole
-          ? initializedMenus.filter(
-              (menuItem) => menuItem?.menu?.elementId !== "menu_admin",
-            )
-          : initializedMenus;
 
       // IMPORTANT: use functional setState so we never drop other menu buckets due to stale closures
-      setMenus((prev) => ({ ...prev, [tag]: roleFilteredMenus }));
+      setMenus((prev) => ({ ...prev, [tag]: initializedMenus }));
     }
   };
 

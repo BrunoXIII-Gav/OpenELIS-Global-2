@@ -23,16 +23,6 @@ export default function Layout(props) {
   const [notificationVisible, setNotificationVisible] = useState(false);
   const [notifications, setNotifications] = useState([]);
 
-  const dismissRouteStaleConfirmAlerts = () => {
-    // react-confirm-alert mounts overlays directly under <body>.
-    // If route changes while a dialog is open, remove stale overlays so they
-    // don't remain blocking the next page.
-    document
-      .querySelectorAll(".react-confirm-alert-overlay")
-      .forEach((node) => node.remove());
-    document.body.classList.remove("react-confirm-alert-body-element");
-  };
-
   // Determine layout config from props or route-based fallbacks
   const isStorageContext =
     location.pathname.startsWith("/Storage") ||
@@ -96,10 +86,6 @@ export default function Layout(props) {
     }
     setResetConfig(false);
   }, [userSessionDetails.authenticated, resetConfig]);
-
-  useEffect(() => {
-    dismissRouteStaleConfirmAlerts();
-  }, [location.pathname, location.search]);
 
   return (
     <ConfigurationContext.Provider

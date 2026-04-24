@@ -39,7 +39,6 @@ import { FormattedMessage, injectIntl, useIntl } from "react-intl";
 import PageBreadCrumb from "../../common/PageBreadCrumb.js";
 import CustomCheckBox from "../../common/CustomCheckBox.js";
 import ActionPaginationButtonType from "../../common/ActionPaginationButtonType.js";
-import { confirmAlert } from "react-confirm-alert";
 
 let breadcrumbs = [
   { label: "home.label", link: "/" },
@@ -57,7 +56,6 @@ function UserManagement() {
   const intl = useIntl();
 
   const componentMounted = useRef(false);
-  const accessDeniedShownRef = useRef(false);
   const [page, setPage] = useState(1);
   const [pageSize, setPageSize] = useState(10);
   const [deactivateButton, setDeactivateButton] = useState(true);
@@ -83,27 +81,6 @@ function UserManagement() {
   const [userManagementListShow, setUserManagementListShow] = useState([]);
   const [testSectionsSelect, setTestSectionsSelect] = useState("");
   const [testSectionsShow, setTestSectionsShow] = useState({});
-
-  const showAccessDeniedDialog = () => {
-    if (accessDeniedShownRef.current) {
-      return;
-    }
-    accessDeniedShownRef.current = true;
-    confirmAlert({
-      title: intl.formatMessage({ id: "accessDenied.title" }),
-      message: intl.formatMessage({ id: "accessDenied.message" }),
-      buttons: [
-        {
-          label: intl.formatMessage({ id: "accessDenied.okButton" }),
-          onClick: () => {
-            window.location.href = window.location.origin;
-          },
-        },
-      ],
-      closeOnClickOutside: false,
-      closeOnEscape: false,
-    });
-  };
 
   function deleteDeactivateUserManagement(event) {
     event.preventDefault();
@@ -241,35 +218,16 @@ function UserManagement() {
 
   useEffect(() => {
     if (userManagementList) {
-      const unauthorized =
-        userManagementList.status === 401 ||
-        userManagementList.statusCode === 401 ||
-        userManagementList.message === "Not Authorized";
-
-      if (unauthorized) {
-        setUserManagementListShow([]);
-        setTestSectionsShow([]);
-        showAccessDeniedDialog();
-        return;
-      }
-
       const pagination = {
-        totalRecordCount: userManagementList.totalRecordCount || 0,
-        fromRecordCount: userManagementList.fromRecordCount || 0,
-        toRecordCount: userManagementList.toRecordCount || 0,
+        totalRecordCount: userManagementList.totalRecordCount,
+        fromRecordCount: userManagementList.fromRecordCount,
+        toRecordCount: userManagementList.toRecordCount,
       };
       setFromRecordCount(pagination.fromRecordCount);
       setToRecordCount(pagination.toRecordCount);
       setTotalRecordCount(pagination.totalRecordCount);
 
-      const menuList = Array.isArray(userManagementList.menuList)
-        ? userManagementList.menuList
-        : [];
-      const testSections = Array.isArray(userManagementList.testSections)
-        ? userManagementList.testSections
-        : [];
-
-      const newUserManagementList = menuList.map((item) => {
+      const newUserManagementList = userManagementList.menuList.map((item) => {
         return {
           id: item.systemUserId,
           combinedUserID: item.combinedUserID,
@@ -286,14 +244,14 @@ function UserManagement() {
       const newUserManagementListArray = Object.values(newUserManagementList);
       setUserManagementListShow(newUserManagementListArray);
 
-      const normalizedTestSections = testSections.map((item) => {
+      const testSections = userManagementList.testSections.map((item) => {
         return {
           id: item.id,
           value: item.value,
         };
       });
 
-      setTestSectionsShow(normalizedTestSections);
+      setTestSectionsShow(testSections);
     }
   }, [userManagementList]);
 

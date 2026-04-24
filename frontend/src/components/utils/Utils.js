@@ -1,7 +1,5 @@
 import config from "../../config.json";
 
-let unauthorizedRedirectInProgress = false;
-
 export const getFromOpenElisServer = (endPoint, callback, signal = null) => {
   fetch(
     config.serverBaseUrl + endPoint,
@@ -18,16 +16,6 @@ export const getFromOpenElisServer = (endPoint, callback, signal = null) => {
       // if (response.url.includes("LoginPage")) {
       //     throw "No Login Session";
       // }
-      if (!response.ok) {
-        // Global guard: avoid UI crashes in pages that assume successful JSON shape.
-        // Unauthorized responses should force user out of the protected flow.
-        if (response.status === 401 && !unauthorizedRedirectInProgress) {
-          unauthorizedRedirectInProgress = true;
-          window.location.href = window.location.origin;
-        }
-        callback(undefined);
-        return;
-      }
       const contentType = response.headers.get("content-type");
       if (contentType && contentType.indexOf("application/json") !== -1) {
         return response.json().then((jsonResp) => {
