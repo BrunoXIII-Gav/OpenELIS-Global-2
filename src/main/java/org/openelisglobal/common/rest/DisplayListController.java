@@ -486,7 +486,29 @@ public class DisplayListController extends BaseRestController {
     @GetMapping(value = "priorities", produces = MediaType.APPLICATION_JSON_VALUE)
     @ResponseBody
     private List<IdValuePair> createPriorityList() {
-        return DisplayListService.getInstance().getList(ListType.ORDER_PRIORITY);
+        List<IdValuePair> allPriorities = DisplayListService.getInstance().getList(ListType.ORDER_PRIORITY);
+        String enabledPriorities = ConfigurationProperties.getInstance()
+                .getPropertyValue(Property.ENABLED_ORDER_PRIORITIES);
+        if (GenericValidator.isBlankOrNull(enabledPriorities)) {
+            return allPriorities;
+        }
+
+        Set<String> enabledPriorityIds = Arrays.stream(enabledPriorities.split(","))
+                .map(String::trim)
+                .filter(StringUtils::isNotBlank)
+                .map(String::toUpperCase)
+                .collect(Collectors.toSet());
+
+        if (enabledPriorityIds.isEmpty()) {
+            return allPriorities;
+        }
+
+        List<IdValuePair> filteredPriorities = allPriorities.stream()
+                .filter(priority -> priority.getId() != null
+                        && enabledPriorityIds.contains(priority.getId().trim().toUpperCase()))
+                .collect(Collectors.toList());
+
+        return filteredPriorities.isEmpty() ? allPriorities : filteredPriorities;
     }
 
     @GetMapping(value = "panels", produces = MediaType.APPLICATION_JSON_VALUE)

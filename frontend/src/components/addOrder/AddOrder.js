@@ -18,7 +18,6 @@ import CustomDatePicker from "../common/CustomDatePicker";
 import { getFromOpenElisServer, toBase64 } from "../utils/Utils";
 import CustomTimePicker from "../common/CustomTimePicker";
 import { NotificationContext } from "../layout/Layout";
-import { priorities } from "../data/orderOptions";
 import { NotificationKinds } from "../common/CustomNotification";
 import AutoComplete from "../common/AutoComplete";
 import OrderResultReporting from "./OrderResultReporting";
@@ -48,6 +47,13 @@ const DEFAULT_FIXED_FIELD_ORDER = [
 
 const DEFAULT_CONDITION_OPERATOR = "equals";
 const DEFAULT_CONDITION_LOGIC = "ALL";
+const DEFAULT_ORDER_PRIORITIES = [
+  { id: "ROUTINE", value: "ROUTINE" },
+  { id: "ASAP", value: "ASAP" },
+  { id: "STAT", value: "STAT" },
+  { id: "TIMED", value: "TIMED" },
+  { id: "FUTURE_STAT", value: "FUTURE STAT" },
+];
 
 const AddOrder = (props) => {
   const { setNotificationVisible, addNotification } =
@@ -71,6 +77,9 @@ const AddOrder = (props) => {
   const [providers, setProviders] = useState([]);
   const [paymentOptions, setPaymentOptions] = useState([]);
   const [samplingPerformed, setSamplingPerformed] = useState([]);
+  const [priorityOptions, setPriorityOptions] = useState(
+    DEFAULT_ORDER_PRIORITIES,
+  );
   const [siteNames, setSiteNames] = useState([]);
   const [innitialized, setInnitialized] = useState(false);
   const [departments, setDepartments] = useState([]);
@@ -106,6 +115,28 @@ const AddOrder = (props) => {
   const isFieldReadonly = (fieldKey) => {
     const config = getFixedFieldConfig(fieldKey);
     return config ? config.readonly === true : false;
+  };
+
+  const buildRequesterDisplayValue = () => {
+    const sampleOrderItems = orderFormValues?.sampleOrderItems || {};
+    const firstName = (sampleOrderItems.providerFirstName || "").trim();
+    const lastName = (sampleOrderItems.providerLastName || "").trim();
+    const providerIdentifier = (
+      sampleOrderItems.providerPersonId ||
+      sampleOrderItems.providerId ||
+      ""
+    ).trim();
+
+    if (lastName && firstName) {
+      return `${lastName}, ${firstName}`;
+    }
+    if (lastName) {
+      return lastName;
+    }
+    if (firstName) {
+      return firstName;
+    }
+    return providerIdentifier;
   };
 
   const parseFieldMetadata = (field) => {
@@ -723,6 +754,7 @@ const AddOrder = (props) => {
         allowFreeText={
           !(configurationProperties.restrictFreeTextProviderEntry === "true")
         }
+        value={buildRequesterDisplayValue()}
         onSelect={handleProviderSelectOptions}
         onChange={clearProviderId}
         label={
@@ -756,12 +788,12 @@ const AddOrder = (props) => {
               onChange={handlePriority}
               disabled={isFieldReadonly("priority")}
             >
-              {priorities.map((priority, index) => {
+              {priorityOptions.map((priority) => {
                 return (
                   <SelectItem
-                    key={index}
-                    text={priority.label}
-                    value={priority.value}
+                    key={priority.id}
+                    text={priority.value}
+                    value={priority.id}
                   />
                 );
               })}
@@ -1143,9 +1175,26 @@ const AddOrder = (props) => {
     return renderFixedOrderField(descriptor.fieldKey);
   };
 
+  const loadPriorityOptions = (response) => {
+    if (!componentMounted.current) {
+      return;
+    }
+    if (!Array.isArray(response) || response.length === 0) {
+      setPriorityOptions(DEFAULT_ORDER_PRIORITIES);
+      return;
+    }
+    setPriorityOptions(
+      response.map((priority) => ({
+        id: priority.id,
+        value: priority.value,
+      })),
+    );
+  };
+
   useEffect(() => {
     componentMounted.current = true;
     getFromOpenElisServer("/rest/SamplePatientEntry", getSampleEntryPreform);
+    getFromOpenElisServer("/rest/priorities", loadPriorityOptions);
     window.scrollTo(0, 0);
     return () => {
       componentMounted.current = false;
@@ -1286,12 +1335,16 @@ const AddOrder = (props) => {
     });
   }
 
-  function handleReceivedTime(e) {
+  function handleReceivedTime(valueOrEvent) {
+    const receivedTime =
+      typeof valueOrEvent === "string"
+        ? valueOrEvent
+        : valueOrEvent?.target?.value || "";
     setOrderFormValues({
       ...orderFormValues,
       sampleOrderItems: {
         ...orderFormValues.sampleOrderItems,
-        receivedTime: e.target.value,
+        receivedTime,
       },
     });
   }
@@ -1318,6 +1371,7 @@ const AddOrder = (props) => {
   }
 
   function handleProviderSelectOptions(providerId) {
+    handleChange("sampleOrderItems.providerId");
     setOrderFormValues({
       ...orderFormValues,
       sampleOrderItems: {
@@ -1373,16 +1427,15 @@ const AddOrder = (props) => {
   }
 
   function clearProviderId(e) {
-    if (e.target.value == "") {
-      setOrderFormValues({
-        ...orderFormValues,
-        sampleOrderItems: {
-          ...orderFormValues.sampleOrderItems,
-          providerId: "",
-          providerPersonId: "",
-        },
-      });
-    }
+    handleChange("sampleOrderItems.providerId");
+    setOrderFormValues({
+      ...orderFormValues,
+      sampleOrderItems: {
+        ...orderFormValues.sampleOrderItems,
+        providerId: "",
+        providerPersonId: "",
+      },
+    });
   }
 
   function handleAutoCompleteSiteName(siteId) {

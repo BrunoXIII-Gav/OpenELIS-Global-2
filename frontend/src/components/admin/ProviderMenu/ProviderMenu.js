@@ -77,6 +77,7 @@ function ProviderMenu() {
   const [telephone, setTelephone] = useState("");
   const [fhirUuid, setFhirUuid] = useState("");
   const [fax, setFax] = useState("");
+  const [email, setEmail] = useState("");
   const [isActive, setIsActive] = useState({ id: "yes", value: "Yes" });
 
   const yesOrNo = [
@@ -129,6 +130,7 @@ function ProviderMenu() {
           active: item.active,
           telephone: item.person.workPhone,
           fax: item.person.fax,
+          email: item.person.email,
         };
       });
       setFromRecordCount(providerMenuList.fromRecordCount);
@@ -222,6 +224,7 @@ function ProviderMenu() {
     setFirstName("");
     setTelephone("");
     setFax("");
+    setEmail("");
     setIsActive({ id: "yes", value: "Yes" });
     setIsAddModalOpen(true);
   };
@@ -237,6 +240,7 @@ function ProviderMenu() {
     setFirstName(provider.firstName);
     setTelephone(provider.telephone);
     setFax(provider.fax);
+    setEmail(provider.email || "");
     setIsActive(
       provider.active ? { id: "yes", value: "Yes" } : { id: "no", value: "No" },
     );
@@ -254,6 +258,7 @@ function ProviderMenu() {
         firstName,
         workPhone: telephone,
         fax,
+        email,
       },
       active: isActive.id === "yes",
     };
@@ -275,6 +280,7 @@ function ProviderMenu() {
         firstName,
         workPhone: telephone,
         fax,
+        email,
       },
       active: isActive.id === "yes",
     };
@@ -425,6 +431,13 @@ function ProviderMenu() {
             value={fax}
             onChange={(e) => setFax(e.target.value)}
           />
+          <TextInput
+            id="email"
+            type="email"
+            labelText={intl.formatMessage({ id: "provider.email" })}
+            value={email}
+            onChange={(e) => setEmail(e.target.value)}
+          />
         </Modal>
 
         <Modal
@@ -469,6 +482,13 @@ function ProviderMenu() {
             labelText={intl.formatMessage({ id: "provider.fax" })}
             value={fax}
             onChange={(e) => setFax(e.target.value)}
+          />
+          <TextInput
+            id="email"
+            type="email"
+            labelText={intl.formatMessage({ id: "provider.email" })}
+            value={email}
+            onChange={(e) => setEmail(e.target.value)}
           />
         </Modal>
 
@@ -539,6 +559,12 @@ function ProviderMenu() {
                       key: "fax",
                       header: intl.formatMessage({
                         id: "provider.fax",
+                      }),
+                    },
+                    {
+                      key: "email",
+                      header: intl.formatMessage({
+                        id: "provider.email",
                       }),
                     },
                   ]}
