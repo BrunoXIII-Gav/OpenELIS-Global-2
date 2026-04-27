@@ -1,0 +1,33 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<databaseChangeLog
+  xmlns="http://www.liquibase.org/xml/ns/dbchangelog"
+  xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+  xsi:schemaLocation="http://www.liquibase.org/xml/ns/dbchangelog http://www.liquibase.org/xml/ns/dbchangelog/dbchangelog-3.8.xsd">
+
+  <changeSet id="019-01-aliquot-menu-open-same-tab" author="codex">
+    <preConditions onFail="MARK_RAN">
+      <tableExists tableName="menu" schemaName="clinlims" />
+      <sqlCheck expectedResult="1">
+        SELECT COUNT(*)
+        FROM clinlims.menu
+        WHERE element_id = 'menu_aliquot'
+          AND action_url = '/Aliquot'
+      </sqlCheck>
+      <sqlCheck expectedResult="1">
+        SELECT COUNT(*)
+        FROM clinlims.menu
+        WHERE element_id = 'menu_aliquot'
+          AND action_url = '/Aliquot'
+          AND new_window = true
+      </sqlCheck>
+    </preConditions>
+
+    <comment>Make Aliquot open in the same tab instead of a new browser tab</comment>
+
+    <update schemaName="clinlims" tableName="menu">
+      <column name="new_window" valueBoolean="false" />
+      <where>element_id = 'menu_aliquot' AND action_url = '/Aliquot'</where>
+    </update>
+  </changeSet>
+
+</databaseChangeLog>

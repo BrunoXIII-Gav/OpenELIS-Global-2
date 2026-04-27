@@ -1,0 +1,255 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<databaseChangeLog
+  xmlns="http://www.liquibase.org/xml/ns/dbchangelog"
+  xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+  xsi:schemaLocation="http://www.liquibase.org/xml/ns/dbchangelog http://www.liquibase.org/xml/ns/dbchangelog/dbchangelog-3.8.xsd">
+
+  <changeSet id="018-01-add-role-aliquot" author="codex">
+    <preConditions onFail="MARK_RAN">
+      <tableExists tableName="system_role" schemaName="clinlims" />
+      <sqlCheck expectedResult="1">SELECT COUNT(*) FROM clinlims.system_role WHERE name = 'Lab Unit Roles'</sqlCheck>
+      <sqlCheck expectedResult="0">SELECT COUNT(*) FROM clinlims.system_role WHERE name = 'Aliquot'</sqlCheck>
+    </preConditions>
+
+    <comment>Create Aliquot role under Lab Unit Roles</comment>
+    <insert schemaName="clinlims" tableName="system_role">
+      <column name="id" valueSequenceNext="system_role_seq" />
+      <column name="name" value="Aliquot" />
+      <column name="description" value="Access to aliquot workflow" />
+      <column name="is_grouping_role" valueBoolean="false" />
+      <column name="grouping_parent" valueComputed="(SELECT id FROM clinlims.system_role WHERE name = 'Lab Unit Roles')" />
+      <column name="display_key" value="role.aliquot" />
+      <column name="active" valueBoolean="true" />
+      <column name="editable" valueBoolean="false" />
+    </insert>
+  </changeSet>
+
+  <changeSet id="018-02-add-role-storage" author="codex">
+    <preConditions onFail="MARK_RAN">
+      <tableExists tableName="system_role" schemaName="clinlims" />
+      <sqlCheck expectedResult="1">SELECT COUNT(*) FROM clinlims.system_role WHERE name = 'Lab Unit Roles'</sqlCheck>
+      <sqlCheck expectedResult="0">SELECT COUNT(*) FROM clinlims.system_role WHERE name = 'Storage'</sqlCheck>
+    </preConditions>
+
+    <comment>Create Storage role under Lab Unit Roles</comment>
+    <insert schemaName="clinlims" tableName="system_role">
+      <column name="id" valueSequenceNext="system_role_seq" />
+      <column name="name" value="Storage" />
+      <column name="description" value="Access to storage workflow" />
+      <column name="is_grouping_role" valueBoolean="false" />
+      <column name="grouping_parent" valueComputed="(SELECT id FROM clinlims.system_role WHERE name = 'Lab Unit Roles')" />
+      <column name="display_key" value="role.storage" />
+      <column name="active" valueBoolean="true" />
+      <column name="editable" valueBoolean="false" />
+    </insert>
+  </changeSet>
+
+  <changeSet id="018-03-add-module-aliquot" author="codex">
+    <preConditions onFail="MARK_RAN">
+      <tableExists tableName="system_module" schemaName="clinlims" />
+      <sqlCheck expectedResult="0">SELECT COUNT(*) FROM clinlims.system_module WHERE name = 'Aliquot'</sqlCheck>
+    </preConditions>
+
+    <comment>Create Aliquot module for URL-based authorization</comment>
+    <insert schemaName="clinlims" tableName="system_module">
+      <column name="id" valueSequenceNext="system_module_seq" />
+      <column name="name" value="Aliquot" />
+      <column name="description" value="Aliquot page access" />
+      <column name="has_select_flag" value="Y" />
+      <column name="has_add_flag" value="Y" />
+      <column name="has_update_flag" value="Y" />
+      <column name="has_delete_flag" value="Y" />
+    </insert>
+  </changeSet>
+
+  <changeSet id="018-04-add-module-storage" author="codex">
+    <preConditions onFail="MARK_RAN">
+      <tableExists tableName="system_module" schemaName="clinlims" />
+      <sqlCheck expectedResult="0">SELECT COUNT(*) FROM clinlims.system_module WHERE name = 'Storage'</sqlCheck>
+    </preConditions>
+
+    <comment>Create Storage module for URL-based authorization</comment>
+    <insert schemaName="clinlims" tableName="system_module">
+      <column name="id" valueSequenceNext="system_module_seq" />
+      <column name="name" value="Storage" />
+      <column name="description" value="Storage dashboard and tabs access" />
+      <column name="has_select_flag" value="Y" />
+      <column name="has_add_flag" value="Y" />
+      <column name="has_update_flag" value="Y" />
+      <column name="has_delete_flag" value="Y" />
+    </insert>
+  </changeSet>
+
+  <changeSet id="018-05-add-module-url-aliquot" author="codex">
+    <preConditions onFail="MARK_RAN">
+      <tableExists tableName="system_module_url" schemaName="clinlims" />
+      <sqlCheck expectedResult="1">SELECT COUNT(*) FROM clinlims.system_module WHERE name = 'Aliquot'</sqlCheck>
+      <sqlCheck expectedResult="0">SELECT COUNT(*) FROM clinlims.system_module_url WHERE url_path = '/Aliquot'</sqlCheck>
+    </preConditions>
+
+    <comment>Bind /Aliquot route to Aliquot module</comment>
+    <insert schemaName="clinlims" tableName="system_module_url">
+      <column name="id" valueSequenceNext="system_module_url_seq" />
+      <column name="url_path" value="/Aliquot" />
+      <column name="system_module_id" valueComputed="(SELECT id FROM clinlims.system_module WHERE name = 'Aliquot')" />
+    </insert>
+  </changeSet>
+
+  <changeSet id="018-06-add-module-url-storage-root" author="codex">
+    <preConditions onFail="MARK_RAN">
+      <tableExists tableName="system_module_url" schemaName="clinlims" />
+      <sqlCheck expectedResult="1">SELECT COUNT(*) FROM clinlims.system_module WHERE name = 'Storage'</sqlCheck>
+      <sqlCheck expectedResult="0">SELECT COUNT(*) FROM clinlims.system_module_url WHERE url_path = '/Storage'</sqlCheck>
+    </preConditions>
+
+    <comment>Bind /Storage route to Storage module</comment>
+    <insert schemaName="clinlims" tableName="system_module_url">
+      <column name="id" valueSequenceNext="system_module_url_seq" />
+      <column name="url_path" value="/Storage" />
+      <column name="system_module_id" valueComputed="(SELECT id FROM clinlims.system_module WHERE name = 'Storage')" />
+    </insert>
+  </changeSet>
+
+  <changeSet id="018-07-add-module-url-storage-samples" author="codex">
+    <preConditions onFail="MARK_RAN">
+      <tableExists tableName="system_module_url" schemaName="clinlims" />
+      <sqlCheck expectedResult="1">SELECT COUNT(*) FROM clinlims.system_module WHERE name = 'Storage'</sqlCheck>
+      <sqlCheck expectedResult="0">SELECT COUNT(*) FROM clinlims.system_module_url WHERE url_path = '/Storage/samples'</sqlCheck>
+    </preConditions>
+
+    <comment>Bind /Storage/samples route to Storage module</comment>
+    <insert schemaName="clinlims" tableName="system_module_url">
+      <column name="id" valueSequenceNext="system_module_url_seq" />
+      <column name="url_path" value="/Storage/samples" />
+      <column name="system_module_id" valueComputed="(SELECT id FROM clinlims.system_module WHERE name = 'Storage')" />
+    </insert>
+  </changeSet>
+
+  <changeSet id="018-08-add-module-url-storage-rooms" author="codex">
+    <preConditions onFail="MARK_RAN">
+      <tableExists tableName="system_module_url" schemaName="clinlims" />
+      <sqlCheck expectedResult="1">SELECT COUNT(*) FROM clinlims.system_module WHERE name = 'Storage'</sqlCheck>
+      <sqlCheck expectedResult="0">SELECT COUNT(*) FROM clinlims.system_module_url WHERE url_path = '/Storage/rooms'</sqlCheck>
+    </preConditions>
+
+    <comment>Bind /Storage/rooms route to Storage module</comment>
+    <insert schemaName="clinlims" tableName="system_module_url">
+      <column name="id" valueSequenceNext="system_module_url_seq" />
+      <column name="url_path" value="/Storage/rooms" />
+      <column name="system_module_id" valueComputed="(SELECT id FROM clinlims.system_module WHERE name = 'Storage')" />
+    </insert>
+  </changeSet>
+
+  <changeSet id="018-09-add-module-url-storage-devices" author="codex">
+    <preConditions onFail="MARK_RAN">
+      <tableExists tableName="system_module_url" schemaName="clinlims" />
+      <sqlCheck expectedResult="1">SELECT COUNT(*) FROM clinlims.system_module WHERE name = 'Storage'</sqlCheck>
+      <sqlCheck expectedResult="0">SELECT COUNT(*) FROM clinlims.system_module_url WHERE url_path = '/Storage/devices'</sqlCheck>
+    </preConditions>
+
+    <comment>Bind /Storage/devices route to Storage module</comment>
+    <insert schemaName="clinlims" tableName="system_module_url">
+      <column name="id" valueSequenceNext="system_module_url_seq" />
+      <column name="url_path" value="/Storage/devices" />
+      <column name="system_module_id" valueComputed="(SELECT id FROM clinlims.system_module WHERE name = 'Storage')" />
+    </insert>
+  </changeSet>
+
+  <changeSet id="018-10-add-module-url-storage-shelves" author="codex">
+    <preConditions onFail="MARK_RAN">
+      <tableExists tableName="system_module_url" schemaName="clinlims" />
+      <sqlCheck expectedResult="1">SELECT COUNT(*) FROM clinlims.system_module WHERE name = 'Storage'</sqlCheck>
+      <sqlCheck expectedResult="0">SELECT COUNT(*) FROM clinlims.system_module_url WHERE url_path = '/Storage/shelves'</sqlCheck>
+    </preConditions>
+
+    <comment>Bind /Storage/shelves route to Storage module</comment>
+    <insert schemaName="clinlims" tableName="system_module_url">
+      <column name="id" valueSequenceNext="system_module_url_seq" />
+      <column name="url_path" value="/Storage/shelves" />
+      <column name="system_module_id" valueComputed="(SELECT id FROM clinlims.system_module WHERE name = 'Storage')" />
+    </insert>
+  </changeSet>
+
+  <changeSet id="018-11-add-module-url-storage-racks" author="codex">
+    <preConditions onFail="MARK_RAN">
+      <tableExists tableName="system_module_url" schemaName="clinlims" />
+      <sqlCheck expectedResult="1">SELECT COUNT(*) FROM clinlims.system_module WHERE name = 'Storage'</sqlCheck>
+      <sqlCheck expectedResult="0">SELECT COUNT(*) FROM clinlims.system_module_url WHERE url_path = '/Storage/racks'</sqlCheck>
+    </preConditions>
+
+    <comment>Bind /Storage/racks route to Storage module</comment>
+    <insert schemaName="clinlims" tableName="system_module_url">
+      <column name="id" valueSequenceNext="system_module_url_seq" />
+      <column name="url_path" value="/Storage/racks" />
+      <column name="system_module_id" valueComputed="(SELECT id FROM clinlims.system_module WHERE name = 'Storage')" />
+    </insert>
+  </changeSet>
+
+  <changeSet id="018-12-add-module-url-storage-boxes" author="codex">
+    <preConditions onFail="MARK_RAN">
+      <tableExists tableName="system_module_url" schemaName="clinlims" />
+      <sqlCheck expectedResult="1">SELECT COUNT(*) FROM clinlims.system_module WHERE name = 'Storage'</sqlCheck>
+      <sqlCheck expectedResult="0">SELECT COUNT(*) FROM clinlims.system_module_url WHERE url_path = '/Storage/boxes'</sqlCheck>
+    </preConditions>
+
+    <comment>Bind /Storage/boxes route to Storage module</comment>
+    <insert schemaName="clinlims" tableName="system_module_url">
+      <column name="id" valueSequenceNext="system_module_url_seq" />
+      <column name="url_path" value="/Storage/boxes" />
+      <column name="system_module_id" valueComputed="(SELECT id FROM clinlims.system_module WHERE name = 'Storage')" />
+    </insert>
+  </changeSet>
+
+  <changeSet id="018-13-map-role-module-aliquot" author="codex">
+    <preConditions onFail="MARK_RAN">
+      <tableExists tableName="system_role_module" schemaName="clinlims" />
+      <sqlCheck expectedResult="1">SELECT COUNT(*) FROM clinlims.system_role WHERE name = 'Aliquot'</sqlCheck>
+      <sqlCheck expectedResult="1">SELECT COUNT(*) FROM clinlims.system_module WHERE name = 'Aliquot'</sqlCheck>
+      <sqlCheck expectedResult="0">
+        SELECT COUNT(*)
+        FROM clinlims.system_role_module rm
+        JOIN clinlims.system_role r ON r.id = rm.system_role_id
+        JOIN clinlims.system_module m ON m.id = rm.system_module_id
+        WHERE r.name = 'Aliquot' AND m.name = 'Aliquot'
+      </sqlCheck>
+    </preConditions>
+
+    <comment>Grant Aliquot role access to Aliquot module</comment>
+    <insert schemaName="clinlims" tableName="system_role_module">
+      <column name="id" valueSequenceNext="system_role_module_seq" />
+      <column name="has_select" value="Y" />
+      <column name="has_add" value="Y" />
+      <column name="has_update" value="Y" />
+      <column name="has_delete" value="Y" />
+      <column name="system_role_id" valueComputed="(SELECT id FROM clinlims.system_role WHERE name = 'Aliquot')" />
+      <column name="system_module_id" valueComputed="(SELECT id FROM clinlims.system_module WHERE name = 'Aliquot')" />
+    </insert>
+  </changeSet>
+
+  <changeSet id="018-14-map-role-module-storage" author="codex">
+    <preConditions onFail="MARK_RAN">
+      <tableExists tableName="system_role_module" schemaName="clinlims" />
+      <sqlCheck expectedResult="1">SELECT COUNT(*) FROM clinlims.system_role WHERE name = 'Storage'</sqlCheck>
+      <sqlCheck expectedResult="1">SELECT COUNT(*) FROM clinlims.system_module WHERE name = 'Storage'</sqlCheck>
+      <sqlCheck expectedResult="0">
+        SELECT COUNT(*)
+        FROM clinlims.system_role_module rm
+        JOIN clinlims.system_role r ON r.id = rm.system_role_id
+        JOIN clinlims.system_module m ON m.id = rm.system_module_id
+        WHERE r.name = 'Storage' AND m.name = 'Storage'
+      </sqlCheck>
+    </preConditions>
+
+    <comment>Grant Storage role access to Storage module</comment>
+    <insert schemaName="clinlims" tableName="system_role_module">
+      <column name="id" valueSequenceNext="system_role_module_seq" />
+      <column name="has_select" value="Y" />
+      <column name="has_add" value="Y" />
+      <column name="has_update" value="Y" />
+      <column name="has_delete" value="Y" />
+      <column name="system_role_id" valueComputed="(SELECT id FROM clinlims.system_role WHERE name = 'Storage')" />
+      <column name="system_module_id" valueComputed="(SELECT id FROM clinlims.system_module WHERE name = 'Storage')" />
+    </insert>
+  </changeSet>
+
+</databaseChangeLog>

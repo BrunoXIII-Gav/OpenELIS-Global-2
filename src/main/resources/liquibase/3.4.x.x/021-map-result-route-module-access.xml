@@ -1,0 +1,36 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<databaseChangeLog
+  xmlns="http://www.liquibase.org/xml/ns/dbchangelog"
+  xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+  xsi:schemaLocation="http://www.liquibase.org/xml/ns/dbchangelog http://www.liquibase.org/xml/ns/dbchangelog/dbchangelog-3.8.xsd">
+
+  <changeSet id="021-01-map-result-route-to-results-modules" author="codex">
+    <preConditions onFail="MARK_RAN">
+      <tableExists tableName="system_module" schemaName="clinlims" />
+      <tableExists tableName="system_module_url" schemaName="clinlims" />
+      <sqlCheck expectedResult="1">
+        SELECT CASE WHEN EXISTS (
+          SELECT 1
+          FROM clinlims.system_module
+          WHERE name IN ('AccessionResults', 'StatusResults', 'RangeResults', 'PatientResults', 'LogbookResults')
+        ) THEN 1 ELSE 0 END
+      </sqlCheck>
+    </preConditions>
+
+    <comment>Allow /result route by mapping it to core results modules used by the Results role</comment>
+
+    <sql>
+      INSERT INTO clinlims.system_module_url (id, url_path, system_module_id)
+      SELECT nextval('clinlims.system_module_url_seq'), '/result', m.id
+      FROM clinlims.system_module m
+      WHERE m.name IN ('AccessionResults', 'StatusResults', 'RangeResults', 'PatientResults', 'LogbookResults')
+        AND NOT EXISTS (
+          SELECT 1
+          FROM clinlims.system_module_url existing
+          WHERE existing.url_path = '/result'
+            AND existing.system_module_id = m.id
+        );
+    </sql>
+  </changeSet>
+
+</databaseChangeLog>
