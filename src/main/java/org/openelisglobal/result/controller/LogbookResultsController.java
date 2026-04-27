@@ -450,7 +450,6 @@ public class LogbookResultsController extends LogbookResultsBaseController {
                     .collect(Collectors.toList());
             List<String> systemUserIds = userRoleService.getUserIdsForRole(Constants.ROLE_VALIDATION);
             String message = MessageUtil.getMessage("notification.result.stat");
-            StringBuffer sb = new StringBuffer(message);
             for (String userId : systemUserIds) {
                 List<Analysis> userAnalyses = userService
                         .filterAnalysesByLabUnitRoles(userId, newResultAnalyses, Constants.ROLE_VALIDATION).stream()
@@ -464,15 +463,19 @@ public class LogbookResultsController extends LogbookResultsBaseController {
                                     + " - " + a.getTest().getLocalizedName())
                             .collect(Collectors.toList());
                     String testString = String.join(", ", userTests);
-                    sb.append(testString);
                     try {
                         Notification notification = new Notification();
-                        notification.setMessage(sb.toString());
+                        String notificationMessage = message + testString;
+                        if (notificationMessage.length() > 255) {
+                            notificationMessage = notificationMessage.substring(0, 255);
+                        }
+                        notification.setMessage(notificationMessage);
                         notification.setUser(systemUserService.getUserById(userId));
                         notification.setCreatedDate(OffsetDateTime.now());
                         notification.setReadAt(null);
                         notificationDAO.save(notification);
                     } catch (Exception e) {
+                        LogEvent.logError(e);
                     }
                 }
             }

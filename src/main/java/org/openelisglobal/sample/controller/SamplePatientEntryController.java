@@ -286,7 +286,6 @@ public class SamplePatientEntryController extends BaseSampleEntryController {
                         .getAnalysis(sampleService.getSampleByAccessionNumber(sampleOrder.getLabNo()));
                 String message = MessageUtil.getMessage("notification.order.stat",
                         AlphanumAccessionValidator.convertAlphaNumLabNumForDisplay(sampleOrder.getLabNo()));
-                StringBuffer sb = new StringBuffer(message);
                 for (String userId : systemUserIds) {
                     List<Analysis> userAnalyses = userService.filterAnalysesByLabUnitRoles(userId, analyses,
                             Constants.ROLE_RESULTS);
@@ -294,15 +293,19 @@ public class SamplePatientEntryController extends BaseSampleEntryController {
                         List<String> tests = userAnalyses.stream().map(a -> a.getTest().getLocalizedName())
                                 .collect(Collectors.toList());
                         String testString = String.join(", ", tests);
-                        sb.append(testString);
                         try {
                             Notification notification = new Notification();
-                            notification.setMessage(sb.toString());
+                            String notificationMessage = message + testString;
+                            if (notificationMessage.length() > 255) {
+                                notificationMessage = notificationMessage.substring(0, 255);
+                            }
+                            notification.setMessage(notificationMessage);
                             notification.setUser(systemUserService.getUserById(userId));
                             notification.setCreatedDate(OffsetDateTime.now());
                             notification.setReadAt(null);
                             notificationDAO.save(notification);
                         } catch (Exception e) {
+                            LogEvent.logError(e);
                         }
                     }
                 }
@@ -316,7 +319,7 @@ public class SamplePatientEntryController extends BaseSampleEntryController {
                 // error = new ActionError("errors.OptimisticLockException", null, null);
                 result.reject("errors.OptimisticLockException", "errors.OptimisticLockException");
             } else {
-                LogEvent.logDebug(e);
+                LogEvent.logError(e);
                 // error = new ActionError("errors.UpdateException", null, null);
                 result.reject("errors.UpdateException", "errors.UpdateException");
             }

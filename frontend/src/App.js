@@ -508,12 +508,22 @@ export default function App() {
                   path="/Storage"
                   exact
                   component={() => <StorageDashboard />}
-                  role={[Roles.RECEPTION, Roles.RESULTS, Roles.GLOBAL_ADMIN]}
+                  role={[
+                    Roles.STORAGE,
+                    Roles.RECEPTION,
+                    Roles.RESULTS,
+                    Roles.GLOBAL_ADMIN,
+                  ]}
                 />
                 <SecureRoute
                   path="/Storage/:tab"
                   component={() => <StorageDashboard />}
-                  role={[Roles.RECEPTION, Roles.RESULTS, Roles.GLOBAL_ADMIN]}
+                  role={[
+                    Roles.STORAGE,
+                    Roles.RECEPTION,
+                    Roles.RESULTS,
+                    Roles.GLOBAL_ADMIN,
+                  ]}
                 />
                 <SecureRoute
                   path="/inventory"
@@ -601,7 +611,7 @@ export default function App() {
                   path="/Aliquot"
                   exact
                   component={() => <Aliquot />}
-                  role={Roles.RECEPTION}
+                  role={[Roles.ALIQUOT, Roles.RECEPTION]}
                 />
 
                 <SecureRoute

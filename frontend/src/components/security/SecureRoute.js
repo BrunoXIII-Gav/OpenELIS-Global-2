@@ -2,6 +2,7 @@ import React, { useState, useContext, useEffect, useRef } from "react";
 import UserSessionDetailsContext from "../../UserSessionDetailsContext";
 import { ConfigurationContext } from "../layout/Layout";
 import { Route } from "react-router-dom";
+import { useLocation } from "react-router-dom";
 import { useIdleTimer } from "react-idle-timer";
 import { confirmAlert } from "react-confirm-alert";
 import "react-confirm-alert/src/react-confirm-alert.css"; // Import css
@@ -20,6 +21,7 @@ function SecureRoute(props) {
   const [stillThereOpen, setStillThereOpen] = useState(false);
 
   const intl = useIntl();
+  const location = useLocation();
 
   const {
     userSessionDetails,
@@ -30,41 +32,111 @@ function SecureRoute(props) {
 
   const { configurationProperties } = useContext(ConfigurationContext);
 
+  const checkRouteAccess = async () => {
+    try {
+      const targetUrl = `${location.pathname}${location.search || ""}`;
+      const response = await fetch(
+        `${config.serverBaseUrl}/rest/module-access?url=${encodeURIComponent(targetUrl)}`,
+        {
+          credentials: "include",
+          method: "GET",
+        },
+      );
+
+      if (response.status === 401) {
+        return false;
+      }
+
+      if (!response.ok) {
+        return false;
+      }
+
+      const data = await response.json();
+      return data?.allowed === true;
+    } catch (_error) {
+      return false;
+    }
+  };
+
   useEffect(() => {
-    setLoading(!errorLoadingSessionDetails && isCheckingLogin());
-    if (userSessionDetails.authenticated) {
-      console.info("Authenticated");
-      if (hasPermission(userSessionDetails)) {
-        console.info("Access Allowed");
+    let cancelled = false;
+
+    const evaluateAccess = async () => {
+      setLoading(!errorLoadingSessionDetails && isCheckingLogin());
+
+      if (userSessionDetails.authenticated) {
+        const roleAllowed = hasPermission(userSessionDetails);
+        if (!roleAllowed) {
+          const options = {
+            title: intl.formatMessage({ id: "accessDenied.title" }),
+            message: intl.formatMessage({ id: "accessDenied.message" }),
+            buttons: [
+              {
+                label: intl.formatMessage({ id: "accessDenied.okButton" }),
+                onClick: () => {
+                  window.location.href = window.location.origin;
+                },
+              },
+            ],
+            closeOnClickOutside: false,
+            closeOnEscape: false,
+          };
+          confirmAlert(options);
+          if (!cancelled) {
+            setPermissionGranted(false);
+          }
+          return;
+        }
+
         if (
           configurationProperties.REQUIRE_LAB_UNIT_AT_LOGIN === "true" &&
           !userSessionDetails.loginLabUnit &&
           !userSessionDetails.roles.includes(Roles.GLOBAL_ADMIN)
         ) {
           window.location.href = "/landing";
+          return;
         }
-      } else {
-        const options = {
-          title: intl.formatMessage({ id: "accessDenied.title" }),
-          message: intl.formatMessage({ id: "accessDenied.message" }),
-          buttons: [
-            {
-              label: intl.formatMessage({ id: "accessDenied.okButton" }),
-              onClick: () => {
-                window.location.href = window.location.origin;
+
+        const routeAllowed = await checkRouteAccess();
+        if (cancelled) {
+          return;
+        }
+        if (!routeAllowed) {
+          const options = {
+            title: intl.formatMessage({ id: "accessDenied.title" }),
+            message: intl.formatMessage({ id: "accessDenied.message" }),
+            buttons: [
+              {
+                label: intl.formatMessage({ id: "accessDenied.okButton" }),
+                onClick: () => {
+                  window.location.href = window.location.origin;
+                },
               },
-            },
-          ],
-          closeOnClickOutside: false,
-          closeOnEscape: false,
-        };
-        confirmAlert(options);
+            ],
+            closeOnClickOutside: false,
+            closeOnEscape: false,
+          };
+          confirmAlert(options);
+          setPermissionGranted(false);
+          return;
+        }
+
+        setPermissionGranted(true);
+      } else if ("authenticated" in userSessionDetails) {
+        window.location.href = config.loginRedirect;
       }
-      setPermissionGranted(hasPermission());
-    } else if ("authenticated" in userSessionDetails) {
-      window.location.href = config.loginRedirect;
-    }
-  }, [userSessionDetails, errorLoadingSessionDetails]);
+    };
+
+    evaluateAccess();
+    return () => {
+      cancelled = true;
+    };
+  }, [
+    userSessionDetails,
+    errorLoadingSessionDetails,
+    location.pathname,
+    location.search,
+  ]);
 
   const hasPermission = (userDetails = userSessionDetails) => {
     var hasRole =

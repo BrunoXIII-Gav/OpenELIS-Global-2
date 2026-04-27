@@ -1,0 +1,33 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<databaseChangeLog
+  xmlns="http://www.liquibase.org/xml/ns/dbchangelog"
+  xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+  xsi:schemaLocation="http://www.liquibase.org/xml/ns/dbchangelog http://www.liquibase.org/xml/ns/dbchangelog/dbchangelog-3.8.xsd">
+
+  <changeSet id="017-01-add-enabled-order-priorities-config" author="codex">
+    <preConditions onFail="MARK_RAN">
+      <sqlCheck expectedResult="0">SELECT count(*) FROM clinlims.site_information WHERE name = 'enabledOrderPriorities'</sqlCheck>
+    </preConditions>
+
+    <comment>Add configurable list of enabled order priorities for UI displays</comment>
+    <insert schemaName="clinlims" tableName="site_information">
+      <column name="id" valueSequenceNext="site_information_seq" />
+      <column name="name" value="enabledOrderPriorities" />
+      <column name="lastupdated" valueComputed="${now}" />
+      <column name="description"
+        value="Comma-separated enabled order priorities (ROUTINE,ASAP,STAT,TIMED,FUTURE_STAT)" />
+      <column name="value" value="ROUTINE,ASAP,STAT,TIMED,FUTURE_STAT" />
+      <column name="encrypted" value="false" />
+      <column name="domain_id"
+        valueComputed="(SELECT id FROM site_information_domain WHERE name = 'sampleEntryConfig')" />
+      <column name="value_type" value="text" />
+      <column name="group" value="0" />
+    </insert>
+
+    <rollback>
+      <delete schemaName="clinlims" tableName="site_information">
+        <where>name = 'enabledOrderPriorities'</where>
+      </delete>
+    </rollback>
+  </changeSet>
+</databaseChangeLog>

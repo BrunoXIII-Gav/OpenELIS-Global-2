@@ -48,6 +48,73 @@ const breadcrumbs = [
 const passwordPatternRegex = /^(?=.*[*$#!])(?=.*[a-zA-Z0-9]).{7,}$/;
 const loginNameRegex = /^[a-zA-Z]+$/;
 const nameRegex = /^(?=.*[a-zA-Z])[a-zA-Z .'_@-]*$/;
+const ALL_PERMISSIONS_ROLE_NAMES = new Set([
+  "reception",
+  "results",
+  "reports",
+  "validation",
+  "aliquot",
+  "storage",
+]);
+
+const normalizeRoleName = (roleName = "") =>
+  String(roleName).trim().toLowerCase();
+
+const normalizeRoleIds = (roleIds = []) =>
+  roleIds.map((roleId) => String(roleId));
+
+const getAllPermissionRoleIds = (labUnitRoles = []) =>
+  labUnitRoles
+    .filter(({ roleName }) =>
+      ALL_PERMISSIONS_ROLE_NAMES.has(normalizeRoleName(roleName)),
+    )
+    .map(({ roleId }) => String(roleId));
+
+const isAllPermissionsSelected = (
+  selectedRolesByLabUnit,
+  labUnitKey,
+  labUnitRoles = [],
+) => {
+  const requiredRoleIds = getAllPermissionRoleIds(labUnitRoles);
+  if (!requiredRoleIds.length) {
+    return false;
+  }
+
+  const selectedRoleIds = normalizeRoleIds(
+    selectedRolesByLabUnit[labUnitKey] || [],
+  );
+  return requiredRoleIds.every((roleId) => selectedRoleIds.includes(roleId));
+};
+
+const toggleAllPermissionsForLabUnit = (
+  selectedRolesByLabUnit,
+  labUnitKey,
+  labUnitRoles = [],
+) => {
+  const requiredRoleIds = getAllPermissionRoleIds(labUnitRoles);
+  const updatedRoles = normalizeRoleIds(
+    selectedRolesByLabUnit[labUnitKey] || [],
+  );
+
+  if (!requiredRoleIds.length) {
+    return updatedRoles;
+  }
+
+  const hasAll = requiredRoleIds.every((roleId) =>
+    updatedRoles.includes(roleId),
+  );
+  if (hasAll) {
+    return updatedRoles.filter((roleId) => !requiredRoleIds.includes(roleId));
+  }
+
+  requiredRoleIds.forEach((roleId) => {
+    if (!updatedRoles.includes(roleId)) {
+      updatedRoles.push(roleId);
+    }
+  });
+
+  return updatedRoles;
+};
 
 function UserAddModify() {
   const { notificationVisible, setNotificationVisible, addNotification } =
@@ -222,7 +289,7 @@ function UserAddModify() {
             nestingLevel: item.nestingLevel,
             parentRole: item.parentRole,
             roleId: item.roleId,
-            roleName: item.roleName,
+            roleName: String(item.roleName || "").trim(),
           };
         });
         setUserDataShow((prevUserDataShow) => ({
@@ -240,7 +307,7 @@ function UserAddModify() {
             nestingLevel: item.nestingLevel,
             parentRole: item.parentRole,
             roleId: item.roleId,
-            roleName: item.roleName,
+            roleName: String(item.roleName || "").trim(),
           };
         });
         setUserDataShow((prevUserDataShow) => ({
@@ -1317,31 +1384,17 @@ function UserAddModify() {
                         <Checkbox
                           id={`all-permissions-${key}`}
                           labelText={"All Permissions"}
-                          checked={["4", "5", "7", "10"].every(
-                            (num) =>
-                              selectedTestSectionLabUnits[key] &&
-                              selectedTestSectionLabUnits[key].includes(num),
+                          checked={isAllPermissionsSelected(
+                            selectedTestSectionLabUnits,
+                            key,
+                            userDataShow?.labUnitRoles,
                           )}
                           onChange={() => {
-                            const numbersToAdd = ["4", "5", "7", "10"];
-                            const updatedRoles = selectedTestSectionLabUnits[
-                              key
-                            ]
-                              ? [...selectedTestSectionLabUnits[key]]
-                              : [];
-                            const numbersToRemove = numbersToAdd.filter((num) =>
-                              updatedRoles.includes(num),
+                            const updatedRoles = toggleAllPermissionsForLabUnit(
+                              selectedTestSectionLabUnits,
+                              key,
+                              userDataShow?.labUnitRoles,
                             );
-                            if (numbersToRemove.length > 0) {
-                              numbersToRemove.forEach((num) => {
-                                const index = updatedRoles.indexOf(num);
-                                if (index !== -1) {
-                                  updatedRoles.splice(index, 1);
-                                }
-                              });
-                            } else {
-                              updatedRoles.push(...numbersToAdd);
-                            }
                             setSelectedTestSectionLabUnits((prev) => ({
                               ...prev,
                               [key]: updatedRoles,

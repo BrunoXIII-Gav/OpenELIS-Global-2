@@ -61,7 +61,9 @@ import org.openelisglobal.userrole.service.UserRoleService;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.context.ApplicationEventPublisher;
+import org.springframework.http.HttpStatus;
 import org.springframework.http.MediaType;
+import org.springframework.http.ResponseEntity;
 import org.springframework.stereotype.Controller;
 import org.springframework.validation.BindingResult;
 import org.springframework.validation.annotation.Validated;
@@ -225,7 +227,7 @@ public class SamplePatientEntryRestController extends BaseSampleEntryController 
 
     @PostMapping(value = "SamplePatientEntry", produces = MediaType.APPLICATION_JSON_VALUE)
     @ResponseBody
-    public SamplePatientEntryForm samplePatientEntrySave(HttpServletRequest request,
+    public ResponseEntity<SamplePatientEntryForm> samplePatientEntrySave(HttpServletRequest request,
             @Validated(SamplePatientEntryForm.SamplePatientEntry.class) @RequestBody SamplePatientEntryForm form,
             BindingResult result, RedirectAttributes redirectAttributes)
             throws IllegalAccessException, InvocationTargetException, NoSuchMethodException {
@@ -234,6 +236,7 @@ public class SamplePatientEntryRestController extends BaseSampleEntryController 
         if (result.hasErrors()) {
             saveErrors(result);
             setupForm(form, request, "");
+            return ResponseEntity.status(HttpStatus.BAD_REQUEST).body(form);
         }
         SamplePatientUpdateData updateData = new SamplePatientUpdateData(getSysUserId(request));
 
@@ -278,6 +281,7 @@ public class SamplePatientEntryRestController extends BaseSampleEntryController 
         if (result.hasErrors()) {
             saveErrors(result);
             setupForm(form, request, "");
+            return ResponseEntity.status(HttpStatus.BAD_REQUEST).body(form);
         }
 
         try {
@@ -296,7 +300,6 @@ public class SamplePatientEntryRestController extends BaseSampleEntryController 
                         .getAnalysis(sampleService.getSampleByAccessionNumber(sampleOrder.getLabNo()));
                 String message = MessageUtil.getMessage("notification.order.stat",
                         AlphanumAccessionValidator.convertAlphaNumLabNumForDisplay(sampleOrder.getLabNo()));
-                StringBuffer sb = new StringBuffer(message);
                 for (String userId : systemUserIds) {
                     List<Analysis> userAnalyses = userService.filterAnalysesByLabUnitRoles(userId, analyses,
                             Constants.ROLE_RESULTS);
@@ -304,15 +307,19 @@ public class SamplePatientEntryRestController extends BaseSampleEntryController 
                         List<String> tests = userAnalyses.stream().map(a -> a.getTest().getLocalizedName())
                                 .collect(Collectors.toList());
                         String testString = String.join(", ", tests);
-                        sb.append(testString);
                         try {
                             Notification notification = new Notification();
-                            notification.setMessage(sb.toString());
+                            String notificationMessage = message + testString;
+                            if (notificationMessage.length() > 255) {
+                                notificationMessage = notificationMessage.substring(0, 255);
+                            }
+                            notification.setMessage(notificationMessage);
                             notification.setUser(systemUserService.getUserById(userId));
                             notification.setCreatedDate(OffsetDateTime.now());
                             notification.setReadAt(null);
                             notificationDAO.save(notification);
                         } catch (Exception e) {
+                            LogEvent.logError(e);
                         }
                     }
                 }
@@ -322,11 +329,13 @@ public class SamplePatientEntryRestController extends BaseSampleEntryController 
             // patientUpdate, patientInfo, form, request);
         } catch (LIMSRuntimeException e) {
             // ActionError error;
+            HttpStatus status = HttpStatus.BAD_REQUEST;
             if (e.getCause() instanceof StaleObjectStateException) {
                 // error = new ActionError("errors.OptimisticLockException", null, null);
                 result.reject("errors.OptimisticLockException", "errors.OptimisticLockException");
+                status = HttpStatus.CONFLICT;
             } else {
-                LogEvent.logDebug(e);
+                LogEvent.logError(e);
                 // error = new ActionError("errors.UpdateException", null, null);
                 result.reject("errors.UpdateException", "errors.UpdateException");
             }
@@ -338,6 +347,7 @@ public class SamplePatientEntryRestController extends BaseSampleEntryController 
 
             setupForm(form, request, "");
             request.setAttribute(ALLOW_EDITS_KEY, "false");
+            return ResponseEntity.status(status).body(form);
         }
         redirectAttributes.addFlashAttribute(FWD_SUCCESS, true);
         if (form.getRememberSiteAndRequester()) {
@@ -369,7 +379,7 @@ public class SamplePatientEntryRestController extends BaseSampleEntryController 
                     form.getSampleOrderItems().getReferringSiteDepartmentName());
         }
 
-        return (form);
+        return ResponseEntity.ok(form);
     }
 
     private void setupForm(SamplePatientEntryForm form, HttpServletRequest request, String externalOrderNumber)

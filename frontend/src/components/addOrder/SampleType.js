@@ -347,7 +347,7 @@ const SampleType = (props) => {
 
   const fetchSamplesTypes = (res) => {
     if (componentMounted.current) {
-      setSampleTypes(res);
+      setSampleTypes(Array.isArray(res) ? res : []);
       setLoading(false);
     }
   };
@@ -388,12 +388,12 @@ const SampleType = (props) => {
 
   const displayReferralReasonsOptions = (res) => {
     if (componentMounted.current) {
-      setReferralReasons(res);
+      setReferralReasons(Array.isArray(res) ? res : []);
     }
   };
   const displayReferralOrgOptions = (res) => {
     if (componentMounted.current) {
-      setReferralOrganizations(res);
+      setReferralOrganizations(Array.isArray(res) ? res : []);
     }
   };
 
@@ -517,11 +517,15 @@ const SampleType = (props) => {
   }, [sampleTypeTests.additionalFields, index]);
 
   useEffect(() => {
-    getFromOpenElisServer(`/rest/UomCreate`, fetchUomCreate);
+    getFromOpenElisServer(`/rest/displayList/UNIT_OF_MEASURE`, fetchUomCreate);
   }, []);
 
   const fetchUomCreate = (res) => {
     if (componentMounted.current) {
+      if (Array.isArray(res)) {
+        setUomList(res);
+        return;
+      }
       setUomList(
         Array.isArray(res?.existingUomList) ? res.existingUomList : [],
       );

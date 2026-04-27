@@ -25,4 +25,10 @@
   <include relativeToChangelogFile="true" file="014-create-order-additional-field-files.xml"/>
   <include relativeToChangelogFile="true" file="015-order-additional-fields-search-config.xml"/>
   <include relativeToChangelogFile="true" file="016-order-additional-fields-search-performance.xml"/>
+  <include relativeToChangelogFile="true" file="017-add-enabled-order-priorities-config.xml"/>
+  <include relativeToChangelogFile="true" file="018-add-storage-aliquot-permissions.xml"/>
+  <include relativeToChangelogFile="true" file="019-set-aliquot-menu-same-tab.xml"/>
+  <include relativeToChangelogFile="true" file="020-map-modify-order-module-access.xml"/>
+  <include relativeToChangelogFile="true" file="021-map-result-route-module-access.xml"/>
+  <include relativeToChangelogFile="true" file="022-map-validation-spa-route-module-access.xml"/>
 </databaseChangeLog>
