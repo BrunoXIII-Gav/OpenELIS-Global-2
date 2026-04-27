@@ -7,12 +7,16 @@ import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.Optional;
 import org.junit.Before;
 import org.junit.Test;
 import org.junit.runner.RunWith;
 import org.mockito.InjectMocks;
 import org.mockito.Mock;
 import org.mockito.junit.MockitoJUnitRunner;
+import org.openelisglobal.orderadditionalfield.service.OrderAdditionalFieldService;
+import org.openelisglobal.sample.service.SampleService;
+import org.openelisglobal.sample.valueholder.Sample;
 
 /**
  * Unit tests for StorageSearchService - Search logic per FR-064 and FR-064a
@@ -26,6 +30,12 @@ public class StorageSearchServiceImplTest {
 
     @Mock
     private StorageLocationService storageLocationService;
+
+    @Mock
+    private OrderAdditionalFieldService orderAdditionalFieldService;
+
+    @Mock
+    private SampleService sampleService;
 
     @InjectMocks
     private StorageSearchServiceImpl searchService;
@@ -42,15 +52,24 @@ public class StorageSearchServiceImplTest {
         searchService = new StorageSearchServiceImpl();
         // Use reflection to inject mocks
         try {
-            java.lang.reflect.Field sampleServiceField = StorageSearchServiceImpl.class
+            java.lang.reflect.Field sampleStorageServiceField = StorageSearchServiceImpl.class
                     .getDeclaredField("sampleStorageService");
-            sampleServiceField.setAccessible(true);
-            sampleServiceField.set(searchService, sampleStorageService);
+            sampleStorageServiceField.setAccessible(true);
+            sampleStorageServiceField.set(searchService, sampleStorageService);
 
             java.lang.reflect.Field locationServiceField = StorageSearchServiceImpl.class
                     .getDeclaredField("storageLocationService");
             locationServiceField.setAccessible(true);
             locationServiceField.set(searchService, storageLocationService);
+
+            java.lang.reflect.Field orderAdditionalFieldServiceField = StorageSearchServiceImpl.class
+                    .getDeclaredField("orderAdditionalFieldService");
+            orderAdditionalFieldServiceField.setAccessible(true);
+            orderAdditionalFieldServiceField.set(searchService, orderAdditionalFieldService);
+
+            java.lang.reflect.Field sampleServiceField = StorageSearchServiceImpl.class.getDeclaredField("sampleService");
+            sampleServiceField.setAccessible(true);
+            sampleServiceField.set(searchService, sampleService);
         } catch (Exception e) {
             throw new RuntimeException("Failed to inject mocks", e);
         }
@@ -201,6 +220,22 @@ public class StorageSearchServiceImplTest {
         assertNotNull("Results should not be null", results);
         assertEquals("Should return one matching sample", 1, results.size());
         assertEquals("Should return SampleItem with TB-2025 prefix in parent Sample accession", "TB-2025-001", results.get(0).get("sampleAccessionNumber"));
+    }
+
+    @Test
+    public void testSearchSamples_FiltersBySearchableOrderAdditionalField() throws Exception {
+        when(sampleStorageService.getAllSamplesWithAssignments()).thenReturn(mockSamples);
+        when(orderAdditionalFieldService.findSampleIdBySearchableFieldValue("CUG-1002")).thenReturn(Optional.of(200));
+
+        Sample sample = new Sample();
+        sample.setAccessionNumber("TB-2025-001");
+        when(sampleService.get("200")).thenReturn(sample);
+
+        List<Map<String, Object>> results = searchService.searchSamples("CUG-1002");
+
+        assertNotNull("Results should not be null", results);
+        assertEquals("Should return matching sample by searchable order additional field", 1, results.size());
+        assertEquals("TB-2025-001", results.get(0).get("sampleAccessionNumber"));
     }
 
     @Test

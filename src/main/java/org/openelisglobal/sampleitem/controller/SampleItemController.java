@@ -7,6 +7,7 @@ import org.apache.commons.beanutils.BeanUtils;
 import org.openelisglobal.analysis.service.AnalysisService;
 import org.openelisglobal.analysis.valueholder.Analysis;
 import org.openelisglobal.common.controller.BaseController;
+import org.openelisglobal.orderadditionalfield.service.OrderAdditionalFieldService;
 import org.openelisglobal.sample.service.SampleService;
 import org.openelisglobal.sample.valueholder.Sample;
 import org.openelisglobal.sampleitem.form.SampleItemAliquotForm;
@@ -45,6 +46,8 @@ public class SampleItemController extends BaseController {
     private SampleItemService sampleItemService;
     @Autowired
     private AnalysisService analysisService;
+    @Autowired
+    private OrderAdditionalFieldService orderAdditionalFieldService;
 
     @InitBinder
     public void initBinder(WebDataBinder binder) {
@@ -57,7 +60,7 @@ public class SampleItemController extends BaseController {
             @RequestParam(required = true) String accessionNumber) {
 
         SampleItemForm form = new SampleItemForm();
-        Sample sample = sampleService.getSampleByAccessionNumber(accessionNumber);
+        Sample sample = resolveSampleByAccessionOrSearchableValue(accessionNumber);
 
         if (sample != null && !org.apache.commons.validator.GenericValidator.isBlankOrNull(sample.getId())) {
             form.setAccessionNumber(sample.getAccessionNumber());
@@ -90,6 +93,22 @@ public class SampleItemController extends BaseController {
         }
 
         return form;
+    }
+
+    private Sample resolveSampleByAccessionOrSearchableValue(String accessionOrSearchTerm) {
+        String searchValue = accessionOrSearchTerm == null ? null : accessionOrSearchTerm.trim();
+        Sample sample = orderAdditionalFieldService.findSampleIdBySearchableFieldValue(searchValue)
+                .map(sampleId -> sampleService.get(String.valueOf(sampleId)))
+                .orElse(null);
+        if (sample != null) {
+            return sample;
+        }
+
+        sample = sampleService.getSampleByAccessionNumber(searchValue);
+        if (sample == null && searchValue != null && searchValue.contains("-")) {
+            sample = sampleService.getSampleByAccessionNumber(searchValue.substring(0, searchValue.indexOf('-')));
+        }
+        return sample;
     }
 
     @PostMapping(value = "Aliquot", produces = MediaType.APPLICATION_JSON_VALUE, consumes = MediaType.APPLICATION_JSON_VALUE)

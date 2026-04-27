@@ -3,6 +3,9 @@ package org.openelisglobal.storage.service;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
+import org.openelisglobal.orderadditionalfield.service.OrderAdditionalFieldService;
+import org.openelisglobal.sample.service.SampleService;
+import org.openelisglobal.sample.valueholder.Sample;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -23,6 +26,12 @@ public class StorageSearchServiceImpl implements StorageSearchService {
     @Autowired
     private StorageLocationService storageLocationService;
 
+    @Autowired
+    private OrderAdditionalFieldService orderAdditionalFieldService;
+
+    @Autowired
+    private SampleService sampleService;
+
     @Override
     @Transactional(readOnly = true)
     public List<Map<String, Object>> searchSamples(String query) {
@@ -34,6 +43,7 @@ public class StorageSearchServiceImpl implements StorageSearchService {
         }
 
         String normalizedQuery = query.trim().toLowerCase();
+        String searchableFieldAccession = resolveAccessionBySearchableFieldValue(query);
         List<Map<String, Object>> filtered = new ArrayList<>();
 
         for (Map<String, Object> sampleItem : allSamples) {
@@ -63,17 +73,35 @@ public class StorageSearchServiceImpl implements StorageSearchService {
             boolean matchesAccessionNumber = sampleAccessionNumber != null && !sampleAccessionNumber.isEmpty()
                     && sampleAccessionNumber.toLowerCase().contains(normalizedQuery);
 
+            // Search by Order Additional Field configured as searchable (exact match semantics
+            // from orderAdditionalFieldService) and include all sample items for that parent
+            // sample accession.
+            boolean matchesSearchableOrderField = searchableFieldAccession != null && sampleAccessionNumber != null
+                    && searchableFieldAccession.equalsIgnoreCase(sampleAccessionNumber);
+
             // Search by location path (full hierarchical path)
             String location = (String) sampleItem.get("location");
             boolean matchesLocation = location != null && location.toLowerCase().contains(normalizedQuery);
 
             // OR logic: matches if ANY field matches
-            if (matchesSampleItemId || matchesExternalId || matchesAccessionNumber || matchesLocation) {
+            if (matchesSampleItemId || matchesExternalId || matchesAccessionNumber || matchesLocation
+                    || matchesSearchableOrderField) {
                 filtered.add(sampleItem);
             }
         }
 
         return filtered;
+    }
+
+    private String resolveAccessionBySearchableFieldValue(String query) {
+        if (query == null || query.trim().isEmpty()) {
+            return null;
+        }
+
+        return orderAdditionalFieldService.findSampleIdBySearchableFieldValue(query)
+                .map(sampleId -> sampleService.get(String.valueOf(sampleId)))
+                .map(Sample::getAccessionNumber)
+                .orElse(null);
     }
 
     @Override
