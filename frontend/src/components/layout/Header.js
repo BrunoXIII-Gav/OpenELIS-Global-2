@@ -41,6 +41,7 @@ import {
   SideNavMenuItem,
   Theme,
 } from "@carbon/react";
+import { confirmAlert } from "react-confirm-alert";
 import SlideOverNotifications from "../notifications/SlideOverNotifications";
 import { getFromOpenElisServer, putToOpenElisServer } from "../utils/Utils";
 import SearchBar from "./search/searchBar";
@@ -333,6 +334,46 @@ function OEHeader({
   };
   const hideTimerRef = useRef(null);
 
+  const showAccessDeniedDialog = () => {
+    confirmAlert({
+      title: intl.formatMessage({ id: "accessDenied.title" }),
+      message: intl.formatMessage({ id: "accessDenied.message" }),
+      buttons: [
+        {
+          label: intl.formatMessage({ id: "accessDenied.okButton" }),
+        },
+      ],
+      closeOnClickOutside: false,
+      closeOnEscape: false,
+    });
+  };
+
+  const checkMenuAccess = async (actionUrl) => {
+    try {
+      const response = await fetch(
+        `${config.serverBaseUrl}/rest/module-access?url=${encodeURIComponent(actionUrl)}`,
+        {
+          credentials: "include",
+          method: "GET",
+        },
+      );
+
+      if (response.status === 401) {
+        window.location.href = config.loginRedirect;
+        return false;
+      }
+
+      if (!response.ok) {
+        return false;
+      }
+
+      const data = await response.json();
+      return data?.allowed === true;
+    } catch (_error) {
+      return false;
+    }
+  };
+
   /**
    * Returns true if ANY child/grandchild matches currentPath.
    *
@@ -480,7 +521,7 @@ function OEHeader({
     }
 
     // Handler for label click - navigate (leaf items only)
-    const handleLabelClick = (e) => {
+    const handleLabelClick = async (e) => {
       e.preventDefault();
       e.stopPropagation();
 
@@ -488,12 +529,32 @@ function OEHeader({
         return; // parent handled by SideNavMenu toggle
       }
 
-      if (menuItem.menu.actionURL) {
+      if (!menuItem.menu.actionURL) {
+        return;
+      }
+
+      if (
+        menuItem.menu.actionURL.startsWith("http://") ||
+        menuItem.menu.actionURL.startsWith("https://")
+      ) {
         if (menuItem.menu.openInNewWindow) {
           window.open(menuItem.menu.actionURL);
         } else {
-          history.push(menuItem.menu.actionURL);
+          window.location.href = menuItem.menu.actionURL;
         }
+        return;
+      }
+
+      const hasPermission = await checkMenuAccess(menuItem.menu.actionURL);
+      if (!hasPermission) {
+        showAccessDeniedDialog();
+        return;
+      }
+
+      if (menuItem.menu.openInNewWindow) {
+        window.open(menuItem.menu.actionURL);
+      } else {
+        history.push(menuItem.menu.actionURL);
       }
     };
 

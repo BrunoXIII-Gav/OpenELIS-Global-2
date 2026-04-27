@@ -24,12 +24,24 @@ export default function Layout(props) {
   const [notifications, setNotifications] = useState([]);
 
   const dismissRouteStaleConfirmAlerts = () => {
-    // react-confirm-alert mounts overlays directly under <body>.
-    // If route changes while a dialog is open, remove stale overlays so they
-    // don't remain blocking the next page.
-    document
-      .querySelectorAll(".react-confirm-alert-overlay")
-      .forEach((node) => node.remove());
+    // react-confirm-alert keeps an internal root (#react-confirm-alert).
+    // Removing only the overlay can leave React mounted with stale virtual DOM,
+    // causing future dialogs to not render again.
+    const confirmRoot = document.getElementById("react-confirm-alert");
+    if (confirmRoot) {
+      confirmRoot.remove();
+    }
+
+    const blurSvg = document.getElementById("react-confirm-alert-firm-svg");
+    if (blurSvg) {
+      blurSvg.remove();
+    }
+
+    const appRoot = document.body.children?.[0];
+    if (appRoot) {
+      appRoot.classList.remove("react-confirm-alert-blur");
+    }
+
     document.body.classList.remove("react-confirm-alert-body-element");
   };
 

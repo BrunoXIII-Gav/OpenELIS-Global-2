@@ -1,7 +1,5 @@
 import config from "../../config.json";
 
-let unauthorizedRedirectInProgress = false;
-
 export const getFromOpenElisServer = (endPoint, callback, signal = null) => {
   fetch(
     config.serverBaseUrl + endPoint,
@@ -19,12 +17,6 @@ export const getFromOpenElisServer = (endPoint, callback, signal = null) => {
       //     throw "No Login Session";
       // }
       if (!response.ok) {
-        // Global guard: avoid UI crashes in pages that assume successful JSON shape.
-        // Unauthorized responses should force user out of the protected flow.
-        if (response.status === 401 && !unauthorizedRedirectInProgress) {
-          unauthorizedRedirectInProgress = true;
-          window.location.href = window.location.origin;
-        }
         callback(undefined);
         return;
       }
@@ -546,6 +538,8 @@ export const Roles = {
   RESULTS: "Results",
   VALIDATION: "Validation",
   REPORTS: "Reports",
+  ALIQUOT: "Aliquot",
+  STORAGE: "Storage",
 };
 
 export const toBase64 = (file) =>
