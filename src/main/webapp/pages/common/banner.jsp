@@ -115,11 +115,10 @@ jQuery(document).ready(function() {
 			<input type="hidden" name="${_csrf.parameterName}" value="${_csrf.token}"/> 
 			</div></form>
 			<c:if test="${sessionScope.samlSession}">
-				<spring:url value="/Logout?useSAML=true" var="logoutSAMLUrl"/>
+				<spring:url value="/sso-portal.html" var="logoutSAMLUrl"/>
 				</br>
-				<form id="logout-form-saml" method="post" action="${logoutSAMLUrl}">
+				<form id="logout-form-saml" method="get" action="${logoutSAMLUrl}">
 				<input type="submit" value="<spring:message code="homePage.menu.logOut.saml"/>" class="btn-link"/>
-				<input type="hidden" name="${_csrf.parameterName}" value="${_csrf.token}"/> 
 				</form>
 			</c:if>
 			<c:if test="${sessionScope.oauthSession}">
@@ -164,4 +163,3 @@ jQuery(document).ready(function() {
 <% if( languageSwitch && "loginForm".equals((String) pageContext.getAttribute("formName")) ){ %>
   <div id="language-chooser"><a href="#" onclick="setLanguage('fr_FR')">Français</a>&nbsp;&nbsp;&nbsp;&nbsp;<a href="#" onclick="setLanguage('en_US')">English</a></div>
 <% } %>
-

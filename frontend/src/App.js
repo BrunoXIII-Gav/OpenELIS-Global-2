@@ -154,63 +154,29 @@ export default function App() {
   };
 
   const logout = () => {
-    if (userSessionDetails.loginMethod === "SAML") {
-      fetch(config.serverBaseUrl + "/Logout?useSAML=true", {
-        //includes the browser sessionId in the Header for Authentication on the backend server
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-          "X-CSRF-Token": localStorage.getItem("CSRF"),
-        },
-      })
-        .then((response) => response.text())
-        .then((html) => {
-          // Parse the SAML SLO response and submit the form in the current
-          // window — no popup, no iframe needed.
-          const parser = new DOMParser();
-          const doc = parser.parseFromString(html, "text/html");
-          const samlForm = doc.querySelector("form");
+    const postLogoutRedirect =
+      userSessionDetails.loginMethod === "SAML"
+        ? `${window.location.origin}/sso-portal.html`
+        : config.loginRedirect;
 
-          if (samlForm) {
-            const form = document.createElement("form");
-            form.method = samlForm.method || "POST";
-            form.action = samlForm.action;
-            Array.from(samlForm.querySelectorAll("input")).forEach((input) => {
-              const hidden = document.createElement("input");
-              hidden.type = "hidden";
-              hidden.name = input.name;
-              hidden.value = input.value;
-              form.appendChild(hidden);
-            });
-            document.body.appendChild(form);
-            form.submit();
-          } else {
-            // No SAML form in response — fall back to a direct redirect
-            getUserSessionDetails();
-            window.location.href = config.loginRedirect;
-          }
-        })
-        .catch((error) => {
-          console.error(error);
-        });
-    } else {
-      fetch(config.serverBaseUrl + "/Logout", {
-        //includes the browser sessionId in the Header for Authentication on the backend server
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-          "X-CSRF-Token": localStorage.getItem("CSRF"),
-        },
+    // Local logout only: keep IdP (Keycloak) session alive for cross-app SSO.
+    fetch(config.serverBaseUrl + "/Logout", {
+      //includes the browser sessionId in the Header for Authentication on the backend server
+      method: "POST",
+      credentials: "include",
+      headers: {
+        "Content-Type": "application/json",
+        "X-CSRF-Token": localStorage.getItem("CSRF"),
+      },
+    })
+      .then((response) => response.status)
+      .then(() => {
+        getUserSessionDetails();
+        window.location.href = postLogoutRedirect;
       })
-        .then((response) => response.status)
-        .then(() => {
-          getUserSessionDetails();
-          window.location.href = config.loginRedirect;
-        })
-        .catch((error) => {
-          console.error(error);
-        });
-    }
+      .catch((error) => {
+        console.error(error);
+      });
   };
 
   const changeLanguageReact = (lang) => {
