@@ -32,6 +32,24 @@ function SecureRoute(props) {
 
   const { configurationProperties } = useContext(ConfigurationContext);
 
+  const showAccessDeniedDialog = () => {
+    const options = {
+      title: intl.formatMessage({ id: "accessDenied.title" }),
+      message: intl.formatMessage({ id: "accessDenied.message" }),
+      buttons: [
+        {
+          label: intl.formatMessage({ id: "accessDenied.okButton" }),
+          onClick: () => {
+            window.location.href = window.location.origin;
+          },
+        },
+      ],
+      closeOnClickOutside: false,
+      closeOnEscape: false,
+    };
+    confirmAlert(options);
+  };
+
   const checkRouteAccess = async () => {
     try {
       const targetUrl = `${location.pathname}${location.search || ""}`;
@@ -67,21 +85,7 @@ function SecureRoute(props) {
       if (userSessionDetails.authenticated) {
         const roleAllowed = hasPermission(userSessionDetails);
         if (!roleAllowed) {
-          const options = {
-            title: intl.formatMessage({ id: "accessDenied.title" }),
-            message: intl.formatMessage({ id: "accessDenied.message" }),
-            buttons: [
-              {
-                label: intl.formatMessage({ id: "accessDenied.okButton" }),
-                onClick: () => {
-                  window.location.href = window.location.origin;
-                },
-              },
-            ],
-            closeOnClickOutside: false,
-            closeOnEscape: false,
-          };
-          confirmAlert(options);
+          showAccessDeniedDialog();
           if (!cancelled) {
             setPermissionGranted(false);
           }
@@ -102,21 +106,7 @@ function SecureRoute(props) {
           return;
         }
         if (!routeAllowed) {
-          const options = {
-            title: intl.formatMessage({ id: "accessDenied.title" }),
-            message: intl.formatMessage({ id: "accessDenied.message" }),
-            buttons: [
-              {
-                label: intl.formatMessage({ id: "accessDenied.okButton" }),
-                onClick: () => {
-                  window.location.href = window.location.origin;
-                },
-              },
-            ],
-            closeOnClickOutside: false,
-            closeOnEscape: false,
-          };
-          confirmAlert(options);
+          showAccessDeniedDialog();
           setPermissionGranted(false);
           return;
         }

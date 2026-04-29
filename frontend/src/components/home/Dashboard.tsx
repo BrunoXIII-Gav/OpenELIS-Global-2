@@ -33,7 +33,7 @@ import {
 import { FormattedMessage, useIntl } from "react-intl";
 import UserSessionDetailsContext from "../../UserSessionDetailsContext";
 import { NotificationContext } from "../layout/Layout";
-import { AlertDialog, NotificationKinds } from "../common/CustomNotification";
+import { AlertDialog } from "../common/CustomNotification";
 
 interface DashBoardProps {}
 
@@ -106,8 +106,7 @@ const HomeDashBoard: React.FC<DashBoardProps> = () => {
   const { userSessionDetails } = useContext(
     UserSessionDetailsContext,
   ) as UserSessionDetails;
-  const { notificationVisible, setNotificationVisible, addNotification } =
-    useContext(NotificationContext) as Notification;
+  const { notificationVisible } = useContext(NotificationContext) as Notification;
 
   useEffect(() => {
     setNextPage(null);
@@ -170,10 +169,13 @@ const HomeDashBoard: React.FC<DashBoardProps> = () => {
   }, []);
 
   const fetchTestSections = (res) => {
-    setTestSections(res);
-    hasRole(userSessionDetails, "Global Administrator")
-      ? setSelectedTestSection("all")
-      : setSelectedTestSection(res[0]?.id);
+    const sections = Array.isArray(res) ? res : [];
+    setTestSections(sections);
+    if (hasRole(userSessionDetails, "Global Administrator") || sections.length === 0) {
+      setSelectedTestSection("all");
+    } else {
+      setSelectedTestSection(sections[0]?.id || "all");
+    }
   };
 
   const loadNextResultsPage = () => {
@@ -338,6 +340,8 @@ const HomeDashBoard: React.FC<DashBoardProps> = () => {
     "ORDERS_FOR_USER",
     "ORDERS_PATIALLY_COMPLETED_TODAY",
   ];
+  const isGlobalAdmin = hasRole(userSessionDetails, "Global Administrator");
+  const hasTestSections = Array.isArray(testSections) && testSections.length > 0;
 
   const handleMinimizeClick = () => {
     console.log("Icon clicked!");
@@ -353,26 +357,14 @@ const HomeDashBoard: React.FC<DashBoardProps> = () => {
       setSelectedTile(tile);
     } else {
       setSelectedTile(null);
-      hasRole(userSessionDetails, "Global Administrator")
-        ? setSelectedTestSection("all")
-        : setSelectedTestSection(testSections[0]?.id);
+      isGlobalAdmin ? setSelectedTestSection("all") : setSelectedTestSection(testSections[0]?.id || "all");
     }
   };
 
   const handleMaximizeClick = (tile) => {
-    if (
-      testSections?.length > 0 ||
-      hasRole(userSessionDetails, "Global Administrator")
-    ) {
-      setSelectedTile(tile);
-    } else {
-      setNotificationVisible(true);
-      addNotification({
-        kind: NotificationKinds.warning,
-        title: intl.formatMessage({ id: "accessDenied.title" }),
-        message: intl.formatMessage({ id: "accessDenied.message" }),
-      });
-    }
+    // Dashboard drilldown should be available for authenticated users.
+    // Module/page access is enforced separately by backend authorization.
+    setSelectedTile(tile);
   };
 
   const viewUserOrders = (row) => {
@@ -601,14 +593,11 @@ const HomeDashBoard: React.FC<DashBoardProps> = () => {
                         </Column>
                       </Grid>
                     )}
-                    {tilesWithTabs.includes(selectedTile.type) && (
+                    {tilesWithTabs.includes(selectedTile.type) && (isGlobalAdmin || hasTestSections) && (
                       <Grid>
                         <Column lg={16} md={8} sm={4}>
                           <Tabs>
-                            {hasRole(
-                              userSessionDetails,
-                              "Global Administrator",
-                            ) ? (
+                            {isGlobalAdmin ? (
                               <TabList
                                 style={{ width: "100%" }}
                                 aria-label="List of tabs"
@@ -661,6 +650,7 @@ const HomeDashBoard: React.FC<DashBoardProps> = () => {
                       rows={data
                         .filter((item) =>
                           tilesWithTabs.includes(selectedTile.type) &&
+                          selectedTestSection &&
                           selectedTestSection != "all"
                             ? item.testSection === selectedTestSection
                             : true,
@@ -719,6 +709,7 @@ const HomeDashBoard: React.FC<DashBoardProps> = () => {
                       totalItems={
                         data.filter((item) =>
                           tilesWithTabs.includes(selectedTile.type) &&
+                          selectedTestSection &&
                           selectedTestSection != "all"
                             ? item.testSection === selectedTestSection
                             : true,

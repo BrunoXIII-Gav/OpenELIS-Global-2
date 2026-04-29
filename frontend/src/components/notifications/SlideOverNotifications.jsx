@@ -13,6 +13,7 @@ import {
   urlBase64ToUint8Array,
   deleteToOpenElisServer,
 } from "../utils/Utils";
+import config from "../../config.json";
 import Spinner from "../common/Sprinner";
 import { useIntl } from "react-intl";
 import { useContext, useEffect, useState } from "react";
@@ -39,20 +40,33 @@ export default function SlideOverNotifications(props) {
 
   const intialSubscriptionState = async () => {
     try {
-      const res = await getFromOpenElisServerV2("/rest/notification/pnconfig");
       const reg = await navigator.serviceWorker.ready;
       const subscription = await reg.pushManager.getSubscription();
-      if (!subscription && !res?.pf_endpoint) {
+
+      const response = await fetch(
+        `${config.serverBaseUrl}/rest/notification/pnconfig`,
+        {
+          credentials: "include",
+          method: "GET",
+        },
+      );
+
+      if (response.status === 404) {
         setSubscriptionState("NotSubscribed");
-        console.log("NotSubscribed");
+        return;
+      }
+
+      if (!response.ok) {
+        throw new Error(`Failed to load notification subscription: ${response.status}`);
+      }
+
+      const res = await response.json();
+      if (!subscription && !res?.pfEndpoint) {
+        setSubscriptionState("NotSubscribed");
       } else if (subscription?.endpoint === res?.pfEndpoint) {
         setSubscriptionState("SubscribedOnThisDevice");
-        console.log("SubscribedOnThisDevice");
       } else {
-        console.log("subscription?.endpoint", subscription?.endpoint);
-
         setSubscriptionState("SubscribedOnAnotherDevice");
-        console.log("SubscribedOnAnotherDevice");
       }
     } catch (error) {
       console.error("Error checking subscription status:", error);

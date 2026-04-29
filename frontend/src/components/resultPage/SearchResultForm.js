@@ -275,16 +275,18 @@ export function SearchResultForm(props) {
 
   useEffect(() => {
     componentMounted.current = true;
+    const safeArray = (value) => (Array.isArray(value) ? value : []);
     let testId = new URLSearchParams(window.location.search).get(
       "selectedTest",
     );
     testId = testId ? testId : "";
     getFromOpenElisServer("/rest/test-list", (fetchedTests) => {
-      let test = fetchedTests.find((test) => test.id === testId);
+      const testsList = safeArray(fetchedTests);
+      let test = testsList.find((test) => test.id === testId);
       let testLabel = test ? test.value : "";
       setDefaultTestId(testId);
       setDefaultTestLabel(testLabel);
-      getTests(fetchedTests);
+      getTests(testsList);
     });
 
     let sampleStatusId = new URLSearchParams(window.location.search).get(
@@ -294,13 +296,14 @@ export function SearchResultForm(props) {
     getFromOpenElisServer(
       "/rest/sample-status-types",
       (fetchedSampleStatusTypes) => {
-        let sampleStatus = fetchedSampleStatusTypes.find(
+        const sampleStatusTypesList = safeArray(fetchedSampleStatusTypes);
+        let sampleStatus = sampleStatusTypesList.find(
           (sampleStatus) => sampleStatus.id === sampleStatusId,
         );
         let sampleStatusLabel = sampleStatus ? sampleStatus.value : "";
         setDefaultSampleStatusId(sampleStatusId);
         setDefaultSampleStatusLabel(sampleStatusLabel);
-        getSampleStatusTypes(fetchedSampleStatusTypes);
+        getSampleStatusTypes(sampleStatusTypesList);
       },
     );
 
@@ -311,13 +314,14 @@ export function SearchResultForm(props) {
     getFromOpenElisServer(
       "/rest/analysis-status-types",
       (fetchedAnalysisStatusTypes) => {
-        let analysisStatus = fetchedAnalysisStatusTypes.find(
+        const analysisStatusTypesList = safeArray(fetchedAnalysisStatusTypes);
+        let analysisStatus = analysisStatusTypesList.find(
           (analysisStatus) => analysisStatus.id === analysisStatusId,
         );
         let analysisStatusLabel = analysisStatus ? analysisStatus.value : "";
         setDefaultAnalysisStatusId(analysisStatusId);
         setDefaultAnalysisStatusLabel(analysisStatusLabel);
-        getAnalysisStatusTypes(fetchedAnalysisStatusTypes);
+        getAnalysisStatusTypes(analysisStatusTypesList);
       },
     );
 
@@ -328,13 +332,14 @@ export function SearchResultForm(props) {
     getFromOpenElisServer(
       "/rest/user-test-sections/" + Roles.RESULTS,
       (fetchedTestSections) => {
-        let testSection = fetchedTestSections.find(
+        const testSectionsList = safeArray(fetchedTestSections);
+        let testSection = testSectionsList.find(
           (testSection) => testSection.id === testSectionId,
         );
         let testSectionLabel = testSection ? testSection.value : "";
         setDefaultTestSectionId(testSectionId);
         setDefaultTestSectionLabel(testSectionLabel);
-        fetchTestSections(fetchedTestSections);
+        fetchTestSections(testSectionsList);
       },
     );
     if (testSectionId) {
