@@ -9,6 +9,7 @@ import java.io.PrintWriter;
 import java.util.ArrayList;
 import java.util.Collection;
 import java.util.HashSet;
+import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
@@ -161,7 +162,8 @@ public class CustomSSOAuthenticationSuccessHandler extends SavedRequestAwareAuth
             this.handleApiLogin(request, response);
         } else if (samlLogin) {
             request.getSession().setAttribute("login_method", "samlLogin");
-            getRedirectStrategy().sendRedirect(request, response, "/Home");
+            // Route SSO logins to host root (frontend), not the legacy context root.
+            getRedirectStrategy().sendRedirect(request, response, resolveFrontendRoot(request));
         } else if (oauthLogin) {
             request.getSession().setAttribute("login_method", "oauthLogin");
             this.handleApiLogin(request, response);
@@ -170,6 +172,47 @@ public class CustomSSOAuthenticationSuccessHandler extends SavedRequestAwareAuth
             super.onAuthenticationSuccess(request, response, authentication);
             clearCustomAuthenticationAttributes(request);
         }
+    }
+
+    private String resolveFrontendRoot(HttpServletRequest request) {
+        String scheme = request.getHeader("X-Forwarded-Proto");
+        if (GenericValidator.isBlankOrNull(scheme)) {
+            scheme = request.getScheme();
+        } else {
+            scheme = scheme.split(",")[0].trim();
+        }
+
+        String host = sanitizeHost(request.getHeader("Host"));
+        if (GenericValidator.isBlankOrNull(host)) {
+            host = sanitizeHost(request.getHeader("X-Forwarded-Host"));
+        }
+
+        if (GenericValidator.isBlankOrNull(host)) {
+            host = request.getServerName();
+            if ("_".equals(host) || "__".equals(host)) {
+                return "/";
+            }
+            int serverPort = request.getServerPort();
+            boolean includePort = serverPort > 0
+                    && !((serverPort == 80 && "http".equalsIgnoreCase(scheme))
+                            || (serverPort == 443 && "https".equalsIgnoreCase(scheme)));
+            if (includePort) {
+                host = host + ":" + serverPort;
+            }
+        }
+
+        return scheme + "://" + host + "/";
+    }
+
+    private String sanitizeHost(String host) {
+        if (GenericValidator.isBlankOrNull(host)) {
+            return null;
+        }
+        String candidate = host.split(",")[0].trim();
+        if ("_".equals(candidate) || "__".equals(candidate)) {
+            return null;
+        }
+        return candidate;
     }
 
     private void handleApiLogin(HttpServletRequest request, HttpServletResponse response) throws IOException {
@@ -240,7 +283,7 @@ public class CustomSSOAuthenticationSuccessHandler extends SavedRequestAwareAuth
 
         // get permitted actions map (available modules for the current user)
         if (ConfigurationProperties.getInstance().getPropertyValue("permissions.agent").equalsIgnoreCase("ROLE")) {
-            Set<String> permittedPages = getPermittedForms(authorities);
+            Set<String> permittedPages = getPermittedForms(authorities, systemUser.getId());
             request.getSession().setAttribute(IActionConstants.PERMITTED_ACTIONS_MAP, permittedPages);
             // showAdminMenu |= permittedPages.contains("MasterList");
         }
@@ -269,11 +312,16 @@ public class CustomSSOAuthenticationSuccessHandler extends SavedRequestAwareAuth
             systemUser.setIsActive("Y");
             systemUser.setIsEmployee("Y");
             systemUser.setExternalId("1");
-            String initial = systemUser.getFirstName().substring(0, 1) + systemUser.getLastName().substring(0, 1);
+            String initial = (GenericValidator.isBlankOrNull(systemUser.getFirstName()) ? ""
+                    : systemUser.getFirstName().substring(0, 1))
+                    + (GenericValidator.isBlankOrNull(systemUser.getLastName()) ? ""
+                            : systemUser.getLastName().substring(0, 1));
             systemUser.setInitials(initial);
             systemUser.setSysUserId("1");
 
             systemUser = systemUserService.save(systemUser);
+        } else {
+            systemUser = user.get();
         }
         usd.setSytemUserId(Integer.parseInt(systemUser.getId()));
         usd.setLoginName(principal.getName());
@@ -287,27 +335,32 @@ public class CustomSSOAuthenticationSuccessHandler extends SavedRequestAwareAuth
 
         // get permitted actions map (available modules for the current user)
         if (ConfigurationProperties.getInstance().getPropertyValue("permissions.agent").equalsIgnoreCase("ROLE")) {
-            Set<String> permittedPages = getPermittedForms(authorities);
+            Set<String> permittedPages = getPermittedForms(authorities, systemUser.getId());
             request.getSession().setAttribute(IActionConstants.PERMITTED_ACTIONS_MAP, permittedPages);
             // showAdminMenu |= permittedPages.contains("MasterList");
         }
     }
 
-    private Set<String> getPermittedForms(Collection<? extends GrantedAuthority> authorities) {
+    private Set<String> getPermittedForms(Collection<? extends GrantedAuthority> authorities, String systemUserId) {
         Set<String> allPermittedPages = new HashSet<>();
-
-        // List<String> roleIds =
-        // userRoleService.getRoleIdsForUser(Integer.toString(systemUserId));
         List<String> roleIds = new ArrayList<>();
 
         for (GrantedAuthority authority : authorities) {
-            String[] authorityExplode = authority.getAuthority().split("-");
-            if (authorityExplode.length >= 2) {
-                String role = getRoleForAuthority(authorityExplode[1]);
+            for (String candidateRoleName : extractRoleCandidates(authority.getAuthority())) {
+                String role = getRoleForAuthority(candidateRoleName);
                 if (!GenericValidator.isBlankOrNull(role)) {
                     roleIds.add(role);
+                    break;
                 }
             }
+        }
+
+        // Fallback for SSO: if no external authority maps to OE roles, use internal user-role mapping.
+        if (roleIds.isEmpty() && !GenericValidator.isBlankOrNull(systemUserId)) {
+            LogEvent.logInfo(this.getClass().getSimpleName(), "getPermittedForms",
+                    "No direct authority-to-role match found; using internal role assignments for system user "
+                            + systemUserId);
+            roleIds.addAll(userRoleService.getRoleIdsForUser(systemUserId));
         }
 
         for (String roleId : roleIds) {
@@ -319,13 +372,36 @@ public class CustomSSOAuthenticationSuccessHandler extends SavedRequestAwareAuth
         return allPermittedPages;
     }
 
+    private List<String> extractRoleCandidates(String authority) {
+        List<String> candidates = new ArrayList<>();
+        if (GenericValidator.isBlankOrNull(authority)) {
+            return candidates;
+        }
+
+        String normalized = authority.trim();
+        if (normalized.startsWith("ROLE_")) {
+            normalized = normalized.substring("ROLE_".length());
+        }
+        if (!GenericValidator.isBlankOrNull(normalized)) {
+            candidates.add(normalized);
+        }
+
+        String[] splitCandidates = normalized.split("[-:/\\s]");
+        for (String candidate : splitCandidates) {
+            if (!GenericValidator.isBlankOrNull(candidate)) {
+                candidates.add(candidate);
+            }
+        }
+
+        // Preserve order while removing duplicates
+        return new ArrayList<>(new LinkedHashSet<>(candidates));
+    }
+
     private String getRoleForAuthority(String string) {
         Optional<Role> sysRole = roleService.getMatch("name", string);
         if (sysRole.isPresent()) {
             return sysRole.get().getId();
         }
-        LogEvent.logWarn(this.getClass().getSimpleName(), "getRoleForAuthority",
-                "could not find a role for the authority: " + string);
         return null;
     }
 

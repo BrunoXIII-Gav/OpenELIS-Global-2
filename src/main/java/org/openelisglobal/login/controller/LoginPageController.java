@@ -3,7 +3,6 @@ package org.openelisglobal.login.controller;
 import jakarta.servlet.http.HttpServletRequest;
 import java.security.Principal;
 import java.util.ArrayList;
-import java.util.Collection;
 import java.util.HashMap;
 import java.util.HashSet;
 import java.util.List;
@@ -15,6 +14,7 @@ import org.openelisglobal.common.constants.Constants;
 import org.openelisglobal.common.controller.BaseController;
 import org.openelisglobal.common.util.ConfigurationProperties;
 import org.openelisglobal.common.util.ConfigurationProperties.Property;
+import org.openelisglobal.common.util.validator.GenericValidator;
 import org.openelisglobal.localization.service.LocalizationService;
 import org.openelisglobal.login.bean.UserSession;
 import org.openelisglobal.login.bean.UserSession.LoginMethod;
@@ -34,7 +34,6 @@ import org.springframework.beans.factory.annotation.Value;
 import org.springframework.core.ResolvableType;
 import org.springframework.http.MediaType;
 import org.springframework.security.core.Authentication;
-import org.springframework.security.core.GrantedAuthority;
 import org.springframework.security.core.context.SecurityContextHolder;
 import org.springframework.security.core.userdetails.UserDetails;
 import org.springframework.security.oauth2.client.registration.ClientRegistration;
@@ -62,6 +61,9 @@ public class LoginPageController extends BaseController {
 
     @Value("${org.itech.login.saml:false}")
     private Boolean useSAML;
+
+    @Value("${org.itech.login.saml.registrationId:keycloak}")
+    private String samlRegistrationId;
 
     @Value("${org.itech.login.oauth:false}")
     private Boolean useOAUTH;
@@ -92,8 +94,22 @@ public class LoginPageController extends BaseController {
 
     @RequestMapping(value = "/LoginPage", method = RequestMethod.GET)
     public ModelAndView showLoginPage(HttpServletRequest request, Principal principal) {
-        if (principal != null) {
+        if (Boolean.TRUE.equals(useSAML) && "true".equals(request.getParameter("useSAML"))) {
+            return new ModelAndView("redirect:/saml2/authenticate/" + samlRegistrationId);
+        }
+
+        boolean hasUserSessionData = request.getSession().getAttribute(USER_SESSION_DATA) != null;
+        if (principal != null && hasUserSessionData) {
+            if (Boolean.TRUE.equals(request.getSession().getAttribute("samlSession"))
+                    || Boolean.TRUE.equals(request.getSession().getAttribute("oauthSession"))) {
+                return new ModelAndView("redirect:" + resolveFrontendRoot(request));
+            }
             return new ModelAndView(findForward(HOME_PAGE));
+        }
+        if (!hasUserSessionData) {
+            // Prevent stale SSO flags from forcing redirect loops when the app session is incomplete.
+            request.getSession().removeAttribute("samlSession");
+            request.getSession().removeAttribute("oauthSession");
         }
 
         // Store redirect parameter in session for SAML success handler to check
@@ -128,9 +144,81 @@ public class LoginPageController extends BaseController {
             request.getSession().removeAttribute(Constants.LOGIN_ERRORS);
         }
 
-        form.setFormAction("ValidateLogin");
+        form.setFormAction(resolveAppPath(request, "/ValidateLogin"));
 
         return findForward(forward, form);
+    }
+
+    private String resolveFrontendRoot(HttpServletRequest request) {
+        String scheme = request.getHeader("X-Forwarded-Proto");
+        if (GenericValidator.isBlankOrNull(scheme)) {
+            scheme = request.getScheme();
+        } else {
+            scheme = scheme.split(",")[0].trim();
+        }
+
+        String host = sanitizeHost(request.getHeader("Host"));
+        if (GenericValidator.isBlankOrNull(host)) {
+            host = sanitizeHost(request.getHeader("X-Forwarded-Host"));
+        }
+
+        if (GenericValidator.isBlankOrNull(host)) {
+            host = request.getServerName();
+            if ("_".equals(host) || "__".equals(host)) {
+                return "/";
+            }
+            int serverPort = request.getServerPort();
+            boolean includePort = serverPort > 0
+                    && !((serverPort == 80 && "http".equalsIgnoreCase(scheme))
+                            || (serverPort == 443 && "https".equalsIgnoreCase(scheme)));
+            if (includePort) {
+                host = host + ":" + serverPort;
+            }
+        }
+
+        return scheme + "://" + host + "/";
+    }
+
+    private String sanitizeHost(String host) {
+        if (GenericValidator.isBlankOrNull(host)) {
+            return null;
+        }
+        String candidate = host.split(",")[0].trim();
+        if ("_".equals(candidate) || "__".equals(candidate)) {
+            return null;
+        }
+        return candidate;
+    }
+
+    private String resolveAppPath(HttpServletRequest request, String endpoint) {
+        String normalizedEndpoint = endpoint.startsWith("/") ? endpoint : "/" + endpoint;
+
+        String forwardedPrefix = request.getHeader("X-Forwarded-Prefix");
+        if (!GenericValidator.isBlankOrNull(forwardedPrefix)) {
+            String prefix = forwardedPrefix.split(",")[0].trim();
+            if (!prefix.startsWith("/")) {
+                prefix = "/" + prefix;
+            }
+            if (prefix.endsWith("/")) {
+                prefix = prefix.substring(0, prefix.length() - 1);
+            }
+            return prefix + normalizedEndpoint;
+        }
+
+        String requestUri = request.getRequestURI();
+        if (!GenericValidator.isBlankOrNull(requestUri)) {
+            int loginPageIdx = requestUri.lastIndexOf("/LoginPage");
+            if (loginPageIdx >= 0) {
+                String prefix = requestUri.substring(0, loginPageIdx);
+                return prefix + normalizedEndpoint;
+            }
+        }
+
+        String contextPath = request.getContextPath();
+        if (GenericValidator.isBlankOrNull(contextPath)) {
+            return normalizedEndpoint;
+        }
+        return contextPath + normalizedEndpoint;
     }
 
     @GetMapping(value = "/session", produces = MediaType.APPLICATION_JSON_VALUE)
@@ -175,41 +263,26 @@ public class LoginPageController extends BaseController {
     private void setLabunitRolesForExistingUser(HttpServletRequest request, UserSession session) {
         Authentication authentication = SecurityContextHolder.getContext().getAuthentication();
 
-        if (authentication != null) {
-            Object principal = authentication.getPrincipal();
-            if (principal instanceof UserDetails) {
-                setLabunitRolesForExistingUserFromDB(session);
-                Set<String> roles = new HashSet<>();
-                for (String roleId : userRoleService.getRoleIdsForUser(session.getUserId())) {
-                    roles.add(roleService.getRoleById(roleId).getName().trim());
-                }
-                session.setRoles(roles);
-            } else if (principal instanceof DefaultSaml2AuthenticatedPrincipal) {
-                setLabunitRolesForExistingUserFromGrantedAuthorities(session, authentication);
-            } else if (principal instanceof DefaultOAuth2User) {
-                setLabunitRolesForExistingUserFromGrantedAuthorities(session, authentication);
+        if (authentication != null && authentication.getPrincipal() instanceof UserDetails) {
+            setLabunitRolesForExistingUserFromDB(session);
+            Set<String> roles = new HashSet<>();
+            for (String roleId : userRoleService.getRoleIdsForUser(session.getUserId())) {
+                roles.add(roleService.getRoleById(roleId).getName().trim());
             }
+            session.setRoles(roles);
+            return;
         }
-    }
 
-    private void setLabunitRolesForExistingUserFromGrantedAuthorities(UserSession session,
-            Authentication authentication) {
-        Collection<? extends GrantedAuthority> authorities = authentication.getAuthorities();
-        Map<String, List<String>> userLabRolesMap = new HashMap<>();
-        Set<String> roles = new HashSet<>();
-        for (GrantedAuthority authority : authorities) {
-            String[] authorityExplode = authority.getAuthority().split("-");
-            if (authorityExplode.length == 2) {
-                roles.add(authorityExplode[1]);
-            } else if (authorityExplode.length == 3) {
-                List<String> userLabRoles = userLabRolesMap.getOrDefault(authorityExplode[2], new ArrayList<>());
-                userLabRoles.add(authorityExplode[1]);
-                roles.add(authorityExplode[1]);
-                userLabRolesMap.put(authorityExplode[2], userLabRoles);
+        // SSO (SAML/OAuth): always derive effective roles/lab-unit roles from OpenELIS DB
+        // so frontend permission checks match internal authorization model.
+        if (authentication != null) {
+            setLabunitRolesForExistingUserFromDB(session);
+            Set<String> roles = new HashSet<>();
+            for (String roleId : userRoleService.getRoleIdsForUser(session.getUserId())) {
+                roles.add(roleService.getRoleById(roleId).getName().trim());
             }
+            session.setRoles(roles);
         }
-        session.setRoles(roles);
-        session.setUserLabRolesMap(userLabRolesMap);
     }
 
     @PostMapping(value = "/rest/setUserLoginLabUnit/{labUnitId}", produces = MediaType.APPLICATION_JSON_VALUE)

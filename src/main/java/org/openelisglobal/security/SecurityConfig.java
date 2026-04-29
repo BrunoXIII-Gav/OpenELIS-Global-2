@@ -21,6 +21,7 @@ import org.apache.commons.validator.GenericValidator;
 import org.jasypt.util.text.AES256TextEncryptor;
 import org.jasypt.util.text.TextEncryptor;
 import org.openelisglobal.common.exception.LIMSRuntimeException;
+import org.openelisglobal.common.log.LogEvent;
 import org.openelisglobal.config.condition.ConditionalOnProperty;
 import org.openelisglobal.security.KeystoreUtil.KeyCertPair;
 import org.openelisglobal.security.login.BasicAuthFilter;
@@ -208,49 +209,80 @@ public class SecurityConfig {
     @Bean("samlRelyingPartyRegistrationRepository")
     @ConditionalOnProperty(property = "org.itech.login.saml", havingValue = "true")
     public RelyingPartyRegistrationRepository relyingPartyRegistrationRepository() {
-        RelyingPartyRegistration relyingPartyRegistration;
-        final String acsUrlTemplate = "{baseUrl}/login/saml2/sso/{registrationId}";
-
-        KeyCertPair keyCert;
         try {
-            KeyStore keystore = KeystoreUtil.readKeyStoreFile(keyStore, keyStorePassword.toCharArray());
-            keyCert = KeystoreUtil.getKeyCertFromKeystore(keystore, keyStorePassword.toCharArray());
-        } catch (UnrecoverableKeyException | CertificateException | NoSuchAlgorithmException | KeyStoreException
-                | IOException e) {
-            throw new LIMSRuntimeException(e);
-        }
-        Saml2X509Credential credential = Saml2X509Credential.signing(keyCert.getKey(),
-                (X509Certificate) keyCert.getCert());
-        if (GenericValidator.isBlankOrNull(metadata)) {
-            Saml2X509Credential idpVerificationCertificate;
-            try (InputStream pub = new FileInputStream(new File(idpVerificationCertificateLocation))) {
-                X509Certificate c = (X509Certificate) CertificateFactory.getInstance("X.509").generateCertificate(pub);
-                idpVerificationCertificate = new Saml2X509Credential(c, Saml2X509CredentialType.VERIFICATION);
-            } catch (Exception e) {
-                throw new RuntimeException(e);
+            final String acsUrlTemplate = "{baseUrl}/login/saml2/sso/{registrationId}";
+
+            KeyCertPair keyCert;
+            try {
+                KeyStore keystore = KeystoreUtil.readKeyStoreFile(keyStore, keyStorePassword.toCharArray());
+                keyCert = KeystoreUtil.getKeyCertFromKeystore(keystore, keyStorePassword.toCharArray());
+            } catch (UnrecoverableKeyException | CertificateException | NoSuchAlgorithmException | KeyStoreException
+                    | IOException e) {
+                throw new LIMSRuntimeException(e);
             }
-            relyingPartyRegistration = RelyingPartyRegistration.withRegistrationId(registrationId) //
-                    .assertionConsumerServiceLocation(acsUrlTemplate) //
-                    .signingX509Credentials(e -> e.add(credential)) //
-                    .assertingPartyDetails(config -> config.entityId(idpEntityId) //
-                            .singleSignOnServiceLocation(webSSOEndpoint) //
-                            .singleLogoutServiceLocation(webSSOEndpoint) //
-                            .wantAuthnRequestsSigned(true) //
-                            .verificationX509Credentials(c -> c.add(idpVerificationCertificate))) //
-                    .entityId(entityId) //
-                    .build();
-        } else {
-            relyingPartyRegistration = RelyingPartyRegistrations.fromMetadataLocation(metadata) //
-                    .registrationId(registrationId) //
-                    .assertionConsumerServiceLocation(acsUrlTemplate) //
-                    .signingX509Credentials(e -> e.add(credential)) //
-                    .entityId(entityId) //
-                    .build();
+            Saml2X509Credential credential = Saml2X509Credential.signing(keyCert.getKey(),
+                    (X509Certificate) keyCert.getCert());
+
+            RelyingPartyRegistration relyingPartyRegistration;
+            if (!GenericValidator.isBlankOrNull(metadata)) {
+                try {
+                    relyingPartyRegistration = RelyingPartyRegistrations.fromMetadataLocation(metadata) //
+                            .registrationId(registrationId) //
+                            .assertionConsumerServiceLocation(acsUrlTemplate) //
+                            .signingX509Credentials(e -> e.add(credential)) //
+                            .entityId(entityId) //
+                            .build();
+                } catch (Exception e) {
+                    LogEvent.logWarn(this.getClass().getSimpleName(), "relyingPartyRegistrationRepository",
+                            "Unable to load SAML metadata from '" + metadata
+                                    + "'. Falling back to static IdP settings. Cause: " + e.getMessage());
+                    relyingPartyRegistration = buildStaticRelyingPartyRegistration(acsUrlTemplate, credential);
+                }
+            } else {
+                relyingPartyRegistration = buildStaticRelyingPartyRegistration(acsUrlTemplate, credential);
+            }
+
+            // SAML configuration
+            // Mapping this application to one or more Identity Providers
+            return new InMemoryRelyingPartyRegistrationRepository(relyingPartyRegistration);
+        } catch (Exception e) {
+            LogEvent.logWarn(this.getClass().getSimpleName(), "relyingPartyRegistrationRepository",
+                    "SAML startup initialization failed. SAML will be disabled for this application startup. Cause: "
+                            + e.getMessage());
+            return disabledRelyingPartyRegistrationRepository();
+        }
+    }
+
+    private RelyingPartyRegistrationRepository disabledRelyingPartyRegistrationRepository() {
+        return id -> null;
+    }
+
+    private RelyingPartyRegistration buildStaticRelyingPartyRegistration(String acsUrlTemplate,
+            Saml2X509Credential credential) {
+        if (GenericValidator.isBlankOrNull(idpEntityId) || GenericValidator.isBlankOrNull(webSSOEndpoint)) {
+            throw new LIMSRuntimeException("Static SAML fallback requires org.itech.login.saml.idpEntityId and "
+                    + "org.itech.login.saml.webSSOEndpoint");
         }
 
-        // SAML configuration
-        // Mapping this application to one or more Identity Providers
-        return new InMemoryRelyingPartyRegistrationRepository(relyingPartyRegistration);
+        Saml2X509Credential idpVerificationCertificate;
+        try (InputStream pub = new FileInputStream(new File(idpVerificationCertificateLocation))) {
+            X509Certificate c = (X509Certificate) CertificateFactory.getInstance("X.509").generateCertificate(pub);
+            idpVerificationCertificate = new Saml2X509Credential(c, Saml2X509CredentialType.VERIFICATION);
+        } catch (Exception e) {
+            throw new LIMSRuntimeException(
+                    "Unable to load static SAML IdP certificate from " + idpVerificationCertificateLocation, e);
+        }
+
+        return RelyingPartyRegistration.withRegistrationId(registrationId) //
+                .assertionConsumerServiceLocation(acsUrlTemplate) //
+                .signingX509Credentials(e -> e.add(credential)) //
+                .assertingPartyDetails(config -> config.entityId(idpEntityId) //
+                        .singleSignOnServiceLocation(webSSOEndpoint) //
+                        .singleLogoutServiceLocation(webSSOEndpoint) //
+                        .wantAuthnRequestsSigned(true) //
+                        .verificationX509Credentials(c -> c.add(idpVerificationCertificate))) //
+                .entityId(entityId) //
+                .build();
     }
 
     @Bean("samlAuthenticationSuccessHandler")
@@ -293,14 +325,19 @@ public class SecurityConfig {
                 .createDefaultAssertionValidator();
         authenticationProvider.setAssertionValidator(validator);
         http.securityMatcher(new SamlRequestedMatcher())
-                .authorizeHttpRequests(auth -> auth.anyRequest().authenticated())
+                .authorizeHttpRequests(auth -> auth
+                        // SAML protocol endpoints must accept unauthenticated callbacks.
+                        .requestMatchers("/login/saml2/sso/**", "/logout/saml2/**").permitAll()
+                        .anyRequest().authenticated())
                 .saml2Login(saml2 -> saml2.failureHandler(customSamlAuthenticationFailureHandler())
                         .successHandler(customSamlAuthenticationSuccessHandler())
                         .relyingPartyRegistrationRepository(relyingPartyRegistrationRepository()))
-                .saml2Logout(saml2 -> saml2.logoutUrl("/Logout")
+                // Keep RP-initiated SAML SLO on a dedicated endpoint so regular
+                // "/Logout" remains local-only logout in OpenELIS.
+                .saml2Logout(saml2 -> saml2.logoutUrl("/Saml2Logout")
                         .logoutRequest(request -> request.logoutUrl("/logout/saml2/slo"))
                         .logoutResponse(response -> response.logoutUrl("/logout/saml2/slo")))
-                .csrf(csrf -> csrf.ignoringRequestMatchers("/logout/saml2/slo/**"))
+                .csrf(csrf -> csrf.ignoringRequestMatchers("/logout/saml2/**"))
                 .authenticationManager(new ProviderManager(authenticationProvider))
 
         ;
@@ -510,7 +547,7 @@ public class SecurityConfig {
         public boolean matches(HttpServletRequest request) {
             String auth = request.getHeader("Authorization");
             boolean useSAML = (auth != null) && auth.startsWith("SAML")
-                    || "true".equals(request.getParameter("useSAML")) || request.getRequestURI().contains("saml2");
+                    || request.getRequestURI().contains("saml2");
             return useSAML;
         }
     }
