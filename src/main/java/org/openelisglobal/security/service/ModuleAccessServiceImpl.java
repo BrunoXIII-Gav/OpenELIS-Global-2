@@ -77,7 +77,10 @@ public class ModuleAccessServiceImpl implements ModuleAccessService {
         if (accessMap == null) {
             accessMap = (Set<String>) request.getAttribute(IActionConstants.PERMITTED_ACTIONS_MAP);
         }
-        if (accessMap != null) {
+        // SSO sessions may initialize the permitted-actions map as an empty set
+        // when external authorities don't match OpenELIS role names. In that case,
+        // fallback to internal role-based permissions instead of denying everything.
+        if (accessMap != null && !accessMap.isEmpty()) {
             return accessMap;
         }
 

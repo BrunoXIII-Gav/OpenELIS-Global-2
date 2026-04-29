@@ -89,15 +89,21 @@ public class ModuleAuthenticationInterceptor implements HandlerInterceptor {
 
     @SuppressWarnings("unchecked")
     private boolean hasPermissionForUrl(HttpServletRequest request, boolean useParameters) {
-        HashSet<String> accessMap = (HashSet<String>) request.getSession()
+        Set<String> accessMap = (Set<String>) request.getSession()
                 .getAttribute(IActionConstants.PERMITTED_ACTIONS_MAP);
         if (accessMap == null) {
-            accessMap = (HashSet<String>) request.getAttribute(IActionConstants.PERMITTED_ACTIONS_MAP);
+            accessMap = (Set<String>) request.getAttribute(IActionConstants.PERMITTED_ACTIONS_MAP);
         }
 
-        if (accessMap == null) {
+        /*
+         * SSO logins may initialize PERMITTED_ACTIONS_MAP as an empty set when
+         * external authorities don't map 1:1 with OpenELIS role names.
+         * In that case, fallback to the internal role assignments for the user.
+         */
+        if (accessMap == null || accessMap.isEmpty()) {
             Set<String> permittedPages = getPermittedForms(getSysUserId(request));
-            accessMap = (HashSet<String>) permittedPages;
+            accessMap = permittedPages;
+            request.getSession().setAttribute(IActionConstants.PERMITTED_ACTIONS_MAP, new HashSet<>(permittedPages));
         }
         List<SystemModuleUrl> sysModsByUrl = systemModuleUrlService.getByRequest(request);
 

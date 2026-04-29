@@ -255,6 +255,16 @@ public class UserServiceImpl implements UserService {
                 }
             } else if (principal instanceof DefaultSaml2AuthenticatedPrincipal
                     || principal instanceof DefaultOAuth2User) {
+                // For SSO users, prefer internal OpenELIS lab-unit role assignments so behavior
+                // matches local login. External authority parsing is kept as a fallback only.
+                List<IdValuePair> internalSections = getUserTestSectionsFromInternalLabRoles(systemUserId, roleId);
+                if (!internalSections.isEmpty()) {
+                    LogEvent.logInfo(this.getClass().getSimpleName(), "getUserTestSections",
+                            "Using internal lab-unit role mappings for SSO user " + systemUserId + ", roleId="
+                                    + roleId + ", sections=" + internalSections.size());
+                    return internalSections;
+                }
+
                 List<IdValuePair> testSections = new ArrayList<>();
 
                 for (GrantedAuthority authority : authentication.getAuthorities()) {
@@ -275,13 +285,47 @@ public class UserServiceImpl implements UserService {
                         }
                     }
                 }
-                return testSections;
+                if (!testSections.isEmpty()) {
+                    return testSections;
+                }
+
+                // SSO fallback: when external authorities don't include lab-unit scoped roles
+                // in the expected "provider-role-labUnit" format, use internal OE lab-role
+                // assignments so validation/results screens can still resolve allowed sections.
+                LogEvent.logInfo(this.getClass().getSimpleName(), "getUserTestSections",
+                        "No SSO authority mapping for test sections; falling back to internal lab-unit roles for user "
+                                + systemUserId + ", roleId=" + roleId);
+                return getUserTestSectionsFromInternalLabRoles(systemUserId, roleId);
             }
         }
         LogEvent.logWarn(this.getClass().getSimpleName(), "getUserTestSections",
                 "no principal object in spring security context. Could not get tests belonging to user");
         return new ArrayList<>();
 
+    }
+
+    private List<IdValuePair> getUserTestSectionsFromInternalLabRoles(String systemUserId, String roleId) {
+        String adminRoleId = roleService.getRoleByName(Constants.ROLE_GLOBAL_ADMIN).getId();
+        if (userRoleService.getRoleIdsForUser(systemUserId).contains(adminRoleId)) {
+            return DisplayListService.getInstance().getList(ListType.TEST_SECTION_ACTIVE);
+        }
+
+        List<String> userLabUnits = new ArrayList<>();
+        UserLabUnitRoles userLabRoles = getUserLabUnitRoles(systemUserId);
+        if (userLabRoles != null) {
+            userLabRoles.getLabUnitRoleMap().forEach(roles -> {
+                if (roleId == null || roles.getRoles().contains(roleId)) {
+                    userLabUnits.add(roles.getLabUnit());
+                }
+            });
+        }
+
+        List<IdValuePair> allTestSections = DisplayListService.getInstance().getList(ListType.TEST_SECTION_ACTIVE);
+        if (userLabUnits.contains(UnifiedSystemUserController.ALL_LAB_UNITS)) {
+            return allTestSections;
+        }
+        return allTestSections.stream().filter(testSection -> userLabUnits.contains(testSection.getId()))
+                .collect(Collectors.toList());
     }
 
     @Override
