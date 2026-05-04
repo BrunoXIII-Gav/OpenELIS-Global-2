@@ -104,6 +104,15 @@ const Validation = (props) => {
     return [...new Set(acceptedRows.map((result) => result.analysisId))];
   };
 
+  const getRejectedAnalysisIds = () => {
+    const rejectedRows =
+      props?.results?.resultList?.filter(
+        (result) =>
+          result?.isRejected && result?.analysisId && !result?.readOnly,
+      ) || [];
+    return [...new Set(rejectedRows.map((result) => result.analysisId))];
+  };
+
   const getReportUrl = (
     analysisIds,
     previewValidated = false,
@@ -364,7 +373,10 @@ const Validation = (props) => {
       return;
     }
     const acceptedAnalysisIds = getAcceptedAnalysisIds();
-    if (acceptedAnalysisIds.length === 0) {
+    const rejectedAnalysisIds = getRejectedAnalysisIds();
+    const hasAcceptedSelections = acceptedAnalysisIds.length > 0;
+    const hasRejectedSelections = rejectedAnalysisIds.length > 0;
+    if (!hasAcceptedSelections && !hasRejectedSelections) {
       addNotification({
         kind: NotificationKinds.warning,
         title: intl.formatMessage({ id: "notification.title" }),
@@ -379,6 +391,7 @@ const Validation = (props) => {
     }
     if (
       currentUserIsMedicalValidator &&
+      hasAcceptedSelections &&
       (!hasOpenedPreview || !previewConfirmed)
     ) {
       addNotification({
@@ -393,7 +406,7 @@ const Validation = (props) => {
       setNotificationVisible(true);
       return;
     }
-    if (currentUserIsMedicalValidator) {
+    if (currentUserIsMedicalValidator && hasAcceptedSelections) {
       const selectedRows = liveResultList.filter(
         (row) => row?.isAccepted && !row?.readOnly,
       );
@@ -415,7 +428,10 @@ const Validation = (props) => {
       }
     }
     props.results.medicalValidationConfirmed =
-      currentUserIsMedicalValidator && hasOpenedPreview && previewConfirmed;
+      currentUserIsMedicalValidator &&
+      hasAcceptedSelections &&
+      hasOpenedPreview &&
+      previewConfirmed;
     setIsSubmitting(true);
     postToOpenElisServer(
       "/rest/AccessionValidation",
@@ -887,10 +903,12 @@ const Validation = (props) => {
   const displayResultList = liveResultList;
   const validationLocked = !hasLiveResults;
   const acceptedAnalysisCount = getAcceptedAnalysisIds().length;
-  const requiresMedicalPreview = currentUserIsMedicalValidator;
+  const rejectedAnalysisCount = getRejectedAnalysisIds().length;
+  const requiresMedicalPreview =
+    currentUserIsMedicalValidator && acceptedAnalysisCount > 0;
   const canSave =
     !validationLocked &&
-    acceptedAnalysisCount > 0 &&
+    (acceptedAnalysisCount > 0 || rejectedAnalysisCount > 0) &&
     (!requiresMedicalPreview || (hasOpenedPreview && previewConfirmed));
   const canDownload =
     savedAnalysisIds.length > 0 || (!hasLiveResults && hasValidatedRows);
