@@ -2099,6 +2099,7 @@
   "provider.search": " Buscar proveedor",
   "provider.search.placeholder": " Buscar nombre del proveedor...",
   "provider.select": " Seleccionar proveedor",
+  "provider.specialty.label": " Especialidad",
   "provider.telephone": " Teléfono",
   "qc.notes": "QC Notes",
   "qc.notes.placeholder": "Enter QC notes and observations",

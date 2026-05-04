@@ -2127,6 +2127,7 @@
   "provider.search": "Search Provider",
   "provider.search.placeholder": "Search Provider Name...",
   "provider.select": "Select Provider",
+  "provider.specialty.label": "Specialty",
   "provider.telephone": "Telephone",
   "qc.notes": "QC Notes",
   "qc.notes.placeholder": "Enter QC notes and observations",

@@ -31,4 +31,8 @@
   <include relativeToChangelogFile="true" file="020-map-modify-order-module-access.xml"/>
   <include relativeToChangelogFile="true" file="021-map-result-route-module-access.xml"/>
   <include relativeToChangelogFile="true" file="022-map-validation-spa-route-module-access.xml"/>
+  <include relativeToChangelogFile="true" file="023-add-provider-specialty-column.xml"/>
+  <include relativeToChangelogFile="true" file="024-add-provider-specialty-options-config.xml"/>
+  <include relativeToChangelogFile="true" file="025-add-validation-approvals.xml"/>
+  <include relativeToChangelogFile="true" file="026-add-validation-medical-biologist-roles.xml"/>
 </databaseChangeLog>
