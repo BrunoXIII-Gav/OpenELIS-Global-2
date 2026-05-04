@@ -1,0 +1,33 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<databaseChangeLog
+  xmlns="http://www.liquibase.org/xml/ns/dbchangelog"
+  xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+  xsi:schemaLocation="http://www.liquibase.org/xml/ns/dbchangelog http://www.liquibase.org/xml/ns/dbchangelog/dbchangelog-3.8.xsd">
+
+  <changeSet id="024-01-add-provider-specialty-options-config" author="codex">
+    <preConditions onFail="MARK_RAN">
+      <sqlCheck expectedResult="0">SELECT count(*) FROM clinlims.site_information WHERE name = 'providerSpecialtyOptions'</sqlCheck>
+    </preConditions>
+
+    <comment>Add configurable provider specialty options for order entry/provider forms</comment>
+    <insert schemaName="clinlims" tableName="site_information">
+      <column name="id" valueSequenceNext="site_information_seq" />
+      <column name="name" value="providerSpecialtyOptions" />
+      <column name="lastupdated" valueComputed="${now}" />
+      <column name="description"
+        value="Comma-separated provider specialty options shown as dropdown (example: Médico Genetista,Neurología,Pediatría)" />
+      <column name="value" value="" />
+      <column name="encrypted" value="false" />
+      <column name="domain_id"
+        valueComputed="(SELECT id FROM site_information_domain WHERE name = 'sampleEntryConfig')" />
+      <column name="value_type" value="text" />
+      <column name="group" value="0" />
+    </insert>
+
+    <rollback>
+      <delete schemaName="clinlims" tableName="site_information">
+        <where>name = 'providerSpecialtyOptions'</where>
+      </delete>
+    </rollback>
+  </changeSet>
+</databaseChangeLog>

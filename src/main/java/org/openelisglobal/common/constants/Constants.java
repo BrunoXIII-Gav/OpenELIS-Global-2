@@ -18,6 +18,8 @@ public class Constants {
     public static final String ROLE_RECEPTION = "Reception";
     public static final String ROLE_RESULTS = "Results";
     public static final String ROLE_VALIDATION = "Validation";
+    public static final String ROLE_VALIDATION_BIOLOGIST = "Validation Biologist";
+    public static final String ROLE_VALIDATION_MEDICAL = "Validation Medical";
     public static final String ROLE_REPORTS = "Reports";
     public static final String ROLE_PATHOLOGIST = "Pathologist";
     // roles groups

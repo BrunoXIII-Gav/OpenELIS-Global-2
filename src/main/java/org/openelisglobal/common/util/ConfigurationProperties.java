@@ -165,6 +165,8 @@ public abstract class ConfigurationProperties {
         VALIDATE_REJECTED_TESTS("validateTechnicalRejection", "text"), // If true then if the technician rejects a test
                                                                        // the next
         // step is validation
+        VALIDATION_MIN_APPROVERS("validationMinApprovers", "text"), // Minimum distinct users required to validate
+                                                                    // a result
         TEST_NAME_AUGMENTED("augmentTestNameWithType", "text"), // If true then in some places the test name will be
                                                                 // suffixed
         // with the sample type
@@ -239,6 +241,7 @@ public abstract class ConfigurationProperties {
         GPS_ACCURACY_METERS("gpsRequiredAccuracyMeters", "text"), // maximum acceptable GPS accuracy in meters
         GPS_TIMEOUT_SECONDS("gpsTimeoutSeconds", "text"), // timeout in seconds for GPS location requests
         ENABLED_ORDER_PRIORITIES("enabledOrderPriorities", "text"), // comma-separated enabled priorities for UI lists
+        providerSpecialtyOptions("providerSpecialtyOptions", "text"), // comma-separated provider specialty options
         USE_NEW_ADDRESS_HIERARCHY("useNewAddressHierarchy", "text"); // if true, use new configurable address hierarchy
 
         // visible on

@@ -21,6 +21,8 @@ import {
   Modal,
   TextInput,
   Dropdown,
+  Select,
+  SelectItem,
 } from "@carbon/react";
 import {
   getFromOpenElisServer,
@@ -49,7 +51,8 @@ let breadcrumbs = [
 function ProviderMenu() {
   const { notificationVisible, setNotificationVisible, addNotification } =
     useContext(NotificationContext);
-  const { reloadConfiguration } = useContext(ConfigurationContext);
+  const { reloadConfiguration, configurationProperties } =
+    useContext(ConfigurationContext);
 
   const intl = useIntl();
 
@@ -78,12 +81,29 @@ function ProviderMenu() {
   const [fhirUuid, setFhirUuid] = useState("");
   const [fax, setFax] = useState("");
   const [email, setEmail] = useState("");
+  const [cmp, setCmp] = useState("");
+  const [rne, setRne] = useState("");
+  const [specialty, setSpecialty] = useState("");
   const [isActive, setIsActive] = useState({ id: "yes", value: "Yes" });
 
   const yesOrNo = [
     { id: "yes", value: "Yes" },
     { id: "no", value: "No" },
   ];
+
+  const providerSpecialtyOptions = (configurationProperties
+    ?.providerSpecialtyOptions || ""
+  )
+    .split(/[\n,]+/)
+    .map((entry) => entry.trim())
+    .filter(Boolean)
+    .map((entry) => {
+      const parts = entry.split("|");
+      const id = (parts[0] || "").trim();
+      const value = (parts[1] || parts[0] || "").trim();
+      return id ? { id, value } : null;
+    })
+    .filter(Boolean);
 
   const handleMenuItems = (res) => {
     if (!res) {
@@ -122,15 +142,19 @@ function ProviderMenu() {
   useEffect(() => {
     if (providerMenuList.providers) {
       const newProviderMenuList = providerMenuList.providers.map((item) => {
+        const person = item.person || {};
         return {
           id: item.id,
           fhirUuid: item.fhirUuid,
-          lastName: item.person.lastName,
-          firstName: item.person.firstName,
+          lastName: person.lastName,
+          firstName: person.firstName,
           active: item.active,
-          telephone: item.person.workPhone,
-          fax: item.person.fax,
-          email: item.person.email,
+          telephone: person.workPhone,
+          fax: person.fax,
+          email: person.email,
+          cmp: item.npi,
+          rne: item.externalId,
+          specialty: item.specialty,
         };
       });
       setFromRecordCount(providerMenuList.fromRecordCount);
@@ -225,6 +249,9 @@ function ProviderMenu() {
     setTelephone("");
     setFax("");
     setEmail("");
+    setCmp("");
+    setRne("");
+    setSpecialty("");
     setIsActive({ id: "yes", value: "Yes" });
     setIsAddModalOpen(true);
   };
@@ -241,6 +268,9 @@ function ProviderMenu() {
     setTelephone(provider.telephone);
     setFax(provider.fax);
     setEmail(provider.email || "");
+    setCmp(provider.cmp || "");
+    setRne(provider.rne || "");
+    setSpecialty(provider.specialty || "");
     setIsActive(
       provider.active ? { id: "yes", value: "Yes" } : { id: "no", value: "No" },
     );
@@ -260,6 +290,9 @@ function ProviderMenu() {
         fax,
         email,
       },
+      npi: cmp,
+      externalId: rne,
+      specialty,
       active: isActive.id === "yes",
     };
     postToOpenElisServerFullResponse(
@@ -282,6 +315,9 @@ function ProviderMenu() {
         fax,
         email,
       },
+      npi: cmp,
+      externalId: rne,
+      specialty,
       active: isActive.id === "yes",
     };
     postToOpenElisServerFullResponse(
@@ -320,6 +356,43 @@ function ProviderMenu() {
     if (value === "" || (/^\d+$/.test(value) && value.length <= 10)) {
       setFax(value);
     }
+  };
+
+  const renderSpecialtyInput = () => {
+    if (providerSpecialtyOptions.length > 0) {
+      return (
+        <Select
+          id="specialty"
+          labelText={intl.formatMessage({
+            id: "provider.specialty.label",
+            defaultMessage: "Specialty",
+          })}
+          value={specialty || ""}
+          onChange={(event) => setSpecialty(event.target.value)}
+        >
+          <SelectItem value="" text="" />
+          {providerSpecialtyOptions.map((option) => (
+            <SelectItem
+              key={`provider-specialty-option-${option.id}`}
+              value={option.id}
+              text={option.value}
+            />
+          ))}
+        </Select>
+      );
+    }
+
+    return (
+      <TextInput
+        id="specialty"
+        labelText={intl.formatMessage({
+          id: "provider.specialty.label",
+          defaultMessage: "Specialty",
+        })}
+        value={specialty}
+        onChange={(event) => setSpecialty(event.target.value)}
+      />
+    );
   };
 
   const renderCell = (cell, row) => {
@@ -414,6 +487,9 @@ function ProviderMenu() {
             value={telephone}
             onChange={(e) => handleTelephoneChange(e)}
           />
+          <TextInput id="cmp" labelText="CMP" value={cmp} onChange={(e) => setCmp(e.target.value)} />
+          <TextInput id="rne" labelText="RNE" value={rne} onChange={(e) => setRne(e.target.value)} />
+          {renderSpecialtyInput()}
 
           <Dropdown
             className="dropdown-list"
@@ -468,6 +544,9 @@ function ProviderMenu() {
             value={telephone}
             onChange={(e) => handleTelephoneChange(e)}
           />
+          <TextInput id="cmp" labelText="CMP" value={cmp} onChange={(e) => setCmp(e.target.value)} />
+          <TextInput id="rne" labelText="RNE" value={rne} onChange={(e) => setRne(e.target.value)} />
+          {renderSpecialtyInput()}
           <Dropdown
             id="isActive"
             titleText="Active"
@@ -553,6 +632,21 @@ function ProviderMenu() {
                       key: "telephone",
                       header: intl.formatMessage({
                         id: "provider.telephone",
+                      }),
+                    },
+                    {
+                      key: "cmp",
+                      header: "CMP",
+                    },
+                    {
+                      key: "rne",
+                      header: "RNE",
+                    },
+                    {
+                      key: "specialty",
+                      header: intl.formatMessage({
+                        id: "provider.specialty.label",
+                        defaultMessage: "Specialty",
                       }),
                     },
                     {

@@ -286,6 +286,7 @@ public class DefaultConfigurationProperties extends ConfigurationProperties {
         properties.setPropertyValue(Property.ALLOW_DUPLICATE_NATIONAL_IDS, "false");
 
         properties.setPropertyValue(Property.VALIDATE_REJECTED_TESTS, "false");
+        properties.setPropertyValue(Property.VALIDATION_MIN_APPROVERS, "1");
         properties.setPropertyValue(Property.TEST_NAME_AUGMENTED, "true");
         properties.setPropertyValue(Property.USE_BILLING_REFERENCE_NUMBER, "false");
         properties.setPropertyHolder(Property.BILLING_REFERENCE_NUMBER_LABEL, new PropertyHolder("-1", true));
@@ -316,6 +317,7 @@ public class DefaultConfigurationProperties extends ConfigurationProperties {
         properties.setPropertyValue(Property.SPECIMEN_FIELD_COLLECTED_BY, "true");
         properties.setPropertyValue(Property.SPECIMEN_FIELD_SEX, "true");
         properties.setPropertyValue(Property.SPECIMEN_FIELD_TESTS, "true");
+        properties.setPropertyValue(Property.providerSpecialtyOptions, "");
 
         properties.setPropertyValue(Property.ALT_ACCESSION_PREFIX, "");
         properties.setPropertyValue(Property.USE_ALT_ACCESSION_PREFIX, "false");

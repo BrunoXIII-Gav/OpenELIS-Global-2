@@ -1,0 +1,18 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<databaseChangeLog
+  xmlns="http://www.liquibase.org/xml/ns/dbchangelog"
+  xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+  xsi:schemaLocation="http://www.liquibase.org/xml/ns/dbchangelog http://www.liquibase.org/xml/ns/dbchangelog/dbchangelog-3.8.xsd">
+
+  <changeSet id="023-add-provider-specialty-column" author="codex">
+    <preConditions onFail="MARK_RAN">
+      <not>
+        <columnExists schemaName="clinlims" tableName="provider" columnName="specialty" />
+      </not>
+    </preConditions>
+    <addColumn schemaName="clinlims" tableName="provider">
+      <column name="specialty" type="varchar(100)" />
+    </addColumn>
+  </changeSet>
+
+</databaseChangeLog>

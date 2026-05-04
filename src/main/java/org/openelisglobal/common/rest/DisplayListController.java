@@ -9,6 +9,7 @@ import java.util.Collections;
 import java.util.Comparator;
 import java.util.HashMap;
 import java.util.HashSet;
+import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
@@ -456,6 +457,10 @@ public class DisplayListController extends BaseRestController {
                 ConfigurationProperties.getInstance().getPropertyValue(Property.GPS_ACCURACY_METERS));
         configs.put(Property.GPS_TIMEOUT_SECONDS.toString(),
                 ConfigurationProperties.getInstance().getPropertyValue(Property.GPS_TIMEOUT_SECONDS));
+        configs.put(Property.providerSpecialtyOptions.toString(),
+                ConfigurationProperties.getInstance().getPropertyValue(Property.providerSpecialtyOptions));
+        configs.put(Property.VALIDATION_MIN_APPROVERS.toString(),
+                ConfigurationProperties.getInstance().getPropertyValue(Property.VALIDATION_MIN_APPROVERS));
         return configs;
     }
 
@@ -528,6 +533,19 @@ public class DisplayListController extends BaseRestController {
     private List<IdValuePair> createUserTestSectionsList(HttpServletRequest request, @PathVariable String roleName) {
         if (roleName.equals("ALL")) {
             return userService.getUserTestSections(getSysUserId(request), null);
+        } else if (Constants.ROLE_VALIDATION.equals(roleName)) {
+            LinkedHashMap<String, IdValuePair> merged = new LinkedHashMap<>();
+            List<String> validationRoles = List.of(Constants.ROLE_VALIDATION_BIOLOGIST, Constants.ROLE_VALIDATION,
+                    Constants.ROLE_VALIDATION_MEDICAL, Constants.ROLE_PATHOLOGIST);
+            for (String role : validationRoles) {
+                Role currentRole = roleService.getRoleByName(role);
+                if (currentRole == null) {
+                    continue;
+                }
+                userService.getUserTestSections(getSysUserId(request), currentRole.getId())
+                        .forEach(section -> merged.putIfAbsent(section.getId(), section));
+            }
+            return new ArrayList<>(merged.values());
         } else {
             Role role = roleService.getRoleByName(roleName);
             if (role == null) {

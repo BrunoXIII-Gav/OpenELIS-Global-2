@@ -32,6 +32,8 @@ public class Provider extends BaseObject<String> implements DesynchronousCapable
 
     private String providerType;
 
+    private String specialty;
+
     private ValueHolderInterface person;
 
     private String selectedPersonId;
@@ -77,6 +79,14 @@ public class Provider extends BaseObject<String> implements DesynchronousCapable
 
     public void setProviderType(String providerType) {
         this.providerType = providerType;
+    }
+
+    public String getSpecialty() {
+        return specialty;
+    }
+
+    public void setSpecialty(String specialty) {
+        this.specialty = specialty;
     }
 
     public Person getPerson() {
