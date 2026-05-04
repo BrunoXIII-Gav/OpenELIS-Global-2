@@ -69,13 +69,16 @@ public class OrderAdditionalFieldServiceImpl implements OrderAdditionalFieldServ
             new FixedFieldDefault("provisionalClinicalDiagnosis", 80),
             new FixedFieldDefault("providerFirstName", 90),
             new FixedFieldDefault("providerLastName", 100),
-            new FixedFieldDefault("providerWorkPhone", 110),
-            new FixedFieldDefault("providerFax", 120),
-            new FixedFieldDefault("providerEmail", 130),
-            new FixedFieldDefault("paymentOptionSelection", 140),
-            new FixedFieldDefault("testLocationCode", 150),
-            new FixedFieldDefault("otherLocationCode", 160),
-            new FixedFieldDefault("rememberSiteAndRequester", 170));
+            new FixedFieldDefault("providerCmp", 110),
+            new FixedFieldDefault("providerRne", 120),
+            new FixedFieldDefault("providerSpecialty", 130),
+            new FixedFieldDefault("providerWorkPhone", 140),
+            new FixedFieldDefault("providerFax", 150),
+            new FixedFieldDefault("providerEmail", 160),
+            new FixedFieldDefault("paymentOptionSelection", 170),
+            new FixedFieldDefault("testLocationCode", 180),
+            new FixedFieldDefault("otherLocationCode", 190),
+            new FixedFieldDefault("rememberSiteAndRequester", 200));
     private static final Set<String> FIXED_FIELD_KEYS = FIXED_FIELD_DEFAULTS.stream()
             .map(f -> f.fieldKey.toLowerCase()).collect(Collectors.toSet());
 

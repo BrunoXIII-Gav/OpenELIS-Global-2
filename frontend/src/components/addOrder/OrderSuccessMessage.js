@@ -26,6 +26,9 @@ const OrderSuccessMessage = (props) => {
       orderFormValues.sampleOrderItems.providerWorkPhone;
     const providerFax = orderFormValues.sampleOrderItems.providerFax;
     const providerEmail = orderFormValues.sampleOrderItems.providerEmail;
+    const providerCmp = orderFormValues.sampleOrderItems.providerCmp;
+    const providerRne = orderFormValues.sampleOrderItems.providerRne;
+    const providerSpecialty = orderFormValues.sampleOrderItems.providerSpecialty;
 
     const emptyOrderForm = createSampleOrderFormValues();
     setOrderFormValues({
@@ -41,6 +44,9 @@ const OrderSuccessMessage = (props) => {
         providerWorkPhone: providerWorkPhone,
         providerFax: providerFax,
         providerEmail: providerEmail,
+        providerCmp: providerCmp,
+        providerRne: providerRne,
+        providerSpecialty: providerSpecialty,
       },
     });
     setPage(0);

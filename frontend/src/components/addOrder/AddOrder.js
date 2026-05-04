@@ -36,13 +36,16 @@ const DEFAULT_FIXED_FIELD_ORDER = [
   { fieldKey: "provisionalClinicalDiagnosis", sortOrder: 80 },
   { fieldKey: "providerFirstName", sortOrder: 90 },
   { fieldKey: "providerLastName", sortOrder: 100 },
-  { fieldKey: "providerWorkPhone", sortOrder: 110 },
-  { fieldKey: "providerFax", sortOrder: 120 },
-  { fieldKey: "providerEmail", sortOrder: 130 },
-  { fieldKey: "paymentOptionSelection", sortOrder: 140 },
-  { fieldKey: "testLocationCode", sortOrder: 150 },
-  { fieldKey: "otherLocationCode", sortOrder: 160 },
-  { fieldKey: "rememberSiteAndRequester", sortOrder: 170 },
+  { fieldKey: "providerCmp", sortOrder: 110 },
+  { fieldKey: "providerRne", sortOrder: 120 },
+  { fieldKey: "providerSpecialty", sortOrder: 130 },
+  { fieldKey: "providerWorkPhone", sortOrder: 140 },
+  { fieldKey: "providerFax", sortOrder: 150 },
+  { fieldKey: "providerEmail", sortOrder: 160 },
+  { fieldKey: "paymentOptionSelection", sortOrder: 170 },
+  { fieldKey: "testLocationCode", sortOrder: 180 },
+  { fieldKey: "otherLocationCode", sortOrder: 190 },
+  { fieldKey: "rememberSiteAndRequester", sortOrder: 200 },
 ];
 
 const DEFAULT_CONDITION_OPERATOR = "equals";
@@ -55,12 +58,33 @@ const DEFAULT_ORDER_PRIORITIES = [
   { id: "FUTURE_STAT", value: "FUTURE STAT" },
 ];
 
+const parseProviderSpecialtyOptions = (rawValue) => {
+  if (!rawValue) {
+    return [];
+  }
+
+  return rawValue
+    .split(/[\n,]+/)
+    .map((entry) => entry.trim())
+    .filter(Boolean)
+    .map((entry) => {
+      const parts = entry.split("|");
+      const id = (parts[0] || "").trim();
+      const value = (parts[1] || parts[0] || "").trim();
+      return id ? { id, value } : null;
+    })
+    .filter(Boolean);
+};
+
 const AddOrder = (props) => {
   const { setNotificationVisible, addNotification } =
     useContext(NotificationContext);
   const { configurationProperties } = useContext(ConfigurationContext);
 
   const intl = useIntl();
+  const providerSpecialtyOptions = parseProviderSpecialtyOptions(
+    configurationProperties?.providerSpecialtyOptions,
+  );
 
   const componentMounted = useRef(false);
 
@@ -1032,6 +1056,71 @@ const AddOrder = (props) => {
             />
           </Column>
         );
+      case "providerCmp":
+        return (
+          <Column key={fieldKey} lg={8} md={4} sm={4}>
+            <TextInput
+              name="providerCmp"
+              labelText="CMP"
+              disabled={isFieldReadonly("providerCmp")}
+              onChange={handleRequesterCmp}
+              value={orderFormValues.sampleOrderItems.providerCmp || ""}
+              id="providerCmpId"
+            />
+          </Column>
+        );
+      case "providerRne":
+        return (
+          <Column key={fieldKey} lg={8} md={4} sm={4}>
+            <TextInput
+              name="providerRne"
+              labelText="RNE"
+              disabled={isFieldReadonly("providerRne")}
+              onChange={handleRequesterRne}
+              value={orderFormValues.sampleOrderItems.providerRne || ""}
+              id="providerRneId"
+            />
+          </Column>
+        );
+      case "providerSpecialty":
+        return (
+          <Column key={fieldKey} lg={8} md={4} sm={4}>
+            {providerSpecialtyOptions.length > 0 ? (
+              <Select
+                id="providerSpecialtyId"
+                name="providerSpecialty"
+                labelText={intl.formatMessage({
+                  id: "provider.specialty.label",
+                  defaultMessage: "Specialty",
+                })}
+                disabled={isFieldReadonly("providerSpecialty")}
+                onChange={handleRequesterSpecialty}
+                value={orderFormValues.sampleOrderItems.providerSpecialty || ""}
+              >
+                <SelectItem value="" text="" />
+                {providerSpecialtyOptions.map((option) => (
+                  <SelectItem
+                    key={`provider-specialty-option-${option.id}`}
+                    value={option.id}
+                    text={option.value}
+                  />
+                ))}
+              </Select>
+            ) : (
+              <TextInput
+                name="providerSpecialty"
+                labelText={intl.formatMessage({
+                  id: "provider.specialty.label",
+                  defaultMessage: "Specialty",
+                })}
+                disabled={isFieldReadonly("providerSpecialty")}
+                onChange={handleRequesterSpecialty}
+                value={orderFormValues.sampleOrderItems.providerSpecialty || ""}
+                id="providerSpecialtyId"
+              />
+            )}
+          </Column>
+        );
       case "providerFax":
         return (
           <Column key={fieldKey} lg={8} md={4} sm={4}>
@@ -1282,6 +1371,36 @@ const AddOrder = (props) => {
     setNotificationVisible(false);
   }
 
+  function handleRequesterCmp(e) {
+    setOrderFormValues({
+      ...orderFormValues,
+      sampleOrderItems: {
+        ...orderFormValues.sampleOrderItems,
+        providerCmp: e.target.value,
+      },
+    });
+  }
+
+  function handleRequesterRne(e) {
+    setOrderFormValues({
+      ...orderFormValues,
+      sampleOrderItems: {
+        ...orderFormValues.sampleOrderItems,
+        providerRne: e.target.value,
+      },
+    });
+  }
+
+  function handleRequesterSpecialty(e) {
+    setOrderFormValues({
+      ...orderFormValues,
+      sampleOrderItems: {
+        ...orderFormValues.sampleOrderItems,
+        providerSpecialty: e.target.value,
+      },
+    });
+  }
+
   function handleRequesterFirstName(e) {
     setOrderFormValues({
       ...orderFormValues,
@@ -1387,17 +1506,21 @@ const AddOrder = (props) => {
   }
 
   function fetchPractitioner(data) {
+    const person = data?.person || {};
     setOrderFormValues({
       ...orderFormValues,
       sampleOrderItems: {
         ...orderFormValues.sampleOrderItems,
-        providerFirstName: data.person.firstName,
-        providerLastName: data.person.lastName,
-        providerWorkPhone: data.person.workPhone,
-        providerEmail: data.person.email,
-        providerFax: data.person.fax,
-        providerId: data.id,
-        providerPersonId: data.person.id,
+        providerFirstName: person.firstName || "",
+        providerLastName: person.lastName || "",
+        providerWorkPhone: person.workPhone || "",
+        providerEmail: person.email || "",
+        providerFax: person.fax || "",
+        providerCmp: data?.npi || "",
+        providerRne: data?.externalId || "",
+        providerSpecialty: data?.specialty || "",
+        providerId: data?.id || "",
+        providerPersonId: person.id || "",
         referringSiteName: "",
       },
     });
@@ -1434,6 +1557,9 @@ const AddOrder = (props) => {
         ...orderFormValues.sampleOrderItems,
         providerId: "",
         providerPersonId: "",
+        providerCmp: "",
+        providerRne: "",
+        providerSpecialty: "",
       },
     });
   }

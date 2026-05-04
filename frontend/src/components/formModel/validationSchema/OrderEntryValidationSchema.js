@@ -110,6 +110,9 @@ const buildDynamicConditionContext = (sampleOrderItems, rootValues) => ({
   providerWorkPhone: sampleOrderItems?.providerWorkPhone,
   providerFax: sampleOrderItems?.providerFax,
   providerEmail: sampleOrderItems?.providerEmail,
+  providerCmp: sampleOrderItems?.providerCmp,
+  providerRne: sampleOrderItems?.providerRne,
+  providerSpecialty: sampleOrderItems?.providerSpecialty,
   paymentOptionSelection: sampleOrderItems?.paymentOptionSelection,
   testLocationCode: sampleOrderItems?.testLocationCode,
   otherLocationCode: sampleOrderItems?.otherLocationCode,
@@ -201,6 +204,9 @@ const OrderEntryValidationSchema = Yup.object().shape({
         },
       ),
       providerEmail: Yup.string().email("Invalid Email"),
+      providerCmp: Yup.string(),
+      providerRne: Yup.string(),
+      providerSpecialty: Yup.string(),
     })
     .test("referringSiteName", "Referring Site is required", function (value) {
       if (!isFixedFieldRequired(value, "referringSiteName", true)) {

@@ -250,17 +250,21 @@ const Index = () => {
       getFromOpenElisServer(
         "/rest/practitioner?providerId=" + providerId,
         (data) => {
+          const person = data?.person || {};
           setOrderFormValues({
             ...orderFormValues,
             sampleOrderItems: {
               ...orderFormValues.sampleOrderItems,
-              providerId: data.id,
-              providerPersonId: data.person.id,
-              providerFirstName: data.person.firstName,
-              providerLastName: data.person.lastName,
-              providerWorkPhone: data.person.workPhone,
-              providerEmail: data.person.email,
-              providerFax: data.person.fax,
+              providerId: data?.id || "",
+              providerPersonId: person.id || "",
+              providerFirstName: person.firstName || "",
+              providerLastName: person.lastName || "",
+              providerWorkPhone: person.workPhone || "",
+              providerEmail: person.email || "",
+              providerFax: person.fax || "",
+              providerCmp: data?.npi || "",
+              providerRne: data?.externalId || "",
+              providerSpecialty: data?.specialty || "",
             },
           });
         },
@@ -273,6 +277,9 @@ const Index = () => {
         providerWorkPhone: requester.phone,
         providerEmail: requester.email,
         providerFax: requester.fax,
+        providerCmp: requester.cmp || "",
+        providerRne: requester.rne || "",
+        providerSpecialty: requester.specialty || "",
       };
     }
   };

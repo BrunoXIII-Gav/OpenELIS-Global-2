@@ -158,6 +158,18 @@ public class SampleOrderItem implements Serializable {
 
     @SafeHtml(level = SafeHtml.SafeListLevel.NONE, groups = { SamplePatientEntryForm.SamplePatientEntry.class,
             SamplePatientEntryBatch.class, SampleEditForm.SampleEdit.class })
+    private String providerCmp;
+
+    @SafeHtml(level = SafeHtml.SafeListLevel.NONE, groups = { SamplePatientEntryForm.SamplePatientEntry.class,
+            SamplePatientEntryBatch.class, SampleEditForm.SampleEdit.class })
+    private String providerRne;
+
+    @SafeHtml(level = SafeHtml.SafeListLevel.NONE, groups = { SamplePatientEntryForm.SamplePatientEntry.class,
+            SamplePatientEntryBatch.class, SampleEditForm.SampleEdit.class })
+    private String providerSpecialty;
+
+    @SafeHtml(level = SafeHtml.SafeListLevel.NONE, groups = { SamplePatientEntryForm.SamplePatientEntry.class,
+            SamplePatientEntryBatch.class, SampleEditForm.SampleEdit.class })
     private String facilityAddressStreet;
 
     @SafeHtml(level = SafeHtml.SafeListLevel.NONE, groups = { SamplePatientEntryForm.SamplePatientEntry.class,
@@ -439,6 +451,30 @@ public class SampleOrderItem implements Serializable {
 
     public void setProviderEmail(String providerEmail) {
         this.providerEmail = providerEmail;
+    }
+
+    public String getProviderCmp() {
+        return providerCmp;
+    }
+
+    public void setProviderCmp(String providerCmp) {
+        this.providerCmp = providerCmp;
+    }
+
+    public String getProviderRne() {
+        return providerRne;
+    }
+
+    public void setProviderRne(String providerRne) {
+        this.providerRne = providerRne;
+    }
+
+    public String getProviderSpecialty() {
+        return providerSpecialty;
+    }
+
+    public void setProviderSpecialty(String providerSpecialty) {
+        this.providerSpecialty = providerSpecialty;
     }
 
     public String getFacilityAddressStreet() {

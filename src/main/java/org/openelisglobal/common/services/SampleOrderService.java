@@ -198,6 +198,9 @@ public class SampleOrderService {
                         .getProviderByPerson(requesterService.getPerson());
                 if (provider != null) {
                     sampleOrder.setProviderId(provider.getId());
+                    sampleOrder.setProviderCmp(provider.getNpi());
+                    sampleOrder.setProviderRne(provider.getExternalId());
+                    sampleOrder.setProviderSpecialty(provider.getSpecialty());
                 }
             }
             sampleOrder.setProviderFirstName(requesterService.getRequesterFirstName());

@@ -126,7 +126,8 @@ public class SamplePatientEntryRestController extends BaseSampleEntryController 
             "sampleOrderItems.referringSiteName", "sampleOrderItems.referringSiteCode", "sampleOrderItems.program",
             "sampleOrderItems.providerPersonId", "sampleOrderItems.providerLastName",
             "sampleOrderItems.providerFirstName", "sampleOrderItems.providerWorkPhone", "sampleOrderItems.providerFax",
-            "sampleOrderItems.providerEmail", "sampleOrderItems.facilityAddressStreet",
+            "sampleOrderItems.providerEmail", "sampleOrderItems.providerCmp", "sampleOrderItems.providerRne",
+            "sampleOrderItems.providerSpecialty", "sampleOrderItems.facilityAddressStreet",
             "sampleOrderItems.facilityAddressCommune", "sampleOrderItems.facilityPhone", "sampleOrderItems.facilityFax",
             "sampleOrderItems.paymentOptionSelection", "sampleOrderItems.billingReferenceNumber",
             "sampleOrderItems.testLocationCode", "sampleOrderItems.otherLocationCode",
@@ -205,6 +206,10 @@ public class SamplePatientEntryRestController extends BaseSampleEntryController 
                     .setProviderLastName((String) inputFlashMap.get("sampleOrderItems.providerLastName"));
             form.getSampleOrderItems()
                     .setProviderWorkPhone((String) inputFlashMap.get("sampleOrderItems.providerWorkPhone"));
+            form.getSampleOrderItems().setProviderCmp((String) inputFlashMap.get("sampleOrderItems.providerCmp"));
+            form.getSampleOrderItems().setProviderRne((String) inputFlashMap.get("sampleOrderItems.providerRne"));
+            form.getSampleOrderItems()
+                    .setProviderSpecialty((String) inputFlashMap.get("sampleOrderItems.providerSpecialty"));
             form.getSampleOrderItems()
                     .setReferringSiteId((String) inputFlashMap.get("sampleOrderItems.referringSiteId"));
             form.getSampleOrderItems()
@@ -365,6 +370,12 @@ public class SamplePatientEntryRestController extends BaseSampleEntryController 
                     form.getSampleOrderItems().getProviderLastName());
             redirectAttributes.addFlashAttribute("sampleOrderItems.providerWorkPhone",
                     form.getSampleOrderItems().getProviderWorkPhone());
+            redirectAttributes.addFlashAttribute("sampleOrderItems.providerCmp",
+                    form.getSampleOrderItems().getProviderCmp());
+            redirectAttributes.addFlashAttribute("sampleOrderItems.providerRne",
+                    form.getSampleOrderItems().getProviderRne());
+            redirectAttributes.addFlashAttribute("sampleOrderItems.providerSpecialty",
+                    form.getSampleOrderItems().getProviderSpecialty());
 
             redirectAttributes.addFlashAttribute("sampleOrderItems.referringSiteId",
                     form.getSampleOrderItems().getReferringSiteId());

@@ -366,6 +366,11 @@ public class SamplePatientUpdateData {
             providerPerson.setEmail(sampleOrder.getProviderEmail());
             providerPerson.setSysUserId(currentUserId);
             provider.setExternalId(sampleOrder.getRequesterSampleID());
+            provider.setNpi(sampleOrder.getProviderCmp());
+            provider.setSpecialty(sampleOrder.getProviderSpecialty());
+            if (!GenericValidator.isBlankOrNull(sampleOrder.getProviderRne())) {
+                provider.setExternalId(sampleOrder.getProviderRne());
+            }
         }
 
         provider.setSysUserId(currentUserId);
@@ -378,7 +383,10 @@ public class SamplePatientUpdateData {
                 && GenericValidator.isBlankOrNull(sampleOrder.getProviderLastName())
                 && GenericValidator.isBlankOrNull(sampleOrder.getRequesterSampleID())
                 && GenericValidator.isBlankOrNull(sampleOrder.getProviderFax())
-                && GenericValidator.isBlankOrNull(sampleOrder.getProviderEmail()));
+                && GenericValidator.isBlankOrNull(sampleOrder.getProviderEmail())
+                && GenericValidator.isBlankOrNull(sampleOrder.getProviderCmp())
+                && GenericValidator.isBlankOrNull(sampleOrder.getProviderRne())
+                && GenericValidator.isBlankOrNull(sampleOrder.getProviderSpecialty()));
     }
 
     public void buildSampleHuman() {
