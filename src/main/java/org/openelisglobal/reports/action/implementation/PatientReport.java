@@ -57,6 +57,8 @@ import org.openelisglobal.note.service.NoteService;
 import org.openelisglobal.note.service.NoteServiceImpl.NoteType;
 import org.openelisglobal.observationhistory.service.ObservationHistoryService;
 import org.openelisglobal.observationhistory.service.ObservationHistoryServiceImpl.ObservationType;
+import org.openelisglobal.orderadditionalfield.bean.OrderAdditionalFieldPayload;
+import org.openelisglobal.orderadditionalfield.service.OrderAdditionalFieldService;
 import org.openelisglobal.organization.service.OrganizationService;
 import org.openelisglobal.organization.valueholder.Organization;
 import org.openelisglobal.patient.action.bean.PatientSearch;
@@ -79,6 +81,7 @@ import org.openelisglobal.reports.form.ReportForm.DateType;
 import org.openelisglobal.result.service.ResultService;
 import org.openelisglobal.result.valueholder.Result;
 import org.openelisglobal.sample.service.SampleService;
+import org.openelisglobal.sample.service.SampleTypeAdditionalFieldService;
 import org.openelisglobal.sample.util.AccessionNumberUtil;
 import org.openelisglobal.sample.valueholder.Sample;
 import org.openelisglobal.sample.valueholder.SampleAdditionalField.AdditionalFieldName;
@@ -90,6 +93,8 @@ import org.openelisglobal.systemuser.service.UserService;
 import org.openelisglobal.test.service.TestService;
 import org.openelisglobal.test.service.TestServiceImpl;
 import org.openelisglobal.test.valueholder.Test;
+import org.openelisglobal.testadditionalfield.bean.TestAdditionalFieldPayload;
+import org.openelisglobal.testadditionalfield.service.TestAdditionalFieldService;
 import org.openelisglobal.typeoftestresult.service.TypeOfTestResultServiceImpl;
 
 public abstract class PatientReport extends Report {
@@ -121,8 +126,16 @@ public abstract class PatientReport extends Report {
     protected SampleOrganizationService sampleOrganizationService = SpringContext
             .getBean(SampleOrganizationService.class);
     protected UserService userService = SpringContext.getBean(UserService.class);;
+    protected TestAdditionalFieldService testAdditionalFieldService = SpringContext.getBean(TestAdditionalFieldService.class);
+    protected OrderAdditionalFieldService orderAdditionalFieldService = SpringContext.getBean(OrderAdditionalFieldService.class);
+    protected SampleTypeAdditionalFieldService sampleTypeAdditionalFieldService = SpringContext
+            .getBean(SampleTypeAdditionalFieldService.class);
     private List<String> handledOrders;
     private List<Analysis> updatedAnalysis = new ArrayList<>();
+    private final Map<String, List<TestAdditionalFieldPayload>> additionalFieldDefinitionsByTestId = new HashMap<>();
+    private List<OrderAdditionalFieldPayload> orderAdditionalFieldDefinitions;
+    private final Map<String, Map<String, String>> orderAdditionalFieldValuesBySampleId = new HashMap<>();
+    private final Map<String, Map<String, String>> sampleTypeAdditionalFieldValuesBySampleItemId = new HashMap<>();
 
     private String lowerNumber;
     private String upperNumber;
@@ -145,6 +158,9 @@ public abstract class PatientReport extends Report {
     protected Sample currentSample;
     protected Patient currentPatient;
     protected Boolean onlyResultsForReportBySite = false;
+    protected boolean previewValidated = false;
+    protected Set<String> previewAnalysisIds = new HashSet<>();
+    protected Set<String> requestedAnalysisIds = new HashSet<>();
 
     protected static final NoteType[] FILTER = { NoteType.EXTERNAL, NoteType.REJECTION_REASON,
             NoteType.NON_CONFORMITY };
@@ -212,11 +228,17 @@ public abstract class PatientReport extends Report {
     public void initializeReport(ReportForm form) {
         super.initializeReport();
         errorFound = false;
+        initializePreviewParameters(form);
+        initializeRequestedAnalysisIds(form);
 
         lowerNumber = form.getAccessionDirectNoSuffix();
         upperNumber = form.getHighAccessionDirectNoSuffix();
 
         handledOrders = new ArrayList<>();
+        additionalFieldDefinitionsByTestId.clear();
+        orderAdditionalFieldDefinitions = null;
+        orderAdditionalFieldValuesBySampleId.clear();
+        sampleTypeAdditionalFieldValuesBySampleItemId.clear();
 
         createReportParameters();
 
@@ -293,6 +315,65 @@ public abstract class PatientReport extends Report {
                 LogEvent.logError(e);
             }
         }
+    }
+
+    private void initializePreviewParameters(ReportForm form) {
+        previewValidated = form != null && form.isPreviewValidated();
+        previewAnalysisIds = new HashSet<>();
+
+        if (form == null || form.getPreviewAnalysisIds() == null) {
+            return;
+        }
+
+        for (String idValue : form.getPreviewAnalysisIds()) {
+            if (GenericValidator.isBlankOrNull(idValue)) {
+                continue;
+            }
+            String[] ids = idValue.split(",");
+            for (String id : ids) {
+                String trimmed = id == null ? null : id.trim();
+                if (!GenericValidator.isBlankOrNull(trimmed)) {
+                    previewAnalysisIds.add(trimmed);
+                }
+            }
+        }
+    }
+
+    private void initializeRequestedAnalysisIds(ReportForm form) {
+        requestedAnalysisIds = new HashSet<>();
+        if (form == null || form.getAnalysisIds() == null) {
+            return;
+        }
+
+        for (String idValue : form.getAnalysisIds()) {
+            if (GenericValidator.isBlankOrNull(idValue)) {
+                continue;
+            }
+            String[] ids = idValue.split(",");
+            for (String id : ids) {
+                String trimmed = id == null ? null : id.trim();
+                if (!GenericValidator.isBlankOrNull(trimmed)) {
+                    requestedAnalysisIds.add(trimmed);
+                }
+            }
+        }
+    }
+
+    protected boolean shouldIncludeAnalysisForRequestedReport(Analysis analysis) {
+        if (analysis == null) {
+            return false;
+        }
+        return requestedAnalysisIds.isEmpty() || requestedAnalysisIds.contains(analysis.getId());
+    }
+
+    private boolean isFinalizedForReport(Analysis analysis) {
+        if (analysis == null) {
+            return false;
+        }
+
+        boolean isFinalized = SpringContext.getBean(IStatusService.class).matches(analysisService.getStatusId(analysis),
+                AnalysisStatus.Finalized);
+        return isFinalized || (previewValidated && previewAnalysisIds.contains(analysis.getId()));
     }
 
     private List<Sample> findReportSamplesForSite(String referringSiteId, String referringSiteDepartmentId,
@@ -566,8 +647,7 @@ public abstract class PatientReport extends Report {
              * setAppropriateResults( resultList, data ); setReferredResult( data,
              * resultList.get( 0 ) ); setNormalRange( data, test, resultList.get( 0 ) ); }
              */
-        } else if (!SpringContext.getBean(IStatusService.class).matches(analysisService.getStatusId(currentAnalysis),
-                AnalysisStatus.Finalized)
+        } else if (!isFinalizedForReport(currentAnalysis)
                 && !(SpringContext.getBean(IStatusService.class).matches(analysisService.getStatusId(currentAnalysis),
                         AnalysisStatus.TechnicalRejected)
                         && ConfigurationProperties.getInstance().isPropertyValueEqual(
@@ -900,6 +980,19 @@ public abstract class PatientReport extends Report {
 
         data.setContactInfo(currentContactInfo);
         data.setSiteInfo(currentSiteInfo);
+        data.setPrescriber(currentContactInfo);
+        if (currentProvider != null) {
+            Person requester = currentProvider.getPerson();
+            if (requester != null) {
+                data.setRequesterFirstName(requester.getFirstName());
+                data.setRequesterLastName(requester.getLastName());
+                data.setRequesterPhone(requester.getWorkPhone());
+                data.setRequesterEmail(requester.getEmail());
+            }
+            data.setRequesterCmp(currentProvider.getNpi());
+            data.setRequesterRne(currentProvider.getExternalId());
+            data.setRequesterSpecialty(currentProvider.getSpecialty());
+        }
         data.setReceivedDate(receivedDate);
         data.setDob(getPatientDOB(currentPatient));
         data.setAge(createReadableAge(data.getDob()));
@@ -956,6 +1049,7 @@ public abstract class PatientReport extends Report {
 
         if (doAnalysis) {
             reportResultAndConclusion(data);
+            populateAnalysisAdditionalFields(data);
         }
         if (Boolean.valueOf(ConfigurationProperties.getInstance().getPropertyValue(Property.CONTACT_TRACING))) {
             data.setContactTracingIndexName(
@@ -984,6 +1078,85 @@ public abstract class PatientReport extends Report {
         }
 
         return data;
+    }
+
+    private void populateAnalysisAdditionalFields(ClinicalPatientData data) {
+        if (currentAnalysis == null || currentAnalysis.getTest() == null || currentAnalysis.getId() == null) {
+            return;
+        }
+
+        Map<String, String> mergedAdditionalValues = new HashMap<>();
+
+        String testId = currentAnalysis.getTest().getId();
+        if (!GenericValidator.isBlankOrNull(testId)) {
+            List<TestAdditionalFieldPayload> definitions = additionalFieldDefinitionsByTestId.computeIfAbsent(testId,
+                    id -> testAdditionalFieldService.getFieldsForTest(id, false));
+            if (definitions != null && !definitions.isEmpty()) {
+                Map<String, String> testValues = testAdditionalFieldService
+                        .getAnalysisValuesForFields(currentAnalysis.getId(), definitions);
+                if (testValues != null && !testValues.isEmpty()) {
+                    testValues.forEach((key, value) -> {
+                        mergedAdditionalValues.put(key, value);
+                        mergedAdditionalValues.put("testAdditional." + key, value);
+                    });
+                }
+            }
+        }
+
+        Map<String, String> orderValues = getOrderAdditionalValuesForCurrentSample();
+        if (orderValues != null && !orderValues.isEmpty()) {
+            orderValues.forEach((key, value) -> mergedAdditionalValues.put("orderAdditional." + key, value));
+        }
+
+        String sampleId = sampleService.getId(currentSample);
+        for (AdditionalFieldName fieldName : AdditionalFieldName.values()) {
+            String value = sampleService.getSampleAdditionalFieldForSample(sampleId, fieldName).getFieldValue();
+            if (!GenericValidator.isBlankOrNull(value)) {
+                mergedAdditionalValues.put("sampleAdditional." + fieldName.name(), value);
+            }
+        }
+
+        Map<String, String> sampleTypeAdditionalValues = getSampleTypeAdditionalValuesForCurrentSampleItem();
+        if (sampleTypeAdditionalValues != null && !sampleTypeAdditionalValues.isEmpty()) {
+            sampleTypeAdditionalValues.forEach(
+                    (key, value) -> mergedAdditionalValues.put("sampleAdditional." + key, value));
+        }
+
+        data.setAdditionalFieldValues(mergedAdditionalValues);
+    }
+
+    private Map<String, String> getOrderAdditionalValuesForCurrentSample() {
+        String sampleId = sampleService.getId(currentSample);
+        if (GenericValidator.isBlankOrNull(sampleId)) {
+            return Collections.emptyMap();
+        }
+        return orderAdditionalFieldValuesBySampleId.computeIfAbsent(sampleId, id -> {
+            if (orderAdditionalFieldDefinitions == null) {
+                orderAdditionalFieldDefinitions = orderAdditionalFieldService.getFields(false);
+            }
+            if (orderAdditionalFieldDefinitions == null || orderAdditionalFieldDefinitions.isEmpty()) {
+                return Collections.emptyMap();
+            }
+            Map<String, String> values = orderAdditionalFieldService.getSampleValues(id, orderAdditionalFieldDefinitions);
+            return values == null ? Collections.emptyMap() : new HashMap<>(values);
+        });
+    }
+
+    private Map<String, String> getSampleTypeAdditionalValuesForCurrentSampleItem() {
+        if (currentAnalysis == null || currentAnalysis.getSampleItem() == null) {
+            return Collections.emptyMap();
+        }
+        SampleItem sampleItem = currentAnalysis.getSampleItem();
+        String sampleItemId = sampleItem.getId();
+        String sampleTypeId = sampleItem.getTypeOfSampleId();
+        if (GenericValidator.isBlankOrNull(sampleItemId) || GenericValidator.isBlankOrNull(sampleTypeId)) {
+            return Collections.emptyMap();
+        }
+        return sampleTypeAdditionalFieldValuesBySampleItemId.computeIfAbsent(sampleItemId,
+                id -> {
+                    Map<String, String> values = sampleTypeAdditionalFieldService.getFieldValuesForSampleItem(sampleTypeId, id);
+                    return values == null ? Collections.emptyMap() : new HashMap<>(values);
+                });
     }
 
     private String getTestName(boolean indent) {

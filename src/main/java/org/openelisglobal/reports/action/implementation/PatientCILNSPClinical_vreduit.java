@@ -139,6 +139,9 @@ public class PatientCILNSPClinical_vreduit extends PatientReport implements IRep
         List<ClinicalPatientData> currentSampleReportItems = new ArrayList<>(filteredAnalysisList.size());
         currentConclusion = null;
         for (Analysis analysis : filteredAnalysisList) {
+            if (!shouldIncludeAnalysisForRequestedReport(analysis)) {
+                continue;
+            }
             if (!analysis.getTest().isInLabOnly()) {
                 boolean hasParentResult = analysis.getParentResult() != null;
                 sampleSet.add(analysis.getSampleItem());

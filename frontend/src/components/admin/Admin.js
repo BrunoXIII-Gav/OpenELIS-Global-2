@@ -63,6 +63,7 @@ import TestNotificationConfigMenu from "./testNotificationConfigMenu/TestNotific
 import TestNotificationConfigEdit from "./testNotificationConfigMenu/TestNotificationConfigEdit.js";
 import SearchIndexManagement from "./searchIndexManagement/SearchIndexManagement";
 import TestManagementConfigMenu from "./testManagementConfigMenu/TestManagementConfigMenu.js";
+import ValidationTemplateOverrideConfig from "../reports/ValidationTemplateOverrideConfig";
 import ResultSelectListAdd from "./testManagementConfigMenu/ResultSelectListAdd.js";
 import TestAdd from "./testManagementConfigMenu/TestAdd.js";
 import TestModifyEntry from "./testManagementConfigMenu/TestModifyEntry.js";
@@ -375,6 +376,15 @@ function Admin() {
             >
               <FormattedMessage id="sidenav.label.admin.formEntry.validationconfig" />
             </SideNavMenuItem>
+            <SideNavMenuItem
+              data-cy="validationTemplateOverridesMenu"
+              onClick={handleNavigation(`${path}/ValidationTemplateOverrides`)}
+            >
+              <FormattedMessage
+                id="sidenav.label.admin.formEntry.validationTemplateOverrides"
+                defaultMessage="Validation Report Templates"
+              />
+            </SideNavMenuItem>
           </SideNavMenu>
 
           <SideNavLink
@@ -578,6 +588,10 @@ function Admin() {
               id="sidenav.label.admin.formEntry.validationconfig"
             />
           )}
+        />
+        <Route
+          path={`${path}/ValidationTemplateOverrides`}
+          component={ValidationTemplateOverrideConfig}
         />
         <Route
           path={`${path}/SampleEntryConfigurationMenu`}

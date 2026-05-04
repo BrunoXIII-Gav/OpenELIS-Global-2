@@ -13,6 +13,9 @@
  */
 package org.openelisglobal.reports.action.implementation.reportBeans;
 
+import java.util.Collections;
+import java.util.HashMap;
+import java.util.Map;
 import org.openelisglobal.panel.valueholder.Panel;
 import org.openelisglobal.result.valueholder.Result;
 
@@ -76,6 +79,13 @@ public final class ClinicalPatientData {
     private String contactTracingIndexName;
     private String contactTracingIndexRecordNumber;
     private String prescriber;
+    private String requesterFirstName;
+    private String requesterLastName;
+    private String requesterPhone;
+    private String requesterEmail;
+    private String requesterCmp;
+    private String requesterRne;
+    private String requesterSpecialty;
     private String tbOrderReason;
     private String tbDiagnosticReason;
     private String tbFollowupReason;
@@ -83,6 +93,7 @@ public final class ClinicalPatientData {
     private String tbSampleAspect;
     private String tbFollowupPeriodLine1;
     private String tbFollowupPeriodLine2;
+    private Map<String, String> additionalFieldValues = new HashMap<>();
 
     public ClinicalPatientData() {
     }
@@ -143,6 +154,15 @@ public final class ClinicalPatientData {
         sampleId = data.getSampleId();
         sampleSortOrder = data.getSampleSortOrder();
         analysisStatus = data.getAnalysisStatus();
+        prescriber = data.getPrescriber();
+        requesterFirstName = data.getRequesterFirstName();
+        requesterLastName = data.getRequesterLastName();
+        requesterPhone = data.getRequesterPhone();
+        requesterEmail = data.getRequesterEmail();
+        requesterCmp = data.getRequesterCmp();
+        requesterRne = data.getRequesterRne();
+        requesterSpecialty = data.getRequesterSpecialty();
+        additionalFieldValues = new HashMap<>(data.getAdditionalFieldValues());
     }
 
     public String getReferralRefRange() {
@@ -668,5 +688,77 @@ public final class ClinicalPatientData {
 
     public void setPrescriber(String prescriber) {
         this.prescriber = prescriber;
+    }
+
+    public String getRequesterFirstName() {
+        return requesterFirstName;
+    }
+
+    public void setRequesterFirstName(String requesterFirstName) {
+        this.requesterFirstName = requesterFirstName;
+    }
+
+    public String getRequesterLastName() {
+        return requesterLastName;
+    }
+
+    public void setRequesterLastName(String requesterLastName) {
+        this.requesterLastName = requesterLastName;
+    }
+
+    public String getRequesterPhone() {
+        return requesterPhone;
+    }
+
+    public void setRequesterPhone(String requesterPhone) {
+        this.requesterPhone = requesterPhone;
+    }
+
+    public String getRequesterEmail() {
+        return requesterEmail;
+    }
+
+    public void setRequesterEmail(String requesterEmail) {
+        this.requesterEmail = requesterEmail;
+    }
+
+    public String getRequesterCmp() {
+        return requesterCmp;
+    }
+
+    public void setRequesterCmp(String requesterCmp) {
+        this.requesterCmp = requesterCmp;
+    }
+
+    public String getRequesterRne() {
+        return requesterRne;
+    }
+
+    public void setRequesterRne(String requesterRne) {
+        this.requesterRne = requesterRne;
+    }
+
+    public String getRequesterSpecialty() {
+        return requesterSpecialty;
+    }
+
+    public void setRequesterSpecialty(String requesterSpecialty) {
+        this.requesterSpecialty = requesterSpecialty;
+    }
+
+    public Map<String, String> getAdditionalFieldValues() {
+        return additionalFieldValues == null ? Collections.emptyMap() : additionalFieldValues;
+    }
+
+    public void setAdditionalFieldValues(Map<String, String> additionalFieldValues) {
+        this.additionalFieldValues = additionalFieldValues == null ? new HashMap<>() : new HashMap<>(additionalFieldValues);
+    }
+
+    public String getAdditionalFieldValue(String key) {
+        if (key == null || additionalFieldValues == null) {
+            return "";
+        }
+        String value = additionalFieldValues.get(key);
+        return value == null ? "" : value;
     }
 }

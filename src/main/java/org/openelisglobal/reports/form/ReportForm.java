@@ -93,6 +93,11 @@ public class ReportForm extends BaseForm {
 
     private List<@Pattern(regexp = ValidationHelper.ID_REGEX) String> analysisIds;
 
+    private boolean previewValidated;
+
+    private List<String> previewAnalysisIds;
+    private String validationTemplateConfigJson;
+
     private boolean usePredefinedDateRanges = false;
 
     @Pattern(regexp = "^$|^year$|^months3$|^months6$|^months12$|^custom$")
@@ -559,6 +564,30 @@ public class ReportForm extends BaseForm {
 
     public void setAnalysisIds(List<@Pattern(regexp = ValidationHelper.ID_REGEX) String> analysisIds) {
         this.analysisIds = analysisIds;
+    }
+
+    public boolean isPreviewValidated() {
+        return previewValidated;
+    }
+
+    public void setPreviewValidated(boolean previewValidated) {
+        this.previewValidated = previewValidated;
+    }
+
+    public List<String> getPreviewAnalysisIds() {
+        return previewAnalysisIds;
+    }
+
+    public void setPreviewAnalysisIds(List<String> previewAnalysisIds) {
+        this.previewAnalysisIds = previewAnalysisIds;
+    }
+
+    public String getValidationTemplateConfigJson() {
+        return validationTemplateConfigJson;
+    }
+
+    public void setValidationTemplateConfigJson(String validationTemplateConfigJson) {
+        this.validationTemplateConfigJson = validationTemplateConfigJson;
     }
 
     public boolean isUseSiteSearch() {
