@@ -59,6 +59,7 @@ import org.openelisglobal.patient.util.PatientUtil;
 import org.openelisglobal.patient.valueholder.Patient;
 import org.openelisglobal.patientidentity.valueholder.PatientIdentity;
 import org.openelisglobal.patientidentitytype.util.PatientIdentityTypeMap;
+import org.openelisglobal.analysis.valueholder.ResultFile;
 import org.openelisglobal.result.service.ResultService;
 import org.openelisglobal.result.valueholder.Result;
 import org.openelisglobal.resultlimit.service.ResultLimitService;
@@ -73,6 +74,8 @@ import org.openelisglobal.test.service.TestSectionService;
 import org.openelisglobal.test.service.TestService;
 import org.openelisglobal.test.service.TestServiceImpl;
 import org.openelisglobal.test.valueholder.Test;
+import org.openelisglobal.testadditionalfield.bean.TestAdditionalFieldPayload;
+import org.openelisglobal.testadditionalfield.service.TestAdditionalFieldService;
 import org.openelisglobal.testresult.service.TestResultService;
 import org.openelisglobal.testresult.valueholder.TestResult;
 import org.openelisglobal.typeoftestresult.service.TypeOfTestResultServiceImpl;
@@ -106,6 +109,8 @@ public class ResultsValidationUtility {
     protected AnalysisService analysisService;
     @Autowired
     protected ResultLimitService resultLimitService;
+    @Autowired
+    protected TestAdditionalFieldService testAdditionalFieldService;
 
     private Patient currentPatient;
     protected String SAMPLE_STATUS_OBSERVATION_HISTORY_TYPE_ID;
@@ -116,6 +121,7 @@ public class ResultsValidationUtility {
 
     protected List<Integer> notValidStatus = new ArrayList<>();
     protected Map<String, String> testIdToUnits = new HashMap<>();
+    protected Map<String, List<TestAdditionalFieldPayload>> additionalFieldDefinitionsByTestId = new HashMap<>();
     protected Map<String, Boolean> accessionToValidMap;
     protected String totalTestName = "";
     private static boolean depersonalize = FormFields.getInstance().useField(Field.DepersonalizedResults);
@@ -156,6 +162,7 @@ public class ResultsValidationUtility {
             String accessionNumber, String date) {
 
         List<AnalysisItem> resultList = new ArrayList<>();
+        additionalFieldDefinitionsByTestId.clear();
 
         if (!GenericValidator.isBlankOrNull(testSectionId)) {
             List<ResultValidationItem> testList = getPageUnValidatedTestResultItemsInTestSection(testSectionId,
@@ -654,6 +661,7 @@ public class ResultsValidationUtility {
         analysisResultItem.setTestName(testName);
         analysisResultItem.setUnits(testUnits);
         analysisResultItem.setAnalysisId(testResultItem.getAnalysis().getId());
+        analysisResultItem.setStatusId(testResultItem.getAnalysis().getStatusId());
         analysisResultItem.setPastNotes(testResultItem.getPastNotes());
         analysisResultItem.setResultId(testResultItem.getResultId());
         analysisResultItem.setResultType(testResultItem.getResultType());
@@ -686,8 +694,40 @@ public class ResultsValidationUtility {
         analysisResultItem.setQualifiedResultValue(testResultItem.getQualifiedResultValue());
         analysisResultItem.setQualifiedResultId(testResultItem.getQualificationResultId());
         analysisResultItem.setHasQualifiedResult(testResultItem.isHasQualifiedResult());
+        analysisResultItem.setAdditionalFieldDefinitions(getAdditionalFieldsForTest(testResultItem.getTestId()));
+        analysisResultItem.setAdditionalFieldValues(new HashMap<>(testAdditionalFieldService.getAnalysisValuesForFields(
+                analysisResultItem.getAnalysisId(), analysisResultItem.getAdditionalFieldDefinitions())));
+        analysisResultItem.setResultFile(toResultFileForm(testResultItem.getAnalysis().getResultFile()));
 
         return analysisResultItem;
+    }
+
+    private List<TestAdditionalFieldPayload> getAdditionalFieldsForTest(String testId) {
+        if (GenericValidator.isBlankOrNull(testId)) {
+            return new ArrayList<>();
+        }
+        if (additionalFieldDefinitionsByTestId.containsKey(testId)) {
+            return additionalFieldDefinitionsByTestId.get(testId);
+        }
+        List<TestAdditionalFieldPayload> definitions = testAdditionalFieldService.getFieldsForTest(testId, false);
+        if (definitions == null) {
+            definitions = new ArrayList<>();
+        }
+        additionalFieldDefinitionsByTestId.put(testId, definitions);
+        return definitions;
+    }
+
+    private AnalysisItem.ResultFileForm toResultFileForm(ResultFile file) {
+        if (file == null) {
+            return null;
+        }
+        AnalysisItem.ResultFileForm form = new AnalysisItem.ResultFileForm();
+        form.setFileName(file.getFileName());
+        form.setFileType(file.getFileType());
+        form.setContent(file.getContent());
+        form.setUploadedAt(file.getUploadedAt());
+        form.setLastupdated(file.getLastupdated());
+        return form;
     }
 
     protected final String getFormattedResult(ResultValidationItem testResultItem) {
@@ -725,11 +765,55 @@ public class ResultsValidationUtility {
 
     public List<AnalysisItem> getValidationAnalysisBySample(Sample sample) {
         List<AnalysisItem> resultList = new ArrayList<>();
+        additionalFieldDefinitionsByTestId.clear();
 
         List<ResultValidationItem> testList = getGroupedTestsForSample(sample);
         resultList = testResultListToAnalysisItemList(testList);
         sortByAccessionNumberAndOrder(resultList);
         setGroupingNumbers(resultList);
+
+        return resultList;
+    }
+
+    public List<AnalysisItem> getValidationAnalysisBySampleIncludingValidated(Sample sample,
+            List<Integer> pendingStatusList) {
+        List<AnalysisItem> resultList = new ArrayList<>();
+        additionalFieldDefinitionsByTestId.clear();
+        if (sample == null) {
+            return resultList;
+        }
+
+        String finalizedStatusId = SpringContext.getBean(IStatusService.class).getStatusID(AnalysisStatus.Finalized);
+        String biologistRejectedStatusId = SpringContext.getBean(IStatusService.class)
+                .getStatusID(AnalysisStatus.BiologistRejected);
+
+        Set<Integer> displayStatusIds = new HashSet<>(pendingStatusList);
+        displayStatusIds.add(Integer.parseInt(finalizedStatusId));
+        displayStatusIds.add(Integer.parseInt(biologistRejectedStatusId));
+
+        List<Analysis> analysisList = analysisService.getAnalysesBySampleIdAndStatusId(sample.getId(), displayStatusIds);
+        List<ResultValidationItem> testList = getGroupedTestsForAnalysisList(analysisList,
+                !StatusRules.useRecordStatusForValidation());
+        resultList = testResultListToAnalysisItemList(testList);
+        sortByAccessionNumberAndOrder(resultList);
+        setGroupingNumbers(resultList);
+
+        Set<String> pendingStatusIdSet = pendingStatusList.stream().map(String::valueOf).collect(Collectors.toSet());
+        for (AnalysisItem analysisItem : resultList) {
+            String statusId = analysisItem.getStatusId();
+            boolean isPending = pendingStatusIdSet.contains(statusId);
+            boolean isFinalized = finalizedStatusId.equals(statusId);
+            boolean isBiologistRejected = biologistRejectedStatusId.equals(statusId);
+
+            analysisItem.setReadOnly(!isPending);
+            if (isFinalized) {
+                analysisItem.setIsAccepted(true);
+                analysisItem.setIsRejected(false);
+            } else if (isBiologistRejected) {
+                analysisItem.setIsAccepted(false);
+                analysisItem.setIsRejected(true);
+            }
+        }
 
         return resultList;
     }

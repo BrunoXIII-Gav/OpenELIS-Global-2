@@ -46,6 +46,7 @@ import org.openelisglobal.resultvalidation.bean.AnalysisItem;
 import org.openelisglobal.resultvalidation.controller.BaseResultValidationController;
 import org.openelisglobal.resultvalidation.form.ResultValidationForm;
 import org.openelisglobal.resultvalidation.service.ResultValidationService;
+import org.openelisglobal.resultvalidation.service.AnalysisValidationApprovalService;
 import org.openelisglobal.resultvalidation.util.ResultValidationSaveService;
 import org.openelisglobal.resultvalidation.util.ResultsValidationUtility;
 import org.openelisglobal.role.service.RoleService;
@@ -62,6 +63,7 @@ import org.openelisglobal.test.valueholder.TestSection;
 import org.openelisglobal.testresult.service.TestResultService;
 import org.openelisglobal.testresult.valueholder.TestResult;
 import org.openelisglobal.typeoftestresult.service.TypeOfTestResultServiceImpl;
+import org.openelisglobal.userrole.service.UserRoleService;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.http.MediaType;
 import org.springframework.stereotype.Controller;
@@ -85,6 +87,8 @@ public class AccessionValidationRestController extends BaseResultValidationContr
     private SampleService sampleService;
     @Autowired
     private OrderAdditionalFieldService orderAdditionalFieldService;
+    @Autowired
+    private UserRoleService userRoleService;
 
     private static final String[] ALLOWED_FIELDS = new String[] { "testSectionId", "paging.currentPage", "testSection",
             "testName", "resultList*.accessionNumber", "resultList*.analysisId", "resultList*.testId",
@@ -92,7 +96,8 @@ public class AccessionValidationRestController extends BaseResultValidationContr
             "resultList*.resultId", "resultList*.hasQualifiedResult", "resultList*.sampleIsAccepted",
             "resultList*.sampleIsRejected", "resultList*.result", "resultList*.qualifiedResultValue",
             "resultList*.multiSelectResultValues", "resultList*.isAccepted", "resultList*.isRejected",
-            "resultList*.note" };
+            "resultList*.note", "resultList*.readOnly", "resultList*.approvedByCurrentUser",
+            "resultList*.approvedCount", "resultList*.requiredApprovals", "medicalValidationConfirmed" };
 
     // autowiring not needed, using constructor injection
     private AnalysisService analysisService;
@@ -102,6 +107,7 @@ public class AccessionValidationRestController extends BaseResultValidationContr
     private TestSectionService testSectionService;
     private SystemUserService systemUserService;
     private ResultValidationService resultValidationService;
+    private AnalysisValidationApprovalService analysisValidationApprovalService;
     private NoteService noteService;
     private FhirTransformService fhirTransformService;
 
@@ -114,7 +120,8 @@ public class AccessionValidationRestController extends BaseResultValidationContr
             TestSectionService testSectionService, SystemUserService systemUserService,
             ReferenceTablesService referenceTablesService, DocumentTypeService documentTypeService,
             ResultValidationService resultValidationService, NoteService noteService,
-            FhirTransformService fhirTransformService) {
+            FhirTransformService fhirTransformService,
+            AnalysisValidationApprovalService analysisValidationApprovalService) {
 
         this.analysisService = analysisService;
         this.testResultService = testResultService;
@@ -125,6 +132,7 @@ public class AccessionValidationRestController extends BaseResultValidationContr
         this.resultValidationService = resultValidationService;
         this.noteService = noteService;
         this.fhirTransformService = fhirTransformService;
+        this.analysisValidationApprovalService = analysisValidationApprovalService;
 
         RESULT_TABLE_ID = referenceTablesService.getReferenceTableByName("RESULT").getId();
         RESULT_REPORT_ID = documentTypeService.getDocumentTypeByName("resultExport").getId();
@@ -157,9 +165,10 @@ public class AccessionValidationRestController extends BaseResultValidationContr
             Boolean doRange) throws IllegalAccessException, InvocationTargetException, NoSuchMethodException {
 
         String patientName = "";
-        String patientInfo = "";
-        Patient patient = null;
         List<AnalysisItem> filteredresultList = new ArrayList<>();
+        String currentUserId = getSysUserId(request);
+        boolean isMedicalValidator = isMedicalValidator(currentUserId);
+        boolean isBiologistValidator = isBiologistValidator(currentUserId);
 
         request.getSession().setAttribute(SAVE_DISABLED, "true");
 
@@ -172,8 +181,7 @@ public class AccessionValidationRestController extends BaseResultValidationContr
         if (GenericValidator.isBlankOrNull(newPage)) {
 
             // load testSections for drop down
-            String resultsRoleId = roleService.getRoleByName(Constants.ROLE_VALIDATION).getId();
-            List<IdValuePair> testSections = userService.getUserTestSections(getSysUserId(request), resultsRoleId);
+            List<IdValuePair> testSections = getUserValidationTestSections(currentUserId);
             form.setTestSections(testSections);
             form.setTestSectionsByName(DisplayListService.getInstance().getList(ListType.TEST_SECTION_BY_NAME));
 
@@ -199,7 +207,8 @@ public class AccessionValidationRestController extends BaseResultValidationContr
                     if (resultList.isEmpty() && StringUtils.isNotBlank(form.getAccessionNumber())) {
                         Sample sample = getSample(form.getAccessionNumber());
                         if (sample != null) {
-                            resultList = resultsValidationUtility.getValidationAnalysisBySample(sample);
+                            resultList = resultsValidationUtility.getValidationAnalysisBySampleIncludingValidated(
+                                    sample, getValidationStatus());
                         }
                     }
                 } else {
@@ -209,13 +218,13 @@ public class AccessionValidationRestController extends BaseResultValidationContr
                             setEmptyResults(form);
                             return form;
                         } else {
-                            resultList = resultsValidationUtility.getValidationAnalysisBySample(sample);
+                            resultList = resultsValidationUtility.getValidationAnalysisBySampleIncludingValidated(
+                                    sample, getValidationStatus());
                         }
                     }
                 }
 
-                filteredresultList = userService.filterAnalysisResultsByLabUnitRoles(getSysUserId(request), resultList,
-                        Constants.ROLE_VALIDATION);
+                filteredresultList = filterAnalysisResultsByValidationRoles(currentUserId, resultList);
                 request.setAttribute("pageSize", filteredresultList.size());
                 form.setSearchFinished(true);
             } else {
@@ -231,6 +240,10 @@ public class AccessionValidationRestController extends BaseResultValidationContr
         for (AnalysisItem analysisItem : filteredresultList) {
             analysisItem.setPatientName(patientName);
         }
+        applyApprovalState(filteredresultList, currentUserId);
+        form.setCurrentUserIsMedicalValidator(isMedicalValidator);
+        form.setCurrentUserIsBiologistValidator(isBiologistValidator);
+        form.setMinimumApprovalsRequired(analysisValidationApprovalService.getMinimumApproversRequired());
 
         return form;
     }
@@ -246,6 +259,72 @@ public class AccessionValidationRestController extends BaseResultValidationContr
         }
 
         return validationStatus;
+    }
+
+    private boolean isMedicalValidator(String userId) {
+        if (StringUtils.isBlank(userId)) {
+            return false;
+        }
+        return userRoleService.userInRole(userId, Constants.ROLE_VALIDATION_MEDICAL)
+                || userRoleService.userInRole(userId, Constants.ROLE_PATHOLOGIST);
+    }
+
+    private boolean isBiologistValidator(String userId) {
+        if (StringUtils.isBlank(userId)) {
+            return false;
+        }
+        return userRoleService.userInRole(userId, Constants.ROLE_VALIDATION_BIOLOGIST)
+                || userRoleService.userInRole(userId, Constants.ROLE_VALIDATION);
+    }
+
+    private List<IdValuePair> getUserValidationTestSections(String userId) {
+        if (StringUtils.isBlank(userId)) {
+            return new ArrayList<>();
+        }
+        LinkedHashMap<String, IdValuePair> mergedSections = new LinkedHashMap<>();
+        for (String roleName : getValidationRoleNamesForScope(userId)) {
+            var role = roleService.getRoleByName(roleName);
+            if (role == null) {
+                continue;
+            }
+            List<IdValuePair> sectionsForRole = userService.getUserTestSections(userId, role.getId());
+            for (IdValuePair section : sectionsForRole) {
+                mergedSections.putIfAbsent(section.getId(), section);
+            }
+        }
+        return new ArrayList<>(mergedSections.values());
+    }
+
+    private List<AnalysisItem> filterAnalysisResultsByValidationRoles(String userId, List<AnalysisItem> resultList) {
+        if (resultList == null || resultList.isEmpty()) {
+            return new ArrayList<>();
+        }
+        LinkedHashMap<String, AnalysisItem> merged = new LinkedHashMap<>();
+        for (String roleName : getValidationRoleNamesForScope(userId)) {
+            List<AnalysisItem> filtered = userService.filterAnalysisResultsByLabUnitRoles(userId, resultList, roleName);
+            for (AnalysisItem item : filtered) {
+                if (item != null && StringUtils.isNotBlank(item.getAnalysisId())) {
+                    merged.putIfAbsent(item.getAnalysisId(), item);
+                }
+            }
+        }
+        return new ArrayList<>(merged.values());
+    }
+
+    private List<String> getValidationRoleNamesForScope(String userId) {
+        List<String> roleNames = new ArrayList<>();
+        if (isBiologistValidator(userId)) {
+            roleNames.add(Constants.ROLE_VALIDATION_BIOLOGIST);
+            roleNames.add(Constants.ROLE_VALIDATION);
+        }
+        if (isMedicalValidator(userId)) {
+            roleNames.add(Constants.ROLE_VALIDATION_MEDICAL);
+            roleNames.add(Constants.ROLE_PATHOLOGIST);
+        }
+        if (roleNames.isEmpty()) {
+            roleNames.add(Constants.ROLE_VALIDATION);
+        }
+        return roleNames;
     }
 
     @PostMapping(value = "AccessionValidation", produces = MediaType.APPLICATION_JSON_VALUE, consumes = MediaType.APPLICATION_JSON_VALUE)
@@ -308,7 +387,7 @@ public class AccessionValidationRestController extends BaseResultValidationContr
         // createUpdateElisaList(resultItemList, analysisUpdateList);
         // } else {
         createUpdateList(resultItemList, analysisUpdateList, resultUpdateList, noteUpdateList, deletableList,
-                resultSaveService, areListeners);
+                resultSaveService, areListeners, form);
         // }
         try {
             resultValidationService.persistdata(deletableList, analysisUpdateList, resultUpdateList, resultItemList,
@@ -389,29 +468,56 @@ public class AccessionValidationRestController extends BaseResultValidationContr
 
     private void createUpdateList(List<AnalysisItem> analysisItems, List<Analysis> analysisUpdateList,
             List<Result> resultUpdateList, List<Note> noteUpdateList, List<Result> deletableList,
-            IResultSaveService resultValidationSave, boolean areListeners) {
+            IResultSaveService resultValidationSave, boolean areListeners, ResultValidationForm form) {
 
         List<String> analysisIdList = new ArrayList<>();
+        int minApproversRequired = analysisValidationApprovalService.getMinimumApproversRequired();
+        String finalizedStatus = SpringContext.getBean(IStatusService.class).getStatusID(AnalysisStatus.Finalized);
+        String technicalAcceptanceStatus = SpringContext.getBean(IStatusService.class)
+                .getStatusID(AnalysisStatus.TechnicalAcceptance);
+        String biologistRejectedStatus = SpringContext.getBean(IStatusService.class)
+                .getStatusID(AnalysisStatus.BiologistRejected);
+        String currentUserId = getSysUserId(request);
+        boolean medicalValidator = isMedicalValidator(currentUserId);
+        boolean biologistValidator = isBiologistValidator(currentUserId);
+        boolean medicalPreviewConfirmed = form != null && form.isMedicalValidationConfirmed();
 
         for (AnalysisItem analysisItem : analysisItems) {
             if (!analysisItem.isReadOnly() && analysisItemWillBeUpdated(analysisItem)) {
 
                 Analysis analysis = analysisService.get(analysisItem.getAnalysisId());
-                analysis.setSysUserId(getSysUserId(request));
+                analysis.setSysUserId(currentUserId);
 
                 if (!analysisIdList.contains(analysis.getId())) {
 
                     if (analysisItem.getIsAccepted()) {
-                        analysis.setStatusId(
-                                SpringContext.getBean(IStatusService.class).getStatusID(AnalysisStatus.Finalized));
-                        analysis.setReleasedDate(new java.sql.Date(Calendar.getInstance().getTimeInMillis()));
-                        analysisIdList.add(analysis.getId());
-                        analysisUpdateList.add(analysis);
+                        int approvalCount = analysisItem.getApprovedCount();
+                        if (biologistValidator && !analysisItem.isApprovedByCurrentUser()) {
+                            approvalCount = analysisValidationApprovalService.registerApprovalAndGetCount(analysis.getId(),
+                                    currentUserId);
+                        }
+
+                        if (!technicalAcceptanceStatus.equals(analysis.getStatusId())
+                                && !finalizedStatus.equals(analysis.getStatusId())) {
+                            analysis.setStatusId(technicalAcceptanceStatus);
+                            analysisIdList.add(analysis.getId());
+                            analysisUpdateList.add(analysis);
+                        }
+
+                        if (medicalValidator && medicalPreviewConfirmed && approvalCount >= minApproversRequired
+                                && !finalizedStatus.equals(analysis.getStatusId())) {
+                            analysis.setStatusId(finalizedStatus);
+                            analysis.setReleasedDate(new java.sql.Date(Calendar.getInstance().getTimeInMillis()));
+                            if (!analysisIdList.contains(analysis.getId())) {
+                                analysisIdList.add(analysis.getId());
+                                analysisUpdateList.add(analysis);
+                            }
+                        }
                     }
 
                     if (analysisItem.getIsRejected()) {
-                        analysis.setStatusId(SpringContext.getBean(IStatusService.class)
-                                .getStatusID(AnalysisStatus.BiologistRejected));
+                        analysisValidationApprovalService.clearApprovals(analysis.getId());
+                        analysis.setStatusId(biologistRejectedStatus);
                         analysisIdList.add(analysis.getId());
                         analysisUpdateList.add(analysis);
                     }
@@ -471,7 +577,41 @@ public class AccessionValidationRestController extends BaseResultValidationContr
     }
 
     private boolean analysisItemWillBeUpdated(AnalysisItem analysisItem) {
-        return analysisItem.getIsAccepted() || analysisItem.getIsRejected();
+        boolean medicalValidator = isMedicalValidator(getSysUserId(request));
+        return (analysisItem.getIsAccepted() && (!analysisItem.isApprovedByCurrentUser() || medicalValidator))
+                || analysisItem.getIsRejected();
+    }
+
+    private void applyApprovalState(List<AnalysisItem> analysisItems, String sysUserId) {
+        if (analysisItems == null || analysisItems.isEmpty()) {
+            return;
+        }
+        List<String> analysisIds = analysisItems.stream().map(AnalysisItem::getAnalysisId).filter(StringUtils::isNotBlank)
+                .distinct().toList();
+        if (analysisIds.isEmpty()) {
+            return;
+        }
+
+        String finalizedStatusId = SpringContext.getBean(IStatusService.class).getStatusID(AnalysisStatus.Finalized);
+        Map<String, AnalysisValidationApprovalService.ApprovalState> approvalStateByAnalysisId = analysisValidationApprovalService
+                .getApprovalStateByAnalysisIds(analysisIds, sysUserId);
+        int fallbackRequiredApprovals = analysisValidationApprovalService.getMinimumApproversRequired();
+
+        for (AnalysisItem analysisItem : analysisItems) {
+            AnalysisValidationApprovalService.ApprovalState state = approvalStateByAnalysisId
+                    .get(analysisItem.getAnalysisId());
+            int approvedCount = state == null ? 0 : state.getApprovedCount();
+            int requiredApprovals = state == null ? fallbackRequiredApprovals : state.getRequiredApprovals();
+            boolean approvedByCurrentUser = state != null && state.isApprovedByCurrentUser();
+
+            analysisItem.setApprovedCount(approvedCount);
+            analysisItem.setRequiredApprovals(requiredApprovals);
+            analysisItem.setApprovedByCurrentUser(approvedByCurrentUser);
+
+            if (!finalizedStatusId.equals(analysisItem.getStatusId()) && approvedByCurrentUser) {
+                analysisItem.setIsAccepted(true);
+            }
+        }
     }
 
     private void createUpdateElisaList(List<AnalysisItem> resultItems, List<Analysis> analysisUpdateList) {

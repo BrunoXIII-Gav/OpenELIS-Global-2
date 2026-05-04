@@ -57,6 +57,10 @@ public class ResultValidationForm extends BaseForm implements ValidationPagingFo
 
     @NotNull(groups = { ResultValidation.class })
     private Boolean displayTestSections = true;
+    private boolean currentUserIsMedicalValidator = false;
+    private boolean currentUserIsBiologistValidator = false;
+    private int minimumApprovalsRequired = 1;
+    private boolean medicalValidationConfirmed = false;
 
     public ResultValidationForm() {
         setFormName("ResultValidationForm");
@@ -155,5 +159,37 @@ public class ResultValidationForm extends BaseForm implements ValidationPagingFo
 
     public void setTestDate(String testDate) {
         this.testDate = testDate;
+    }
+
+    public boolean isCurrentUserIsMedicalValidator() {
+        return currentUserIsMedicalValidator;
+    }
+
+    public void setCurrentUserIsMedicalValidator(boolean currentUserIsMedicalValidator) {
+        this.currentUserIsMedicalValidator = currentUserIsMedicalValidator;
+    }
+
+    public boolean isCurrentUserIsBiologistValidator() {
+        return currentUserIsBiologistValidator;
+    }
+
+    public void setCurrentUserIsBiologistValidator(boolean currentUserIsBiologistValidator) {
+        this.currentUserIsBiologistValidator = currentUserIsBiologistValidator;
+    }
+
+    public int getMinimumApprovalsRequired() {
+        return minimumApprovalsRequired;
+    }
+
+    public void setMinimumApprovalsRequired(int minimumApprovalsRequired) {
+        this.minimumApprovalsRequired = minimumApprovalsRequired;
+    }
+
+    public boolean isMedicalValidationConfirmed() {
+        return medicalValidationConfirmed;
+    }
+
+    public void setMedicalValidationConfirmed(boolean medicalValidationConfirmed) {
+        this.medicalValidationConfirmed = medicalValidationConfirmed;
     }
 }

@@ -16,10 +16,13 @@ package org.openelisglobal.resultvalidation.bean;
 import jakarta.validation.constraints.Pattern;
 import java.io.Serializable;
 import java.sql.Timestamp;
+import java.util.HashMap;
 import java.util.List;
+import java.util.Map;
 import org.openelisglobal.common.util.IdValuePair;
 import org.openelisglobal.common.validator.ValidationHelper;
 import org.openelisglobal.resultvalidation.form.ResultValidationForm;
+import org.openelisglobal.testadditionalfield.bean.TestAdditionalFieldPayload;
 import org.openelisglobal.validation.annotations.SafeHtml;
 import org.openelisglobal.validation.annotations.ValidAccessionNumber;
 
@@ -167,6 +170,9 @@ public class AnalysisItem implements Serializable {
     private String multiSelectResultValues = "{}";
 
     private boolean readOnly = false;
+    private int approvedCount = 0;
+    private int requiredApprovals = 1;
+    private boolean approvedByCurrentUser = false;
 
     private boolean isReflexGroup = false;
 
@@ -192,6 +198,12 @@ public class AnalysisItem implements Serializable {
     private boolean valid = true;
 
     private boolean isNormal;
+
+    private List<TestAdditionalFieldPayload> additionalFieldDefinitions;
+
+    private Map<String, String> additionalFieldValues = new HashMap<>();
+
+    private ResultFileForm resultFile;
 
     public String getRejectReasonId() {
         return rejectReasonId;
@@ -652,6 +664,30 @@ public class AnalysisItem implements Serializable {
         return readOnly;
     }
 
+    public int getApprovedCount() {
+        return approvedCount;
+    }
+
+    public void setApprovedCount(int approvedCount) {
+        this.approvedCount = approvedCount;
+    }
+
+    public int getRequiredApprovals() {
+        return requiredApprovals;
+    }
+
+    public void setRequiredApprovals(int requiredApprovals) {
+        this.requiredApprovals = requiredApprovals;
+    }
+
+    public boolean isApprovedByCurrentUser() {
+        return approvedByCurrentUser;
+    }
+
+    public void setApprovedByCurrentUser(boolean approvedByCurrentUser) {
+        this.approvedByCurrentUser = approvedByCurrentUser;
+    }
+
     public boolean isReflexGroup() {
         return isReflexGroup;
     }
@@ -818,5 +854,79 @@ public class AnalysisItem implements Serializable {
 
     public void setPatientInfo(String patientInfo) {
         this.patientInfo = patientInfo;
+    }
+
+    public List<TestAdditionalFieldPayload> getAdditionalFieldDefinitions() {
+        return additionalFieldDefinitions;
+    }
+
+    public void setAdditionalFieldDefinitions(List<TestAdditionalFieldPayload> additionalFieldDefinitions) {
+        this.additionalFieldDefinitions = additionalFieldDefinitions;
+    }
+
+    public Map<String, String> getAdditionalFieldValues() {
+        return additionalFieldValues;
+    }
+
+    public void setAdditionalFieldValues(Map<String, String> additionalFieldValues) {
+        this.additionalFieldValues = additionalFieldValues == null ? new HashMap<>() : additionalFieldValues;
+    }
+
+    public ResultFileForm getResultFile() {
+        return resultFile;
+    }
+
+    public void setResultFile(ResultFileForm resultFile) {
+        this.resultFile = resultFile;
+    }
+
+    public static class ResultFileForm implements Serializable {
+        private static final long serialVersionUID = 1L;
+
+        private String fileName;
+        private String fileType;
+        private byte[] content;
+        private Timestamp uploadedAt;
+        private Timestamp lastupdated;
+
+        public String getFileName() {
+            return fileName;
+        }
+
+        public void setFileName(String fileName) {
+            this.fileName = fileName;
+        }
+
+        public String getFileType() {
+            return fileType;
+        }
+
+        public void setFileType(String fileType) {
+            this.fileType = fileType;
+        }
+
+        public byte[] getContent() {
+            return content;
+        }
+
+        public void setContent(byte[] content) {
+            this.content = content;
+        }
+
+        public Timestamp getUploadedAt() {
+            return uploadedAt;
+        }
+
+        public void setUploadedAt(Timestamp uploadedAt) {
+            this.uploadedAt = uploadedAt;
+        }
+
+        public Timestamp getLastupdated() {
+            return lastupdated;
+        }
+
+        public void setLastupdated(Timestamp lastupdated) {
+            this.lastupdated = lastupdated;
+        }
     }
 }

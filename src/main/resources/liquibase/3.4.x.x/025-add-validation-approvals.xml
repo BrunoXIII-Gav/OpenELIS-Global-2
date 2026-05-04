@@ -1,0 +1,103 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<databaseChangeLog
+  xmlns="http://www.liquibase.org/xml/ns/dbchangelog"
+  xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+  xsi:schemaLocation="http://www.liquibase.org/xml/ns/dbchangelog http://www.liquibase.org/xml/ns/dbchangelog/dbchangelog-3.8.xsd">
+
+  <changeSet id="025-01-create-analysis-validation-approval-table" author="codex">
+    <validCheckSum>8:de8a2f3bf08c2c1940bd9a8ea715a980</validCheckSum>
+    <preConditions onFail="MARK_RAN">
+      <not>
+        <tableExists schemaName="clinlims" tableName="analysis_validation_approval"/>
+      </not>
+    </preConditions>
+
+    <createTable schemaName="clinlims" tableName="analysis_validation_approval">
+      <column name="id" type="varchar(36)">
+        <constraints primaryKey="true" nullable="false"/>
+      </column>
+      <column name="analysis_id" type="numeric(10,0)">
+        <constraints nullable="false"/>
+      </column>
+      <column name="approver_user_id" type="numeric(10,0)">
+        <constraints nullable="false"/>
+      </column>
+      <column name="approved_at" type="timestamp" defaultValueComputed="CURRENT_TIMESTAMP">
+        <constraints nullable="false"/>
+      </column>
+    </createTable>
+
+    <addUniqueConstraint
+      schemaName="clinlims"
+      tableName="analysis_validation_approval"
+      columnNames="analysis_id, approver_user_id"
+      constraintName="uk_analysis_validation_approval_analysis_user"/>
+
+    <createIndex
+      schemaName="clinlims"
+      tableName="analysis_validation_approval"
+      indexName="idx_analysis_validation_approval_analysis">
+      <column name="analysis_id"/>
+    </createIndex>
+
+    <createIndex
+      schemaName="clinlims"
+      tableName="analysis_validation_approval"
+      indexName="idx_analysis_validation_approval_user">
+      <column name="approver_user_id"/>
+    </createIndex>
+
+    <rollback>
+      <dropTable schemaName="clinlims" tableName="analysis_validation_approval"/>
+    </rollback>
+  </changeSet>
+
+  <changeSet id="025-02-add-validation-min-approvers-config" author="codex">
+    <preConditions onFail="MARK_RAN">
+      <sqlCheck expectedResult="0">
+        SELECT count(*) FROM clinlims.site_information WHERE name = 'validationMinApprovers'
+      </sqlCheck>
+    </preConditions>
+
+    <insert schemaName="clinlims" tableName="site_information">
+      <column name="id" valueSequenceNext="site_information_seq"/>
+      <column name="name" value="validationMinApprovers"/>
+      <column name="lastupdated" valueComputed="${now}"/>
+      <column name="description"
+        value="Minimum distinct approvers required to finalize a validation result (integer, min 1)."/>
+      <column name="value" value="1"/>
+      <column name="encrypted" value="false"/>
+      <column name="domain_id"
+        valueComputed="(SELECT id FROM site_information_domain WHERE name = 'validationConfig')"/>
+      <column name="value_type" value="text"/>
+      <column name="group" value="0"/>
+    </insert>
+
+    <rollback>
+      <delete schemaName="clinlims" tableName="site_information">
+        <where>name = 'validationMinApprovers'</where>
+      </delete>
+    </rollback>
+  </changeSet>
+
+  <changeSet id="025-03-add-missing-last-updated-column-analysis-validation-approval" author="codex">
+    <preConditions onFail="MARK_RAN">
+      <and>
+        <tableExists schemaName="clinlims" tableName="analysis_validation_approval"/>
+        <not>
+          <columnExists schemaName="clinlims" tableName="analysis_validation_approval" columnName="last_updated"/>
+        </not>
+      </and>
+    </preConditions>
+
+    <addColumn schemaName="clinlims" tableName="analysis_validation_approval">
+      <column name="last_updated" type="timestamp" defaultValueComputed="CURRENT_TIMESTAMP">
+        <constraints nullable="false"/>
+      </column>
+    </addColumn>
+
+    <rollback>
+      <dropColumn schemaName="clinlims" tableName="analysis_validation_approval" columnName="last_updated"/>
+    </rollback>
+  </changeSet>
+</databaseChangeLog>
