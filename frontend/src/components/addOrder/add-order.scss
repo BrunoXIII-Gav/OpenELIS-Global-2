@@ -74,6 +74,16 @@
   float: right;
 }
 
+.orderPageActionButtons {
+  display: flex;
+  justify-content: flex-end;
+  gap: 0.5rem;
+}
+
+.orderPageActionButtons .forwardButton {
+  float: none;
+}
+
 .tabsLayout button {
   margin: 5px;
 }

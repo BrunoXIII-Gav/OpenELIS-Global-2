@@ -13,6 +13,7 @@ import ErrorDashboardPage from "./pages/ErrorDashboardPage";
 import CustomFieldTypeManagementPage from "./pages/CustomFieldTypeManagementPage";
 import AnalyzerTypesPage from "./pages/AnalyzerTypesPage";
 import ValidationTemplateOverrideConfigPage from "./pages/ValidationTemplateOverrideConfigPage";
+import ConsentTemplateConfigPage from "./pages/ConsentTemplateConfigPage";
 import QCDashboardPlaceholder from "./pages/analyzers/QCDashboardPlaceholder";
 import QCAlertsPlaceholder from "./pages/analyzers/QCAlertsPlaceholder";
 import CorrectiveActionsPlaceholder from "./pages/analyzers/CorrectiveActionsPlaceholder";
@@ -572,6 +573,12 @@ export default function App() {
                   path="/validation-template-config"
                   exact
                   component={() => <ValidationTemplateOverrideConfigPage />}
+                  role={Roles.GLOBAL_ADMIN}
+                />
+                <SecureRoute
+                  path="/consent-template-config"
+                  exact
+                  component={() => <ConsentTemplateConfigPage />}
                   role={Roles.GLOBAL_ADMIN}
                 />
                 <SecureRoute
