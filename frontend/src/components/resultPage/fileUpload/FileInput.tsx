@@ -35,7 +35,8 @@ const CompactFileInput: React.FC<CompactFileInputProps> = memo(
       Record<string, ResultFile | null>
     >({});
 
-    const currentFile = uploadedFile[data.accessionNumber];
+    const rowKey = data.id;
+    const currentFile = uploadedFile[rowKey];
 
     const handleUpload = async (
       e: ChangeEvent<HTMLInputElement>,
@@ -48,12 +49,12 @@ const CompactFileInput: React.FC<CompactFileInputProps> = memo(
         const updatedResults = structuredClone(results) as Results;
 
         const itemIndex = updatedResults.testResult.findIndex(
-          (item) => item.accessionNumber === data.accessionNumber,
+          (item) => String(item.id) === String(rowKey),
         );
 
         if (itemIndex === -1) {
           console.warn(
-            `[CompactFileInput] Accession number "${data.accessionNumber}" not found in results array.`,
+            `[CompactFileInput] Row "${rowKey}" not found in results array.`,
           );
           return;
         }
@@ -72,8 +73,7 @@ const CompactFileInput: React.FC<CompactFileInputProps> = memo(
 
         setUploadedFile((prev) => ({
           ...prev,
-          [data.accessionNumber]:
-            updatedResults.testResult[itemIndex].resultFile,
+          [rowKey]: updatedResults.testResult[itemIndex].resultFile,
         }));
       } catch (err) {
         const errorMessage = err instanceof Error ? err.message : String(err);
@@ -85,14 +85,14 @@ const CompactFileInput: React.FC<CompactFileInputProps> = memo(
 
     useEffect(() => {
       const testResultItem = results.testResult.find(
-        (item) => item.accessionNumber === data.accessionNumber,
+        (item) => String(item.id) === String(rowKey),
       );
 
       setUploadedFile((prev) => ({
         ...prev,
-        [data.accessionNumber]: testResultItem?.resultFile ?? null,
+        [rowKey]: testResultItem?.resultFile ?? null,
       }));
-    }, [results, data.accessionNumber]);
+    }, [results, rowKey]);
 
     return (
       <FileUploader
