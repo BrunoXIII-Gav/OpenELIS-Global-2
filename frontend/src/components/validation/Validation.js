@@ -618,32 +618,91 @@ const Validation = (props) => {
   };
 
   const openResultAttachment = (file) => {
-    if (!file?.content || !file?.fileType) {
-      return;
-    }
-
-    let encodedContent = file.content;
-    if (Array.isArray(file.content)) {
-      try {
-        encodedContent = btoa(
-          new Uint8Array(file.content).reduce(
-            (accumulator, byte) => accumulator + String.fromCharCode(byte),
-            "",
-          ),
-        );
-      } catch (error) {
-        return;
+    const toBase64 = (value) => {
+      if (!value) {
+        return "";
       }
-    }
+      if (typeof value === "string") {
+        if (value.includes(";base64,")) {
+          return value.split(";base64,", 2)[1];
+        }
+        return value;
+      }
 
-    const popup = window.open("", "_blank", "noopener,noreferrer");
-    if (!popup) {
+      try {
+        if (Array.isArray(value)) {
+          return btoa(
+            new Uint8Array(value).reduce(
+              (accumulator, byte) => accumulator + String.fromCharCode(byte),
+              "",
+            ),
+          );
+        }
+
+        if (value instanceof Uint8Array) {
+          return btoa(
+            value.reduce(
+              (accumulator, byte) => accumulator + String.fromCharCode(byte),
+              "",
+            ),
+          );
+        }
+
+        if (value instanceof ArrayBuffer) {
+          return btoa(
+            new Uint8Array(value).reduce(
+              (accumulator, byte) => accumulator + String.fromCharCode(byte),
+              "",
+            ),
+          );
+        }
+
+        if (value?.buffer instanceof ArrayBuffer) {
+          return btoa(
+            new Uint8Array(value.buffer).reduce(
+              (accumulator, byte) => accumulator + String.fromCharCode(byte),
+              "",
+            ),
+          );
+        }
+
+        if (Array.isArray(value?.data)) {
+          return btoa(
+            new Uint8Array(value.data).reduce(
+              (accumulator, byte) => accumulator + String.fromCharCode(byte),
+              "",
+            ),
+          );
+        }
+      } catch (error) {
+        return "";
+      }
+
+      return "";
+    };
+
+    const normalizeMimePrefix = (fileTypeValue) => {
+      if (!fileTypeValue || typeof fileTypeValue !== "string") {
+        return null;
+      }
+      if (fileTypeValue.startsWith("data:")) {
+        return fileTypeValue;
+      }
+      if (fileTypeValue.includes(";base64,")) {
+        return fileTypeValue.split(";base64,", 2)[0];
+      }
+      return `data:${fileTypeValue}`;
+    };
+
+    const encodedContent = toBase64(file?.content);
+    const mimePrefix = normalizeMimePrefix(file?.fileType);
+
+    if (!encodedContent || !mimePrefix) {
       return;
     }
-    popup.document.write(
-      `<iframe src="${file.fileType};base64,${encodedContent}" frameborder="0" style="border:0;position:fixed;top:0;left:0;bottom:0;right:0;width:100%;height:100%;" allowfullscreen></iframe>`,
-    );
-    popup.document.close();
+
+    const attachmentSource = `${mimePrefix};base64,${encodedContent}`;
+    window.open(attachmentSource, "_blank", "noopener,noreferrer");
   };
 
   const renderExpandedRow = ({ data }) => {
