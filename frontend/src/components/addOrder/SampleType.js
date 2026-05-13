@@ -90,6 +90,8 @@ const SampleType = (props) => {
         },
   );
   const [loading, setLoading] = useState(true);
+  const [sampleFixedFieldConfigs, setSampleFixedFieldConfigs] = useState([]);
+  const [waitingForSampleFixedFieldConfig, setWaitingForSampleFixedFieldConfig] = useState(true);
 
   function handleCollectionDate(date) {
     setSampleXml({
@@ -556,6 +558,20 @@ const SampleType = (props) => {
     }
   }, [selectedPanels, sampleTypeTests]);
 
+
+  const getSampleFixedFieldConfig = (fieldKey) =>
+    sampleFixedFieldConfigs.find(
+      (c) => c?.fieldKey?.toLowerCase() === fieldKey?.toLowerCase()
+    ) || null;
+
+  const isSampleFieldVisible = (fieldKey) => {
+    if (waitingForSampleFixedFieldConfig && !sampleFixedFieldConfigs.length) {
+      return false;
+    }
+    const config = getSampleFixedFieldConfig(fieldKey);
+    return config ? config.visible !== false : true;
+  };
+
   useEffect(() => {
     componentMounted.current = true;
     getFromOpenElisServer(
@@ -567,6 +583,12 @@ const SampleType = (props) => {
       displayReferralOrgOptions,
     );
     getFromOpenElisServer("/rest/user-sample-types", fetchSamplesTypes);
+    getFromOpenElisServer("/rest/sample-additional-fields/fixed", (response) => {
+      if (componentMounted.current) {
+        setSampleFixedFieldConfigs(Array.isArray(response) ? response : []);
+        setWaitingForSampleFixedFieldConfig(false);
+      }
+    });
     return () => {
       componentMounted.current = false;
     };
@@ -714,11 +736,13 @@ const SampleType = (props) => {
           ))}
         </Select>
 
+        {isSampleFieldVisible("rejected") && (    
         <CustomCheckBox
           id={"reject_" + index}
           onChange={(value) => handleRejection(value)}
           label={intl.formatMessage({ id: "sample.reject.label" })}
         />
+        )}
         {sampleXml.rejected && (
           <CustomSelect
             id={"rejectedReasonId_" + index}
@@ -728,6 +752,7 @@ const SampleType = (props) => {
             onChange={(e) => handleReasons(e)}
           />
         )}
+        {isSampleFieldVisible("quantity") && (
         <div className="inlineDiv" style={{ display: "flex", gap: "1rem" }}>
           <TextInput
             value={sampleXml.quantity}
@@ -753,6 +778,8 @@ const SampleType = (props) => {
             onChange={(value) => handleUom(value)}
           />
         </div>
+        )}
+        {isSampleFieldVisible("collectionDate") && (
         <div className="inlineDiv">
           <CustomDatePicker
             id={"collectionDate_" + index}
@@ -777,6 +804,8 @@ const SampleType = (props) => {
             labelText={intl.formatMessage({ id: "sample.collection.time" })}
           />
         </div>
+        )}
+        {isSampleFieldVisible("collector") && (
         <div className="inlineDiv">
           <CustomTextInput
             id={"collector_" + index}
@@ -787,6 +816,7 @@ const SampleType = (props) => {
             className="inputText"
           />
         </div>
+        )}
 
         {sampleTypeTests.additionalFields &&
           sampleTypeTests.additionalFields.length > 0 && (
@@ -824,6 +854,7 @@ const SampleType = (props) => {
             Storage assignment operates at SampleItem level, so actual assignment happens
             after SampleItems are created. The location preference is stored here for
             later assignment to the first/default SampleItem. */}
+        {isSampleFieldVisible("storageLocation") && (
         <div className="inlineDiv">
           <StorageLocationSelector
             workflow="orders"
@@ -845,6 +876,8 @@ const SampleType = (props) => {
             }}
           />
         </div>
+        )}
+        {isSampleFieldVisible("panels") && (
         <div className="testPanels">
           <div className="cds--col">
             <h4>
@@ -947,7 +980,8 @@ const SampleType = (props) => {
               })}
           </div>
         </div>
-
+        )}
+        {isSampleFieldVisible("tests") && (
         <div className="cds--col">
           {selectedTests && !selectedTests.length ? "" : <h4>Order Tests</h4>}
           <div
@@ -1046,6 +1080,7 @@ const SampleType = (props) => {
               );
             })}
         </div>
+        )}
 
         <div className="requestTestReferral">
           <Checkbox

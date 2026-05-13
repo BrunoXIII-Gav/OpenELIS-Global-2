@@ -854,6 +854,7 @@ const EditSample = (props) => {
           </Column>
         </div>
       )}
+      {false && (
       <div className="orderLegendBody">
         <Column lg={16}>
           <DataTable
@@ -935,6 +936,7 @@ const EditSample = (props) => {
           />
         </Column>
       </div>
+      )}
       <Stack gap={10}>
         <div className="orderLegendBody">
           <h3>
