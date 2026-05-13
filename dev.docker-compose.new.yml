@@ -1,7 +1,10 @@
 services:
     certs:
         container_name: oe-certs
-        image: itechuw/certgen:main
+        image: certgen.local
+        build:
+            context: ./frontend
+            dockerfile: ./Dockerfile.certs
         platform: linux/amd64
         restart: "no"
         environment:
@@ -153,7 +156,8 @@ services:
             - default
         restart: unless-stopped
         depends_on:
-        - certs        
+            certs:
+                condition: service_completed_successfully
             
 secrets:
   datasource.password:
