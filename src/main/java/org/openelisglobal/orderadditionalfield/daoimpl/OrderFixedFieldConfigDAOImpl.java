@@ -20,16 +20,16 @@ public class OrderFixedFieldConfigDAOImpl extends BaseDAOImpl<OrderFixedFieldCon
     @Override
     public List<OrderFixedFieldConfig> findAllOrdered() {
         String hql = "from OrderFixedFieldConfig c order by c.sortOrder asc, c.id asc";
-        Query<OrderFixedFieldConfig> query = entityManager.unwrap(Session.class)
-                .createQuery(hql, OrderFixedFieldConfig.class);
+        Query<OrderFixedFieldConfig> query = entityManager.unwrap(Session.class).createQuery(hql,
+                OrderFixedFieldConfig.class);
         return query.list();
     }
 
     @Override
     public Optional<OrderFixedFieldConfig> findByFieldKey(String fieldKey) {
         String hql = "from OrderFixedFieldConfig c where lower(c.fieldKey) = :fieldKey";
-        Query<OrderFixedFieldConfig> query = entityManager.unwrap(Session.class)
-                .createQuery(hql, OrderFixedFieldConfig.class);
+        Query<OrderFixedFieldConfig> query = entityManager.unwrap(Session.class).createQuery(hql,
+                OrderFixedFieldConfig.class);
         query.setParameter("fieldKey", fieldKey == null ? "" : fieldKey.trim().toLowerCase());
         return Optional.ofNullable(query.uniqueResult());
     }

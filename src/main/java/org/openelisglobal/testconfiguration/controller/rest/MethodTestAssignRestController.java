@@ -55,8 +55,7 @@ public class MethodTestAssignRestController extends BaseController {
     }
 
     @GetMapping(value = "/MethodTestAssign")
-    public MethodTestAssignForm showMethodTestAssign(
-            @RequestParam(name = "methodId", required = false) String methodId,
+    public MethodTestAssignForm showMethodTestAssign(@RequestParam(name = "methodId", required = false) String methodId,
             HttpServletRequest request) {
         MethodTestAssignForm form = new MethodTestAssignForm();
         form.setMethodId(methodId == null ? "" : methodId);
@@ -79,7 +78,8 @@ public class MethodTestAssignRestController extends BaseController {
             return;
         }
 
-        String methodLabel = StringUtils.isNotBlank(method.getMethodName()) ? method.getMethodName() : method.getLocalizedValue();
+        String methodLabel = StringUtils.isNotBlank(method.getMethodName()) ? method.getMethodName()
+                : method.getLocalizedValue();
         MethodTests methodTests = new MethodTests(new IdValuePair(method.getId(), methodLabel));
 
         List<IdValuePair> assignedTests = new ArrayList<>();
@@ -119,10 +119,8 @@ public class MethodTestAssignRestController extends BaseController {
     }
 
     @PostMapping(value = "/MethodTestAssign")
-    public MethodTestAssignForm postMethodTestAssign(
-            HttpServletRequest request,
-            @RequestBody @Valid MethodTestAssignForm form,
-            BindingResult result,
+    public MethodTestAssignForm postMethodTestAssign(HttpServletRequest request,
+            @RequestBody @Valid MethodTestAssignForm form, BindingResult result,
             RedirectAttributes redirectAttributes) {
         if (result.hasErrors()) {
             saveErrors(result);
@@ -132,7 +130,8 @@ public class MethodTestAssignRestController extends BaseController {
 
         String methodId = form.getMethodId();
         String currentUser = getSysUserId(request);
-        Set<String> requestedTestIds = new HashSet<>(form.getCurrentTests() == null ? List.of() : form.getCurrentTests());
+        Set<String> requestedTestIds = new HashSet<>(
+                form.getCurrentTests() == null ? List.of() : form.getCurrentTests());
 
         List<TbMethodTest> existingLinks = tbMethodTestService.getAllMatching("methodId", methodId);
         Set<String> matchedRequested = new HashSet<>();

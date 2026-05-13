@@ -140,9 +140,8 @@ public class SamplePatientEntryRestController extends BaseSampleEntryController 
             "referralItems*.referredResultType", "referralItems*.modified", "referralItems*.inLabResultId",
             "referralItems*.referralReasonId", "referralItems*.referrer", "referralItems*.referredInstituteId",
             "referralItems*.referredSendDate", "referralItems*.referredTestId", "referralItems*.referredReportDate",
-            "referralItems*.note", "useReferral", "sampleOrderItems.additionalQuestions",
-            "sampleOrderItems.programId", "sampleOrderItems.additionalFieldValues*",
-            "sampleOrderItems.additionalFieldFiles*" };
+            "referralItems*.note", "useReferral", "sampleOrderItems.additionalQuestions", "sampleOrderItems.programId",
+            "sampleOrderItems.additionalFieldValues*", "sampleOrderItems.additionalFieldFiles*" };
 
     @Autowired
     private SamplePatientEntryFormValidator formValidator;

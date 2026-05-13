@@ -53,7 +53,8 @@ public class SampleTypeAdditionalFieldRestController extends BaseRestController 
                 .getList(DisplayListService.ListType.SAMPLE_TYPE_ACTIVE);
         List<IdValuePair> options = new ArrayList<>();
         for (IdValuePair sampleType : sampleTypes) {
-            if (sampleType == null || StringUtils.isBlank(sampleType.getId()) || StringUtils.isBlank(sampleType.getValue())) {
+            if (sampleType == null || StringUtils.isBlank(sampleType.getId())
+                    || StringUtils.isBlank(sampleType.getValue())) {
                 continue;
             }
             options.add(new IdValuePair(sampleType.getId(), sampleType.getValue()));
@@ -112,8 +113,8 @@ public class SampleTypeAdditionalFieldRestController extends BaseRestController 
 
     @PutMapping(value = "sample-type-additional-fields/options/{optionId}", produces = MediaType.APPLICATION_JSON_VALUE, consumes = MediaType.APPLICATION_JSON_VALUE)
     @ResponseBody
-    public SampleTypeAdditionalFieldOptionPayload updateOption(HttpServletRequest request, @PathVariable Integer optionId,
-            @RequestBody SampleTypeAdditionalFieldOptionPayload payload) {
+    public SampleTypeAdditionalFieldOptionPayload updateOption(HttpServletRequest request,
+            @PathVariable Integer optionId, @RequestBody SampleTypeAdditionalFieldOptionPayload payload) {
         try {
             return sampleTypeAdditionalFieldService.updateOption(optionId, payload, getSysUserId(request));
         } catch (IllegalArgumentException e) {

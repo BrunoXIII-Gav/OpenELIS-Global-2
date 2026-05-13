@@ -126,8 +126,10 @@ public abstract class PatientReport extends Report {
     protected SampleOrganizationService sampleOrganizationService = SpringContext
             .getBean(SampleOrganizationService.class);
     protected UserService userService = SpringContext.getBean(UserService.class);;
-    protected TestAdditionalFieldService testAdditionalFieldService = SpringContext.getBean(TestAdditionalFieldService.class);
-    protected OrderAdditionalFieldService orderAdditionalFieldService = SpringContext.getBean(OrderAdditionalFieldService.class);
+    protected TestAdditionalFieldService testAdditionalFieldService = SpringContext
+            .getBean(TestAdditionalFieldService.class);
+    protected OrderAdditionalFieldService orderAdditionalFieldService = SpringContext
+            .getBean(OrderAdditionalFieldService.class);
     protected SampleTypeAdditionalFieldService sampleTypeAdditionalFieldService = SpringContext
             .getBean(SampleTypeAdditionalFieldService.class);
     private List<String> handledOrders;
@@ -647,11 +649,10 @@ public abstract class PatientReport extends Report {
              * setAppropriateResults( resultList, data ); setReferredResult( data,
              * resultList.get( 0 ) ); setNormalRange( data, test, resultList.get( 0 ) ); }
              */
-        } else if (!isFinalizedForReport(currentAnalysis)
-                && !(SpringContext.getBean(IStatusService.class).matches(analysisService.getStatusId(currentAnalysis),
-                        AnalysisStatus.TechnicalRejected)
-                        && ConfigurationProperties.getInstance().isPropertyValueEqual(
-                                ConfigurationProperties.Property.VALIDATE_REJECTED_TESTS, "false"))) {
+        } else if (!isFinalizedForReport(currentAnalysis) && !(SpringContext.getBean(IStatusService.class)
+                .matches(analysisService.getStatusId(currentAnalysis), AnalysisStatus.TechnicalRejected)
+                && ConfigurationProperties.getInstance()
+                        .isPropertyValueEqual(ConfigurationProperties.Property.VALIDATE_REJECTED_TESTS, "false"))) {
 
             if (sampleCompleteMap != null) {
                 sampleCompleteMap.put(convertToAlphaNumericDisplay(currentSample), Boolean.FALSE);
@@ -1118,8 +1119,8 @@ public abstract class PatientReport extends Report {
 
         Map<String, String> sampleTypeAdditionalValues = getSampleTypeAdditionalValuesForCurrentSampleItem();
         if (sampleTypeAdditionalValues != null && !sampleTypeAdditionalValues.isEmpty()) {
-            sampleTypeAdditionalValues.forEach(
-                    (key, value) -> mergedAdditionalValues.put("sampleAdditional." + key, value));
+            sampleTypeAdditionalValues
+                    .forEach((key, value) -> mergedAdditionalValues.put("sampleAdditional." + key, value));
         }
 
         data.setAdditionalFieldValues(mergedAdditionalValues);
@@ -1137,7 +1138,8 @@ public abstract class PatientReport extends Report {
             if (orderAdditionalFieldDefinitions == null || orderAdditionalFieldDefinitions.isEmpty()) {
                 return Collections.emptyMap();
             }
-            Map<String, String> values = orderAdditionalFieldService.getSampleValues(id, orderAdditionalFieldDefinitions);
+            Map<String, String> values = orderAdditionalFieldService.getSampleValues(id,
+                    orderAdditionalFieldDefinitions);
             return values == null ? Collections.emptyMap() : new HashMap<>(values);
         });
     }
@@ -1152,11 +1154,10 @@ public abstract class PatientReport extends Report {
         if (GenericValidator.isBlankOrNull(sampleItemId) || GenericValidator.isBlankOrNull(sampleTypeId)) {
             return Collections.emptyMap();
         }
-        return sampleTypeAdditionalFieldValuesBySampleItemId.computeIfAbsent(sampleItemId,
-                id -> {
-                    Map<String, String> values = sampleTypeAdditionalFieldService.getFieldValuesForSampleItem(sampleTypeId, id);
-                    return values == null ? Collections.emptyMap() : new HashMap<>(values);
-                });
+        return sampleTypeAdditionalFieldValuesBySampleItemId.computeIfAbsent(sampleItemId, id -> {
+            Map<String, String> values = sampleTypeAdditionalFieldService.getFieldValuesForSampleItem(sampleTypeId, id);
+            return values == null ? Collections.emptyMap() : new HashMap<>(values);
+        });
     }
 
     private String getTestName(boolean indent) {

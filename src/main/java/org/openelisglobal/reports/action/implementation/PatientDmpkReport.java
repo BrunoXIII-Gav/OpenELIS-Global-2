@@ -41,8 +41,8 @@ public class PatientDmpkReport extends PatientCILNSPClinical_vreduit {
             + "por PCR y la discriminacion de la presencia o ausencia del alelo mutado mayor o igual a 50 repeticiones CTG.";
     private static final String DEFAULT_INTERPRETATION_TEXT = "El diagnostico molecular se define por el numero "
             + "de repeticiones CTG del alelo mas largo.";
-    private static final List<String> SECTION_PRINT_ORDER = Arrays.asList(
-            "PATIENT", "REQUESTING_PHYSICIAN", "SAMPLE", "MOLECULAR_RESULT", "CONCLUSION");
+    private static final List<String> SECTION_PRINT_ORDER = Arrays.asList("PATIENT", "REQUESTING_PHYSICIAN", "SAMPLE",
+            "MOLECULAR_RESULT", "CONCLUSION");
     private final ImageService imageService = SpringContext.getBean(ImageService.class);
     private List<ClinicalPatientData> scopedReportItems;
     private String dmpkJrxmlPath;
@@ -92,7 +92,8 @@ public class PatientDmpkReport extends PatientCILNSPClinical_vreduit {
         String allele2 = resolveSlotValue(config, "alelo2",
                 Arrays.asList("alelo_2", "alelo2", "allele_2", "allele2", "dmpk_alelo_2"), DEFAULT_NOT_REGISTERED);
 
-        // Fallback to existing result values when additional fields are not yet configured.
+        // Fallback to existing result values when additional fields are not yet
+        // configured.
         if (DEFAULT_NOT_REGISTERED.equals(allele1) || DEFAULT_NOT_REGISTERED.equals(allele2)) {
             List<String> resultFallback = scopedReportItems.stream().map(ClinicalPatientData::getResult)
                     .filter(StringUtils::isNotBlank).distinct().collect(Collectors.toList());
@@ -201,8 +202,8 @@ public class PatientDmpkReport extends PatientCILNSPClinical_vreduit {
         reportParameters.put("dmpkLabelResultDate", fixedFieldLabels.get("resultDate"));
     }
 
-    private void applySectionFieldConfiguration(JSONObject config, ClinicalPatientData first, Map<String, String> fixedFieldValues,
-            Map<String, String> fixedFieldLabels) {
+    private void applySectionFieldConfiguration(JSONObject config, ClinicalPatientData first,
+            Map<String, String> fixedFieldValues, Map<String, String> fixedFieldLabels) {
         List<ConfiguredSectionField> configured = parseConfiguredSectionFields(config);
         if (configured.isEmpty()) {
             reportParameters.put("dmpkConfiguredSectionFields", "");
@@ -262,12 +263,12 @@ public class PatientDmpkReport extends PatientCILNSPClinical_vreduit {
                 || normalized.contains("providerrne")) {
             return "requesterRne";
         }
-        if ("specialty".equals(normalized) || "especialidad".equals(normalized)
-                || normalized.contains("specialty") || normalized.contains("especialidad")) {
+        if ("specialty".equals(normalized) || "especialidad".equals(normalized) || normalized.contains("specialty")
+                || normalized.contains("especialidad")) {
             return "requesterSpecialty";
         }
-        if ("medico".equals(normalized) || "requester".equals(normalized)
-                || normalized.contains("requestingphysician") || normalized.contains("medicosolicitante")) {
+        if ("medico".equals(normalized) || "requester".equals(normalized) || normalized.contains("requestingphysician")
+                || normalized.contains("medicosolicitante")) {
             return "requestingPhysician";
         }
         return key;
@@ -383,15 +384,9 @@ public class PatientDmpkReport extends PatientCILNSPClinical_vreduit {
             return fromSiteInfo;
         }
         // Fallbacks when requester org was not captured in the order header.
-        List<String> candidates = Arrays.asList(
-                "orderAdditional.reference_center",
-                "orderAdditional.centro_referencia",
-                "orderAdditional.referring_site",
-                "orderAdditional.referringSite",
-                "reference_center",
-                "centro_referencia",
-                "referring_site",
-                "referringSite");
+        List<String> candidates = Arrays.asList("orderAdditional.reference_center", "orderAdditional.centro_referencia",
+                "orderAdditional.referring_site", "orderAdditional.referringSite", "reference_center",
+                "centro_referencia", "referring_site", "referringSite");
         for (String key : candidates) {
             String value = resolveAdditionalValue(key);
             if (StringUtils.isNotBlank(value)) {
@@ -448,8 +443,7 @@ public class PatientDmpkReport extends PatientCILNSPClinical_vreduit {
     }
 
     private String resolveResultDate(ClinicalPatientData first, JSONObject config) {
-        String configured = resolveSlotValue(config, "resultDate",
-                Arrays.asList("fecha_resultado", "result_date"), "");
+        String configured = resolveSlotValue(config, "resultDate", Arrays.asList("fecha_resultado", "result_date"), "");
         if (StringUtils.isNotBlank(configured)) {
             return configured;
         }
