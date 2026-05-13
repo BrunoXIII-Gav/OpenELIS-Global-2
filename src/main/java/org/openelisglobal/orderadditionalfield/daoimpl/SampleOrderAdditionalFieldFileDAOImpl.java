@@ -26,8 +26,8 @@ public class SampleOrderAdditionalFieldFileDAOImpl extends BaseDAOImpl<SampleOrd
         }
 
         String hql = "from SampleOrderAdditionalFieldFile f where f.sampleId = :sampleId and f.fieldDefinitionId = :fieldDefinitionId";
-        Query<SampleOrderAdditionalFieldFile> query = entityManager.unwrap(Session.class).createQuery(hql,
-                SampleOrderAdditionalFieldFile.class);
+        Query<SampleOrderAdditionalFieldFile> query = entityManager.unwrap(Session.class)
+                .createQuery(hql, SampleOrderAdditionalFieldFile.class);
         query.setParameter("sampleId", sampleId);
         query.setParameter("fieldDefinitionId", fieldDefinitionId);
         return Optional.ofNullable(query.uniqueResult());
@@ -41,8 +41,8 @@ public class SampleOrderAdditionalFieldFileDAOImpl extends BaseDAOImpl<SampleOrd
         }
 
         String hql = "from SampleOrderAdditionalFieldFile f where f.sampleId = :sampleId and f.fieldDefinitionId in (:fieldDefinitionIds)";
-        Query<SampleOrderAdditionalFieldFile> query = entityManager.unwrap(Session.class).createQuery(hql,
-                SampleOrderAdditionalFieldFile.class);
+        Query<SampleOrderAdditionalFieldFile> query = entityManager.unwrap(Session.class)
+                .createQuery(hql, SampleOrderAdditionalFieldFile.class);
         query.setParameter("sampleId", sampleId);
         query.setParameterList("fieldDefinitionIds", fieldDefinitionIds);
         return query.list();

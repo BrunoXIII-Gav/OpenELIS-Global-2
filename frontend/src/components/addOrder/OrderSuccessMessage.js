@@ -28,8 +28,7 @@ const OrderSuccessMessage = (props) => {
     const providerEmail = orderFormValues.sampleOrderItems.providerEmail;
     const providerCmp = orderFormValues.sampleOrderItems.providerCmp;
     const providerRne = orderFormValues.sampleOrderItems.providerRne;
-    const providerSpecialty =
-      orderFormValues.sampleOrderItems.providerSpecialty;
+    const providerSpecialty = orderFormValues.sampleOrderItems.providerSpecialty;
 
     const emptyOrderForm = createSampleOrderFormValues();
     setOrderFormValues({

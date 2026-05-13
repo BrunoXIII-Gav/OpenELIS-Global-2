@@ -154,8 +154,7 @@ public class LogbookPersistServiceImpl implements LogbookResultsPersistService {
         List<String> testIds = allModifiedItems.stream().map(TestResultItem::getTestId)
                 .filter(testId -> testId != null && !testId.trim().isEmpty()).distinct().toList();
 
-        Map<String, List<TestAdditionalFieldPayload>> activeFieldsByTestCache = testIds.isEmpty()
-                ? Collections.emptyMap()
+        Map<String, List<TestAdditionalFieldPayload>> activeFieldsByTestCache = testIds.isEmpty() ? Collections.emptyMap()
                 : testAdditionalFieldService.getActiveFieldsForTests(testIds);
 
         for (TestResultItem item : allModifiedItems) {

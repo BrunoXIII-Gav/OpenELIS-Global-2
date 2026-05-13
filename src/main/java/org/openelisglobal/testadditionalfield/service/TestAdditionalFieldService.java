@@ -15,8 +15,7 @@ public interface TestAdditionalFieldService {
 
     void replaceFieldsForTests(List<String> testIds, List<TestAdditionalFieldPayload> payloads, String currentUserId);
 
-    Map<String, String> getAnalysisValuesForFields(String analysisId,
-            List<TestAdditionalFieldPayload> fieldDefinitions);
+    Map<String, String> getAnalysisValuesForFields(String analysisId, List<TestAdditionalFieldPayload> fieldDefinitions);
 
     void validateAndPersistAnalysisValues(String testId, String analysisId, Map<String, String> fieldValues,
             String currentUserId, Map<String, List<TestAdditionalFieldPayload>> activeFieldsByTestCache);

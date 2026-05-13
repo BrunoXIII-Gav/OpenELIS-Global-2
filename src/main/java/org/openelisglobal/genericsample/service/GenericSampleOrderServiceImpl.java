@@ -687,7 +687,8 @@ public class GenericSampleOrderServiceImpl implements GenericSampleOrderService 
     private Sample resolveSampleByAccessionOrSearchableValue(String accessionOrSearchTerm) {
         String searchValue = accessionOrSearchTerm == null ? null : accessionOrSearchTerm.trim();
         Sample sample = orderAdditionalFieldService.findSampleIdBySearchableFieldValue(searchValue)
-                .map(sampleId -> sampleService.get(String.valueOf(sampleId))).orElse(null);
+                .map(sampleId -> sampleService.get(String.valueOf(sampleId)))
+                .orElse(null);
         if (sample != null) {
             return sample;
         }

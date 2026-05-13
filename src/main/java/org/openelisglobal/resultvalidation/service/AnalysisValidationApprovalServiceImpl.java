@@ -39,8 +39,7 @@ public class AnalysisValidationApprovalServiceImpl implements AnalysisValidation
 
     @Override
     public int registerApprovalAndGetCount(String analysisId, String approverUserId) {
-        if (analysisId == null || analysisId.trim().isEmpty() || approverUserId == null
-                || approverUserId.trim().isEmpty()) {
+        if (analysisId == null || analysisId.trim().isEmpty() || approverUserId == null || approverUserId.trim().isEmpty()) {
             return 0;
         }
         if (!approvalDAO.existsByAnalysisAndUser(analysisId, approverUserId)) {

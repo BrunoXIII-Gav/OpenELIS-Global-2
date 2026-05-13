@@ -12,8 +12,8 @@ import org.openelisglobal.orderadditionalfield.bean.OrderAdditionalFieldOptionPa
 import org.openelisglobal.orderadditionalfield.bean.OrderAdditionalFieldPayload;
 import org.openelisglobal.orderadditionalfield.bean.OrderFixedFieldConfigPayload;
 import org.openelisglobal.orderadditionalfield.service.OrderAdditionalFieldService;
-import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.http.HttpHeaders;
+import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.MediaType;
 import org.springframework.http.ResponseEntity;
@@ -43,8 +43,7 @@ public class OrderAdditionalFieldRestController extends BaseRestController {
     @PostMapping
     public ResponseEntity<?> createField(@RequestBody OrderAdditionalFieldPayload payload, HttpServletRequest request) {
         try {
-            OrderAdditionalFieldPayload created = orderAdditionalFieldService.createField(payload,
-                    getSysUserId(request));
+            OrderAdditionalFieldPayload created = orderAdditionalFieldService.createField(payload, getSysUserId(request));
             return ResponseEntity.status(HttpStatus.CREATED).body(created);
         } catch (IllegalArgumentException e) {
             return badRequest(e.getMessage());
@@ -52,8 +51,8 @@ public class OrderAdditionalFieldRestController extends BaseRestController {
     }
 
     @PutMapping("/{fieldId}")
-    public ResponseEntity<?> updateField(@PathVariable Integer fieldId,
-            @RequestBody OrderAdditionalFieldPayload payload, HttpServletRequest request) {
+    public ResponseEntity<?> updateField(@PathVariable Integer fieldId, @RequestBody OrderAdditionalFieldPayload payload,
+            HttpServletRequest request) {
         try {
             OrderAdditionalFieldPayload updated = orderAdditionalFieldService.updateField(fieldId, payload,
                     getSysUserId(request));
@@ -74,8 +73,8 @@ public class OrderAdditionalFieldRestController extends BaseRestController {
     }
 
     @PostMapping("/{fieldId}/options")
-    public ResponseEntity<?> createOption(@PathVariable Integer fieldId,
-            @RequestBody OrderAdditionalFieldOptionPayload payload, HttpServletRequest request) {
+    public ResponseEntity<?> createOption(@PathVariable Integer fieldId, @RequestBody OrderAdditionalFieldOptionPayload payload,
+            HttpServletRequest request) {
         try {
             OrderAdditionalFieldOptionPayload created = orderAdditionalFieldService.createOption(fieldId, payload,
                     getSysUserId(request));
@@ -86,8 +85,8 @@ public class OrderAdditionalFieldRestController extends BaseRestController {
     }
 
     @PutMapping("/options/{optionId}")
-    public ResponseEntity<?> updateOption(@PathVariable Integer optionId,
-            @RequestBody OrderAdditionalFieldOptionPayload payload, HttpServletRequest request) {
+    public ResponseEntity<?> updateOption(@PathVariable Integer optionId, @RequestBody OrderAdditionalFieldOptionPayload payload,
+            HttpServletRequest request) {
         try {
             OrderAdditionalFieldOptionPayload updated = orderAdditionalFieldService.updateOption(optionId, payload,
                     getSysUserId(request));
@@ -113,8 +112,8 @@ public class OrderAdditionalFieldRestController extends BaseRestController {
     }
 
     @PutMapping("/fixed")
-    public ResponseEntity<?> upsertFixedFieldConfigs(
-            @RequestBody(required = false) List<OrderFixedFieldConfigPayload> payloads, HttpServletRequest request) {
+    public ResponseEntity<?> upsertFixedFieldConfigs(@RequestBody(required = false) List<OrderFixedFieldConfigPayload> payloads,
+            HttpServletRequest request) {
         try {
             orderAdditionalFieldService.upsertFixedFieldConfigs(payloads == null ? Collections.emptyList() : payloads,
                     getSysUserId(request));
@@ -140,20 +139,19 @@ public class OrderAdditionalFieldRestController extends BaseRestController {
     public ResponseEntity<?> downloadSampleFile(@PathVariable String sampleId, @PathVariable String fieldKey,
             @RequestParam(name = "download", defaultValue = "false") boolean download) {
         try {
-            Optional<OrderAdditionalFieldFilePayload> file = orderAdditionalFieldService.getSampleFile(sampleId,
-                    fieldKey);
+            Optional<OrderAdditionalFieldFilePayload> file = orderAdditionalFieldService.getSampleFile(sampleId, fieldKey);
             if (file.isEmpty() || file.get().getContent() == null || file.get().getContent().length == 0) {
                 return ResponseEntity.notFound().build();
             }
 
             OrderAdditionalFieldFilePayload payload = file.get();
-            String contentType = StringUtils.defaultIfBlank(payload.getFileType(),
-                    MediaType.APPLICATION_OCTET_STREAM_VALUE);
+            String contentType = StringUtils.defaultIfBlank(payload.getFileType(), MediaType.APPLICATION_OCTET_STREAM_VALUE);
             String fileName = StringUtils.defaultIfBlank(payload.getFileName(), fieldKey + ".bin")
                     .replaceAll("[\\r\\n\"]", "_");
 
             String dispositionType = download ? "attachment" : "inline";
-            return ResponseEntity.ok().contentType(MediaType.parseMediaType(contentType))
+            return ResponseEntity.ok()
+                    .contentType(MediaType.parseMediaType(contentType))
                     .header(HttpHeaders.CONTENT_DISPOSITION, dispositionType + "; filename=\"" + fileName + "\"")
                     .body(payload.getContent());
         } catch (IllegalArgumentException e) {

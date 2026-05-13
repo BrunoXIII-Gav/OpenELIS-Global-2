@@ -70,8 +70,7 @@ export const uploadValidationTemplateImage = async (file, name = "") => {
   }
 
   const response = await fetch(
-    config.serverBaseUrl +
-      "/rest/reports/validation-template-overrides/upload-image",
+    config.serverBaseUrl + "/rest/reports/validation-template-overrides/upload-image",
     {
       credentials: "include",
       method: "POST",

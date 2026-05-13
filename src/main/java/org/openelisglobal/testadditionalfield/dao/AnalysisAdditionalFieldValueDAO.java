@@ -9,9 +9,7 @@ public interface AnalysisAdditionalFieldValueDAO extends BaseDAO<AnalysisAdditio
 
     List<AnalysisAdditionalFieldValue> findByAnalysisId(Integer analysisId);
 
-    List<AnalysisAdditionalFieldValue> findByAnalysisIdAndFieldDefinitionIds(Integer analysisId,
-            List<Integer> fieldDefIds);
+    List<AnalysisAdditionalFieldValue> findByAnalysisIdAndFieldDefinitionIds(Integer analysisId, List<Integer> fieldDefIds);
 
-    Optional<AnalysisAdditionalFieldValue> findByAnalysisIdAndFieldDefinitionId(Integer analysisId,
-            Integer fieldDefinitionId);
+    Optional<AnalysisAdditionalFieldValue> findByAnalysisIdAndFieldDefinitionId(Integer analysisId, Integer fieldDefinitionId);
 }

@@ -23,8 +23,8 @@ public interface SampleTypeAdditionalFieldService {
     SampleTypeAdditionalFieldOptionPayload createOption(Integer fieldId, SampleTypeAdditionalFieldOptionPayload payload,
             String currentUserId);
 
-    SampleTypeAdditionalFieldOptionPayload updateOption(Integer optionId,
-            SampleTypeAdditionalFieldOptionPayload payload, String currentUserId);
+    SampleTypeAdditionalFieldOptionPayload updateOption(Integer optionId, SampleTypeAdditionalFieldOptionPayload payload,
+            String currentUserId);
 
     void deactivateOption(Integer optionId, String currentUserId);
 

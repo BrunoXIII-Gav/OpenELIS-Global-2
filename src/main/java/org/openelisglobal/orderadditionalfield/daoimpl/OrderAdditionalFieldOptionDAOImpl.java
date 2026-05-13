@@ -25,9 +25,10 @@ public class OrderAdditionalFieldOptionDAOImpl extends BaseDAOImpl<OrderAddition
         }
 
         String hql = "from OrderAdditionalFieldOption o where o.fieldDefinitionId = :definitionId "
-                + (includeInactive ? "" : "and o.active = true ") + "order by o.sortOrder asc, o.id asc";
-        Query<OrderAdditionalFieldOption> query = entityManager.unwrap(Session.class).createQuery(hql,
-                OrderAdditionalFieldOption.class);
+                + (includeInactive ? "" : "and o.active = true ")
+                + "order by o.sortOrder asc, o.id asc";
+        Query<OrderAdditionalFieldOption> query = entityManager.unwrap(Session.class)
+                .createQuery(hql, OrderAdditionalFieldOption.class);
         query.setParameter("definitionId", definitionId);
         return query.list();
     }
@@ -39,9 +40,10 @@ public class OrderAdditionalFieldOptionDAOImpl extends BaseDAOImpl<OrderAddition
         }
 
         String hql = "from OrderAdditionalFieldOption o where o.fieldDefinitionId in (:definitionIds) "
-                + (activeOnly ? "and o.active = true " : "") + "order by o.sortOrder asc, o.id asc";
-        Query<OrderAdditionalFieldOption> query = entityManager.unwrap(Session.class).createQuery(hql,
-                OrderAdditionalFieldOption.class);
+                + (activeOnly ? "and o.active = true " : "")
+                + "order by o.sortOrder asc, o.id asc";
+        Query<OrderAdditionalFieldOption> query = entityManager.unwrap(Session.class)
+                .createQuery(hql, OrderAdditionalFieldOption.class);
         query.setParameterList("definitionIds", definitionIds);
         return query.list();
     }
@@ -53,8 +55,8 @@ public class OrderAdditionalFieldOptionDAOImpl extends BaseDAOImpl<OrderAddition
         }
 
         String hql = "from OrderAdditionalFieldOption o where o.fieldDefinitionId = :definitionId and lower(o.optionKey) = :optionKey";
-        Query<OrderAdditionalFieldOption> query = entityManager.unwrap(Session.class).createQuery(hql,
-                OrderAdditionalFieldOption.class);
+        Query<OrderAdditionalFieldOption> query = entityManager.unwrap(Session.class)
+                .createQuery(hql, OrderAdditionalFieldOption.class);
         query.setParameter("definitionId", definitionId);
         query.setParameter("optionKey", optionKey.trim().toLowerCase());
         return Optional.ofNullable(query.uniqueResult());

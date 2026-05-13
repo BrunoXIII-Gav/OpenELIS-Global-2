@@ -335,7 +335,8 @@ public class UserServiceImpl implements UserService {
             }
         }
 
-        return sampleTypeById.entrySet().stream().map(entry -> new IdValuePair(entry.getKey(), entry.getValue()))
+        return sampleTypeById.entrySet().stream()
+                .map(entry -> new IdValuePair(entry.getKey(), entry.getValue()))
                 .sorted((left, right) -> StringUtils.defaultString(left.getValue())
                         .compareToIgnoreCase(StringUtils.defaultString(right.getValue())))
                 .collect(Collectors.toList());

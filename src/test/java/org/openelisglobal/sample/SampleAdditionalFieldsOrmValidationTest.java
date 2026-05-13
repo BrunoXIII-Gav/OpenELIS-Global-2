@@ -13,8 +13,8 @@ import org.openelisglobal.sample.valueholder.SampleTypeAdditionalFieldOption;
 /**
  * ORM mapping validation for sample additional fields entities.
  *
- * Executes without database access and fails fast if entity
- * annotations/mappings are inconsistent.
+ * Executes without database access and fails fast if entity annotations/mappings
+ * are inconsistent.
  */
 public class SampleAdditionalFieldsOrmValidationTest {
 

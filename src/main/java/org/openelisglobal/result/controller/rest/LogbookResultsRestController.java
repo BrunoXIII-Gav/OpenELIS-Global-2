@@ -953,7 +953,8 @@ public class LogbookResultsRestController extends LogbookResultsBaseController {
     private Sample resolveSampleByAccessionOrSearchableValue(String accessionOrSearchTerm) {
         String searchValue = accessionOrSearchTerm == null ? null : accessionOrSearchTerm.trim();
         Sample sample = orderAdditionalFieldService.findSampleIdBySearchableFieldValue(searchValue)
-                .map(sampleId -> sampleService.get(String.valueOf(sampleId))).orElse(null);
+                .map(sampleId -> sampleService.get(String.valueOf(sampleId)))
+                .orElse(null);
         if (sample != null) {
             return sample;
         }

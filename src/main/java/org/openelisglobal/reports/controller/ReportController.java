@@ -12,7 +12,6 @@ import java.io.UnsupportedEncodingException;
 import java.lang.reflect.InvocationTargetException;
 import java.net.URLDecoder;
 import java.sql.SQLException;
-import java.sql.Timestamp;
 import java.text.ParseException;
 import java.util.ArrayList;
 import java.util.Arrays;
@@ -22,6 +21,7 @@ import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
+import java.sql.Timestamp;
 import java.util.stream.Collectors;
 import net.sf.jasperreports.engine.JRException;
 import org.apache.commons.validator.GenericValidator;
@@ -208,8 +208,7 @@ public class ReportController extends BaseController {
         Set<String> selectedTestNames = new HashSet<>();
         for (String analysisId : analysisIds) {
             Analysis analysis = analysisService.get(analysisId);
-            if (analysis == null || analysis.getTest() == null
-                    || GenericValidator.isBlankOrNull(analysis.getTest().getId())) {
+            if (analysis == null || analysis.getTest() == null || GenericValidator.isBlankOrNull(analysis.getTest().getId())) {
                 continue;
             }
             testIdToCode.put(analysis.getTest().getId(), analysis.getTest().getSortOrder());
@@ -242,8 +241,7 @@ public class ReportController extends BaseController {
             }
         }
 
-        Set<String> candidateReports = overrides.stream().map(override -> override.reportName)
-                .collect(Collectors.toSet());
+        Set<String> candidateReports = overrides.stream().map(override -> override.reportName).collect(Collectors.toSet());
         Set<String> candidateConfig = overrides.stream()
                 .map(override -> GenericValidator.isBlankOrNull(override.configJson) ? "" : override.configJson)
                 .collect(Collectors.toSet());
@@ -271,8 +269,7 @@ public class ReportController extends BaseController {
 
         Map<String, ValidationTemplateOverride> overrides = new HashMap<>();
         for (ReportDefinition definition : activeDefinitions) {
-            if (!Boolean.TRUE.equals(definition.getIsActive())
-                    || GenericValidator.isBlankOrNull(definition.getDefinitionJson())) {
+            if (!Boolean.TRUE.equals(definition.getIsActive()) || GenericValidator.isBlankOrNull(definition.getDefinitionJson())) {
                 continue;
             }
             try {
@@ -423,7 +420,8 @@ public class ReportController extends BaseController {
     private Sample resolveSampleByAccessionOrSearchableValue(String accessionOrSearchTerm) {
         String searchValue = accessionOrSearchTerm == null ? null : accessionOrSearchTerm.trim();
         Sample sample = orderAdditionalFieldService.findSampleIdBySearchableFieldValue(searchValue)
-                .map(sampleId -> sampleService.get(String.valueOf(sampleId))).orElse(null);
+                .map(sampleId -> sampleService.get(String.valueOf(sampleId)))
+                .orElse(null);
         if (sample != null) {
             return sample;
         }

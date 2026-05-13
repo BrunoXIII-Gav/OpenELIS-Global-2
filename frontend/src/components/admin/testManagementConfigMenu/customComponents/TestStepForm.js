@@ -87,9 +87,7 @@ export const TestStepForm = ({
     }
 
     const asString = String(next.resultType);
-    const idMatch = resultTypeCodes.find(
-      (item) => String(item.id) === asString,
-    );
+    const idMatch = resultTypeCodes.find((item) => String(item.id) === asString);
     if (idMatch) {
       next.resultType = String(idMatch.id);
       return next;
@@ -459,9 +457,7 @@ export const TestStepForm = ({
       const hydratedSampleTypes = selectedSampleTypeFilteredObject.map(
         (sampleType) => ({
           typeId: String(sampleType.id),
-          tests: initialData?.testId
-            ? [{ id: Number(initialData.testId) }]
-            : [],
+          tests: initialData?.testId ? [{ id: Number(initialData.testId) }] : [],
         }),
       );
 
@@ -2138,7 +2134,8 @@ export const StepFiveSelectListOptionsAndResultOrder = ({
     selectedResultTypeList?.code || fallbackResultTypeCode;
   return (
     <>
-      {currentStep === 4 && ["D", "M", "C"].includes(selectedResultTypeCode) ? (
+      {currentStep === 4 &&
+      ["D", "M", "C"].includes(selectedResultTypeCode) ? (
         <>
           <Formik
             initialValues={formData}
@@ -2209,25 +2206,19 @@ export const StepFiveSelectListOptionsAndResultOrder = ({
                 if (!selectedObject) return;
 
                 setSingleSelectDictionaryList((prev) =>
-                  prev.some(
-                    (item) => String(item.id) === String(selectedObject.id),
-                  )
+                  prev.some((item) => String(item.id) === String(selectedObject.id))
                     ? prev
                     : [...prev, selectedObject],
                 );
 
                 setMultiSelectDictionaryList((prev) =>
-                  prev.some(
-                    (item) => String(item.id) === String(selectedObject.id),
-                  )
+                  prev.some((item) => String(item.id) === String(selectedObject.id))
                     ? prev
                     : [...prev, selectedObject],
                 );
 
                 setDictionaryListTag((prev) =>
-                  prev.some(
-                    (item) => String(item.id) === String(selectedObject.id),
-                  )
+                  prev.some((item) => String(item.id) === String(selectedObject.id))
                     ? prev
                     : [...prev, selectedObject],
                 );
@@ -2622,9 +2613,7 @@ export const StepFiveSelectListOptionsAndResultOrder = ({
                               {gdl &&
                                 gdl.map((gdlVal, gdlIndex) => {
                                   return (
-                                    <div
-                                      key={`${index}-${gdlIndex}-${gdlVal.id}`}
-                                    >
+                                    <div key={`${index}-${gdlIndex}-${gdlVal.id}`}>
                                       {gdlVal.value}
                                     </div>
                                   );

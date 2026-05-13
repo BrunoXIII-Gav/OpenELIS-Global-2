@@ -188,8 +188,8 @@ public class SiteBrandingRestController extends BaseRestController {
             if (form.getShowHeaderNotificationIcon() != null) {
                 Boolean newValue = form.getShowHeaderNotificationIcon();
                 if (!newValue.equals(branding.getShowHeaderNotificationIcon())) {
-                    logger.debug("Updating showHeaderNotificationIcon: {} -> {}",
-                            branding.getShowHeaderNotificationIcon(), newValue);
+                    logger.debug("Updating showHeaderNotificationIcon: {} -> {}", branding.getShowHeaderNotificationIcon(),
+                            newValue);
                     branding.setShowHeaderNotificationIcon(newValue);
                     changed = true;
                 }

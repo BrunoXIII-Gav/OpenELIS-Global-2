@@ -131,7 +131,8 @@ public class PatientSearchRestController extends BaseRestController {
 
         String searchValue = labNumber == null ? null : labNumber.trim();
         Sample sample = orderAdditionalFieldService.findSampleIdBySearchableFieldValue(searchValue)
-                .map(sampleId -> sampleService.get(String.valueOf(sampleId))).orElse(null);
+                .map(sampleId -> sampleService.get(String.valueOf(sampleId)))
+                .orElse(null);
         if (sample == null) {
             sample = sampleService.getSampleByAccessionNumber(searchValue);
             if (sample == null && searchValue != null && searchValue.contains("-")) {

@@ -26,8 +26,8 @@ public class SampleOrderAdditionalFieldValueDAOImpl extends BaseDAOImpl<SampleOr
         }
 
         String hql = "from SampleOrderAdditionalFieldValue v where v.sampleId = :sampleId and v.fieldDefinitionId = :fieldDefinitionId";
-        Query<SampleOrderAdditionalFieldValue> query = entityManager.unwrap(Session.class).createQuery(hql,
-                SampleOrderAdditionalFieldValue.class);
+        Query<SampleOrderAdditionalFieldValue> query = entityManager.unwrap(Session.class)
+                .createQuery(hql, SampleOrderAdditionalFieldValue.class);
         query.setParameter("sampleId", sampleId);
         query.setParameter("fieldDefinitionId", fieldDefinitionId);
         return Optional.ofNullable(query.uniqueResult());
@@ -41,23 +41,23 @@ public class SampleOrderAdditionalFieldValueDAOImpl extends BaseDAOImpl<SampleOr
         }
 
         String hql = "from SampleOrderAdditionalFieldValue v where v.sampleId = :sampleId and v.fieldDefinitionId in (:fieldDefinitionIds)";
-        Query<SampleOrderAdditionalFieldValue> query = entityManager.unwrap(Session.class).createQuery(hql,
-                SampleOrderAdditionalFieldValue.class);
+        Query<SampleOrderAdditionalFieldValue> query = entityManager.unwrap(Session.class)
+                .createQuery(hql, SampleOrderAdditionalFieldValue.class);
         query.setParameter("sampleId", sampleId);
         query.setParameterList("fieldDefinitionIds", fieldDefinitionIds);
         return query.list();
     }
 
     @Override
-    public List<Integer> findDistinctSampleIdsBySearchableFieldValue(String searchValue, boolean uniqueOnly,
-            int limit) {
+    public List<Integer> findDistinctSampleIdsBySearchableFieldValue(String searchValue, boolean uniqueOnly, int limit) {
         if (searchValue == null || searchValue.trim().isEmpty() || limit <= 0) {
             return Collections.emptyList();
         }
 
         String hql = "select distinct v.sampleId from SampleOrderAdditionalFieldValue v, OrderAdditionalFieldDefinition d "
                 + "where v.fieldDefinitionId = d.id and d.active = true and d.searchable = true "
-                + (uniqueOnly ? "and d.searchUnique = true " : "") + "and lower(v.fieldValue) = :searchValue "
+                + (uniqueOnly ? "and d.searchUnique = true " : "")
+                + "and lower(v.fieldValue) = :searchValue "
                 + "order by v.sampleId desc";
         Query<Integer> query = entityManager.unwrap(Session.class).createQuery(hql, Integer.class);
         query.setParameter("searchValue", searchValue.trim().toLowerCase());

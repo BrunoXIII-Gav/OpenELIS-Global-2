@@ -12,6 +12,7 @@ import java.util.ArrayList;
 import java.util.Collections;
 import java.util.HashMap;
 import java.util.HashSet;
+import java.util.LinkedHashMap;
 import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Map;
@@ -57,19 +58,29 @@ public class OrderAdditionalFieldServiceImpl implements OrderAdditionalFieldServ
 
     private static final Set<FieldType> OPTION_TYPES = Set.of(FieldType.SELECT, FieldType.RADIO, FieldType.MULTISELECT);
 
-    private static final List<FixedFieldDefault> FIXED_FIELD_DEFAULTS = List.of(new FixedFieldDefault("priority", 10),
-            new FixedFieldDefault("requestDate", 20), new FixedFieldDefault("receivedDateForDisplay", 30),
-            new FixedFieldDefault("receivedTime", 40), new FixedFieldDefault("nextVisitDate", 50),
-            new FixedFieldDefault("referringSiteName", 60), new FixedFieldDefault("referringSiteDepartmentId", 70),
-            new FixedFieldDefault("provisionalClinicalDiagnosis", 80), new FixedFieldDefault("providerFirstName", 90),
-            new FixedFieldDefault("providerLastName", 100), new FixedFieldDefault("providerCmp", 110),
-            new FixedFieldDefault("providerRne", 120), new FixedFieldDefault("providerSpecialty", 130),
-            new FixedFieldDefault("providerWorkPhone", 140), new FixedFieldDefault("providerFax", 150),
-            new FixedFieldDefault("providerEmail", 160), new FixedFieldDefault("paymentOptionSelection", 170),
-            new FixedFieldDefault("testLocationCode", 180), new FixedFieldDefault("otherLocationCode", 190),
+    private static final List<FixedFieldDefault> FIXED_FIELD_DEFAULTS = List.of(
+            new FixedFieldDefault("priority", 10),
+            new FixedFieldDefault("requestDate", 20),
+            new FixedFieldDefault("receivedDateForDisplay", 30),
+            new FixedFieldDefault("receivedTime", 40),
+            new FixedFieldDefault("nextVisitDate", 50),
+            new FixedFieldDefault("referringSiteName", 60),
+            new FixedFieldDefault("referringSiteDepartmentId", 70),
+            new FixedFieldDefault("provisionalClinicalDiagnosis", 80),
+            new FixedFieldDefault("providerFirstName", 90),
+            new FixedFieldDefault("providerLastName", 100),
+            new FixedFieldDefault("providerCmp", 110),
+            new FixedFieldDefault("providerRne", 120),
+            new FixedFieldDefault("providerSpecialty", 130),
+            new FixedFieldDefault("providerWorkPhone", 140),
+            new FixedFieldDefault("providerFax", 150),
+            new FixedFieldDefault("providerEmail", 160),
+            new FixedFieldDefault("paymentOptionSelection", 170),
+            new FixedFieldDefault("testLocationCode", 180),
+            new FixedFieldDefault("otherLocationCode", 190),
             new FixedFieldDefault("rememberSiteAndRequester", 200));
-    private static final Set<String> FIXED_FIELD_KEYS = FIXED_FIELD_DEFAULTS.stream().map(f -> f.fieldKey.toLowerCase())
-            .collect(Collectors.toSet());
+    private static final Set<String> FIXED_FIELD_KEYS = FIXED_FIELD_DEFAULTS.stream()
+            .map(f -> f.fieldKey.toLowerCase()).collect(Collectors.toSet());
 
     @Autowired
     private OrderAdditionalFieldDefinitionDAO definitionDAO;
@@ -122,8 +133,7 @@ public class OrderAdditionalFieldServiceImpl implements OrderAdditionalFieldServ
         definition.setFieldType(fieldType.name());
         definition.setRequired(Boolean.TRUE.equals(payload.getRequired()));
         definition.setActive(payload.getActive() == null || payload.getActive());
-        definition.setSortOrder(
-                payload.getSortOrder() == null ? getNextSortOrder() : Math.max(payload.getSortOrder(), 0));
+        definition.setSortOrder(payload.getSortOrder() == null ? getNextSortOrder() : Math.max(payload.getSortOrder(), 0));
         definition.setDefaultValue(StringUtils.defaultIfBlank(payload.getDefaultValue(), null));
         definition.setMaxLength(payload.getMaxLength());
         definition.setMetadataJson(normalizeMetadataJson(payload.getMetadataJson()));
@@ -447,8 +457,9 @@ public class OrderAdditionalFieldServiceImpl implements OrderAdditionalFieldServ
 
         List<Integer> fieldDefinitionIds = documentFields.stream().map(OrderAdditionalFieldPayload::getId)
                 .collect(Collectors.toList());
-        Map<Integer, String> fieldKeyById = documentFields.stream().collect(Collectors.toMap(
-                OrderAdditionalFieldPayload::getId, OrderAdditionalFieldPayload::getFieldKey, (left, right) -> left));
+        Map<Integer, String> fieldKeyById = documentFields.stream()
+                .collect(Collectors.toMap(OrderAdditionalFieldPayload::getId, OrderAdditionalFieldPayload::getFieldKey,
+                        (left, right) -> left));
 
         List<SampleOrderAdditionalFieldFile> files = fileDAO.findBySampleIdAndFieldDefinitionIds(sampleNumericId,
                 fieldDefinitionIds);
@@ -548,8 +559,7 @@ public class OrderAdditionalFieldServiceImpl implements OrderAdditionalFieldServ
             entity.setVisible(payload.getVisible() == null || payload.getVisible());
             entity.setRequired(payload.getRequired() != null && payload.getRequired());
             entity.setReadonly(payload.getReadonly() != null && payload.getReadonly());
-            entity.setSortOrder(
-                    payload.getSortOrder() == null ? getDefaultSortOrder(normalizedKey) : payload.getSortOrder());
+            entity.setSortOrder(payload.getSortOrder() == null ? getDefaultSortOrder(normalizedKey) : payload.getSortOrder());
             entity.setSysUserId(currentUserId);
 
             if (entity.getId() == null) {
@@ -741,8 +751,7 @@ public class OrderAdditionalFieldServiceImpl implements OrderAdditionalFieldServ
                 continue;
             }
 
-            String normalizedOptionKey = normalizeOptionKey(optionPayload.getOptionKey(),
-                    optionPayload.getOptionLabel());
+            String normalizedOptionKey = normalizeOptionKey(optionPayload.getOptionKey(), optionPayload.getOptionLabel());
             if (!uniqueOptionKeys.add(normalizedOptionKey)) {
                 throw new IllegalArgumentException("Duplicate option key in request payload: " + normalizedOptionKey);
             }
@@ -751,8 +760,7 @@ public class OrderAdditionalFieldServiceImpl implements OrderAdditionalFieldServ
             option.setFieldDefinitionId(definitionId);
             option.setOptionKey(normalizedOptionKey);
             option.setOptionLabel(optionPayload.getOptionLabel().trim());
-            option.setSortOrder(
-                    optionPayload.getSortOrder() == null ? fallbackSortOrder : optionPayload.getSortOrder());
+            option.setSortOrder(optionPayload.getSortOrder() == null ? fallbackSortOrder : optionPayload.getSortOrder());
             option.setActive(optionPayload.getActive() == null || optionPayload.getActive());
             option.setSysUserId(currentUserId);
             optionDAO.insert(option);
@@ -774,8 +782,9 @@ public class OrderAdditionalFieldServiceImpl implements OrderAdditionalFieldServ
             }
 
             if (optionPayload.getId() != null) {
-                OrderAdditionalFieldOption existing = optionDAO.get(optionPayload.getId()).orElseThrow(
-                        () -> new IllegalArgumentException("Option not found for update: " + optionPayload.getId()));
+                OrderAdditionalFieldOption existing = optionDAO.get(optionPayload.getId())
+                        .orElseThrow(() -> new IllegalArgumentException(
+                                "Option not found for update: " + optionPayload.getId()));
 
                 existing.setOptionKey(normalizeOptionKey(optionPayload.getOptionKey(), optionPayload.getOptionLabel()));
                 existing.setOptionLabel(optionPayload.getOptionLabel().trim());
@@ -814,8 +823,7 @@ public class OrderAdditionalFieldServiceImpl implements OrderAdditionalFieldServ
         }
     }
 
-    private OrderAdditionalFieldFilePayload mapFileToPayload(SampleOrderAdditionalFieldFile file,
-            boolean includeContent) {
+    private OrderAdditionalFieldFilePayload mapFileToPayload(SampleOrderAdditionalFieldFile file, boolean includeContent) {
         OrderAdditionalFieldFilePayload payload = new OrderAdditionalFieldFilePayload();
         payload.setFileName(file.getFileName());
         payload.setFileType(file.getFileType());
@@ -827,8 +835,8 @@ public class OrderAdditionalFieldServiceImpl implements OrderAdditionalFieldServ
         return payload;
     }
 
-    private void handleDocumentField(Integer sampleNumericId, OrderAdditionalFieldPayload definition,
-            FieldMetadata metadata, boolean required, OrderAdditionalFieldFilePayload filePayload,
+    private void handleDocumentField(Integer sampleNumericId, OrderAdditionalFieldPayload definition, FieldMetadata metadata,
+            boolean required, OrderAdditionalFieldFilePayload filePayload,
             Optional<SampleOrderAdditionalFieldFile> existingFile, String currentUserId) {
         boolean requestedDelete = filePayload != null && Boolean.TRUE.equals(filePayload.getDeleteFile());
         if (requestedDelete) {
@@ -879,8 +887,7 @@ public class OrderAdditionalFieldServiceImpl implements OrderAdditionalFieldServ
                 ? List.of(DEFAULT_DOCUMENT_MIME_TYPE)
                 : metadata.allowedMimeTypes;
 
-        if (!allowedMimeTypes.stream()
-                .anyMatch(mime -> StringUtils.equalsIgnoreCase(mime, filePayload.getFileType()))) {
+        if (!allowedMimeTypes.stream().anyMatch(mime -> StringUtils.equalsIgnoreCase(mime, filePayload.getFileType()))) {
             throw new IllegalArgumentException(String.format("Unsupported file type '%s' for field '%s'",
                     filePayload.getFileType(), definition.getFieldKey()));
         }
@@ -950,8 +957,7 @@ public class OrderAdditionalFieldServiceImpl implements OrderAdditionalFieldServ
             if (definition == null || StringUtils.isBlank(definition.getFieldKey())) {
                 continue;
             }
-            if (!context.containsKey(definition.getFieldKey())
-                    && StringUtils.isNotBlank(definition.getDefaultValue())) {
+            if (!context.containsKey(definition.getFieldKey()) && StringUtils.isNotBlank(definition.getDefaultValue())) {
                 context.put(definition.getFieldKey(), definition.getDefaultValue());
             }
         }
@@ -1096,17 +1102,17 @@ public class OrderAdditionalFieldServiceImpl implements OrderAdditionalFieldServ
         boolean existsDuplicate = valueDAO.existsByFieldDefinitionIdAndFieldValueIgnoreCaseAndSampleIdNot(
                 definition.getId(), normalizedValue, sampleNumericId);
         if (existsDuplicate) {
-            throw new IllegalArgumentException(
-                    String.format("Duplicate value '%s' is not allowed for searchable unique field '%s'",
-                            normalizedValue, definition.getFieldKey()));
+            throw new IllegalArgumentException(String.format(
+                    "Duplicate value '%s' is not allowed for searchable unique field '%s'",
+                    normalizedValue, definition.getFieldKey()));
         }
     }
 
     private void validateMaxLength(OrderAdditionalFieldPayload definition, String value) {
         if (definition.getMaxLength() != null && definition.getMaxLength() > 0
                 && value.length() > definition.getMaxLength()) {
-            throw new IllegalArgumentException(String.format("Field '%s' exceeds maxLength=%d",
-                    definition.getFieldKey(), definition.getMaxLength()));
+            throw new IllegalArgumentException(
+                    String.format("Field '%s' exceeds maxLength=%d", definition.getFieldKey(), definition.getMaxLength()));
         }
     }
 
@@ -1127,8 +1133,7 @@ public class OrderAdditionalFieldServiceImpl implements OrderAdditionalFieldServ
     }
 
     private void validateDateTime(String value) {
-        List<DateTimeFormatter> formatters = List.of(DATE_TIME_MINUTES, DATE_TIME_SECONDS,
-                DATE_TIME_WITH_SPACE_SECONDS);
+        List<DateTimeFormatter> formatters = List.of(DATE_TIME_MINUTES, DATE_TIME_SECONDS, DATE_TIME_WITH_SPACE_SECONDS);
         for (DateTimeFormatter formatter : formatters) {
             try {
                 LocalDateTime.parse(value, formatter);

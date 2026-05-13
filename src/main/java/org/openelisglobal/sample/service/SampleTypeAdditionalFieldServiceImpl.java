@@ -71,8 +71,7 @@ public class SampleTypeAdditionalFieldServiceImpl implements SampleTypeAdditiona
 
     @Override
     @Transactional(readOnly = true)
-    public Map<String, List<SampleTypeAdditionalFieldPayload>> getActiveFieldsForSampleTypes(
-            List<String> sampleTypeIds) {
+    public Map<String, List<SampleTypeAdditionalFieldPayload>> getActiveFieldsForSampleTypes(List<String> sampleTypeIds) {
         Map<String, List<SampleTypeAdditionalFieldPayload>> result = new HashMap<>();
         if (sampleTypeIds == null || sampleTypeIds.isEmpty()) {
             return result;
@@ -101,8 +100,8 @@ public class SampleTypeAdditionalFieldServiceImpl implements SampleTypeAdditiona
                 .collect(Collectors.toList());
         List<SampleTypeAdditionalFieldOption> options = optionDAO.findByDefinitionIds(definitionIds, true);
 
-        Map<Integer, List<SampleTypeAdditionalFieldPayload>> bySampleType = mapDefinitionsToPayload(definitions,
-                options).stream().collect(Collectors.groupingBy(payload -> Integer.valueOf(payload.getSampleTypeId())));
+        Map<Integer, List<SampleTypeAdditionalFieldPayload>> bySampleType = mapDefinitionsToPayload(definitions, options)
+                .stream().collect(Collectors.groupingBy(payload -> Integer.valueOf(payload.getSampleTypeId())));
 
         for (Integer numericId : numericIds) {
             String key = String.valueOf(numericId);
@@ -123,8 +122,9 @@ public class SampleTypeAdditionalFieldServiceImpl implements SampleTypeAdditiona
             return Collections.emptyMap();
         }
 
-        Map<Integer, String> fieldKeyByDefinitionId = definitions.stream().collect(Collectors
-                .toMap(SampleTypeAdditionalFieldDefinition::getId, SampleTypeAdditionalFieldDefinition::getFieldKey));
+        Map<Integer, String> fieldKeyByDefinitionId = definitions.stream()
+                .collect(Collectors.toMap(SampleTypeAdditionalFieldDefinition::getId,
+                        SampleTypeAdditionalFieldDefinition::getFieldKey));
 
         Map<String, String> valuesByFieldKey = new HashMap<>();
         List<SampleItemAdditionalFieldValue> savedValues = valueDAO.findBySampleItemId(numericSampleItemId);
@@ -140,8 +140,7 @@ public class SampleTypeAdditionalFieldServiceImpl implements SampleTypeAdditiona
     }
 
     @Override
-    public SampleTypeAdditionalFieldPayload createField(SampleTypeAdditionalFieldPayload payload,
-            String currentUserId) {
+    public SampleTypeAdditionalFieldPayload createField(SampleTypeAdditionalFieldPayload payload, String currentUserId) {
         validatePayloadRequiredValues(payload);
         Integer sampleTypeNumericId = parseNumericId(payload.getSampleTypeId(), "sampleTypeId");
         String normalizedFieldKey = normalizeFieldKey(payload.getFieldKey(), payload.getDisplayName());
@@ -150,8 +149,7 @@ public class SampleTypeAdditionalFieldServiceImpl implements SampleTypeAdditiona
         Optional<SampleTypeAdditionalFieldDefinition> existing = definitionDAO
                 .findBySampleTypeIdAndFieldKey(sampleTypeNumericId, normalizedFieldKey);
         if (existing.isPresent()) {
-            throw new IllegalArgumentException(
-                    "Field key already exists for selected sample type: " + normalizedFieldKey);
+            throw new IllegalArgumentException("Field key already exists for selected sample type: " + normalizedFieldKey);
         }
 
         FieldType fieldType = parseFieldType(payload.getFieldType());
@@ -162,8 +160,8 @@ public class SampleTypeAdditionalFieldServiceImpl implements SampleTypeAdditiona
         definition.setFieldType(fieldType.name());
         definition.setRequired(Boolean.TRUE.equals(payload.getRequired()));
         definition.setActive(payload.getActive() == null || payload.getActive());
-        definition.setSortOrder(payload.getSortOrder() == null ? getNextSortOrder(sampleTypeNumericId)
-                : Math.max(payload.getSortOrder(), 0));
+        definition.setSortOrder(
+                payload.getSortOrder() == null ? getNextSortOrder(sampleTypeNumericId) : Math.max(payload.getSortOrder(), 0));
         definition.setDefaultValue(StringUtils.defaultIfBlank(payload.getDefaultValue(), null));
         definition.setMaxLength(payload.getMaxLength());
         definition.setMetadataJson(StringUtils.defaultIfBlank(payload.getMetadataJson(), null));
@@ -254,8 +252,8 @@ public class SampleTypeAdditionalFieldServiceImpl implements SampleTypeAdditiona
     }
 
     @Override
-    public SampleTypeAdditionalFieldOptionPayload createOption(Integer fieldId,
-            SampleTypeAdditionalFieldOptionPayload payload, String currentUserId) {
+    public SampleTypeAdditionalFieldOptionPayload createOption(Integer fieldId, SampleTypeAdditionalFieldOptionPayload payload,
+            String currentUserId) {
         if (fieldId == null) {
             throw new IllegalArgumentException("fieldId is required");
         }
@@ -292,8 +290,8 @@ public class SampleTypeAdditionalFieldServiceImpl implements SampleTypeAdditiona
     }
 
     @Override
-    public SampleTypeAdditionalFieldOptionPayload updateOption(Integer optionId,
-            SampleTypeAdditionalFieldOptionPayload payload, String currentUserId) {
+    public SampleTypeAdditionalFieldOptionPayload updateOption(Integer optionId, SampleTypeAdditionalFieldOptionPayload payload,
+            String currentUserId) {
         if (optionId == null) {
             throw new IllegalArgumentException("optionId is required");
         }
@@ -342,9 +340,8 @@ public class SampleTypeAdditionalFieldServiceImpl implements SampleTypeAdditiona
     }
 
     @Override
-    public void validateAndPersistSampleItemValues(String sampleTypeId, String sampleItemId,
-            Map<String, String> fieldValues, String currentUserId,
-            Map<String, List<SampleTypeAdditionalFieldPayload>> activeFieldsBySampleTypeCache) {
+    public void validateAndPersistSampleItemValues(String sampleTypeId, String sampleItemId, Map<String, String> fieldValues,
+            String currentUserId, Map<String, List<SampleTypeAdditionalFieldPayload>> activeFieldsBySampleTypeCache) {
         if (fieldValues == null || fieldValues.isEmpty()) {
             return;
         }
@@ -353,8 +350,7 @@ public class SampleTypeAdditionalFieldServiceImpl implements SampleTypeAdditiona
         if (activeFieldsBySampleTypeCache != null) {
             fieldDefinitions = activeFieldsBySampleTypeCache.get(sampleTypeId);
             if (fieldDefinitions == null) {
-                fieldDefinitions = activeFieldsBySampleTypeCache
-                        .get(String.valueOf(parseNumericId(sampleTypeId, "sampleTypeId")));
+                fieldDefinitions = activeFieldsBySampleTypeCache.get(String.valueOf(parseNumericId(sampleTypeId, "sampleTypeId")));
             }
         }
         if (fieldDefinitions == null) {
@@ -373,8 +369,8 @@ public class SampleTypeAdditionalFieldServiceImpl implements SampleTypeAdditiona
 
             if (StringUtils.isBlank(normalizedValue)) {
                 if (Boolean.TRUE.equals(fieldDefinition.getRequired())) {
-                    throw new LIMSRuntimeException("Additional field is required: "
-                            + StringUtils.defaultString(fieldDefinition.getDisplayName()));
+                    throw new LIMSRuntimeException(
+                            "Additional field is required: " + StringUtils.defaultString(fieldDefinition.getDisplayName()));
                 }
                 continue;
             }
@@ -556,8 +552,7 @@ public class SampleTypeAdditionalFieldServiceImpl implements SampleTypeAdditiona
                 continue;
             }
 
-            String normalizedOptionKey = normalizeOptionKey(optionPayload.getOptionKey(),
-                    optionPayload.getOptionLabel());
+            String normalizedOptionKey = normalizeOptionKey(optionPayload.getOptionKey(), optionPayload.getOptionLabel());
             if (!uniqueOptionKeys.add(normalizedOptionKey)) {
                 throw new IllegalArgumentException("Duplicate option key in request payload: " + normalizedOptionKey);
             }
@@ -566,8 +561,7 @@ public class SampleTypeAdditionalFieldServiceImpl implements SampleTypeAdditiona
             option.setFieldDefinitionId(definitionId);
             option.setOptionKey(normalizedOptionKey);
             option.setOptionLabel(optionPayload.getOptionLabel().trim());
-            option.setSortOrder(
-                    optionPayload.getSortOrder() == null ? fallbackSortOrder : optionPayload.getSortOrder());
+            option.setSortOrder(optionPayload.getSortOrder() == null ? fallbackSortOrder : optionPayload.getSortOrder());
             option.setActive(optionPayload.getActive() == null || optionPayload.getActive());
             option.setSysUserId(currentUserId);
             optionDAO.insert(option);
@@ -589,8 +583,9 @@ public class SampleTypeAdditionalFieldServiceImpl implements SampleTypeAdditiona
             }
 
             if (optionPayload.getId() != null) {
-                SampleTypeAdditionalFieldOption existing = optionDAO.get(optionPayload.getId()).orElseThrow(
-                        () -> new IllegalArgumentException("Option not found for update: " + optionPayload.getId()));
+                SampleTypeAdditionalFieldOption existing = optionDAO.get(optionPayload.getId())
+                        .orElseThrow(() -> new IllegalArgumentException(
+                                "Option not found for update: " + optionPayload.getId()));
 
                 existing.setOptionKey(normalizeOptionKey(optionPayload.getOptionKey(), optionPayload.getOptionLabel()));
                 existing.setOptionLabel(optionPayload.getOptionLabel().trim());
@@ -659,8 +654,7 @@ public class SampleTypeAdditionalFieldServiceImpl implements SampleTypeAdditiona
     private void validateMaxLength(SampleTypeAdditionalFieldPayload fieldDefinition, String value) {
         Integer maxLength = fieldDefinition.getMaxLength();
         if (maxLength != null && maxLength > 0 && value.length() > maxLength) {
-            throw new LIMSRuntimeException(
-                    "Value exceeds maximum length for field: " + fieldDefinition.getDisplayName());
+            throw new LIMSRuntimeException("Value exceeds maximum length for field: " + fieldDefinition.getDisplayName());
         }
     }
 
@@ -715,8 +709,7 @@ public class SampleTypeAdditionalFieldServiceImpl implements SampleTypeAdditiona
     }
 
     private void validateSingleOption(SampleTypeAdditionalFieldPayload fieldDefinition, String value) {
-        Set<String> validOptions = fieldDefinition.getOptions().stream()
-                .filter(option -> Boolean.TRUE.equals(option.getActive()))
+        Set<String> validOptions = fieldDefinition.getOptions().stream().filter(option -> Boolean.TRUE.equals(option.getActive()))
                 .map(SampleTypeAdditionalFieldOptionPayload::getOptionKey).collect(Collectors.toSet());
 
         if (!validOptions.contains(value)) {
@@ -725,8 +718,7 @@ public class SampleTypeAdditionalFieldServiceImpl implements SampleTypeAdditiona
     }
 
     private String normalizeAndValidateMultiSelect(SampleTypeAdditionalFieldPayload fieldDefinition, String value) {
-        Set<String> validOptions = fieldDefinition.getOptions().stream()
-                .filter(option -> Boolean.TRUE.equals(option.getActive()))
+        Set<String> validOptions = fieldDefinition.getOptions().stream().filter(option -> Boolean.TRUE.equals(option.getActive()))
                 .map(SampleTypeAdditionalFieldOptionPayload::getOptionKey).collect(Collectors.toSet());
 
         LinkedHashSet<String> normalizedOptions = new LinkedHashSet<>();
@@ -737,8 +729,7 @@ public class SampleTypeAdditionalFieldServiceImpl implements SampleTypeAdditiona
             }
 
             if (!validOptions.contains(trimmed)) {
-                throw new LIMSRuntimeException(
-                        "Invalid option selected for field: " + fieldDefinition.getDisplayName());
+                throw new LIMSRuntimeException("Invalid option selected for field: " + fieldDefinition.getDisplayName());
             }
             normalizedOptions.add(trimmed);
         }

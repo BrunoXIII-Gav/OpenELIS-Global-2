@@ -28,10 +28,13 @@ public class SampleAddServiceTest {
     @Test
     @SuppressWarnings("unchecked")
     public void parseAdditionalFieldValues_shouldReadAttributeValueAndTextValue() throws Exception {
-        Document document = DocumentHelper
-                .parseText("<sample>" + "  <additionalFields>" + "    <field key='batch_code' value='  BC-001  '/>"
-                        + "    <field key='storage_note'>  Keep in cold room  </field>" + "  </additionalFields>"
-                        + "</sample>");
+        Document document = DocumentHelper.parseText(
+                "<sample>" +
+                        "  <additionalFields>" +
+                        "    <field key='batch_code' value='  BC-001  '/>" +
+                        "    <field key='storage_note'>  Keep in cold room  </field>" +
+                        "  </additionalFields>" +
+                        "</sample>");
         Element sampleElement = document.getRootElement();
 
         Method method = SampleAddService.class.getDeclaredMethod("parseAdditionalFieldValues", Element.class);
@@ -56,8 +59,13 @@ public class SampleAddServiceTest {
                 withoutAdditionalFields.getRootElement());
         assertTrue(emptyValues.isEmpty());
 
-        Document withBlankKey = DocumentHelper.parseText("<sample>" + "  <additionalFields>"
-                + "    <field key='' value='x'/>" + "    <field value='y'/>" + "  </additionalFields>" + "</sample>");
+        Document withBlankKey = DocumentHelper.parseText(
+                "<sample>" +
+                        "  <additionalFields>" +
+                        "    <field key='' value='x'/>" +
+                        "    <field value='y'/>" +
+                        "  </additionalFields>" +
+                        "</sample>");
 
         Map<String, String> valuesWithBlankKeys = (Map<String, String>) method.invoke(sampleAddService,
                 withBlankKey.getRootElement());

@@ -28,8 +28,8 @@ public class AnalysisValidationApprovalDAOImpl extends BaseDAOImpl<AnalysisValid
         if (analysisNumericId == null || approverNumericId == null) {
             return false;
         }
-        Number count = (Number) entityManager
-                .createNativeQuery("SELECT COUNT(id) FROM analysis_validation_approval "
+        Number count = (Number) entityManager.createNativeQuery(
+                "SELECT COUNT(id) FROM analysis_validation_approval "
                         + "WHERE analysis_id = :analysisId AND approver_user_id = :approverUserId")
                 .setParameter("analysisId", analysisNumericId).setParameter("approverUserId", approverNumericId)
                 .getSingleResult();

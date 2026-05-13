@@ -186,11 +186,13 @@ public class SampleAddService {
                 String gpsCaptureMethod = sampleItem.attributeValue("gpsCaptureMethod");
                 Map<String, String> additionalFieldValues = parseAdditionalFieldValues(sampleItem);
 
-                sampleItemsTests.add(new SampleTestCollection(item, tests,
-                        USE_RECEIVE_DATE_FOR_COLLECTION_DATE ? collectionDateFromRecieveDate : collectionDateTime,
-                        initialConditionList, testIdToUserSectionMap, testIdToSampleTypeMap, sampleNature,
-                        storageLocationId, storageLocationType, storagePositionCoordinate, gpsLatitude, gpsLongitude,
-                        gpsAccuracy, gpsCaptureMethod, additionalFieldValues));
+                sampleItemsTests
+                        .add(new SampleTestCollection(item, tests,
+                                USE_RECEIVE_DATE_FOR_COLLECTION_DATE ? collectionDateFromRecieveDate
+                                        : collectionDateTime,
+                                initialConditionList, testIdToUserSectionMap, testIdToSampleTypeMap, sampleNature,
+                                storageLocationId, storageLocationType, storagePositionCoordinate, gpsLatitude,
+                                gpsLongitude, gpsAccuracy, gpsCaptureMethod, additionalFieldValues));
             }
         } catch (DocumentException e) {
             LogEvent.logDebug(e);

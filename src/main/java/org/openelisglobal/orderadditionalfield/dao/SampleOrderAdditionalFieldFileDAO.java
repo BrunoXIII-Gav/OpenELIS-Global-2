@@ -7,9 +7,7 @@ import org.openelisglobal.orderadditionalfield.valueholder.SampleOrderAdditional
 
 public interface SampleOrderAdditionalFieldFileDAO extends BaseDAO<SampleOrderAdditionalFieldFile, Integer> {
 
-    Optional<SampleOrderAdditionalFieldFile> findBySampleIdAndFieldDefinitionId(Integer sampleId,
-            Integer fieldDefinitionId);
+    Optional<SampleOrderAdditionalFieldFile> findBySampleIdAndFieldDefinitionId(Integer sampleId, Integer fieldDefinitionId);
 
-    List<SampleOrderAdditionalFieldFile> findBySampleIdAndFieldDefinitionIds(Integer sampleId,
-            List<Integer> fieldDefinitionIds);
+    List<SampleOrderAdditionalFieldFile> findBySampleIdAndFieldDefinitionIds(Integer sampleId, List<Integer> fieldDefinitionIds);
 }

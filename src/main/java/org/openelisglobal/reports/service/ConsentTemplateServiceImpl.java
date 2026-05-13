@@ -184,8 +184,9 @@ public class ConsentTemplateServiceImpl implements ConsentTemplateService {
             clearAndDrawText(page1, baseFont, SMALL_TEXT_FONT_SIZE, PROVIDER_DNI_X,
                     PROVIDER_DNI_Y_MAX - SMALL_TEXT_HEIGHT, PROVIDER_DNI_Y_MAX, SMALL_TEXT_CLEAR_WIDTH,
                     SMALL_TEXT_CLEAR_PADDING, BaseColor.WHITE, pageHeight, values.providerDni);
-            clearAndDrawText(page1, baseFont, SMALL_TEXT_FONT_SIZE, DATE_X, DATE_Y_MAX - SMALL_TEXT_HEIGHT, DATE_Y_MAX,
-                    SMALL_TEXT_CLEAR_WIDTH, SMALL_TEXT_CLEAR_PADDING, BaseColor.WHITE, pageHeight, values.orderDate);
+            clearAndDrawText(page1, baseFont, SMALL_TEXT_FONT_SIZE, DATE_X,
+                    DATE_Y_MAX - SMALL_TEXT_HEIGHT, DATE_Y_MAX, SMALL_TEXT_CLEAR_WIDTH,
+                    SMALL_TEXT_CLEAR_PADDING, BaseColor.WHITE, pageHeight, values.orderDate);
 
             clearSampleTestLines(page1, pageHeight);
             renderTests(stamper, reader, baseFont, pageHeight, values.tests);

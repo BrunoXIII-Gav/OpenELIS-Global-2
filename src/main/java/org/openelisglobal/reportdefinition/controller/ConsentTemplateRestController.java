@@ -160,8 +160,9 @@ public class ConsentTemplateRestController extends BaseRestController {
         if (fields == null || fields.isEmpty()) {
             return;
         }
-        fields.stream().filter(Objects::nonNull).sorted(Comparator.comparing(OrderAdditionalFieldPayload::getSortOrder,
-                Comparator.nullsLast(Integer::compareTo))).forEach(field -> {
+        fields.stream().filter(Objects::nonNull)
+                .sorted(Comparator.comparing(OrderAdditionalFieldPayload::getSortOrder, Comparator.nullsLast(Integer::compareTo)))
+                .forEach(field -> {
                     String fieldKey = sanitize(field.getFieldKey());
                     if (GenericValidator.isBlankOrNull(fieldKey)) {
                         return;

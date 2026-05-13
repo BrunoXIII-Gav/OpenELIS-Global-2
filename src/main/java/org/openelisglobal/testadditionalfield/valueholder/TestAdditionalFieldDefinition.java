@@ -16,7 +16,15 @@ import org.openelisglobal.common.valueholder.BaseObject;
 public class TestAdditionalFieldDefinition extends BaseObject<Integer> {
 
     public enum FieldType {
-        TEXT, NUMBER, DATE, DATETIME, BOOLEAN, SELECT, MULTISELECT, RADIO, TEXTAREA
+        TEXT,
+        NUMBER,
+        DATE,
+        DATETIME,
+        BOOLEAN,
+        SELECT,
+        MULTISELECT,
+        RADIO,
+        TEXTAREA
     }
 
     @Id

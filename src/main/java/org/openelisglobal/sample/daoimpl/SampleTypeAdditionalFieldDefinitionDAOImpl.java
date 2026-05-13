@@ -13,8 +13,9 @@ import org.springframework.transaction.annotation.Transactional;
 
 @Component
 @Transactional
-public class SampleTypeAdditionalFieldDefinitionDAOImpl extends
-        BaseDAOImpl<SampleTypeAdditionalFieldDefinition, Integer> implements SampleTypeAdditionalFieldDefinitionDAO {
+public class SampleTypeAdditionalFieldDefinitionDAOImpl
+        extends BaseDAOImpl<SampleTypeAdditionalFieldDefinition, Integer>
+        implements SampleTypeAdditionalFieldDefinitionDAO {
 
     public SampleTypeAdditionalFieldDefinitionDAOImpl() {
         super(SampleTypeAdditionalFieldDefinition.class);
@@ -39,8 +40,7 @@ public class SampleTypeAdditionalFieldDefinitionDAOImpl extends
             return Collections.emptyList();
         }
         String hql = "FROM SampleTypeAdditionalFieldDefinition d WHERE d.typeOfSampleId IN (:sampleTypeIds)"
-                + (activeOnly ? " AND d.active = true" : "")
-                + " ORDER BY d.typeOfSampleId ASC, d.sortOrder ASC, d.id ASC";
+                + (activeOnly ? " AND d.active = true" : "") + " ORDER BY d.typeOfSampleId ASC, d.sortOrder ASC, d.id ASC";
         Query<SampleTypeAdditionalFieldDefinition> query = entityManager.unwrap(Session.class).createQuery(hql,
                 SampleTypeAdditionalFieldDefinition.class);
         query.setParameterList("sampleTypeIds", sampleTypeIds);

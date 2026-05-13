@@ -27,11 +27,11 @@ import org.openelisglobal.common.services.StatusService.SampleStatus;
 import org.openelisglobal.common.util.DateUtil;
 import org.openelisglobal.dataexchange.fhir.service.FhirTransformService;
 import org.openelisglobal.internationalization.MessageUtil;
-import org.openelisglobal.orderadditionalfield.service.OrderAdditionalFieldService;
 import org.openelisglobal.patient.action.bean.PatientSearch;
 import org.openelisglobal.patient.service.PatientService;
 import org.openelisglobal.patient.valueholder.Patient;
 import org.openelisglobal.person.service.PersonService;
+import org.openelisglobal.orderadditionalfield.service.OrderAdditionalFieldService;
 import org.openelisglobal.sample.bean.SampleEditItem;
 import org.openelisglobal.sample.controller.BaseSampleEntryController;
 import org.openelisglobal.sample.form.SampleEditForm;
@@ -232,8 +232,8 @@ public class SampleEditRestController extends BaseSampleEntryController {
             return Collections.emptyList();
         }
 
-        return samples.stream().filter(sample -> !GenericValidator.isBlankOrNull(sample.getAccessionNumber())).sorted(
-                (sample1, sample2) -> Integer.compare(parseSampleId(sample2.getId()), parseSampleId(sample1.getId())))
+        return samples.stream().filter(sample -> !GenericValidator.isBlankOrNull(sample.getAccessionNumber()))
+                .sorted((sample1, sample2) -> Integer.compare(parseSampleId(sample2.getId()), parseSampleId(sample1.getId())))
                 .map(sample -> new PatientOrderSummary(sample.getId(), sample.getAccessionNumber(),
                         sample.getEnteredDateForDisplay(), sample.getReceivedDateForDisplay()))
                 .toList();
@@ -334,7 +334,8 @@ public class SampleEditRestController extends BaseSampleEntryController {
     private Sample getSample(String accessionNumber) {
         String searchValue = accessionNumber == null ? null : accessionNumber.trim();
         Sample sample = orderAdditionalFieldService.findSampleIdBySearchableFieldValue(searchValue)
-                .map(sampleId -> sampleService.get(String.valueOf(sampleId))).orElse(null);
+                .map(sampleId -> sampleService.get(String.valueOf(sampleId)))
+                .orElse(null);
         if (sample != null) {
             return sample;
         }
@@ -381,8 +382,8 @@ public class SampleEditRestController extends BaseSampleEntryController {
 
         TypeOfSample typeOfSample = typeOfSampleService.get(sampleItem.getTypeOfSampleId());
         var additionalFields = sampleTypeAdditionalFieldService.getFieldsForSampleType(typeOfSample.getId(), false);
-        var additionalFieldValues = sampleTypeAdditionalFieldService.getFieldValuesForSampleItem(typeOfSample.getId(),
-                sampleItem.getId());
+        var additionalFieldValues = sampleTypeAdditionalFieldService
+                .getFieldValuesForSampleItem(typeOfSample.getId(), sampleItem.getId());
 
         List<Analysis> analysisList = analysisService.getAnalysesBySampleItemsExcludingByStatusIds(sampleItem,
                 excludedAnalysisStatusList);

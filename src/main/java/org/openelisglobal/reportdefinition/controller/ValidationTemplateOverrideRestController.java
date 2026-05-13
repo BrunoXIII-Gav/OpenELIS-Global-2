@@ -1,7 +1,7 @@
 package org.openelisglobal.reportdefinition.controller;
 
-import jakarta.servlet.http.HttpServletRequest;
 import java.awt.image.BufferedImage;
+import jakarta.servlet.http.HttpServletRequest;
 import java.sql.Timestamp;
 import java.time.Instant;
 import java.util.ArrayList;
@@ -25,21 +25,17 @@ import org.json.JSONArray;
 import org.json.JSONObject;
 import org.openelisglobal.common.rest.BaseRestController;
 import org.openelisglobal.common.util.IdValuePair;
-import org.openelisglobal.image.service.ImageService;
-import org.openelisglobal.image.valueholder.Image;
 import org.openelisglobal.orderadditionalfield.bean.OrderAdditionalFieldPayload;
 import org.openelisglobal.orderadditionalfield.service.OrderAdditionalFieldService;
+import org.openelisglobal.image.service.ImageService;
+import org.openelisglobal.image.valueholder.Image;
 import org.openelisglobal.reportdefinition.form.ValidationTemplateOverrideForm;
+import org.openelisglobal.reports.action.implementation.ReportImplementationFactory;
 import org.openelisglobal.reportdefinition.service.ReportDefinitionService;
 import org.openelisglobal.reportdefinition.valueholder.ReportDefinition;
-import org.openelisglobal.reports.action.implementation.ReportImplementationFactory;
 import org.openelisglobal.sample.bean.SampleTypeAdditionalFieldPayload;
 import org.openelisglobal.sample.service.SampleTypeAdditionalFieldService;
 import org.openelisglobal.sample.valueholder.SampleAdditionalField.AdditionalFieldName;
-import org.openelisglobal.testadditionalfield.bean.TestAdditionalFieldPayload;
-import org.openelisglobal.testadditionalfield.service.TestAdditionalFieldService;
-import org.openelisglobal.typeofsample.service.TypeOfSampleService;
-import org.openelisglobal.typeofsample.valueholder.TypeOfSample;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -54,6 +50,10 @@ import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
 import org.springframework.web.multipart.MultipartFile;
+import org.openelisglobal.testadditionalfield.bean.TestAdditionalFieldPayload;
+import org.openelisglobal.testadditionalfield.service.TestAdditionalFieldService;
+import org.openelisglobal.typeofsample.service.TypeOfSampleService;
+import org.openelisglobal.typeofsample.valueholder.TypeOfSample;
 
 @RestController
 @RequestMapping("/rest/reports/validation-template-overrides")
@@ -67,8 +67,13 @@ public class ValidationTemplateOverrideRestController extends BaseRestController
     private static final String TEST_CODE_KEY = "testCode";
     private static final String TEST_CODES_KEY = "testCodes";
     private static final String CONFIG_KEY = "config";
-    private static final List<String> VALIDATION_REPORT_CANDIDATES = Arrays.asList("patientCILNSP_vreduit",
-            "patientDMPK", "patientCILNSP", "patientHaitiClinical", "patientHaitiLNSP", "TBPatientReport");
+    private static final List<String> VALIDATION_REPORT_CANDIDATES = Arrays.asList(
+            "patientCILNSP_vreduit",
+            "patientDMPK",
+            "patientCILNSP",
+            "patientHaitiClinical",
+            "patientHaitiLNSP",
+            "TBPatientReport");
     private static final List<String> DMPK_SECTIONS = Arrays.asList("PATIENT", "REQUESTING_PHYSICIAN", "SAMPLE",
             "MOLECULAR_RESULT", "CONCLUSION");
 
@@ -93,8 +98,8 @@ public class ValidationTemplateOverrideRestController extends BaseRestController
                 return ResponseEntity.ok(Collections.emptyList());
             }
             List<ReportDefinition> deduped = dedupeDefinitions(definitions);
-            List<ValidationTemplateOverrideForm> response = deduped.stream().map(this::toForm).filter(Objects::nonNull)
-                    .collect(Collectors.toList());
+            List<ValidationTemplateOverrideForm> response = deduped.stream().map(this::toForm)
+                    .filter(Objects::nonNull).collect(Collectors.toList());
             return ResponseEntity.ok(response);
         } catch (Exception e) {
             logger.error("Error retrieving validation template overrides", e);
@@ -108,7 +113,8 @@ public class ValidationTemplateOverrideRestController extends BaseRestController
         try {
             List<IdValuePair> options = VALIDATION_REPORT_CANDIDATES.stream()
                     .filter(report -> ReportImplementationFactory.getReportCreator(report) != null)
-                    .map(report -> new IdValuePair(report, report)).collect(Collectors.toList());
+                    .map(report -> new IdValuePair(report, report))
+                    .collect(Collectors.toList());
             return ResponseEntity.ok(options);
         } catch (Exception e) {
             logger.error("Error retrieving validation template report options", e);
@@ -133,13 +139,13 @@ public class ValidationTemplateOverrideRestController extends BaseRestController
     }
 
     @PostMapping
-    public ResponseEntity<?> createOverride(HttpServletRequest request,
-            @RequestBody ValidationTemplateOverrideForm form) {
+    public ResponseEntity<?> createOverride(HttpServletRequest request, @RequestBody ValidationTemplateOverrideForm form) {
         return saveOverride(request, null, form);
     }
 
     @PostMapping("/upload-image")
-    public ResponseEntity<?> uploadOverrideImage(HttpServletRequest request, @RequestParam("file") MultipartFile file,
+    public ResponseEntity<?> uploadOverrideImage(HttpServletRequest request,
+            @RequestParam("file") MultipartFile file,
             @RequestParam(value = "name", required = false) String name) {
         try {
             if (file == null || file.isEmpty()) {
@@ -173,8 +179,7 @@ public class ValidationTemplateOverrideRestController extends BaseRestController
         return saveOverride(request, id, form);
     }
 
-    private ResponseEntity<?> saveOverride(HttpServletRequest request, String pathId,
-            ValidationTemplateOverrideForm form) {
+    private ResponseEntity<?> saveOverride(HttpServletRequest request, String pathId, ValidationTemplateOverrideForm form) {
         try {
             if (form == null) {
                 return ResponseEntity.badRequest().body("Request body is required");
@@ -228,8 +233,7 @@ public class ValidationTemplateOverrideRestController extends BaseRestController
             return ResponseEntity.ok(toForm(entity));
         } catch (Exception e) {
             logger.error("Error saving validation template override", e);
-            return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR)
-                    .body("Error saving validation template override");
+            return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR).body("Error saving validation template override");
         }
     }
 
@@ -386,8 +390,7 @@ public class ValidationTemplateOverrideRestController extends BaseRestController
     }
 
     private boolean isMoreRecent(ReportDefinition candidate, ReportDefinition current) {
-        Timestamp candidateTs = candidate.getLastupdated() != null ? candidate.getLastupdated()
-                : candidate.getCreatedDate();
+        Timestamp candidateTs = candidate.getLastupdated() != null ? candidate.getLastupdated() : candidate.getCreatedDate();
         Timestamp currentTs = current.getLastupdated() != null ? current.getLastupdated() : current.getCreatedDate();
         if (candidateTs == null) {
             return false;
@@ -472,8 +475,7 @@ public class ValidationTemplateOverrideRestController extends BaseRestController
         if (testIds == null || testIds.isEmpty()) {
             return;
         }
-        Map<String, List<TestAdditionalFieldPayload>> byTest = testAdditionalFieldService
-                .getActiveFieldsForTests(testIds);
+        Map<String, List<TestAdditionalFieldPayload>> byTest = testAdditionalFieldService.getActiveFieldsForTests(testIds);
         if (byTest == null || byTest.isEmpty()) {
             return;
         }
@@ -482,8 +484,9 @@ public class ValidationTemplateOverrideRestController extends BaseRestController
             String testId = entry.getKey();
             List<TestAdditionalFieldPayload> fields = entry.getValue() == null ? Collections.emptyList()
                     : entry.getValue();
-            fields.stream().filter(Objects::nonNull).sorted(Comparator
-                    .comparing(TestAdditionalFieldPayload::getSortOrder, Comparator.nullsLast(Integer::compareTo)))
+            fields.stream().filter(Objects::nonNull)
+                    .sorted(Comparator.comparing(TestAdditionalFieldPayload::getSortOrder,
+                            Comparator.nullsLast(Integer::compareTo)))
                     .forEach(field -> {
                         String fieldKey = sanitize(field.getFieldKey());
                         if (GenericValidator.isBlankOrNull(fieldKey)) {
@@ -508,8 +511,9 @@ public class ValidationTemplateOverrideRestController extends BaseRestController
         if (fields == null || fields.isEmpty()) {
             return;
         }
-        fields.stream().filter(Objects::nonNull).sorted(Comparator.comparing(OrderAdditionalFieldPayload::getSortOrder,
-                Comparator.nullsLast(Integer::compareTo))).forEach(field -> {
+        fields.stream().filter(Objects::nonNull)
+                .sorted(Comparator.comparing(OrderAdditionalFieldPayload::getSortOrder, Comparator.nullsLast(Integer::compareTo)))
+                .forEach(field -> {
                     String fieldKey = sanitize(field.getFieldKey());
                     if (GenericValidator.isBlankOrNull(fieldKey)) {
                         return;
@@ -526,8 +530,7 @@ public class ValidationTemplateOverrideRestController extends BaseRestController
     private void addSampleAdditionalFieldSourceOptions(List<Map<String, String>> options, List<String> testIds) {
         Set<String> addedKeys = new HashSet<>();
 
-        // New sample type additional fields (configured in "Manage Sample Type
-        // Additional Fields")
+        // New sample type additional fields (configured in "Manage Sample Type Additional Fields")
         if (testIds != null && !testIds.isEmpty()) {
             Set<String> sampleTypeIds = new LinkedHashSet<>();
             Map<String, String> sampleTypeIdToName = new HashMap<>();
@@ -576,8 +579,9 @@ public class ValidationTemplateOverrideRestController extends BaseRestController
                                     if (GenericValidator.isBlankOrNull(displayName)) {
                                         displayName = fieldKey;
                                     }
-                                    addSourceOption(options, sourceId, "Sample Additional: " + displayName + " ("
-                                            + fieldKey + ") [" + sampleTypeName + "]");
+                                    addSourceOption(options, sourceId,
+                                            "Sample Additional: " + displayName + " (" + fieldKey + ") ["
+                                                    + sampleTypeName + "]");
                                 });
                     });
                 }
@@ -591,7 +595,8 @@ public class ValidationTemplateOverrideRestController extends BaseRestController
             if (!addedKeys.add(sourceId)) {
                 continue;
             }
-            addSourceOption(options, sourceId, "Sample Additional (Legacy): " + toTitleCase(key) + " (" + key + ")");
+            addSourceOption(options, sourceId,
+                    "Sample Additional (Legacy): " + toTitleCase(key) + " (" + key + ")");
         }
     }
 
@@ -622,8 +627,7 @@ public class ValidationTemplateOverrideRestController extends BaseRestController
         fields.add(defaultField("requestingPhysician", "REQUESTING_PHYSICIAN", "MEDICO SOLICITANTE", "prescriber", 10));
         fields.add(defaultField("requesterCmp", "REQUESTING_PHYSICIAN", "CMP", "requesterCmp", 20));
         fields.add(defaultField("requesterRne", "REQUESTING_PHYSICIAN", "RNE", "requesterRne", 30));
-        fields.add(
-                defaultField("requesterSpecialty", "REQUESTING_PHYSICIAN", "ESPECIALIDAD", "requesterSpecialty", 40));
+        fields.add(defaultField("requesterSpecialty", "REQUESTING_PHYSICIAN", "ESPECIALIDAD", "requesterSpecialty", 40));
         fields.add(defaultField("referenceCenter", "REQUESTING_PHYSICIAN", "CENTRO DE REFERENCIA", "siteInfo", 50));
         fields.add(defaultField("collectionDate", "SAMPLE", "Fecha de toma de muestra:", "collectionDateTime", 10));
         fields.add(defaultField("sampleStatus", "SAMPLE", "Estado de la muestra:", "sampleStatus", 20));

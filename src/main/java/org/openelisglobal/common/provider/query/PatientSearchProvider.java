@@ -31,10 +31,10 @@ import org.openelisglobal.common.util.ConfigurationProperties.Property;
 import org.openelisglobal.login.valueholder.UserSessionData;
 import org.openelisglobal.observationhistory.service.ObservationHistoryService;
 import org.openelisglobal.observationhistory.service.ObservationHistoryServiceImpl.ObservationType;
-import org.openelisglobal.orderadditionalfield.service.OrderAdditionalFieldService;
 import org.openelisglobal.patient.service.PatientService;
 import org.openelisglobal.patient.valueholder.Patient;
 import org.openelisglobal.person.service.PersonService;
+import org.openelisglobal.orderadditionalfield.service.OrderAdditionalFieldService;
 import org.openelisglobal.sample.service.SampleService;
 import org.openelisglobal.sample.valueholder.Sample;
 import org.openelisglobal.samplehuman.service.SampleHumanService;
@@ -112,7 +112,8 @@ public class PatientSearchProvider extends BaseQueryProvider {
 
         String searchValue = labNumber == null ? null : labNumber.trim();
         Sample sample = orderAdditionalFieldService.findSampleIdBySearchableFieldValue(searchValue)
-                .map(sampleId -> sampleService.get(String.valueOf(sampleId))).orElse(null);
+                .map(sampleId -> sampleService.get(String.valueOf(sampleId)))
+                .orElse(null);
         if (sample == null) {
             sample = sampleService.getSampleByAccessionNumber(searchValue);
             if (sample == null && searchValue != null && searchValue.contains("-")) {

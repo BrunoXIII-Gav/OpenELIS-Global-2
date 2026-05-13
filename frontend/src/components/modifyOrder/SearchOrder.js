@@ -137,9 +137,7 @@ function SearchOrder() {
                     {patientOrders.length === 0 ? (
                       <SelectItem
                         value=""
-                        text={intl.formatMessage({
-                          id: "sample.label.noorder",
-                        })}
+                        text={intl.formatMessage({ id: "sample.label.noorder" })}
                       />
                     ) : (
                       patientOrders.map((order) => (

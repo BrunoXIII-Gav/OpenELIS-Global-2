@@ -33,9 +33,10 @@ import org.openelisglobal.note.service.NoteServiceImpl.NoteType;
 import org.openelisglobal.note.valueholder.Note;
 import org.openelisglobal.observationhistory.service.ObservationHistoryService;
 import org.openelisglobal.observationhistory.valueholder.ObservationHistory;
-import org.openelisglobal.orderadditionalfield.service.OrderAdditionalFieldService;
 import org.openelisglobal.organization.service.OrganizationService;
 import org.openelisglobal.organization.valueholder.Organization;
+import org.openelisglobal.orderadditionalfield.bean.OrderAdditionalFieldFilePayload;
+import org.openelisglobal.orderadditionalfield.service.OrderAdditionalFieldService;
 import org.openelisglobal.panel.valueholder.Panel;
 import org.openelisglobal.patient.valueholder.Patient;
 import org.openelisglobal.person.service.PersonService;
@@ -375,7 +376,8 @@ public class SampleEditServiceImpl implements SampleEditService {
         Set<String> processedSampleItemIds = new HashSet<>();
 
         for (SampleEditItem editItem : existingTests) {
-            if (editItem.isSampleItemChanged() && !GenericValidator.isBlankOrNull(editItem.getSampleItemId())
+            if (editItem.isSampleItemChanged()
+                    && !GenericValidator.isBlankOrNull(editItem.getSampleItemId())
                     && processedSampleItemIds.add(editItem.getSampleItemId())) {
                 SampleItem sampleItem = sampleItemService.get(editItem.getSampleItemId());
                 if (sampleItem != null) {
