@@ -156,8 +156,7 @@ public class AuditTrailViewWorkerImpl implements AuditTrailViewWorker {
         if (sample == null) {
             String searchValue = accessionNumber == null ? null : accessionNumber.trim();
             sample = orderAdditionalFieldService.findSampleIdBySearchableFieldValue(searchValue)
-                    .map(sampleId -> sampleService.get(String.valueOf(sampleId)))
-                    .orElse(null);
+                    .map(sampleId -> sampleService.get(String.valueOf(sampleId))).orElse(null);
             if (sample == null) {
                 sample = sampleService.getSampleByAccessionNumber(searchValue);
                 if (sample == null && searchValue != null && searchValue.contains("-")) {

@@ -92,8 +92,8 @@ function ProviderMenu() {
     { id: "no", value: "No" },
   ];
 
-  const providerSpecialtyOptions = (configurationProperties
-    ?.providerSpecialtyOptions || ""
+  const providerSpecialtyOptions = (
+    configurationProperties?.providerSpecialtyOptions || ""
   )
     .split(/[\n,]+/)
     .map((entry) => entry.trim())
@@ -493,9 +493,24 @@ function ProviderMenu() {
             value={telephone}
             onChange={(e) => handleTelephoneChange(e)}
           />
-          <TextInput id="cmp" labelText="CMP" value={cmp} onChange={(e) => setCmp(e.target.value)} />
-          <TextInput id="rne" labelText="RNE" value={rne} onChange={(e) => setRne(e.target.value)} />
-          <TextInput id="dni" labelText="DNI" value={dni} onChange={(e) => setDni(e.target.value)} />
+          <TextInput
+            id="cmp"
+            labelText="CMP"
+            value={cmp}
+            onChange={(e) => setCmp(e.target.value)}
+          />
+          <TextInput
+            id="rne"
+            labelText="RNE"
+            value={rne}
+            onChange={(e) => setRne(e.target.value)}
+          />
+          <TextInput
+            id="dni"
+            labelText="DNI"
+            value={dni}
+            onChange={(e) => setDni(e.target.value)}
+          />
           {renderSpecialtyInput()}
 
           <Dropdown
@@ -551,9 +566,24 @@ function ProviderMenu() {
             value={telephone}
             onChange={(e) => handleTelephoneChange(e)}
           />
-          <TextInput id="cmp" labelText="CMP" value={cmp} onChange={(e) => setCmp(e.target.value)} />
-          <TextInput id="rne" labelText="RNE" value={rne} onChange={(e) => setRne(e.target.value)} />
-          <TextInput id="dni" labelText="DNI" value={dni} onChange={(e) => setDni(e.target.value)} />
+          <TextInput
+            id="cmp"
+            labelText="CMP"
+            value={cmp}
+            onChange={(e) => setCmp(e.target.value)}
+          />
+          <TextInput
+            id="rne"
+            labelText="RNE"
+            value={rne}
+            onChange={(e) => setRne(e.target.value)}
+          />
+          <TextInput
+            id="dni"
+            labelText="DNI"
+            value={dni}
+            onChange={(e) => setDni(e.target.value)}
+          />
           {renderSpecialtyInput()}
           <Dropdown
             id="isActive"

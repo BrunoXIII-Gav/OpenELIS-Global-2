@@ -65,8 +65,8 @@ public class ModuleAccessServiceImpl implements ModuleAccessService {
         }
 
         Set<String> permittedModuleNames = getPermittedModules(request);
-        boolean allowed = systemModuleUrls.stream()
-                .anyMatch(moduleUrl -> permittedModuleNames.contains(moduleUrl.getSystemModule().getSystemModuleName()));
+        boolean allowed = systemModuleUrls.stream().anyMatch(
+                moduleUrl -> permittedModuleNames.contains(moduleUrl.getSystemModule().getSystemModuleName()));
 
         return allowed ? ModuleAccessResult.allowed() : ModuleAccessResult.denied();
     }
@@ -85,7 +85,8 @@ public class ModuleAccessServiceImpl implements ModuleAccessService {
         Set<String> permittedPages = new HashSet<>();
         List<String> roleIds = userRoleService.getRoleIdsForUser(Integer.toString(systemUserId));
         for (String roleId : roleIds) {
-            Set<String> permittedForRole = permissionModuleService.getAllPermittedPagesFromAgentId(Integer.parseInt(roleId));
+            Set<String> permittedForRole = permissionModuleService
+                    .getAllPermittedPagesFromAgentId(Integer.parseInt(roleId));
             permittedPages.addAll(permittedForRole);
         }
         return permittedPages;
@@ -102,7 +103,8 @@ public class ModuleAccessServiceImpl implements ModuleAccessService {
         return usd.getSystemUserId();
     }
 
-    private List<SystemModuleUrl> filterParamMatches(List<SystemModuleUrl> systemModuleUrls, Map<String, String> params) {
+    private List<SystemModuleUrl> filterParamMatches(List<SystemModuleUrl> systemModuleUrls,
+            Map<String, String> params) {
         return systemModuleUrls.stream().filter(moduleUrl -> {
             SystemModuleParam requiredParam = moduleUrl.getParam();
             if (requiredParam == null) {
@@ -173,7 +175,8 @@ public class ModuleAccessServiceImpl implements ModuleAccessService {
             }
             String key = pair.substring(0, idx);
             String value = pair.substring(idx + 1);
-            params.put(URLDecoder.decode(key, StandardCharsets.UTF_8), URLDecoder.decode(value, StandardCharsets.UTF_8));
+            params.put(URLDecoder.decode(key, StandardCharsets.UTF_8),
+                    URLDecoder.decode(value, StandardCharsets.UTF_8));
         }
 
         return params;

@@ -20,19 +20,18 @@ public class OrderAdditionalFieldDefinitionDAOImpl extends BaseDAOImpl<OrderAddi
 
     @Override
     public List<OrderAdditionalFieldDefinition> findAll(boolean activeOnly) {
-        String hql = "from OrderAdditionalFieldDefinition d "
-                + (activeOnly ? "where d.active = true " : "")
+        String hql = "from OrderAdditionalFieldDefinition d " + (activeOnly ? "where d.active = true " : "")
                 + "order by d.sortOrder asc, d.id asc";
-        Query<OrderAdditionalFieldDefinition> query = entityManager.unwrap(Session.class)
-                .createQuery(hql, OrderAdditionalFieldDefinition.class);
+        Query<OrderAdditionalFieldDefinition> query = entityManager.unwrap(Session.class).createQuery(hql,
+                OrderAdditionalFieldDefinition.class);
         return query.list();
     }
 
     @Override
     public Optional<OrderAdditionalFieldDefinition> findByFieldKey(String fieldKey) {
         String hql = "from OrderAdditionalFieldDefinition d where lower(d.fieldKey) = :fieldKey";
-        Query<OrderAdditionalFieldDefinition> query = entityManager.unwrap(Session.class)
-                .createQuery(hql, OrderAdditionalFieldDefinition.class);
+        Query<OrderAdditionalFieldDefinition> query = entityManager.unwrap(Session.class).createQuery(hql,
+                OrderAdditionalFieldDefinition.class);
         query.setParameter("fieldKey", fieldKey == null ? "" : fieldKey.trim().toLowerCase());
         return Optional.ofNullable(query.uniqueResult());
     }
@@ -44,8 +43,8 @@ public class OrderAdditionalFieldDefinitionDAOImpl extends BaseDAOImpl<OrderAddi
         }
 
         String hql = "from OrderAdditionalFieldDefinition d where d.id in (:ids) order by d.sortOrder asc, d.id asc";
-        Query<OrderAdditionalFieldDefinition> query = entityManager.unwrap(Session.class)
-                .createQuery(hql, OrderAdditionalFieldDefinition.class);
+        Query<OrderAdditionalFieldDefinition> query = entityManager.unwrap(Session.class).createQuery(hql,
+                OrderAdditionalFieldDefinition.class);
         query.setParameterList("ids", ids);
         return query.list();
     }

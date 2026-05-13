@@ -7,9 +7,11 @@ import org.openelisglobal.orderadditionalfield.valueholder.SampleOrderAdditional
 
 public interface SampleOrderAdditionalFieldValueDAO extends BaseDAO<SampleOrderAdditionalFieldValue, Integer> {
 
-    Optional<SampleOrderAdditionalFieldValue> findBySampleIdAndFieldDefinitionId(Integer sampleId, Integer fieldDefinitionId);
+    Optional<SampleOrderAdditionalFieldValue> findBySampleIdAndFieldDefinitionId(Integer sampleId,
+            Integer fieldDefinitionId);
 
-    List<SampleOrderAdditionalFieldValue> findBySampleIdAndFieldDefinitionIds(Integer sampleId, List<Integer> fieldDefinitionIds);
+    List<SampleOrderAdditionalFieldValue> findBySampleIdAndFieldDefinitionIds(Integer sampleId,
+            List<Integer> fieldDefinitionIds);
 
     List<Integer> findDistinctSampleIdsBySearchableFieldValue(String searchValue, boolean uniqueOnly, int limit);
 

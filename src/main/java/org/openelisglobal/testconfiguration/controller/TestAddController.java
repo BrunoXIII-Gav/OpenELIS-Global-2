@@ -330,8 +330,7 @@ public class TestAddController extends BaseController {
             testResults.add(testResult);
         } else if (TypeOfTestResultServiceImpl.ResultType.isDictionaryVariant(type.getCharacterValue())) {
             if (testAddParams.dictionaryParamList == null || testAddParams.dictionaryParamList.isEmpty()) {
-                throw new IllegalArgumentException(
-                        "Dictionary result type requires at least one dictionary value.");
+                throw new IllegalArgumentException("Dictionary result type requires at least one dictionary value.");
             }
             int sortOrder = 10;
             for (DictionaryParams params : testAddParams.dictionaryParamList) {

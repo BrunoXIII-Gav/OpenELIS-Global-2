@@ -98,8 +98,7 @@ public class SampleItemController extends BaseController {
     private Sample resolveSampleByAccessionOrSearchableValue(String accessionOrSearchTerm) {
         String searchValue = accessionOrSearchTerm == null ? null : accessionOrSearchTerm.trim();
         Sample sample = orderAdditionalFieldService.findSampleIdBySearchableFieldValue(searchValue)
-                .map(sampleId -> sampleService.get(String.valueOf(sampleId)))
-                .orElse(null);
+                .map(sampleId -> sampleService.get(String.valueOf(sampleId))).orElse(null);
         if (sample != null) {
             return sample;
         }
@@ -166,8 +165,8 @@ public class SampleItemController extends BaseController {
 
                 }
                 if (!lastSampleItem.canAliquot(totalAliquotedQuantity)) {
-                    response.put("errors",
-                            List.of("Aliquot quantity exceeds remaining quantity for sample item: " + sampleItemExternalId));
+                    response.put("errors", List.of(
+                            "Aliquot quantity exceeds remaining quantity for sample item: " + sampleItemExternalId));
                     return ResponseEntity.badRequest().body(response);
                 }
                 lastSampleItem.decrementRemainingQuantity(totalAliquotedQuantity);

@@ -127,13 +127,12 @@ public class SamplePatientEntryRestController extends BaseSampleEntryController 
             "sampleOrderItems.providerPersonId", "sampleOrderItems.providerLastName",
             "sampleOrderItems.providerFirstName", "sampleOrderItems.providerWorkPhone", "sampleOrderItems.providerFax",
             "sampleOrderItems.providerEmail", "sampleOrderItems.providerCmp", "sampleOrderItems.providerRne",
-            "sampleOrderItems.providerDni",
-            "sampleOrderItems.providerSpecialty", "sampleOrderItems.facilityAddressStreet",
-            "sampleOrderItems.facilityAddressCommune", "sampleOrderItems.facilityPhone", "sampleOrderItems.facilityFax",
-            "sampleOrderItems.paymentOptionSelection", "sampleOrderItems.billingReferenceNumber",
-            "sampleOrderItems.testLocationCode", "sampleOrderItems.otherLocationCode",
-            "sampleOrderItems.contactTracingIndexName", "sampleOrderItems.contactTracingIndexRecordNumber",
-            "sampleOrderItems.priority",
+            "sampleOrderItems.providerDni", "sampleOrderItems.providerSpecialty",
+            "sampleOrderItems.facilityAddressStreet", "sampleOrderItems.facilityAddressCommune",
+            "sampleOrderItems.facilityPhone", "sampleOrderItems.facilityFax", "sampleOrderItems.paymentOptionSelection",
+            "sampleOrderItems.billingReferenceNumber", "sampleOrderItems.testLocationCode",
+            "sampleOrderItems.otherLocationCode", "sampleOrderItems.contactTracingIndexName",
+            "sampleOrderItems.contactTracingIndexRecordNumber", "sampleOrderItems.priority",
             //
             "currentDate", "sampleOrderItems.newRequesterName", "sampleOrderItems.externalOrderNumber",
             // referral
@@ -141,9 +140,8 @@ public class SamplePatientEntryRestController extends BaseSampleEntryController 
             "referralItems*.referredResultType", "referralItems*.modified", "referralItems*.inLabResultId",
             "referralItems*.referralReasonId", "referralItems*.referrer", "referralItems*.referredInstituteId",
             "referralItems*.referredSendDate", "referralItems*.referredTestId", "referralItems*.referredReportDate",
-            "referralItems*.note", "useReferral", "sampleOrderItems.additionalQuestions",
-            "sampleOrderItems.programId", "sampleOrderItems.additionalFieldValues*",
-            "sampleOrderItems.additionalFieldFiles*" };
+            "referralItems*.note", "useReferral", "sampleOrderItems.additionalQuestions", "sampleOrderItems.programId",
+            "sampleOrderItems.additionalFieldValues*", "sampleOrderItems.additionalFieldFiles*" };
 
     @Autowired
     private SamplePatientEntryFormValidator formValidator;
