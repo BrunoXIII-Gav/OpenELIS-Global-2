@@ -81,6 +81,7 @@ public class SampleEditController extends BaseController {
             "sampleOrderItems.referringSiteDepartmentId", "sampleOrderItems.referringSiteDepartmentName",
             "sampleOrderItems.program", "sampleOrderItems.providerId", "sampleOrderItems.providerLastName",
             "sampleOrderItems.providerFirstName", "sampleOrderItems.providerCmp", "sampleOrderItems.providerRne",
+            "sampleOrderItems.providerDni",
             "sampleOrderItems.providerSpecialty", "sampleOrderItems.facilityAddressStreet",
             "sampleOrderItems.facilityAddressCommune", "sampleOrderItems.facilityPhone", "sampleOrderItems.facilityFax",
             "sampleOrderItems.paymentOptionSelection", "sampleOrderItems.billingReferenceNumber",

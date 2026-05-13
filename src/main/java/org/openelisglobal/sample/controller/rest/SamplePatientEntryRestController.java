@@ -127,6 +127,7 @@ public class SamplePatientEntryRestController extends BaseSampleEntryController 
             "sampleOrderItems.providerPersonId", "sampleOrderItems.providerLastName",
             "sampleOrderItems.providerFirstName", "sampleOrderItems.providerWorkPhone", "sampleOrderItems.providerFax",
             "sampleOrderItems.providerEmail", "sampleOrderItems.providerCmp", "sampleOrderItems.providerRne",
+            "sampleOrderItems.providerDni",
             "sampleOrderItems.providerSpecialty", "sampleOrderItems.facilityAddressStreet",
             "sampleOrderItems.facilityAddressCommune", "sampleOrderItems.facilityPhone", "sampleOrderItems.facilityFax",
             "sampleOrderItems.paymentOptionSelection", "sampleOrderItems.billingReferenceNumber",
@@ -208,6 +209,7 @@ public class SamplePatientEntryRestController extends BaseSampleEntryController 
                     .setProviderWorkPhone((String) inputFlashMap.get("sampleOrderItems.providerWorkPhone"));
             form.getSampleOrderItems().setProviderCmp((String) inputFlashMap.get("sampleOrderItems.providerCmp"));
             form.getSampleOrderItems().setProviderRne((String) inputFlashMap.get("sampleOrderItems.providerRne"));
+            form.getSampleOrderItems().setProviderDni((String) inputFlashMap.get("sampleOrderItems.providerDni"));
             form.getSampleOrderItems()
                     .setProviderSpecialty((String) inputFlashMap.get("sampleOrderItems.providerSpecialty"));
             form.getSampleOrderItems()
@@ -374,6 +376,8 @@ public class SamplePatientEntryRestController extends BaseSampleEntryController 
                     form.getSampleOrderItems().getProviderCmp());
             redirectAttributes.addFlashAttribute("sampleOrderItems.providerRne",
                     form.getSampleOrderItems().getProviderRne());
+            redirectAttributes.addFlashAttribute("sampleOrderItems.providerDni",
+                    form.getSampleOrderItems().getProviderDni());
             redirectAttributes.addFlashAttribute("sampleOrderItems.providerSpecialty",
                     form.getSampleOrderItems().getProviderSpecialty());
 

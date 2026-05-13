@@ -200,6 +200,7 @@ public class SampleOrderService {
                     sampleOrder.setProviderId(provider.getId());
                     sampleOrder.setProviderCmp(provider.getNpi());
                     sampleOrder.setProviderRne(provider.getExternalId());
+                    sampleOrder.setProviderDni(provider.getDni());
                     sampleOrder.setProviderSpecialty(provider.getSpecialty());
                 }
             }

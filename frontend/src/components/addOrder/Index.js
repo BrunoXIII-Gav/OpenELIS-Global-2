@@ -269,6 +269,7 @@ const Index = () => {
               providerFax: person.fax || "",
               providerCmp: data?.npi || "",
               providerRne: data?.externalId || "",
+              providerDni: data?.dni || "",
               providerSpecialty: data?.specialty || "",
             },
           });
@@ -284,6 +285,7 @@ const Index = () => {
         providerFax: requester.fax,
         providerCmp: requester.cmp || "",
         providerRne: requester.rne || "",
+        providerDni: requester.dni || "",
         providerSpecialty: requester.specialty || "",
       };
     }
@@ -845,7 +847,7 @@ const Index = () => {
     const orderItems = orderFormValues?.sampleOrderItems || {};
     const providerFirst = orderItems.providerFirstName || "";
     const providerLast = orderItems.providerLastName || "";
-    const providerDni = orderItems.providerRne || orderItems.providerCmp || "";
+    const providerDni = orderItems.providerDni || "";
     return {
       patient: {
         firstName: patient.firstName || "",

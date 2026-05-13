@@ -35,6 +35,9 @@
         <property name="specialty" type="java.lang.String">
             <column name="SPECIALTY" length="100" />
         </property>
+        <property name="dni" type="java.lang.String">
+            <column name="DNI" length="25" />
+        </property>
         <property name="fhirUuid" column="fhir_uuid"
             type="java.util.UUID" />
         <property name="active" column="active"

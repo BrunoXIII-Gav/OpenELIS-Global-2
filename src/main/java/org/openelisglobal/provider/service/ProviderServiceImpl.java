@@ -126,6 +126,7 @@ public class ProviderServiceImpl extends AuditableBaseObjectServiceImpl<Provider
             dbProvider.setNpi(provider.getNpi());
             dbProvider.setExternalId(provider.getExternalId());
             dbProvider.setSpecialty(provider.getSpecialty());
+            dbProvider.setDni(provider.getDni());
             dbProvider.getPerson().setLastName(provider.getPerson().getLastName());
             dbProvider.getPerson().setMiddleName(provider.getPerson().getMiddleName());
             dbProvider.getPerson().setFirstName(provider.getPerson().getFirstName());

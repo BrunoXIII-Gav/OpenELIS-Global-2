@@ -35,4 +35,5 @@
   <include relativeToChangelogFile="true" file="024-add-provider-specialty-options-config.xml"/>
   <include relativeToChangelogFile="true" file="025-add-validation-approvals.xml"/>
   <include relativeToChangelogFile="true" file="026-add-validation-medical-biologist-roles.xml"/>
+  <include relativeToChangelogFile="true" file="027-add-provider-dni-column.xml"/>
 </databaseChangeLog>

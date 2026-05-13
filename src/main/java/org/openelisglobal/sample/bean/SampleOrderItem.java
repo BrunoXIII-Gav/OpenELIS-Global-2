@@ -166,6 +166,10 @@ public class SampleOrderItem implements Serializable {
 
     @SafeHtml(level = SafeHtml.SafeListLevel.NONE, groups = { SamplePatientEntryForm.SamplePatientEntry.class,
             SamplePatientEntryBatch.class, SampleEditForm.SampleEdit.class })
+    private String providerDni;
+
+    @SafeHtml(level = SafeHtml.SafeListLevel.NONE, groups = { SamplePatientEntryForm.SamplePatientEntry.class,
+            SamplePatientEntryBatch.class, SampleEditForm.SampleEdit.class })
     private String providerSpecialty;
 
     @SafeHtml(level = SafeHtml.SafeListLevel.NONE, groups = { SamplePatientEntryForm.SamplePatientEntry.class,
@@ -467,6 +471,14 @@ public class SampleOrderItem implements Serializable {
 
     public void setProviderRne(String providerRne) {
         this.providerRne = providerRne;
+    }
+
+    public String getProviderDni() {
+        return providerDni;
+    }
+
+    public void setProviderDni(String providerDni) {
+        this.providerDni = providerDni;
     }
 
     public String getProviderSpecialty() {
