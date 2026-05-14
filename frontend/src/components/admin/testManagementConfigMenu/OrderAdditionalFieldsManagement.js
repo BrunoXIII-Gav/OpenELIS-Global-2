@@ -113,6 +113,8 @@ const OrderAdditionalFieldsManagement = () => {
   const [savingField, setSavingField] = useState(false);
   const [savingFixed, setSavingFixed] = useState(false);
   const [savingSortFieldId, setSavingSortFieldId] = useState(null);
+  const [sampleFixedConfigs, setSampleFixedConfigs] = useState([]);
+  const [savingSampleFixed, setSavingSampleFixed] = useState(false);
 
   const loadFields = () => {
     getFromOpenElisServer(
@@ -123,6 +125,13 @@ const OrderAdditionalFieldsManagement = () => {
     );
   };
 
+  const loadSampleFixedConfigs = () => {
+  getFromOpenElisServer(
+    "/rest/sample-additional-fields/fixed",
+    (data) => setSampleFixedConfigs(Array.isArray(data) ? data : []),
+  );
+};
+
   const loadFixedConfigs = () => {
     getFromOpenElisServer("/rest/order-additional-fields/fixed", (response) => {
       setFixedConfigs(response || []);
@@ -132,8 +141,14 @@ const OrderAdditionalFieldsManagement = () => {
   useEffect(() => {
     loadFields();
     loadFixedConfigs();
+    loadSampleFixedConfigs();
   }, []);
 
+  const sampleFixedRows = useMemo(
+  () =>
+    [...sampleFixedConfigs].sort((a, b) => (a?.sortOrder ?? 0) - (b?.sortOrder ?? 0)),
+  [sampleFixedConfigs],
+);
   const fixedRows = useMemo(
     () =>
       [...fixedConfigs].sort((left, right) => {
@@ -508,6 +523,41 @@ const OrderAdditionalFieldsManagement = () => {
       },
     );
   };
+
+  const updateSampleFixedConfig = (fieldKey, property, rawValue) => {
+  setSampleFixedConfigs((previous) =>
+    previous.map((config) =>
+      config.fieldKey !== fieldKey ? config : { ...config, [property]: rawValue }
+    )
+  );
+};
+
+const saveSampleFixedConfigs = () => {
+  setSavingSampleFixed(true);
+  putToOpenElisServerFullResponse(
+    "/rest/sample-additional-fields/fixed",
+    JSON.stringify(sampleFixedConfigs),
+    (response) => {
+      setSavingSampleFixed(false);
+      if (response.status >= 200 && response.status < 300) {
+        addNotification({
+          kind: NotificationKinds.success,
+          title: intl.formatMessage({ id: "notification.title" }),
+          message: intl.formatMessage({ id: "save.success.msg" }),
+        });
+        setNotificationVisible(true);
+        loadSampleFixedConfigs();
+        return;
+      }
+      addNotification({
+        kind: NotificationKinds.error,
+        title: intl.formatMessage({ id: "notification.title" }),
+        message: intl.formatMessage({ id: "server.error.msg" }),
+      });
+      setNotificationVisible(true);
+    },
+  );
+};
 
   const updateFixedConfig = (fieldKey, property, rawValue) => {
     setFixedConfigs((previous) =>
@@ -1267,6 +1317,86 @@ const OrderAdditionalFieldsManagement = () => {
                 </TableContainer>
               )}
             </DataTable>
+          </Stack>
+        </div>
+
+        <br />
+
+        <div className="orderLegendBody">
+          <Stack gap={6}>
+            <Heading><FormattedMessage id="sample.fixed.fields.title" /></Heading>
+            <TableContainer>
+              <Table>
+                <TableHead>
+                  <TableRow>
+                    <TableHeader>Field</TableHeader>
+                    <TableHeader>Visible</TableHeader>
+                    <TableHeader>Required</TableHeader>
+                    <TableHeader>Readonly</TableHeader>
+                    <TableHeader>Sort Order</TableHeader>
+                  </TableRow>
+                </TableHead>
+                <TableBody>
+                  {sampleFixedRows.map((config) => (
+                    <TableRow key={config.fieldKey}>
+                      <TableCell>{config.fieldKey}</TableCell>
+                      <TableCell>
+                        <Checkbox
+                          id={`sample-fixed-visible-${config.fieldKey}`}
+                          labelText=""
+                          checked={config.visible !== false}
+                          onChange={(_event, { checked }) =>
+                            updateSampleFixedConfig(config.fieldKey, "visible", checked)
+                          }
+                        />
+                      </TableCell>
+                      <TableCell>
+                        <Checkbox
+                          id={`sample-fixed-required-${config.fieldKey}`}
+                          labelText=""
+                          checked={!!config.required}
+                          onChange={(_event, { checked }) =>
+                            updateSampleFixedConfig(config.fieldKey, "required", checked)
+                          }
+                        />
+                      </TableCell>
+                      <TableCell>
+                        <Checkbox
+                          id={`sample-fixed-readonly-${config.fieldKey}`}
+                          labelText=""
+                          checked={!!config.readonly}
+                          onChange={(_event, { checked }) =>
+                            updateSampleFixedConfig(config.fieldKey, "readonly", checked)
+                          }
+                        />
+                      </TableCell>
+                      <TableCell>
+                        <TextInput
+                          id={`sample-fixed-sort-${config.fieldKey}`}
+                          labelText=""
+                          type="number"
+                          value={String(config.sortOrder ?? 0)}
+                          onChange={(event) =>
+                            updateSampleFixedConfig(
+                              config.fieldKey,
+                              "sortOrder",
+                              Number.parseInt(event.target.value || "0", 10),
+                            )
+                          }
+                        />
+                      </TableCell>
+                    </TableRow>
+                  ))}
+                </TableBody>
+              </Table>
+            </TableContainer>
+            <Button
+              onClick={saveSampleFixedConfigs}
+              disabled={savingSampleFixed}
+              data-cy="save-fixed-sample-fields"
+            >
+              <FormattedMessage id="sample.fixed.fields.save" />
+            </Button>
           </Stack>
         </div>
       </div>

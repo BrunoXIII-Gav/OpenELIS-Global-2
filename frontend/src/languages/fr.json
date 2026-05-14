@@ -3206,6 +3206,8 @@
   "order.additional.fields.enable": "Activer",
   "order.additional.fields.disable": "Désactiver",
   "order.additional.fields.saved": "La configuration des champs additionnels de commande a été enregistrée.",
+  "sample.fixed.fields.title": "Champs d'échantillon fixes",
+  "sample.fixed.fields.save": "Enregistrer la configuration des champs d'échantillon fixes",
   "order.additional.fields.updated": "Le statut du champ additionnel de commande a été mis à jour.",
   "order.additional.fields.rules.title": "Règles conditionnelles",
   "order.additional.fields.rules.logic": "Logique des règles",

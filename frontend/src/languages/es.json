@@ -3197,6 +3197,8 @@
   "order.additional.fields.enable": "Activar",
   "order.additional.fields.disable": "Desactivar",
   "order.additional.fields.saved": "La configuración de campos adicionales de orden se guardó correctamente.",
+  "sample.fixed.fields.title": "Campos de muestra fijos",
+  "sample.fixed.fields.save": "Guardar configuración de campos de muestra fijos",
   "order.additional.fields.updated": "El estado del campo adicional de orden se actualizó.",
   "order.additional.fields.rules.title": "Reglas condicionales",
   "order.additional.fields.rules.logic": "Lógica de reglas",

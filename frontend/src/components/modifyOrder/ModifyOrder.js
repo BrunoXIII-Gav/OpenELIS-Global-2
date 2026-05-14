@@ -377,7 +377,7 @@ const ModifyOrder = () => {
                       </Button>
                     )}
 
-                    {page === orderPageNumber && (
+                    {page <= orderPageNumber && (
                       <Button
                         data-cy="submit-order"
                         kind="primary"
