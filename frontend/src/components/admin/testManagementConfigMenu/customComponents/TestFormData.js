@@ -122,8 +122,8 @@ export const mapTestCatBeanToFormData = (test) => {
       Array.isArray(test.panelIds) && test.panelIds.length > 0
         ? []
         : typeof test.panel === "string" && test.panel !== "None"
-        ? test.panel.split(",").map((p) => p.trim())
-        : [],
+          ? test.panel.split(",").map((p) => p.trim())
+          : [],
     panelIds: Array.isArray(test.panelIds) ? test.panelIds : [],
     uom: test.uom || "",
     loinc: test.loinc || "",

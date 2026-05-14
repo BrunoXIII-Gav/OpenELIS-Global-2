@@ -498,11 +498,8 @@ public class DisplayListController extends BaseRestController {
             return allPriorities;
         }
 
-        Set<String> enabledPriorityIds = Arrays.stream(enabledPriorities.split(","))
-                .map(String::trim)
-                .filter(StringUtils::isNotBlank)
-                .map(String::toUpperCase)
-                .collect(Collectors.toSet());
+        Set<String> enabledPriorityIds = Arrays.stream(enabledPriorities.split(",")).map(String::trim)
+                .filter(StringUtils::isNotBlank).map(String::toUpperCase).collect(Collectors.toSet());
 
         if (enabledPriorityIds.isEmpty()) {
             return allPriorities;

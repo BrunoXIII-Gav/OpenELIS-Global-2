@@ -73,8 +73,10 @@ public class StorageSearchServiceImpl implements StorageSearchService {
             boolean matchesAccessionNumber = sampleAccessionNumber != null && !sampleAccessionNumber.isEmpty()
                     && sampleAccessionNumber.toLowerCase().contains(normalizedQuery);
 
-            // Search by Order Additional Field configured as searchable (exact match semantics
-            // from orderAdditionalFieldService) and include all sample items for that parent
+            // Search by Order Additional Field configured as searchable (exact match
+            // semantics
+            // from orderAdditionalFieldService) and include all sample items for that
+            // parent
             // sample accession.
             boolean matchesSearchableOrderField = searchableFieldAccession != null && sampleAccessionNumber != null
                     && searchableFieldAccession.equalsIgnoreCase(sampleAccessionNumber);
@@ -99,8 +101,7 @@ public class StorageSearchServiceImpl implements StorageSearchService {
         }
 
         return orderAdditionalFieldService.findSampleIdBySearchableFieldValue(query)
-                .map(sampleId -> sampleService.get(String.valueOf(sampleId)))
-                .map(Sample::getAccessionNumber)
+                .map(sampleId -> sampleService.get(String.valueOf(sampleId))).map(Sample::getAccessionNumber)
                 .orElse(null);
     }
 

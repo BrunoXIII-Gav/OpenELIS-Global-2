@@ -148,13 +148,15 @@ public class TestAdditionalFieldServiceImpl implements TestAdditionalFieldServic
                 definition.setTestId(numericTestId);
             }
 
-            FieldType fieldType = parseFieldType(StringUtils.defaultIfBlank(payload.getFieldType(), FieldType.TEXT.name()));
+            FieldType fieldType = parseFieldType(
+                    StringUtils.defaultIfBlank(payload.getFieldType(), FieldType.TEXT.name()));
             definition.setFieldKey(normalizedFieldKey);
             definition.setDisplayName(payload.getDisplayName().trim());
             definition.setFieldType(fieldType.name());
             definition.setRequired(Boolean.TRUE.equals(payload.getRequired()));
             definition.setActive(payload.getActive() == null || payload.getActive());
-            definition.setSortOrder(payload.getSortOrder() == null ? fallbackSortOrder : Math.max(payload.getSortOrder(), 0));
+            definition.setSortOrder(
+                    payload.getSortOrder() == null ? fallbackSortOrder : Math.max(payload.getSortOrder(), 0));
             definition.setDefaultValue(StringUtils.defaultIfBlank(payload.getDefaultValue(), null));
             definition.setMaxLength(payload.getMaxLength());
             definition.setMetadataJson(StringUtils.defaultIfBlank(payload.getMetadataJson(), null));
@@ -188,7 +190,8 @@ public class TestAdditionalFieldServiceImpl implements TestAdditionalFieldServic
     }
 
     @Override
-    public void replaceFieldsForTests(List<String> testIds, List<TestAdditionalFieldPayload> payloads, String currentUserId) {
+    public void replaceFieldsForTests(List<String> testIds, List<TestAdditionalFieldPayload> payloads,
+            String currentUserId) {
         if (testIds == null || testIds.isEmpty()) {
             return;
         }
@@ -259,14 +262,15 @@ public class TestAdditionalFieldServiceImpl implements TestAdditionalFieldServic
         if (fieldValues != null) {
             for (String providedKey : fieldValues.keySet()) {
                 if (!knownFieldKeys.contains(providedKey)) {
-                    throw new IllegalArgumentException("Unknown additional field key for test " + testId + ": " + providedKey);
+                    throw new IllegalArgumentException(
+                            "Unknown additional field key for test " + testId + ": " + providedKey);
                 }
             }
         }
 
         for (TestAdditionalFieldPayload fieldDefinition : fieldDefinitions) {
-            Optional<AnalysisAdditionalFieldValue> existingValue = valueDAO.findByAnalysisIdAndFieldDefinitionId(
-                    analysisNumericId, fieldDefinition.getId());
+            Optional<AnalysisAdditionalFieldValue> existingValue = valueDAO
+                    .findByAnalysisIdAndFieldDefinitionId(analysisNumericId, fieldDefinition.getId());
 
             boolean keyProvided = fieldValues != null && fieldValues.containsKey(fieldDefinition.getFieldKey());
             String rawValue = keyProvided ? fieldValues.get(fieldDefinition.getFieldKey()) : null;
@@ -282,8 +286,8 @@ public class TestAdditionalFieldServiceImpl implements TestAdditionalFieldServic
 
             if (normalizedValue == null) {
                 if (Boolean.TRUE.equals(fieldDefinition.getRequired())) {
-                    throw new LIMSRuntimeException(
-                            "Additional field is required: " + StringUtils.defaultString(fieldDefinition.getDisplayName()));
+                    throw new LIMSRuntimeException("Additional field is required: "
+                            + StringUtils.defaultString(fieldDefinition.getDisplayName()));
                 }
 
                 if (keyProvided && existingValue.isPresent()) {
@@ -330,7 +334,8 @@ public class TestAdditionalFieldServiceImpl implements TestAdditionalFieldServic
         definition.setFieldType(fieldType.name());
         definition.setRequired(Boolean.TRUE.equals(payload.getRequired()));
         definition.setActive(payload.getActive() == null || payload.getActive());
-        definition.setSortOrder(payload.getSortOrder() == null ? getNextSortOrder(testNumericId) : Math.max(payload.getSortOrder(), 0));
+        definition.setSortOrder(
+                payload.getSortOrder() == null ? getNextSortOrder(testNumericId) : Math.max(payload.getSortOrder(), 0));
         definition.setDefaultValue(StringUtils.defaultIfBlank(payload.getDefaultValue(), null));
         definition.setMaxLength(payload.getMaxLength());
         definition.setMetadataJson(StringUtils.defaultIfBlank(payload.getMetadataJson(), null));
@@ -659,7 +664,8 @@ public class TestAdditionalFieldServiceImpl implements TestAdditionalFieldServic
                 continue;
             }
 
-            String normalizedOptionKey = normalizeOptionKey(optionPayload.getOptionKey(), optionPayload.getOptionLabel());
+            String normalizedOptionKey = normalizeOptionKey(optionPayload.getOptionKey(),
+                    optionPayload.getOptionLabel());
             if (!uniqueOptionKeys.add(normalizedOptionKey)) {
                 throw new IllegalArgumentException("Duplicate option key in request payload: " + normalizedOptionKey);
             }
@@ -668,7 +674,8 @@ public class TestAdditionalFieldServiceImpl implements TestAdditionalFieldServic
             option.setFieldDefinitionId(definitionId);
             option.setOptionKey(normalizedOptionKey);
             option.setOptionLabel(optionPayload.getOptionLabel().trim());
-            option.setSortOrder(optionPayload.getSortOrder() == null ? fallbackSortOrder : optionPayload.getSortOrder());
+            option.setSortOrder(
+                    optionPayload.getSortOrder() == null ? fallbackSortOrder : optionPayload.getSortOrder());
             option.setActive(optionPayload.getActive() == null || optionPayload.getActive());
             option.setSysUserId(currentUserId);
             optionDAO.insert(option);
@@ -688,15 +695,15 @@ public class TestAdditionalFieldServiceImpl implements TestAdditionalFieldServic
                 continue;
             }
 
-            String normalizedOptionKey = normalizeOptionKey(optionPayload.getOptionKey(), optionPayload.getOptionLabel());
+            String normalizedOptionKey = normalizeOptionKey(optionPayload.getOptionKey(),
+                    optionPayload.getOptionLabel());
             if (!optionKeysInPayload.add(normalizedOptionKey)) {
                 throw new IllegalArgumentException("Duplicate option key in request payload: " + normalizedOptionKey);
             }
 
             if (optionPayload.getId() != null) {
-                TestAdditionalFieldOption existing = optionDAO.get(optionPayload.getId())
-                        .orElseThrow(() -> new IllegalArgumentException(
-                                "Option not found for update: " + optionPayload.getId()));
+                TestAdditionalFieldOption existing = optionDAO.get(optionPayload.getId()).orElseThrow(
+                        () -> new IllegalArgumentException("Option not found for update: " + optionPayload.getId()));
 
                 existing.setOptionKey(normalizedOptionKey);
                 existing.setOptionLabel(optionPayload.getOptionLabel().trim());
@@ -774,7 +781,8 @@ public class TestAdditionalFieldServiceImpl implements TestAdditionalFieldServic
     private void validateMaxLength(TestAdditionalFieldPayload fieldDefinition, String value) {
         Integer maxLength = fieldDefinition.getMaxLength();
         if (maxLength != null && maxLength > 0 && value.length() > maxLength) {
-            throw new LIMSRuntimeException("Value exceeds maximum length for field: " + fieldDefinition.getDisplayName());
+            throw new LIMSRuntimeException(
+                    "Value exceeds maximum length for field: " + fieldDefinition.getDisplayName());
         }
     }
 
@@ -829,7 +837,8 @@ public class TestAdditionalFieldServiceImpl implements TestAdditionalFieldServic
     }
 
     private void validateSingleOption(TestAdditionalFieldPayload fieldDefinition, String value) {
-        Set<String> validOptions = fieldDefinition.getOptions().stream().filter(option -> Boolean.TRUE.equals(option.getActive()))
+        Set<String> validOptions = fieldDefinition.getOptions().stream()
+                .filter(option -> Boolean.TRUE.equals(option.getActive()))
                 .map(TestAdditionalFieldOptionPayload::getOptionKey).collect(Collectors.toSet());
 
         if (!validOptions.contains(value)) {
@@ -838,7 +847,8 @@ public class TestAdditionalFieldServiceImpl implements TestAdditionalFieldServic
     }
 
     private String normalizeAndValidateMultiSelect(TestAdditionalFieldPayload fieldDefinition, String value) {
-        Set<String> validOptions = fieldDefinition.getOptions().stream().filter(option -> Boolean.TRUE.equals(option.getActive()))
+        Set<String> validOptions = fieldDefinition.getOptions().stream()
+                .filter(option -> Boolean.TRUE.equals(option.getActive()))
                 .map(TestAdditionalFieldOptionPayload::getOptionKey).collect(Collectors.toSet());
 
         LinkedHashSet<String> normalizedOptions = new LinkedHashSet<>();
@@ -849,7 +859,8 @@ public class TestAdditionalFieldServiceImpl implements TestAdditionalFieldServic
             }
 
             if (!validOptions.contains(trimmed)) {
-                throw new LIMSRuntimeException("Invalid option selected for field: " + fieldDefinition.getDisplayName());
+                throw new LIMSRuntimeException(
+                        "Invalid option selected for field: " + fieldDefinition.getDisplayName());
             }
             normalizedOptions.add(trimmed);
         }

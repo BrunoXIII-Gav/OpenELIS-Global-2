@@ -4,9 +4,7 @@ import PatientInfo from "./PatientInfo";
 import AddSample from "./AddSample";
 import AddOrder from "./AddOrder";
 import "./add-order.scss";
-import {
-  createSampleOrderFormValues,
-} from "../formModel/innitialValues/OrderEntryFormValues";
+import { createSampleOrderFormValues } from "../formModel/innitialValues/OrderEntryFormValues";
 import { NotificationContext, ConfigurationContext } from "../layout/Layout";
 import { AlertDialog, NotificationKinds } from "../common/CustomNotification";
 import {
@@ -269,6 +267,7 @@ const Index = () => {
               providerFax: person.fax || "",
               providerCmp: data?.npi || "",
               providerRne: data?.externalId || "",
+              providerDni: data?.dni || "",
               providerSpecialty: data?.specialty || "",
             },
           });
@@ -284,6 +283,7 @@ const Index = () => {
         providerFax: requester.fax,
         providerCmp: requester.cmp || "",
         providerRne: requester.rne || "",
+        providerDni: requester.dni || "",
         providerSpecialty: requester.specialty || "",
       };
     }
@@ -845,7 +845,7 @@ const Index = () => {
     const orderItems = orderFormValues?.sampleOrderItems || {};
     const providerFirst = orderItems.providerFirstName || "";
     const providerLast = orderItems.providerLastName || "";
-    const providerDni = orderItems.providerRne || orderItems.providerCmp || "";
+    const providerDni = orderItems.providerDni || "";
     return {
       patient: {
         firstName: patient.firstName || "",

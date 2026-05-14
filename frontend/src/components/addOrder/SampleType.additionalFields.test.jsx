@@ -59,16 +59,25 @@ jest.mock("../common/CustomTextInput", () => ({ id, onChange, value }) => (
   />
 ));
 
-jest.mock("../common/CustomSelect", () => ({ id, options = [], value, onChange }) => (
-  <select id={id} data-testid={id} value={value || ""} onChange={(event) => onChange(event.target.value)}>
-    <option value="">Select</option>
-    {options.map((option, index) => (
-      <option key={`${id}_${index}`} value={option.id}>
-        {option.value}
-      </option>
-    ))}
-  </select>
-));
+jest.mock(
+  "../common/CustomSelect",
+  () =>
+    ({ id, options = [], value, onChange }) => (
+      <select
+        id={id}
+        data-testid={id}
+        value={value || ""}
+        onChange={(event) => onChange(event.target.value)}
+      >
+        <option value="">Select</option>
+        {options.map((option, index) => (
+          <option key={`${id}_${index}`} value={option.id}>
+            {option.value}
+          </option>
+        ))}
+      </select>
+    ),
+);
 
 const userSessionDetailsContextValue = {
   userSessionDetails: {
@@ -117,7 +126,9 @@ const renderComponent = (overrideProps = {}) => {
 
   const rendered = render(
     <IntlProvider locale="en" messages={messages}>
-      <UserSessionDetailsContext.Provider value={userSessionDetailsContextValue}>
+      <UserSessionDetailsContext.Provider
+        value={userSessionDetailsContextValue}
+      >
         <ConfigurationContext.Provider value={configurationContextValue}>
           <NotificationContext.Provider value={notificationContextValue}>
             <SampleType {...props} />
@@ -240,9 +251,12 @@ describe("SampleType additional fields", () => {
       expect(additionalFieldInput).toBeTruthy();
     });
 
-    fireEvent.change(container.querySelector("#additional_field_0_batch_code"), {
-      target: { value: "B-77" },
-    });
+    fireEvent.change(
+      container.querySelector("#additional_field_0_batch_code"),
+      {
+        target: { value: "B-77" },
+      },
+    );
 
     await wait(() => {
       const sampleXmlCalls = props.sampleTypeObject.mock.calls.filter(([arg]) =>

@@ -29,6 +29,7 @@ import java.util.stream.Collectors;
 import org.apache.commons.validator.GenericValidator;
 import org.openelisglobal.analysis.service.AnalysisService;
 import org.openelisglobal.analysis.valueholder.Analysis;
+import org.openelisglobal.analysis.valueholder.ResultFile;
 import org.openelisglobal.analyte.service.AnalyteService;
 import org.openelisglobal.analyte.valueholder.Analyte;
 import org.openelisglobal.common.exception.LIMSRuntimeException;
@@ -59,7 +60,6 @@ import org.openelisglobal.patient.util.PatientUtil;
 import org.openelisglobal.patient.valueholder.Patient;
 import org.openelisglobal.patientidentity.valueholder.PatientIdentity;
 import org.openelisglobal.patientidentitytype.util.PatientIdentityTypeMap;
-import org.openelisglobal.analysis.valueholder.ResultFile;
 import org.openelisglobal.result.service.ResultService;
 import org.openelisglobal.result.valueholder.Result;
 import org.openelisglobal.resultlimit.service.ResultLimitService;
@@ -791,7 +791,8 @@ public class ResultsValidationUtility {
         displayStatusIds.add(Integer.parseInt(finalizedStatusId));
         displayStatusIds.add(Integer.parseInt(biologistRejectedStatusId));
 
-        List<Analysis> analysisList = analysisService.getAnalysesBySampleIdAndStatusId(sample.getId(), displayStatusIds);
+        List<Analysis> analysisList = analysisService.getAnalysesBySampleIdAndStatusId(sample.getId(),
+                displayStatusIds);
         List<ResultValidationItem> testList = getGroupedTestsForAnalysisList(analysisList,
                 !StatusRules.useRecordStatusForValidation());
         resultList = testResultListToAnalysisItemList(testList);

@@ -32,6 +32,9 @@ import org.openelisglobal.observationhistory.service.ObservationHistoryService;
 import org.openelisglobal.observationhistory.service.ObservationHistoryServiceImpl.ObservationType;
 import org.openelisglobal.observationhistory.valueholder.ObservationHistory;
 import org.openelisglobal.observationhistory.valueholder.ObservationHistory.ValueType;
+import org.openelisglobal.orderadditionalfield.bean.OrderAdditionalFieldFilePayload;
+import org.openelisglobal.orderadditionalfield.bean.OrderAdditionalFieldPayload;
+import org.openelisglobal.orderadditionalfield.service.OrderAdditionalFieldService;
 import org.openelisglobal.organization.service.OrganizationService;
 import org.openelisglobal.organization.valueholder.Organization;
 import org.openelisglobal.patient.valueholder.Patient;
@@ -42,9 +45,6 @@ import org.openelisglobal.program.valueholder.ProgramSample;
 import org.openelisglobal.provider.service.ProviderService;
 import org.openelisglobal.provider.valueholder.Provider;
 import org.openelisglobal.requester.valueholder.SampleRequester;
-import org.openelisglobal.orderadditionalfield.bean.OrderAdditionalFieldPayload;
-import org.openelisglobal.orderadditionalfield.bean.OrderAdditionalFieldFilePayload;
-import org.openelisglobal.orderadditionalfield.service.OrderAdditionalFieldService;
 import org.openelisglobal.sample.bean.SampleOrderItem;
 import org.openelisglobal.sample.service.SampleService;
 import org.openelisglobal.sample.valueholder.Sample;
@@ -200,6 +200,7 @@ public class SampleOrderService {
                     sampleOrder.setProviderId(provider.getId());
                     sampleOrder.setProviderCmp(provider.getNpi());
                     sampleOrder.setProviderRne(provider.getExternalId());
+                    sampleOrder.setProviderDni(provider.getDni());
                     sampleOrder.setProviderSpecialty(provider.getSpecialty());
                 }
             }

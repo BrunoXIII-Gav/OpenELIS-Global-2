@@ -111,6 +111,7 @@ const buildDynamicConditionContext = (sampleOrderItems, rootValues) => ({
   providerEmail: sampleOrderItems?.providerEmail,
   providerCmp: sampleOrderItems?.providerCmp,
   providerRne: sampleOrderItems?.providerRne,
+  providerDni: sampleOrderItems?.providerDni,
   providerSpecialty: sampleOrderItems?.providerSpecialty,
   paymentOptionSelection: sampleOrderItems?.paymentOptionSelection,
   testLocationCode: sampleOrderItems?.testLocationCode,
@@ -202,6 +203,7 @@ const sampleOrderItemsSchema = Yup.object()
     providerEmail: Yup.string().email("Invalid Email"),
     providerCmp: Yup.string(),
     providerRne: Yup.string(),
+    providerDni: Yup.string(),
     providerSpecialty: Yup.string(),
   })
   .test("referringSiteName", "Referring Site is required", function (value) {

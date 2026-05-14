@@ -34,6 +34,8 @@ public class Provider extends BaseObject<String> implements DesynchronousCapable
 
     private String specialty;
 
+    private String dni;
+
     private ValueHolderInterface person;
 
     private String selectedPersonId;
@@ -87,6 +89,14 @@ public class Provider extends BaseObject<String> implements DesynchronousCapable
 
     public void setSpecialty(String specialty) {
         this.specialty = specialty;
+    }
+
+    public String getDni() {
+        return dni;
+    }
+
+    public void setDni(String dni) {
+        this.dni = dni;
     }
 
     public Person getPerson() {

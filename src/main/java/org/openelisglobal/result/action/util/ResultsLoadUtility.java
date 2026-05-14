@@ -1074,7 +1074,8 @@ public class ResultsLoadUtility {
 
             // Backward-compatible fallback: if no mapped methods exist, use the single
             // test.method value so existing environments keep working.
-            if (resolved.isEmpty() && test.getMethod() != null && !GenericValidator.isBlankOrNull(test.getMethod().getId())) {
+            if (resolved.isEmpty() && test.getMethod() != null
+                    && !GenericValidator.isBlankOrNull(test.getMethod().getId())) {
                 String methodId = test.getMethod().getId();
                 String methodLabel = GenericValidator.isBlankOrNull(fallbackMethodName) ? resolveMethodLabel(methodId)
                         : fallbackMethodName;
