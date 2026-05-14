@@ -104,9 +104,7 @@ describe("EnhancedCascadingMode", () => {
   /**
    * Test: Shows "(add new room)" link when typing non-existent room
    */
-  test(
-    "testShowsAddNewRoomLinkWhenTypingNonExistentRoom",
-    async () => {
+  test("testShowsAddNewRoomLinkWhenTypingNonExistentRoom", async () => {
     renderWithIntl(
       <EnhancedCascadingMode onLocationChange={mockOnLocationChange} />,
     );
@@ -143,9 +141,7 @@ describe("EnhancedCascadingMode", () => {
       },
       { timeout: 3000 },
     );
-    },
-    15000,
-  );
+  }, 15000);
 
   /**
    * Test: Clicking "(add new room)" link creates the room

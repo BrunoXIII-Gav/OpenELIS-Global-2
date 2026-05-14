@@ -448,9 +448,7 @@ describe("EditLocationModal", () => {
   /**
    * Test active toggle reflects inactive state (Room)
    */
-  test(
-    "testEditModal_ActiveToggleReflectsInactiveState_Room",
-    async () => {
+  test("testEditModal_ActiveToggleReflectsInactiveState_Room", async () => {
     const inactiveRoom = { ...mockRoom, active: false };
     Utils.getFromOpenElisServerV2.mockResolvedValueOnce(inactiveRoom);
 
@@ -471,9 +469,7 @@ describe("EditLocationModal", () => {
     if (ariaPressed !== null) {
       expect(ariaPressed).toBe("false");
     }
-    },
-    15000,
-  );
+  }, 15000);
 
   /**
    * Test active toggle reflects location active state (Device)

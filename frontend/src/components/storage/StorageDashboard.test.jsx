@@ -1669,9 +1669,7 @@ describe("StorageDashboard Capacity Display", () => {
   /**
    * T189: Test occupancy display with calculated capacity shows fraction, percentage, and "Calculated" badge
    */
-  test(
-    "testOccupancyDisplay_CalculatedCapacity_ShowsFractionAndPercentage",
-    async () => {
+  test("testOccupancyDisplay_CalculatedCapacity_ShowsFractionAndPercentage", async () => {
     jest
       .spyOn(require("react-router-dom"), "useLocation")
       .mockReturnValue(createMockLocation("/Storage/devices"));
@@ -1709,9 +1707,7 @@ describe("StorageDashboard Capacity Display", () => {
     expect(deviceRow).toBeTruthy();
     const rowText = (deviceRow.textContent || "").replace(/\s+/g, " ");
     expect(rowText).toMatch(/287\/1,?234\s+\(23%\)/);
-    },
-    15000,
-  );
+  }, 15000);
 
   /**
    * T189: Test occupancy display with undetermined capacity shows "N/A" with tooltip
