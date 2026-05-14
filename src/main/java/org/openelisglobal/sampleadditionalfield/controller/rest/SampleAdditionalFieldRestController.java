@@ -1,9 +1,9 @@
 package org.openelisglobal.sampleadditionalfield.controller.rest;
 
+import jakarta.servlet.http.HttpServletRequest;
 import java.util.Collections;
 import java.util.List;
 import java.util.Map;
-import jakarta.servlet.http.HttpServletRequest;
 import org.openelisglobal.common.rest.BaseRestController;
 import org.openelisglobal.sampleadditionalfield.bean.SampleFixedFieldConfigPayload;
 import org.openelisglobal.sampleadditionalfield.service.SampleAdditionalFieldService;
@@ -29,11 +29,9 @@ public class SampleAdditionalFieldRestController extends BaseRestController {
 
     @PutMapping("/fixed")
     public ResponseEntity<?> upsertFixedFieldConfigs(
-            @RequestBody(required = false) List<SampleFixedFieldConfigPayload> payloads,
-            HttpServletRequest request) {
+            @RequestBody(required = false) List<SampleFixedFieldConfigPayload> payloads, HttpServletRequest request) {
         try {
-            sampleAdditionalFieldService.upsertFixedFieldConfigs(
-                    payloads == null ? Collections.emptyList() : payloads,
+            sampleAdditionalFieldService.upsertFixedFieldConfigs(payloads == null ? Collections.emptyList() : payloads,
                     getSysUserId(request));
             return ResponseEntity.noContent().build();
         } catch (IllegalArgumentException e) {

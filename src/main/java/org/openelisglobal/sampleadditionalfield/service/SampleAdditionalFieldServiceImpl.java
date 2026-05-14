@@ -16,20 +16,15 @@ import org.springframework.transaction.annotation.Transactional;
 @Service
 public class SampleAdditionalFieldServiceImpl implements SampleAdditionalFieldService {
 
-    private static final List<FixedFieldDefault> FIXED_FIELD_DEFAULTS = List.of(
-            new FixedFieldDefault("rejected", 10),
-            new FixedFieldDefault("quantity", 20),
-            new FixedFieldDefault("uom", 30),
-            new FixedFieldDefault("collectionDate", 40),
-            new FixedFieldDefault("collectionTime", 50),
-            new FixedFieldDefault("collector", 60),
-            new FixedFieldDefault("storageLocation", 70),
-            new FixedFieldDefault("panels", 80),
-            new FixedFieldDefault("tests", 90),
+    private static final List<FixedFieldDefault> FIXED_FIELD_DEFAULTS = List.of(new FixedFieldDefault("rejected", 10),
+            new FixedFieldDefault("quantity", 20), new FixedFieldDefault("uom", 30),
+            new FixedFieldDefault("collectionDate", 40), new FixedFieldDefault("collectionTime", 50),
+            new FixedFieldDefault("collector", 60), new FixedFieldDefault("storageLocation", 70),
+            new FixedFieldDefault("panels", 80), new FixedFieldDefault("tests", 90),
             new FixedFieldDefault("referral", 100));
 
-    private static final Set<String> FIXED_FIELD_KEYS = FIXED_FIELD_DEFAULTS.stream()
-            .map(f -> f.fieldKey.toLowerCase()).collect(Collectors.toSet());
+    private static final Set<String> FIXED_FIELD_KEYS = FIXED_FIELD_DEFAULTS.stream().map(f -> f.fieldKey.toLowerCase())
+            .collect(Collectors.toSet());
 
     @Autowired
     private SampleFixedFieldConfigDAO fixedFieldConfigDAO;
@@ -79,7 +74,8 @@ public class SampleAdditionalFieldServiceImpl implements SampleAdditionalFieldSe
             entity.setVisible(payload.getVisible() == null || payload.getVisible());
             entity.setRequired(payload.getRequired() != null && payload.getRequired());
             entity.setReadonly(payload.getReadonly() != null && payload.getReadonly());
-            entity.setSortOrder(payload.getSortOrder() == null ? getDefaultSortOrder(normalizedKey) : payload.getSortOrder());
+            entity.setSortOrder(
+                    payload.getSortOrder() == null ? getDefaultSortOrder(normalizedKey) : payload.getSortOrder());
             entity.setSysUserId(currentUserId);
 
             if (entity.getId() == null) {
@@ -91,9 +87,7 @@ public class SampleAdditionalFieldServiceImpl implements SampleAdditionalFieldSe
     }
 
     private Integer getDefaultSortOrder(String fieldKey) {
-        return FIXED_FIELD_DEFAULTS.stream()
-                .filter(f -> f.fieldKey.equalsIgnoreCase(fieldKey))
-                .map(f -> f.sortOrder)
+        return FIXED_FIELD_DEFAULTS.stream().filter(f -> f.fieldKey.equalsIgnoreCase(fieldKey)).map(f -> f.sortOrder)
                 .findFirst().orElse(0);
     }
 

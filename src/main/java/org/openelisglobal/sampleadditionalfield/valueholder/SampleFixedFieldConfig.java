@@ -40,25 +40,54 @@ public class SampleFixedFieldConfig extends BaseObject<Integer> {
     private Integer sysUserId;
 
     @Override
-    public Integer getId() { return id; }
+    public Integer getId() {
+        return id;
+    }
 
     @Override
-    public void setId(Integer id) { this.id = id; }
+    public void setId(Integer id) {
+        this.id = id;
+    }
 
-    public String getFieldKey() { return fieldKey; }
-    public void setFieldKey(String fieldKey) { this.fieldKey = fieldKey; }
+    public String getFieldKey() {
+        return fieldKey;
+    }
 
-    public Boolean getVisible() { return visible; }
-    public void setVisible(Boolean visible) { this.visible = visible; }
+    public void setFieldKey(String fieldKey) {
+        this.fieldKey = fieldKey;
+    }
 
-    public Boolean getRequired() { return required; }
-    public void setRequired(Boolean required) { this.required = required; }
+    public Boolean getVisible() {
+        return visible;
+    }
 
-    public Boolean getReadonly() { return readonly; }
-    public void setReadonly(Boolean readonly) { this.readonly = readonly; }
+    public void setVisible(Boolean visible) {
+        this.visible = visible;
+    }
 
-    public Integer getSortOrder() { return sortOrder; }
-    public void setSortOrder(Integer sortOrder) { this.sortOrder = sortOrder; }
+    public Boolean getRequired() {
+        return required;
+    }
+
+    public void setRequired(Boolean required) {
+        this.required = required;
+    }
+
+    public Boolean getReadonly() {
+        return readonly;
+    }
+
+    public void setReadonly(Boolean readonly) {
+        this.readonly = readonly;
+    }
+
+    public Integer getSortOrder() {
+        return sortOrder;
+    }
+
+    public void setSortOrder(Integer sortOrder) {
+        this.sortOrder = sortOrder;
+    }
 
     @Override
     public String getSysUserId() {

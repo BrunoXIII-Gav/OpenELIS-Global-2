@@ -126,11 +126,10 @@ const OrderAdditionalFieldsManagement = () => {
   };
 
   const loadSampleFixedConfigs = () => {
-  getFromOpenElisServer(
-    "/rest/sample-additional-fields/fixed",
-    (data) => setSampleFixedConfigs(Array.isArray(data) ? data : []),
-  );
-};
+    getFromOpenElisServer("/rest/sample-additional-fields/fixed", (data) =>
+      setSampleFixedConfigs(Array.isArray(data) ? data : []),
+    );
+  };
 
   const loadFixedConfigs = () => {
     getFromOpenElisServer("/rest/order-additional-fields/fixed", (response) => {
@@ -145,10 +144,12 @@ const OrderAdditionalFieldsManagement = () => {
   }, []);
 
   const sampleFixedRows = useMemo(
-  () =>
-    [...sampleFixedConfigs].sort((a, b) => (a?.sortOrder ?? 0) - (b?.sortOrder ?? 0)),
-  [sampleFixedConfigs],
-);
+    () =>
+      [...sampleFixedConfigs].sort(
+        (a, b) => (a?.sortOrder ?? 0) - (b?.sortOrder ?? 0),
+      ),
+    [sampleFixedConfigs],
+  );
   const fixedRows = useMemo(
     () =>
       [...fixedConfigs].sort((left, right) => {
@@ -525,39 +526,41 @@ const OrderAdditionalFieldsManagement = () => {
   };
 
   const updateSampleFixedConfig = (fieldKey, property, rawValue) => {
-  setSampleFixedConfigs((previous) =>
-    previous.map((config) =>
-      config.fieldKey !== fieldKey ? config : { ...config, [property]: rawValue }
-    )
-  );
-};
+    setSampleFixedConfigs((previous) =>
+      previous.map((config) =>
+        config.fieldKey !== fieldKey
+          ? config
+          : { ...config, [property]: rawValue },
+      ),
+    );
+  };
 
-const saveSampleFixedConfigs = () => {
-  setSavingSampleFixed(true);
-  putToOpenElisServerFullResponse(
-    "/rest/sample-additional-fields/fixed",
-    JSON.stringify(sampleFixedConfigs),
-    (response) => {
-      setSavingSampleFixed(false);
-      if (response.status >= 200 && response.status < 300) {
+  const saveSampleFixedConfigs = () => {
+    setSavingSampleFixed(true);
+    putToOpenElisServerFullResponse(
+      "/rest/sample-additional-fields/fixed",
+      JSON.stringify(sampleFixedConfigs),
+      (response) => {
+        setSavingSampleFixed(false);
+        if (response.status >= 200 && response.status < 300) {
+          addNotification({
+            kind: NotificationKinds.success,
+            title: intl.formatMessage({ id: "notification.title" }),
+            message: intl.formatMessage({ id: "save.success.msg" }),
+          });
+          setNotificationVisible(true);
+          loadSampleFixedConfigs();
+          return;
+        }
         addNotification({
-          kind: NotificationKinds.success,
+          kind: NotificationKinds.error,
           title: intl.formatMessage({ id: "notification.title" }),
-          message: intl.formatMessage({ id: "save.success.msg" }),
+          message: intl.formatMessage({ id: "server.error.msg" }),
         });
         setNotificationVisible(true);
-        loadSampleFixedConfigs();
-        return;
-      }
-      addNotification({
-        kind: NotificationKinds.error,
-        title: intl.formatMessage({ id: "notification.title" }),
-        message: intl.formatMessage({ id: "server.error.msg" }),
-      });
-      setNotificationVisible(true);
-    },
-  );
-};
+      },
+    );
+  };
 
   const updateFixedConfig = (fieldKey, property, rawValue) => {
     setFixedConfigs((previous) =>
@@ -1324,7 +1327,9 @@ const saveSampleFixedConfigs = () => {
 
         <div className="orderLegendBody">
           <Stack gap={6}>
-            <Heading><FormattedMessage id="sample.fixed.fields.title" /></Heading>
+            <Heading>
+              <FormattedMessage id="sample.fixed.fields.title" />
+            </Heading>
             <TableContainer>
               <Table>
                 <TableHead>
@@ -1346,7 +1351,11 @@ const saveSampleFixedConfigs = () => {
                           labelText=""
                           checked={config.visible !== false}
                           onChange={(_event, { checked }) =>
-                            updateSampleFixedConfig(config.fieldKey, "visible", checked)
+                            updateSampleFixedConfig(
+                              config.fieldKey,
+                              "visible",
+                              checked,
+                            )
                           }
                         />
                       </TableCell>
@@ -1356,7 +1365,11 @@ const saveSampleFixedConfigs = () => {
                           labelText=""
                           checked={!!config.required}
                           onChange={(_event, { checked }) =>
-                            updateSampleFixedConfig(config.fieldKey, "required", checked)
+                            updateSampleFixedConfig(
+                              config.fieldKey,
+                              "required",
+                              checked,
+                            )
                           }
                         />
                       </TableCell>
@@ -1366,7 +1379,11 @@ const saveSampleFixedConfigs = () => {
                           labelText=""
                           checked={!!config.readonly}
                           onChange={(_event, { checked }) =>
-                            updateSampleFixedConfig(config.fieldKey, "readonly", checked)
+                            updateSampleFixedConfig(
+                              config.fieldKey,
+                              "readonly",
+                              checked,
+                            )
                           }
                         />
                       </TableCell>

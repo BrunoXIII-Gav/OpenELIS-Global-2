@@ -20,16 +20,16 @@ public class SampleFixedFieldConfigDAOImpl extends BaseDAOImpl<SampleFixedFieldC
     @Override
     public List<SampleFixedFieldConfig> findAllOrdered() {
         String hql = "from SampleFixedFieldConfig c order by c.sortOrder asc, c.id asc";
-        Query<SampleFixedFieldConfig> query = entityManager.unwrap(Session.class)
-                .createQuery(hql, SampleFixedFieldConfig.class);
+        Query<SampleFixedFieldConfig> query = entityManager.unwrap(Session.class).createQuery(hql,
+                SampleFixedFieldConfig.class);
         return query.list();
     }
 
     @Override
     public Optional<SampleFixedFieldConfig> findByFieldKey(String fieldKey) {
         String hql = "from SampleFixedFieldConfig c where lower(c.fieldKey) = :fieldKey";
-        Query<SampleFixedFieldConfig> query = entityManager.unwrap(Session.class)
-                .createQuery(hql, SampleFixedFieldConfig.class);
+        Query<SampleFixedFieldConfig> query = entityManager.unwrap(Session.class).createQuery(hql,
+                SampleFixedFieldConfig.class);
         query.setParameter("fieldKey", fieldKey == null ? "" : fieldKey.trim().toLowerCase());
         return Optional.ofNullable(query.uniqueResult());
     }

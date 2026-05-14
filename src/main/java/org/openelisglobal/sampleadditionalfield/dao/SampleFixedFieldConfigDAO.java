@@ -7,5 +7,6 @@ import org.openelisglobal.sampleadditionalfield.valueholder.SampleFixedFieldConf
 
 public interface SampleFixedFieldConfigDAO extends BaseDAO<SampleFixedFieldConfig, Integer> {
     List<SampleFixedFieldConfig> findAllOrdered();
+
     Optional<SampleFixedFieldConfig> findByFieldKey(String fieldKey);
 }

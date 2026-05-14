@@ -5,5 +5,6 @@ import org.openelisglobal.sampleadditionalfield.bean.SampleFixedFieldConfigPaylo
 
 public interface SampleAdditionalFieldService {
     List<SampleFixedFieldConfigPayload> getFixedFieldConfigs();
+
     void upsertFixedFieldConfigs(List<SampleFixedFieldConfigPayload> payloads, String currentUserId);
 }
