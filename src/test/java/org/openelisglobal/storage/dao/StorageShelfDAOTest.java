@@ -99,7 +99,8 @@ public class StorageShelfDAOTest extends BaseWebContextSensitiveTest {
         try {
             // Delete in FK order: shelf -> device -> room
             // Use both code and id to handle leftover records from previous test runs
-            jdbcTemplate.update("DELETE FROM storage_shelf WHERE label IN (?, ?)", TEST_SHELF_LABEL_A, TEST_SHELF_LABEL_B);
+            jdbcTemplate.update("DELETE FROM storage_shelf WHERE label IN (?, ?)", TEST_SHELF_LABEL_A,
+                    TEST_SHELF_LABEL_B);
             jdbcTemplate
                     .execute("DELETE FROM storage_shelf WHERE code IN ('SHELF-A', 'SHELF-B') OR id IN (9102, 9103)");
             jdbcTemplate.execute("DELETE FROM storage_device WHERE code = 'TSTDEV-SHF' OR id = 9101");
