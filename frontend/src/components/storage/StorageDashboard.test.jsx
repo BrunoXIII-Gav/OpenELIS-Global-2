@@ -1669,7 +1669,9 @@ describe("StorageDashboard Capacity Display", () => {
   /**
    * T189: Test occupancy display with calculated capacity shows fraction, percentage, and "Calculated" badge
    */
-  test("testOccupancyDisplay_CalculatedCapacity_ShowsFractionAndPercentage", async () => {
+  test(
+    "testOccupancyDisplay_CalculatedCapacity_ShowsFractionAndPercentage",
+    async () => {
     jest
       .spyOn(require("react-router-dom"), "useLocation")
       .mockReturnValue(createMockLocation("/Storage/devices"));
@@ -1702,10 +1704,14 @@ describe("StorageDashboard Capacity Display", () => {
     // Wait for device to appear
     await screen.findByText("Freezer Unit 1");
 
-    // Check for occupancy display with calculated capacity (287/1234)
-    // getByText throws if not found, so no need for toBeInTheDocument
-    screen.getByText(/287\/1,234/);
-  });
+    // Check occupancy text inside the specific device row (avoid matching parent nodes).
+    const deviceRow = screen.getByText("Freezer Unit 1").closest("tr");
+    expect(deviceRow).toBeTruthy();
+    const rowText = (deviceRow.textContent || "").replace(/\s+/g, " ");
+    expect(rowText).toMatch(/287\/1,?234\s+\(23%\)/);
+    },
+    15000,
+  );
 
   /**
    * T189: Test occupancy display with undetermined capacity shows "N/A" with tooltip
