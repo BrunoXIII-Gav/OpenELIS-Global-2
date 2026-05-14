@@ -29,7 +29,8 @@ public class SampleOrderAdditionalFieldValueDAOImpl extends BaseDAOImpl<SampleOr
             return Optional.empty();
         }
 
-        String hql = "from " + VALUE_ENTITY + " v where v.sampleId = :sampleId and v.fieldDefinitionId = :fieldDefinitionId";
+        String hql = "from " + VALUE_ENTITY
+                + " v where v.sampleId = :sampleId and v.fieldDefinitionId = :fieldDefinitionId";
         Query<SampleOrderAdditionalFieldValue> query = entityManager.unwrap(Session.class).createQuery(hql,
                 SampleOrderAdditionalFieldValue.class);
         query.setParameter("sampleId", sampleId);
@@ -44,7 +45,8 @@ public class SampleOrderAdditionalFieldValueDAOImpl extends BaseDAOImpl<SampleOr
             return Collections.emptyList();
         }
 
-        String hql = "from " + VALUE_ENTITY + " v where v.sampleId = :sampleId and v.fieldDefinitionId in (:fieldDefinitionIds)";
+        String hql = "from " + VALUE_ENTITY
+                + " v where v.sampleId = :sampleId and v.fieldDefinitionId in (:fieldDefinitionIds)";
         Query<SampleOrderAdditionalFieldValue> query = entityManager.unwrap(Session.class).createQuery(hql,
                 SampleOrderAdditionalFieldValue.class);
         query.setParameter("sampleId", sampleId);
@@ -61,9 +63,8 @@ public class SampleOrderAdditionalFieldValueDAOImpl extends BaseDAOImpl<SampleOr
 
         String sql = "select distinct v.sample_id from sample_order_additional_field_value v "
                 + "join order_additional_field_def d on v.field_def_id = d.id "
-                + "where d.active = true and d.searchable = true "
-                + (uniqueOnly ? "and d.search_unique = true " : "") + "and lower(v.field_value) = :searchValue "
-                + "order by v.sample_id desc";
+                + "where d.active = true and d.searchable = true " + (uniqueOnly ? "and d.search_unique = true " : "")
+                + "and lower(v.field_value) = :searchValue " + "order by v.sample_id desc";
         Query<?> query = entityManager.unwrap(Session.class).createNativeQuery(sql);
         query.setParameter("searchValue", searchValue.trim().toLowerCase());
         query.setMaxResults(limit);

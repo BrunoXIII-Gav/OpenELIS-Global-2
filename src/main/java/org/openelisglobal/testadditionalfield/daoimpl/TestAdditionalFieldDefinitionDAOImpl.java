@@ -68,8 +68,7 @@ public class TestAdditionalFieldDefinitionDAOImpl extends BaseDAOImpl<TestAdditi
     public Optional<TestAdditionalFieldDefinition> findByTestIdAndFieldKey(Integer testId, String fieldKey) {
         String sql = "select d.id, d.test_id, d.field_key, d.display_name, d.field_type, d.required, d.active, "
                 + "d.sort_order, d.default_value, d.max_length, d.metadata_json, d.sys_user_id "
-                + "from test_additional_field_def d "
-                + "where d.test_id = :testId and lower(d.field_key) = :fieldKey";
+                + "from test_additional_field_def d " + "where d.test_id = :testId and lower(d.field_key) = :fieldKey";
         NativeQuery<?> query = entityManager.unwrap(Session.class).createNativeQuery(sql);
         query.setParameter("testId", testId);
         query.setParameter("fieldKey", fieldKey.toLowerCase());
