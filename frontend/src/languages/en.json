@@ -2280,7 +2280,7 @@
   "result.entry.results.accessionNumber": "Accession Number",
   "result.entry.results.sampleCount": "Samples",
   "result.entry.results.testCount": "Tests",
-  "result.entry.results.title": "Tests Pending Results",
+  "result.entry.results.title": "Results",
   "result.entry.saveSuccess": "Result saved for {testName}",
   "result.entry.search.accessionLabel": "Accession Number",
   "result.entry.search.accessionPlaceholder": "Enter accession number...",
