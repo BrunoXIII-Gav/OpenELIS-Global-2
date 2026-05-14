@@ -29,11 +29,11 @@ import org.openelisglobal.common.services.StatusService.AnalysisStatus;
 import org.openelisglobal.common.services.StatusService.SampleStatus;
 import org.openelisglobal.common.util.DateUtil;
 import org.openelisglobal.internationalization.MessageUtil;
+import org.openelisglobal.orderadditionalfield.service.OrderAdditionalFieldService;
 import org.openelisglobal.patient.action.bean.PatientSearch;
 import org.openelisglobal.patient.service.PatientService;
 import org.openelisglobal.patient.valueholder.Patient;
 import org.openelisglobal.person.service.PersonService;
-import org.openelisglobal.orderadditionalfield.service.OrderAdditionalFieldService;
 import org.openelisglobal.sample.bean.SampleEditItem;
 import org.openelisglobal.sample.form.SampleEditForm;
 import org.openelisglobal.sample.form.SampleEditForm.SampleEdit;
@@ -81,10 +81,11 @@ public class SampleEditController extends BaseController {
             "sampleOrderItems.referringSiteDepartmentId", "sampleOrderItems.referringSiteDepartmentName",
             "sampleOrderItems.program", "sampleOrderItems.providerId", "sampleOrderItems.providerLastName",
             "sampleOrderItems.providerFirstName", "sampleOrderItems.providerCmp", "sampleOrderItems.providerRne",
-            "sampleOrderItems.providerSpecialty", "sampleOrderItems.facilityAddressStreet",
-            "sampleOrderItems.facilityAddressCommune", "sampleOrderItems.facilityPhone", "sampleOrderItems.facilityFax",
-            "sampleOrderItems.paymentOptionSelection", "sampleOrderItems.billingReferenceNumber",
-            "sampleOrderItems.testLocationCode", "sampleOrderItems.otherLocationCode", "sampleOrderItems.priority",
+            "sampleOrderItems.providerDni", "sampleOrderItems.providerSpecialty",
+            "sampleOrderItems.facilityAddressStreet", "sampleOrderItems.facilityAddressCommune",
+            "sampleOrderItems.facilityPhone", "sampleOrderItems.facilityFax", "sampleOrderItems.paymentOptionSelection",
+            "sampleOrderItems.billingReferenceNumber", "sampleOrderItems.testLocationCode",
+            "sampleOrderItems.otherLocationCode", "sampleOrderItems.priority",
             //
             "accessionNumber", "newAccessionNumber", "isEditable", "maxAccessionNumber",
             "existingTests*.sampleItemChanged", "existingTests*.sampleItemId", "existingTests*.analysisId",
@@ -263,8 +264,7 @@ public class SampleEditController extends BaseController {
     private Sample getSample(String accessionNumber) {
         String searchValue = accessionNumber == null ? null : accessionNumber.trim();
         Sample sample = orderAdditionalFieldService.findSampleIdBySearchableFieldValue(searchValue)
-                .map(sampleId -> sampleService.get(String.valueOf(sampleId)))
-                .orElse(null);
+                .map(sampleId -> sampleService.get(String.valueOf(sampleId))).orElse(null);
         if (sample != null) {
             return sample;
         }

@@ -9,9 +9,14 @@ import UserSessionDetailsContext from "../../UserSessionDetailsContext";
 import messages from "../../languages/en.json";
 
 // Mock Utils
-jest.mock("../utils/Utils", () => ({
-  getFromOpenElisServer: jest.fn(),
-}));
+jest.mock("../utils/Utils", () => {
+  const actual = jest.requireActual("../utils/Utils");
+  return {
+    ...actual,
+    getFromOpenElisServer: jest.fn(),
+    getFromOpenElisServerV2: jest.fn(),
+  };
+});
 
 describe("Layout Full Integration (Smoke Tests)", () => {
   beforeEach(() => {

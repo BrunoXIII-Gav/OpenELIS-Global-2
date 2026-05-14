@@ -98,7 +98,8 @@ const Validation = (props) => {
           result?.isAccepted &&
           result?.analysisId &&
           !result?.readOnly &&
-          (!currentUserIsMedicalValidator || isRowReadyForMedicalValidation(result)) &&
+          (!currentUserIsMedicalValidator ||
+            isRowReadyForMedicalValidation(result)) &&
           (!result?.approvedByCurrentUser || currentUserIsMedicalValidator),
       ) || [];
     return [...new Set(acceptedRows.map((result) => result.analysisId))];
@@ -254,7 +255,10 @@ const Validation = (props) => {
     setPreviewConfirmed(false);
   };
 
-  const openPreviewByChoice = async (choice, optionsSnapshot = previewOptions) => {
+  const openPreviewByChoice = async (
+    choice,
+    optionsSnapshot = previewOptions,
+  ) => {
     if (!choice?.analysisIds?.length) {
       return;
     }
@@ -313,7 +317,10 @@ const Validation = (props) => {
     }
 
     const reportChoices = buildDownloadChoices(acceptedAnalysisIds);
-    const sameChoicesAsCurrent = areSameChoiceSet(reportChoices, previewOptions);
+    const sameChoicesAsCurrent = areSameChoiceSet(
+      reportChoices,
+      previewOptions,
+    );
 
     setPreviewOptions(reportChoices);
     if (!sameChoicesAsCurrent) {
@@ -496,10 +503,9 @@ const Validation = (props) => {
         groupedByTest.set(testKey, {
           id: String(testKey),
           label: row.testName || row.testId || row.analysisId,
-          preferredReport:
-            (row.testName || "").toLowerCase().includes("dmpk")
-              ? "patientDMPK"
-              : validationReportName,
+          preferredReport: (row.testName || "").toLowerCase().includes("dmpk")
+            ? "patientDMPK"
+            : validationReportName,
           analysisIds: [row.analysisId],
         });
       } else {
@@ -545,7 +551,9 @@ const Validation = (props) => {
       message = intl.formatMessage({ id: "validation.save.success" });
       kind = NotificationKinds.success;
       const successfulSavedIds =
-        currentUserIsMedicalValidator && Array.isArray(savedIds) ? savedIds : [];
+        currentUserIsMedicalValidator && Array.isArray(savedIds)
+          ? savedIds
+          : [];
       setSavedAnalysisIds(successfulSavedIds);
       const savedIdSet = new Set(successfulSavedIds);
       if (savedIdSet.size > 0 || currentUserIsBiologistValidator) {
@@ -706,7 +714,9 @@ const Validation = (props) => {
   };
 
   const renderExpandedRow = ({ data }) => {
-    const additionalDefinitions = Array.isArray(data?.additionalFieldDefinitions)
+    const additionalDefinitions = Array.isArray(
+      data?.additionalFieldDefinitions,
+    )
       ? data.additionalFieldDefinitions.filter(
           (fieldDefinition) => fieldDefinition?.active !== false,
         )
@@ -882,7 +892,8 @@ const Validation = (props) => {
       case "approvals":
         return (
           <span>
-            {Number(row?.approvedCount || 0)}/{Number(row?.requiredApprovals || 1)}
+            {Number(row?.approvedCount || 0)}/
+            {Number(row?.requiredApprovals || 1)}
           </span>
         );
 

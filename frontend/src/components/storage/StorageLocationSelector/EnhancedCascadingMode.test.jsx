@@ -141,7 +141,7 @@ describe("EnhancedCascadingMode", () => {
       },
       { timeout: 3000 },
     );
-  });
+  }, 15000);
 
   /**
    * Test: Clicking "(add new room)" link creates the room

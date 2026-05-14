@@ -45,8 +45,8 @@ import org.openelisglobal.resultvalidation.action.util.ResultValidationPaging;
 import org.openelisglobal.resultvalidation.bean.AnalysisItem;
 import org.openelisglobal.resultvalidation.controller.BaseResultValidationController;
 import org.openelisglobal.resultvalidation.form.ResultValidationForm;
-import org.openelisglobal.resultvalidation.service.ResultValidationService;
 import org.openelisglobal.resultvalidation.service.AnalysisValidationApprovalService;
+import org.openelisglobal.resultvalidation.service.ResultValidationService;
 import org.openelisglobal.resultvalidation.util.ResultValidationSaveService;
 import org.openelisglobal.resultvalidation.util.ResultsValidationUtility;
 import org.openelisglobal.role.service.RoleService;
@@ -207,8 +207,8 @@ public class AccessionValidationRestController extends BaseResultValidationContr
                     if (resultList.isEmpty() && StringUtils.isNotBlank(form.getAccessionNumber())) {
                         Sample sample = getSample(form.getAccessionNumber());
                         if (sample != null) {
-                            resultList = resultsValidationUtility.getValidationAnalysisBySampleIncludingValidated(
-                                    sample, getValidationStatus());
+                            resultList = resultsValidationUtility
+                                    .getValidationAnalysisBySampleIncludingValidated(sample, getValidationStatus());
                         }
                     }
                 } else {
@@ -218,8 +218,8 @@ public class AccessionValidationRestController extends BaseResultValidationContr
                             setEmptyResults(form);
                             return form;
                         } else {
-                            resultList = resultsValidationUtility.getValidationAnalysisBySampleIncludingValidated(
-                                    sample, getValidationStatus());
+                            resultList = resultsValidationUtility
+                                    .getValidationAnalysisBySampleIncludingValidated(sample, getValidationStatus());
                         }
                     }
                 }
@@ -493,8 +493,8 @@ public class AccessionValidationRestController extends BaseResultValidationContr
                     if (analysisItem.getIsAccepted()) {
                         int approvalCount = analysisItem.getApprovedCount();
                         if (biologistValidator && !analysisItem.isApprovedByCurrentUser()) {
-                            approvalCount = analysisValidationApprovalService.registerApprovalAndGetCount(analysis.getId(),
-                                    currentUserId);
+                            approvalCount = analysisValidationApprovalService
+                                    .registerApprovalAndGetCount(analysis.getId(), currentUserId);
                         }
 
                         if (!technicalAcceptanceStatus.equals(analysis.getStatusId())
@@ -586,8 +586,8 @@ public class AccessionValidationRestController extends BaseResultValidationContr
         if (analysisItems == null || analysisItems.isEmpty()) {
             return;
         }
-        List<String> analysisIds = analysisItems.stream().map(AnalysisItem::getAnalysisId).filter(StringUtils::isNotBlank)
-                .distinct().toList();
+        List<String> analysisIds = analysisItems.stream().map(AnalysisItem::getAnalysisId)
+                .filter(StringUtils::isNotBlank).distinct().toList();
         if (analysisIds.isEmpty()) {
             return;
         }
@@ -753,8 +753,7 @@ public class AccessionValidationRestController extends BaseResultValidationContr
     private Sample getSample(String accessionNumber) {
         String searchValue = accessionNumber == null ? null : accessionNumber.trim();
         Sample sample = orderAdditionalFieldService.findSampleIdBySearchableFieldValue(searchValue)
-                .map(sampleId -> sampleService.get(String.valueOf(sampleId)))
-                .orElse(null);
+                .map(sampleId -> sampleService.get(String.valueOf(sampleId))).orElse(null);
         if (sample != null) {
             return sample;
         }

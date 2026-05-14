@@ -16,16 +16,7 @@ import org.openelisglobal.common.valueholder.BaseObject;
 public class OrderAdditionalFieldDefinition extends BaseObject<Integer> {
 
     public enum FieldType {
-        TEXT,
-        NUMBER,
-        DATE,
-        DATETIME,
-        BOOLEAN,
-        SELECT,
-        MULTISELECT,
-        RADIO,
-        TEXTAREA,
-        DOCUMENT
+        TEXT, NUMBER, DATE, DATETIME, BOOLEAN, SELECT, MULTISELECT, RADIO, TEXTAREA, DOCUMENT
     }
 
     @Id

@@ -83,6 +83,7 @@ function ProviderMenu() {
   const [email, setEmail] = useState("");
   const [cmp, setCmp] = useState("");
   const [rne, setRne] = useState("");
+  const [dni, setDni] = useState("");
   const [specialty, setSpecialty] = useState("");
   const [isActive, setIsActive] = useState({ id: "yes", value: "Yes" });
 
@@ -91,8 +92,8 @@ function ProviderMenu() {
     { id: "no", value: "No" },
   ];
 
-  const providerSpecialtyOptions = (configurationProperties
-    ?.providerSpecialtyOptions || ""
+  const providerSpecialtyOptions = (
+    configurationProperties?.providerSpecialtyOptions || ""
   )
     .split(/[\n,]+/)
     .map((entry) => entry.trim())
@@ -154,6 +155,7 @@ function ProviderMenu() {
           email: person.email,
           cmp: item.npi,
           rne: item.externalId,
+          dni: item.dni,
           specialty: item.specialty,
         };
       });
@@ -251,6 +253,7 @@ function ProviderMenu() {
     setEmail("");
     setCmp("");
     setRne("");
+    setDni("");
     setSpecialty("");
     setIsActive({ id: "yes", value: "Yes" });
     setIsAddModalOpen(true);
@@ -270,6 +273,7 @@ function ProviderMenu() {
     setEmail(provider.email || "");
     setCmp(provider.cmp || "");
     setRne(provider.rne || "");
+    setDni(provider.dni || "");
     setSpecialty(provider.specialty || "");
     setIsActive(
       provider.active ? { id: "yes", value: "Yes" } : { id: "no", value: "No" },
@@ -292,6 +296,7 @@ function ProviderMenu() {
       },
       npi: cmp,
       externalId: rne,
+      dni,
       specialty,
       active: isActive.id === "yes",
     };
@@ -317,6 +322,7 @@ function ProviderMenu() {
       },
       npi: cmp,
       externalId: rne,
+      dni,
       specialty,
       active: isActive.id === "yes",
     };
@@ -487,8 +493,24 @@ function ProviderMenu() {
             value={telephone}
             onChange={(e) => handleTelephoneChange(e)}
           />
-          <TextInput id="cmp" labelText="CMP" value={cmp} onChange={(e) => setCmp(e.target.value)} />
-          <TextInput id="rne" labelText="RNE" value={rne} onChange={(e) => setRne(e.target.value)} />
+          <TextInput
+            id="cmp"
+            labelText="CMP"
+            value={cmp}
+            onChange={(e) => setCmp(e.target.value)}
+          />
+          <TextInput
+            id="rne"
+            labelText="RNE"
+            value={rne}
+            onChange={(e) => setRne(e.target.value)}
+          />
+          <TextInput
+            id="dni"
+            labelText="DNI"
+            value={dni}
+            onChange={(e) => setDni(e.target.value)}
+          />
           {renderSpecialtyInput()}
 
           <Dropdown
@@ -544,8 +566,24 @@ function ProviderMenu() {
             value={telephone}
             onChange={(e) => handleTelephoneChange(e)}
           />
-          <TextInput id="cmp" labelText="CMP" value={cmp} onChange={(e) => setCmp(e.target.value)} />
-          <TextInput id="rne" labelText="RNE" value={rne} onChange={(e) => setRne(e.target.value)} />
+          <TextInput
+            id="cmp"
+            labelText="CMP"
+            value={cmp}
+            onChange={(e) => setCmp(e.target.value)}
+          />
+          <TextInput
+            id="rne"
+            labelText="RNE"
+            value={rne}
+            onChange={(e) => setRne(e.target.value)}
+          />
+          <TextInput
+            id="dni"
+            labelText="DNI"
+            value={dni}
+            onChange={(e) => setDni(e.target.value)}
+          />
           {renderSpecialtyInput()}
           <Dropdown
             id="isActive"
@@ -641,6 +679,10 @@ function ProviderMenu() {
                     {
                       key: "rne",
                       header: "RNE",
+                    },
+                    {
+                      key: "dni",
+                      header: "DNI",
                     },
                     {
                       key: "specialty",

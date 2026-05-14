@@ -1,5 +1,14 @@
 import React, { useContext, useState, useEffect, useRef } from "react";
-import { Heading, Button, Loading, Grid, Column, Section, Select, SelectItem } from "@carbon/react";
+import {
+  Heading,
+  Button,
+  Loading,
+  Grid,
+  Column,
+  Section,
+  Select,
+  SelectItem,
+} from "@carbon/react";
 import {
   getFromOpenElisServer,
   postToOpenElisServerJsonResponse,
@@ -211,9 +220,11 @@ function MethodTestAssign() {
             <Column lg={16} md={8} sm={4}>
               {selectedMethodData?.selectedMethod && methodId ? (
                 <CustomSharedList
-                  leftTitle={`${selectedMethodData?.selectedMethod?.methodIdValuePair?.value} - ${intl.formatMessage({
-                    id: "configuration.method.assign.assignedTests",
-                  })}`}
+                  leftTitle={`${selectedMethodData?.selectedMethod?.methodIdValuePair?.value} - ${intl.formatMessage(
+                    {
+                      id: "configuration.method.assign.assignedTests",
+                    },
+                  )}`}
                   rightTitle={intl.formatMessage({
                     id: "configuration.method.assign.availableTests",
                   })}

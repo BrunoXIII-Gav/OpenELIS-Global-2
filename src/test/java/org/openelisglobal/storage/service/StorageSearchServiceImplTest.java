@@ -67,7 +67,8 @@ public class StorageSearchServiceImplTest {
             orderAdditionalFieldServiceField.setAccessible(true);
             orderAdditionalFieldServiceField.set(searchService, orderAdditionalFieldService);
 
-            java.lang.reflect.Field sampleServiceField = StorageSearchServiceImpl.class.getDeclaredField("sampleService");
+            java.lang.reflect.Field sampleServiceField = StorageSearchServiceImpl.class
+                    .getDeclaredField("sampleService");
             sampleServiceField.setAccessible(true);
             sampleServiceField.set(searchService, sampleService);
         } catch (Exception e) {

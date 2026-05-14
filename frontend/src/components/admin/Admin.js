@@ -64,6 +64,7 @@ import TestNotificationConfigEdit from "./testNotificationConfigMenu/TestNotific
 import SearchIndexManagement from "./searchIndexManagement/SearchIndexManagement";
 import TestManagementConfigMenu from "./testManagementConfigMenu/TestManagementConfigMenu.js";
 import ValidationTemplateOverrideConfig from "../reports/ValidationTemplateOverrideConfig";
+import ConsentTemplateConfig from "../reports/ConsentTemplateConfig";
 import ResultSelectListAdd from "./testManagementConfigMenu/ResultSelectListAdd.js";
 import TestAdd from "./testManagementConfigMenu/TestAdd.js";
 import TestModifyEntry from "./testManagementConfigMenu/TestModifyEntry.js";
@@ -385,6 +386,15 @@ function Admin() {
                 defaultMessage="Validation Report Templates"
               />
             </SideNavMenuItem>
+            <SideNavMenuItem
+              data-cy="consentTemplateConfigMenu"
+              onClick={handleNavigation(`${path}/ConsentTemplateConfiguration`)}
+            >
+              <FormattedMessage
+                id="sidenav.label.admin.formEntry.consentTemplateConfig"
+                defaultMessage="Consent Template Configuration"
+              />
+            </SideNavMenuItem>
           </SideNavMenu>
 
           <SideNavLink
@@ -592,6 +602,10 @@ function Admin() {
         <Route
           path={`${path}/ValidationTemplateOverrides`}
           component={ValidationTemplateOverrideConfig}
+        />
+        <Route
+          path={`${path}/ConsentTemplateConfiguration`}
+          component={ConsentTemplateConfig}
         />
         <Route
           path={`${path}/SampleEntryConfigurationMenu`}

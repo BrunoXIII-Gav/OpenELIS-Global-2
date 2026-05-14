@@ -751,7 +751,8 @@ public final class ClinicalPatientData {
     }
 
     public void setAdditionalFieldValues(Map<String, String> additionalFieldValues) {
-        this.additionalFieldValues = additionalFieldValues == null ? new HashMap<>() : new HashMap<>(additionalFieldValues);
+        this.additionalFieldValues = additionalFieldValues == null ? new HashMap<>()
+                : new HashMap<>(additionalFieldValues);
     }
 
     public String getAdditionalFieldValue(String key) {

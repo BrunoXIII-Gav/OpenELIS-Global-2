@@ -78,8 +78,8 @@ public class SampleTypeAdditionalFieldServiceTest {
         payload.setDisplayName("Sample Color");
         payload.setFieldType("TEXT");
 
-        when(definitionDAO.findBySampleTypeIdAndFieldKey(1, "sample_color"))
-                .thenReturn(Optional.of(definition(10, 1, "sample_color", "Existing", "TEXT", false, true, 1, null, null)));
+        when(definitionDAO.findBySampleTypeIdAndFieldKey(1, "sample_color")).thenReturn(
+                Optional.of(definition(10, 1, "sample_color", "Existing", "TEXT", false, true, 1, null, null)));
 
         service.createField(payload, "7");
     }
@@ -106,15 +106,13 @@ public class SampleTypeAdditionalFieldServiceTest {
         payload.setOptions(Arrays.asList(optionCold, optionFrozen));
 
         when(definitionDAO.findBySampleTypeIdAndFieldKey(1, "storage_condition")).thenReturn(Optional.empty());
-        when(definitionDAO.findBySampleTypeId(1, true))
-                .thenReturn(Collections.singletonList(definition(9, 1, "prev", "Previous", "TEXT", false, true, 2, null, null)));
+        when(definitionDAO.findBySampleTypeId(1, true)).thenReturn(
+                Collections.singletonList(definition(9, 1, "prev", "Previous", "TEXT", false, true, 2, null, null)));
         when(definitionDAO.insert(any(SampleTypeAdditionalFieldDefinition.class))).thenReturn(101);
-        when(definitionDAO.get(101))
-                .thenReturn(Optional.of(definition(101, 1, "storage_condition", "Storage Condition", "SELECT", true,
-                        true, 3, null, null)));
-        when(optionDAO.findByDefinitionId(101, true))
-                .thenReturn(Arrays.asList(option(200, 101, "cold", "Cold", 1, true),
-                        option(201, 101, "frozen", "Frozen", 2, true)));
+        when(definitionDAO.get(101)).thenReturn(Optional
+                .of(definition(101, 1, "storage_condition", "Storage Condition", "SELECT", true, true, 3, null, null)));
+        when(optionDAO.findByDefinitionId(101, true)).thenReturn(Arrays
+                .asList(option(200, 101, "cold", "Cold", 1, true), option(201, 101, "frozen", "Frozen", 2, true)));
 
         SampleTypeAdditionalFieldPayload created = service.createField(payload, "77");
 
@@ -214,12 +212,13 @@ public class SampleTypeAdditionalFieldServiceTest {
 
     @Test
     public void getActiveFieldsForSampleTypes_shouldReturnMappedListsBySampleType() {
-        SampleTypeAdditionalFieldDefinition definition1 = definition(1, 1, "code", "Code", "TEXT", false, true, 1,
-                null, null);
-        SampleTypeAdditionalFieldDefinition definition2 = definition(2, 2, "room", "Room", "TEXT", false, true, 1,
-                null, null);
+        SampleTypeAdditionalFieldDefinition definition1 = definition(1, 1, "code", "Code", "TEXT", false, true, 1, null,
+                null);
+        SampleTypeAdditionalFieldDefinition definition2 = definition(2, 2, "room", "Room", "TEXT", false, true, 1, null,
+                null);
 
-        when(definitionDAO.findBySampleTypeIds(Arrays.asList(1, 2), true)).thenReturn(Arrays.asList(definition1, definition2));
+        when(definitionDAO.findBySampleTypeIds(Arrays.asList(1, 2), true))
+                .thenReturn(Arrays.asList(definition1, definition2));
         when(optionDAO.findByDefinitionIds(Arrays.asList(1, 2), true)).thenReturn(Collections.emptyList());
 
         Map<String, List<SampleTypeAdditionalFieldPayload>> result = service

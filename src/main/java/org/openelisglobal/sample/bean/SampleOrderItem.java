@@ -27,11 +27,11 @@ import java.util.Map;
 import org.hl7.fhir.r4.model.QuestionnaireResponse;
 import org.openelisglobal.common.formfields.FormFields.Field;
 import org.openelisglobal.common.util.IdValuePair;
-import org.openelisglobal.orderadditionalfield.bean.OrderAdditionalFieldPayload;
-import org.openelisglobal.orderadditionalfield.bean.OrderAdditionalFieldFilePayload;
-import org.openelisglobal.orderadditionalfield.bean.OrderFixedFieldConfigPayload;
 import org.openelisglobal.common.util.validator.CustomDateValidator.DateRelation;
 import org.openelisglobal.common.validator.ValidationHelper;
+import org.openelisglobal.orderadditionalfield.bean.OrderAdditionalFieldFilePayload;
+import org.openelisglobal.orderadditionalfield.bean.OrderAdditionalFieldPayload;
+import org.openelisglobal.orderadditionalfield.bean.OrderFixedFieldConfigPayload;
 import org.openelisglobal.sample.form.SampleEditForm;
 import org.openelisglobal.sample.form.SamplePatientEntryForm;
 import org.openelisglobal.sample.form.SamplePatientEntryForm.SamplePatientEntryBatch;
@@ -163,6 +163,10 @@ public class SampleOrderItem implements Serializable {
     @SafeHtml(level = SafeHtml.SafeListLevel.NONE, groups = { SamplePatientEntryForm.SamplePatientEntry.class,
             SamplePatientEntryBatch.class, SampleEditForm.SampleEdit.class })
     private String providerRne;
+
+    @SafeHtml(level = SafeHtml.SafeListLevel.NONE, groups = { SamplePatientEntryForm.SamplePatientEntry.class,
+            SamplePatientEntryBatch.class, SampleEditForm.SampleEdit.class })
+    private String providerDni;
 
     @SafeHtml(level = SafeHtml.SafeListLevel.NONE, groups = { SamplePatientEntryForm.SamplePatientEntry.class,
             SamplePatientEntryBatch.class, SampleEditForm.SampleEdit.class })
@@ -467,6 +471,14 @@ public class SampleOrderItem implements Serializable {
 
     public void setProviderRne(String providerRne) {
         this.providerRne = providerRne;
+    }
+
+    public String getProviderDni() {
+        return providerDni;
+    }
+
+    public void setProviderDni(String providerDni) {
+        this.providerDni = providerDni;
     }
 
     public String getProviderSpecialty() {

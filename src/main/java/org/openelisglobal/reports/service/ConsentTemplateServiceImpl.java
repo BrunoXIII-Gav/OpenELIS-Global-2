@@ -93,7 +93,9 @@ public class ConsentTemplateServiceImpl implements ConsentTemplateService {
     private static final float TESTS_START_Y_MAX = 465.382585f;
     private static final float TESTS_LINE_SPACING = 9.854845f;
     private static final float TESTS_MAX_Y_MAX = 520.0f;
-    private static final float TESTS_CLEAR_WIDTH = 360f;
+    private static final float TESTS_CLEAR_WIDTH = 500f;
+    private static final float TESTS_TEXT_MAX_WIDTH = TESTS_CLEAR_WIDTH - (SMALL_TEXT_CLEAR_PADDING * 2);
+    private static final String ELLIPSIS = "...";
     private static final int TESTS_SAMPLE_LINES = 2;
 
     @Autowired
@@ -184,9 +186,8 @@ public class ConsentTemplateServiceImpl implements ConsentTemplateService {
             clearAndDrawText(page1, baseFont, SMALL_TEXT_FONT_SIZE, PROVIDER_DNI_X,
                     PROVIDER_DNI_Y_MAX - SMALL_TEXT_HEIGHT, PROVIDER_DNI_Y_MAX, SMALL_TEXT_CLEAR_WIDTH,
                     SMALL_TEXT_CLEAR_PADDING, BaseColor.WHITE, pageHeight, values.providerDni);
-            clearAndDrawText(page1, baseFont, SMALL_TEXT_FONT_SIZE, DATE_X,
-                    DATE_Y_MAX - SMALL_TEXT_HEIGHT, DATE_Y_MAX, SMALL_TEXT_CLEAR_WIDTH,
-                    SMALL_TEXT_CLEAR_PADDING, BaseColor.WHITE, pageHeight, values.orderDate);
+            clearAndDrawText(page1, baseFont, SMALL_TEXT_FONT_SIZE, DATE_X, DATE_Y_MAX - SMALL_TEXT_HEIGHT, DATE_Y_MAX,
+                    SMALL_TEXT_CLEAR_WIDTH, SMALL_TEXT_CLEAR_PADDING, BaseColor.WHITE, pageHeight, values.orderDate);
 
             clearSampleTestLines(page1, pageHeight);
             renderTests(stamper, reader, baseFont, pageHeight, values.tests);
@@ -457,30 +458,72 @@ public class ConsentTemplateServiceImpl implements ConsentTemplateService {
             return;
         }
         int linesPerPage = (int) Math.floor((TESTS_MAX_Y_MAX - TESTS_START_Y_MAX) / TESTS_LINE_SPACING) + 1;
-        int pagesNeeded = (int) Math.ceil(values.size() / (double) linesPerPage);
-        int existingPages = reader.getNumberOfPages();
-        for (int i = existingPages + 1; i <= pagesNeeded; i++) {
-            stamper.insertPage(i, reader.getPageSize(1));
-        }
-
-        int pageIndex = 1;
+        int linesToRender = Math.min(values.size(), linesPerPage);
         float yMax = TESTS_START_Y_MAX;
-        int lineCount = 0;
+        PdfContentByte canvas = stamper.getOverContent(1);
 
-        for (String testName : values) {
-            if (lineCount >= linesPerPage) {
-                pageIndex += 1;
-                yMax = TESTS_START_Y_MAX;
-                lineCount = 0;
+        for (int i = 0; i < linesToRender; i++) {
+            String testName = sanitizeValue(values.get(i));
+            if (GenericValidator.isBlankOrNull(testName)) {
+                yMax += TESTS_LINE_SPACING;
+                continue;
             }
-            PdfContentByte canvas = stamper.getOverContent(pageIndex);
+
+            String displayText = truncateToWidth(testName, font, SMALL_TEXT_FONT_SIZE, TESTS_TEXT_MAX_WIDTH);
+            boolean hasMoreTests = values.size() > linesPerPage;
+            if (hasMoreTests && i == linesToRender - 1) {
+                displayText = truncateWithEllipsis(displayText, font, SMALL_TEXT_FONT_SIZE, TESTS_TEXT_MAX_WIDTH);
+            }
+
             float yMin = yMax - SMALL_TEXT_HEIGHT;
             clearRect(canvas, TESTS_START_X, yMin, yMax, TESTS_CLEAR_WIDTH, SMALL_TEXT_CLEAR_PADDING, BaseColor.WHITE,
                     pageHeight);
-            drawText(canvas, font, SMALL_TEXT_FONT_SIZE, TESTS_START_X, yMax, testName, pageHeight);
+            drawText(canvas, font, SMALL_TEXT_FONT_SIZE, TESTS_START_X, yMax, displayText, pageHeight);
             yMax += TESTS_LINE_SPACING;
-            lineCount += 1;
         }
+    }
+
+    private String truncateToWidth(String value, BaseFont font, float fontSize, float maxWidth) {
+        if (GenericValidator.isBlankOrNull(value)) {
+            return "";
+        }
+        String text = value.trim();
+        if (font.getWidthPoint(text, fontSize) <= maxWidth) {
+            return text;
+        }
+
+        StringBuilder builder = new StringBuilder();
+        for (int i = 0; i < text.length(); i++) {
+            char ch = text.charAt(i);
+            String candidate = builder.toString() + ch;
+            if (font.getWidthPoint(candidate, fontSize) > maxWidth) {
+                break;
+            }
+            builder.append(ch);
+        }
+        return builder.toString().trim();
+    }
+
+    private String truncateWithEllipsis(String value, BaseFont font, float fontSize, float maxWidth) {
+        String base = GenericValidator.isBlankOrNull(value) ? "" : value.trim();
+        if (GenericValidator.isBlankOrNull(base)) {
+            return ELLIPSIS;
+        }
+
+        String candidate = base + " " + ELLIPSIS;
+        if (font.getWidthPoint(candidate, fontSize) <= maxWidth) {
+            return candidate;
+        }
+
+        StringBuilder builder = new StringBuilder(base);
+        while (builder.length() > 0) {
+            builder.setLength(builder.length() - 1);
+            candidate = builder.toString().trim() + " " + ELLIPSIS;
+            if (font.getWidthPoint(candidate, fontSize) <= maxWidth) {
+                return candidate;
+            }
+        }
+        return ELLIPSIS;
     }
 
     private static class ResolvedConsentValues {

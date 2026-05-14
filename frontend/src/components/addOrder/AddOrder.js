@@ -38,14 +38,15 @@ const DEFAULT_FIXED_FIELD_ORDER = [
   { fieldKey: "providerLastName", sortOrder: 100 },
   { fieldKey: "providerCmp", sortOrder: 110 },
   { fieldKey: "providerRne", sortOrder: 120 },
-  { fieldKey: "providerSpecialty", sortOrder: 130 },
-  { fieldKey: "providerWorkPhone", sortOrder: 140 },
-  { fieldKey: "providerFax", sortOrder: 150 },
-  { fieldKey: "providerEmail", sortOrder: 160 },
-  { fieldKey: "paymentOptionSelection", sortOrder: 170 },
-  { fieldKey: "testLocationCode", sortOrder: 180 },
-  { fieldKey: "otherLocationCode", sortOrder: 190 },
-  { fieldKey: "rememberSiteAndRequester", sortOrder: 200 },
+  { fieldKey: "providerDni", sortOrder: 130 },
+  { fieldKey: "providerSpecialty", sortOrder: 140 },
+  { fieldKey: "providerWorkPhone", sortOrder: 150 },
+  { fieldKey: "providerFax", sortOrder: 160 },
+  { fieldKey: "providerEmail", sortOrder: 170 },
+  { fieldKey: "paymentOptionSelection", sortOrder: 180 },
+  { fieldKey: "testLocationCode", sortOrder: 190 },
+  { fieldKey: "otherLocationCode", sortOrder: 200 },
+  { fieldKey: "rememberSiteAndRequester", sortOrder: 210 },
 ];
 
 const DEFAULT_CONDITION_OPERATOR = "equals";
@@ -189,6 +190,9 @@ const AddOrder = (props) => {
         sampleOrderItems.provisionalClinicalDiagnosis,
       providerFirstName: sampleOrderItems.providerFirstName,
       providerLastName: sampleOrderItems.providerLastName,
+      providerCmp: sampleOrderItems.providerCmp,
+      providerRne: sampleOrderItems.providerRne,
+      providerDni: sampleOrderItems.providerDni,
       providerWorkPhone: sampleOrderItems.providerWorkPhone,
       providerFax: sampleOrderItems.providerFax,
       providerEmail: sampleOrderItems.providerEmail,
@@ -1082,6 +1086,19 @@ const AddOrder = (props) => {
             />
           </Column>
         );
+      case "providerDni":
+        return (
+          <Column key={fieldKey} lg={8} md={4} sm={4}>
+            <TextInput
+              name="providerDni"
+              labelText="DNI"
+              disabled={isFieldReadonly("providerDni")}
+              onChange={handleRequesterDni}
+              value={orderFormValues.sampleOrderItems.providerDni || ""}
+              id="providerDniId"
+            />
+          </Column>
+        );
       case "providerSpecialty":
         return (
           <Column key={fieldKey} lg={8} md={4} sm={4}>
@@ -1391,6 +1408,16 @@ const AddOrder = (props) => {
     });
   }
 
+  function handleRequesterDni(e) {
+    setOrderFormValues({
+      ...orderFormValues,
+      sampleOrderItems: {
+        ...orderFormValues.sampleOrderItems,
+        providerDni: e.target.value,
+      },
+    });
+  }
+
   function handleRequesterSpecialty(e) {
     setOrderFormValues({
       ...orderFormValues,
@@ -1518,6 +1545,7 @@ const AddOrder = (props) => {
         providerFax: person.fax || "",
         providerCmp: data?.npi || "",
         providerRne: data?.externalId || "",
+        providerDni: data?.dni || "",
         providerSpecialty: data?.specialty || "",
         providerId: data?.id || "",
         providerPersonId: person.id || "",
@@ -1559,6 +1587,7 @@ const AddOrder = (props) => {
         providerPersonId: "",
         providerCmp: "",
         providerRne: "",
+        providerDni: "",
         providerSpecialty: "",
       },
     });

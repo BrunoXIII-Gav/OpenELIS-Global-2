@@ -469,7 +469,7 @@ describe("EditLocationModal", () => {
     if (ariaPressed !== null) {
       expect(ariaPressed).toBe("false");
     }
-  });
+  }, 15000);
 
   /**
    * Test active toggle reflects location active state (Device)

@@ -2679,6 +2679,7 @@
   "sidenav.label.admin.formEntry.siteBranding": "Site Branding",
   "sidenav.label.admin.formEntry.siteInfoconfig": "Informations sur le site",
   "sidenav.label.admin.formEntry.validationconfig": "Configuration de validation",
+  "sidenav.label.admin.formEntry.consentTemplateConfig": "Configuration du modèle de consentement",
   "sidenav.label.admin.labNumber": "Gestion des numéros de laboratoire",
   "sidenav.label.admin.menu": "Configuration du menu",
   "sidenav.label.admin.menu.billing": "Configuration du menu de facturation",
