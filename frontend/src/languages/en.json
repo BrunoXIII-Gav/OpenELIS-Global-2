@@ -1077,6 +1077,7 @@
   "field.panel": "Panel",
   "field.referenceValue": "Reference value",
   "field.reportName": "Report Name",
+  "field.resultName": "Name result",
   "field.resultLimits": "Result limits",
   "field.resultType": "Result type",
   "field.sampleType": "Sample Type",

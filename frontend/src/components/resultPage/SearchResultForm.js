@@ -1851,7 +1851,10 @@ export function SearchResults(props) {
               {() => (
                 <>
                   <p style={{ marginBottom: "0.5rem" }}>
-                    {intl.formatMessage({ id: "column.name.result" })}
+                    {typeof data?.resultName === "string" &&
+                    data.resultName.trim().length > 0
+                      ? data.resultName.trim()
+                      : intl.formatMessage({ id: "column.name.result" })}
                   </p>
                   {renderCell(data, 0, { id: "result" }, data.id)}
                 </>

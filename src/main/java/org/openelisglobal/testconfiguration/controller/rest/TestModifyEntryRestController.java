@@ -198,6 +198,7 @@ public class TestModifyEntryRestController extends BaseController {
             Boolean antimicrobialResistance = test.getAntimicrobialResistance();
             bean.setAntimicrobialResistance(antimicrobialResistance != null ? antimicrobialResistance : false);
             bean.setLoinc(test.getLoinc());
+            bean.setResultName(test.getStoredName());
             bean.setActive(test.isActive() ? "Active" : "Not active");
             bean.setUom(testService.getUOM(test, false));
             bean.setAdditionalFields(testAdditionalFieldService.getFieldsForTest(test.getId(), false));
@@ -503,6 +504,14 @@ public class TestModifyEntryRestController extends BaseController {
         if (StringUtils.isBlank(testAddParams.testId)) {
             throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "Missing testId in TestModifyEntry payload");
         }
+        if (StringUtils.isNotBlank(testAddParams.resultName)) {
+            Test persistedTest = testService.get(testAddParams.testId);
+            if (persistedTest != null) {
+                persistedTest.setSysUserId(currentUserId);
+                persistedTest.setStoredName(testAddParams.resultName.trim());
+                testService.update(persistedTest);
+            }
+        }
 
         Localization nameLocalization = createNameLocalization(testAddParams);
         Localization reportingNameLocalization = createReportingNameLocalization(testAddParams);
@@ -627,6 +636,7 @@ public class TestModifyEntryRestController extends BaseController {
             test.setId(testAddParams.testId);
 
             test.setUnitOfMeasure(uom);
+            test.setStoredName(StringUtils.defaultIfBlank(testAddParams.resultName, testAddParams.testNameEnglish));
             test.setDescription(testAddParams.testNameEnglish + "(" + typeOfSample.getDescription() + ")");
             test.setLocalCode(testAddParams.testNameEnglish);
             test.setIsActive(testAddParams.active);
@@ -735,6 +745,7 @@ public class TestModifyEntryRestController extends BaseController {
             extractPanels(obj, parser, testAddParams);
             testAddParams.uomId = asString(obj.get("uom"));
             testAddParams.loinc = asString(obj.get("loinc"));
+            testAddParams.resultName = asString(obj.get("resultName"));
             testAddParams.resultTypeId = asString(obj.get("resultType"));
             extractSampleTypes(obj, parser, testAddParams);
             extractAdditionalFields(obj, testAddParams);

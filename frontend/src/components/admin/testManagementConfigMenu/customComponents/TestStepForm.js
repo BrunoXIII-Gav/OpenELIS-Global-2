@@ -1507,6 +1507,22 @@ export const StepThreeTestResultTypeAndLoinc = ({
                   </div>
                   <br />
                   <div>
+                    <FormattedMessage id="field.resultName" />
+                    <br />
+                    <TextInput
+                      labelText=""
+                      id="resultName"
+                      name="resultName"
+                      value={values.resultName}
+                      onChange={(e) => {
+                        handleChange(e);
+                      }}
+                      invalid={touched.resultName && !!errors.resultName}
+                      invalidText={touched.resultName && errors.resultName}
+                    />
+                  </div>
+                  <br />
+                  <div>
                     <Heading level={5} size="compact-01">
                       <FormattedMessage id="test.additionalFields.title" />
                     </Heading>
