@@ -7,12 +7,16 @@ import org.hibernate.Session;
 import org.hibernate.query.Query;
 import org.openelisglobal.common.daoimpl.BaseDAOImpl;
 import org.openelisglobal.orderadditionalfield.dao.SampleOrderAdditionalFieldValueDAO;
+import org.openelisglobal.orderadditionalfield.valueholder.OrderAdditionalFieldDefinition;
 import org.openelisglobal.orderadditionalfield.valueholder.SampleOrderAdditionalFieldValue;
 import org.springframework.stereotype.Component;
 
 @Component
 public class SampleOrderAdditionalFieldValueDAOImpl extends BaseDAOImpl<SampleOrderAdditionalFieldValue, Integer>
         implements SampleOrderAdditionalFieldValueDAO {
+
+    private static final String VALUE_ENTITY = SampleOrderAdditionalFieldValue.class.getName();
+    private static final String DEF_ENTITY = OrderAdditionalFieldDefinition.class.getName();
 
     public SampleOrderAdditionalFieldValueDAOImpl() {
         super(SampleOrderAdditionalFieldValue.class);
@@ -25,7 +29,7 @@ public class SampleOrderAdditionalFieldValueDAOImpl extends BaseDAOImpl<SampleOr
             return Optional.empty();
         }
 
-        String hql = "from SampleOrderAdditionalFieldValue v where v.sampleId = :sampleId and v.fieldDefinitionId = :fieldDefinitionId";
+        String hql = "from " + VALUE_ENTITY + " v where v.sampleId = :sampleId and v.fieldDefinitionId = :fieldDefinitionId";
         Query<SampleOrderAdditionalFieldValue> query = entityManager.unwrap(Session.class).createQuery(hql,
                 SampleOrderAdditionalFieldValue.class);
         query.setParameter("sampleId", sampleId);
@@ -40,7 +44,7 @@ public class SampleOrderAdditionalFieldValueDAOImpl extends BaseDAOImpl<SampleOr
             return Collections.emptyList();
         }
 
-        String hql = "from SampleOrderAdditionalFieldValue v where v.sampleId = :sampleId and v.fieldDefinitionId in (:fieldDefinitionIds)";
+        String hql = "from " + VALUE_ENTITY + " v where v.sampleId = :sampleId and v.fieldDefinitionId in (:fieldDefinitionIds)";
         Query<SampleOrderAdditionalFieldValue> query = entityManager.unwrap(Session.class).createQuery(hql,
                 SampleOrderAdditionalFieldValue.class);
         query.setParameter("sampleId", sampleId);
@@ -55,14 +59,20 @@ public class SampleOrderAdditionalFieldValueDAOImpl extends BaseDAOImpl<SampleOr
             return Collections.emptyList();
         }
 
-        String hql = "select distinct v.sampleId from SampleOrderAdditionalFieldValue v, OrderAdditionalFieldDefinition d "
-                + "where v.fieldDefinitionId = d.id and d.active = true and d.searchable = true "
-                + (uniqueOnly ? "and d.searchUnique = true " : "") + "and lower(v.fieldValue) = :searchValue "
-                + "order by v.sampleId desc";
-        Query<Integer> query = entityManager.unwrap(Session.class).createQuery(hql, Integer.class);
+        String sql = "select distinct v.sample_id from sample_order_additional_field_value v "
+                + "join order_additional_field_def d on v.field_def_id = d.id "
+                + "where d.active = true and d.searchable = true "
+                + (uniqueOnly ? "and d.search_unique = true " : "") + "and lower(v.field_value) = :searchValue "
+                + "order by v.sample_id desc";
+        Query<?> query = entityManager.unwrap(Session.class).createNativeQuery(sql);
         query.setParameter("searchValue", searchValue.trim().toLowerCase());
         query.setMaxResults(limit);
-        return query.list();
+        List<?> raw = query.list();
+        if (raw == null || raw.isEmpty()) {
+            return Collections.emptyList();
+        }
+
+        return raw.stream().filter(Number.class::isInstance).map(Number.class::cast).map(Number::intValue).toList();
     }
 
     @Override
@@ -72,7 +82,7 @@ public class SampleOrderAdditionalFieldValueDAOImpl extends BaseDAOImpl<SampleOr
             return false;
         }
 
-        String hql = "select count(v.id) from SampleOrderAdditionalFieldValue v "
+        String hql = "select count(v.id) from " + VALUE_ENTITY + " v "
                 + "where v.fieldDefinitionId = :fieldDefinitionId and lower(v.fieldValue) = :fieldValue "
                 + "and (:excludedSampleId is null or v.sampleId <> :excludedSampleId)";
         Query<Long> query = entityManager.unwrap(Session.class).createQuery(hql, Long.class);
