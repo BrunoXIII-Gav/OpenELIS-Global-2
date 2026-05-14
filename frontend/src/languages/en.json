@@ -3231,8 +3231,6 @@
   "order.additional.fields.enable": "Enable",
   "order.additional.fields.disable": "Disable",
   "order.additional.fields.saved": "Order additional field configuration was saved.",
-  "sample.fixed.fields.title": "Fixed Sample Fields",
-  "sample.fixed.fields.save": "Save Fixed Sample Field Configuration",
   "order.additional.fields.updated": "Order additional field status was updated.",
   "order.additional.fields.rules.title": "Conditional Rules",
   "order.additional.fields.rules.logic": "Rule Logic",

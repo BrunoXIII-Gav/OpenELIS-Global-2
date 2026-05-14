@@ -1,7 +1,10 @@
 services:
     certs:
         container_name: oe-certs
-        image: itechuw/certgen:main
+        image: certgen.local
+        build:
+            context: ./frontend
+            dockerfile: ./Dockerfile.certs
         platform: linux/amd64
         restart: "no"
         environment:
@@ -69,7 +72,7 @@ services:
             - ./volume/logs/oeLogs:/var/lib/openelis-global/logs
             - ./volume/logs/tomcatLogs/:/usr/local/tomcat/logs
             - ./volume/tomcat/oe_server.xml:/usr/local/tomcat/conf/server.xml
-#             - ./target/OpenELIS-Global.war:/usr/local/tomcat/webapps/OpenELIS-Global.war  # Mount locally built WAR for development
+            - ./target/OpenELIS-Global.war:/usr/local/tomcat/webapps/OpenELIS-Global.war  # Mount locally built WAR for development
             - ./volume/properties/SystemConfiguration.properties:/var/lib/openelis-global/properties/SystemConfiguration.properties
             - ./volume/odoo/odoo-test-product-mapping.csv:/var/lib/openelis-global/odoo/odoo-test-product-mapping.csv
             - ./volume/analyzer/analyzer-test-map.csv:/var/lib/openelis-global/analyzer/analyzer-test-map.csv
@@ -153,7 +156,8 @@ services:
             - default
         restart: unless-stopped
         depends_on:
-        - certs        
+            certs:
+                condition: service_completed_successfully
             
 secrets:
   datasource.password:
