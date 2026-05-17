@@ -329,7 +329,8 @@ public class SampleItemDAOImpl extends BaseDAOImpl<SampleItem, String> implement
             // This prevents LazyInitializationException when DTOs are compiled outside
             // transaction boundaries (per Constitution III.7)
             String hql = "SELECT DISTINCT si FROM SampleItem si" + " LEFT JOIN FETCH si.parentSampleItem"
-                    + " LEFT JOIN FETCH si.childAliquots" + " WHERE si.id IN (:ids)";
+                    + " LEFT JOIN FETCH si.childAliquots" + " LEFT JOIN FETCH si.typeOfSample"
+                    + " LEFT JOIN FETCH si.unitOfMeasure" + " LEFT JOIN FETCH si.sample" + " WHERE si.id IN (:ids)";
 
             Query<SampleItem> query = entityManager.unwrap(Session.class).createQuery(hql, SampleItem.class);
             // Convert String IDs to Integer to match database numeric type (same pattern as

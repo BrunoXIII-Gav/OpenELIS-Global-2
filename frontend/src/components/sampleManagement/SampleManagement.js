@@ -15,6 +15,7 @@ import SampleSearch from "./SampleSearch";
 import SampleResultsTable from "./SampleResultsTable";
 import CreateAliquotModal from "./CreateAliquotModal";
 import AddTestsModal from "./AddTestsModal";
+import { getFromOpenElisServer } from "../utils/Utils";
 import config from "../../config.json";
 
 /**
@@ -46,6 +47,8 @@ export default function SampleManagement() {
   const [searchResponse, setSearchResponse] = useState(null);
   const [searchError, setSearchError] = useState(null);
   const [selectedSampleIds, setSelectedSampleIds] = useState([]);
+  const [currentTestsVisibleBySampleId, setCurrentTestsVisibleBySampleId] =
+    useState({});
 
   // Modal state for aliquoting
   const [isAliquotModalOpen, setIsAliquotModalOpen] = useState(false);
@@ -121,11 +124,18 @@ export default function SampleManagement() {
    * @param {Object} error - Error object if search failed
    */
   const handleSearchResults = (response, error) => {
-    setSearchResponse(response);
+    if (response) {
+      hydrateSearchResponse(response, (hydrated) => {
+        setSearchResponse(hydrated);
+      });
+    } else {
+      setSearchResponse(response);
+    }
     setSearchError(error);
 
     // Clear selection when new search results arrive
     setSelectedSampleIds([]);
+    setCurrentTestsVisibleBySampleId({});
   };
 
   /**
@@ -135,6 +145,27 @@ export default function SampleManagement() {
    */
   const handleSelectionChange = (selectedIds) => {
     setSelectedSampleIds(selectedIds);
+  };
+
+  /**
+   * Toggle Current Tests section visibility for selected samples.
+   * Each sample keeps its own visibility state.
+   */
+  const handleToggleCurrentTests = () => {
+    if (selectedSampleIds.length === 0) {
+      return;
+    }
+
+    setCurrentTestsVisibleBySampleId((prev) => {
+      const areAllVisible = selectedSampleIds.every((id) => prev[id]);
+      const next = { ...prev };
+
+      selectedSampleIds.forEach((id) => {
+        next[id] = !areAllVisible;
+      });
+
+      return next;
+    });
   };
 
   /**
@@ -346,6 +377,33 @@ export default function SampleManagement() {
       ),
       kind: "success",
     });
+  };
+
+  const handlePersistResult = (result) => {
+    if (result?.success) {
+      setSearchError({
+        kind: "success",
+        message: result.message,
+      });
+
+      if (searchResponse?.accessionNumber) {
+        getFromOpenElisServer(
+          `/rest/sample-management/search?accessionNumber=${encodeURIComponent(searchResponse.accessionNumber)}&includeTests=true`,
+          (response) => {
+            if (response && Array.isArray(response.sampleItems)) {
+              hydrateSearchResponse(response, (hydrated) => {
+                setSearchResponse(hydrated);
+              });
+            }
+          },
+        );
+      }
+    } else {
+      setSearchError({
+        kind: "error",
+        message: result?.message || "Error saving sample changes",
+      });
+    }
   };
 
   return (
@@ -609,6 +667,14 @@ export default function SampleManagement() {
                   >
                     <FormattedMessage id="print.barcode" />
                   </Button>
+
+                  {/* Toggle Current Tests Section */}
+                  <Button kind="ghost" onClick={handleToggleCurrentTests}>
+                    <FormattedMessage
+                      id="sample.management.action.currentTests"
+                      defaultMessage="Current Tests"
+                    />
+                  </Button>
                 </div>
               </Column>
             </Grid>
@@ -638,6 +704,10 @@ export default function SampleManagement() {
                     sampleItems={searchResponse.sampleItems}
                     onSelectionChange={handleSelectionChange}
                     onTestRemoved={handleTestRemoved}
+                    currentTestsVisibleBySampleId={
+                      currentTestsVisibleBySampleId
+                    }
+                    onPersistResult={handlePersistResult}
                   />
                 </Column>
               </Grid>
@@ -670,3 +740,77 @@ export default function SampleManagement() {
     </>
   );
 }
+  const mergeWithSampleEditData = (searchResp, sampleEditResp) => {
+    if (!searchResp || !Array.isArray(searchResp.sampleItems) || !sampleEditResp) {
+      return searchResp;
+    }
+
+    const existingTests = Array.isArray(sampleEditResp.existingTests)
+      ? sampleEditResp.existingTests
+      : [];
+
+    const bySampleItemId = existingTests.reduce((acc, test) => {
+      const key = String(test.sampleItemId || "");
+      if (!key) return acc;
+      if (!acc[key]) acc[key] = [];
+      acc[key].push(test);
+      return acc;
+    }, {});
+
+    const mergedItems = searchResp.sampleItems.map((item) => {
+      const sampleTests = bySampleItemId[String(item.id)] || [];
+      if (sampleTests.length === 0) {
+        return item;
+      }
+
+      const first = sampleTests[0];
+      const additionalFieldValues =
+        first.additionalFieldValues && Object.keys(first.additionalFieldValues).length > 0
+          ? first.additionalFieldValues
+          : item.additionalFieldValues || {};
+      const additionalFields =
+        Array.isArray(first.additionalFields) && first.additionalFields.length > 0
+          ? first.additionalFields
+          : item.additionalFields || [];
+
+      return {
+        ...item,
+        quantityDisplay:
+          first.quantity !== undefined && first.quantity !== null && first.quantity !== ""
+            ? String(first.quantity)
+            : item.quantityDisplay,
+        quantity: first.quantity !== undefined && first.quantity !== null && first.quantity !== ""
+          ? Number(first.quantity)
+          : item.quantity,
+        unitOfMeasureId:
+          first.unitOfMeasureId !== undefined && first.unitOfMeasureId !== null
+            ? String(first.unitOfMeasureId)
+            : item.unitOfMeasureId,
+        collector:
+          first.collector !== undefined && first.collector !== null ? first.collector : item.collector,
+        collectionDate: first.collectionDate || item.collectionDate,
+        collectionTime: first.collectionTime || item.collectionTime,
+        additionalFields,
+        additionalFieldValues,
+      };
+    });
+
+    return {
+      ...searchResp,
+      sampleItems: mergedItems,
+    };
+  };
+
+  const hydrateSearchResponse = (response, callback) => {
+    if (!response?.accessionNumber) {
+      callback(response);
+      return;
+    }
+
+    getFromOpenElisServer(
+      `/rest/SampleEdit?accessionNumber=${encodeURIComponent(response.accessionNumber)}`,
+      (sampleEditResp) => {
+        callback(mergeWithSampleEditData(response, sampleEditResp));
+      },
+    );
+  };
