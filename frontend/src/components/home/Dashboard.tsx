@@ -20,6 +20,8 @@ import {
   Tabs,
   TabList,
   Tag,
+  DatePicker,       
+  DatePickerInput,
 } from "@carbon/react";
 import "./Dashboard.css";
 import { Minimize, Maximize, ArrowLeft, ArrowRight } from "@carbon/react/icons";
@@ -83,6 +85,23 @@ const HomeDashBoard: React.FC<DashBoardProps> = () => {
     delayedTurnAround: 0,
   });
 
+  const [startDate, setStartDate] = useState("");
+  const [endDate, setEndDate] = useState("");
+
+  const handleDateChange = (dates) => {
+    if (dates.length === 2) {
+      const start = dates[0].toLocaleDateString('en-CA'); 
+      const end = dates[1].toLocaleDateString('en-CA');
+      setStartDate(start);
+      setEndDate(end);
+    } 
+   
+    else if (dates.length === 0) {
+      setStartDate("");
+      setEndDate("");
+    }
+  };
+
   const [timeMetrics, setTimeMetrics] = useState({
     receptionToResult: 0,
     resultToValidation: 0,
@@ -116,13 +135,12 @@ const HomeDashBoard: React.FC<DashBoardProps> = () => {
   }, []);
 
   useEffect(() => {
-    getFromOpenElisServer("/rest/home-dashboard/metrics", loadCount);
+    getFromOpenElisServer(`/rest/home-dashboard/metrics?startDate=${startDate}&endDate=${endDate}`, loadCount);
 
     return () => {
-      // This code runs when component is unmounted
       componentMounted.current = false;
     };
-  }, []);
+  }, [startDate, endDate]); 
 
   useEffect(() => {
     if (selectedTile != null) {
@@ -132,30 +150,26 @@ const HomeDashBoard: React.FC<DashBoardProps> = () => {
       setLoading(true);
       if (selectedTile.type == "AVERAGE_TURN_AROUND_TIME") {
         getFromOpenElisServer(
-          "/rest/home-dashboard/turn-around-time-metrics",
+          `/rest/home-dashboard/turn-around-time-metrics?startDate=${startDate}&endDate=${endDate}`,
           loadTimeMetrics,
         );
       } else if (selectedTile.type == "ORDERS_FOR_USER") {
         getFromOpenElisServer(
-          "/rest/home-dashboard/" +
-            selectedTile.type +
-            "?systemUserId=" +
-            selectedTile.id,
+          "/rest/home-dashboard/" + selectedTile.type + "?systemUserId=" + selectedTile.id + `&startDate=${startDate}&endDate=${endDate}`,
           loadData,
         );
       } else {
         getFromOpenElisServer(
-          "/rest/home-dashboard/" + selectedTile.type,
+          "/rest/home-dashboard/" + selectedTile.type + `?startDate=${startDate}&endDate=${endDate}`,
           loadData,
         );
       }
     }
 
     return () => {
-      // This code runs when component is unmounted
       componentMounted.current = false;
     };
-  }, [selectedTile]);
+  }, [selectedTile, startDate, endDate]); 
 
   useEffect(() => {
     getFromOpenElisServer(
@@ -179,7 +193,7 @@ const HomeDashBoard: React.FC<DashBoardProps> = () => {
   const loadNextResultsPage = () => {
     setLoading(true);
     getFromOpenElisServer(
-      "/rest/home-dashboard/" + selectedTile.type + "?page=" + nextPage,
+      "/rest/home-dashboard/" + selectedTile.type + "?page=" + nextPage + `&startDate=${startDate}&endDate=${endDate}`,
       loadData,
     );
   };
@@ -187,14 +201,16 @@ const HomeDashBoard: React.FC<DashBoardProps> = () => {
   const loadPreviousResultsPage = () => {
     setLoading(true);
     getFromOpenElisServer(
-      "/rest/home-dashboard/" + selectedTile.type + "?page=" + previousPage,
+      "/rest/home-dashboard/" + selectedTile.type + "?page=" + previousPage + `&startDate=${startDate}&endDate=${endDate}`,
       loadData,
     );
   };
 
   const loadCount = (data) => {
     if (componentMounted.current) {
-      setCounts(data);
+      if (data) {
+        setCounts(data);
+      }
       setLoading(false);
     }
   };
@@ -341,6 +357,10 @@ const HomeDashBoard: React.FC<DashBoardProps> = () => {
 
   const handleMinimizeClick = () => {
     console.log("Icon clicked!");
+
+    setStartDate("");
+    setEndDate("");
+    
     if (selectedTile.type == "ORDERS_FOR_USER") {
       const tile: Tile = {
         title: <FormattedMessage id="dashboard.user.orders.label" />,
@@ -501,32 +521,32 @@ const HomeDashBoard: React.FC<DashBoardProps> = () => {
       {loading && <Loading description="Loading Dasboard..." />}
       {notificationVisible === true ? <AlertDialog /> : ""}
       {selectedTile == null ? (
-        <div className="home-dashboard-container">
-          {tileList.map((tile, index) => (
-            <ClickableTile
-              key={index}
-              className="dashboard-tile"
-              onClick={() => handleMaximizeClick(tile)}
-            >
-              <h3 className="tile-title">{tile.title}</h3>
-              <p className="tile-subtitle">{tile.subTitle}</p>
-              <p className="tile-value">{tile.value}</p>
+          <div className="home-dashboard-container">
+            {tileList.map((tile, index) => (
+              <ClickableTile
+                key={index}
+                className="dashboard-tile"
+                onClick={() => handleMaximizeClick(tile)}
+              >
+                <h3 className="tile-title">{tile.title}</h3>
+                <p className="tile-subtitle">{tile.subTitle}</p>
+                <p className="tile-value">{tile.value}</p>
 
-              <div className="tile-icon">
-                <div
-                  onClick={() => handleMaximizeClick(tile)}
-                  className="icon-wrapper"
-                >
-                  <Maximize
-                    id="maximizeIcon"
-                    size={20}
-                    className="clickable-icon"
-                  />
+                <div className="tile-icon">
+                  <div
+                    onClick={() => handleMaximizeClick(tile)}
+                    className="icon-wrapper"
+                  >
+                    <Maximize
+                      id="maximizeIcon"
+                      size={20}
+                      className="clickable-icon"
+                    />
+                  </div>
                 </div>
-              </div>
-            </ClickableTile>
-          ))}
-        </div>
+              </ClickableTile>
+            ))}
+          </div>
       ) : (
         <div className="dashboard-view">
           <Tile className="dashboard-tile">
@@ -548,6 +568,12 @@ const HomeDashBoard: React.FC<DashBoardProps> = () => {
                 }
               </Column>
             </Grid>
+            <div style={{ padding: '1rem 0' }}>
+              <DatePicker datePickerType="range" onChange={handleDateChange} dateFormat="Y-m-d">
+                <DatePickerInput id="date-picker-start" placeholder="yyyy-mm-dd" labelText="Fecha inicio" size="md" />
+                <DatePickerInput id="date-picker-end" placeholder="yyyy-mm-dd" labelText="Fecha fin" size="md" />
+              </DatePicker>
+            </div>
             <div className="gridBoundary">
               {selectedTile.type == "AVERAGE_TURN_AROUND_TIME" ? (
                 <>
