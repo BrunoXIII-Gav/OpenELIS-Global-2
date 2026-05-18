@@ -415,6 +415,7 @@ public class ValidationTemplateOverrideRestController extends BaseRestController
         addSourceOption(options, "patientName", "Patient Name");
         addSourceOption(options, "nationalId", "National ID");
         addSourceOption(options, "subjectNumber", "HC / Subject Number");
+        addSourceOption(options, "sampleCug", "Sample CUG (fixed)");
         addSourceOption(options, "accessionNumber", "CUG / Accession Number");
         addSourceOption(options, "gender", "Gender");
         addSourceOption(options, "dob", "Birth Date");
