@@ -115,7 +115,8 @@ const SampleType = (props) => {
   });
   const [loading, setLoading] = useState(true);
   const [sampleFixedFieldConfigs, setSampleFixedFieldConfigs] = useState([]);
-  const [, setWaitingForSampleFixedFieldConfig] = useState(true);
+  const [waitingForSampleFixedFieldConfig, setWaitingForSampleFixedFieldConfig] =
+    useState(true);
 
   function getSampleFixedFieldConfig(fieldKey) {
     return sampleFixedFieldConfigs.find(
@@ -129,6 +130,17 @@ const SampleType = (props) => {
     }
     const config = getSampleFixedFieldConfig(fieldKey);
     return config ? config.visible !== false : true;
+  }
+
+  function isSampleFieldRequired(fieldKey, fallback = false) {
+    const config = getSampleFixedFieldConfig(fieldKey);
+    if (!config) {
+      return fallback;
+    }
+    if (config.visible === false) {
+      return false;
+    }
+    return config.required != null ? !!config.required : fallback;
   }
 
   const additionalFieldsVisible = isSampleFieldVisible("additionalFields");
@@ -715,26 +727,6 @@ const SampleType = (props) => {
     }
   }, [selectedPanels, sampleTypeTests]);
 
-  const getSampleFixedFieldConfig = (fieldKey) =>
-    sampleFixedFieldConfigs.find(
-      (c) => c?.fieldKey?.toLowerCase() === fieldKey?.toLowerCase(),
-    ) || null;
-
-  const isSampleFieldVisible = (fieldKey) => {
-    const config = getSampleFixedFieldConfig(fieldKey);
-    return config ? config.visible !== false : true;
-  };
-
-  const isSampleFieldRequired = (fieldKey, fallback = false) => {
-    const config = getSampleFixedFieldConfig(fieldKey);
-    if (!config) {
-      return fallback;
-    }
-    if (config.visible === false) {
-      return false;
-    }
-    return config.required != null ? !!config.required : fallback;
-  };
   useEffect(() => {
     componentMounted.current = true;
     getFromOpenElisServer(
