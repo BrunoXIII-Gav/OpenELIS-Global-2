@@ -103,7 +103,7 @@ public class SampleManagementServiceImpl implements SampleManagementService {
                 .collect(Collectors.toList());
 
         // Step 6: Return response with results
-        return new SearchSamplesResponse(accessionNumber, dtos, dtos.size());
+        return new SearchSamplesResponse(sample.getAccessionNumber(), dtos, dtos.size());
     }
 
     @Override
@@ -228,6 +228,7 @@ public class SampleManagementServiceImpl implements SampleManagementService {
         // Basic fields
         dto.setId(sampleItem.getId());
         dto.setExternalId(sampleItem.getExternalId());
+        dto.setCugCode(sampleItem.getCugCode());
         dto.setSampleAccessionNumber(
                 sampleItem.getSample() != null ? sampleItem.getSample().getAccessionNumber() : null);
 

@@ -24,11 +24,13 @@ import java.util.stream.Collectors;
 import org.apache.commons.beanutils.PropertyUtils;
 import org.hibernate.HibernateException;
 import org.hibernate.Session;
+import org.hibernate.query.NativeQuery;
 import org.hibernate.query.Query;
 import org.openelisglobal.common.daoimpl.BaseDAOImpl;
 import org.openelisglobal.common.exception.LIMSRuntimeException;
 import org.openelisglobal.common.log.LogEvent;
 import org.openelisglobal.common.util.ConfigurationProperties;
+import org.openelisglobal.sample.valueholder.Sample;
 import org.openelisglobal.sampleitem.dao.SampleItemDAO;
 import org.openelisglobal.sampleitem.valueholder.SampleItem;
 import org.openelisglobal.sourceofsample.valueholder.SourceOfSample;
@@ -245,6 +247,90 @@ public class SampleItemDAOImpl extends BaseDAOImpl<SampleItem, String> implement
         }
 
         return sampleItems;
+    }
+
+    @Override
+    @Transactional(readOnly = true)
+    public long countByPatientId(String patientId) throws LIMSRuntimeException {
+        if (patientId == null || patientId.trim().isEmpty()) {
+            return 0L;
+        }
+        try {
+            String sql = "SELECT count(si.id) " + "FROM sample_item si "
+                    + "INNER JOIN sample_human sh ON sh.samp_id = si.samp_id " + "WHERE sh.patient_id = :patientId";
+            Number result = (Number) entityManager.unwrap(Session.class).createNativeQuery(sql)
+                    .setParameter("patientId", Integer.parseInt(patientId.trim())).getSingleResult();
+            return result == null ? 0L : result.longValue();
+        } catch (RuntimeException e) {
+            LogEvent.logError(e);
+            throw new LIMSRuntimeException("Error counting sample items by patient id", e);
+        }
+    }
+
+    @Override
+    @Transactional(readOnly = true)
+    public List<String> findCugCodesByPatientId(String patientId) throws LIMSRuntimeException {
+        if (patientId == null || patientId.trim().isEmpty()) {
+            return new ArrayList<>();
+        }
+        try {
+            String sql = "SELECT si.cug_code " + "FROM sample_item si "
+                    + "INNER JOIN sample_human sh ON sh.samp_id = si.samp_id "
+                    + "WHERE sh.patient_id = :patientId AND si.cug_code IS NOT NULL";
+            NativeQuery<String> query = entityManager.unwrap(Session.class).createNativeQuery(sql);
+            query.setParameter("patientId", Integer.parseInt(patientId.trim()));
+            return query.list();
+        } catch (RuntimeException e) {
+            LogEvent.logError(e);
+            throw new LIMSRuntimeException("Error fetching CUG codes by patient id", e);
+        }
+    }
+
+    @Override
+    @Transactional(readOnly = true)
+    public long getNextCugPrefix() throws LIMSRuntimeException {
+        try {
+            Number result = (Number) entityManager.unwrap(Session.class)
+                    .createNativeQuery("SELECT nextval('sample_cug_prefix_seq')").getSingleResult();
+            return result == null ? 0L : result.longValue();
+        } catch (RuntimeException e) {
+            LogEvent.logError(e);
+            throw new LIMSRuntimeException("Error getting next CUG prefix value", e);
+        }
+    }
+
+    @Override
+    @Transactional(readOnly = true)
+    public boolean existsByCugCode(String cugCode) throws LIMSRuntimeException {
+        if (cugCode == null || cugCode.trim().isEmpty()) {
+            return false;
+        }
+        try {
+            String sql = "SELECT count(si.id) FROM sample_item si WHERE lower(si.cug_code) = :cugCode";
+            Number result = (Number) entityManager.unwrap(Session.class).createNativeQuery(sql)
+                    .setParameter("cugCode", cugCode.trim().toLowerCase()).getSingleResult();
+            return result != null && result.longValue() > 0L;
+        } catch (RuntimeException e) {
+            LogEvent.logError(e);
+            throw new LIMSRuntimeException("Error checking existing CUG code", e);
+        }
+    }
+
+    @Override
+    @Transactional(readOnly = true)
+    public Sample findSampleByCugCode(String cugCode) throws LIMSRuntimeException {
+        if (cugCode == null || cugCode.trim().isEmpty()) {
+            return null;
+        }
+        try {
+            String hql = "SELECT si.sample FROM SampleItem si WHERE lower(si.cugCode) = :cugCode ORDER BY si.id DESC";
+            List<Sample> samples = entityManager.unwrap(Session.class).createQuery(hql, Sample.class)
+                    .setParameter("cugCode", cugCode.trim().toLowerCase()).setMaxResults(1).list();
+            return samples.isEmpty() ? null : samples.get(0);
+        } catch (RuntimeException e) {
+            LogEvent.logError(e);
+            throw new LIMSRuntimeException("Error finding sample by CUG code", e);
+        }
     }
 
     @Override

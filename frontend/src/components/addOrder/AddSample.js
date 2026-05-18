@@ -19,7 +19,7 @@ const buildEmptySample = (index) => ({
 });
 
 const AddSample = (props) => {
-  const { samples, setSamples, error } = props;
+  const { samples, setSamples, error, orderFormValues } = props;
   const componentMounted = useRef(false);
 
   const [rejectSampleReasons, setRejectSampleReasons] = useState([]);
@@ -164,6 +164,13 @@ const AddSample = (props) => {
                     }}
                     sampleTypeObject={sampleTypeObject}
                     error={error}
+                    patientId={
+                      orderFormValues?.patientProperties?.patientPK || ""
+                    }
+                    existingCugs={(samples || [])
+                      .filter((_, sampleIndex) => sampleIndex !== i)
+                      .map((entry) => entry?.sampleXML?.cug)
+                      .filter(Boolean)}
                   />
                 </div>
               );

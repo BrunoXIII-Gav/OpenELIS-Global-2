@@ -729,6 +729,11 @@ const Index = () => {
             const gpsAccuracy = sampleItem.sampleXML?.gpsAccuracy || "";
             const gpsCaptureMethod =
               sampleItem.sampleXML?.gpsCaptureMethod || "";
+            const cugCode = sampleItem.sampleXML?.cug || "";
+            const cugReservationToken =
+              sampleItem.sampleXML?.cugReservationToken || "";
+            const cugReservationContextId =
+              sampleItem.sampleXML?.cugReservationContextId || "";
 
             const additionalFieldValues =
               sampleItem.sampleXML?.additionalFieldValues || {};
@@ -750,7 +755,7 @@ const Index = () => {
               })
               .join("");
 
-            sampleXmlString += `<sample sampleID='${escapeXmlAttribute(sampleItem.sampleTypeId)}' date='${escapeXmlAttribute(sampleItem.sampleXML.collectionDate)}' time='${escapeXmlAttribute(sampleItem.sampleXML.collectionTime)}' collector='${escapeXmlAttribute(sampleItem.sampleXML.collector)}' quantity='${escapeXmlAttribute(sampleItem.sampleXML.quantity)}' uom='${escapeXmlAttribute(sampleItem.sampleXML.uom)}' tests='${escapeXmlAttribute(tests)}' testSectionMap='' testSampleTypeMap='' panels='${escapeXmlAttribute(panels)}' rejected='${escapeXmlAttribute(sampleItem.sampleXML.rejected)}' rejectReasonId='${escapeXmlAttribute(sampleItem.sampleXML.rejectionReason)}' initialConditionIds='' storageLocationId='${escapeXmlAttribute(storageLocationId)}' storageLocationType='${escapeXmlAttribute(storageLocationType)}' storagePositionCoordinate='${escapeXmlAttribute(storagePositionCoordinate)}' gpsLatitude='${escapeXmlAttribute(gpsLatitude)}' gpsLongitude='${escapeXmlAttribute(gpsLongitude)}' gpsAccuracy='${escapeXmlAttribute(gpsAccuracy)}' gpsCaptureMethod='${escapeXmlAttribute(gpsCaptureMethod)}'>`;
+            sampleXmlString += `<sample sampleID='${escapeXmlAttribute(sampleItem.sampleTypeId)}' date='${escapeXmlAttribute(sampleItem.sampleXML.collectionDate)}' time='${escapeXmlAttribute(sampleItem.sampleXML.collectionTime)}' collector='${escapeXmlAttribute(sampleItem.sampleXML.collector)}' quantity='${escapeXmlAttribute(sampleItem.sampleXML.quantity)}' uom='${escapeXmlAttribute(sampleItem.sampleXML.uom)}' tests='${escapeXmlAttribute(tests)}' testSectionMap='' testSampleTypeMap='' panels='${escapeXmlAttribute(panels)}' rejected='${escapeXmlAttribute(sampleItem.sampleXML.rejected)}' rejectReasonId='${escapeXmlAttribute(sampleItem.sampleXML.rejectionReason)}' cug='${escapeXmlAttribute(cugCode)}' cugReservationToken='${escapeXmlAttribute(cugReservationToken)}' cugReservationContextId='${escapeXmlAttribute(cugReservationContextId)}' initialConditionIds='' storageLocationId='${escapeXmlAttribute(storageLocationId)}' storageLocationType='${escapeXmlAttribute(storageLocationType)}' storagePositionCoordinate='${escapeXmlAttribute(storagePositionCoordinate)}' gpsLatitude='${escapeXmlAttribute(gpsLatitude)}' gpsLongitude='${escapeXmlAttribute(gpsLongitude)}' gpsAccuracy='${escapeXmlAttribute(gpsAccuracy)}' gpsCaptureMethod='${escapeXmlAttribute(gpsCaptureMethod)}'>`;
             if (additionalFieldEntries !== "") {
               sampleXmlString += `<additionalFields>${additionalFieldEntries}</additionalFields>`;
             }
@@ -846,6 +851,9 @@ const Index = () => {
     const providerFirst = orderItems.providerFirstName || "";
     const providerLast = orderItems.providerLastName || "";
     const providerDni = orderItems.providerDni || "";
+    const firstSampleWithCug = (samples || []).find(
+      (sample) => (sample?.sampleXML?.cug || "").trim() !== "",
+    );
     return {
       patient: {
         firstName: patient.firstName || "",
@@ -867,6 +875,7 @@ const Index = () => {
       orderAdditionalFieldValues: orderItems.additionalFieldValues || {},
       orderDate:
         orderItems.requestDate || configurationProperties?.currentDateAsText,
+      cug: firstSampleWithCug?.sampleXML?.cug || "",
     };
   };
 
@@ -966,6 +975,7 @@ const Index = () => {
                 error={elementError}
                 setSamples={setSamples}
                 samples={samples}
+                orderFormValues={orderFormValues}
               />
             )}
             {page === orderPageNumber && (

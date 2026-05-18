@@ -60,6 +60,9 @@ public class SampleEditItem {
     @SafeHtml(level = SafeHtml.SafeListLevel.NONE, groups = { Default.class, SampleEditForm.SampleEdit.class })
     private String collector;
 
+    @SafeHtml(level = SafeHtml.SafeListLevel.NONE, groups = { Default.class, SampleEditForm.SampleEdit.class })
+    private String cugCode;
+
     private List<SampleTypeAdditionalFieldPayload> additionalFields;
 
     private Map<String, String> additionalFieldValues;
@@ -214,6 +217,14 @@ public class SampleEditItem {
 
     public void setCollector(String collector) {
         this.collector = collector;
+    }
+
+    public String getCugCode() {
+        return cugCode;
+    }
+
+    public void setCugCode(String cugCode) {
+        this.cugCode = cugCode;
     }
 
     public List<SampleTypeAdditionalFieldPayload> getAdditionalFields() {

@@ -2463,6 +2463,7 @@
   "sample.management.success.title": "Success",
   "sample.management.table.cancelTest": "Cancel Test",
   "sample.management.table.cancelling": "Cancelling...",
+  "sample.management.table.header.cug": "CUG",
   "sample.management.table.header.externalId": "Sample ID",
   "sample.management.table.header.hierarchy": "Hierarchy",
   "sample.management.table.header.originalQuantity": "Original Quantity",
@@ -2491,6 +2492,8 @@
   "sample.search.scanner.instructions2": "Scan or Enter Manually.",
   "sample.search.title": "Search Sample",
   "sample.select.type": "Select sample type",
+  "sample.cug.label": "CUG",
+  "sample.cug.generate.error": "Unable to generate CUG for this sample",
   "sample.type": "Sample Type",
   "sample.type.and.test.sort.order": "Sample type and test sort order",
   "sample.uom.label": "Sample Unit Of Measure",
@@ -3290,5 +3293,6 @@
   "consent.template.source.providerDni": "Provider DNI",
   "consent.template.source.orderDate": "Order date",
   "consent.template.source.testsSelectedNames": "Selected tests (names)",
+  "consent.template.source.sampleCug": "Sample CUG (fixed field)",
   "consent.template.source.orderAdditional": "Order additional: {name}"
 }

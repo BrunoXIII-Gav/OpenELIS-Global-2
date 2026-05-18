@@ -242,6 +242,8 @@ public class SampleOrderItem implements Serializable {
 
     private Map<String, OrderAdditionalFieldFilePayload> additionalFieldFiles;
 
+    private Map<String, String> additionalFieldReservationTokens;
+
     private List<OrderFixedFieldConfigPayload> fixedFieldConfigs;
 
     // for display
@@ -687,6 +689,14 @@ public class SampleOrderItem implements Serializable {
 
     public void setAdditionalFieldFiles(Map<String, OrderAdditionalFieldFilePayload> additionalFieldFiles) {
         this.additionalFieldFiles = additionalFieldFiles;
+    }
+
+    public Map<String, String> getAdditionalFieldReservationTokens() {
+        return additionalFieldReservationTokens;
+    }
+
+    public void setAdditionalFieldReservationTokens(Map<String, String> additionalFieldReservationTokens) {
+        this.additionalFieldReservationTokens = additionalFieldReservationTokens;
     }
 
     public List<OrderFixedFieldConfigPayload> getFixedFieldConfigs() {

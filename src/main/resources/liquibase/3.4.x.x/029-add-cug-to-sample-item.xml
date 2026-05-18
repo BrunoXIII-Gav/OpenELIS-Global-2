@@ -1,0 +1,39 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<databaseChangeLog
+    xmlns="http://www.liquibase.org/xml/ns/dbchangelog"
+    xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+    xsi:schemaLocation="http://www.liquibase.org/xml/ns/dbchangelog
+                        http://www.liquibase.org/xml/ns/dbchangelog/dbchangelog-3.8.xsd">
+
+    <changeSet id="029-01-add-cug-code-column" author="codex">
+        <preConditions onFail="MARK_RAN">
+            <tableExists tableName="sample_item"/>
+            <not>
+                <columnExists tableName="sample_item" columnName="cug_code"/>
+            </not>
+        </preConditions>
+        <addColumn tableName="sample_item">
+            <column name="cug_code" type="varchar(128)"/>
+        </addColumn>
+        <rollback>
+            <dropColumn tableName="sample_item" columnName="cug_code"/>
+        </rollback>
+    </changeSet>
+
+    <changeSet id="029-02-add-cug-unique-index" author="codex">
+        <preConditions onFail="MARK_RAN">
+            <tableExists tableName="sample_item"/>
+            <columnExists tableName="sample_item" columnName="cug_code"/>
+            <not>
+                <indexExists tableName="sample_item" indexName="idx_sample_item_cug_code_unique"/>
+            </not>
+        </preConditions>
+        <createIndex tableName="sample_item" indexName="idx_sample_item_cug_code_unique" unique="true">
+            <column name="cug_code"/>
+        </createIndex>
+        <rollback>
+            <dropIndex tableName="sample_item" indexName="idx_sample_item_cug_code_unique"/>
+        </rollback>
+    </changeSet>
+
+</databaseChangeLog>
