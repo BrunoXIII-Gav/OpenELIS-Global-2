@@ -115,10 +115,7 @@ const SampleType = (props) => {
   });
   const [loading, setLoading] = useState(true);
   const [sampleFixedFieldConfigs, setSampleFixedFieldConfigs] = useState([]);
-  const [
-    waitingForSampleFixedFieldConfig,
-    setWaitingForSampleFixedFieldConfig,
-  ] = useState(true);
+  const [, setWaitingForSampleFixedFieldConfig] = useState(true);
 
   function handleCollectionDate(date) {
     setSampleXml({
@@ -706,9 +703,6 @@ const SampleType = (props) => {
     ) || null;
 
   const isSampleFieldVisible = (fieldKey) => {
-    if (waitingForSampleFixedFieldConfig && !sampleFixedFieldConfigs.length) {
-      return false;
-    }
     const config = getSampleFixedFieldConfig(fieldKey);
     return config ? config.visible !== false : true;
   };
