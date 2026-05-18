@@ -189,9 +189,8 @@ public class SampleCugServiceImpl implements SampleCugService {
     }
 
     private void ensureReservationOwner(SampleCugReservation reservation, String currentUserId) {
-        if (reservation == null || reservation.getReservedByUserId() == null
-                || !StringUtils.equals(String.valueOf(reservation.getReservedByUserId()),
-                        StringUtils.trimToNull(currentUserId))) {
+        if (reservation == null || reservation.getReservedByUserId() == null || !StringUtils
+                .equals(String.valueOf(reservation.getReservedByUserId()), StringUtils.trimToNull(currentUserId))) {
             throw new IllegalArgumentException("CUG reservation token does not belong to current user");
         }
     }

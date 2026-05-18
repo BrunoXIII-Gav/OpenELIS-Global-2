@@ -397,8 +397,7 @@ public class SampleAddService {
                 Map<String, String> testIdToUserSampleTypeMap, ObservationHistory sampleNature,
                 String storageLocationId, String storageLocationType, String storagePositionCoordinate,
                 String gpsLatitude, String gpsLongitude, String gpsAccuracy, String gpsCaptureMethod,
-                Map<String, String> additionalFieldValues, String cugReservationToken,
-                String cugReservationContextId) {
+                Map<String, String> additionalFieldValues, String cugReservationToken, String cugReservationContextId) {
             this(item, tests, collectionDate, initialConditionList, testIdToUserSectionMap, testIdToUserSampleTypeMap,
                     sampleNature, storageLocationId, storageLocationType, storagePositionCoordinate, gpsLatitude,
                     gpsLongitude, gpsAccuracy, gpsCaptureMethod, additionalFieldValues);
