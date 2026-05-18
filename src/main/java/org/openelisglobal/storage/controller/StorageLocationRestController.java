@@ -1688,9 +1688,10 @@ public class StorageLocationRestController extends BaseRestController {
     // ========== Search Endpoints (FR-064, FR-064a - Phase 3.1) ==========
 
     /**
-     * Search sample items by sample item ID, external ID, parent sample accession
-     * number, and assigned location (full hierarchical path). Matches ANY of these
-     * fields (OR logic). GET /rest/storage/sample-items/search?q={searchTerm}
+     * Search sample items by sample item ID, external ID, CUG code, parent sample
+     * accession number, and assigned location (full hierarchical path). Matches ANY
+     * of these fields (OR logic). GET
+     * /rest/storage/sample-items/search?q={searchTerm}
      *
      * Note: This is the canonical endpoint. /samples/search is kept for backwards
      * compatibility.
