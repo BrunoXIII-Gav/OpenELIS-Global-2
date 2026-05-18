@@ -117,6 +117,22 @@ const SampleType = (props) => {
   const [sampleFixedFieldConfigs, setSampleFixedFieldConfigs] = useState([]);
   const [, setWaitingForSampleFixedFieldConfig] = useState(true);
 
+  function getSampleFixedFieldConfig(fieldKey) {
+    return sampleFixedFieldConfigs.find(
+      (c) => c?.fieldKey?.toLowerCase() === fieldKey?.toLowerCase(),
+    ) || null;
+  }
+
+  function isSampleFieldVisible(fieldKey) {
+    if (waitingForSampleFixedFieldConfig && !sampleFixedFieldConfigs.length) {
+      return false;
+    }
+    const config = getSampleFixedFieldConfig(fieldKey);
+    return config ? config.visible !== false : true;
+  }
+
+  const additionalFieldsVisible = isSampleFieldVisible("additionalFields");
+
   function handleCollectionDate(date) {
     setSampleXml({
       ...sampleXml,
@@ -614,7 +630,9 @@ const SampleType = (props) => {
   }, [selectedSampleType.id]);
 
   useEffect(() => {
-    const additionalFields = sampleTypeTests?.additionalFields || [];
+    const additionalFields = additionalFieldsVisible
+      ? sampleTypeTests?.additionalFields || []
+      : [];
     props.sampleTypeObject({
       additionalFields: additionalFields,
       sampleObjectIndex: index,
@@ -655,7 +673,7 @@ const SampleType = (props) => {
         additionalFieldValues: updatedValues,
       };
     });
-  }, [sampleTypeTests.additionalFields, index]);
+  }, [sampleTypeTests.additionalFields, additionalFieldsVisible, index]);
 
   useEffect(() => {
     getFromOpenElisServer(`/rest/displayList/UNIT_OF_MEASURE`, fetchUomCreate);
@@ -717,7 +735,6 @@ const SampleType = (props) => {
     }
     return config.required != null ? !!config.required : fallback;
   };
-
   useEffect(() => {
     componentMounted.current = true;
     getFromOpenElisServer(
@@ -976,7 +993,8 @@ const SampleType = (props) => {
           </div>
         )}
 
-        {sampleTypeTests.additionalFields &&
+        {additionalFieldsVisible &&
+          sampleTypeTests.additionalFields &&
           sampleTypeTests.additionalFields.length > 0 && (
             <div className="additionalFields">
               <h4>
