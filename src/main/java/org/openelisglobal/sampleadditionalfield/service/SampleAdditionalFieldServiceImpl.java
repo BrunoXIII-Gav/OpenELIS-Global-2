@@ -16,12 +16,15 @@ import org.springframework.transaction.annotation.Transactional;
 @Service
 public class SampleAdditionalFieldServiceImpl implements SampleAdditionalFieldService {
 
-    private static final List<FixedFieldDefault> FIXED_FIELD_DEFAULTS = List.of(new FixedFieldDefault("rejected", 10),
-            new FixedFieldDefault("quantity", 20), new FixedFieldDefault("uom", 30),
-            new FixedFieldDefault("collectionDate", 40), new FixedFieldDefault("collectionTime", 50),
-            new FixedFieldDefault("collector", 60), new FixedFieldDefault("storageLocation", 70),
-            new FixedFieldDefault("panels", 80), new FixedFieldDefault("tests", 90),
-            new FixedFieldDefault("referral", 100));
+    private static final List<FixedFieldDefault> FIXED_FIELD_DEFAULTS = List.of(
+            new FixedFieldDefault("rejected", 10, false, false), new FixedFieldDefault("cug", 15, true, true),
+            new FixedFieldDefault("quantity", 20, false, false), new FixedFieldDefault("uom", 30, false, false),
+            new FixedFieldDefault("collectionDate", 40, false, false),
+            new FixedFieldDefault("collectionTime", 50, false, false),
+            new FixedFieldDefault("collector", 60, false, false),
+            new FixedFieldDefault("storageLocation", 70, false, false),
+            new FixedFieldDefault("panels", 80, false, false), new FixedFieldDefault("tests", 90, false, false),
+            new FixedFieldDefault("referral", 100, false, false));
 
     private static final Set<String> FIXED_FIELD_KEYS = FIXED_FIELD_DEFAULTS.stream().map(f -> f.fieldKey.toLowerCase())
             .collect(Collectors.toSet());
@@ -43,8 +46,8 @@ public class SampleAdditionalFieldServiceImpl implements SampleAdditionalFieldSe
                 SampleFixedFieldConfigPayload fallback = new SampleFixedFieldConfigPayload();
                 fallback.setFieldKey(def.fieldKey);
                 fallback.setVisible(true);
-                fallback.setRequired(false);
-                fallback.setReadonly(false);
+                fallback.setRequired(def.required);
+                fallback.setReadonly(def.readonly);
                 fallback.setSortOrder(def.sortOrder);
                 result.add(fallback);
             } else {
@@ -105,10 +108,14 @@ public class SampleAdditionalFieldServiceImpl implements SampleAdditionalFieldSe
     private static class FixedFieldDefault {
         private final String fieldKey;
         private final Integer sortOrder;
+        private final boolean required;
+        private final boolean readonly;
 
-        private FixedFieldDefault(String fieldKey, Integer sortOrder) {
+        private FixedFieldDefault(String fieldKey, Integer sortOrder, boolean required, boolean readonly) {
             this.fieldKey = fieldKey;
             this.sortOrder = sortOrder;
+            this.required = required;
+            this.readonly = readonly;
         }
     }
 }

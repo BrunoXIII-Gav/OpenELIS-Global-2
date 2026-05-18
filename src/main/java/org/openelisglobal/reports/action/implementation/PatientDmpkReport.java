@@ -299,6 +299,9 @@ public class PatientDmpkReport extends PatientCILNSPClinical_vreduit {
         if ("subjectNumber".equalsIgnoreCase(normalized)) {
             return first == null ? "" : StringUtils.defaultString(first.getSubjectNumber());
         }
+        if ("sampleCug".equalsIgnoreCase(normalized)) {
+            return first == null ? "" : StringUtils.defaultString(first.getAccessionNumber());
+        }
         if ("accessionNumber".equalsIgnoreCase(normalized)) {
             return first == null ? "" : StringUtils.defaultString(first.getAccessionNumber());
         }

@@ -37,6 +37,7 @@ public class SampleItemDTO {
 
     private String id;
     private String externalId;
+    private String cugCode;
     private String sampleAccessionNumber;
     private String sampleType;
     private String sampleTypeId;
@@ -85,6 +86,14 @@ public class SampleItemDTO {
 
     public void setExternalId(String externalId) {
         this.externalId = externalId;
+    }
+
+    public String getCugCode() {
+        return cugCode;
+    }
+
+    public void setCugCode(String cugCode) {
+        this.cugCode = cugCode;
     }
 
     public String getSampleAccessionNumber() {

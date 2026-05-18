@@ -17,6 +17,7 @@ import java.util.List;
 import java.util.Set;
 import org.openelisglobal.common.dao.BaseDAO;
 import org.openelisglobal.common.exception.LIMSRuntimeException;
+import org.openelisglobal.sample.valueholder.Sample;
 import org.openelisglobal.sampleitem.valueholder.SampleItem;
 import org.openelisglobal.typeofsample.valueholder.TypeOfSample;
 
@@ -56,6 +57,16 @@ public interface SampleItemDAO extends BaseDAO<SampleItem, String> {
     public SampleItem getData(String sampleItemId) throws LIMSRuntimeException;
 
     public List<SampleItem> getSampleItemsByExternalID(String externalId) throws LIMSRuntimeException;
+
+    long countByPatientId(String patientId) throws LIMSRuntimeException;
+
+    List<String> findCugCodesByPatientId(String patientId) throws LIMSRuntimeException;
+
+    long getNextCugPrefix() throws LIMSRuntimeException;
+
+    boolean existsByCugCode(String cugCode) throws LIMSRuntimeException;
+
+    Sample findSampleByCugCode(String cugCode) throws LIMSRuntimeException;
 
     public boolean insertAliquots(SampleItem lastSampleItem, List<SampleItem> sampleItemsToInsert,
             List<List<String>> analysisGroups) throws LIMSRuntimeException;

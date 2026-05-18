@@ -210,8 +210,13 @@ const ModifyOrder = () => {
               storageLocation?.positionCoordinate ||
               storageLocation?.position?.coordinate ||
               "";
+            const cugCode = sampleItem.sampleXML?.cug || "";
+            const cugReservationToken =
+              sampleItem.sampleXML?.cugReservationToken || "";
+            const cugReservationContextId =
+              sampleItem.sampleXML?.cugReservationContextId || "";
 
-            sampleXmlString += `<sample sampleID='${sampleItem.sampleTypeId}' date='${sampleItem.sampleXML.collectionDate}' time='${sampleItem.sampleXML.collectionTime}' collector='${sampleItem.sampleXML.collector}' tests='${tests}' testSectionMap='' testSampleTypeMap='' panels='' rejected='${sampleItem.sampleXML.rejected}' rejectReasonId='${sampleItem.sampleXML.rejectionReason}' initialConditionIds='' storageLocationId='${storageLocationId}' storageLocationType='${storageLocationType}' storagePositionCoordinate='${storagePositionCoordinate}' />`;
+            sampleXmlString += `<sample sampleID='${sampleItem.sampleTypeId}' date='${sampleItem.sampleXML.collectionDate}' time='${sampleItem.sampleXML.collectionTime}' collector='${sampleItem.sampleXML.collector}' tests='${tests}' testSectionMap='' testSampleTypeMap='' panels='' rejected='${sampleItem.sampleXML.rejected}' rejectReasonId='${sampleItem.sampleXML.rejectionReason}' cug='${cugCode}' cugReservationToken='${cugReservationToken}' cugReservationContextId='${cugReservationContextId}' initialConditionIds='' storageLocationId='${storageLocationId}' storageLocationType='${storageLocationType}' storagePositionCoordinate='${storagePositionCoordinate}' />`;
           }
           if (sampleItem.referralItems.length > 0) {
             const referredInstitutes = Object.keys(sampleItem.referralItems)
@@ -334,6 +339,7 @@ const ModifyOrder = () => {
                       setSamples={setSamples}
                       samples={samples}
                       error={elementError}
+                      patientId={patientId}
                     />
                   )}
                   {page === orderPageNumber && (

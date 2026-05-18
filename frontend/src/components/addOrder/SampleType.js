@@ -24,8 +24,18 @@ import CustomTimePicker from "../common/CustomTimePicker";
 import { sampleTypeTestsStructure } from "../data/SampleEntryTestsForTypeProvider";
 import { ConfigurationContext, NotificationContext } from "../layout/Layout";
 import StorageLocationSelector from "../storage/StorageLocationSelector";
-import { getFromOpenElisServer } from "../utils/Utils";
+import {
+  getFromOpenElisServer,
+  postToOpenElisServerJsonResponse,
+} from "../utils/Utils";
 import GpsCoordinatesCapture from "./GpsCoordinatesCapture";
+
+const createCugReservationContextId = () => {
+  if (typeof crypto !== "undefined" && crypto.randomUUID) {
+    return crypto.randomUUID();
+  }
+  return `cug-${Date.now()}-${Math.floor(Math.random() * 1000000)}`;
+};
 
 const SampleType = (props) => {
   const { userSessionDetails } = useContext(UserSessionDetailsContext);
@@ -35,6 +45,11 @@ const SampleType = (props) => {
 
   const componentMounted = useRef(false);
   const sampleTypesRef = useRef(null);
+  const cugGenerationInFlightRef = useRef(false);
+  const cugGenerationKeyRef = useRef("");
+  const previousPatientIdRef = useRef(
+    String(props.patientId || "").trim() || null,
+  );
 
   const { index, rejectSampleReasons, sample } = props;
 
@@ -66,35 +81,41 @@ const SampleType = (props) => {
   const [panelSearchTerm, setPanelSearchTerm] = useState("");
   const [searchBoxPanels, setSearchBoxPanels] = useState([]);
   const [uomList, setUomList] = useState([]);
-  const [sampleXml, setSampleXml] = useState(
-    sample?.sampleXML != null
-      ? {
-          ...sample.sampleXML,
-          additionalFieldValues: sample.sampleXML.additionalFieldValues || {},
-        }
-      : {
-          collectionDate:
-            configurationProperties?.AUTOFILL_COLLECTION_DATE === "true"
-              ? configurationProperties.currentDateAsText
-              : "",
-          collector: "",
-          quantity: "",
-          uom: "",
-          rejected: false,
-          rejectionReason: "",
-          collectionTime:
-            configurationProperties?.AUTOFILL_COLLECTION_DATE === "true"
-              ? configurationProperties.currentTimeAsText
-              : "",
-          additionalFieldValues: {},
-        },
-  );
+  const [sampleXml, setSampleXml] = useState(() => {
+    if (sample?.sampleXML != null) {
+      return {
+        ...sample.sampleXML,
+        cug: sample.sampleXML.cug || "",
+        cugReservationToken: sample.sampleXML.cugReservationToken || "",
+        cugReservationContextId:
+          sample.sampleXML.cugReservationContextId ||
+          createCugReservationContextId(),
+        additionalFieldValues: sample.sampleXML.additionalFieldValues || {},
+      };
+    }
+    return {
+      collectionDate:
+        configurationProperties?.AUTOFILL_COLLECTION_DATE === "true"
+          ? configurationProperties.currentDateAsText
+          : "",
+      collector: "",
+      quantity: "",
+      uom: "",
+      rejected: false,
+      rejectionReason: "",
+      collectionTime:
+        configurationProperties?.AUTOFILL_COLLECTION_DATE === "true"
+          ? configurationProperties.currentTimeAsText
+          : "",
+      cug: "",
+      cugReservationToken: "",
+      cugReservationContextId: createCugReservationContextId(),
+      additionalFieldValues: {},
+    };
+  });
   const [loading, setLoading] = useState(true);
   const [sampleFixedFieldConfigs, setSampleFixedFieldConfigs] = useState([]);
-  const [
-    waitingForSampleFixedFieldConfig,
-    setWaitingForSampleFixedFieldConfig,
-  ] = useState(true);
+  const [, setWaitingForSampleFixedFieldConfig] = useState(true);
 
   function handleCollectionDate(date) {
     setSampleXml({
@@ -127,6 +148,118 @@ const SampleType = (props) => {
       collector: value,
     });
   }
+
+  const generateCugPreview = useCallback(() => {
+    const patientId = String(props.patientId || "").trim();
+    const sampleTypeId = String(selectedSampleType.id || "").trim();
+    const currentCug = String(sampleXml.cug || "").trim();
+    if (!sampleTypeId || !patientId || currentCug) {
+      return;
+    }
+    const generationKey = `${index}|${sampleTypeId}|${patientId}`;
+    if (
+      cugGenerationInFlightRef.current ||
+      cugGenerationKeyRef.current === generationKey
+    ) {
+      return;
+    }
+    cugGenerationInFlightRef.current = true;
+    let reservationContextId = sampleXml.cugReservationContextId;
+    if (!reservationContextId) {
+      reservationContextId = createCugReservationContextId();
+      setSampleXml((previous) => ({
+        ...previous,
+        cugReservationContextId: reservationContextId,
+      }));
+    }
+
+    const payload = {
+      patientId,
+      existingCugs: Array.isArray(props.existingCugs) ? props.existingCugs : [],
+      reservationToken: sampleXml.cugReservationToken || "",
+      reservationContextId: reservationContextId,
+    };
+
+    postToOpenElisServerJsonResponse(
+      "/rest/sample-cug/preview",
+      JSON.stringify(payload),
+      (response) => {
+        cugGenerationInFlightRef.current = false;
+        if (response?.status && response.status >= 400) {
+          setNotificationVisible(true);
+          addNotification({
+            kind: NotificationKinds.error,
+            title: intl.formatMessage({ id: "notification.title" }),
+            message:
+              response?.message ||
+              intl.formatMessage({ id: "sample.cug.generate.error" }),
+          });
+          return;
+        }
+        const generated = response?.cugCode;
+        const reservationToken = response?.reservationToken;
+        if (generated && reservationToken) {
+          cugGenerationKeyRef.current = generationKey;
+          setSampleXml((previous) => ({
+            ...previous,
+            cug: generated,
+            cugReservationToken: reservationToken,
+          }));
+          return;
+        }
+        setNotificationVisible(true);
+        addNotification({
+          kind: NotificationKinds.error,
+          title: intl.formatMessage({ id: "notification.title" }),
+          message: intl.formatMessage({ id: "sample.cug.generate.error" }),
+        });
+      },
+    );
+  }, [
+    addNotification,
+    index,
+    intl,
+    props.existingCugs,
+    props.patientId,
+    sampleXml.cug,
+    sampleXml.cugReservationContextId,
+    sampleXml.cugReservationToken,
+    selectedSampleType.id,
+    setNotificationVisible,
+  ]);
+
+  useEffect(() => {
+    const currentPatientId = String(props.patientId || "").trim() || null;
+    const previousPatientId = previousPatientIdRef.current;
+    if (previousPatientId === currentPatientId) {
+      return;
+    }
+
+    previousPatientIdRef.current = currentPatientId;
+    cugGenerationKeyRef.current = "";
+    setSampleXml((previous) => ({
+      ...previous,
+      cug: "",
+      cugReservationToken: "",
+      cugReservationContextId: createCugReservationContextId(),
+    }));
+  }, [props.patientId]);
+
+  useEffect(() => {
+    const hasSampleType =
+      selectedSampleType.id !== "" && selectedSampleType.id != null;
+    const hasPatient = String(props.patientId || "").trim() !== "";
+    const hasCug = String(sampleXml.cug || "").trim() !== "";
+    if (!hasSampleType || !hasPatient || hasCug) {
+      return;
+    }
+    generateCugPreview();
+  }, [
+    generateCugPreview,
+    props.patientId,
+    sampleXml.cug,
+    selectedSampleType.id,
+  ]);
 
   const handleGpsCoordinatesChange = useCallback(
     (gpsData) => {
@@ -330,6 +463,7 @@ const SampleType = (props) => {
     setSelectedPanels([]);
     setReferralRequests([]);
     const { value } = e.target;
+    cugGenerationKeyRef.current = "";
     const selectedSampleTypeOption =
       sampleTypesRef.current.options[sampleTypesRef.current.selectedIndex].text;
     setSelectedSampleType({
@@ -340,6 +474,8 @@ const SampleType = (props) => {
     });
     setSampleXml((previous) => ({
       ...previous,
+      cug: "",
+      cugReservationToken: "",
       additionalFieldValues: {},
     }));
     props.sampleTypeObject({ sampleTypeId: value, sampleObjectIndex: index });
@@ -567,11 +703,19 @@ const SampleType = (props) => {
     ) || null;
 
   const isSampleFieldVisible = (fieldKey) => {
-    if (waitingForSampleFixedFieldConfig && !sampleFixedFieldConfigs.length) {
-      return false;
-    }
     const config = getSampleFixedFieldConfig(fieldKey);
     return config ? config.visible !== false : true;
+  };
+
+  const isSampleFieldRequired = (fieldKey, fallback = false) => {
+    const config = getSampleFixedFieldConfig(fieldKey);
+    if (!config) {
+      return fallback;
+    }
+    if (config.visible === false) {
+      return false;
+    }
+    return config.required != null ? !!config.required : fallback;
   };
 
   useEffect(() => {
@@ -740,6 +884,15 @@ const SampleType = (props) => {
             <SelectItem text={sampleType.value} value={sampleType.id} key={i} />
           ))}
         </Select>
+        {isSampleFieldVisible("cug") && (
+          <TextInput
+            id={`sample_cug_${index}`}
+            labelText={intl.formatMessage({ id: "sample.cug.label" })}
+            value={sampleXml.cug || ""}
+            required={isSampleFieldRequired("cug", true)}
+            readOnly={true}
+          />
+        )}
 
         {isSampleFieldVisible("rejected") && (
           <CustomCheckBox

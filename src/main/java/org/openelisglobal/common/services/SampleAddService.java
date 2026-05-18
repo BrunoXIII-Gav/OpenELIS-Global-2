@@ -184,13 +184,18 @@ public class SampleAddService {
                 String gpsLongitude = sampleItem.attributeValue("gpsLongitude");
                 String gpsAccuracy = sampleItem.attributeValue("gpsAccuracy");
                 String gpsCaptureMethod = sampleItem.attributeValue("gpsCaptureMethod");
+                String cugCode = sampleItem.attributeValue("cug");
+                String cugReservationToken = sampleItem.attributeValue("cugReservationToken");
+                String cugReservationContextId = sampleItem.attributeValue("cugReservationContextId");
                 Map<String, String> additionalFieldValues = parseAdditionalFieldValues(sampleItem);
+                item.setCugCode(StringUtils.trimToNull(cugCode));
 
                 sampleItemsTests.add(new SampleTestCollection(item, tests,
                         USE_RECEIVE_DATE_FOR_COLLECTION_DATE ? collectionDateFromRecieveDate : collectionDateTime,
                         initialConditionList, testIdToUserSectionMap, testIdToSampleTypeMap, sampleNature,
                         storageLocationId, storageLocationType, storagePositionCoordinate, gpsLatitude, gpsLongitude,
-                        gpsAccuracy, gpsCaptureMethod, additionalFieldValues));
+                        gpsAccuracy, gpsCaptureMethod, additionalFieldValues,
+                        StringUtils.trimToNull(cugReservationToken), StringUtils.trimToNull(cugReservationContextId)));
             }
         } catch (DocumentException e) {
             LogEvent.logDebug(e);
@@ -335,6 +340,8 @@ public class SampleAddService {
         public String gpsAccuracy;
         public String gpsCaptureMethod;
         public Map<String, String> additionalFieldValues;
+        public String cugReservationToken;
+        public String cugReservationContextId;
 
         public SampleTestCollection(SampleItem item, List<Test> tests, String collectionDate,
                 List<ObservationHistory> initialConditionList, Map<String, String> testIdToUserSectionMap,
@@ -383,6 +390,19 @@ public class SampleAddService {
                     sampleNature, storageLocationId, storageLocationType, storagePositionCoordinate, gpsLatitude,
                     gpsLongitude, gpsAccuracy, gpsCaptureMethod);
             this.additionalFieldValues = additionalFieldValues == null ? new HashMap<>() : additionalFieldValues;
+        }
+
+        public SampleTestCollection(SampleItem item, List<Test> tests, String collectionDate,
+                List<ObservationHistory> initialConditionList, Map<String, String> testIdToUserSectionMap,
+                Map<String, String> testIdToUserSampleTypeMap, ObservationHistory sampleNature,
+                String storageLocationId, String storageLocationType, String storagePositionCoordinate,
+                String gpsLatitude, String gpsLongitude, String gpsAccuracy, String gpsCaptureMethod,
+                Map<String, String> additionalFieldValues, String cugReservationToken, String cugReservationContextId) {
+            this(item, tests, collectionDate, initialConditionList, testIdToUserSectionMap, testIdToUserSampleTypeMap,
+                    sampleNature, storageLocationId, storageLocationType, storagePositionCoordinate, gpsLatitude,
+                    gpsLongitude, gpsAccuracy, gpsCaptureMethod, additionalFieldValues);
+            this.cugReservationToken = cugReservationToken;
+            this.cugReservationContextId = cugReservationContextId;
         }
     }
 }

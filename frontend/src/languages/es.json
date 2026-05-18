@@ -2435,6 +2435,7 @@
   "sample.management.success.title": "Success",
   "sample.management.table.cancelTest": "Cancel Test",
   "sample.management.table.cancelling": "Cancelling...",
+  "sample.management.table.header.cug": "CUG",
   "sample.management.table.header.externalId": "Sample ID",
   "sample.management.table.header.hierarchy": "Hierarchy",
   "sample.management.table.header.originalQuantity": "Original Quantity",
@@ -2463,6 +2464,8 @@
   "sample.search.scanner.instructions2": "Escanear o ingresar manualmente.",
   "sample.search.title": "Search Sample",
   "sample.select.type": "Seleccionar tipo de muestra",
+  "sample.cug.label": "CUG",
+  "sample.cug.generate.error": "No se pudo generar el CUG para esta muestra",
   "sample.type": "Tipo de muestra",
   "sample.type.and.test.sort.order": "Orden de tipo de muestra y prueba",
   "sample.uom.label": "Sample Unit Of Measure",
@@ -3229,5 +3232,6 @@
   "order.additional.fields.metadataJson.helper": "JSON opcional para reglas condicionales y restricciones de documentos.",
   "order.additional.fields.metadata.invalid": "El JSON de metadata no es válido.",
   "order.additional.fields.document.download": "Descargar archivo",
+  "consent.template.source.sampleCug": "CUG de muestra (campo fijo)",
   "yes.option": "Sí"
 }
