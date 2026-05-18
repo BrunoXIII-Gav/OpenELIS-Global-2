@@ -17,13 +17,17 @@ import org.springframework.transaction.annotation.Transactional;
 public class SampleAdditionalFieldServiceImpl implements SampleAdditionalFieldService {
 
     private static final List<FixedFieldDefault> FIXED_FIELD_DEFAULTS = List.of(
-            new FixedFieldDefault("rejected", 10, false, false), new FixedFieldDefault("cug", 15, true, true),
-            new FixedFieldDefault("quantity", 20, false, false), new FixedFieldDefault("uom", 30, false, false),
+            new FixedFieldDefault("rejected", 10, false, false),
+            new FixedFieldDefault("cug", 15, true, true),
+            new FixedFieldDefault("quantity", 20, false, false),
+            new FixedFieldDefault("uom", 30, false, false),
             new FixedFieldDefault("collectionDate", 40, false, false),
             new FixedFieldDefault("collectionTime", 50, false, false),
             new FixedFieldDefault("collector", 60, false, false),
+            new FixedFieldDefault("additionalFields", 65, false, false),
             new FixedFieldDefault("storageLocation", 70, false, false),
-            new FixedFieldDefault("panels", 80, false, false), new FixedFieldDefault("tests", 90, false, false),
+            new FixedFieldDefault("panels", 80, false, false),
+            new FixedFieldDefault("tests", 90, false, false),
             new FixedFieldDefault("referral", 100, false, false));
 
     private static final Set<String> FIXED_FIELD_KEYS = FIXED_FIELD_DEFAULTS.stream().map(f -> f.fieldKey.toLowerCase())
