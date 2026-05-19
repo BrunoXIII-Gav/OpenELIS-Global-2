@@ -425,7 +425,13 @@ export default function SampleManagement() {
         </Column>
       </Grid>
 
-      <div className="orderLegendBody">
+      <div
+        className="orderLegendBody"
+        style={{
+          width: "min(96%, 1400px)",
+          margin: "0 auto",
+        }}
+      >
         {/* Notification (Error or Success) */}
         {searchError && (
           <Grid fullWidth={true}>
@@ -669,10 +675,10 @@ export default function SampleManagement() {
                   </Button>
 
                   {/* Toggle Current Tests Section */}
-                  <Button kind="ghost" onClick={handleToggleCurrentTests}>
+                  <Button kind="tertiary" onClick={handleToggleCurrentTests}>
                     <FormattedMessage
-                      id="sample.management.action.currentTests"
-                      defaultMessage="Current Tests"
+                      id="sample.management.action.currentSample"
+                      defaultMessage="Current Sample"
                     />
                   </Button>
                 </div>

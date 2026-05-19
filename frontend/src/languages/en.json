@@ -2478,6 +2478,7 @@
   "sample.management.table.orderedTests": "Ordered Tests ({count})",
   "sample.management.table.currentTests": "Current Tests",
   "sample.management.action.currentTests": "Current Tests",
+  "sample.management.action.currentSample": "Current Sample",
   "sample.management.action.saveChanges": "Save Changes",
   "sample.management.currentTests.sampleType": "Sample Type",
   "sample.management.currentTests.quantity": "Quantity",
