@@ -17,7 +17,10 @@ import com.fasterxml.jackson.annotation.JsonProperty;
 import java.math.BigDecimal;
 import java.sql.Timestamp;
 import java.util.ArrayList;
+import java.util.HashMap;
 import java.util.List;
+import java.util.Map;
+import org.openelisglobal.sample.bean.SampleTypeAdditionalFieldPayload;
 
 /**
  * Data Transfer Object for SampleItem entity.
@@ -48,6 +51,7 @@ public class SampleItemDTO {
     private String status;
     private String statusId;
     private Timestamp collectionDate;
+    private String collector;
 
     // Parent-child relationship fields
     private String parentId;
@@ -56,6 +60,8 @@ public class SampleItemDTO {
 
     // Associated tests
     private List<TestSummaryDTO> orderedTests = new ArrayList<>();
+    private List<SampleTypeAdditionalFieldPayload> additionalFields = new ArrayList<>();
+    private Map<String, String> additionalFieldValues = new HashMap<>();
 
     // Computed fields
     private boolean hasRemainingQuantity;
@@ -190,6 +196,14 @@ public class SampleItemDTO {
         this.collectionDate = collectionDate;
     }
 
+    public String getCollector() {
+        return collector;
+    }
+
+    public void setCollector(String collector) {
+        this.collector = collector;
+    }
+
     public String getParentId() {
         return parentId;
     }
@@ -220,6 +234,22 @@ public class SampleItemDTO {
 
     public void setOrderedTests(List<TestSummaryDTO> orderedTests) {
         this.orderedTests = orderedTests;
+    }
+
+    public List<SampleTypeAdditionalFieldPayload> getAdditionalFields() {
+        return additionalFields;
+    }
+
+    public void setAdditionalFields(List<SampleTypeAdditionalFieldPayload> additionalFields) {
+        this.additionalFields = additionalFields;
+    }
+
+    public Map<String, String> getAdditionalFieldValues() {
+        return additionalFieldValues;
+    }
+
+    public void setAdditionalFieldValues(Map<String, String> additionalFieldValues) {
+        this.additionalFieldValues = additionalFieldValues;
     }
 
     public boolean isHasRemainingQuantity() {

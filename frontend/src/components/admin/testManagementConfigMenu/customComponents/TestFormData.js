@@ -7,6 +7,7 @@ export const TestFormData = {
   panels: [],
   uom: "",
   loinc: "",
+  resultName: "",
   resultType: "",
   additionalFields: [],
   orderable: "Y",
@@ -127,6 +128,7 @@ export const mapTestCatBeanToFormData = (test) => {
     panelIds: Array.isArray(test.panelIds) ? test.panelIds : [],
     uom: test.uom || "",
     loinc: test.loinc || "",
+    resultName: test.resultName || "",
     resultType: test.resultType || "",
     additionalFields: Array.isArray(test.additionalFields)
       ? test.additionalFields

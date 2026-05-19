@@ -2448,6 +2448,7 @@
   "sample.management.table.noTests": "No tests ordered for this sample",
   "sample.management.table.orderedDate": "Ordered",
   "sample.management.table.orderedTests": "Ordered Tests ({count})",
+  "sample.management.action.currentSample": "Current Sample",
   "sample.management.title": "Sample Management",
   "sample.panel.label.text": "Buscar panel disponible",
   "sample.panel.placeholder": "Elegir panel disponible",

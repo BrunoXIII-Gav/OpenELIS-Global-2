@@ -21,10 +21,12 @@ import org.openelisglobal.common.rest.BaseRestController;
 import org.openelisglobal.sampleitem.dto.AddTestsResponse;
 import org.openelisglobal.sampleitem.dto.CancelTestResponse;
 import org.openelisglobal.sampleitem.dto.CreateAliquotResponse;
+import org.openelisglobal.sampleitem.dto.SaveSampleManagementChangesResponse;
 import org.openelisglobal.sampleitem.dto.SearchSamplesResponse;
 import org.openelisglobal.sampleitem.form.AddTestsForm;
 import org.openelisglobal.sampleitem.form.CancelTestForm;
 import org.openelisglobal.sampleitem.form.CreateAliquotForm;
+import org.openelisglobal.sampleitem.form.SaveSampleManagementChangesForm;
 import org.openelisglobal.sampleitem.service.SampleManagementService;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.http.HttpStatus;
@@ -253,6 +255,20 @@ public class SampleManagementRestController extends BaseRestController {
             LogEvent.logError(this.getClass().getName(), "cancelTest", "Error cancelling test: " + e.getMessage());
             throw e;
         }
+    }
+
+    @PostMapping(value = "/save-changes", consumes = MediaType.APPLICATION_JSON_VALUE, produces = MediaType.APPLICATION_JSON_VALUE)
+    @ResponseBody
+    public ResponseEntity<SaveSampleManagementChangesResponse> saveSampleManagementChanges(
+            @Valid @RequestBody SaveSampleManagementChangesForm form, HttpServletRequest request) {
+        String sysUserId = getSysUserId(request);
+        if (sysUserId == null) {
+            throw new IllegalStateException("User not authenticated");
+        }
+
+        SaveSampleManagementChangesResponse response = sampleManagementService.saveSampleManagementChanges(form,
+                sysUserId);
+        return ResponseEntity.ok(response);
     }
 
     /**

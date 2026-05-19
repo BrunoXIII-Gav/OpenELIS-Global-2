@@ -760,6 +760,7 @@ public class ResultsLoadUtility {
         testItem.setSequenceNumber(sequenceNumber);
         testItem.setReceivedDate(receivedDate);
         testItem.setTestName(displayTestName);
+        testItem.setResultName(test.getStoredName());
         testItem.setTestId(test.getId());
         setResultLimitDependencies(resultLimit, testItem, testResults);
         testItem.setPatientName(patientName);

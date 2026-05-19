@@ -14,29 +14,42 @@
 package org.openelisglobal.sampleitem.service;
 
 import java.math.BigDecimal;
+import java.sql.Timestamp;
+import java.time.LocalTime;
+import java.time.format.DateTimeFormatter;
+import java.time.format.DateTimeParseException;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.Map;
 import java.util.stream.Collectors;
+import org.apache.commons.validator.GenericValidator;
+import org.openelisglobal.common.util.DateUtil;
 import org.openelisglobal.analysis.service.AnalysisService;
 import org.openelisglobal.analysis.valueholder.Analysis;
 import org.openelisglobal.common.services.IStatusService;
 import org.openelisglobal.common.services.StatusService;
+import org.openelisglobal.common.services.StatusService.SampleStatus;
 import org.openelisglobal.sample.service.SampleService;
+import org.openelisglobal.sample.service.SampleTypeAdditionalFieldService;
 import org.openelisglobal.sample.valueholder.Sample;
 import org.openelisglobal.sampleitem.dao.SampleItemDAO;
 import org.openelisglobal.sampleitem.dto.AddTestsResponse;
 import org.openelisglobal.sampleitem.dto.AliquotSummaryDTO;
 import org.openelisglobal.sampleitem.dto.CancelTestResponse;
 import org.openelisglobal.sampleitem.dto.CreateAliquotResponse;
+import org.openelisglobal.sampleitem.dto.SaveSampleManagementChangesResponse;
 import org.openelisglobal.sampleitem.dto.SampleItemDTO;
 import org.openelisglobal.sampleitem.dto.SearchSamplesResponse;
 import org.openelisglobal.sampleitem.dto.TestSummaryDTO;
 import org.openelisglobal.sampleitem.form.AddTestsForm;
 import org.openelisglobal.sampleitem.form.CancelTestForm;
 import org.openelisglobal.sampleitem.form.CreateAliquotForm;
+import org.openelisglobal.sampleitem.form.SaveSampleManagementChangesForm;
 import org.openelisglobal.sampleitem.valueholder.SampleItem;
 import org.openelisglobal.test.service.TestService;
 import org.openelisglobal.test.valueholder.Test;
+import org.openelisglobal.unitofmeasure.service.UnitOfMeasureService;
+import org.openelisglobal.unitofmeasure.valueholder.UnitOfMeasure;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -73,6 +86,12 @@ public class SampleManagementServiceImpl implements SampleManagementService {
 
     @Autowired
     private TestService testService;
+
+    @Autowired
+    private UnitOfMeasureService unitOfMeasureService;
+
+    @Autowired
+    private SampleTypeAdditionalFieldService sampleTypeAdditionalFieldService;
 
     @Override
     @Transactional(readOnly = true)
@@ -257,6 +276,14 @@ public class SampleManagementServiceImpl implements SampleManagementService {
 
         // Collection date
         dto.setCollectionDate(sampleItem.getCollectionDate());
+        dto.setCollector(sampleItem.getCollector());
+
+        if (sampleItem.getTypeOfSample() != null) {
+            dto.setAdditionalFields(
+                    sampleTypeAdditionalFieldService.getFieldsForSampleType(sampleItem.getTypeOfSample().getId(), false));
+            dto.setAdditionalFieldValues(sampleTypeAdditionalFieldService
+                    .getFieldValuesForSampleItem(sampleItem.getTypeOfSample().getId(), sampleItem.getId()));
+        }
 
         // Parent-child relationships (eagerly loaded via getSampleItemsWithHierarchy)
         if (sampleItem.getParentSampleItem() != null) {
@@ -466,5 +493,144 @@ public class SampleManagementServiceImpl implements SampleManagementService {
         // Step 7: Return success response
         return new CancelTestResponse(analysis.getId(), testName, true,
                 String.format("Test '%s' has been cancelled successfully", testName));
+    }
+
+    @Override
+    @Transactional
+    public SaveSampleManagementChangesResponse saveSampleManagementChanges(SaveSampleManagementChangesForm form,
+            String sysUserId) {
+        int updatedSamples = 0;
+        int cancelledTests = 0;
+        IStatusService statusService = StatusService.getInstance();
+        String cancelledAnalysisStatus = statusService.getStatusID(StatusService.AnalysisStatus.Canceled);
+        String cancelledSampleStatus = statusService.getStatusID(SampleStatus.Canceled);
+
+        for (SaveSampleManagementChangesForm.SampleUpdate update : form.getSampleUpdates()) {
+            SampleItem sampleItem = sampleItemService.getData(update.getSampleItemId());
+            if (sampleItem == null) {
+                throw new IllegalArgumentException("Sample item not found: " + update.getSampleItemId());
+            }
+
+            applySampleItemCoreUpdates(sampleItem, update);
+            sampleItem.setSysUserId(sysUserId);
+            sampleItemService.update(sampleItem);
+            updatedSamples++;
+
+            Map<String, String> additionalFieldValues = update.getAdditionalFieldValues();
+            if (additionalFieldValues != null && !additionalFieldValues.isEmpty()) {
+                sampleTypeAdditionalFieldService.validateAndPersistSampleItemValues(sampleItem.getTypeOfSampleId(),
+                        sampleItem.getId(), additionalFieldValues, sysUserId, null);
+            }
+
+            if (Boolean.TRUE.equals(update.getRemoveSample())) {
+                sampleItem.setStatusId(cancelledSampleStatus);
+                sampleItem.setSysUserId(sysUserId);
+                sampleItemService.update(sampleItem);
+
+                List<Analysis> analyses = analysisService.getAnalysesBySampleItem(sampleItem);
+                for (Analysis analysis : analyses) {
+                    if (!cancelledAnalysisStatus.equals(analysis.getStatusId())) {
+                        analysis.setStatusId(cancelledAnalysisStatus);
+                        analysis.setSysUserId(sysUserId);
+                        analysisService.update(analysis);
+                        cancelledTests++;
+                    }
+                }
+            }
+
+            for (SaveSampleManagementChangesForm.CurrentTestUpdate testUpdate : update.getCurrentTests()) {
+                if (!Boolean.TRUE.equals(testUpdate.getCanceled())) {
+                    continue;
+                }
+                Analysis analysis = analysisService.getAnalysisById(testUpdate.getAnalysisId());
+                if (analysis == null) {
+                    continue;
+                }
+                if (analysis.getSampleItem() == null || !analysis.getSampleItem().getId().equals(sampleItem.getId())) {
+                    continue;
+                }
+                if (!cancelledAnalysisStatus.equals(analysis.getStatusId())) {
+                    analysis.setStatusId(cancelledAnalysisStatus);
+                    analysis.setSysUserId(sysUserId);
+                    analysisService.update(analysis);
+                    cancelledTests++;
+                }
+            }
+        }
+
+        String message = String.format("Saved changes for %d sample(s). Cancelled %d test(s).", updatedSamples,
+                cancelledTests);
+        return new SaveSampleManagementChangesResponse(updatedSamples, cancelledTests, message);
+    }
+
+    private void applySampleItemCoreUpdates(SampleItem sampleItem, SaveSampleManagementChangesForm.SampleUpdate update) {
+        if (GenericValidator.isBlankOrNull(update.getQuantity())) {
+            sampleItem.setQuantity(null);
+        } else {
+            try {
+                sampleItem.setQuantity(Double.valueOf(update.getQuantity()));
+            } catch (NumberFormatException e) {
+                throw new IllegalArgumentException("Invalid quantity: " + update.getQuantity());
+            }
+        }
+
+        if (GenericValidator.isBlankOrNull(update.getUnitOfMeasureId())) {
+            sampleItem.setUnitOfMeasure(null);
+        } else {
+            UnitOfMeasure unitOfMeasure = unitOfMeasureService.getUnitOfMeasureById(update.getUnitOfMeasureId());
+            sampleItem.setUnitOfMeasure(unitOfMeasure);
+        }
+
+        sampleItem
+                .setCollector(GenericValidator.isBlankOrNull(update.getCollector()) ? null : update.getCollector().trim());
+
+        sampleItem.setCollectionDate(parseCollectionTimestamp(update.getCollectionDate(), update.getCollectionTime()));
+    }
+
+    private Timestamp parseCollectionTimestamp(String dateValue, String timeValue) {
+        if (GenericValidator.isBlankOrNull(dateValue)) {
+            return null;
+        }
+
+        try {
+            String normalizedDate = normalizeDateForOpenElis(dateValue);
+            String normalizedTime = normalizeTimeForOpenElis(timeValue);
+            return DateUtil.convertStringDateToTimestamp(normalizedDate + " " + normalizedTime);
+        } catch (RuntimeException ex) {
+            throw new IllegalArgumentException("Invalid collection date/time format");
+        }
+    }
+
+    private String normalizeDateForOpenElis(String dateValue) {
+        String trimmedDate = dateValue == null ? "" : dateValue.trim();
+        if (trimmedDate.matches("\\d{4}-\\d{2}-\\d{2}")) {
+            String[] parts = trimmedDate.split("-");
+            return parts[1] + "/" + parts[2] + "/" + parts[0];
+        }
+        return trimmedDate;
+    }
+
+    private String normalizeTimeForOpenElis(String timeValue) {
+        if (GenericValidator.isBlankOrNull(timeValue)) {
+            return "12:00 AM";
+        }
+
+        String trimmed = timeValue.trim();
+        String upper = trimmed.toUpperCase();
+        if (upper.endsWith("AM") || upper.endsWith("PM")) {
+            return upper;
+        }
+
+        try {
+            LocalTime time = LocalTime.parse(trimmed, DateTimeFormatter.ofPattern("H:mm"));
+            return time.format(DateTimeFormatter.ofPattern("hh:mm a"));
+        } catch (DateTimeParseException ignored) {
+            try {
+                LocalTime time = LocalTime.parse(trimmed, DateTimeFormatter.ofPattern("HH:mm:ss"));
+                return time.format(DateTimeFormatter.ofPattern("hh:mm a"));
+            } catch (DateTimeParseException e) {
+                return trimmed;
+            }
+        }
     }
 }

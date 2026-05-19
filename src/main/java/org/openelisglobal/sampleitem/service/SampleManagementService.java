@@ -16,10 +16,12 @@ package org.openelisglobal.sampleitem.service;
 import org.openelisglobal.sampleitem.dto.AddTestsResponse;
 import org.openelisglobal.sampleitem.dto.CancelTestResponse;
 import org.openelisglobal.sampleitem.dto.CreateAliquotResponse;
+import org.openelisglobal.sampleitem.dto.SaveSampleManagementChangesResponse;
 import org.openelisglobal.sampleitem.dto.SearchSamplesResponse;
 import org.openelisglobal.sampleitem.form.AddTestsForm;
 import org.openelisglobal.sampleitem.form.CancelTestForm;
 import org.openelisglobal.sampleitem.form.CreateAliquotForm;
+import org.openelisglobal.sampleitem.form.SaveSampleManagementChangesForm;
 
 /**
  * Service interface for Sample Management operations.
@@ -121,4 +123,7 @@ public interface SampleManagementService {
      *                                  completed)
      */
     CancelTestResponse cancelTest(CancelTestForm form, String sysUserId);
+
+    SaveSampleManagementChangesResponse saveSampleManagementChanges(SaveSampleManagementChangesForm form,
+            String sysUserId);
 }

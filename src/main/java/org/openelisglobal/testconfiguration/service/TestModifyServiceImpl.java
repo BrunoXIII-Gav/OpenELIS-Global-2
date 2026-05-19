@@ -115,9 +115,10 @@ public class TestModifyServiceImpl implements TestModifyService {
             }
 
             updateTestNames(testAddParams.testId, nameLocalization, reportingNameLocalization, currentUserId);
-            updateTestEntities(testAddParams.testId, testAddParams.loinc, currentUserId, testAddParams.uomId,
-                    testAddParams.testSectionId, set.test.isNotifyResults(), set.test.isInLabOnly(),
-                    set.test.getAntimicrobialResistance(), set.test.getIsActive(), set.test.getOrderable());
+            updateTestEntities(testAddParams.testId, testAddParams.loinc, testAddParams.resultName, currentUserId,
+                    testAddParams.uomId, testAddParams.testSectionId, set.test.isNotifyResults(),
+                    set.test.isInLabOnly(), set.test.getAntimicrobialResistance(), set.test.getIsActive(),
+                    set.test.getOrderable());
 
             set.sampleTypeTest.setSysUserId(currentUserId);
             set.sampleTypeTest.setTestId(set.test.getId());
@@ -187,14 +188,17 @@ public class TestModifyServiceImpl implements TestModifyService {
         }
     }
 
-    private void updateTestEntities(String testId, String loinc, String userId, String uomId, String testSectionId,
-            boolean notifyResults, boolean inLabOnly, boolean antimicrobialResistance, String isActive,
-            Boolean orderable) {
+    private void updateTestEntities(String testId, String loinc, String resultName, String userId, String uomId,
+            String testSectionId, boolean notifyResults, boolean inLabOnly, boolean antimicrobialResistance,
+            String isActive, Boolean orderable) {
         Test test = testService.get(testId);
 
         if (test != null) {
             test.setSysUserId(userId);
             test.setLoinc(loinc);
+            if (!GenericValidator.isBlankOrNull(resultName)) {
+                test.setStoredName(resultName);
+            }
             if ("0".equals(uomId)) {
                 test.setUnitOfMeasure(null);
             } else if (!GenericValidator.isBlankOrNull(uomId)) {
