@@ -1,0 +1,97 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<databaseChangeLog
+  xmlns="http://www.liquibase.org/xml/ns/dbchangelog"
+  xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+  xsi:schemaLocation="http://www.liquibase.org/xml/ns/dbchangelog http://www.liquibase.org/xml/ns/dbchangelog/dbchangelog-3.8.xsd">
+
+  <changeSet id="031-01-create-sample-cug-reservation-table" author="codex">
+    <preConditions onFail="MARK_RAN">
+      <not>
+        <tableExists tableName="sample_cug_reservation"/>
+      </not>
+    </preConditions>
+
+    <createTable tableName="sample_cug_reservation">
+      <column name="id" type="NUMERIC(10,0)">
+        <constraints primaryKey="true" nullable="false"/>
+      </column>
+      <column name="reserved_value" type="VARCHAR(128)">
+        <constraints nullable="false"/>
+      </column>
+      <column name="reservation_token" type="VARCHAR(80)">
+        <constraints nullable="false"/>
+      </column>
+      <column name="reservation_context_id" type="VARCHAR(120)"/>
+      <column name="sample_id" type="NUMERIC(10,0)"/>
+      <column name="patient_id" type="NUMERIC(10,0)"/>
+      <column name="reserved_by_user_id" type="NUMERIC(10,0)">
+        <constraints nullable="false"/>
+      </column>
+      <column name="status" type="VARCHAR(20)">
+        <constraints nullable="false"/>
+      </column>
+      <column name="expires_at" type="TIMESTAMP">
+        <constraints nullable="false"/>
+      </column>
+      <column name="sys_user_id" type="NUMERIC(10,0)">
+        <constraints nullable="false"/>
+      </column>
+      <column name="last_updated" type="TIMESTAMP" defaultValueComputed="NOW()">
+        <constraints nullable="false"/>
+      </column>
+    </createTable>
+
+    <addForeignKeyConstraint
+      baseTableName="sample_cug_reservation"
+      baseColumnNames="sample_id"
+      constraintName="fk_sample_cug_reservation_sample"
+      referencedTableName="sample"
+      referencedColumnNames="id"/>
+
+    <addForeignKeyConstraint
+      baseTableName="sample_cug_reservation"
+      baseColumnNames="patient_id"
+      constraintName="fk_sample_cug_reservation_patient"
+      referencedTableName="patient"
+      referencedColumnNames="id"/>
+
+    <addUniqueConstraint
+      tableName="sample_cug_reservation"
+      columnNames="reservation_token"
+      constraintName="uq_sample_cug_reservation_token"/>
+
+    <addUniqueConstraint
+      tableName="sample_cug_reservation"
+      columnNames="reserved_value"
+      constraintName="uq_sample_cug_reservation_value"/>
+
+    <createIndex tableName="sample_cug_reservation" indexName="idx_sample_cug_reservation_status_exp">
+      <column name="status"/>
+      <column name="expires_at"/>
+    </createIndex>
+
+    <createIndex tableName="sample_cug_reservation" indexName="idx_sample_cug_reservation_context_owner">
+      <column name="reservation_context_id"/>
+      <column name="reserved_by_user_id"/>
+      <column name="status"/>
+    </createIndex>
+
+    <rollback>
+      <dropTable tableName="sample_cug_reservation"/>
+    </rollback>
+  </changeSet>
+
+  <changeSet id="031-02-create-sample-cug-reservation-sequence" author="codex">
+    <preConditions onFail="MARK_RAN">
+      <not>
+        <sequenceExists sequenceName="sample_cug_reservation_seq"/>
+      </not>
+    </preConditions>
+
+    <createSequence sequenceName="sample_cug_reservation_seq" startValue="1" incrementBy="1"/>
+
+    <rollback>
+      <dropSequence sequenceName="sample_cug_reservation_seq"/>
+    </rollback>
+  </changeSet>
+</databaseChangeLog>

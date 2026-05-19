@@ -263,6 +263,13 @@ function SampleResultsTable({
         }),
       },
       {
+        key: "cugCode",
+        header: intl.formatMessage({
+          id: "sample.management.table.header.cug",
+          defaultMessage: "CUG",
+        }),
+      },
+      {
         key: "sampleType",
         header: intl.formatMessage({
           id: "sample.management.table.header.sampleType",
@@ -344,6 +351,7 @@ function SampleResultsTable({
         id: item.id,
         externalId: item.externalId || "-",
         sampleAccessionNumber: item.sampleAccessionNumber || "",
+        cugCode: item.cugCode || "-",
         sampleType: item.sampleType || "-",
         quantityRaw: item.quantityDisplay ?? item.quantity ?? "",
         unitOfMeasureIdRaw: item.unitOfMeasureId ? String(item.unitOfMeasureId) : "",

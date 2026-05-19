@@ -7,6 +7,7 @@ import java.time.LocalDate;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.UUID;
+import org.apache.commons.lang3.StringUtils;
 import org.openelisglobal.analysis.service.AnalysisService;
 import org.openelisglobal.analysis.valueholder.Analysis;
 import org.openelisglobal.common.service.AuditableBaseObjectServiceImpl;
@@ -35,6 +36,7 @@ import org.openelisglobal.sample.valueholder.Sample;
 import org.openelisglobal.sample.valueholder.SampleAdditionalField;
 import org.openelisglobal.sample.valueholder.SampleAdditionalField.AdditionalFieldName;
 import org.openelisglobal.samplehuman.service.SampleHumanService;
+import org.openelisglobal.sampleitem.dao.SampleItemDAO;
 import org.openelisglobal.sampleqaevent.service.SampleQaEventService;
 import org.openelisglobal.sampleqaevent.valueholder.SampleQaEvent;
 import org.openelisglobal.spring.util.SpringContext;
@@ -79,6 +81,8 @@ public class SampleServiceImpl extends AuditableBaseObjectServiceImpl<Sample, St
     private SampleAdditionalFieldDAO sampleAdditionalFieldDAO;
     @Autowired
     private StatusOfSampleService statusOfSampleService;
+    @Autowired
+    private SampleItemDAO sampleItemDAO;
 
     @PostConstruct
     private void initializeGlobalVariables() {
@@ -114,21 +118,41 @@ public class SampleServiceImpl extends AuditableBaseObjectServiceImpl<Sample, St
     @Override
     @Transactional(readOnly = true)
     public Sample getSampleByAccessionNumber(String labNumber) {
-        String originalLabNumber = labNumber;
-        if (labNumber != null && labNumber.contains(".")) {
-            labNumber = labNumber.substring(0, labNumber.indexOf('.'));
+        String searchValue = StringUtils.trimToNull(labNumber);
+        if (searchValue == null) {
+            return null;
         }
+
         org.openelisglobal.common.log.LogEvent.logInfo(this.getClass().getSimpleName(), "getSampleByAccessionNumber",
-                "Searching for sample with accessionNumber: " + labNumber + " (original: " + originalLabNumber + ")");
-        Sample sample = getMatch("accessionNumber", labNumber).orElse(null);
+                "Searching sample by accession/CUG value: " + searchValue);
+
+        Sample sample = getMatch("accessionNumber", searchValue).orElse(null);
         if (sample != null) {
-            org.openelisglobal.common.log.LogEvent.logInfo(this.getClass().getSimpleName(),
-                    "getSampleByAccessionNumber",
-                    "Found sample: id=" + sample.getId() + ", accessionNumber=" + sample.getAccessionNumber());
-        } else {
-            org.openelisglobal.common.log.LogEvent.logWarn(this.getClass().getSimpleName(),
-                    "getSampleByAccessionNumber", "No sample found for accessionNumber: " + labNumber);
+            return sample;
         }
+
+        if (searchValue.contains("-")) {
+            String baseAccession = StringUtils.trimToNull(searchValue.substring(0, searchValue.indexOf('-')));
+            if (baseAccession != null) {
+                sample = getMatch("accessionNumber", baseAccession).orElse(null);
+                if (sample != null) {
+                    return sample;
+                }
+            }
+        }
+
+        sample = sampleItemDAO.findSampleByCugCode(searchValue);
+        if (sample != null) {
+            return sample;
+        }
+
+        if (searchValue.contains(".")) {
+            String dottedPrefix = StringUtils.trimToNull(searchValue.substring(0, searchValue.indexOf('.')));
+            if (dottedPrefix != null) {
+                sample = getMatch("accessionNumber", dottedPrefix).orElse(null);
+            }
+        }
+
         return sample;
     }
 

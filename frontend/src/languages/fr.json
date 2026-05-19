@@ -2434,6 +2434,7 @@
   "sample.management.success.title": "Succès",
   "sample.management.table.cancelTest": "Annuler le test",
   "sample.management.table.cancelling": "Annulation...",
+  "sample.management.table.header.cug": "CUG",
   "sample.management.table.header.externalId": "ID de l'échantillon",
   "sample.management.table.header.hierarchy": "Hiérarchie",
   "sample.management.table.header.originalQuantity": "Quantité originale",
@@ -2476,6 +2477,8 @@
   "sample.search.scanner.instructions2": "Scanner le code-barres de l'échantillon pour rechercher les résultats",
   "sample.search.title": "Rechercher un échantillon",
   "sample.select.type": "Sélectionnez le type d'échantillon",
+  "sample.cug.label": "CUG",
+  "sample.cug.generate.error": "Impossible de générer le CUG pour cet échantillon",
   "sample.type": "Type d'échantillon",
   "sample.type.and.test.sort.order": "Ordre de tri des types d'échantillons et des tests",
   "sample.uom.label": "Unité de mesure de l’échantillon",
@@ -3220,6 +3223,8 @@
   "order.additional.fields.enable": "Activer",
   "order.additional.fields.disable": "Désactiver",
   "order.additional.fields.saved": "La configuration des champs additionnels de commande a été enregistrée.",
+  "sample.fixed.fields.title": "Champs d'échantillon fixes",
+  "sample.fixed.fields.save": "Enregistrer la configuration des champs d'échantillon fixes",
   "order.additional.fields.updated": "Le statut du champ additionnel de commande a été mis à jour.",
   "order.additional.fields.rules.title": "Règles conditionnelles",
   "order.additional.fields.rules.logic": "Logique des règles",
@@ -3276,5 +3281,6 @@
   "consent.template.source.providerDni": "DNI du prescripteur",
   "consent.template.source.orderDate": "Date de la commande",
   "consent.template.source.testsSelectedNames": "Tests sélectionnés (noms)",
+  "consent.template.source.sampleCug": "CUG de l'échantillon (champ fixe)",
   "consent.template.source.orderAdditional": "Champ supplémentaire de commande : {name}"
 }

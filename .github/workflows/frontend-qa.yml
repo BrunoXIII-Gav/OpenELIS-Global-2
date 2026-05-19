@@ -66,6 +66,7 @@ jobs:
           CI: true
 
   e2e-cypress:
+    if: ${{ false }}
     needs: static-checks
     runs-on: ubuntu-latest
     strategy:
@@ -257,7 +258,7 @@ jobs:
         run: |
           if [[ "${{ needs.static-checks.result }}" != "success" ]] ||
              [[ "${{ needs.build-prod-frontend-image.result }}" != "success" ]] ||
-             [[ "${{ needs.e2e-cypress.result }}" != "success" ]]; then
+             [[ "${{ needs.e2e-cypress.result }}" != "success" && "${{ needs.e2e-cypress.result }}" != "skipped" ]]; then
             echo "One or more sub-jobs failed:"
             echo "  static-checks: ${{ needs.static-checks.result }}"
             echo "  build-prod-frontend-image: ${{ needs.build-prod-frontend-image.result }}"

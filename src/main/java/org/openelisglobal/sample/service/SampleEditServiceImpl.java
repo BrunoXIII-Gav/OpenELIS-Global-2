@@ -125,6 +125,8 @@ public class SampleEditServiceImpl implements SampleEditService {
     private OrderAdditionalFieldService orderAdditionalFieldService;
     @Autowired
     private UnitOfMeasureService unitOfMeasureService;
+    @Autowired
+    private SampleCugService sampleCugService;
     private List<String> analysisList = new ArrayList<>();
 
     @Transactional
@@ -169,6 +171,8 @@ public class SampleEditServiceImpl implements SampleEditService {
             updatedSample = orderArtifacts.getSample();
         }
         Patient patient = sampleService.getPatient(updatedSample);
+        sampleCugService.assignMissingCugCodes(addedSamples, patient == null ? null : patient.getId(), sysUserId,
+                updatedSample.getId());
         persistProviderData(orderArtifacts);
         SampleHuman sampleHuman = new SampleHuman();
         sampleHuman.setSampleId(updatedSample.getId());

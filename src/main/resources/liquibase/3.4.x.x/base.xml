@@ -36,4 +36,9 @@
   <include relativeToChangelogFile="true" file="025-add-validation-approvals.xml"/>
   <include relativeToChangelogFile="true" file="026-add-validation-medical-biologist-roles.xml"/>
   <include relativeToChangelogFile="true" file="027-add-provider-dni-column.xml"/>
+  <include relativeToChangelogFile="true" file="027-create-sample-fixed-field-config.xml"/>
+  <include relativeToChangelogFile="true" file="029-add-cug-to-sample-item.xml"/>
+  <include relativeToChangelogFile="true" file="030-create-sample-cug-prefix-sequence.xml"/>
+  <include relativeToChangelogFile="true" file="031-create-sample-cug-reservation.xml"/>
+  <include relativeToChangelogFile="true" file="032-normalize-sample-cug-prefix-sequence.xml"/>
 </databaseChangeLog>

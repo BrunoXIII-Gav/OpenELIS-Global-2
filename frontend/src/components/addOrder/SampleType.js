@@ -24,8 +24,18 @@ import CustomTimePicker from "../common/CustomTimePicker";
 import { sampleTypeTestsStructure } from "../data/SampleEntryTestsForTypeProvider";
 import { ConfigurationContext, NotificationContext } from "../layout/Layout";
 import StorageLocationSelector from "../storage/StorageLocationSelector";
-import { getFromOpenElisServer } from "../utils/Utils";
+import {
+  getFromOpenElisServer,
+  postToOpenElisServerJsonResponse,
+} from "../utils/Utils";
 import GpsCoordinatesCapture from "./GpsCoordinatesCapture";
+
+const createCugReservationContextId = () => {
+  if (typeof crypto !== "undefined" && crypto.randomUUID) {
+    return crypto.randomUUID();
+  }
+  return `cug-${Date.now()}-${Math.floor(Math.random() * 1000000)}`;
+};
 
 const SampleType = (props) => {
   const { userSessionDetails } = useContext(UserSessionDetailsContext);
@@ -35,6 +45,11 @@ const SampleType = (props) => {
 
   const componentMounted = useRef(false);
   const sampleTypesRef = useRef(null);
+  const cugGenerationInFlightRef = useRef(false);
+  const cugGenerationKeyRef = useRef("");
+  const previousPatientIdRef = useRef(
+    String(props.patientId || "").trim() || null,
+  );
 
   const { index, rejectSampleReasons, sample } = props;
 
@@ -66,30 +81,69 @@ const SampleType = (props) => {
   const [panelSearchTerm, setPanelSearchTerm] = useState("");
   const [searchBoxPanels, setSearchBoxPanels] = useState([]);
   const [uomList, setUomList] = useState([]);
-  const [sampleXml, setSampleXml] = useState(
-    sample?.sampleXML != null
-      ? {
-          ...sample.sampleXML,
-          additionalFieldValues: sample.sampleXML.additionalFieldValues || {},
-        }
-      : {
-          collectionDate:
-            configurationProperties?.AUTOFILL_COLLECTION_DATE === "true"
-              ? configurationProperties.currentDateAsText
-              : "",
-          collector: "",
-          quantity: "",
-          uom: "",
-          rejected: false,
-          rejectionReason: "",
-          collectionTime:
-            configurationProperties?.AUTOFILL_COLLECTION_DATE === "true"
-              ? configurationProperties.currentTimeAsText
-              : "",
-          additionalFieldValues: {},
-        },
-  );
+  const [sampleXml, setSampleXml] = useState(() => {
+    if (sample?.sampleXML != null) {
+      return {
+        ...sample.sampleXML,
+        cug: sample.sampleXML.cug || "",
+        cugReservationToken: sample.sampleXML.cugReservationToken || "",
+        cugReservationContextId:
+          sample.sampleXML.cugReservationContextId ||
+          createCugReservationContextId(),
+        additionalFieldValues: sample.sampleXML.additionalFieldValues || {},
+      };
+    }
+    return {
+      collectionDate:
+        configurationProperties?.AUTOFILL_COLLECTION_DATE === "true"
+          ? configurationProperties.currentDateAsText
+          : "",
+      collector: "",
+      quantity: "",
+      uom: "",
+      rejected: false,
+      rejectionReason: "",
+      collectionTime:
+        configurationProperties?.AUTOFILL_COLLECTION_DATE === "true"
+          ? configurationProperties.currentTimeAsText
+          : "",
+      cug: "",
+      cugReservationToken: "",
+      cugReservationContextId: createCugReservationContextId(),
+      additionalFieldValues: {},
+    };
+  });
   const [loading, setLoading] = useState(true);
+  const [sampleFixedFieldConfigs, setSampleFixedFieldConfigs] = useState([]);
+  const [waitingForSampleFixedFieldConfig, setWaitingForSampleFixedFieldConfig] =
+    useState(true);
+
+  function getSampleFixedFieldConfig(fieldKey) {
+    return sampleFixedFieldConfigs.find(
+      (c) => c?.fieldKey?.toLowerCase() === fieldKey?.toLowerCase(),
+    ) || null;
+  }
+
+  function isSampleFieldVisible(fieldKey) {
+    if (waitingForSampleFixedFieldConfig && !sampleFixedFieldConfigs.length) {
+      return false;
+    }
+    const config = getSampleFixedFieldConfig(fieldKey);
+    return config ? config.visible !== false : true;
+  }
+
+  function isSampleFieldRequired(fieldKey, fallback = false) {
+    const config = getSampleFixedFieldConfig(fieldKey);
+    if (!config) {
+      return fallback;
+    }
+    if (config.visible === false) {
+      return false;
+    }
+    return config.required != null ? !!config.required : fallback;
+  }
+
+  const additionalFieldsVisible = isSampleFieldVisible("additionalFields");
 
   function handleCollectionDate(date) {
     setSampleXml({
@@ -122,6 +176,118 @@ const SampleType = (props) => {
       collector: value,
     });
   }
+
+  const generateCugPreview = useCallback(() => {
+    const patientId = String(props.patientId || "").trim();
+    const sampleTypeId = String(selectedSampleType.id || "").trim();
+    const currentCug = String(sampleXml.cug || "").trim();
+    if (!sampleTypeId || !patientId || currentCug) {
+      return;
+    }
+    const generationKey = `${index}|${sampleTypeId}|${patientId}`;
+    if (
+      cugGenerationInFlightRef.current ||
+      cugGenerationKeyRef.current === generationKey
+    ) {
+      return;
+    }
+    cugGenerationInFlightRef.current = true;
+    let reservationContextId = sampleXml.cugReservationContextId;
+    if (!reservationContextId) {
+      reservationContextId = createCugReservationContextId();
+      setSampleXml((previous) => ({
+        ...previous,
+        cugReservationContextId: reservationContextId,
+      }));
+    }
+
+    const payload = {
+      patientId,
+      existingCugs: Array.isArray(props.existingCugs) ? props.existingCugs : [],
+      reservationToken: sampleXml.cugReservationToken || "",
+      reservationContextId: reservationContextId,
+    };
+
+    postToOpenElisServerJsonResponse(
+      "/rest/sample-cug/preview",
+      JSON.stringify(payload),
+      (response) => {
+        cugGenerationInFlightRef.current = false;
+        if (response?.status && response.status >= 400) {
+          setNotificationVisible(true);
+          addNotification({
+            kind: NotificationKinds.error,
+            title: intl.formatMessage({ id: "notification.title" }),
+            message:
+              response?.message ||
+              intl.formatMessage({ id: "sample.cug.generate.error" }),
+          });
+          return;
+        }
+        const generated = response?.cugCode;
+        const reservationToken = response?.reservationToken;
+        if (generated && reservationToken) {
+          cugGenerationKeyRef.current = generationKey;
+          setSampleXml((previous) => ({
+            ...previous,
+            cug: generated,
+            cugReservationToken: reservationToken,
+          }));
+          return;
+        }
+        setNotificationVisible(true);
+        addNotification({
+          kind: NotificationKinds.error,
+          title: intl.formatMessage({ id: "notification.title" }),
+          message: intl.formatMessage({ id: "sample.cug.generate.error" }),
+        });
+      },
+    );
+  }, [
+    addNotification,
+    index,
+    intl,
+    props.existingCugs,
+    props.patientId,
+    sampleXml.cug,
+    sampleXml.cugReservationContextId,
+    sampleXml.cugReservationToken,
+    selectedSampleType.id,
+    setNotificationVisible,
+  ]);
+
+  useEffect(() => {
+    const currentPatientId = String(props.patientId || "").trim() || null;
+    const previousPatientId = previousPatientIdRef.current;
+    if (previousPatientId === currentPatientId) {
+      return;
+    }
+
+    previousPatientIdRef.current = currentPatientId;
+    cugGenerationKeyRef.current = "";
+    setSampleXml((previous) => ({
+      ...previous,
+      cug: "",
+      cugReservationToken: "",
+      cugReservationContextId: createCugReservationContextId(),
+    }));
+  }, [props.patientId]);
+
+  useEffect(() => {
+    const hasSampleType =
+      selectedSampleType.id !== "" && selectedSampleType.id != null;
+    const hasPatient = String(props.patientId || "").trim() !== "";
+    const hasCug = String(sampleXml.cug || "").trim() !== "";
+    if (!hasSampleType || !hasPatient || hasCug) {
+      return;
+    }
+    generateCugPreview();
+  }, [
+    generateCugPreview,
+    props.patientId,
+    sampleXml.cug,
+    selectedSampleType.id,
+  ]);
 
   const handleGpsCoordinatesChange = useCallback(
     (gpsData) => {
@@ -325,6 +491,7 @@ const SampleType = (props) => {
     setSelectedPanels([]);
     setReferralRequests([]);
     const { value } = e.target;
+    cugGenerationKeyRef.current = "";
     const selectedSampleTypeOption =
       sampleTypesRef.current.options[sampleTypesRef.current.selectedIndex].text;
     setSelectedSampleType({
@@ -335,6 +502,8 @@ const SampleType = (props) => {
     });
     setSampleXml((previous) => ({
       ...previous,
+      cug: "",
+      cugReservationToken: "",
       additionalFieldValues: {},
     }));
     props.sampleTypeObject({ sampleTypeId: value, sampleObjectIndex: index });
@@ -473,7 +642,9 @@ const SampleType = (props) => {
   }, [selectedSampleType.id]);
 
   useEffect(() => {
-    const additionalFields = sampleTypeTests?.additionalFields || [];
+    const additionalFields = additionalFieldsVisible
+      ? sampleTypeTests?.additionalFields || []
+      : [];
     props.sampleTypeObject({
       additionalFields: additionalFields,
       sampleObjectIndex: index,
@@ -514,7 +685,7 @@ const SampleType = (props) => {
         additionalFieldValues: updatedValues,
       };
     });
-  }, [sampleTypeTests.additionalFields, index]);
+  }, [sampleTypeTests.additionalFields, additionalFieldsVisible, index]);
 
   useEffect(() => {
     getFromOpenElisServer(`/rest/displayList/UNIT_OF_MEASURE`, fetchUomCreate);
@@ -567,6 +738,15 @@ const SampleType = (props) => {
       displayReferralOrgOptions,
     );
     getFromOpenElisServer("/rest/user-sample-types", fetchSamplesTypes);
+    getFromOpenElisServer(
+      "/rest/sample-additional-fields/fixed",
+      (response) => {
+        if (componentMounted.current) {
+          setSampleFixedFieldConfigs(Array.isArray(response) ? response : []);
+          setWaitingForSampleFixedFieldConfig(false);
+        }
+      },
+    );
     return () => {
       componentMounted.current = false;
     };
@@ -713,12 +893,23 @@ const SampleType = (props) => {
             <SelectItem text={sampleType.value} value={sampleType.id} key={i} />
           ))}
         </Select>
+        {isSampleFieldVisible("cug") && (
+          <TextInput
+            id={`sample_cug_${index}`}
+            labelText={intl.formatMessage({ id: "sample.cug.label" })}
+            value={sampleXml.cug || ""}
+            required={isSampleFieldRequired("cug", true)}
+            readOnly={true}
+          />
+        )}
 
-        <CustomCheckBox
-          id={"reject_" + index}
-          onChange={(value) => handleRejection(value)}
-          label={intl.formatMessage({ id: "sample.reject.label" })}
-        />
+        {isSampleFieldVisible("rejected") && (
+          <CustomCheckBox
+            id={"reject_" + index}
+            onChange={(value) => handleRejection(value)}
+            label={intl.formatMessage({ id: "sample.reject.label" })}
+          />
+        )}
         {sampleXml.rejected && (
           <CustomSelect
             id={"rejectedReasonId_" + index}
@@ -728,67 +919,74 @@ const SampleType = (props) => {
             onChange={(e) => handleReasons(e)}
           />
         )}
-        <div className="inlineDiv" style={{ display: "flex", gap: "1rem" }}>
-          <TextInput
-            value={sampleXml.quantity}
-            name="quantity"
-            labelText={intl.formatMessage({
-              id: "sample.quantity.label",
-            })}
-            id="quantity"
-            type="number"
-            min="0"
-            onChange={(value) => handleQuantity(value)}
-            placeholder={intl.formatMessage({
-              id: "sample.quantity.label",
-            })}
-          />
+        {isSampleFieldVisible("quantity") && (
+          <div className="inlineDiv" style={{ display: "flex", gap: "1rem" }}>
+            <TextInput
+              value={sampleXml.quantity}
+              name="quantity"
+              labelText={intl.formatMessage({
+                id: "sample.quantity.label",
+              })}
+              id="quantity"
+              type="number"
+              min="0"
+              onChange={(value) => handleQuantity(value)}
+              placeholder={intl.formatMessage({
+                id: "sample.quantity.label",
+              })}
+            />
 
-          <CustomSelect
-            id={"uomId_" + index}
-            labelText={intl.formatMessage({ id: "sample.uom.label" })}
-            options={uomList}
-            disabled={false}
-            value={sampleXml.uom}
-            onChange={(value) => handleUom(value)}
-          />
-        </div>
-        <div className="inlineDiv">
-          <CustomDatePicker
-            id={"collectionDate_" + index}
-            autofillDate={
-              configurationProperties?.AUTOFILL_COLLECTION_DATE === "true"
-            }
-            onChange={(date) => handleCollectionDate(date)}
-            value={sampleXml.collectionDate}
-            labelText={intl.formatMessage({ id: "sample.collection.date" })}
-            className="inputText"
-            disallowFutureDate={true}
-          />
+            <CustomSelect
+              id={"uomId_" + index}
+              labelText={intl.formatMessage({ id: "sample.uom.label" })}
+              options={uomList}
+              disabled={false}
+              value={sampleXml.uom}
+              onChange={(value) => handleUom(value)}
+            />
+          </div>
+        )}
+        {isSampleFieldVisible("collectionDate") && (
+          <div className="inlineDiv">
+            <CustomDatePicker
+              id={"collectionDate_" + index}
+              autofillDate={
+                configurationProperties?.AUTOFILL_COLLECTION_DATE === "true"
+              }
+              onChange={(date) => handleCollectionDate(date)}
+              value={sampleXml.collectionDate}
+              labelText={intl.formatMessage({ id: "sample.collection.date" })}
+              className="inputText"
+              disallowFutureDate={true}
+            />
 
-          <CustomTimePicker
-            id={"collectionTime_" + index}
-            autofillTime={
-              configurationProperties?.AUTOFILL_COLLECTION_DATE === "true"
-            }
-            onChange={(time) => handleCollectionTime(time)}
-            value={sampleXml.collectionTime}
-            className="inputText"
-            labelText={intl.formatMessage({ id: "sample.collection.time" })}
-          />
-        </div>
-        <div className="inlineDiv">
-          <CustomTextInput
-            id={"collector_" + index}
-            onChange={(value) => handleCollector(value)}
-            defaultValue={""}
-            value={sampleXml.collector}
-            labelText={intl.formatMessage({ id: "collector.label" })}
-            className="inputText"
-          />
-        </div>
+            <CustomTimePicker
+              id={"collectionTime_" + index}
+              autofillTime={
+                configurationProperties?.AUTOFILL_COLLECTION_DATE === "true"
+              }
+              onChange={(time) => handleCollectionTime(time)}
+              value={sampleXml.collectionTime}
+              className="inputText"
+              labelText={intl.formatMessage({ id: "sample.collection.time" })}
+            />
+          </div>
+        )}
+        {isSampleFieldVisible("collector") && (
+          <div className="inlineDiv">
+            <CustomTextInput
+              id={"collector_" + index}
+              onChange={(value) => handleCollector(value)}
+              defaultValue={""}
+              value={sampleXml.collector}
+              labelText={intl.formatMessage({ id: "collector.label" })}
+              className="inputText"
+            />
+          </div>
+        )}
 
-        {sampleTypeTests.additionalFields &&
+        {additionalFieldsVisible &&
+          sampleTypeTests.additionalFields &&
           sampleTypeTests.additionalFields.length > 0 && (
             <div className="additionalFields">
               <h4>
@@ -824,47 +1022,155 @@ const SampleType = (props) => {
             Storage assignment operates at SampleItem level, so actual assignment happens
             after SampleItems are created. The location preference is stored here for
             later assignment to the first/default SampleItem. */}
-        <div className="inlineDiv">
-          <StorageLocationSelector
-            workflow="orders"
-            optional={true}
-            sampleInfo={{
-              // Note: sampleId here is temporary/placeholder - actual SampleItem ID will be available after SampleItems are created
-              sampleId: sample?.id || sample?.sampleId || `TEMP-${index}`,
-              type: selectedSampleType?.name || sampleXml?.sampleTypeName || "",
-              status: sampleXml?.rejected ? "Rejected" : "Active",
-            }}
-            initialLocation={sampleXml?.storageLocation || null}
-            onLocationChange={(locationData) => {
-              // locationData format: { sample, newLocation, reason?, conditionNotes?, positionCoordinate? }
-              // Extract newLocation and positionCoordinate from locationData
-              // Store location preference - will be assigned to SampleItem after SampleItems are created
-              const location = locationData?.newLocation || locationData;
-              const positionCoordinate = locationData?.positionCoordinate || "";
-              handleStorageLocationChange(location, positionCoordinate);
-            }}
-          />
-        </div>
-        <div className="testPanels">
+        {isSampleFieldVisible("storageLocation") && (
+          <div className="inlineDiv">
+            <StorageLocationSelector
+              workflow="orders"
+              optional={true}
+              sampleInfo={{
+                // Note: sampleId here is temporary/placeholder - actual SampleItem ID will be available after SampleItems are created
+                sampleId: sample?.id || sample?.sampleId || `TEMP-${index}`,
+                type:
+                  selectedSampleType?.name || sampleXml?.sampleTypeName || "",
+                status: sampleXml?.rejected ? "Rejected" : "Active",
+              }}
+              initialLocation={sampleXml?.storageLocation || null}
+              onLocationChange={(locationData) => {
+                // locationData format: { sample, newLocation, reason?, conditionNotes?, positionCoordinate? }
+                // Extract newLocation and positionCoordinate from locationData
+                // Store location preference - will be assigned to SampleItem after SampleItems are created
+                const location = locationData?.newLocation || locationData;
+                const positionCoordinate =
+                  locationData?.positionCoordinate || "";
+                handleStorageLocationChange(location, positionCoordinate);
+              }}
+            />
+          </div>
+        )}
+        {isSampleFieldVisible("panels") && (
+          <div className="testPanels">
+            <div className="cds--col">
+              <h4>
+                <FormattedMessage id="sample.label.orderpanel" />
+              </h4>
+              <div
+                className={"searchTestText"}
+                style={{ marginBottom: "1.188rem" }}
+              >
+                {selectedPanels && selectedPanels.length ? (
+                  <>
+                    {selectedPanels.map((panel, panel_index) => (
+                      <Tag
+                        filter
+                        key={`panelTags_` + panel_index}
+                        onClose={() => handleRemoveSelectedPanel(panel)}
+                        style={{ marginRight: "0.5rem" }}
+                        type={"green"}
+                      >
+                        {panel.name}
+                      </Tag>
+                    ))}
+                  </>
+                ) : (
+                  <></>
+                )}
+              </div>
+              <FormGroup
+                legendText={
+                  <FormattedMessage id="sample.search.panel.legend.text" />
+                }
+              >
+                <Search
+                  size="lg"
+                  id={`panels_search_` + index}
+                  labelText={
+                    <FormattedMessage id="label.search.availablepanel" />
+                  }
+                  placeholder={intl.formatMessage({
+                    id: "choose.availablepanel",
+                  })}
+                  onChange={handlePanelSearchChange}
+                  value={(() => {
+                    if (panelSearchTerm) {
+                      return panelSearchTerm;
+                    }
+                    return "";
+                  })()}
+                />
+                <div>
+                  {(() => {
+                    if (!panelSearchTerm) return null;
+                    if (searchBoxPanels && searchBoxPanels.length) {
+                      return (
+                        <ul className={"searchTestsList"}>
+                          {searchBoxPanels.map((panel, panel_index) => (
+                            <li
+                              role="menuitem"
+                              className={"singleTest"}
+                              key={`panelFilter_` + panel_index}
+                              onClick={() => handleFilterSelectPanel(panel)}
+                            >
+                              {panel.name}
+                            </li>
+                          ))}
+                        </ul>
+                      );
+                    }
+                    return (
+                      <>
+                        <Layer>
+                          <Tile className={"emptyFilterTests"}>
+                            <span>
+                              <FormattedMessage id="sample.panel.search.error.msg" />{" "}
+                              <strong>
+                                &quot;{panelSearchTerm}&quot;
+                              </strong>{" "}
+                            </span>
+                          </Tile>
+                        </Layer>
+                      </>
+                    );
+                  })()}
+                </div>
+              </FormGroup>
+              {sampleTypeTests.panels != null &&
+                sampleTypeTests.panels.map((panel) => {
+                  return panel.name === "" ? (
+                    ""
+                  ) : (
+                    <Checkbox
+                      onChange={() => handlePanelCheckbox(panel)}
+                      labelText={panel.name}
+                      id={`panel_` + index + "_" + panel.id}
+                      key={index + panel.id}
+                      checked={
+                        selectedPanels.filter((item) => item.id === panel.id)
+                          .length > 0
+                      }
+                    />
+                  );
+                })}
+            </div>
+          </div>
+        )}
+        {isSampleFieldVisible("tests") && (
           <div className="cds--col">
-            <h4>
-              <FormattedMessage id="sample.label.orderpanel" />
-            </h4>
+            {selectedTests && !selectedTests.length ? "" : <h4>Order Tests</h4>}
             <div
               className={"searchTestText"}
               style={{ marginBottom: "1.188rem" }}
             >
-              {selectedPanels && selectedPanels.length ? (
+              {selectedTests && selectedTests.length ? (
                 <>
-                  {selectedPanels.map((panel, panel_index) => (
+                  {selectedTests.map((test, index) => (
                     <Tag
                       filter
-                      key={`panelTags_` + panel_index}
-                      onClose={() => handleRemoveSelectedPanel(panel)}
+                      key={`testTags_` + index}
+                      onClose={() => handleRemoveSelectedTest(test)}
                       style={{ marginRight: "0.5rem" }}
-                      type={"green"}
+                      type={"red"}
                     >
-                      {panel.name}
+                      {test.name}
                     </Tag>
                   ))}
                 </>
@@ -873,41 +1179,41 @@ const SampleType = (props) => {
               )}
             </div>
             <FormGroup
-              legendText={
-                <FormattedMessage id="sample.search.panel.legend.text" />
-              }
+              legendText={intl.formatMessage({
+                id: "legend.search.availabletests",
+              })}
             >
               <Search
                 size="lg"
-                id={`panels_search_` + index}
+                id={`tests_search_` + index}
                 labelText={
-                  <FormattedMessage id="label.search.availablepanel" />
+                  <FormattedMessage id="label.search.available.targetest" />
                 }
                 placeholder={intl.formatMessage({
-                  id: "choose.availablepanel",
+                  id: "holder.choose.availabletest",
                 })}
-                onChange={handlePanelSearchChange}
+                onChange={handleTestSearchChange}
                 value={(() => {
-                  if (panelSearchTerm) {
-                    return panelSearchTerm;
+                  if (testSearchTerm) {
+                    return testSearchTerm;
                   }
                   return "";
                 })()}
               />
               <div>
                 {(() => {
-                  if (!panelSearchTerm) return null;
-                  if (searchBoxPanels && searchBoxPanels.length) {
+                  if (!testSearchTerm) return null;
+                  if (searchBoxTests && searchBoxTests.length) {
                     return (
                       <ul className={"searchTestsList"}>
-                        {searchBoxPanels.map((panel, panel_index) => (
+                        {searchBoxTests.map((test, test_index) => (
                           <li
                             role="menuitem"
                             className={"singleTest"}
-                            key={`panelFilter_` + panel_index}
-                            onClick={() => handleFilterSelectPanel(panel)}
+                            key={`filterTest_` + test_index}
+                            onClick={() => handleFilterSelectTest(test)}
                           >
-                            {panel.name}
+                            {test.name}
                           </li>
                         ))}
                       </ul>
@@ -918,8 +1224,8 @@ const SampleType = (props) => {
                       <Layer>
                         <Tile className={"emptyFilterTests"}>
                           <span>
-                            <FormattedMessage id="sample.panel.search.error.msg" />{" "}
-                            <strong>&quot;{panelSearchTerm}&quot;</strong>{" "}
+                            <FormattedMessage id="title.notestfoundmatching" />
+                            <strong> &quot;{testSearchTerm}&quot;</strong>{" "}
                           </span>
                         </Tile>
                       </Layer>
@@ -928,124 +1234,25 @@ const SampleType = (props) => {
                 })()}
               </div>
             </FormGroup>
-            {sampleTypeTests.panels != null &&
-              sampleTypeTests.panels.map((panel) => {
-                return panel.name === "" ? (
+            {sampleTypeTests.tests != null &&
+              sampleTypeTests.tests.map((test) => {
+                return test.name === "" ? (
                   ""
                 ) : (
                   <Checkbox
-                    onChange={() => handlePanelCheckbox(panel)}
-                    labelText={panel.name}
-                    id={`panel_` + index + "_" + panel.id}
-                    key={index + panel.id}
+                    onChange={(e) => handleTestCheckbox(e, test)}
+                    labelText={test.name}
+                    id={`test_` + index + "_" + test.id}
+                    key={`test_checkBox_` + index + test.id}
                     checked={
-                      selectedPanels.filter((item) => item.id === panel.id)
+                      selectedTests.filter((item) => item.id === test.id)
                         .length > 0
                     }
                   />
                 );
               })}
           </div>
-        </div>
-
-        <div className="cds--col">
-          {selectedTests && !selectedTests.length ? "" : <h4>Order Tests</h4>}
-          <div
-            className={"searchTestText"}
-            style={{ marginBottom: "1.188rem" }}
-          >
-            {selectedTests && selectedTests.length ? (
-              <>
-                {selectedTests.map((test, index) => (
-                  <Tag
-                    filter
-                    key={`testTags_` + index}
-                    onClose={() => handleRemoveSelectedTest(test)}
-                    style={{ marginRight: "0.5rem" }}
-                    type={"red"}
-                  >
-                    {test.name}
-                  </Tag>
-                ))}
-              </>
-            ) : (
-              <></>
-            )}
-          </div>
-          <FormGroup
-            legendText={intl.formatMessage({
-              id: "legend.search.availabletests",
-            })}
-          >
-            <Search
-              size="lg"
-              id={`tests_search_` + index}
-              labelText={
-                <FormattedMessage id="label.search.available.targetest" />
-              }
-              placeholder={intl.formatMessage({
-                id: "holder.choose.availabletest",
-              })}
-              onChange={handleTestSearchChange}
-              value={(() => {
-                if (testSearchTerm) {
-                  return testSearchTerm;
-                }
-                return "";
-              })()}
-            />
-            <div>
-              {(() => {
-                if (!testSearchTerm) return null;
-                if (searchBoxTests && searchBoxTests.length) {
-                  return (
-                    <ul className={"searchTestsList"}>
-                      {searchBoxTests.map((test, test_index) => (
-                        <li
-                          role="menuitem"
-                          className={"singleTest"}
-                          key={`filterTest_` + test_index}
-                          onClick={() => handleFilterSelectTest(test)}
-                        >
-                          {test.name}
-                        </li>
-                      ))}
-                    </ul>
-                  );
-                }
-                return (
-                  <>
-                    <Layer>
-                      <Tile className={"emptyFilterTests"}>
-                        <span>
-                          <FormattedMessage id="title.notestfoundmatching" />
-                          <strong> &quot;{testSearchTerm}&quot;</strong>{" "}
-                        </span>
-                      </Tile>
-                    </Layer>
-                  </>
-                );
-              })()}
-            </div>
-          </FormGroup>
-          {sampleTypeTests.tests != null &&
-            sampleTypeTests.tests.map((test) => {
-              return test.name === "" ? (
-                ""
-              ) : (
-                <Checkbox
-                  onChange={(e) => handleTestCheckbox(e, test)}
-                  labelText={test.name}
-                  id={`test_` + index + "_" + test.id}
-                  key={`test_checkBox_` + index + test.id}
-                  checked={
-                    selectedTests.filter((item) => item.id === test.id).length >
-                    0
-                  }
-                />
-              );
-            })}
-        </div>
+        )}
 
         <div className="requestTestReferral">
           <Checkbox

@@ -331,7 +331,7 @@ public class UserServiceImpl implements UserService {
                 if (type == null || StringUtils.isBlank(type.getId())) {
                     continue;
                 }
-                sampleTypeById.putIfAbsent(type.getId(), type.getLocalizedName());
+                sampleTypeById.putIfAbsent(type.getId(), resolveSampleTypeDisplayName(type));
             }
         }
 
@@ -339,6 +339,27 @@ public class UserServiceImpl implements UserService {
                 .sorted((left, right) -> StringUtils.defaultString(left.getValue())
                         .compareToIgnoreCase(StringUtils.defaultString(right.getValue())))
                 .collect(Collectors.toList());
+    }
+
+    private String resolveSampleTypeDisplayName(TypeOfSample type) {
+        String localizedName = StringUtils.trimToNull(type.getLocalizedName());
+        if (localizedName != null) {
+            return localizedName;
+        }
+
+        String englishName =
+                type.getLocalization() != null ? StringUtils.trimToNull(type.getLocalization().getEnglish()) : null;
+        if (englishName != null) {
+            return englishName;
+        }
+
+        String description = StringUtils.trimToNull(type.getDescription());
+        if (description != null) {
+            return description;
+        }
+
+        String localAbbreviation = StringUtils.trimToNull(type.getLocalAbbreviation());
+        return localAbbreviation != null ? localAbbreviation : type.getId();
     }
 
     @Override

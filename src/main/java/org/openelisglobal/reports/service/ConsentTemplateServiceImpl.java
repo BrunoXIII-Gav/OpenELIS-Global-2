@@ -63,6 +63,7 @@ public class ConsentTemplateServiceImpl implements ConsentTemplateService {
     private static final String SOURCE_PROVIDER_DNI = "provider.dni";
     private static final String SOURCE_ORDER_DATE = "order.date";
     private static final String SOURCE_TESTS_SELECTED = "tests.selectedNames";
+    private static final String SOURCE_SAMPLE_CUG = "sample.cug";
     private static final String SOURCE_ORDER_ADDITIONAL_PREFIX = "orderAdditional.";
 
     private static final float SMALL_TEXT_HEIGHT = 7.617357f;
@@ -337,6 +338,9 @@ public class ConsentTemplateServiceImpl implements ConsentTemplateService {
         }
         if (SOURCE_ORDER_DATE.equals(source)) {
             return formatDate(form.getOrderDate());
+        }
+        if (SOURCE_SAMPLE_CUG.equals(source) || "accessionNumber".equalsIgnoreCase(source)) {
+            return sanitizeValue(form.getCug());
         }
         if (source.startsWith(SOURCE_ORDER_ADDITIONAL_PREFIX)) {
             String key = source.substring(SOURCE_ORDER_ADDITIONAL_PREFIX.length());

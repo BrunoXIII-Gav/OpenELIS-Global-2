@@ -95,6 +95,7 @@ const EditSample = (props) => {
       id: buildRowId(test),
       accessionNumber: test.accessionNumber || "",
       sampleType: test.sampleType || "",
+      cugCode: test.cugCode || "",
       collectionDate: normalizeCollectionDate(test.collectionDate),
       collectionTime: normalizeCollectionTime(test.collectionTime),
       quantity: test.quantity || "",
@@ -568,6 +569,8 @@ const EditSample = (props) => {
       return <TableCell key={cell.id}>{cell.value}</TableCell>;
     } else if (cell.info.header === "sampleType") {
       return <TableCell key={cell.id}>{cell.value}</TableCell>;
+    } else if (cell.info.header === "cugCode") {
+      return <TableCell key={cell.id}>{cell.value || ""}</TableCell>;
     } else if (cell.info.header === "collectionDate") {
       return (
         <>
@@ -854,87 +857,89 @@ const EditSample = (props) => {
           </Column>
         </div>
       )}
-      <div className="orderLegendBody">
-        <Column lg={16}>
-          <DataTable
-            rows={formatTestsObject(orderFormValues.possibleTests)}
-            headers={OrderPossibleTestsHeaders}
-            isSortable
-          >
-            {({ rows, headers, getHeaderProps, getTableProps }) => (
-              <TableContainer
-                title={intl.formatMessage({ id: "availabletests.title" })}
-              >
-                <Table {...getTableProps()}>
-                  <TableHead>
-                    <TableRow>
-                      {headers.map((header) => (
-                        <TableHeader
-                          key={header.key}
-                          {...getHeaderProps({ header })}
-                        >
-                          {header.header}
-                        </TableHeader>
-                      ))}
-                    </TableRow>
-                  </TableHead>
-                  <TableBody>
-                    <>
-                      {rows
-                        .slice((page2 - 1) * pageSize2)
-                        .slice(0, pageSize2)
-                        .map((row) => (
-                          <TableRow key={row.id}>
-                            {row.cells.map((cell) => renderCell(cell, row))}
-                          </TableRow>
+      {false && (
+        <div className="orderLegendBody">
+          <Column lg={16}>
+            <DataTable
+              rows={formatTestsObject(orderFormValues.possibleTests)}
+              headers={OrderPossibleTestsHeaders}
+              isSortable
+            >
+              {({ rows, headers, getHeaderProps, getTableProps }) => (
+                <TableContainer
+                  title={intl.formatMessage({ id: "availabletests.title" })}
+                >
+                  <Table {...getTableProps()}>
+                    <TableHead>
+                      <TableRow>
+                        {headers.map((header) => (
+                          <TableHeader
+                            key={header.key}
+                            {...getHeaderProps({ header })}
+                          >
+                            {header.header}
+                          </TableHeader>
                         ))}
-                    </>
-                  </TableBody>
-                </Table>
-              </TableContainer>
-            )}
-          </DataTable>
-          <Pagination
-            onChange={handlePageChange2}
-            page={page2}
-            pageSize={pageSize2}
-            pageSizes={[5, 10, 20, 30]}
-            totalItems={orderFormValues.possibleTests.length}
-            forwardText={intl.formatMessage({ id: "pagination.forward" })}
-            backwardText={intl.formatMessage({ id: "pagination.backward" })}
-            itemRangeText={(min, max, total) =>
-              intl.formatMessage(
-                { id: "pagination.item-range" },
-                { min: min, max: max, total: total },
-              )
-            }
-            itemsPerPageText={intl.formatMessage({
-              id: "pagination.items-per-page",
-            })}
-            itemText={(min, max) =>
-              intl.formatMessage(
-                { id: "pagination.item" },
-                { min: min, max: max },
-              )
-            }
-            pageNumberText={intl.formatMessage({
-              id: "pagination.page-number",
-            })}
-            pageRangeText={(_current, total) =>
-              intl.formatMessage(
-                { id: "pagination.page-range" },
-                { total: total },
-              )
-            }
-            pageText={(page, pagesUnknown) =>
-              intl.formatMessage(
-                { id: "pagination.page" },
-                { page: pagesUnknown ? "" : page },
-              )
-            }
-          />
-        </Column>
-      </div>
+                      </TableRow>
+                    </TableHead>
+                    <TableBody>
+                      <>
+                        {rows
+                          .slice((page2 - 1) * pageSize2)
+                          .slice(0, pageSize2)
+                          .map((row) => (
+                            <TableRow key={row.id}>
+                              {row.cells.map((cell) => renderCell(cell, row))}
+                            </TableRow>
+                          ))}
+                      </>
+                    </TableBody>
+                  </Table>
+                </TableContainer>
+              )}
+            </DataTable>
+            <Pagination
+              onChange={handlePageChange2}
+              page={page2}
+              pageSize={pageSize2}
+              pageSizes={[5, 10, 20, 30]}
+              totalItems={orderFormValues.possibleTests.length}
+              forwardText={intl.formatMessage({ id: "pagination.forward" })}
+              backwardText={intl.formatMessage({ id: "pagination.backward" })}
+              itemRangeText={(min, max, total) =>
+                intl.formatMessage(
+                  { id: "pagination.item-range" },
+                  { min: min, max: max, total: total },
+                )
+              }
+              itemsPerPageText={intl.formatMessage({
+                id: "pagination.items-per-page",
+              })}
+              itemText={(min, max) =>
+                intl.formatMessage(
+                  { id: "pagination.item" },
+                  { min: min, max: max },
+                )
+              }
+              pageNumberText={intl.formatMessage({
+                id: "pagination.page-number",
+              })}
+              pageRangeText={(_current, total) =>
+                intl.formatMessage(
+                  { id: "pagination.page-range" },
+                  { total: total },
+                )
+              }
+              pageText={(page, pagesUnknown) =>
+                intl.formatMessage(
+                  { id: "pagination.page" },
+                  { page: pagesUnknown ? "" : page },
+                )
+              }
+            />
+          </Column>
+        </div>
+      )}
       <Stack gap={10}>
         <div className="orderLegendBody">
           <h3>
@@ -961,6 +966,11 @@ const EditSample = (props) => {
                   }}
                   sampleTypeObject={sampleTypeObject}
                   error={error}
+                  patientId={props.patientId || ""}
+                  existingCugs={(samples || [])
+                    .filter((_, sampleIndex) => sampleIndex !== i)
+                    .map((entry) => entry?.sampleXML?.cug)
+                    .filter(Boolean)}
                 />
               </div>
             );

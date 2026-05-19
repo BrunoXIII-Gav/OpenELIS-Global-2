@@ -48,6 +48,7 @@ public class ConsentTemplateRestController extends BaseRestController {
     private static final String SOURCE_PROVIDER_DNI = "provider.dni";
     private static final String SOURCE_ORDER_DATE = "order.date";
     private static final String SOURCE_TESTS_SELECTED = "tests.selectedNames";
+    private static final String SOURCE_SAMPLE_CUG = "sample.cug";
     private static final String SOURCE_ORDER_ADDITIONAL_PREFIX = "orderAdditional.";
 
     private static final String LABEL_FIELD_CUG = "consent.template.field.cug";
@@ -64,6 +65,7 @@ public class ConsentTemplateRestController extends BaseRestController {
     private static final String LABEL_SOURCE_PROVIDER_DNI = "consent.template.source.providerDni";
     private static final String LABEL_SOURCE_ORDER_DATE = "consent.template.source.orderDate";
     private static final String LABEL_SOURCE_TESTS_SELECTED = "consent.template.source.testsSelectedNames";
+    private static final String LABEL_SOURCE_SAMPLE_CUG = "consent.template.source.sampleCug";
     private static final String LABEL_SOURCE_ORDER_ADDITIONAL = "consent.template.source.orderAdditional";
 
     @Autowired
@@ -151,6 +153,7 @@ public class ConsentTemplateRestController extends BaseRestController {
         addOption(options, SOURCE_PROVIDER_DNI, LABEL_SOURCE_PROVIDER_DNI, null);
         addOption(options, SOURCE_ORDER_DATE, LABEL_SOURCE_ORDER_DATE, null);
         addOption(options, SOURCE_TESTS_SELECTED, LABEL_SOURCE_TESTS_SELECTED, null);
+        addOption(options, SOURCE_SAMPLE_CUG, LABEL_SOURCE_SAMPLE_CUG, null);
         addOrderAdditionalFieldSourceOptions(options);
         return options;
     }

@@ -110,9 +110,12 @@ const OrderAdditionalFieldsManagement = () => {
   const [fields, setFields] = useState([]);
   const [fixedConfigs, setFixedConfigs] = useState([]);
   const [newField, setNewField] = useState(defaultNewField);
+  const [editingFieldId, setEditingFieldId] = useState(null);
   const [savingField, setSavingField] = useState(false);
   const [savingFixed, setSavingFixed] = useState(false);
   const [savingSortFieldId, setSavingSortFieldId] = useState(null);
+  const [sampleFixedConfigs, setSampleFixedConfigs] = useState([]);
+  const [savingSampleFixed, setSavingSampleFixed] = useState(false);
 
   const loadFields = () => {
     getFromOpenElisServer(
@@ -120,6 +123,12 @@ const OrderAdditionalFieldsManagement = () => {
       (response) => {
         setFields(response || []);
       },
+    );
+  };
+
+  const loadSampleFixedConfigs = () => {
+    getFromOpenElisServer("/rest/sample-additional-fields/fixed", (data) =>
+      setSampleFixedConfigs(Array.isArray(data) ? data : []),
     );
   };
 
@@ -132,8 +141,16 @@ const OrderAdditionalFieldsManagement = () => {
   useEffect(() => {
     loadFields();
     loadFixedConfigs();
+    loadSampleFixedConfigs();
   }, []);
 
+  const sampleFixedRows = useMemo(
+    () =>
+      [...sampleFixedConfigs].sort(
+        (a, b) => (a?.sortOrder ?? 0) - (b?.sortOrder ?? 0),
+      ),
+    [sampleFixedConfigs],
+  );
   const fixedRows = useMemo(
     () =>
       [...fixedConfigs].sort((left, right) => {
@@ -181,6 +198,11 @@ const OrderAdditionalFieldsManagement = () => {
     });
   };
 
+  const resetFieldForm = () => {
+    setNewField(defaultNewField);
+    setEditingFieldId(null);
+  };
+
   const parseOptions = (optionLines) => {
     if (!optionLines || !optionLines.trim()) {
       return [];
@@ -215,6 +237,82 @@ const OrderAdditionalFieldsManagement = () => {
       .split(",")
       .map((value) => value.trim())
       .filter(Boolean);
+
+  const extractConditionValue = (condition) => {
+    if (!condition) {
+      return "";
+    }
+    if (Array.isArray(condition.values)) {
+      return condition.values.join(", ");
+    }
+    return String(condition.value || "");
+  };
+
+  const mapFieldToForm = (field) => {
+    let metadata = {};
+    if (field?.metadataJson) {
+      try {
+        metadata = JSON.parse(field.metadataJson);
+      } catch (_error) {
+        metadata = {};
+      }
+    }
+
+    const rules = metadata?.rules || {};
+    const visibleWhen = Array.isArray(rules.visibleWhen)
+      ? rules.visibleWhen.map((condition) => ({
+          fieldKey: condition?.fieldKey || "",
+          operator: condition?.operator || "equals",
+          value: extractConditionValue(condition),
+        }))
+      : [];
+    const requiredWhen = Array.isArray(rules.requiredWhen)
+      ? rules.requiredWhen.map((condition) => ({
+          fieldKey: condition?.fieldKey || "",
+          operator: condition?.operator || "equals",
+          value: extractConditionValue(condition),
+        }))
+      : [];
+
+    const documentMetadata = metadata?.document || {};
+    const optionLines = (field?.options || [])
+      .filter((option) => option?.active !== false)
+      .sort((left, right) => (left?.sortOrder ?? 0) - (right?.sortOrder ?? 0))
+      .map((option) =>
+        option?.optionKey
+          ? `${option.optionKey}|${option.optionLabel || option.optionKey}`
+          : option?.optionLabel || "",
+      )
+      .filter(Boolean)
+      .join("\n");
+
+    return {
+      displayName: field?.displayName || "",
+      fieldKey: field?.fieldKey || "",
+      fieldType: field?.fieldType || "TEXT",
+      required: !!field?.required,
+      searchable: !!field?.searchable,
+      searchUnique: !!field?.searchUnique,
+      active: field?.active !== false,
+      defaultValue: field?.defaultValue || "",
+      maxLength:
+        field?.maxLength !== null && field?.maxLength !== undefined
+          ? String(field.maxLength)
+          : "",
+      sortOrder:
+        field?.sortOrder !== null && field?.sortOrder !== undefined
+          ? String(field.sortOrder)
+          : "",
+      optionLines,
+      rulesLogic: rules.logic || "ALL",
+      visibleWhen,
+      requiredWhen,
+      documentAccept: Array.isArray(documentMetadata.accept)
+        ? documentMetadata.accept.join(", ")
+        : "application/pdf",
+      documentMaxSizeMb: String(documentMetadata.maxSizeMb ?? 5),
+    };
+  };
 
   const updateCondition = (groupKey, index, property, value) => {
     setNewField((previous) => ({
@@ -352,7 +450,7 @@ const OrderAdditionalFieldsManagement = () => {
     return Number.isNaN(parsed) ? null : parsed;
   };
 
-  const createField = (event) => {
+  const saveField = (event) => {
     event.preventDefault();
     setSavingField(true);
 
@@ -368,6 +466,7 @@ const OrderAdditionalFieldsManagement = () => {
       return;
     }
 
+    const sourceField = fields.find((field) => field.id === editingFieldId);
     const payload = {
       displayName: newField.displayName,
       fieldKey: newField.fieldKey,
@@ -375,7 +474,7 @@ const OrderAdditionalFieldsManagement = () => {
       required: newField.required,
       searchable: newField.searchable,
       searchUnique: newField.searchUnique,
-      active: true,
+      active: sourceField ? sourceField.active : true,
       defaultValue: newField.defaultValue || null,
       maxLength: newField.maxLength
         ? Number.parseInt(newField.maxLength, 10)
@@ -385,18 +484,57 @@ const OrderAdditionalFieldsManagement = () => {
       options: parseOptions(newField.optionLines),
     };
 
-    postToOpenElisServerJsonResponse(
-      "/rest/order-additional-fields",
+    if (
+      sourceField &&
+      (newField.fieldType === "SELECT" ||
+        newField.fieldType === "MULTISELECT" ||
+        newField.fieldType === "RADIO")
+    ) {
+      const existingOptionsByKey = new Map(
+        (sourceField.options || []).map((option) => [option.optionKey, option]),
+      );
+      payload.options = payload.options.map((option) => {
+        const existing = existingOptionsByKey.get(option.optionKey);
+        return existing ? { ...option, id: existing.id } : option;
+      });
+    }
+
+    const onSaveSuccess = () => {
+      resetFieldForm();
+      showNotification(
+        NotificationKinds.success,
+        intl.formatMessage({ id: "order.additional.fields.saved" }),
+      );
+      loadFields();
+    };
+
+    if (!editingFieldId) {
+      postToOpenElisServerJsonResponse(
+        "/rest/order-additional-fields",
+        JSON.stringify(payload),
+        (response) => {
+          setSavingField(false);
+          if (response?.id) {
+            onSaveSuccess();
+            return;
+          }
+
+          showNotification(
+            NotificationKinds.error,
+            response?.message || intl.formatMessage({ id: "server.error.msg" }),
+          );
+        },
+      );
+      return;
+    }
+
+    putToOpenElisServerFullResponse(
+      `/rest/order-additional-fields/${editingFieldId}`,
       JSON.stringify(payload),
       (response) => {
         setSavingField(false);
-        if (response?.id) {
-          setNewField(defaultNewField);
-          showNotification(
-            NotificationKinds.success,
-            intl.formatMessage({ id: "order.additional.fields.saved" }),
-          );
-          loadFields();
+        if (response.status >= 200 && response.status < 300) {
+          onSaveSuccess();
           return;
         }
 
@@ -406,6 +544,14 @@ const OrderAdditionalFieldsManagement = () => {
         );
       },
     );
+  };
+
+  const startEditingField = (field) => {
+    if (!field?.id) {
+      return;
+    }
+    setEditingFieldId(field.id);
+    setNewField(mapFieldToForm(field));
   };
 
   const toggleFieldStatus = (field) => {
@@ -505,6 +651,43 @@ const OrderAdditionalFieldsManagement = () => {
           NotificationKinds.error,
           intl.formatMessage({ id: "server.error.msg" }),
         );
+      },
+    );
+  };
+
+  const updateSampleFixedConfig = (fieldKey, property, rawValue) => {
+    setSampleFixedConfigs((previous) =>
+      previous.map((config) =>
+        config.fieldKey !== fieldKey
+          ? config
+          : { ...config, [property]: rawValue },
+      ),
+    );
+  };
+
+  const saveSampleFixedConfigs = () => {
+    setSavingSampleFixed(true);
+    putToOpenElisServerFullResponse(
+      "/rest/sample-additional-fields/fixed",
+      JSON.stringify(sampleFixedConfigs),
+      (response) => {
+        setSavingSampleFixed(false);
+        if (response.status >= 200 && response.status < 300) {
+          addNotification({
+            kind: NotificationKinds.success,
+            title: intl.formatMessage({ id: "notification.title" }),
+            message: intl.formatMessage({ id: "save.success.msg" }),
+          });
+          setNotificationVisible(true);
+          loadSampleFixedConfigs();
+          return;
+        }
+        addNotification({
+          kind: NotificationKinds.error,
+          title: intl.formatMessage({ id: "notification.title" }),
+          message: intl.formatMessage({ id: "server.error.msg" }),
+        });
+        setNotificationVisible(true);
       },
     );
   };
@@ -804,6 +987,7 @@ const OrderAdditionalFieldsManagement = () => {
                     id: "order.additional.fields.fieldKey",
                   })}
                   value={newField.fieldKey}
+                  disabled={editingFieldId !== null}
                   onChange={(event) =>
                     setNewField((previous) => ({
                       ...previous,
@@ -1044,13 +1228,24 @@ const OrderAdditionalFieldsManagement = () => {
               </Stack>
             )}
 
-            <Button
-              onClick={createField}
-              disabled={savingField}
-              data-cy="create-order-additional-field"
-            >
-              <FormattedMessage id="order.additional.fields.create" />
-            </Button>
+            <Stack orientation="horizontal" gap={4}>
+              <Button
+                onClick={saveField}
+                disabled={savingField}
+                data-cy="create-order-additional-field"
+              >
+                {editingFieldId ? (
+                  <FormattedMessage id="button.save" />
+                ) : (
+                  <FormattedMessage id="order.additional.fields.create" />
+                )}
+              </Button>
+              {editingFieldId ? (
+                <Button kind="ghost" onClick={resetFieldForm}>
+                  <FormattedMessage id="button.cancel" />
+                </Button>
+              ) : null}
+            </Stack>
 
             <DataTable
               rows={(fields || []).map((field) => ({
@@ -1237,6 +1432,14 @@ const OrderAdditionalFieldsManagement = () => {
                             </TableCell>
                             <TableCell>
                               <Button
+                                kind="ghost"
+                                size="sm"
+                                onClick={() => startEditingField(sourceField)}
+                              >
+                                <FormattedMessage id="button.edit" />
+                              </Button>
+                              {"  "}
+                              <Button
                                 kind="tertiary"
                                 size="sm"
                                 disabled={savingSortFieldId === sourceField?.id}
@@ -1267,6 +1470,100 @@ const OrderAdditionalFieldsManagement = () => {
                 </TableContainer>
               )}
             </DataTable>
+          </Stack>
+        </div>
+
+        <br />
+
+        <div className="orderLegendBody">
+          <Stack gap={6}>
+            <Heading>
+              <FormattedMessage id="sample.fixed.fields.title" />
+            </Heading>
+            <TableContainer>
+              <Table>
+                <TableHead>
+                  <TableRow>
+                    <TableHeader>Field</TableHeader>
+                    <TableHeader>Visible</TableHeader>
+                    <TableHeader>Required</TableHeader>
+                    <TableHeader>Readonly</TableHeader>
+                    <TableHeader>Sort Order</TableHeader>
+                  </TableRow>
+                </TableHead>
+                <TableBody>
+                  {sampleFixedRows.map((config) => (
+                    <TableRow key={config.fieldKey}>
+                      <TableCell>{config.fieldKey}</TableCell>
+                      <TableCell>
+                        <Checkbox
+                          id={`sample-fixed-visible-${config.fieldKey}`}
+                          labelText=""
+                          checked={config.visible !== false}
+                          onChange={(_event, { checked }) =>
+                            updateSampleFixedConfig(
+                              config.fieldKey,
+                              "visible",
+                              checked,
+                            )
+                          }
+                        />
+                      </TableCell>
+                      <TableCell>
+                        <Checkbox
+                          id={`sample-fixed-required-${config.fieldKey}`}
+                          labelText=""
+                          checked={!!config.required}
+                          onChange={(_event, { checked }) =>
+                            updateSampleFixedConfig(
+                              config.fieldKey,
+                              "required",
+                              checked,
+                            )
+                          }
+                        />
+                      </TableCell>
+                      <TableCell>
+                        <Checkbox
+                          id={`sample-fixed-readonly-${config.fieldKey}`}
+                          labelText=""
+                          checked={!!config.readonly}
+                          onChange={(_event, { checked }) =>
+                            updateSampleFixedConfig(
+                              config.fieldKey,
+                              "readonly",
+                              checked,
+                            )
+                          }
+                        />
+                      </TableCell>
+                      <TableCell>
+                        <TextInput
+                          id={`sample-fixed-sort-${config.fieldKey}`}
+                          labelText=""
+                          type="number"
+                          value={String(config.sortOrder ?? 0)}
+                          onChange={(event) =>
+                            updateSampleFixedConfig(
+                              config.fieldKey,
+                              "sortOrder",
+                              Number.parseInt(event.target.value || "0", 10),
+                            )
+                          }
+                        />
+                      </TableCell>
+                    </TableRow>
+                  ))}
+                </TableBody>
+              </Table>
+            </TableContainer>
+            <Button
+              onClick={saveSampleFixedConfigs}
+              disabled={savingSampleFixed}
+              data-cy="save-fixed-sample-fields"
+            >
+              <FormattedMessage id="sample.fixed.fields.save" />
+            </Button>
           </Stack>
         </div>
       </div>

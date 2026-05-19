@@ -1,0 +1,27 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<databaseChangeLog
+  xmlns="http://www.liquibase.org/xml/ns/dbchangelog"
+  xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+  xsi:schemaLocation="http://www.liquibase.org/xml/ns/dbchangelog http://www.liquibase.org/xml/ns/dbchangelog/dbchangelog-3.8.xsd">
+
+  <changeSet id="030-create-sample-cug-prefix-sequence" author="codex">
+    <sql>
+      CREATE SEQUENCE IF NOT EXISTS sample_cug_prefix_seq START WITH 1 INCREMENT BY 1;
+    </sql>
+  </changeSet>
+
+  <changeSet id="030-init-sample-cug-prefix-sequence-value" author="codex">
+    <sql>
+      SELECT CASE
+               WHEN prefixes.max_prefix IS NULL THEN setval('sample_cug_prefix_seq', 1, false)
+               ELSE setval('sample_cug_prefix_seq', prefixes.max_prefix, true)
+             END
+      FROM (
+        SELECT MAX(split_part(cug_code, '.', 1)::bigint) AS max_prefix
+        FROM sample_item
+        WHERE cug_code IS NOT NULL
+          AND split_part(cug_code, '.', 1) ~ '^[0-9]+$'
+      ) prefixes;
+    </sql>
+  </changeSet>
+</databaseChangeLog>
