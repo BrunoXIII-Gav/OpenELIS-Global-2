@@ -383,8 +383,18 @@ public class DisplayListController extends BaseRestController {
                 ConfigurationProperties.getInstance().getPropertyValue(Property.USE_ALPHANUM_ACCESSION_PREFIX));
         configs.put(Property.ALERT_FOR_INVALID_RESULTS.toString(),
                 ConfigurationProperties.getInstance().getPropertyValue(Property.ALERT_FOR_INVALID_RESULTS));
+        configs.put(Property.showStorageLocationOnResultEntry.toString(),
+                ConfigurationProperties.getInstance().getPropertyValue(Property.showStorageLocationOnResultEntry));
         configs.put(Property.DEFAULT_DATE_LOCALE.toString(),
                 ConfigurationProperties.getInstance().getPropertyValue(Property.DEFAULT_DATE_LOCALE));
+        configs.put(Property.PATIENT_PASSPORT_MAX_LENGTH.toString(),
+                ConfigurationProperties.getInstance().getPropertyValue(Property.PATIENT_PASSPORT_MAX_LENGTH));
+        configs.put(Property.SHOW_PATIENT_PHOTO_ON_ORDER_ENTRY.toString(),
+                ConfigurationProperties.getInstance().getPropertyValue(Property.SHOW_PATIENT_PHOTO_ON_ORDER_ENTRY));
+        configs.put(Property.SHOW_PATIENT_EMERGENCY_CONTACT_ON_ORDER_ENTRY.toString(), ConfigurationProperties
+                .getInstance().getPropertyValue(Property.SHOW_PATIENT_EMERGENCY_CONTACT_ON_ORDER_ENTRY));
+        configs.put(Property.SHOW_PATIENT_ADDITIONAL_INFO_ON_ORDER_ENTRY.toString(), ConfigurationProperties
+                .getInstance().getPropertyValue(Property.SHOW_PATIENT_ADDITIONAL_INFO_ON_ORDER_ENTRY));
         configs.put(Property.UseExternalPatientInfo.toString(),
                 ConfigurationProperties.getInstance().getPropertyValue(Property.UseExternalPatientInfo));
         configs.put("DEFAULT_PAGE_SIZE",

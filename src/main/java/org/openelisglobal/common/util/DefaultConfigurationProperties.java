@@ -261,6 +261,7 @@ public class DefaultConfigurationProperties extends ConfigurationProperties {
         properties.setPropertyValue(Property.TRACK_PATIENT_PAYMENT, "false");
         properties.setPropertyValue(Property.ACCESSION_NUMBER_VALIDATE, "false");
         properties.setPropertyValue(Property.ALERT_FOR_INVALID_RESULTS, "false");
+        properties.setPropertyValue(Property.showStorageLocationOnResultEntry, "true");
         properties.setPropertyValue(Property.DEFAULT_DATE_LOCALE, "fr-FR");
         properties.setPropertyValue(Property.DEFAULT_LANG_LOCALE, "fr-FR");
         properties.setPropertyValue(Property.configurationName, "not set");
@@ -297,6 +298,10 @@ public class DefaultConfigurationProperties extends ConfigurationProperties {
         properties.setPropertyValue(Property.PATIENT_ID_REQUIRED, "true");
         properties.setPropertyValue(Property.PATIENT_SUBJECT_NUMBER_REQUIRED, "true");
         properties.setPropertyValue(Property.PATIENT_NATIONAL_ID_REQUIRED, "true");
+        properties.setPropertyValue(Property.PATIENT_PASSPORT_MAX_LENGTH, "12");
+        properties.setPropertyValue(Property.SHOW_PATIENT_PHOTO_ON_ORDER_ENTRY, "true");
+        properties.setPropertyValue(Property.SHOW_PATIENT_EMERGENCY_CONTACT_ON_ORDER_ENTRY, "true");
+        properties.setPropertyValue(Property.SHOW_PATIENT_ADDITIONAL_INFO_ON_ORDER_ENTRY, "true");
 
         properties.setPropertyValue(Property.QA_SAMPLE_ID_REQUIRED, "false");
         properties.setPropertyValue(Property.MAX_ORDER_PRINTED, "10");

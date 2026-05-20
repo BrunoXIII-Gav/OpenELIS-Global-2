@@ -121,6 +121,9 @@ public abstract class ConfigurationProperties {
         ACCESSION_NUMBER_VALIDATE("validateAccessionNumber", "text"), // If true then validate the accession number
         ALERT_FOR_INVALID_RESULTS("alertWhenInvalidResult", "text"), // If true then technician will get an alert for
                                                                      // results
+        showStorageLocationOnResultEntry("showStorageLocationOnResultEntry", "text"), // If true then storage
+                                                                                      // location controls are shown
+                                                                                      // on results entry
         // outside of the valid range
         DEFAULT_LANG_LOCALE("default language locale", "text"), // Default language locale
         DEFAULT_DATE_LOCALE("default date locale", "text"), // Date local
@@ -188,6 +191,20 @@ public abstract class ConfigurationProperties {
         // new patient
         PATIENT_NATIONAL_ID_REQUIRED("National ID required", "text"), // True if patient national id is required for new
                                                                       // patient
+        PATIENT_PASSPORT_MAX_LENGTH("Patient passport max length", "text"), // max length allowed for passport
+                                                                            // identifier on patient entry
+        SHOW_PATIENT_PHOTO_ON_ORDER_ENTRY("showPatientPhotoOnOrderEntry", "text"), // If true show patient photo block
+                                                                                   // in order entry patient step
+        SHOW_PATIENT_EMERGENCY_CONTACT_ON_ORDER_ENTRY("showPatientEmergencyOnOrderEntry", "text"), // If true show
+                                                                                                   // emergency
+                                                                                                   // contact
+                                                                                                   // accordion
+                                                                                                   // in order
+                                                                                                   // entry
+        SHOW_PATIENT_ADDITIONAL_INFO_ON_ORDER_ENTRY("showPatientAddInfoOnOrderEntry", "text"), // If true show
+                                                                                               // additional info
+                                                                                               // accordion in
+                                                                                               // order entry
         QA_SAMPLE_ID_REQUIRED("sample id required", "text"), // True if sample id required from referring lab
         MAX_ORDER_PRINTED("numMaxOrderLabels", "text"), // Max number of order labels that can be printed
         MAX_SPECIMEN_PRINTED("numMaxSpecimenLabels", "text"), // Max number of specimen labels that can be printed
