@@ -115,6 +115,9 @@ public class ProviderDAOImpl extends BaseDAOImpl<Provider, String> implements Pr
     @Override
     @Transactional(readOnly = true)
     public Provider getProviderByPerson(Person person) throws LIMSRuntimeException {
+        if (person == null || org.apache.commons.validator.GenericValidator.isBlankOrNull(person.getId())) {
+            return null;
+        }
         List<Provider> list = null;
         try {
             String sql = "from Provider p where p.person.id = :personId";
