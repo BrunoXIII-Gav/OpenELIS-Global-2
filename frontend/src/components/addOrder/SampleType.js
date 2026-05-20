@@ -199,6 +199,9 @@ const SampleType = (props) => {
   }
 
   const generateCugPreview = useCallback(() => {
+    if (!props.canGenerateCug) {
+      return;
+    }
     const patientId = String(props.patientId || "").trim();
     const patientCugKey = String(props.patientCugKey || "").trim();
     const sampleTypeId = String(selectedSampleType.id || "").trim();
@@ -213,6 +216,7 @@ const SampleType = (props) => {
     ) {
       return;
     }
+    cugGenerationKeyRef.current = generationKey;
     cugGenerationInFlightRef.current = true;
     let reservationContextId = sampleXml.cugReservationContextId;
     if (!reservationContextId) {
@@ -249,7 +253,6 @@ const SampleType = (props) => {
         const generated = response?.cugCode;
         const reservationToken = response?.reservationToken;
         if (generated && reservationToken) {
-          cugGenerationKeyRef.current = generationKey;
           setSampleXml((previous) => ({
             ...previous,
             cug: generated,
@@ -271,6 +274,7 @@ const SampleType = (props) => {
     addNotification,
     index,
     intl,
+    props.canGenerateCug,
     props.existingCugs,
     props.patientId,
     props.patientCugKey,
@@ -302,6 +306,32 @@ const SampleType = (props) => {
   }, [props.patientCugKey]);
 
   useEffect(() => {
+    if (props.canGenerateCug) {
+      return;
+    }
+    cugGenerationKeyRef.current = "";
+    setSampleXml((previous) => {
+      const hasAnyCugData =
+        String(previous.cug || "").trim() !== "" ||
+        String(previous.cugAutoReserved || "").trim() !== "" ||
+        String(previous.cugReservationToken || "").trim() !== "";
+      if (!hasAnyCugData) {
+        return previous;
+      }
+      return {
+        ...previous,
+        cug: "",
+        cugAutoReserved: "",
+        cugValidationMessage: "",
+        cugReservationToken: "",
+      };
+    });
+  }, [props.canGenerateCug]);
+
+  useEffect(() => {
+    if (!props.canGenerateCug) {
+      return;
+    }
     const hasSampleType =
       selectedSampleType.id !== "" && selectedSampleType.id != null;
     const hasCug = String(sampleXml.cug || "").trim() !== "";
@@ -311,6 +341,7 @@ const SampleType = (props) => {
     generateCugPreview();
   }, [
     generateCugPreview,
+    props.canGenerateCug,
     props.patientCugKey,
     sampleXml.cug,
     selectedSampleType.id,
@@ -592,7 +623,20 @@ const SampleType = (props) => {
 
   const fetchSamplesTypes = (res) => {
     if (componentMounted.current) {
-      setSampleTypes(Array.isArray(res) ? res : []);
+      const normalized = (Array.isArray(res) ? res : []).map((sampleType) => {
+        const displayValue = [
+          sampleType?.value,
+          sampleType?.name,
+          sampleType?.description,
+          sampleType?.id,
+        ].find((entry) => String(entry || "").trim() !== "");
+
+        return {
+          ...sampleType,
+          value: displayValue || "",
+        };
+      });
+      setSampleTypes(normalized);
       setLoading(false);
     }
   };
@@ -964,7 +1008,10 @@ const SampleType = (props) => {
           }}
           required
         >
-          <SelectItem text="Select sample type" value="" />
+          <SelectItem
+            text={intl.formatMessage({ id: "sample.type.select.placeholder" })}
+            value=""
+          />
           {sampleTypes?.map((sampleType, i) => (
             <SelectItem text={sampleType.value} value={sampleType.id} key={i} />
           ))}

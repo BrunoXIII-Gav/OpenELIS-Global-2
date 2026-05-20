@@ -29,10 +29,14 @@ const PatientInfo = (props) => {
   const getSelectedPatient = (patient) => {
     setSelectedPatient(patient);
     if (orderFormValues) {
+      const patientWithStatus = {
+        ...patient,
+        patientUpdateStatus: "UPDATE",
+      };
       setOrderFormValues({
         ...orderFormValues,
         patientUpdateStatus: "UPDATE",
-        patientProperties: patient,
+        patientProperties: patientWithStatus,
       });
     }
     handleNewPatientTab();

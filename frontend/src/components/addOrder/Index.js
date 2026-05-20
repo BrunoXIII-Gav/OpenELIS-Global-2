@@ -9,7 +9,7 @@ import { NotificationContext, ConfigurationContext } from "../layout/Layout";
 import { AlertDialog, NotificationKinds } from "../common/CustomNotification";
 import {
   getFromOpenElisServer,
-  postToOpenElisServer,
+  postToOpenElisServerFullResponse,
   postToOpenElisServerForBlob,
 } from "../utils/Utils";
 import OrderEntryAdditionalQuestions from "./OrderEntryAdditionalQuestions";
@@ -566,17 +566,31 @@ const Index = () => {
     });
   };
 
-  const handlePost = (status) => {
+  const handlePost = async (response) => {
     setIsSubmitting(false);
-    if (status === 200) {
+    if (response.status === 200) {
       showAlertMessage(
         <FormattedMessage id="save.order.success.msg" />,
         NotificationKinds.success,
       );
       setPage(page + 1);
     } else {
+      let detailedMessage =
+        response.headers.get("X-OpenELIS-Error-Message") || "";
+      if (!detailedMessage) {
+        try {
+          detailedMessage = await response.text();
+        } catch (e) {
+          detailedMessage = "";
+        }
+      }
+      if (detailedMessage && detailedMessage.trim().startsWith("{")) {
+        detailedMessage = "";
+      }
+      const genericMessage = intl.formatMessage({ id: "server.error.msg" });
+      const fallbackWithStatus = `${genericMessage} (HTTP ${response.status})`;
       showAlertMessage(
-        <FormattedMessage id="server.error.msg" />,
+        detailedMessage || fallbackWithStatus,
         NotificationKinds.error,
       );
     }
@@ -622,6 +636,11 @@ const Index = () => {
     }
     setIsSubmitting(true);
     const payload = JSON.parse(JSON.stringify(orderFormValues));
+    payload.patientProperties = payload.patientProperties || {};
+    payload.patientProperties.patientUpdateStatus =
+      payload.patientProperties.patientUpdateStatus ||
+      payload.patientUpdateStatus ||
+      "ADD";
 
     if ("years" in payload.patientProperties) {
       delete payload.patientProperties.years;
@@ -645,7 +664,7 @@ const Index = () => {
     payload.sampleOrderItems.paymentOptions = [];
     payload.sampleOrderItems.testLocationCodeList = [];
     console.log(JSON.stringify(payload));
-    postToOpenElisServer(
+    postToOpenElisServerFullResponse(
       "/rest/SamplePatientEntry",
       JSON.stringify(payload),
       handlePost,
