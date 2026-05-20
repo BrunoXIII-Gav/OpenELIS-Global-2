@@ -50,7 +50,7 @@ public class StatusService implements IStatusService {
     }
 
     public enum AnalysisStatus {
-        SampleRejected, NotStarted, Canceled, TechnicalAcceptance, TechnicalRejected, BiologistRejected,
+        SampleRejected, InProgress, NotStarted, Canceled, TechnicalAcceptance, TechnicalRejected, BiologistRejected,
         NonConforming_depricated, Finalized
     }
 

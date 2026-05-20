@@ -48,6 +48,8 @@ interface Tile {
 }
 type MetricType =
   | "ORDERS_IN_PROGRESS"
+  | "AWAITING_SAMPLE"
+  | "AWAITING_RESULTS"
   | "ORDERS_READY_FOR_VALIDATION"
   | "ORDERS_COMPLETED_TODAY"
   | "ORDERS_PATIALLY_COMPLETED_TODAY"
@@ -74,6 +76,8 @@ const HomeDashBoard: React.FC<DashBoardProps> = () => {
 
   const [counts, setCounts] = useState({
     ordersInProgress: 0,
+    awaitingSample: 0,
+    awaitingResults: 0,
     ordersReadyForValidation: 0,
     ordersCompletedToday: 0,
     patiallyCompletedToday: 0,
@@ -150,7 +154,7 @@ const HomeDashBoard: React.FC<DashBoardProps> = () => {
       setLoading(true);
       if (selectedTile.type == "AVERAGE_TURN_AROUND_TIME") {
         getFromOpenElisServer(
-          `/rest/home-dashboard/turn-around-time-metrics?startDate=${startDate}&endDate=${endDate}`,
+          `/rest/home-dashboard/turn-around-time-metrics`,
           loadTimeMetrics,
         );
       } else if (selectedTile.type == "ORDERS_FOR_USER") {
@@ -260,6 +264,18 @@ const HomeDashBoard: React.FC<DashBoardProps> = () => {
       value: counts.ordersInProgress,
     },
     {
+      title: <FormattedMessage id="dashboard.awaiting.sample.label" />,
+      subTitle: <FormattedMessage id="dashboard.awaiting.sample.subtitle.label" />,
+      type: "AWAITING_SAMPLE",
+      value: counts.awaitingSample,
+    },
+    {
+      title: <FormattedMessage id="dashboard.awaiting.results.label" />,
+      subTitle: <FormattedMessage id="dashboard.awaiting.results.subtitle.label" />,
+      type: "AWAITING_RESULTS",
+      value: counts.awaitingResults,
+  },
+    {
       title: <FormattedMessage id="dashboard.validation.ready.label" />,
       subTitle: (
         <FormattedMessage id="dashboard.validation.ready.subtitle.label" />
@@ -346,6 +362,8 @@ const HomeDashBoard: React.FC<DashBoardProps> = () => {
 
   const tilesWithTabs = [
     "ORDERS_IN_PROGRESS",
+    "AWAITING_SAMPLE",
+    "AWAITING_RESULTS",
     "ORDERS_READY_FOR_VALIDATION",
     "ORDERS_COMPLETED_TODAY",
     "ORDERS_REJECTED_TODAY",
@@ -448,13 +466,16 @@ const HomeDashBoard: React.FC<DashBoardProps> = () => {
                 renderIcon={Copy}
               />
               {selectedTile.type == "ORDERS_IN_PROGRESS" ||
+              selectedTile.type == "AWAITING_SAMPLE" ||
+              selectedTile.type == "AWAITING_RESULTS" ||
               selectedTile.type == "ORDERS_READY_FOR_VALIDATION" ? (
                 <Link
                   style={{ color: "blue" }}
                   href={
-                    selectedTile.type == "ORDERS_IN_PROGRESS"
-                      ? "/result?type=order&doRange=false&accessionNumber=" +
-                        cell.value
+                    selectedTile.type == "ORDERS_IN_PROGRESS" || selectedTile.type == "AWAITING_SAMPLE"
+                      ? "/ModifyOrder?accessionNumber=" + cell.value
+                      : selectedTile.type == "AWAITING_RESULTS"
+                      ? "/result?type=order&doRange=false&accessionNumber=" + cell.value
                       : "validation?type=order&accessionNumber=" + cell.value
                   }
                 >
@@ -478,7 +499,26 @@ const HomeDashBoard: React.FC<DashBoardProps> = () => {
     }
   };
 
-  const orderHeaders = [
+  const orderHeadersInProgress = [
+    {
+      key: "priority",
+      header: <FormattedMessage id="eorder.priority" />,
+    },
+    {
+      key: "orderDate",
+      header: <FormattedMessage id="sample.label.orderdate" />,
+    },
+    {
+      key: "patientId",
+      header: <FormattedMessage id="patient.id" />,
+    },
+    {
+      key: "labNumber",
+      header: <FormattedMessage id="eorder.labNumber" />,
+    },
+  ];
+
+  const orderHeadersWithTest = [
     {
       key: "priority",
       header: <FormattedMessage id="eorder.priority" />,
@@ -568,12 +608,14 @@ const HomeDashBoard: React.FC<DashBoardProps> = () => {
                 }
               </Column>
             </Grid>
-            <div style={{ padding: '1rem 0' }}>
-              <DatePicker datePickerType="range" onChange={handleDateChange} dateFormat="Y-m-d">
-                <DatePickerInput id="date-picker-start" placeholder="yyyy-mm-dd" labelText="Fecha inicio" size="md" />
-                <DatePickerInput id="date-picker-end" placeholder="yyyy-mm-dd" labelText="Fecha fin" size="md" />
-              </DatePicker>
-            </div>
+            {selectedTile.type !== "AVERAGE_TURN_AROUND_TIME" && (
+              <div style={{ padding: '1rem 0' }}>
+                <DatePicker datePickerType="range" onChange={handleDateChange} dateFormat="Y-m-d">
+                  <DatePickerInput id="date-picker-start" placeholder="yyyy-mm-dd" labelText="Fecha inicio" size="md" />
+                  <DatePickerInput id="date-picker-end" placeholder="yyyy-mm-dd" labelText="Fecha fin" size="md" />
+                </DatePicker>
+              </div>
+            )}
             <div className="gridBoundary">
               {selectedTile.type == "AVERAGE_TURN_AROUND_TIME" ? (
                 <>
@@ -693,9 +735,11 @@ const HomeDashBoard: React.FC<DashBoardProps> = () => {
                         )
                         .slice((page - 1) * pageSize, page * pageSize)}
                       headers={
-                        selectedTile.type != "ORDERS_ENTERED_BY_USER_TODAY"
-                          ? orderHeaders
-                          : userHeaders
+                        selectedTile.type === "ORDERS_IN_PROGRESS"
+                          ? orderHeadersInProgress
+                          : selectedTile.type === "ORDERS_ENTERED_BY_USER_TODAY"
+                          ? userHeaders
+                          : orderHeadersWithTest
                       }
                       isSortable
                     >
