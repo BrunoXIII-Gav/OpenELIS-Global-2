@@ -102,6 +102,8 @@ public class TestResultItem implements ResultItem, Serializable {
 
     @SafeHtml(level = SafeHtml.SafeListLevel.NONE, groups = { WorkplanForm.PrintWorkplan.class })
     private String testName;
+    @SafeHtml(level = SafeHtml.SafeListLevel.NONE, groups = { WorkplanForm.PrintWorkplan.class })
+    private String resultName;
 
     @Pattern(regexp = ValidationHelper.ID_REGEX, groups = { LogbookResultsForm.LogbookResults.class })
     private String testId;
@@ -558,6 +560,14 @@ public class TestResultItem implements ResultItem, Serializable {
 
     public void setTestName(String testName) {
         this.testName = testName;
+    }
+
+    public String getResultName() {
+        return resultName;
+    }
+
+    public void setResultName(String resultName) {
+        this.resultName = resultName;
     }
 
     public String getTestId() {

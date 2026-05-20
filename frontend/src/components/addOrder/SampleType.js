@@ -136,7 +136,35 @@ const SampleType = (props) => {
   });
   const [loading, setLoading] = useState(true);
   const [sampleFixedFieldConfigs, setSampleFixedFieldConfigs] = useState([]);
-  const [, setWaitingForSampleFixedFieldConfig] = useState(true);
+  const [waitingForSampleFixedFieldConfig, setWaitingForSampleFixedFieldConfig] =
+    useState(true);
+
+  function getSampleFixedFieldConfig(fieldKey) {
+    return sampleFixedFieldConfigs.find(
+      (c) => c?.fieldKey?.toLowerCase() === fieldKey?.toLowerCase(),
+    ) || null;
+  }
+
+  function isSampleFieldVisible(fieldKey) {
+    if (waitingForSampleFixedFieldConfig && !sampleFixedFieldConfigs.length) {
+      return false;
+    }
+    const config = getSampleFixedFieldConfig(fieldKey);
+    return config ? config.visible !== false : true;
+  }
+
+  function isSampleFieldRequired(fieldKey, fallback = false) {
+    const config = getSampleFixedFieldConfig(fieldKey);
+    if (!config) {
+      return fallback;
+    }
+    if (config.visible === false) {
+      return false;
+    }
+    return config.required != null ? !!config.required : fallback;
+  }
+
+  const additionalFieldsVisible = isSampleFieldVisible("additionalFields");
 
   function handleCollectionDate(date) {
     setSampleXml({
@@ -690,7 +718,9 @@ const SampleType = (props) => {
   }, [selectedSampleType.id]);
 
   useEffect(() => {
-    const additionalFields = sampleTypeTests?.additionalFields || [];
+    const additionalFields = additionalFieldsVisible
+      ? sampleTypeTests?.additionalFields || []
+      : [];
     props.sampleTypeObject({
       additionalFields: additionalFields,
       sampleObjectIndex: index,
@@ -731,7 +761,7 @@ const SampleType = (props) => {
         additionalFieldValues: updatedValues,
       };
     });
-  }, [sampleTypeTests.additionalFields, index]);
+  }, [sampleTypeTests.additionalFields, additionalFieldsVisible, index]);
 
   useEffect(() => {
     getFromOpenElisServer(`/rest/displayList/UNIT_OF_MEASURE`, fetchUomCreate);
@@ -772,27 +802,6 @@ const SampleType = (props) => {
       triggerPanelCheckBoxChange(true, selectedPanels[i].testIds);
     }
   }, [selectedPanels, sampleTypeTests]);
-
-  const getSampleFixedFieldConfig = (fieldKey) =>
-    sampleFixedFieldConfigs.find(
-      (c) => c?.fieldKey?.toLowerCase() === fieldKey?.toLowerCase(),
-    ) || null;
-
-  const isSampleFieldVisible = (fieldKey) => {
-    const config = getSampleFixedFieldConfig(fieldKey);
-    return config ? config.visible !== false : true;
-  };
-
-  const isSampleFieldRequired = (fieldKey, fallback = false) => {
-    const config = getSampleFixedFieldConfig(fieldKey);
-    if (!config) {
-      return fallback;
-    }
-    if (config.visible === false) {
-      return false;
-    }
-    return config.required != null ? !!config.required : fallback;
-  };
 
   useEffect(() => {
     componentMounted.current = true;
@@ -1054,7 +1063,8 @@ const SampleType = (props) => {
           </div>
         )}
 
-        {sampleTypeTests.additionalFields &&
+        {additionalFieldsVisible &&
+          sampleTypeTests.additionalFields &&
           sampleTypeTests.additionalFields.length > 0 && (
             <div className="additionalFields">
               <h4>

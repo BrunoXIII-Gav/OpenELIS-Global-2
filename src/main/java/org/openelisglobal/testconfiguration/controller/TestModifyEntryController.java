@@ -818,6 +818,7 @@ public class TestModifyEntryController extends BaseController {
         public ArrayList<String> panelList = new ArrayList<>();
         public String uomId;
         public String loinc;
+        public String resultName;
         public String resultTypeId;
         public ArrayList<SampleTypeListAndTestOrder> sampleList = new ArrayList<>();
         public String active;

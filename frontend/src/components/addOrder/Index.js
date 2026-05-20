@@ -55,7 +55,7 @@ const Index = () => {
   const [orderFormValues, setOrderFormValues] = useState(
     createSampleOrderFormValues,
   );
-  const [samples, setSamples] = useState([]);
+  const [samples, setSamples] = useState([createSampleObject()]);
   const [errors, setErrors] = useState([]);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [isConsentDownloading, setIsConsentDownloading] = useState(false);

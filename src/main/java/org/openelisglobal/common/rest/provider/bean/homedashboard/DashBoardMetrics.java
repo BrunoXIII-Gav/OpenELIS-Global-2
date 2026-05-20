@@ -4,6 +4,10 @@ public class DashBoardMetrics {
 
     Integer ordersInProgress = 0;
 
+    Integer awaitingSample = 0;
+
+    Integer awaitingResults = 0;
+
     Integer ordersReadyForValidation = 0;
 
     Integer ordersCompletedToday = 0;
@@ -28,6 +32,22 @@ public class DashBoardMetrics {
 
     public void setOrdersInProgress(Integer ordersInProgress) {
         this.ordersInProgress = ordersInProgress;
+    }
+
+    public int getAwaitingSample() {
+        return awaitingSample;
+    }
+
+    public void setAwaitingSample(int awaitingSample) {
+        this.awaitingSample = awaitingSample;
+    }
+
+    public Integer getAwaitingResults() {
+        return awaitingResults;
+    }
+
+    public void setAwaitingResults(Integer awaitingResults) {
+        this.awaitingResults = awaitingResults;
     }
 
     public Integer getOrdersReadyForValidation() {

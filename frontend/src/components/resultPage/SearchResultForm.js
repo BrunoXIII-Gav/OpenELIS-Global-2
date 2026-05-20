@@ -1144,14 +1144,6 @@ export function SearchResults(props) {
       width: "5rem",
     },
     {
-      id: "result",
-      name: intl.formatMessage({ id: "column.name.result" }),
-      cell: (row, index, column, id) => {
-        return renderCell(row, index, column, id);
-      },
-      width: "20rem",
-    },
-    {
       id: "currentResult",
       name: intl.formatMessage({ id: "column.name.currentResult" }),
       cell: (row, index, column, id) => {
