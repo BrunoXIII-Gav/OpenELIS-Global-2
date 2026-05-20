@@ -138,6 +138,28 @@ const AdditionalFieldEditor = ({
               text={option.optionLabel || option.optionKey}
             />
           ))}
+        {(!Array.isArray(data.additionalFieldDefinitions) ||
+          !data.additionalFieldDefinitions.some(
+            (fieldDefinition) => fieldDefinition?.active !== false,
+          )) && (
+          <Grid style={{ marginTop: "1rem" }}>
+            <Column lg={16}>
+              <h5 style={{ marginBottom: "0.75rem" }}>Results</h5>
+            </Column>
+            <Column lg={4} md={4} sm={4}>
+              <Field name={"testResult[" + data.id + "].resultValue"}>
+                {() => (
+                  <>
+                    <p style={{ marginBottom: "0.5rem" }}>
+                      {intl.formatMessage({ id: "column.name.result" })}
+                    </p>
+                    {renderCell(data, 0, { id: "result" }, data.id)}
+                  </>
+                )}
+              </Field>
+            </Column>
+          </Grid>
+        )}
         </Select>
       );
     case "RADIO":
@@ -1082,12 +1104,13 @@ export function SearchResults(props) {
 
     if (configurationProperties.allowResultRejection == "true") {
       if (columns) {
-        const updatedList = [
-          ...columns.slice(0, 8),
+        const notesIndex = columns.findIndex((column) => column.id === "notes");
+        const insertAt = notesIndex >= 0 ? notesIndex : columns.length;
+        columns = [
+          ...columns.slice(0, insertAt),
           resultColumn,
-          ...columns.slice(8),
+          ...columns.slice(insertAt),
         ];
-        columns = updatedList;
       }
     }
   };
@@ -1126,7 +1149,7 @@ export function SearchResults(props) {
         return renderCell(row, index, column, id);
       },
       sortable: true,
-      width: "15rem",
+      width: "18rem",
     },
     {
       id: "normalRange",
@@ -1144,6 +1167,9 @@ export function SearchResults(props) {
       width: "5rem",
     },
     {
+      width: "12rem",
+    },
+    {
       id: "currentResult",
       name: intl.formatMessage({ id: "column.name.currentResult" }),
       cell: (row, index, column, id) => {
@@ -1157,9 +1183,21 @@ export function SearchResults(props) {
       cell: (row, index, column, id) => {
         return renderCell(row, index, column, id);
       },
-      width: "25rem",
+      width: "30rem",
     },
   ];
+
+  // Display-only hide: keep logic/data in code but do not render these columns.
+  const hiddenColumnIds = new Set([
+    "analyzerResult",
+    "normalRange",
+    "currentResult",
+  ]);
+  const visibleColumns = columns.filter(
+    (column) => !hiddenColumnIds.has(column.id),
+  );
+
+  columns = columns.filter((column) => column?.id !== "result");
 
   const renderCell = (row, index, column, id) => {
     let formatLabNum = configurationProperties.AccessionFormat === "ALPHANUM";
@@ -1838,13 +1876,30 @@ export function SearchResults(props) {
             </>
           )}
         </Grid>
-        {Array.isArray(data.additionalFieldDefinitions) &&
-          data.additionalFieldDefinitions.length > 0 && (
+        {(Array.isArray(data.additionalFieldDefinitions) &&
+          data.additionalFieldDefinitions.some(
+            (fieldDefinition) => fieldDefinition?.active !== false,
+          )) && (
             <Grid style={{ marginTop: "1rem" }}>
               <Column lg={16}>
                 <h5 style={{ marginBottom: "0.75rem" }}>
-                  <FormattedMessage id="results.additionalFields.title" />
+                  Results
                 </h5>
+              </Column>
+              <Column lg={4} md={4} sm={4}>
+                <Field name={"testResult[" + data.id + "].resultValue"}>
+                  {() => (
+                    <>
+                      <p style={{ marginBottom: "0.5rem" }}>
+                        {typeof data?.resultName === "string" &&
+                        data.resultName.trim().length > 0
+                          ? data.resultName.trim()
+                          : intl.formatMessage({ id: "column.name.result" })}
+                      </p>
+                      {renderCell(data, 0, { id: "result" }, data.id)}
+                    </>
+                  )}
+                </Field>
               </Column>
               {data.additionalFieldDefinitions
                 .filter((fieldDefinition) => fieldDefinition?.active !== false)
@@ -2228,7 +2283,7 @@ export function SearchResults(props) {
                   (page - 1) * pageSize,
                   page * pageSize,
                 )}
-                columns={columns}
+                columns={visibleColumns}
                 isSortable
                 expandableRows
                 expandableRowsComponent={renderReferral}
