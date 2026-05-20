@@ -23,16 +23,34 @@ const AddSample = (props) => {
   const componentMounted = useRef(false);
 
   const [rejectSampleReasons, setRejectSampleReasons] = useState([]);
-  const patientUpdateStatus = orderFormValues?.patientUpdateStatus || "ADD";
+  const patientUpdateStatus = String(
+    orderFormValues?.patientProperties?.patientUpdateStatus ||
+      orderFormValues?.patientUpdateStatus ||
+      "ADD",
+  ).toUpperCase();
   const patientProperties = orderFormValues?.patientProperties || {};
+  const patientPk = String(patientProperties?.patientPK || "").trim();
+  const patientGuid = String(patientProperties?.guid || "").trim();
+  const patientNationalId = String(patientProperties?.nationalId || "").trim();
+  const patientSubjectNumber = String(
+    patientProperties?.subjectNumber || "",
+  ).trim();
+
+  const canGenerateCug =
+    (patientUpdateStatus === "UPDATE" && patientPk !== "") ||
+    (patientUpdateStatus === "ADD" &&
+      (patientNationalId !== "" ||
+        patientSubjectNumber !== "" ||
+        patientGuid !== ""));
+
   const patientIdForCug =
-    patientUpdateStatus === "UPDATE" ? patientProperties?.patientPK || "" : "";
+    patientUpdateStatus === "UPDATE" && patientPk !== "" ? patientPk : "";
   const patientCugKey = [
     patientUpdateStatus,
-    patientProperties?.patientPK || "",
-    patientProperties?.guid || "",
-    patientProperties?.subjectNumber || "",
-    patientProperties?.nationalId || "",
+    patientPk,
+    patientGuid,
+    patientSubjectNumber,
+    patientNationalId,
   ].join("|");
 
   const handleAddNewSample = () => {
@@ -176,6 +194,7 @@ const AddSample = (props) => {
                     sampleTypeObject={sampleTypeObject}
                     error={error}
                     patientId={patientIdForCug}
+                    canGenerateCug={canGenerateCug}
                     patientCugKey={patientCugKey}
                     existingCugs={(samples || [])
                       .filter((_, sampleIndex) => sampleIndex !== i)

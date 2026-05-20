@@ -4,13 +4,15 @@ import jakarta.persistence.EntityManager;
 import jakarta.persistence.PersistenceContext;
 import java.sql.Timestamp;
 import java.util.ArrayList;
+import java.util.Comparator;
+import java.util.HashMap;
 import java.util.List;
+import java.util.Map;
 import java.util.Optional;
 import java.util.UUID;
-import java.util.regex.Matcher;
-import java.util.regex.Pattern;
 import org.apache.commons.lang3.StringUtils;
 import org.hibernate.exception.ConstraintViolationException;
+import org.openelisglobal.common.exception.LIMSRuntimeException;
 import org.openelisglobal.common.services.SampleAddService.SampleTestCollection;
 import org.openelisglobal.sample.bean.SampleCugPreviewRequest;
 import org.openelisglobal.sample.bean.SampleCugPreviewResponse;
@@ -26,7 +28,6 @@ import org.springframework.transaction.annotation.Transactional;
 @Transactional
 public class SampleCugServiceImpl implements SampleCugService {
 
-    private static final Pattern CUG_SUFFIX_PATTERN = Pattern.compile("^.+\\.(\\d+)$");
     private static final int DEFAULT_RESERVATION_TTL_MINUTES = 15;
     private static final int MAX_RESERVATION_ATTEMPTS = 30;
     private static final int MAX_MANUAL_INCREMENT = 5;
@@ -150,8 +151,25 @@ public class SampleCugServiceImpl implements SampleCugService {
             try {
                 Integer reservationId = sampleCugReservationDAO.insert(reservation);
                 return sampleCugReservationDAO.get(reservationId).orElse(reservation);
+            } catch (LIMSRuntimeException e) {
+                if (isReservationValueUniqueViolation(e)) {
+                    Optional<SampleCugReservation> activeContextReservation = sampleCugReservationDAO
+                            .findActiveByContextAndUser(contextId, userNumericId);
+                    if (activeContextReservation.isPresent() && !isExpired(activeContextReservation.get())) {
+                        return activeContextReservation.get();
+                    }
+                    generatedInContext.add(generatedValue);
+                    continue;
+                }
+                throw e;
             } catch (ConstraintViolationException e) {
                 generatedInContext.add(generatedValue);
+            } catch (RuntimeException e) {
+                if (isReservationValueUniqueViolation(e)) {
+                    generatedInContext.add(generatedValue);
+                    continue;
+                }
+                throw e;
             }
         }
 
@@ -281,40 +299,105 @@ public class SampleCugServiceImpl implements SampleCugService {
     }
 
     private String generateNextCug(String patientId, List<String> existingCugs) {
-        long maxSuffix = 0L;
+        List<String> historicalCugs = new ArrayList<>();
+        List<String> activeReservedCugs = new ArrayList<>();
         if (StringUtils.isNotBlank(patientId)) {
             lockPatientForCugGeneration(patientId);
-            maxSuffix = Math.max(maxSuffix, extractMaxSuffix(sampleItemDAO.findCugCodesByPatientId(patientId)));
+            historicalCugs = sampleItemDAO.findCugCodesByPatientId(patientId);
+            activeReservedCugs = getActiveReservedCugsForPatient(patientId);
         }
-        maxSuffix = Math.max(maxSuffix, extractMaxSuffix(existingCugs));
-        long prefix = sampleItemDAO.getNextCugPrefix();
+
+        Long prefix = selectCanonicalPrefix(historicalCugs);
+        if (prefix == null) {
+            prefix = selectCanonicalPrefix(activeReservedCugs);
+        }
+        if (prefix == null) {
+            prefix = selectCanonicalPrefix(existingCugs);
+        }
+        if (prefix == null) {
+            prefix = sampleItemDAO.getNextCugPrefix();
+        }
+
+        long maxSuffix = 0L;
+        maxSuffix = Math.max(maxSuffix, extractMaxSuffixForPrefix(historicalCugs, prefix));
+        maxSuffix = Math.max(maxSuffix, extractMaxSuffixForPrefix(activeReservedCugs, prefix));
+        maxSuffix = Math.max(maxSuffix, extractMaxSuffixForPrefix(existingCugs, prefix));
         return prefix + "." + (maxSuffix + 1);
     }
 
-    private long extractMaxSuffix(List<String> cugCodes) {
+    @SuppressWarnings("unchecked")
+    private List<String> getActiveReservedCugsForPatient(String patientId) {
+        String normalizedPatientId = StringUtils.trimToNull(patientId);
+        if (normalizedPatientId == null) {
+            return List.of();
+        }
+
+        List<Object> rows = entityManager.createNativeQuery(
+                "SELECT reserved_value FROM sample_cug_reservation "
+                        + "WHERE patient_id = :patientId "
+                        + "AND status = :status "
+                        + "AND expires_at > now()")
+                .setParameter("patientId", Integer.parseInt(normalizedPatientId))
+                .setParameter("status", ReservationStatus.RESERVED.name())
+                .getResultList();
+
+        List<String> values = new ArrayList<>();
+        for (Object row : rows) {
+            String value = StringUtils.trimToNull(row == null ? null : String.valueOf(row));
+            if (value != null) {
+                values.add(value);
+            }
+        }
+        return values;
+    }
+
+    private long extractMaxSuffixForPrefix(List<String> cugCodes, long prefix) {
         long maxSuffix = 0L;
         if (cugCodes == null || cugCodes.isEmpty()) {
             return maxSuffix;
         }
         for (String cugCode : cugCodes) {
-            String value = StringUtils.trimToNull(cugCode);
-            if (value == null) {
+            CugComponents components = tryParseCugComponents(cugCode);
+            if (components == null || components.prefix != prefix) {
                 continue;
             }
-            Matcher matcher = CUG_SUFFIX_PATTERN.matcher(value);
-            if (!matcher.matches()) {
-                continue;
-            }
-            try {
-                long suffix = Long.parseLong(matcher.group(1));
-                if (suffix > maxSuffix) {
-                    maxSuffix = suffix;
-                }
-            } catch (NumberFormatException ignored) {
-                // Ignore malformed historical values when calculating next suffix.
+            if (components.suffix > maxSuffix) {
+                maxSuffix = components.suffix;
             }
         }
         return maxSuffix;
+    }
+
+    private Long selectCanonicalPrefix(List<String> cugCodes) {
+        if (cugCodes == null || cugCodes.isEmpty()) {
+            return null;
+        }
+
+        Map<Long, Long> frequencyByPrefix = new HashMap<>();
+        for (String cugCode : cugCodes) {
+            CugComponents components = tryParseCugComponents(cugCode);
+            if (components == null) {
+                continue;
+            }
+            frequencyByPrefix.merge(components.prefix, 1L, Long::sum);
+        }
+
+        return frequencyByPrefix.entrySet().stream()
+                .sorted(Comparator.<Map.Entry<Long, Long>>comparingLong(Map.Entry::getValue).reversed()
+                        .thenComparingLong(Map.Entry::getKey))
+                .map(Map.Entry::getKey).findFirst().orElse(null);
+    }
+
+    private CugComponents tryParseCugComponents(String cugValue) {
+        String value = StringUtils.trimToNull(cugValue);
+        if (value == null) {
+            return null;
+        }
+        try {
+            return parseCugComponents(value);
+        } catch (IllegalArgumentException ignored) {
+            return null;
+        }
     }
 
     private void lockPatientForCugGeneration(String patientId) {
@@ -327,6 +410,27 @@ public class SampleCugServiceImpl implements SampleCugService {
 
     private void expireOutdatedReservations() {
         sampleCugReservationDAO.expireReservations(new Timestamp(System.currentTimeMillis()));
+    }
+
+    private boolean isReservationValueUniqueViolation(Throwable throwable) {
+        Throwable current = throwable;
+        while (current != null) {
+            if (current instanceof ConstraintViolationException) {
+                ConstraintViolationException constraintViolationException = (ConstraintViolationException) current;
+                String constraintName = StringUtils.trimToEmpty(constraintViolationException.getConstraintName());
+                if ("uq_sample_cug_reservation_value".equalsIgnoreCase(constraintName)) {
+                    return true;
+                }
+            }
+            String message = StringUtils.trimToEmpty(current.getMessage());
+            if (StringUtils.containsIgnoreCase(message, "uq_sample_cug_reservation_value")
+                    || StringUtils.containsIgnoreCase(message, "duplicate key value")
+                            && StringUtils.containsIgnoreCase(message, "reserved_value")) {
+                return true;
+            }
+            current = current.getCause();
+        }
+        return false;
     }
 
     private static final class CugComponents {

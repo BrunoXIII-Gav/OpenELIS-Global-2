@@ -2,6 +2,7 @@ import * as Yup from "yup";
 
 const CreatePatientValidationSchema = Yup.object().shape({
   nationalId: Yup.string().required("Patient ID Required"),
+  email: Yup.string().email("Patient Email Must Be Valid"),
   birthDateForDisplay: Yup.string()
     .required("Patient Birth date Required")
     .test("valid-date", "Invalid date format", function (value) {

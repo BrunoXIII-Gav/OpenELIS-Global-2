@@ -1162,6 +1162,37 @@ function CreatePatientForm(props) {
                 </Field>
               </Column>
               <Column lg={8} md={4} sm={4}>
+                <Field name="email">
+                  {({ field }) => (
+                    <TextInput
+                      value={values.email || ""}
+                      name={field.name}
+                      labelText={intl.formatMessage(
+                        {
+                          id: "patient.label.email",
+                          defaultMessage: "Patient Email",
+                        },
+                        {},
+                      )}
+                      id={field.name}
+                      invalid={errors.email && touched.email}
+                      invalidText={errors.email}
+                      placeholder={intl.formatMessage({
+                        id: "patient.information.email",
+                        defaultMessage: "Enter Patient Email",
+                      })}
+                    />
+                  )}
+                </Field>
+              </Column>
+              <Column lg={16} md={8} sm={4}>
+                {" "}
+                <br></br>
+              </Column>
+              <Column lg={8} md={4} sm={4}>
+                {" "}
+              </Column>
+              <Column lg={8} md={4} sm={4}>
                 <Field name="gender">
                   {({ field }) => (
                     <RadioButtonGroup

@@ -81,13 +81,34 @@ export default function Layout(props) {
     userSessionDetails.authenticated && mode === SIDENAV_MODES.LOCK;
 
   const addNotification = (notificationBody) => {
-    setNotifications([...notifications, notificationBody]);
+    const now = Date.now();
+    setNotifications((previous) => {
+      const duplicateRecent = previous.some((notification) => {
+        const sameKind = notification?.kind === notificationBody?.kind;
+        const sameTitle = notification?.title === notificationBody?.title;
+        const sameMessage =
+          String(notification?.message || "") ===
+          String(notificationBody?.message || "");
+        const createdAt = Number(notification?._createdAt || 0);
+        return sameKind && sameTitle && sameMessage && now - createdAt < 2000;
+      });
+      if (duplicateRecent) {
+        return previous;
+      }
+      return [
+        ...previous,
+        {
+          ...notificationBody,
+          _createdAt: now,
+        },
+      ];
+    });
   };
 
   const removeNotification = (index) => {
-    const newNotifications = [...notifications];
-    newNotifications.splice(index, 1);
-    setNotifications(newNotifications);
+    setNotifications((previous) =>
+      previous.filter((_, notificationIndex) => notificationIndex !== index),
+    );
   };
 
   const fetchConfigurationProperties = (res) => {
@@ -111,6 +132,8 @@ export default function Layout(props) {
 
   useEffect(() => {
     dismissRouteStaleConfirmAlerts();
+    setNotificationVisible(false);
+    setNotifications([]);
   }, [location.pathname, location.search]);
 
   return (

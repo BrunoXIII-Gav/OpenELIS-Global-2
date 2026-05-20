@@ -248,6 +248,9 @@ public class PatientDAOImpl extends BaseDAOImpl<Patient, String> implements Pati
     @Override
     @Transactional(readOnly = true)
     public Patient getPatientByPerson(Person person) throws LIMSRuntimeException {
+        if (person == null || org.apache.commons.validator.GenericValidator.isBlankOrNull(person.getId())) {
+            return null;
+        }
         List<Patient> patients;
 
         try {

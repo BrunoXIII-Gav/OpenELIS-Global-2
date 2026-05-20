@@ -216,6 +216,11 @@ public class PatientManagementUpdate extends ControllerUtills implements IPatien
     }
 
     private void insertNewPatientInfo(String partId, String value, String type) {
+        if (GenericValidator.isBlankOrNull(value) || GenericValidator.isBlankOrNull(partId)
+                || person == null || GenericValidator.isBlankOrNull(person.getId())) {
+            return;
+        }
+
         PersonAddress address;
         address = new PersonAddress();
         address.setPersonId(person.getId());
@@ -353,7 +358,22 @@ public class PatientManagementUpdate extends ControllerUtills implements IPatien
 
     @Override
     public void setPatientUpdateStatus(PatientManagementInfo patientInfo) {
-        patientUpdateStatus = patientInfo.getPatientUpdateStatus();
+        PatientUpdateStatus requestedStatus = patientInfo == null ? null : patientInfo.getPatientUpdateStatus();
+        if (requestedStatus != null) {
+            patientUpdateStatus = requestedStatus;
+            return;
+        }
+
+        // Fallback for malformed/legacy payloads where patientUpdateStatus is omitted.
+        if (patientInfo != null && !GenericValidator.isBlankOrNull(patientInfo.getPatientPK())) {
+            patientUpdateStatus = PatientUpdateStatus.UPDATE;
+        } else {
+            patientUpdateStatus = PatientUpdateStatus.ADD;
+        }
+
+        if (patientInfo != null) {
+            patientInfo.setPatientUpdateStatus(patientUpdateStatus);
+        }
         /*
          * String status = patientInfo.getPatientProcessingStatus();
          *
