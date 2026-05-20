@@ -179,7 +179,7 @@ const Validation = (props) => {
         return renderCell(row, index, column, id);
       },
       sortable: true,
-      width: "15rem",
+      width: "18rem",
     },
     {
       id: "normalRange",
@@ -240,6 +240,12 @@ const Validation = (props) => {
       width: "28rem",
     },
   ];
+
+  // Hide only in UI (keep column definition/data intact)
+  const hiddenColumnIds = new Set(["normalRange"]);
+  const visibleColumns = columns.filter(
+    (column) => !hiddenColumnIds.has(column.id),
+  );
 
   const markPreviewOptionAsReviewed = (optionId, optionsSnapshot) => {
     setPreviewedOptionIds((previous) => {
@@ -1102,7 +1108,7 @@ const Validation = (props) => {
                     )
                   : []
               }
-              columns={columns}
+              columns={visibleColumns}
               expandableRows
               expandableRowsComponent={renderExpandedRow}
               isSortable
