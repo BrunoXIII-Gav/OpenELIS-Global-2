@@ -333,6 +333,12 @@ public class SamplePatientEntryRestController extends BaseSampleEntryController 
 
             // String fhir_json = fhirTransformService.CreateFhirFromOESample(updateData,
             // patientUpdate, patientInfo, form, request);
+        } catch (IllegalArgumentException e) {
+            result.reject("errors.ValidationException", e.getMessage());
+            saveErrors(result);
+            setupForm(form, request, "");
+            request.setAttribute(ALLOW_EDITS_KEY, "false");
+            return ResponseEntity.status(HttpStatus.BAD_REQUEST).body(form);
         } catch (LIMSRuntimeException e) {
             // ActionError error;
             HttpStatus status = HttpStatus.BAD_REQUEST;

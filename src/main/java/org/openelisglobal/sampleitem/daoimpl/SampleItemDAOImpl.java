@@ -300,6 +300,21 @@ public class SampleItemDAOImpl extends BaseDAOImpl<SampleItem, String> implement
     }
 
     @Override
+    @Transactional
+    public long ensureCugPrefixAtLeast(long minimumPrefix) throws LIMSRuntimeException {
+        try {
+            Number result = (Number) entityManager.unwrap(Session.class)
+                    .createNativeQuery("SELECT setval('sample_cug_prefix_seq', "
+                            + "GREATEST(:minimumPrefix, (SELECT last_value FROM sample_cug_prefix_seq)), true)")
+                    .setParameter("minimumPrefix", minimumPrefix).getSingleResult();
+            return result == null ? 0L : result.longValue();
+        } catch (RuntimeException e) {
+            LogEvent.logError(e);
+            throw new LIMSRuntimeException("Error adjusting CUG prefix sequence", e);
+        }
+    }
+
+    @Override
     @Transactional(readOnly = true)
     public boolean existsByCugCode(String cugCode) throws LIMSRuntimeException {
         if (cugCode == null || cugCode.trim().isEmpty()) {

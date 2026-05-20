@@ -438,6 +438,18 @@ button {
   color: #ff0000;
 }
 
+.patient-id-label-row {
+  display: flex;
+  align-items: flex-end;
+  justify-content: space-between;
+  gap: 0.75rem;
+}
+
+.patient-id-type-selector {
+  min-width: 9rem;
+  max-width: 10rem;
+}
+
 .my-custom-table {
   margin: 20px;
 }

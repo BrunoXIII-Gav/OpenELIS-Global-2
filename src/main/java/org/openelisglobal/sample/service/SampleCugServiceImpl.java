@@ -29,6 +29,7 @@ public class SampleCugServiceImpl implements SampleCugService {
     private static final Pattern CUG_SUFFIX_PATTERN = Pattern.compile("^.+\\.(\\d+)$");
     private static final int DEFAULT_RESERVATION_TTL_MINUTES = 15;
     private static final int MAX_RESERVATION_ATTEMPTS = 30;
+    private static final int MAX_MANUAL_INCREMENT = 5;
 
     @PersistenceContext
     private EntityManager entityManager;
@@ -108,9 +109,10 @@ public class SampleCugServiceImpl implements SampleCugService {
             String cugCode = StringUtils.trimToNull(sampleTestCollection.item.getCugCode());
             String reservationToken = StringUtils.trimToNull(sampleTestCollection.cugReservationToken);
             if (reservationToken != null) {
-                String reservedValue = consumeReservationToken(reservationToken, cugCode, sampleId, userId);
-                sampleTestCollection.item.setCugCode(reservedValue);
-                inTransactionCugs.add(reservedValue);
+                String resolvedValue = consumeReservationToken(reservationToken, cugCode, sampleId, userId);
+                validateCugUniqueness(resolvedValue, inTransactionCugs);
+                sampleTestCollection.item.setCugCode(resolvedValue);
+                inTransactionCugs.add(resolvedValue);
                 continue;
             }
 
@@ -172,15 +174,17 @@ public class SampleCugServiceImpl implements SampleCugService {
             sampleCugReservationDAO.update(reservation);
             throw new IllegalArgumentException("CUG reservation has expired");
         }
-        if (expectedValue != null && !StringUtils.equalsIgnoreCase(reservation.getReservedValue(), expectedValue)) {
-            throw new IllegalArgumentException("CUG value does not match the active reservation");
+        String resolvedValue = reservation.getReservedValue();
+        if (expectedValue != null && !StringUtils.equalsIgnoreCase(resolvedValue, expectedValue)) {
+            resolvedValue = validateManualCugOverride(resolvedValue, expectedValue);
+            advanceCugPrefixSequence(resolvedValue);
         }
 
         reservation.setStatus(ReservationStatus.CONSUMED.name());
         reservation.setSampleId(parseNumericId(sampleId));
         reservation.setSysUserId(currentUserId);
         sampleCugReservationDAO.update(reservation);
-        return reservation.getReservedValue();
+        return resolvedValue;
     }
 
     private SampleCugPreviewResponse mapReservationResponse(SampleCugReservation reservation) {
@@ -226,6 +230,54 @@ public class SampleCugServiceImpl implements SampleCugService {
             return false;
         }
         return values.stream().anyMatch(value -> StringUtils.equalsIgnoreCase(value, target));
+    }
+
+    private String validateManualCugOverride(String reservedValue, String manualValue) {
+        CugComponents reserved = parseCugComponents(reservedValue);
+        CugComponents manual = parseCugComponents(manualValue);
+
+        long maxAllowedPrefix = reserved.prefix + MAX_MANUAL_INCREMENT;
+        long maxAllowedSuffix = reserved.suffix + MAX_MANUAL_INCREMENT;
+
+        if (manual.prefix < reserved.prefix || manual.prefix > maxAllowedPrefix) {
+            throw new IllegalArgumentException(
+                    "Manual CUG prefix must be between " + reserved.prefix + " and " + maxAllowedPrefix);
+        }
+        if (manual.suffix < reserved.suffix || manual.suffix > maxAllowedSuffix) {
+            throw new IllegalArgumentException(
+                    "Manual CUG suffix must be between " + reserved.suffix + " and " + maxAllowedSuffix);
+        }
+
+        return manual.rawValue;
+    }
+
+    private CugComponents parseCugComponents(String cugValue) {
+        String normalized = StringUtils.trimToNull(cugValue);
+        if (normalized == null) {
+            throw new IllegalArgumentException("CUG value is required");
+        }
+
+        int splitIndex = normalized.lastIndexOf('.');
+        if (splitIndex <= 0 || splitIndex == normalized.length() - 1) {
+            throw new IllegalArgumentException("Invalid CUG format. Expected '<prefix>.<suffix>'");
+        }
+
+        String prefixRaw = normalized.substring(0, splitIndex).trim();
+        String suffixRaw = normalized.substring(splitIndex + 1).trim();
+        if (!StringUtils.isNumeric(prefixRaw) || !StringUtils.isNumeric(suffixRaw)) {
+            throw new IllegalArgumentException("CUG prefix and suffix must be numeric");
+        }
+
+        try {
+            return new CugComponents(normalized, Long.parseLong(prefixRaw), Long.parseLong(suffixRaw));
+        } catch (NumberFormatException e) {
+            throw new IllegalArgumentException("CUG prefix/suffix exceeds supported range");
+        }
+    }
+
+    private void advanceCugPrefixSequence(String cugValue) {
+        CugComponents components = parseCugComponents(cugValue);
+        sampleItemDAO.ensureCugPrefixAtLeast(components.prefix);
     }
 
     private String generateNextCug(String patientId, List<String> existingCugs) {
@@ -275,5 +327,17 @@ public class SampleCugServiceImpl implements SampleCugService {
 
     private void expireOutdatedReservations() {
         sampleCugReservationDAO.expireReservations(new Timestamp(System.currentTimeMillis()));
+    }
+
+    private static final class CugComponents {
+        private final String rawValue;
+        private final long prefix;
+        private final long suffix;
+
+        private CugComponents(String rawValue, long prefix, long suffix) {
+            this.rawValue = rawValue;
+            this.prefix = prefix;
+            this.suffix = suffix;
+        }
     }
 }
