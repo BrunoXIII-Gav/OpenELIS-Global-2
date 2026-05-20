@@ -598,6 +598,28 @@ const Index = () => {
     if (isSubmitting) {
       return;
     }
+    const invalidCugSample = (samples || []).find(
+      (sampleItem) =>
+        String(sampleItem?.sampleXML?.cugValidationMessage || "").trim() !== "",
+    );
+    if (invalidCugSample) {
+      showAlertMessage(
+        invalidCugSample.sampleXML.cugValidationMessage,
+        NotificationKinds.error,
+      );
+      return;
+    }
+    const missingCugSample = (samples || []).find((sampleItem) => {
+      const cugValue = String(sampleItem?.sampleXML?.cug || "").trim();
+      return cugValue === "";
+    });
+    if (missingCugSample) {
+      showAlertMessage(
+        intl.formatMessage({ id: "sample.cug.required" }),
+        NotificationKinds.error,
+      );
+      return;
+    }
     setIsSubmitting(true);
     const payload = JSON.parse(JSON.stringify(orderFormValues));
 

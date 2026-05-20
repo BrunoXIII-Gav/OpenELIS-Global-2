@@ -37,6 +37,23 @@ const createCugReservationContextId = () => {
   return `cug-${Date.now()}-${Math.floor(Math.random() * 1000000)}`;
 };
 
+const parseCugParts = (value) => {
+  const normalized = String(value || "").trim();
+  const splitIndex = normalized.lastIndexOf(".");
+  if (splitIndex <= 0 || splitIndex === normalized.length - 1) {
+    return null;
+  }
+  const prefixRaw = normalized.substring(0, splitIndex).trim();
+  const suffixRaw = normalized.substring(splitIndex + 1).trim();
+  if (!/^\d+$/.test(prefixRaw) || !/^\d+$/.test(suffixRaw)) {
+    return null;
+  }
+  return {
+    prefix: Number(prefixRaw),
+    suffix: Number(suffixRaw),
+  };
+};
+
 const SampleType = (props) => {
   const { userSessionDetails } = useContext(UserSessionDetailsContext);
   const { configurationProperties } = useContext(ConfigurationContext);
@@ -47,8 +64,8 @@ const SampleType = (props) => {
   const sampleTypesRef = useRef(null);
   const cugGenerationInFlightRef = useRef(false);
   const cugGenerationKeyRef = useRef("");
-  const previousPatientIdRef = useRef(
-    String(props.patientId || "").trim() || null,
+  const previousPatientCugKeyRef = useRef(
+    String(props.patientCugKey || "").trim() || null,
   );
 
   const { index, rejectSampleReasons, sample } = props;
@@ -86,6 +103,8 @@ const SampleType = (props) => {
       return {
         ...sample.sampleXML,
         cug: sample.sampleXML.cug || "",
+        cugAutoReserved: sample.sampleXML.cugAutoReserved || "",
+        cugValidationMessage: "",
         cugReservationToken: sample.sampleXML.cugReservationToken || "",
         cugReservationContextId:
           sample.sampleXML.cugReservationContextId ||
@@ -108,6 +127,8 @@ const SampleType = (props) => {
           ? configurationProperties.currentTimeAsText
           : "",
       cug: "",
+      cugAutoReserved: "",
+      cugValidationMessage: "",
       cugReservationToken: "",
       cugReservationContextId: createCugReservationContextId(),
       additionalFieldValues: {},
@@ -179,12 +200,13 @@ const SampleType = (props) => {
 
   const generateCugPreview = useCallback(() => {
     const patientId = String(props.patientId || "").trim();
+    const patientCugKey = String(props.patientCugKey || "").trim();
     const sampleTypeId = String(selectedSampleType.id || "").trim();
     const currentCug = String(sampleXml.cug || "").trim();
-    if (!sampleTypeId || !patientId || currentCug) {
+    if (!sampleTypeId || currentCug) {
       return;
     }
-    const generationKey = `${index}|${sampleTypeId}|${patientId}`;
+    const generationKey = `${index}|${sampleTypeId}|${patientId}|${patientCugKey}`;
     if (
       cugGenerationInFlightRef.current ||
       cugGenerationKeyRef.current === generationKey
@@ -231,6 +253,8 @@ const SampleType = (props) => {
           setSampleXml((previous) => ({
             ...previous,
             cug: generated,
+            cugAutoReserved: generated,
+            cugValidationMessage: "",
             cugReservationToken: reservationToken,
           }));
           return;
@@ -249,6 +273,7 @@ const SampleType = (props) => {
     intl,
     props.existingCugs,
     props.patientId,
+    props.patientCugKey,
     sampleXml.cug,
     sampleXml.cugReservationContextId,
     sampleXml.cugReservationToken,
@@ -257,34 +282,36 @@ const SampleType = (props) => {
   ]);
 
   useEffect(() => {
-    const currentPatientId = String(props.patientId || "").trim() || null;
-    const previousPatientId = previousPatientIdRef.current;
-    if (previousPatientId === currentPatientId) {
+    const currentPatientCugKey =
+      String(props.patientCugKey || "").trim() || null;
+    const previousPatientCugKey = previousPatientCugKeyRef.current;
+    if (previousPatientCugKey === currentPatientCugKey) {
       return;
     }
 
-    previousPatientIdRef.current = currentPatientId;
+    previousPatientCugKeyRef.current = currentPatientCugKey;
     cugGenerationKeyRef.current = "";
     setSampleXml((previous) => ({
       ...previous,
       cug: "",
+      cugAutoReserved: "",
+      cugValidationMessage: "",
       cugReservationToken: "",
       cugReservationContextId: createCugReservationContextId(),
     }));
-  }, [props.patientId]);
+  }, [props.patientCugKey]);
 
   useEffect(() => {
     const hasSampleType =
       selectedSampleType.id !== "" && selectedSampleType.id != null;
-    const hasPatient = String(props.patientId || "").trim() !== "";
     const hasCug = String(sampleXml.cug || "").trim() !== "";
-    if (!hasSampleType || !hasPatient || hasCug) {
+    if (!hasSampleType || hasCug) {
       return;
     }
     generateCugPreview();
   }, [
     generateCugPreview,
-    props.patientId,
+    props.patientCugKey,
     sampleXml.cug,
     selectedSampleType.id,
   ]);
@@ -355,6 +382,53 @@ const SampleType = (props) => {
     setSampleXml({
       ...sampleXml,
       uom: value,
+    });
+  }
+
+  function handleCugChange(value) {
+    const nextCug = value?.target?.value || "";
+    setSampleXml((previous) => {
+      const next = { ...previous, cug: nextCug };
+      const hasReservationContext =
+        String(previous.cugReservationToken || "").trim() !== "" &&
+        String(previous.cugAutoReserved || "").trim() !== "";
+      if (!hasReservationContext || String(nextCug).trim() === "") {
+        return { ...next, cugValidationMessage: "" };
+      }
+
+      const reserved = parseCugParts(previous.cugAutoReserved);
+      const manual = parseCugParts(nextCug);
+      if (!reserved || !manual) {
+        return {
+          ...next,
+          cugValidationMessage: intl.formatMessage({
+            id: "sample.cug.manual.format.error",
+          }),
+        };
+      }
+
+      const maxPrefix = reserved.prefix + 5;
+      const maxSuffix = reserved.suffix + 5;
+      const prefixInRange =
+        manual.prefix >= reserved.prefix && manual.prefix <= maxPrefix;
+      const suffixInRange =
+        manual.suffix >= reserved.suffix && manual.suffix <= maxSuffix;
+      if (!prefixInRange || !suffixInRange) {
+        return {
+          ...next,
+          cugValidationMessage: intl.formatMessage(
+            { id: "sample.cug.manual.range.error" },
+            {
+              minPrefix: reserved.prefix,
+              minSuffix: reserved.suffix,
+              maxPrefix: maxPrefix,
+              maxSuffix: maxSuffix,
+            },
+          ),
+        };
+      }
+
+      return { ...next, cugValidationMessage: "" };
     });
   }
 
@@ -503,6 +577,8 @@ const SampleType = (props) => {
     setSampleXml((previous) => ({
       ...previous,
       cug: "",
+      cugAutoReserved: "",
+      cugValidationMessage: "",
       cugReservationToken: "",
       additionalFieldValues: {},
     }));
@@ -899,7 +975,9 @@ const SampleType = (props) => {
             labelText={intl.formatMessage({ id: "sample.cug.label" })}
             value={sampleXml.cug || ""}
             required={isSampleFieldRequired("cug", true)}
-            readOnly={true}
+            onChange={handleCugChange}
+            invalid={Boolean(sampleXml.cugValidationMessage)}
+            invalidText={sampleXml.cugValidationMessage || ""}
           />
         )}
 

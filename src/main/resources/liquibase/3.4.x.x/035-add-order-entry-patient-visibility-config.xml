@@ -1,0 +1,64 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<databaseChangeLog
+    xmlns="http://www.liquibase.org/xml/ns/dbchangelog"
+    xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+    xsi:schemaLocation="http://www.liquibase.org/xml/ns/dbchangelog
+      http://www.liquibase.org/xml/ns/dbchangelog/dbchangelog-3.8.xsd">
+
+    <changeSet author="openelis" id="1">
+        <preConditions onFail="MARK_RAN">
+            <sqlCheck expectedResult="0">SELECT count(*) FROM clinlims.site_information WHERE name = 'showPatientPhotoOnOrderEntry'</sqlCheck>
+        </preConditions>
+        <comment>Add toggle to show/hide patient photo block in order entry patient step</comment>
+        <insert schemaName="clinlims" tableName="site_information">
+            <column name="id" valueSequenceNext="site_information_seq" />
+            <column name="name" value="showPatientPhotoOnOrderEntry" />
+            <column name="lastupdated" valueComputed="${now}" />
+            <column name="description" value="Show patient photo block in order entry patient step" />
+            <column name="value" value="true" />
+            <column name="encrypted" value="false" />
+            <column name="domain_id" valueComputed="(SELECT id FROM site_information_domain WHERE name = 'patientEntryConfig')" />
+            <column name="value_type" value="boolean" />
+            <column name="group" value="0" />
+            <column name="description_key" value="siteInfo.showPatientPhotoOnOrderEntry" />
+        </insert>
+    </changeSet>
+
+    <changeSet author="openelis" id="2">
+        <preConditions onFail="MARK_RAN">
+            <sqlCheck expectedResult="0">SELECT count(*) FROM clinlims.site_information WHERE name = 'showPatientEmergencyOnOrderEntry'</sqlCheck>
+        </preConditions>
+        <comment>Add toggle to show/hide emergency contact block in order entry patient step</comment>
+        <insert schemaName="clinlims" tableName="site_information">
+            <column name="id" valueSequenceNext="site_information_seq" />
+            <column name="name" value="showPatientEmergencyOnOrderEntry" />
+            <column name="lastupdated" valueComputed="${now}" />
+            <column name="description" value="Show emergency contact block in order entry patient step" />
+            <column name="value" value="true" />
+            <column name="encrypted" value="false" />
+            <column name="domain_id" valueComputed="(SELECT id FROM site_information_domain WHERE name = 'patientEntryConfig')" />
+            <column name="value_type" value="boolean" />
+            <column name="group" value="0" />
+            <column name="description_key" value="siteInfo.showPatientEmergencyOnOrderEntry" />
+        </insert>
+    </changeSet>
+
+    <changeSet author="openelis" id="3">
+        <preConditions onFail="MARK_RAN">
+            <sqlCheck expectedResult="0">SELECT count(*) FROM clinlims.site_information WHERE name = 'showPatientAddInfoOnOrderEntry'</sqlCheck>
+        </preConditions>
+        <comment>Add toggle to show/hide additional patient info block in order entry patient step</comment>
+        <insert schemaName="clinlims" tableName="site_information">
+            <column name="id" valueSequenceNext="site_information_seq" />
+            <column name="name" value="showPatientAddInfoOnOrderEntry" />
+            <column name="lastupdated" valueComputed="${now}" />
+            <column name="description" value="Show additional patient info block in order entry patient step" />
+            <column name="value" value="true" />
+            <column name="encrypted" value="false" />
+            <column name="domain_id" valueComputed="(SELECT id FROM site_information_domain WHERE name = 'patientEntryConfig')" />
+            <column name="value_type" value="boolean" />
+            <column name="group" value="0" />
+            <column name="description_key" value="siteInfo.showPatientAddInfoOnOrderEntry" />
+        </insert>
+    </changeSet>
+</databaseChangeLog>

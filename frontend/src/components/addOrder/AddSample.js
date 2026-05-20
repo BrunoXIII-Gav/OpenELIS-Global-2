@@ -23,6 +23,17 @@ const AddSample = (props) => {
   const componentMounted = useRef(false);
 
   const [rejectSampleReasons, setRejectSampleReasons] = useState([]);
+  const patientUpdateStatus = orderFormValues?.patientUpdateStatus || "ADD";
+  const patientProperties = orderFormValues?.patientProperties || {};
+  const patientIdForCug =
+    patientUpdateStatus === "UPDATE" ? patientProperties?.patientPK || "" : "";
+  const patientCugKey = [
+    patientUpdateStatus,
+    patientProperties?.patientPK || "",
+    patientProperties?.guid || "",
+    patientProperties?.subjectNumber || "",
+    patientProperties?.nationalId || "",
+  ].join("|");
 
   const handleAddNewSample = () => {
     setSamples((previous) => {
@@ -164,9 +175,8 @@ const AddSample = (props) => {
                     }}
                     sampleTypeObject={sampleTypeObject}
                     error={error}
-                    patientId={
-                      orderFormValues?.patientProperties?.patientPK || ""
-                    }
+                    patientId={patientIdForCug}
+                    patientCugKey={patientCugKey}
                     existingCugs={(samples || [])
                       .filter((_, sampleIndex) => sampleIndex !== i)
                       .map((entry) => entry?.sampleXML?.cug)

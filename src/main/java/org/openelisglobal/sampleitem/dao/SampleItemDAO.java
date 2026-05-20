@@ -64,6 +64,8 @@ public interface SampleItemDAO extends BaseDAO<SampleItem, String> {
 
     long getNextCugPrefix() throws LIMSRuntimeException;
 
+    long ensureCugPrefixAtLeast(long minimumPrefix) throws LIMSRuntimeException;
+
     boolean existsByCugCode(String cugCode) throws LIMSRuntimeException;
 
     Sample findSampleByCugCode(String cugCode) throws LIMSRuntimeException;
