@@ -22,10 +22,6 @@ export const patientSearchHeaderData = [
     header: <FormattedMessage id="patient.subject.number" />,
   },
   {
-    key: "nationalId",
-    header: <FormattedMessage id="patient.natioanalid" />,
-  },
-  {
     key: "dataSourceName",
     header: <FormattedMessage id="patient.dataSourceName" />,
   },

@@ -17,6 +17,7 @@ import {
   Form,
   FormLabel,
   TextInput,
+  Checkbox,
   Button,
   RadioButton,
   RadioButtonGroup,
@@ -41,26 +42,25 @@ import PatientImageSelector from "./photoManagement/uploadPhoto/PatientImageSele
 
 function CreatePatientForm(props) {
   const componentMounted = useRef(false);
-  const DEFAULT_DNI_MAX_LENGTH = 8;
-  const DEFAULT_PASSPORT_MAX_LENGTH = 12;
 
   const { notificationVisible, setNotificationVisible, addNotification } =
     useContext(NotificationContext);
   const { configurationProperties } = useContext(ConfigurationContext);
 
   const intl = useIntl();
-  const isOrderEntryPatientStep = props.isOrderEntryPatientStep === true;
   const showPatientPhotoOnOrderEntry =
-    !isOrderEntryPatientStep ||
     configurationProperties.SHOW_PATIENT_PHOTO_ON_ORDER_ENTRY !== "false";
   const showPatientEmergencyContactOnOrderEntry =
-    !isOrderEntryPatientStep ||
     configurationProperties.SHOW_PATIENT_EMERGENCY_CONTACT_ON_ORDER_ENTRY !==
-      "false";
+    "false";
   const showPatientAdditionalInfoOnOrderEntry =
-    !isOrderEntryPatientStep ||
     configurationProperties.SHOW_PATIENT_ADDITIONAL_INFO_ON_ORDER_ENTRY !==
-      "false";
+    "false";
+  const showPatientOptionalIdentifiersOnOrderEntry =
+    configurationProperties.SHOW_PATIENT_OPTIONAL_IDENTIFIERS_ON_ORDER_ENTRY !==
+    "false";
+  const showPatientNationalIdField =
+    configurationProperties.SHOW_PATIENT_NATIONAL_ID_FIELD !== "false";
 
   const [patientDetails, setPatientDetails] = useState(CreatePatientFormValues);
   const [healthRegions, setHealthRegions] = useState([]);
@@ -81,7 +81,6 @@ function CreatePatientForm(props) {
     months: "",
     days: "",
   });
-  const [patientIdType, setPatientIdType] = useState("DNI");
   const patientIdentifierRef = useRef({
     nationalId: props.selectedPatient.nationalId || "",
     subjectNumber: props.selectedPatient.subjectNumber || "",
@@ -92,6 +91,15 @@ function CreatePatientForm(props) {
     primaryPhone: { body: "", status: true },
     contactPhone: { body: "", status: true },
   });
+  const [showDniField, setShowDniField] = useState(false);
+  const [showPassportField, setShowPassportField] = useState(false);
+  const [showForeignIdField, setShowForeignIdField] = useState(false);
+
+  const syncOptionalIdentityVisibility = (patient) => {
+    setShowDniField(Boolean((patient?.dni || "").trim()));
+    setShowPassportField(Boolean((patient?.passportNumber || "").trim()));
+    setShowForeignIdField(Boolean((patient?.foreignId || "").trim()));
+  };
 
   const handlePhotoChange = (photo, setFieldValue) => {
     if (setFieldValue) {
@@ -99,45 +107,8 @@ function CreatePatientForm(props) {
     }
   };
 
-  const getPassportMaxLength = () => {
-    const configuredValue = Number.parseInt(
-      configurationProperties.PATIENT_PASSPORT_MAX_LENGTH,
-      10,
-    );
-    return Number.isFinite(configuredValue) && configuredValue > 0
-      ? configuredValue
-      : DEFAULT_PASSPORT_MAX_LENGTH;
-  };
-
-  const inferPatientIdType = (value) => {
-    const identifier = (value || "").toString().trim();
-    if (!identifier) {
-      return "DNI";
-    }
-    return /^\d+$/.test(identifier) &&
-      identifier.length <= DEFAULT_DNI_MAX_LENGTH
-      ? "DNI"
-      : "PASSPORT";
-  };
-
-  const normalizePatientIdentifierValue = (value, identifierType) => {
-    const raw = (value || "").toString();
-    if (identifierType === "PASSPORT") {
-      return raw.replace(/\s+/g, "").slice(0, getPassportMaxLength());
-    }
-    return raw.replace(/\D+/g, "").slice(0, DEFAULT_DNI_MAX_LENGTH);
-  };
-
-  const getCurrentPatientIdMaxLength = () =>
-    patientIdType === "PASSPORT"
-      ? getPassportMaxLength()
-      : DEFAULT_DNI_MAX_LENGTH;
-
   const handleNationalIdChange = (event) => {
-    const newValue = normalizePatientIdentifierValue(
-      event.target.value,
-      patientIdType,
-    );
+    const newValue = event.target.value;
     event.target.value = newValue;
     patientIdentifierRef.current.nationalId = newValue;
   };
@@ -553,7 +524,7 @@ function CreatePatientForm(props) {
         nationalId: patient.nationalId || "",
         subjectNumber: patient.subjectNumber || "",
       };
-      setPatientIdType(inferPatientIdType(patient.nationalId));
+      syncOptionalIdentityVisibility(patient);
       setPatientDetails({
         ...patientDetails,
         ...patient,
@@ -585,11 +556,13 @@ function CreatePatientForm(props) {
         months: "",
         days: "",
       });
-      setPatientIdType("DNI");
       patientIdentifierRef.current = {
         nationalId: "",
         subjectNumber: "",
       };
+      setShowDniField(false);
+      setShowPassportField(false);
+      setShowForeignIdField(false);
       setPatientDetails({
         ...CreatePatientFormValues,
         patientUpdateStatus: "ADD",
@@ -604,7 +577,7 @@ function CreatePatientForm(props) {
         },
       });
     }
-  }, [props.selectedPatient]);
+  }, [props.selectedPatient?.patientPK]);
 
   const repopulatePatientInfo = () => {
     if (props.orderFormValues != null) {
@@ -628,7 +601,7 @@ function CreatePatientForm(props) {
           nationalId: patient.nationalId || "",
           subjectNumber: patient.subjectNumber || "",
         };
-        setPatientIdType(inferPatientIdType(patient.nationalId));
+        syncOptionalIdentityVisibility(patient);
         getYearsMonthsDaysFromDOB(
           props.orderFormValues.patientProperties.birthDateForDisplay,
         );
@@ -788,10 +761,7 @@ function CreatePatientForm(props) {
     setHealthDistricts(districts);
   };
 
-  const handleSubmit = async (
-    values,
-    { resetForm, setFieldTouched, setFieldError },
-  ) => {
+  const handleSubmit = async (values, { resetForm }) => {
     // Prevent multiple submissions.
     if (isSubmitting) {
       return;
@@ -808,17 +778,15 @@ function CreatePatientForm(props) {
     if ("days" in values) {
       delete values.days;
     }
-    values.nationalId = patientIdentifierRef.current.nationalId || "";
+    values.nationalId = showPatientNationalIdField
+      ? patientIdentifierRef.current.nationalId || ""
+      : "";
     values.subjectNumber = patientIdentifierRef.current.subjectNumber || "";
-    if (
-      patientIdType === "DNI" &&
-      values.nationalId.length !== DEFAULT_DNI_MAX_LENGTH
-    ) {
-      setFieldTouched("nationalId", true, false);
-      setFieldError("nationalId", "DNI_LENGTH_INVALID");
-      setIsSubmitting(false);
-      return;
-    }
+    values.dni = showDniField ? values.dni || "" : "";
+    values.passportNumber = showPassportField
+      ? values.passportNumber || ""
+      : "";
+    values.foreignId = showForeignIdField ? values.foreignId || "" : "";
     postToOpenElisServer(
       "/rest/PatientManagement",
       JSON.stringify(values),
@@ -856,21 +824,8 @@ function CreatePatientForm(props) {
     const nationalIdErrorFromProps = props.error
       ? props.error("patientProperties.nationalId")
       : "";
-    const currentNationalId = (
-      patientIdentifierRef.current.nationalId || ""
-    ).trim();
-    const isDniLengthInvalid =
-      patientIdType === "DNI" &&
-      currentNationalId.length > 0 &&
-      currentNationalId.length < DEFAULT_DNI_MAX_LENGTH;
-    const isRequiredInvalid = fieldTouched && !currentNationalId;
 
-    return (
-      Boolean(nationalIdErrorFromProps) ||
-      Boolean(formikError) ||
-      isDniLengthInvalid ||
-      isRequiredInvalid
-    );
+    return Boolean(nationalIdErrorFromProps) || Boolean(formikError);
   };
 
   return (
@@ -894,7 +849,6 @@ function CreatePatientForm(props) {
           handleBlur,
           handleSubmit,
           setFieldValue,
-          setFieldError,
         }) => (
           <Form
             onSubmit={handleSubmit}
@@ -947,9 +901,14 @@ function CreatePatientForm(props) {
                         key={`subject-number-${props.selectedPatient.patientPK || "new"}`}
                         defaultValue={values.subjectNumber || ""}
                         name={field.name}
-                        labelText={intl.formatMessage({
-                          id: "patient.subject.number",
-                        })}
+                        labelText={
+                          <>
+                            {intl.formatMessage({
+                              id: "patient.subject.number",
+                            })}
+                            <span className="requiredlabel">*</span>
+                          </>
+                        }
                         id={field.name}
                         invalid={errors.subjectNumber && touched.subjectNumber}
                         invalidText={errors.subjectNumber}
@@ -979,110 +938,156 @@ function CreatePatientForm(props) {
                   )}
                 </Field>
               </Column>
-              <Column lg={8} md={4} sm={4}>
-                <Field name="nationalId">
-                  {({ field }) => (
-                    <TextInput
-                      key={`national-id-${props.selectedPatient.patientPK || "new"}-${patientIdType}`}
-                      defaultValue={values.nationalId || ""}
-                      name={field.name}
-                      labelText={
-                        <div className="patient-id-label-row">
-                          <div>
-                            {intl.formatMessage({
-                              id: "patient.natioanalid",
-                            })}
-                            <span className="requiredlabel">*</span>
-                          </div>
-                          <div className="patient-id-type-selector">
-                            <Select
-                              id="patient-id-type-select"
-                              name="patientIdTypeControl"
-                              size="sm"
-                              labelText={intl.formatMessage({
-                                id: "patient.identifier.type",
-                              })}
-                              value={patientIdType}
-                              onChange={(event) => {
-                                event.stopPropagation();
-                                const nextType = event.target.value;
-                                setPatientIdType(nextType);
-                                const normalizedValue =
-                                  normalizePatientIdentifierValue(
-                                    values.nationalId,
-                                    nextType,
-                                  );
-                                patientIdentifierRef.current.nationalId =
-                                  normalizedValue;
-                                setFieldValue("nationalId", normalizedValue);
-                                setFieldError("nationalId", undefined);
-                              }}
-                            >
-                              <SelectItem
-                                value="DNI"
-                                text={intl.formatMessage({
-                                  id: "patient.identifier.dni",
-                                })}
-                              />
-                              <SelectItem
-                                value="PASSPORT"
-                                text={intl.formatMessage({
-                                  id: "patient.identifier.passport",
-                                })}
-                              />
-                            </Select>
-                          </div>
-                        </div>
-                      }
-                      id={field.name}
-                      maxLength={getCurrentPatientIdMaxLength()}
-                      invalid={isNationalIdInvalid(
-                        errors.nationalId,
-                        touched.nationalId,
-                      )}
-                      invalidText=""
-                      onMouseOut={() => {
-                        handleSubjectNoValidation(
-                          "nationalId",
-                          "nationalID",
-                          patientIdentifierRef.current.nationalId,
-                        );
-                      }}
-                      onChange={(event) => {
-                        event.stopPropagation();
-                        handleNationalIdChange(event);
-                      }}
-                      onBlur={(event) => {
-                        setFieldValue(
-                          "nationalId",
-                          patientIdentifierRef.current.nationalId || "",
-                        );
-                        if (patientIdType === "DNI") {
-                          const nationalIdLength = (
-                            patientIdentifierRef.current.nationalId || ""
-                          ).length;
-                          setFieldError(
+              {showPatientNationalIdField && (
+                <Column lg={8} md={4} sm={4}>
+                  <Field name="nationalId">
+                    {({ field }) => (
+                      <TextInput
+                        key={`national-id-${props.selectedPatient.patientPK || "new"}`}
+                        defaultValue={values.nationalId || ""}
+                        name={field.name}
+                        labelText={intl.formatMessage({
+                          id: "patient.natioanalid",
+                        })}
+                        id={field.name}
+                        invalid={isNationalIdInvalid(
+                          errors.nationalId,
+                          touched.nationalId,
+                        )}
+                        invalidText=""
+                        onMouseOut={() => {
+                          handleSubjectNoValidation(
                             "nationalId",
-                            nationalIdLength > 0 &&
-                              nationalIdLength < DEFAULT_DNI_MAX_LENGTH
-                              ? "DNI_LENGTH_INVALID"
-                              : undefined,
+                            "nationalID",
+                            patientIdentifierRef.current.nationalId,
                           );
-                        } else {
-                          setFieldError("nationalId", undefined);
-                        }
-                        handleBlur(event);
-                      }}
-                      placeholder={intl.formatMessage({
-                        id:
-                          patientIdType === "PASSPORT"
-                            ? "patient.information.passport"
-                            : "patient.information.dni",
+                        }}
+                        onChange={(event) => {
+                          event.stopPropagation();
+                          handleNationalIdChange(event);
+                        }}
+                        onBlur={(event) => {
+                          setFieldValue(
+                            "nationalId",
+                            patientIdentifierRef.current.nationalId || "",
+                          );
+                          handleBlur(event);
+                        }}
+                        placeholder={intl.formatMessage({
+                          id: "patient.information.nationalid",
+                        })}
+                      />
+                    )}
+                  </Field>
+                </Column>
+              )}
+              {showPatientOptionalIdentifiersOnOrderEntry && (
+                <Column lg={16} md={8} sm={4} className="checkbox-group">
+                  <Section style={{ marginTop: "0.25rem" }}>
+                    <Checkbox
+                      id="patient-dni-enabled"
+                      labelText={intl.formatMessage({
+                        id: "patient.identifier.dni",
                       })}
+                      checked={showDniField}
+                      onChange={(_event, { checked }) => {
+                        const isChecked = Boolean(checked);
+                        setShowDniField(isChecked);
+                        if (!isChecked) {
+                          setFieldValue("dni", "");
+                        }
+                      }}
                     />
-                  )}
-                </Field>
-              </Column>
+                    <Checkbox
+                      id="patient-passport-enabled"
+                      labelText={intl.formatMessage({
+                        id: "patient.identifier.passport",
+                      })}
+                      checked={showPassportField}
+                      onChange={(_event, { checked }) => {
+                        const isChecked = Boolean(checked);
+                        setShowPassportField(isChecked);
+                        if (!isChecked) {
+                          setFieldValue("passportNumber", "");
+                        }
+                      }}
+                    />
+                    <Checkbox
+                      id="patient-foreign-id-enabled"
+                      labelText={intl.formatMessage({
+                        id: "patient.identifier.foreign.card",
+                      })}
+                      checked={showForeignIdField}
+                      onChange={(_event, { checked }) => {
+                        const isChecked = Boolean(checked);
+                        setShowForeignIdField(isChecked);
+                        if (!isChecked) {
+                          setFieldValue("foreignId", "");
+                        }
+                      }}
+                    />
+                  </Section>
+                </Column>
+              )}
+              {showPatientOptionalIdentifiersOnOrderEntry && showDniField && (
+                <Column lg={8} md={4} sm={4}>
+                  <Field name="dni">
+                    {({ field }) => (
+                      <TextInput
+                        value={values.dni || ""}
+                        name={field.name}
+                        labelText={intl.formatMessage({
+                          id: "patient.identifier.dni",
+                        })}
+                        id={field.name}
+                        placeholder={intl.formatMessage({
+                          id: "patient.information.dni",
+                        })}
+                      />
+                    )}
+                  </Field>
+                </Column>
+              )}
+              {showPatientOptionalIdentifiersOnOrderEntry &&
+                showPassportField && (
+                  <Column lg={8} md={4} sm={4}>
+                    <Field name="passportNumber">
+                      {({ field }) => (
+                        <TextInput
+                          value={values.passportNumber || ""}
+                          name={field.name}
+                          labelText={intl.formatMessage({
+                            id: "patient.identifier.passport",
+                          })}
+                          id={field.name}
+                          placeholder={intl.formatMessage({
+                            id: "patient.information.passport",
+                          })}
+                        />
+                      )}
+                    </Field>
+                  </Column>
+                )}
+              {showPatientOptionalIdentifiersOnOrderEntry &&
+                showForeignIdField && (
+                  <Column lg={8} md={4} sm={4}>
+                    <Field name="foreignId">
+                      {({ field }) => (
+                        <TextInput
+                          value={values.foreignId || ""}
+                          name={field.name}
+                          labelText={intl.formatMessage({
+                            id: "patient.identifier.foreign.card",
+                          })}
+                          id={field.name}
+                          placeholder={intl.formatMessage({
+                            id: "patient.information.foreign.card",
+                          })}
+                        />
+                      )}
+                    </Field>
+                  </Column>
+                )}
               <Column lg={16} md={8} sm={4}>
                 {" "}
                 <br></br>

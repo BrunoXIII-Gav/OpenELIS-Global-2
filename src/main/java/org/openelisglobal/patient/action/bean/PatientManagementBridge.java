@@ -25,6 +25,8 @@ import org.openelisglobal.common.util.DateUtil;
 import org.openelisglobal.patient.service.PatientService;
 import org.openelisglobal.patient.service.PatientServiceImpl;
 import org.openelisglobal.patient.valueholder.Patient;
+import org.openelisglobal.patientidentity.valueholder.PatientIdentity;
+import org.openelisglobal.patientidentitytype.util.PatientIdentityTypeMap;
 import org.openelisglobal.person.service.PersonService;
 import org.openelisglobal.spring.util.SpringContext;
 
@@ -79,6 +81,11 @@ public class PatientManagementBridge {
             info.setOtherNationality(patientService.getOtherNationality(patient));
             info.setHealthDistrict(patientService.getHealthDistrict(patient));
             info.setHealthRegion(patientService.getHealthRegion(patient));
+            List<PatientIdentity> identityList = patientService.getIdentityList(patient);
+            PatientIdentityTypeMap identityMap = PatientIdentityTypeMap.getInstance();
+            info.setDni(identityMap.getIdentityValue(identityList, "DNI"));
+            info.setPassportNumber(identityMap.getIdentityValue(identityList, "PASSPORT"));
+            info.setForeignId(identityMap.getIdentityValue(identityList, "FOREIGN_ID"));
             info.setPrimaryPhone(patient.getPerson().getPrimaryPhone());
             info.setEmail(patient.getPerson().getEmail());
 

@@ -205,6 +205,11 @@ public abstract class ConfigurationProperties {
                                                                                                // additional info
                                                                                                // accordion in
                                                                                                // order entry
+        SHOW_PATIENT_OPTIONAL_IDENTIFIERS_ON_ORDER_ENTRY("showPatOptionalIdsOnOrder", "text"), // If true show DNI /
+                                                                                                 // passport / foreign
+                                                                                                 // ID optional fields
+        SHOW_PATIENT_NATIONAL_ID_FIELD("showPatNationalIdField", "text"), // If true show national ID field in patient
+                                                                           // forms
         QA_SAMPLE_ID_REQUIRED("sample id required", "text"), // True if sample id required from referring lab
         MAX_ORDER_PRINTED("numMaxOrderLabels", "text"), // Max number of order labels that can be printed
         MAX_SPECIMEN_PRINTED("numMaxSpecimenLabels", "text"), // Max number of specimen labels that can be printed
