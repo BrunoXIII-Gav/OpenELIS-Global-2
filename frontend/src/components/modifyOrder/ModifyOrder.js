@@ -317,7 +317,9 @@ const ModifyOrder = () => {
                       />
                       <ProgressStep
                         disabled={orderFormValues.sampleOrderItems.labNo == ""}
-                        label={intl.formatMessage({ id: "sample.add.action" })}
+                        label={intl.formatMessage({
+                          id: "order.step.add.request",
+                        })}
                       />
                       <ProgressStep
                         disabled={orderFormValues.sampleOrderItems.labNo == ""}

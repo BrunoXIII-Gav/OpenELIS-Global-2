@@ -19,7 +19,8 @@ public interface TestAdditionalFieldService {
             List<TestAdditionalFieldPayload> fieldDefinitions);
 
     void validateAndPersistAnalysisValues(String testId, String analysisId, Map<String, String> fieldValues,
-            String currentUserId, Map<String, List<TestAdditionalFieldPayload>> activeFieldsByTestCache);
+            String currentUserId, Map<String, List<TestAdditionalFieldPayload>> activeFieldsByTestCache,
+            boolean enforceRequired);
 
     TestAdditionalFieldPayload createField(TestAdditionalFieldPayload payload, String currentUserId);
 

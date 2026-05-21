@@ -165,6 +165,7 @@ const SampleType = (props) => {
   }
 
   const additionalFieldsVisible = isSampleFieldVisible("additionalFields");
+  const referralFieldVisible = isSampleFieldVisible("referral");
 
   function handleCollectionDate(date) {
     setSampleXml({
@@ -674,6 +675,19 @@ const SampleType = (props) => {
       sampleObjectIndex: index,
     });
   }, [referralRequests]);
+
+  useEffect(() => {
+    if (referralFieldVisible) {
+      return;
+    }
+
+    if (requestTestReferral) {
+      setRequestTestReferral(false);
+    }
+    if (referralRequests.length > 0) {
+      setReferralRequests([]);
+    }
+  }, [referralFieldVisible, referralRequests.length, requestTestReferral]);
 
   const displayReferralReasonsOptions = (res) => {
     if (componentMounted.current) {
@@ -1379,25 +1393,27 @@ const SampleType = (props) => {
           </div>
         )}
 
-        <div className="requestTestReferral">
-          <Checkbox
-            id={`useReferral_` + index}
-            labelText={intl.formatMessage({
-              id: "label.refertest.referencelab",
-            })}
-            onChange={handleReferralRequest}
-          />
-          {requestTestReferral === true && (
-            <OrderReferralRequest
-              index={index}
-              selectedTests={selectedTests}
-              referralReasons={referralReasons}
-              referralOrganizations={referralOrganizations}
-              referralRequests={referralRequests}
-              setReferralRequests={setReferralRequests}
+        {referralFieldVisible && (
+          <div className="requestTestReferral">
+            <Checkbox
+              id={`useReferral_` + index}
+              labelText={intl.formatMessage({
+                id: "label.refertest.referencelab",
+              })}
+              onChange={handleReferralRequest}
             />
-          )}
-        </div>
+            {requestTestReferral === true && (
+              <OrderReferralRequest
+                index={index}
+                selectedTests={selectedTests}
+                referralReasons={referralReasons}
+                referralOrganizations={referralOrganizations}
+                referralRequests={referralRequests}
+                setReferralRequests={setReferralRequests}
+              />
+            )}
+          </div>
+        )}
       </div>
     </>
   );

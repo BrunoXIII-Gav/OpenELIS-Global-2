@@ -166,7 +166,7 @@ const AddSample = (props) => {
   return (
     <>
       <h3>
-        <FormattedMessage id="label.button.sample" />
+        <FormattedMessage id="order.sample.section.heading" />
       </h3>
       <Grid>
         <Column lg={16} md={8} sm={4}>
@@ -175,7 +175,7 @@ const AddSample = (props) => {
               return (
                 <div className="sampleType" key={i}>
                   <h4>
-                    <FormattedMessage id="label.button.sample" /> {i + 1}
+                    <FormattedMessage id="order.sample.card.label" /> {i + 1}
                     <span className="requiredlabel">*</span>
                   </h4>
                   <Link href="#" onClick={(e) => handleRemoveSample(e, sample)}>
@@ -206,7 +206,7 @@ const AddSample = (props) => {
             })}
 
             <Button onClick={handleAddNewSample}>
-              {<FormattedMessage id="sample.add.action" />}
+              {<FormattedMessage id="order.sample.add.action" />}
               &nbsp; &nbsp;
               <Add size={16} />
             </Button>

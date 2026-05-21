@@ -45,4 +45,6 @@
   <include relativeToChangelogFile="true" file="034-add-patient-passport-max-length-config.xml"/>
   <include relativeToChangelogFile="true" file="035-add-order-entry-patient-visibility-config.xml"/>
   <include relativeToChangelogFile="true" file="036-add-patient-identifiers-visibility-config.xml"/>
+  <include relativeToChangelogFile="true" file="037-map-sample-management-route-module-access.xml"/>
+  <include relativeToChangelogFile="true" file="038-remap-sample-management-to-reception-module.xml"/>
 </databaseChangeLog>

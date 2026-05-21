@@ -1,0 +1,26 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<databaseChangeLog
+  xmlns="http://www.liquibase.org/xml/ns/dbchangelog"
+  xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+  xsi:schemaLocation="http://www.liquibase.org/xml/ns/dbchangelog http://www.liquibase.org/xml/ns/dbchangelog/dbchangelog-3.8.xsd">
+
+  <changeSet id="038-remap-sample-management-to-reception-module" author="codex">
+    <preConditions onFail="MARK_RAN">
+      <tableExists tableName="system_module_url" schemaName="clinlims" />
+      <sqlCheck expectedResult="1">
+        SELECT COUNT(*) FROM clinlims.system_module WHERE name = 'SamplePatientEntry'
+      </sqlCheck>
+      <sqlCheck expectedResult="1">
+        SELECT COUNT(*) FROM clinlims.system_module_url WHERE url_path = '/SampleManagement'
+      </sqlCheck>
+    </preConditions>
+
+    <comment>Restrict Sample Management route to Reception users by mapping to SamplePatientEntry module</comment>
+    <update tableName="system_module_url" schemaName="clinlims">
+      <column name="system_module_id"
+              valueComputed="(SELECT id FROM clinlims.system_module WHERE name = 'SamplePatientEntry')"/>
+      <where>url_path = '/SampleManagement'</where>
+    </update>
+  </changeSet>
+
+</databaseChangeLog>
