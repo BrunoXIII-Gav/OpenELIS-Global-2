@@ -71,6 +71,25 @@ function SampleSearch({ onSearchResults, includeTests = false }) {
     [includeTests, onSearchResults, intl],
   );
 
+  const hasSearchedInitial = useRef(false);
+
+  useEffect(() => {
+    if (hasSearchedInitial.current) return;
+
+    const params = new URLSearchParams(window.location.search);
+    const accessionFromUrl = params.get("accessionNumber");
+
+    if (accessionFromUrl) {
+      setSearchValue(accessionFromUrl);
+      
+      hasSearchedInitial.current = true;
+      
+      setTimeout(() => {
+        performSearch(accessionFromUrl);
+      }, 100);
+    }
+  }, [performSearch]);
+  
   /**
    * Handle search input change - no longer auto-triggers search.
    */
