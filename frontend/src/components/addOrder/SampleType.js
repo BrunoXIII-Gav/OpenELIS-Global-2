@@ -24,8 +24,35 @@ import CustomTimePicker from "../common/CustomTimePicker";
 import { sampleTypeTestsStructure } from "../data/SampleEntryTestsForTypeProvider";
 import { ConfigurationContext, NotificationContext } from "../layout/Layout";
 import StorageLocationSelector from "../storage/StorageLocationSelector";
-import { getFromOpenElisServer } from "../utils/Utils";
+import {
+  getFromOpenElisServer,
+  postToOpenElisServerJsonResponse,
+} from "../utils/Utils";
 import GpsCoordinatesCapture from "./GpsCoordinatesCapture";
+
+const createCugReservationContextId = () => {
+  if (typeof crypto !== "undefined" && crypto.randomUUID) {
+    return crypto.randomUUID();
+  }
+  return `cug-${Date.now()}-${Math.floor(Math.random() * 1000000)}`;
+};
+
+const parseCugParts = (value) => {
+  const normalized = String(value || "").trim();
+  const splitIndex = normalized.lastIndexOf(".");
+  if (splitIndex <= 0 || splitIndex === normalized.length - 1) {
+    return null;
+  }
+  const prefixRaw = normalized.substring(0, splitIndex).trim();
+  const suffixRaw = normalized.substring(splitIndex + 1).trim();
+  if (!/^\d+$/.test(prefixRaw) || !/^\d+$/.test(suffixRaw)) {
+    return null;
+  }
+  return {
+    prefix: Number(prefixRaw),
+    suffix: Number(suffixRaw),
+  };
+};
 
 const SampleType = (props) => {
   const { userSessionDetails } = useContext(UserSessionDetailsContext);
@@ -35,6 +62,11 @@ const SampleType = (props) => {
 
   const componentMounted = useRef(false);
   const sampleTypesRef = useRef(null);
+  const cugGenerationInFlightRef = useRef(false);
+  const cugGenerationKeyRef = useRef("");
+  const previousPatientCugKeyRef = useRef(
+    String(props.patientCugKey || "").trim() || null,
+  );
 
   const { index, rejectSampleReasons, sample } = props;
 
@@ -66,35 +98,73 @@ const SampleType = (props) => {
   const [panelSearchTerm, setPanelSearchTerm] = useState("");
   const [searchBoxPanels, setSearchBoxPanels] = useState([]);
   const [uomList, setUomList] = useState([]);
-  const [sampleXml, setSampleXml] = useState(
-    sample?.sampleXML != null
-      ? {
-          ...sample.sampleXML,
-          additionalFieldValues: sample.sampleXML.additionalFieldValues || {},
-        }
-      : {
-          collectionDate:
-            configurationProperties?.AUTOFILL_COLLECTION_DATE === "true"
-              ? configurationProperties.currentDateAsText
-              : "",
-          collector: "",
-          quantity: "",
-          uom: "",
-          rejected: false,
-          rejectionReason: "",
-          collectionTime:
-            configurationProperties?.AUTOFILL_COLLECTION_DATE === "true"
-              ? configurationProperties.currentTimeAsText
-              : "",
-          additionalFieldValues: {},
-        },
-  );
+  const [sampleXml, setSampleXml] = useState(() => {
+    if (sample?.sampleXML != null) {
+      return {
+        ...sample.sampleXML,
+        cug: sample.sampleXML.cug || "",
+        cugAutoReserved: sample.sampleXML.cugAutoReserved || "",
+        cugValidationMessage: "",
+        cugReservationToken: sample.sampleXML.cugReservationToken || "",
+        cugReservationContextId:
+          sample.sampleXML.cugReservationContextId ||
+          createCugReservationContextId(),
+        additionalFieldValues: sample.sampleXML.additionalFieldValues || {},
+      };
+    }
+    return {
+      collectionDate:
+        configurationProperties?.AUTOFILL_COLLECTION_DATE === "true"
+          ? configurationProperties.currentDateAsText
+          : "",
+      collector: "",
+      quantity: "",
+      uom: "",
+      rejected: false,
+      rejectionReason: "",
+      collectionTime:
+        configurationProperties?.AUTOFILL_COLLECTION_DATE === "true"
+          ? configurationProperties.currentTimeAsText
+          : "",
+      cug: "",
+      cugAutoReserved: "",
+      cugValidationMessage: "",
+      cugReservationToken: "",
+      cugReservationContextId: createCugReservationContextId(),
+      additionalFieldValues: {},
+    };
+  });
   const [loading, setLoading] = useState(true);
   const [sampleFixedFieldConfigs, setSampleFixedFieldConfigs] = useState([]);
-  const [
-    waitingForSampleFixedFieldConfig,
-    setWaitingForSampleFixedFieldConfig,
-  ] = useState(true);
+  const [waitingForSampleFixedFieldConfig, setWaitingForSampleFixedFieldConfig] =
+    useState(true);
+
+  function getSampleFixedFieldConfig(fieldKey) {
+    return sampleFixedFieldConfigs.find(
+      (c) => c?.fieldKey?.toLowerCase() === fieldKey?.toLowerCase(),
+    ) || null;
+  }
+
+  function isSampleFieldVisible(fieldKey) {
+    if (waitingForSampleFixedFieldConfig && !sampleFixedFieldConfigs.length) {
+      return false;
+    }
+    const config = getSampleFixedFieldConfig(fieldKey);
+    return config ? config.visible !== false : true;
+  }
+
+  function isSampleFieldRequired(fieldKey, fallback = false) {
+    const config = getSampleFixedFieldConfig(fieldKey);
+    if (!config) {
+      return fallback;
+    }
+    if (config.visible === false) {
+      return false;
+    }
+    return config.required != null ? !!config.required : fallback;
+  }
+
+  const additionalFieldsVisible = isSampleFieldVisible("additionalFields");
 
   function handleCollectionDate(date) {
     setSampleXml({
@@ -127,6 +197,155 @@ const SampleType = (props) => {
       collector: value,
     });
   }
+
+  const generateCugPreview = useCallback(() => {
+    if (!props.canGenerateCug) {
+      return;
+    }
+    const patientId = String(props.patientId || "").trim();
+    const patientCugKey = String(props.patientCugKey || "").trim();
+    const sampleTypeId = String(selectedSampleType.id || "").trim();
+    const currentCug = String(sampleXml.cug || "").trim();
+    if (!sampleTypeId || currentCug) {
+      return;
+    }
+    const generationKey = `${index}|${sampleTypeId}|${patientId}|${patientCugKey}`;
+    if (
+      cugGenerationInFlightRef.current ||
+      cugGenerationKeyRef.current === generationKey
+    ) {
+      return;
+    }
+    cugGenerationKeyRef.current = generationKey;
+    cugGenerationInFlightRef.current = true;
+    let reservationContextId = sampleXml.cugReservationContextId;
+    if (!reservationContextId) {
+      reservationContextId = createCugReservationContextId();
+      setSampleXml((previous) => ({
+        ...previous,
+        cugReservationContextId: reservationContextId,
+      }));
+    }
+
+    const payload = {
+      patientId,
+      existingCugs: Array.isArray(props.existingCugs) ? props.existingCugs : [],
+      reservationToken: sampleXml.cugReservationToken || "",
+      reservationContextId: reservationContextId,
+    };
+
+    postToOpenElisServerJsonResponse(
+      "/rest/sample-cug/preview",
+      JSON.stringify(payload),
+      (response) => {
+        cugGenerationInFlightRef.current = false;
+        if (response?.status && response.status >= 400) {
+          setNotificationVisible(true);
+          addNotification({
+            kind: NotificationKinds.error,
+            title: intl.formatMessage({ id: "notification.title" }),
+            message:
+              response?.message ||
+              intl.formatMessage({ id: "sample.cug.generate.error" }),
+          });
+          return;
+        }
+        const generated = response?.cugCode;
+        const reservationToken = response?.reservationToken;
+        if (generated && reservationToken) {
+          setSampleXml((previous) => ({
+            ...previous,
+            cug: generated,
+            cugAutoReserved: generated,
+            cugValidationMessage: "",
+            cugReservationToken: reservationToken,
+          }));
+          return;
+        }
+        setNotificationVisible(true);
+        addNotification({
+          kind: NotificationKinds.error,
+          title: intl.formatMessage({ id: "notification.title" }),
+          message: intl.formatMessage({ id: "sample.cug.generate.error" }),
+        });
+      },
+    );
+  }, [
+    addNotification,
+    index,
+    intl,
+    props.canGenerateCug,
+    props.existingCugs,
+    props.patientId,
+    props.patientCugKey,
+    sampleXml.cug,
+    sampleXml.cugReservationContextId,
+    sampleXml.cugReservationToken,
+    selectedSampleType.id,
+    setNotificationVisible,
+  ]);
+
+  useEffect(() => {
+    const currentPatientCugKey =
+      String(props.patientCugKey || "").trim() || null;
+    const previousPatientCugKey = previousPatientCugKeyRef.current;
+    if (previousPatientCugKey === currentPatientCugKey) {
+      return;
+    }
+
+    previousPatientCugKeyRef.current = currentPatientCugKey;
+    cugGenerationKeyRef.current = "";
+    setSampleXml((previous) => ({
+      ...previous,
+      cug: "",
+      cugAutoReserved: "",
+      cugValidationMessage: "",
+      cugReservationToken: "",
+      cugReservationContextId: createCugReservationContextId(),
+    }));
+  }, [props.patientCugKey]);
+
+  useEffect(() => {
+    if (props.canGenerateCug) {
+      return;
+    }
+    cugGenerationKeyRef.current = "";
+    setSampleXml((previous) => {
+      const hasAnyCugData =
+        String(previous.cug || "").trim() !== "" ||
+        String(previous.cugAutoReserved || "").trim() !== "" ||
+        String(previous.cugReservationToken || "").trim() !== "";
+      if (!hasAnyCugData) {
+        return previous;
+      }
+      return {
+        ...previous,
+        cug: "",
+        cugAutoReserved: "",
+        cugValidationMessage: "",
+        cugReservationToken: "",
+      };
+    });
+  }, [props.canGenerateCug]);
+
+  useEffect(() => {
+    if (!props.canGenerateCug) {
+      return;
+    }
+    const hasSampleType =
+      selectedSampleType.id !== "" && selectedSampleType.id != null;
+    const hasCug = String(sampleXml.cug || "").trim() !== "";
+    if (!hasSampleType || hasCug) {
+      return;
+    }
+    generateCugPreview();
+  }, [
+    generateCugPreview,
+    props.canGenerateCug,
+    props.patientCugKey,
+    sampleXml.cug,
+    selectedSampleType.id,
+  ]);
 
   const handleGpsCoordinatesChange = useCallback(
     (gpsData) => {
@@ -194,6 +413,53 @@ const SampleType = (props) => {
     setSampleXml({
       ...sampleXml,
       uom: value,
+    });
+  }
+
+  function handleCugChange(value) {
+    const nextCug = value?.target?.value || "";
+    setSampleXml((previous) => {
+      const next = { ...previous, cug: nextCug };
+      const hasReservationContext =
+        String(previous.cugReservationToken || "").trim() !== "" &&
+        String(previous.cugAutoReserved || "").trim() !== "";
+      if (!hasReservationContext || String(nextCug).trim() === "") {
+        return { ...next, cugValidationMessage: "" };
+      }
+
+      const reserved = parseCugParts(previous.cugAutoReserved);
+      const manual = parseCugParts(nextCug);
+      if (!reserved || !manual) {
+        return {
+          ...next,
+          cugValidationMessage: intl.formatMessage({
+            id: "sample.cug.manual.format.error",
+          }),
+        };
+      }
+
+      const maxPrefix = reserved.prefix + 5;
+      const maxSuffix = reserved.suffix + 5;
+      const prefixInRange =
+        manual.prefix >= reserved.prefix && manual.prefix <= maxPrefix;
+      const suffixInRange =
+        manual.suffix >= reserved.suffix && manual.suffix <= maxSuffix;
+      if (!prefixInRange || !suffixInRange) {
+        return {
+          ...next,
+          cugValidationMessage: intl.formatMessage(
+            { id: "sample.cug.manual.range.error" },
+            {
+              minPrefix: reserved.prefix,
+              minSuffix: reserved.suffix,
+              maxPrefix: maxPrefix,
+              maxSuffix: maxSuffix,
+            },
+          ),
+        };
+      }
+
+      return { ...next, cugValidationMessage: "" };
     });
   }
 
@@ -330,6 +596,7 @@ const SampleType = (props) => {
     setSelectedPanels([]);
     setReferralRequests([]);
     const { value } = e.target;
+    cugGenerationKeyRef.current = "";
     const selectedSampleTypeOption =
       sampleTypesRef.current.options[sampleTypesRef.current.selectedIndex].text;
     setSelectedSampleType({
@@ -340,6 +607,10 @@ const SampleType = (props) => {
     });
     setSampleXml((previous) => ({
       ...previous,
+      cug: "",
+      cugAutoReserved: "",
+      cugValidationMessage: "",
+      cugReservationToken: "",
       additionalFieldValues: {},
     }));
     props.sampleTypeObject({ sampleTypeId: value, sampleObjectIndex: index });
@@ -352,7 +623,20 @@ const SampleType = (props) => {
 
   const fetchSamplesTypes = (res) => {
     if (componentMounted.current) {
-      setSampleTypes(Array.isArray(res) ? res : []);
+      const normalized = (Array.isArray(res) ? res : []).map((sampleType) => {
+        const displayValue = [
+          sampleType?.value,
+          sampleType?.name,
+          sampleType?.description,
+          sampleType?.id,
+        ].find((entry) => String(entry || "").trim() !== "");
+
+        return {
+          ...sampleType,
+          value: displayValue || "",
+        };
+      });
+      setSampleTypes(normalized);
       setLoading(false);
     }
   };
@@ -478,7 +762,9 @@ const SampleType = (props) => {
   }, [selectedSampleType.id]);
 
   useEffect(() => {
-    const additionalFields = sampleTypeTests?.additionalFields || [];
+    const additionalFields = additionalFieldsVisible
+      ? sampleTypeTests?.additionalFields || []
+      : [];
     props.sampleTypeObject({
       additionalFields: additionalFields,
       sampleObjectIndex: index,
@@ -519,7 +805,7 @@ const SampleType = (props) => {
         additionalFieldValues: updatedValues,
       };
     });
-  }, [sampleTypeTests.additionalFields, index]);
+  }, [sampleTypeTests.additionalFields, additionalFieldsVisible, index]);
 
   useEffect(() => {
     getFromOpenElisServer(`/rest/displayList/UNIT_OF_MEASURE`, fetchUomCreate);
@@ -560,19 +846,6 @@ const SampleType = (props) => {
       triggerPanelCheckBoxChange(true, selectedPanels[i].testIds);
     }
   }, [selectedPanels, sampleTypeTests]);
-
-  const getSampleFixedFieldConfig = (fieldKey) =>
-    sampleFixedFieldConfigs.find(
-      (c) => c?.fieldKey?.toLowerCase() === fieldKey?.toLowerCase(),
-    ) || null;
-
-  const isSampleFieldVisible = (fieldKey) => {
-    if (waitingForSampleFixedFieldConfig && !sampleFixedFieldConfigs.length) {
-      return false;
-    }
-    const config = getSampleFixedFieldConfig(fieldKey);
-    return config ? config.visible !== false : true;
-  };
 
   useEffect(() => {
     componentMounted.current = true;
@@ -735,11 +1008,25 @@ const SampleType = (props) => {
           }}
           required
         >
-          <SelectItem text="Select sample type" value="" />
+          <SelectItem
+            text={intl.formatMessage({ id: "sample.type.select.placeholder" })}
+            value=""
+          />
           {sampleTypes?.map((sampleType, i) => (
             <SelectItem text={sampleType.value} value={sampleType.id} key={i} />
           ))}
         </Select>
+        {isSampleFieldVisible("cug") && (
+          <TextInput
+            id={`sample_cug_${index}`}
+            labelText={intl.formatMessage({ id: "sample.cug.label" })}
+            value={sampleXml.cug || ""}
+            required={isSampleFieldRequired("cug", true)}
+            onChange={handleCugChange}
+            invalid={Boolean(sampleXml.cugValidationMessage)}
+            invalidText={sampleXml.cugValidationMessage || ""}
+          />
+        )}
 
         {isSampleFieldVisible("rejected") && (
           <CustomCheckBox
@@ -823,7 +1110,8 @@ const SampleType = (props) => {
           </div>
         )}
 
-        {sampleTypeTests.additionalFields &&
+        {additionalFieldsVisible &&
+          sampleTypeTests.additionalFields &&
           sampleTypeTests.additionalFields.length > 0 && (
             <div className="additionalFields">
               <h4>

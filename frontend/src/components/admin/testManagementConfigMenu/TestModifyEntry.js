@@ -177,8 +177,11 @@ function TestModifyEntry() {
   };
 
   const handleTestModifyEntryPostCallBack = (res) => {
-    if (res) {
-      setIsLoading(false);
+    setIsLoading(false);
+    const isErrorResponse =
+      !res || res.status >= 400 || res.statusCode >= 400 || res.error;
+
+    if (!isErrorResponse) {
       addNotification({
         title: intl.formatMessage({
           id: "notification.title",
@@ -193,15 +196,16 @@ function TestModifyEntry() {
         window.location.reload();
       }, 200);
     } else {
+      const backendMessage =
+        res?.message ||
+        res?.error ||
+        intl.formatMessage({ id: "server.error.msg" });
       addNotification({
         kind: NotificationKinds.error,
         title: intl.formatMessage({ id: "notification.title" }),
-        message: intl.formatMessage({ id: "server.error.msg" }),
+        message: backendMessage,
       });
       setNotificationVisible(true);
-      setTimeout(() => {
-        window.location.reload();
-      }, 200);
     }
   };
 

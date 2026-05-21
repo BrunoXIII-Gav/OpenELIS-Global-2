@@ -49,6 +49,7 @@ public class SampleItem extends BaseObject<String> implements NoteObject {
     private ValueHolderInterface unitOfMeasure;
     private String unitOfMeasureName;
     private String externalId;
+    private String cugCode;
     private Timestamp collectionDate;
     private String statusId;
     private String collector;
@@ -103,6 +104,14 @@ public class SampleItem extends BaseObject<String> implements NoteObject {
 
     public void setExternalId(String externalId) {
         this.externalId = externalId;
+    }
+
+    public String getCugCode() {
+        return cugCode;
+    }
+
+    public void setCugCode(String cugCode) {
+        this.cugCode = cugCode;
     }
 
     public Timestamp getCollectionDate() {

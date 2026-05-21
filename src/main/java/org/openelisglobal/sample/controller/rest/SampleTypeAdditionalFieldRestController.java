@@ -4,6 +4,7 @@ import jakarta.servlet.http.HttpServletRequest;
 import java.util.ArrayList;
 import java.util.Comparator;
 import java.util.List;
+import java.util.Map;
 import org.apache.commons.lang3.StringUtils;
 import org.openelisglobal.common.rest.BaseRestController;
 import org.openelisglobal.common.services.DisplayListService;
@@ -41,6 +42,18 @@ public class SampleTypeAdditionalFieldRestController extends BaseRestController 
             @RequestParam(value = "includeInactive", defaultValue = "false") boolean includeInactive) {
         try {
             return sampleTypeAdditionalFieldService.getFieldsForSampleType(sampleTypeId, includeInactive);
+        } catch (IllegalArgumentException e) {
+            throw new ResponseStatusException(HttpStatus.BAD_REQUEST, e.getMessage());
+        }
+    }
+
+    @GetMapping(value = "sample-type-additional-fields/values", produces = MediaType.APPLICATION_JSON_VALUE)
+    @ResponseBody
+    public Map<String, String> getFieldValuesForSampleItem(
+            @RequestParam("sampleTypeId") String sampleTypeId,
+            @RequestParam("sampleItemId") String sampleItemId) {
+        try {
+            return sampleTypeAdditionalFieldService.getFieldValuesForSampleItem(sampleTypeId, sampleItemId);
         } catch (IllegalArgumentException e) {
             throw new ResponseStatusException(HttpStatus.BAD_REQUEST, e.getMessage());
         }

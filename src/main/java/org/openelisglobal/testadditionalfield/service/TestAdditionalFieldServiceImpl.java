@@ -117,8 +117,11 @@ public class TestAdditionalFieldServiceImpl implements TestAdditionalFieldServic
 
         Map<Integer, TestAdditionalFieldDefinition> existingById = existingDefinitions.stream()
                 .collect(Collectors.toMap(TestAdditionalFieldDefinition::getId, d -> d));
-        Map<String, TestAdditionalFieldDefinition> existingByFieldKey = existingDefinitions.stream()
-                .collect(Collectors.toMap(d -> d.getFieldKey().toLowerCase(), d -> d, (left, right) -> left));
+        Map<String, TestAdditionalFieldDefinition> existingByFieldKey = existingDefinitions.stream().collect(Collectors
+                .toMap(d -> StringUtils.trimToEmpty(d.getFieldKey()).toLowerCase(), d -> d, (left, right) -> left));
+        Map<String, TestAdditionalFieldDefinition> existingByDisplayName = existingDefinitions.stream()
+                .collect(Collectors.toMap(d -> StringUtils.trimToEmpty(d.getDisplayName()).toLowerCase(), d -> d,
+                        (left, right) -> left));
 
         Set<Integer> touchedDefinitionIds = new HashSet<>();
         Set<String> payloadFieldKeys = new HashSet<>();
@@ -143,6 +146,14 @@ public class TestAdditionalFieldServiceImpl implements TestAdditionalFieldServic
             if (definition == null) {
                 definition = existingByFieldKey.get(normalizedFieldKey.toLowerCase());
             }
+            if (definition == null && StringUtils.isNotBlank(payload.getDisplayName())) {
+                definition = existingByDisplayName.get(payload.getDisplayName().trim().toLowerCase());
+            }
+            if (definition == null) {
+                // Defensive DB lookup to avoid duplicate inserts when payload does
+                // not carry IDs for existing fields in modify flow.
+                definition = definitionDAO.findByTestIdAndFieldKey(numericTestId, normalizedFieldKey).orElse(null);
+            }
             if (definition == null) {
                 definition = new TestAdditionalFieldDefinition();
                 definition.setTestId(numericTestId);
@@ -163,8 +174,35 @@ public class TestAdditionalFieldServiceImpl implements TestAdditionalFieldServic
             definition.setSysUserId(currentUserId);
 
             if (definition.getId() == null) {
-                Integer createdId = definitionDAO.insert(definition);
-                definition.setId(createdId);
+                try {
+                    Integer createdId = definitionDAO.insert(definition);
+                    definition.setId(createdId);
+                } catch (RuntimeException insertFailure) {
+                    // If insert fails due to unique(test_id, field_key),
+                    // ensure the failed transient entity is evicted so it is not
+                    // retried again on transaction flush.
+                    definitionDAO.evict(definition);
+
+                    // Defensive upsert fallback:
+                    // if unique(test_id, field_key) already exists, use that row and update it.
+                    Optional<TestAdditionalFieldDefinition> existingSameKey = definitionDAO
+                            .findByTestIdAndFieldKey(numericTestId, normalizedFieldKey);
+                    if (existingSameKey.isEmpty()) {
+                        throw insertFailure;
+                    }
+                    definition = existingSameKey.get();
+                    definition.setDisplayName(payload.getDisplayName().trim());
+                    definition.setFieldType(fieldType.name());
+                    definition.setRequired(Boolean.TRUE.equals(payload.getRequired()));
+                    definition.setActive(payload.getActive() == null || payload.getActive());
+                    definition.setSortOrder(
+                            payload.getSortOrder() == null ? fallbackSortOrder : Math.max(payload.getSortOrder(), 0));
+                    definition.setDefaultValue(StringUtils.defaultIfBlank(payload.getDefaultValue(), null));
+                    definition.setMaxLength(payload.getMaxLength());
+                    definition.setMetadataJson(StringUtils.defaultIfBlank(payload.getMetadataJson(), null));
+                    definition.setSysUserId(currentUserId);
+                    definitionDAO.update(definition);
+                }
             } else {
                 definitionDAO.update(definition);
             }

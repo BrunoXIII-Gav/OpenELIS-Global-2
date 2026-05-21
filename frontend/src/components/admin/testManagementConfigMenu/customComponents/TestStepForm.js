@@ -40,6 +40,7 @@ export const TestStepForm = ({
 
   const intl = useIntl();
   const componentMounted = useRef(false);
+  const formDataRef = useRef(initialData);
   const [formData, setFormData] = useState(initialData);
   const [isLoading, setIsLoading] = useState(false);
   const [ageRangeList, setAgeRangeList] = useState([]);
@@ -124,7 +125,23 @@ export const TestStepForm = ({
 
   const handleNextStep = (newData, final = false) => {
     const normalizedData = normalizeResultTypeId(newData || {});
-    const mergedData = { ...formData, ...normalizedData };
+    const previousData = formDataRef.current || {};
+    const mergedData = { ...previousData, ...normalizedData };
+    const isAdditionalFieldsEditStep = currentStep === 2;
+    if (!isAdditionalFieldsEditStep) {
+      mergedData.additionalFields = Array.isArray(previousData.additionalFields)
+        ? previousData.additionalFields
+        : [];
+    } else if (
+      Array.isArray(previousData.additionalFields) &&
+      previousData.additionalFields.length > 0 &&
+      (!Array.isArray(normalizedData.additionalFields) ||
+        normalizedData.additionalFields.length === 0)
+    ) {
+      mergedData.additionalFields = previousData.additionalFields;
+    }
+
+    formDataRef.current = mergedData;
     setFormData(mergedData);
 
     if (!final) {
@@ -163,7 +180,23 @@ export const TestStepForm = ({
   };
 
   const handlePreviousStep = (newData) => {
-    setFormData((prev) => ({ ...prev, ...newData }));
+    const previousData = formDataRef.current || {};
+    const mergedData = { ...previousData, ...(newData || {}) };
+    const isAdditionalFieldsEditStep = currentStep === 2;
+    if (!isAdditionalFieldsEditStep) {
+      mergedData.additionalFields = Array.isArray(previousData.additionalFields)
+        ? previousData.additionalFields
+        : [];
+    } else if (
+      Array.isArray(previousData.additionalFields) &&
+      previousData.additionalFields.length > 0 &&
+      (!Array.isArray(newData?.additionalFields) ||
+        newData.additionalFields.length === 0)
+    ) {
+      mergedData.additionalFields = previousData.additionalFields;
+    }
+    formDataRef.current = mergedData;
+    setFormData(mergedData);
     const selectedResultTypeId = String(
       newData?.resultType || formData.resultType || "",
     );
@@ -251,6 +284,10 @@ export const TestStepForm = ({
       extractedAgeRanges,
     };
   };
+
+  useEffect(() => {
+    formDataRef.current = formData;
+  }, [formData]);
 
   useEffect(() => {
     if (mode === "edit") {
@@ -1256,6 +1293,16 @@ export const StepThreeTestResultTypeAndLoinc = ({
     "RADIO",
   ];
   const optionBasedTypes = new Set(["SELECT", "MULTISELECT", "RADIO"]);
+  const normalizeAdditionalFieldKey = (field = {}) => {
+    const source = (field.fieldKey || field.displayName || "").trim();
+    const normalized = source
+      .toLowerCase()
+      .replace(/[^a-z0-9_-]/g, "_")
+      .replace(/_+/g, "_")
+      .replace(/^_+/, "")
+      .slice(0, 80);
+    return normalized;
+  };
 
   const handleSubmit = (values) => {
     handleNextStep(values, true);
@@ -1269,28 +1316,54 @@ export const StepThreeTestResultTypeAndLoinc = ({
           resultType: Yup.string()
             .notOneOf(["0", ""], "Please select a valid Result Type")
             .required("Result Type is required"),
-          additionalFields: Yup.array().of(
-            Yup.object().shape({
-              displayName: Yup.string()
-                .trim()
-                .required("Display Name is required"),
-              fieldType: Yup.string().required("Field Type is required"),
-              options: Yup.array().when("fieldType", {
-                is: (fieldType) => optionBasedTypes.has(fieldType),
-                then: (schema) =>
-                  schema
-                    .of(
-                      Yup.object().shape({
-                        optionLabel: Yup.string()
-                          .trim()
-                          .required("Option Label is required"),
-                      }),
-                    )
-                    .min(1, "At least one option is required"),
-                otherwise: (schema) => schema.notRequired(),
+          additionalFields: Yup.array()
+            .of(
+              Yup.object().shape({
+                displayName: Yup.string()
+                  .trim()
+                  .required("Display Name is required"),
+                fieldType: Yup.string().required("Field Type is required"),
+                options: Yup.array().when(["fieldType", "active"], {
+                  is: (fieldType, active) =>
+                    optionBasedTypes.has(fieldType) && active !== false,
+                  then: (schema) =>
+                    schema
+                      .of(
+                        Yup.object().shape({
+                          optionLabel: Yup.string()
+                            .trim()
+                            .required("Option Label is required"),
+                        }),
+                      )
+                      .min(1, "At least one option is required"),
+                  otherwise: (schema) => schema.notRequired(),
+                }),
               }),
-            }),
-          ),
+            )
+            .test(
+              "unique-normalized-field-key",
+              "Additional field key must be unique",
+              function (fields) {
+                if (!Array.isArray(fields)) {
+                  return true;
+                }
+                const seen = new Set();
+                for (let i = 0; i < fields.length; i++) {
+                  const normalizedKey = normalizeAdditionalFieldKey(fields[i]);
+                  if (!normalizedKey) {
+                    continue;
+                  }
+                  if (seen.has(normalizedKey)) {
+                    return this.createError({
+                      path: `additionalFields[${i}].fieldKey`,
+                      message: "Additional field key must be unique",
+                    });
+                  }
+                  seen.add(normalizedKey);
+                }
+                return true;
+              },
+            ),
           // loinc: Yup.string().matches(
           //   /^(?!-)(?:\d+-)*\d+$/,
           //   "Loinc must contain only numbers",
@@ -1503,6 +1576,22 @@ export const StepThreeTestResultTypeAndLoinc = ({
                       }}
                       invalid={touched.loinc && !!errors.loinc}
                       invalidText={touched.loinc && errors.loinc}
+                    />
+                  </div>
+                  <br />
+                  <div>
+                    <FormattedMessage id="field.resultName" />
+                    <br />
+                    <TextInput
+                      labelText=""
+                      id="resultName"
+                      name="resultName"
+                      value={values.resultName}
+                      onChange={(e) => {
+                        handleChange(e);
+                      }}
+                      invalid={touched.resultName && !!errors.resultName}
+                      invalidText={touched.resultName && errors.resultName}
                     />
                   </div>
                   <br />

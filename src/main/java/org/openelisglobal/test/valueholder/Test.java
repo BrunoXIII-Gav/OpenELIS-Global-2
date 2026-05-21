@@ -496,6 +496,14 @@ public class Test extends EnumValueItemImpl {
         return getLocalizedTestName().getLocalizedValue();
     }
 
+    public String getStoredName() {
+        return super.getName();
+    }
+
+    public void setStoredName(String storedName) {
+        super.setName(storedName);
+    }
+
     public TestResult getDefaultTestResult() {
         return (TestResult) defaultTestResult.getValue();
     }

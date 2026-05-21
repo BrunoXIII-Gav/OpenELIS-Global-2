@@ -5,6 +5,7 @@ import java.sql.Timestamp;
 import org.hibernate.HibernateException;
 import org.openelisglobal.audittrail.valueholder.History;
 import org.openelisglobal.common.exception.LIMSRuntimeException;
+import org.openelisglobal.common.form.BaseForm;
 import org.openelisglobal.common.log.LogEvent;
 import org.openelisglobal.common.service.DatabaseCleanService;
 import org.openelisglobal.common.util.ConfigurationProperties;
@@ -14,6 +15,7 @@ import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Controller;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PostMapping;
+import org.springframework.web.servlet.ModelAndView;
 
 @Controller
 public class DeletePatientTestDataController extends BaseController {
@@ -24,8 +26,8 @@ public class DeletePatientTestDataController extends BaseController {
     private HistoryService historyService;
 
     @GetMapping(value = "/DatabaseCleaningRequest")
-    public String confirmCleanSamplePatientDatabaseEntries() {
-        return findForward(FWD_SUCCESS);
+    public ModelAndView confirmCleanSamplePatientDatabaseEntries() {
+        return findForward(FWD_SUCCESS, new BaseForm());
     }
 
     @PostMapping(value = "/DatabaseCleaningRequest")
@@ -61,7 +63,7 @@ public class DeletePatientTestDataController extends BaseController {
     protected String findLocalForward(String forward) {
 
         if (FWD_SUCCESS_DELETE.equals(forward)) {
-            return "masterListsPageDefinition";
+            return "redirect:/MasterListsPage";
         } else if (FWD_SUCCESS.equals(forward)) {
             return "databaseCleaningDefinition";
         }

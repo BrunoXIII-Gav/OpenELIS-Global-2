@@ -13,7 +13,9 @@
  */
 package org.openelisglobal.address.daoimpl;
 
+import java.util.Collections;
 import java.util.List;
+import org.apache.commons.lang3.StringUtils;
 import org.hibernate.HibernateException;
 import org.hibernate.Session;
 import org.hibernate.query.Query;
@@ -35,11 +37,16 @@ public class PersonAddressDAOImpl extends BaseDAOImpl<PersonAddress, AddressPK> 
 
     @Override
     public List<PersonAddress> getAddressPartsByPersonId(String personId) throws LIMSRuntimeException {
+        Integer personNumericId = parseNumericId(personId);
+        if (personNumericId == null) {
+            return Collections.emptyList();
+        }
+
         String sql = "from PersonAddress pa where pa.compoundId.targetId = :personId";
 
         try {
             Query<PersonAddress> query = entityManager.unwrap(Session.class).createQuery(sql, PersonAddress.class);
-            query.setParameter("personId", Integer.parseInt(personId));
+            query.setParameter("personId", personNumericId);
             List<PersonAddress> addressPartList = query.list();
             return addressPartList;
         } catch (HibernateException e) {
@@ -51,13 +58,19 @@ public class PersonAddressDAOImpl extends BaseDAOImpl<PersonAddress, AddressPK> 
 
     @Override
     public PersonAddress getByPersonIdAndPartId(String personId, String addressPartId) throws LIMSRuntimeException {
+        Integer personNumericId = parseNumericId(personId);
+        Integer addressPartNumericId = parseNumericId(addressPartId);
+        if (personNumericId == null || addressPartNumericId == null) {
+            return null;
+        }
+
         String sql = "from PersonAddress pa where pa.compoundId.targetId = :personId and"
                 + " pa.compoundId.addressPartId = :partId";
 
         try {
             Query<PersonAddress> query = entityManager.unwrap(Session.class).createQuery(sql, PersonAddress.class);
-            query.setParameter("personId", Integer.parseInt(personId));
-            query.setParameter("partId", Integer.parseInt(addressPartId));
+            query.setParameter("personId", personNumericId);
+            query.setParameter("partId", addressPartNumericId);
             PersonAddress addressPart = query.uniqueResult();
             return addressPart;
         } catch (HibernateException e) {
@@ -65,5 +78,17 @@ public class PersonAddressDAOImpl extends BaseDAOImpl<PersonAddress, AddressPK> 
         }
 
         return null;
+    }
+
+    private Integer parseNumericId(String value) {
+        String trimmed = StringUtils.trimToNull(value);
+        if (trimmed == null) {
+            return null;
+        }
+        try {
+            return Integer.valueOf(trimmed);
+        } catch (NumberFormatException e) {
+            return null;
+        }
     }
 }

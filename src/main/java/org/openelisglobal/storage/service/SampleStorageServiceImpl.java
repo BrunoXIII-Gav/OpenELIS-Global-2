@@ -116,6 +116,7 @@ public class SampleStorageServiceImpl implements SampleStorageService {
             map.put("sampleItemId", sampleItem.getId());
             // External ID - user-friendly identifier (e.g., "EXT-1765401458866")
             map.put("sampleItemExternalId", sampleItem.getExternalId() != null ? sampleItem.getExternalId() : "");
+            map.put("cugCode", sampleItem.getCugCode() != null ? sampleItem.getCugCode() : "");
 
             // Get parent Sample accession number for context
             if (sampleItem.getSample() != null) {

@@ -35,6 +35,7 @@ public class TestCatalogBean {
     private String uom = "n/a";
     private String significantDigits = "n/a";
     private String loinc;
+    private String resultName;
     private String active;
     private String orderable;
     private Boolean notifyResults;
@@ -168,6 +169,14 @@ public class TestCatalogBean {
 
     public void setLoinc(String loinc) {
         this.loinc = loinc;
+    }
+
+    public String getResultName() {
+        return resultName;
+    }
+
+    public void setResultName(String resultName) {
+        this.resultName = resultName;
     }
 
     public String getSignificantDigits() {

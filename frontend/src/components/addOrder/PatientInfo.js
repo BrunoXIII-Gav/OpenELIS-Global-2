@@ -4,6 +4,7 @@ import SearchPatientForm from "../patient/SearchPatientForm";
 import CreatePatientForm from "../patient/CreatePatientForm";
 import { FormattedMessage } from "react-intl";
 import { getFromOpenElisServer } from "../utils/Utils";
+import { createSampleOrderFormValues } from "../formModel/innitialValues/OrderEntryFormValues";
 
 const PatientInfo = (props) => {
   const { orderFormValues, setOrderFormValues, error, setPhoneValidation } =
@@ -21,14 +22,21 @@ const PatientInfo = (props) => {
     id: "",
     healthRegion: [],
   });
+  const emptyPatientPropertiesRef = useRef(
+    createSampleOrderFormValues().patientProperties,
+  );
 
   const getSelectedPatient = (patient) => {
     setSelectedPatient(patient);
     if (orderFormValues) {
+      const patientWithStatus = {
+        ...patient,
+        patientUpdateStatus: "UPDATE",
+      };
       setOrderFormValues({
         ...orderFormValues,
         patientUpdateStatus: "UPDATE",
-        patientProperties: patient,
+        patientProperties: patientWithStatus,
       });
     }
     handleNewPatientTab();
@@ -42,6 +50,21 @@ const PatientInfo = (props) => {
   const handleNewPatientTab = () => {
     setNewPatientTab({ kind: "primary", active: true });
     setSearchPatientTab({ kind: "tertiary", active: false });
+  };
+
+  const handleManualNewPatientTab = () => {
+    setSelectedPatient({
+      id: "",
+      healthRegion: [],
+    });
+    setOrderFormValues((previous) => ({
+      ...previous,
+      patientUpdateStatus: "ADD",
+      patientProperties: {
+        ...emptyPatientPropertiesRef.current,
+      },
+    }));
+    handleNewPatientTab();
   };
 
   useEffect(() => {
@@ -105,7 +128,7 @@ const PatientInfo = (props) => {
               <Button
                 data-cy="newPatientTabButton"
                 kind={newPatientTab.kind}
-                onClick={handleNewPatientTab}
+                onClick={handleManualNewPatientTab}
               >
                 <FormattedMessage id="new.patient.label" />
               </Button>
@@ -119,6 +142,7 @@ const PatientInfo = (props) => {
               {newPatientTab.active && (
                 <CreatePatientForm
                   showActionsButton={false}
+                  isOrderEntryPatientStep={true}
                   selectedPatient={selectedPatient}
                   orderFormValues={orderFormValues}
                   setOrderFormValues={setOrderFormValues}

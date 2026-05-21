@@ -9,7 +9,7 @@ import { NotificationContext, ConfigurationContext } from "../layout/Layout";
 import { AlertDialog, NotificationKinds } from "../common/CustomNotification";
 import {
   getFromOpenElisServer,
-  postToOpenElisServer,
+  postToOpenElisServerFullResponse,
   postToOpenElisServerForBlob,
 } from "../utils/Utils";
 import OrderEntryAdditionalQuestions from "./OrderEntryAdditionalQuestions";
@@ -55,7 +55,7 @@ const Index = () => {
   const [orderFormValues, setOrderFormValues] = useState(
     createSampleOrderFormValues,
   );
-  const [samples, setSamples] = useState([]);
+  const [samples, setSamples] = useState([createSampleObject()]);
   const [errors, setErrors] = useState([]);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [isConsentDownloading, setIsConsentDownloading] = useState(false);
@@ -566,17 +566,31 @@ const Index = () => {
     });
   };
 
-  const handlePost = (status) => {
+  const handlePost = async (response) => {
     setIsSubmitting(false);
-    if (status === 200) {
+    if (response.status === 200) {
       showAlertMessage(
         <FormattedMessage id="save.order.success.msg" />,
         NotificationKinds.success,
       );
       setPage(page + 1);
     } else {
+      let detailedMessage =
+        response.headers.get("X-OpenELIS-Error-Message") || "";
+      if (!detailedMessage) {
+        try {
+          detailedMessage = await response.text();
+        } catch (e) {
+          detailedMessage = "";
+        }
+      }
+      if (detailedMessage && detailedMessage.trim().startsWith("{")) {
+        detailedMessage = "";
+      }
+      const genericMessage = intl.formatMessage({ id: "server.error.msg" });
+      const fallbackWithStatus = `${genericMessage} (HTTP ${response.status})`;
       showAlertMessage(
-        <FormattedMessage id="server.error.msg" />,
+        detailedMessage || fallbackWithStatus,
         NotificationKinds.error,
       );
     }
@@ -598,8 +612,35 @@ const Index = () => {
     if (isSubmitting) {
       return;
     }
+    const invalidCugSample = (samples || []).find(
+      (sampleItem) =>
+        String(sampleItem?.sampleXML?.cugValidationMessage || "").trim() !== "",
+    );
+    if (invalidCugSample) {
+      showAlertMessage(
+        invalidCugSample.sampleXML.cugValidationMessage,
+        NotificationKinds.error,
+      );
+      return;
+    }
+    const missingCugSample = (samples || []).find((sampleItem) => {
+      const cugValue = String(sampleItem?.sampleXML?.cug || "").trim();
+      return cugValue === "";
+    });
+    if (missingCugSample) {
+      showAlertMessage(
+        intl.formatMessage({ id: "sample.cug.required" }),
+        NotificationKinds.error,
+      );
+      return;
+    }
     setIsSubmitting(true);
     const payload = JSON.parse(JSON.stringify(orderFormValues));
+    payload.patientProperties = payload.patientProperties || {};
+    payload.patientProperties.patientUpdateStatus =
+      payload.patientProperties.patientUpdateStatus ||
+      payload.patientUpdateStatus ||
+      "ADD";
 
     if ("years" in payload.patientProperties) {
       delete payload.patientProperties.years;
@@ -623,7 +664,7 @@ const Index = () => {
     payload.sampleOrderItems.paymentOptions = [];
     payload.sampleOrderItems.testLocationCodeList = [];
     console.log(JSON.stringify(payload));
-    postToOpenElisServer(
+    postToOpenElisServerFullResponse(
       "/rest/SamplePatientEntry",
       JSON.stringify(payload),
       handlePost,
@@ -729,6 +770,11 @@ const Index = () => {
             const gpsAccuracy = sampleItem.sampleXML?.gpsAccuracy || "";
             const gpsCaptureMethod =
               sampleItem.sampleXML?.gpsCaptureMethod || "";
+            const cugCode = sampleItem.sampleXML?.cug || "";
+            const cugReservationToken =
+              sampleItem.sampleXML?.cugReservationToken || "";
+            const cugReservationContextId =
+              sampleItem.sampleXML?.cugReservationContextId || "";
 
             const additionalFieldValues =
               sampleItem.sampleXML?.additionalFieldValues || {};
@@ -750,7 +796,7 @@ const Index = () => {
               })
               .join("");
 
-            sampleXmlString += `<sample sampleID='${escapeXmlAttribute(sampleItem.sampleTypeId)}' date='${escapeXmlAttribute(sampleItem.sampleXML.collectionDate)}' time='${escapeXmlAttribute(sampleItem.sampleXML.collectionTime)}' collector='${escapeXmlAttribute(sampleItem.sampleXML.collector)}' quantity='${escapeXmlAttribute(sampleItem.sampleXML.quantity)}' uom='${escapeXmlAttribute(sampleItem.sampleXML.uom)}' tests='${escapeXmlAttribute(tests)}' testSectionMap='' testSampleTypeMap='' panels='${escapeXmlAttribute(panels)}' rejected='${escapeXmlAttribute(sampleItem.sampleXML.rejected)}' rejectReasonId='${escapeXmlAttribute(sampleItem.sampleXML.rejectionReason)}' initialConditionIds='' storageLocationId='${escapeXmlAttribute(storageLocationId)}' storageLocationType='${escapeXmlAttribute(storageLocationType)}' storagePositionCoordinate='${escapeXmlAttribute(storagePositionCoordinate)}' gpsLatitude='${escapeXmlAttribute(gpsLatitude)}' gpsLongitude='${escapeXmlAttribute(gpsLongitude)}' gpsAccuracy='${escapeXmlAttribute(gpsAccuracy)}' gpsCaptureMethod='${escapeXmlAttribute(gpsCaptureMethod)}'>`;
+            sampleXmlString += `<sample sampleID='${escapeXmlAttribute(sampleItem.sampleTypeId)}' date='${escapeXmlAttribute(sampleItem.sampleXML.collectionDate)}' time='${escapeXmlAttribute(sampleItem.sampleXML.collectionTime)}' collector='${escapeXmlAttribute(sampleItem.sampleXML.collector)}' quantity='${escapeXmlAttribute(sampleItem.sampleXML.quantity)}' uom='${escapeXmlAttribute(sampleItem.sampleXML.uom)}' tests='${escapeXmlAttribute(tests)}' testSectionMap='' testSampleTypeMap='' panels='${escapeXmlAttribute(panels)}' rejected='${escapeXmlAttribute(sampleItem.sampleXML.rejected)}' rejectReasonId='${escapeXmlAttribute(sampleItem.sampleXML.rejectionReason)}' cug='${escapeXmlAttribute(cugCode)}' cugReservationToken='${escapeXmlAttribute(cugReservationToken)}' cugReservationContextId='${escapeXmlAttribute(cugReservationContextId)}' initialConditionIds='' storageLocationId='${escapeXmlAttribute(storageLocationId)}' storageLocationType='${escapeXmlAttribute(storageLocationType)}' storagePositionCoordinate='${escapeXmlAttribute(storagePositionCoordinate)}' gpsLatitude='${escapeXmlAttribute(gpsLatitude)}' gpsLongitude='${escapeXmlAttribute(gpsLongitude)}' gpsAccuracy='${escapeXmlAttribute(gpsAccuracy)}' gpsCaptureMethod='${escapeXmlAttribute(gpsCaptureMethod)}'>`;
             if (additionalFieldEntries !== "") {
               sampleXmlString += `<additionalFields>${additionalFieldEntries}</additionalFields>`;
             }
@@ -846,6 +892,9 @@ const Index = () => {
     const providerFirst = orderItems.providerFirstName || "";
     const providerLast = orderItems.providerLastName || "";
     const providerDni = orderItems.providerDni || "";
+    const firstSampleWithCug = (samples || []).find(
+      (sample) => (sample?.sampleXML?.cug || "").trim() !== "",
+    );
     return {
       patient: {
         firstName: patient.firstName || "",
@@ -867,6 +916,7 @@ const Index = () => {
       orderAdditionalFieldValues: orderItems.additionalFieldValues || {},
       orderDate:
         orderItems.requestDate || configurationProperties?.currentDateAsText,
+      cug: firstSampleWithCug?.sampleXML?.cug || "",
     };
   };
 
@@ -966,6 +1016,7 @@ const Index = () => {
                 error={elementError}
                 setSamples={setSamples}
                 samples={samples}
+                orderFormValues={orderFormValues}
               />
             )}
             {page === orderPageNumber && (

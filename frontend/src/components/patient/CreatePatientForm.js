@@ -41,12 +41,26 @@ import PatientImageSelector from "./photoManagement/uploadPhoto/PatientImageSele
 
 function CreatePatientForm(props) {
   const componentMounted = useRef(false);
+  const DEFAULT_DNI_MAX_LENGTH = 8;
+  const DEFAULT_PASSPORT_MAX_LENGTH = 12;
 
   const { notificationVisible, setNotificationVisible, addNotification } =
     useContext(NotificationContext);
   const { configurationProperties } = useContext(ConfigurationContext);
 
   const intl = useIntl();
+  const isOrderEntryPatientStep = props.isOrderEntryPatientStep === true;
+  const showPatientPhotoOnOrderEntry =
+    !isOrderEntryPatientStep ||
+    configurationProperties.SHOW_PATIENT_PHOTO_ON_ORDER_ENTRY !== "false";
+  const showPatientEmergencyContactOnOrderEntry =
+    !isOrderEntryPatientStep ||
+    configurationProperties.SHOW_PATIENT_EMERGENCY_CONTACT_ON_ORDER_ENTRY !==
+      "false";
+  const showPatientAdditionalInfoOnOrderEntry =
+    !isOrderEntryPatientStep ||
+    configurationProperties.SHOW_PATIENT_ADDITIONAL_INFO_ON_ORDER_ENTRY !==
+      "false";
 
   const [patientDetails, setPatientDetails] = useState(CreatePatientFormValues);
   const [healthRegions, setHealthRegions] = useState([]);
@@ -67,12 +81,11 @@ function CreatePatientForm(props) {
     months: "",
     days: "",
   });
-  const [nationalId, setNationalId] = useState(
-    props.selectedPatient.nationalId,
-  );
-  const [subjectNo, setSubjectNo] = useState(
-    props.selectedPatient.subjectNumber,
-  );
+  const [patientIdType, setPatientIdType] = useState("DNI");
+  const patientIdentifierRef = useRef({
+    nationalId: props.selectedPatient.nationalId || "",
+    subjectNumber: props.selectedPatient.subjectNumber || "",
+  });
 
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [phoneValidation, setPhoneValidation] = useState({
@@ -86,14 +99,52 @@ function CreatePatientForm(props) {
     }
   };
 
+  const getPassportMaxLength = () => {
+    const configuredValue = Number.parseInt(
+      configurationProperties.PATIENT_PASSPORT_MAX_LENGTH,
+      10,
+    );
+    return Number.isFinite(configuredValue) && configuredValue > 0
+      ? configuredValue
+      : DEFAULT_PASSPORT_MAX_LENGTH;
+  };
+
+  const inferPatientIdType = (value) => {
+    const identifier = (value || "").toString().trim();
+    if (!identifier) {
+      return "DNI";
+    }
+    return /^\d+$/.test(identifier) &&
+      identifier.length <= DEFAULT_DNI_MAX_LENGTH
+      ? "DNI"
+      : "PASSPORT";
+  };
+
+  const normalizePatientIdentifierValue = (value, identifierType) => {
+    const raw = (value || "").toString();
+    if (identifierType === "PASSPORT") {
+      return raw.replace(/\s+/g, "").slice(0, getPassportMaxLength());
+    }
+    return raw.replace(/\D+/g, "").slice(0, DEFAULT_DNI_MAX_LENGTH);
+  };
+
+  const getCurrentPatientIdMaxLength = () =>
+    patientIdType === "PASSPORT"
+      ? getPassportMaxLength()
+      : DEFAULT_DNI_MAX_LENGTH;
+
   const handleNationalIdChange = (event) => {
-    const newValue = event.target.value;
-    setNationalId(newValue);
+    const newValue = normalizePatientIdentifierValue(
+      event.target.value,
+      patientIdType,
+    );
+    event.target.value = newValue;
+    patientIdentifierRef.current.nationalId = newValue;
   };
 
   const handleSubjectNoChange = (event) => {
     const newValue = event.target.value;
-    setSubjectNo(newValue);
+    patientIdentifierRef.current.subjectNumber = newValue;
   };
   const handleDatePickerChange = (values, date) => {
     var patient = { ...values };
@@ -451,15 +502,16 @@ function CreatePatientForm(props) {
   }
 
   useEffect(() => {
+    const selectedPatientPk = props.selectedPatient?.patientPK;
     // Reset address hierarchy initialization when patient changes
     if (
-      props.selectedPatient?.patientPK &&
-      addressHierarchyInitialized !== props.selectedPatient.patientPK
+      selectedPatientPk &&
+      addressHierarchyInitialized !== selectedPatientPk
     ) {
       setAddressHierarchyInitialized(null);
     }
 
-    if (props.selectedPatient.patientPK) {
+    if (selectedPatientPk) {
       if (props.selectedPatient.healthRegion != null) {
         getFromOpenElisServer(
           "/rest/health-districts-for-region?regionId=" +
@@ -471,7 +523,7 @@ function CreatePatientForm(props) {
         setHealthDistricts([]);
       }
       //merge objects together to avoid "A component is changing a controlled input to be uncontrolled"
-      let patient = props.selectedPatient;
+      let patient = { ...props.selectedPatient };
       patient.patientUpdateStatus = "UPDATE";
       patient.photo = "";
       //merge objects together to avoid "A component is changing a controlled input to be uncontrolled"
@@ -497,6 +549,11 @@ function CreatePatientForm(props) {
         ...flattenedAddressHierarchy,
         patientContact: patientContact,
       };
+      patientIdentifierRef.current = {
+        nationalId: patient.nationalId || "",
+        subjectNumber: patient.subjectNumber || "",
+      };
+      setPatientIdType(inferPatientIdType(patient.nationalId));
       setPatientDetails({
         ...patientDetails,
         ...patient,
@@ -518,6 +575,34 @@ function CreatePatientForm(props) {
           }
         },
       );
+    } else {
+      // Ensure ADD mode is restored when user switches from an existing
+      // patient to manual/new patient entry.
+      setFormAction("ADD");
+      setHealthDistricts([]);
+      setDateOfBirthFormatter({
+        years: "",
+        months: "",
+        days: "",
+      });
+      setPatientIdType("DNI");
+      patientIdentifierRef.current = {
+        nationalId: "",
+        subjectNumber: "",
+      };
+      setPatientDetails({
+        ...CreatePatientFormValues,
+        patientUpdateStatus: "ADD",
+        photo: "",
+        patientContact: {
+          person: {
+            firstName: "",
+            lastName: "",
+            primaryPhone: "",
+            email: "",
+          },
+        },
+      });
     }
   }, [props.selectedPatient]);
 
@@ -539,6 +624,11 @@ function CreatePatientForm(props) {
           ...patient,
           ...flattenedAddressHierarchy,
         });
+        patientIdentifierRef.current = {
+          nationalId: patient.nationalId || "",
+          subjectNumber: patient.subjectNumber || "",
+        };
+        setPatientIdType(inferPatientIdType(patient.nationalId));
         getYearsMonthsDaysFromDOB(
           props.orderFormValues.patientProperties.birthDateForDisplay,
         );
@@ -548,19 +638,24 @@ function CreatePatientForm(props) {
 
   useEffect(() => {
     componentMounted.current = true;
-    getFromOpenElisServer("/rest/health-regions", fetchHeathRegions);
-    getFromOpenElisServer("/rest/education-list", fetchEducationList);
-    getFromOpenElisServer("/rest/marital-statuses", fetchMaritalStatuses);
-    // getFromOpenElisServer("/rest/nationalities", fetchNationalities);
     repopulatePatientInfo();
     return () => {
       componentMounted.current = false;
     };
   }, []);
 
+  useEffect(() => {
+    if (showPatientAdditionalInfoOnOrderEntry && componentMounted.current) {
+      getFromOpenElisServer("/rest/health-regions", fetchHeathRegions);
+      getFromOpenElisServer("/rest/education-list", fetchEducationList);
+      getFromOpenElisServer("/rest/marital-statuses", fetchMaritalStatuses);
+    }
+  }, [showPatientAdditionalInfoOnOrderEntry]);
+
   // Fetch address hierarchy levels when configurationProperties changes
   useEffect(() => {
     if (
+      showPatientAdditionalInfoOnOrderEntry &&
       configurationProperties.USE_NEW_ADDRESS_HIERARCHY === "true" &&
       componentMounted.current
     ) {
@@ -569,7 +664,10 @@ function CreatePatientForm(props) {
         fetchAddressHierarchyLevels,
       );
     }
-  }, [configurationProperties.USE_NEW_ADDRESS_HIERARCHY]);
+  }, [
+    configurationProperties.USE_NEW_ADDRESS_HIERARCHY,
+    showPatientAdditionalInfoOnOrderEntry,
+  ]);
 
   // Initialize address hierarchy values when editing a patient
   // Initialize address hierarchy values when editing a patient
@@ -583,6 +681,7 @@ function CreatePatientForm(props) {
     }
 
     if (
+      showPatientAdditionalInfoOnOrderEntry &&
       configurationProperties.USE_NEW_ADDRESS_HIERARCHY === "true" &&
       patientPK &&
       addressHierarchy &&
@@ -627,6 +726,7 @@ function CreatePatientForm(props) {
     addressHierarchyLevels,
     addressHierarchyValues[0],
     configurationProperties.USE_NEW_ADDRESS_HIERARCHY,
+    showPatientAdditionalInfoOnOrderEntry,
     addressHierarchyInitialized,
   ]);
 
@@ -640,8 +740,10 @@ function CreatePatientForm(props) {
     let error;
     if (
       res.status === false &&
-      (props.selectedPatient.nationalId !== nationalId ||
-        props.selectedPatient.subjectNumber !== subjectNo)
+      (props.selectedPatient.nationalId !==
+        patientIdentifierRef.current.nationalId ||
+        props.selectedPatient.subjectNumber !==
+          patientIdentifierRef.current.subjectNumber)
     ) {
       setNotificationVisible(true);
       addNotification({
@@ -686,7 +788,10 @@ function CreatePatientForm(props) {
     setHealthDistricts(districts);
   };
 
-  const handleSubmit = async (values, { resetForm }) => {
+  const handleSubmit = async (
+    values,
+    { resetForm, setFieldTouched, setFieldError },
+  ) => {
     // Prevent multiple submissions.
     if (isSubmitting) {
       return;
@@ -702,6 +807,17 @@ function CreatePatientForm(props) {
     }
     if ("days" in values) {
       delete values.days;
+    }
+    values.nationalId = patientIdentifierRef.current.nationalId || "";
+    values.subjectNumber = patientIdentifierRef.current.subjectNumber || "";
+    if (
+      patientIdType === "DNI" &&
+      values.nationalId.length !== DEFAULT_DNI_MAX_LENGTH
+    ) {
+      setFieldTouched("nationalId", true, false);
+      setFieldError("nationalId", "DNI_LENGTH_INVALID");
+      setIsSubmitting(false);
+      return;
     }
     postToOpenElisServer(
       "/rest/PatientManagement",
@@ -736,6 +852,27 @@ function CreatePatientForm(props) {
     }
   };
 
+  const isNationalIdInvalid = (formikError, fieldTouched) => {
+    const nationalIdErrorFromProps = props.error
+      ? props.error("patientProperties.nationalId")
+      : "";
+    const currentNationalId = (
+      patientIdentifierRef.current.nationalId || ""
+    ).trim();
+    const isDniLengthInvalid =
+      patientIdType === "DNI" &&
+      currentNationalId.length > 0 &&
+      currentNationalId.length < DEFAULT_DNI_MAX_LENGTH;
+    const isRequiredInvalid = fieldTouched && !currentNationalId;
+
+    return (
+      Boolean(nationalIdErrorFromProps) ||
+      Boolean(formikError) ||
+      isDniLengthInvalid ||
+      isRequiredInvalid
+    );
+  };
+
   return (
     <>
       {notificationVisible === true ? <AlertDialog /> : ""}
@@ -757,6 +894,7 @@ function CreatePatientForm(props) {
           handleBlur,
           handleSubmit,
           setFieldValue,
+          setFieldError,
         }) => (
           <Form
             onSubmit={handleSubmit}
@@ -784,23 +922,30 @@ function CreatePatientForm(props) {
                   </Section>
                 </FormLabel>
               </Column>
-              <Column lg={16} md={8} sm={4}>
-                {" "}
-                <br></br>
-              </Column>
-              <Column lg={16} md={8} sm={4}>
-                <PatientImageSelector
-                  value={values.photo}
-                  onChange={(photo) => handlePhotoChange(photo, setFieldValue)}
-                  required={false}
-                />
-              </Column>
+              {showPatientPhotoOnOrderEntry && (
+                <>
+                  <Column lg={16} md={8} sm={4}>
+                    {" "}
+                    <br></br>
+                  </Column>
+                  <Column lg={16} md={8} sm={4}>
+                    <PatientImageSelector
+                      value={values.photo}
+                      onChange={(photo) =>
+                        handlePhotoChange(photo, setFieldValue)
+                      }
+                      required={false}
+                    />
+                  </Column>
+                </>
+              )}
               <Column lg={8} md={4} sm={4}>
                 <Field name="subjectNumber">
                   {({ field }) => (
                     <>
                       <TextInput
-                        value={values.subjectNumber || ""}
+                        key={`subject-number-${props.selectedPatient.patientPK || "new"}`}
+                        defaultValue={values.subjectNumber || ""}
                         name={field.name}
                         labelText={intl.formatMessage({
                           id: "patient.subject.number",
@@ -812,10 +957,20 @@ function CreatePatientForm(props) {
                           handleSubjectNoValidation(
                             "subjectNumber",
                             "subjectNumberID",
-                            values.subjectNumber,
+                            patientIdentifierRef.current.subjectNumber,
                           );
                         }}
-                        onChange={handleSubjectNoChange}
+                        onChange={(event) => {
+                          event.stopPropagation();
+                          handleSubjectNoChange(event);
+                        }}
+                        onBlur={(event) => {
+                          setFieldValue(
+                            "subjectNumber",
+                            patientIdentifierRef.current.subjectNumber || "",
+                          );
+                          handleBlur(event);
+                        }}
                         placeholder={intl.formatMessage({
                           id: "patient.information.healthid",
                         })}
@@ -828,46 +983,105 @@ function CreatePatientForm(props) {
                 <Field name="nationalId">
                   {({ field }) => (
                     <TextInput
-                      value={values.nationalId || ""}
+                      key={`national-id-${props.selectedPatient.patientPK || "new"}-${patientIdType}`}
+                      defaultValue={values.nationalId || ""}
                       name={field.name}
                       labelText={
-                        <>
-                          {intl.formatMessage({
-                            id: "patient.natioanalid",
-                          })}
-                          <span className="requiredlabel">*</span>
-                        </>
+                        <div className="patient-id-label-row">
+                          <div>
+                            {intl.formatMessage({
+                              id: "patient.natioanalid",
+                            })}
+                            <span className="requiredlabel">*</span>
+                          </div>
+                          <div className="patient-id-type-selector">
+                            <Select
+                              id="patient-id-type-select"
+                              name="patientIdTypeControl"
+                              size="sm"
+                              labelText={intl.formatMessage({
+                                id: "patient.identifier.type",
+                              })}
+                              value={patientIdType}
+                              onChange={(event) => {
+                                event.stopPropagation();
+                                const nextType = event.target.value;
+                                setPatientIdType(nextType);
+                                const normalizedValue =
+                                  normalizePatientIdentifierValue(
+                                    values.nationalId,
+                                    nextType,
+                                  );
+                                patientIdentifierRef.current.nationalId =
+                                  normalizedValue;
+                                setFieldValue("nationalId", normalizedValue);
+                                setFieldError("nationalId", undefined);
+                              }}
+                            >
+                              <SelectItem
+                                value="DNI"
+                                text={intl.formatMessage({
+                                  id: "patient.identifier.dni",
+                                })}
+                              />
+                              <SelectItem
+                                value="PASSPORT"
+                                text={intl.formatMessage({
+                                  id: "patient.identifier.passport",
+                                })}
+                              />
+                            </Select>
+                          </div>
+                        </div>
                       }
                       id={field.name}
-                      invalid={
-                        props.error
-                          ? props.error("patientProperties.nationalId")
-                            ? true
-                            : false
-                          : false
-                      }
-                      invalidText={
-                        props.error
-                          ? props.error("patientProperties.nationalId")
-                          : ""
-                      }
+                      maxLength={getCurrentPatientIdMaxLength()}
+                      invalid={isNationalIdInvalid(
+                        errors.nationalId,
+                        touched.nationalId,
+                      )}
+                      invalidText=""
                       onMouseOut={() => {
                         handleSubjectNoValidation(
                           "nationalId",
                           "nationalID",
-                          values.nationalId,
+                          patientIdentifierRef.current.nationalId,
                         );
                       }}
-                      onChange={handleNationalIdChange}
+                      onChange={(event) => {
+                        event.stopPropagation();
+                        handleNationalIdChange(event);
+                      }}
+                      onBlur={(event) => {
+                        setFieldValue(
+                          "nationalId",
+                          patientIdentifierRef.current.nationalId || "",
+                        );
+                        if (patientIdType === "DNI") {
+                          const nationalIdLength = (
+                            patientIdentifierRef.current.nationalId || ""
+                          ).length;
+                          setFieldError(
+                            "nationalId",
+                            nationalIdLength > 0 &&
+                              nationalIdLength < DEFAULT_DNI_MAX_LENGTH
+                              ? "DNI_LENGTH_INVALID"
+                              : undefined,
+                          );
+                        } else {
+                          setFieldError("nationalId", undefined);
+                        }
+                        handleBlur(event);
+                      }}
                       placeholder={intl.formatMessage({
-                        id: "patient.information.nationalid",
+                        id:
+                          patientIdType === "PASSPORT"
+                            ? "patient.information.passport"
+                            : "patient.information.dni",
                       })}
                     />
                   )}
                 </Field>
-                <div className="error">
-                  <ErrorMessage name="nationalId"></ErrorMessage>
-                </div>
               </Column>
               <Column lg={16} md={8} sm={4}>
                 {" "}
@@ -946,6 +1160,37 @@ function CreatePatientForm(props) {
                     />
                   )}
                 </Field>
+              </Column>
+              <Column lg={8} md={4} sm={4}>
+                <Field name="email">
+                  {({ field }) => (
+                    <TextInput
+                      value={values.email || ""}
+                      name={field.name}
+                      labelText={intl.formatMessage(
+                        {
+                          id: "patient.label.email",
+                          defaultMessage: "Patient Email",
+                        },
+                        {},
+                      )}
+                      id={field.name}
+                      invalid={errors.email && touched.email}
+                      invalidText={errors.email}
+                      placeholder={intl.formatMessage({
+                        id: "patient.information.email",
+                        defaultMessage: "Enter Patient Email",
+                      })}
+                    />
+                  )}
+                </Field>
+              </Column>
+              <Column lg={16} md={8} sm={4}>
+                {" "}
+                <br></br>
+              </Column>
+              <Column lg={8} md={4} sm={4}>
+                {" "}
               </Column>
               <Column lg={8} md={4} sm={4}>
                 <Field name="gender">
@@ -1064,323 +1309,377 @@ function CreatePatientForm(props) {
                 <br></br>
               </Column>
               <Column lg={16} md={8} sm={4}>
-                <Accordion>
-                  <AccordionItem
-                    title={intl.formatMessage({
-                      id: "emergencyContactInfo.title",
-                    })}
-                  >
-                    <Grid>
-                      <Column lg={16} md={8} sm={4}>
-                        {" "}
-                        <br></br>
-                      </Column>
-                      <Column lg={8} md={4} sm={4}>
-                        <Field name="patientContact.person.lastName">
-                          {({ field }) => (
-                            <TextInput
-                              value={
-                                values.patientContact?.person?.lastName || ""
-                              }
-                              name={field.name}
-                              labelText={intl.formatMessage({
-                                id: "patientcontact.person.lastname",
-                              })}
-                              id={field.name}
-                              onChange={(e) => handleLastContactNameChange(e)}
-                              placeholder={intl.formatMessage({
-                                id: "patient.emergency.lastname",
-                              })}
-                            />
-                          )}
-                        </Field>
-                      </Column>
-                      <Column lg={8} md={4} sm={4}>
-                        <Field name="patientContact.person.firstName">
-                          {({ field }) => (
-                            <TextInput
-                              value={
-                                values.patientContact?.person?.firstName || ""
-                              }
-                              name={field.name}
-                              labelText={intl.formatMessage({
-                                id: "patientcontact.person.firstname",
-                              })}
-                              id={field.name}
-                              onChange={(e) => handleFirstContactNameChange(e)}
-                              placeholder={intl.formatMessage({
-                                id: "patient.emergency.firstname",
-                              })}
-                            />
-                          )}
-                        </Field>
-                      </Column>
-                      <Column lg={16} md={8} sm={4}>
-                        {" "}
-                        <br></br>
-                      </Column>
-                      <Column lg={8} md={4} sm={4}>
-                        <Field name="patientContact.person.email">
-                          {({ field }) => (
-                            <TextInput
-                              value={values.patientContact?.person?.email || ""}
-                              name={field.name}
-                              labelText={intl.formatMessage({
-                                id: "patientcontact.person.email",
-                              })}
-                              id={field.name}
-                              placeholder={intl.formatMessage({
-                                id: "patient.emergency.email",
-                              })}
-                            />
-                          )}
-                        </Field>
-                        <div className="error">
-                          <ErrorMessage name="patientContact.person.email"></ErrorMessage>
-                        </div>
-                        <div className="error"></div>
-                      </Column>
-                      <Column lg={8} md={4} sm={4}>
-                        <Field name="patientContact.person.primaryPhone">
-                          {({ field }) => (
-                            <TextInput
-                              value={
-                                values.patientContact?.person?.primaryPhone ||
-                                ""
-                              }
-                              name={field.name}
-                              id="contactPhone"
-                              onBlur={(e) => {
-                                handlePhoneValidation(e);
-                              }}
-                              labelText={intl.formatMessage(
-                                {
-                                  id: "patient.label.contactphone",
-                                  defaultMessage:
-                                    "Contact Phone: {PHONE_FORMAT}",
-                                },
-                                {
-                                  PHONE_FORMAT:
-                                    configurationProperties.PHONE_FORMAT,
-                                },
-                              )}
-                              invalid={!phoneValidation.contactPhone.status}
-                              invalidText={
-                                phoneValidation.contactPhone.status
-                                  ? ""
-                                  : phoneValidation.contactPhone.body
-                              }
-                              placeholder={intl.formatMessage({
-                                id: "patient.emergency.phone",
-                              })}
-                            />
-                          )}
-                        </Field>
-                      </Column>
-                      <Column lg={16} md={8} sm={4}>
-                        {" "}
-                        <br></br>
-                      </Column>
-                    </Grid>
-                  </AccordionItem>
-                  <AccordionItem
-                    title={intl.formatMessage({
-                      id: "patient.label.additionalInfo",
-                    })}
-                  >
-                    <Grid>
-                      {/* Legacy address fields - Show ONLY if new hierarchy is disabled */}
-                      {configurationProperties.USE_NEW_ADDRESS_HIERARCHY ===
-                        "false" && (
-                        <>
+                {(showPatientEmergencyContactOnOrderEntry ||
+                  showPatientAdditionalInfoOnOrderEntry) && (
+                  <Accordion>
+                    {showPatientEmergencyContactOnOrderEntry && (
+                      <AccordionItem
+                        title={intl.formatMessage({
+                          id: "emergencyContactInfo.title",
+                        })}
+                      >
+                        <Grid>
                           <Column lg={16} md={8} sm={4}>
                             {" "}
                             <br></br>
                           </Column>
                           <Column lg={8} md={4} sm={4}>
-                            <Field name="city">
+                            <Field name="patientContact.person.lastName">
                               {({ field }) => (
                                 <TextInput
-                                  value={values.city || ""}
-                                  name={field.name}
-                                  labelText={intl.formatMessage({
-                                    id: "patient.address.town",
-                                  })}
-                                  id={field.name}
-                                  placeholder={intl.formatMessage({
-                                    id: "patient.emergency.additional.town",
-                                  })}
-                                />
-                              )}
-                            </Field>
-                          </Column>
-                          <Column lg={8} md={4} sm={4}>
-                            <Field name="streetAddress">
-                              {({ field }) => (
-                                <TextInput
-                                  value={values.streetAddress || ""}
-                                  name={field.name}
-                                  labelText={intl.formatMessage({
-                                    id: "patient.address.street",
-                                  })}
-                                  id={field.name}
-                                  placeholder={intl.formatMessage({
-                                    id: "patient.emergency.additional.street",
-                                  })}
-                                />
-                              )}
-                            </Field>
-                          </Column>
-                          <Column lg={16} md={8} sm={4}>
-                            {" "}
-                            <br></br>
-                          </Column>
-                          <Column lg={8} md={4} sm={4}>
-                            <Field name="commune">
-                              {({ field }) => (
-                                <TextInput
-                                  value={values.commune || ""}
-                                  name={field.name}
-                                  labelText={intl.formatMessage({
-                                    id: "patient.address.camp",
-                                  })}
-                                  id={field.name}
-                                  placeholder={intl.formatMessage({
-                                    id: "patient.emergency.additional.camp",
-                                  })}
-                                />
-                              )}
-                            </Field>
-                          </Column>
-                        </>
-                      )}
-                      <Column lg={16} md={8} sm={4}>
-                        {" "}
-                        <br></br>
-                      </Column>
-                      {/* Address Hierarchy Section - Quick Search */}
-                      {configurationProperties.USE_NEW_ADDRESS_HIERARCHY ===
-                        "true" &&
-                        addressHierarchyLevels.length > 0 && (
-                          <Column lg={16} md={8} sm={4}>
-                            <AddressSearch
-                              onAddressSelect={(levels) =>
-                                handleAddressSearchSelect(levels, setFieldValue)
-                              }
-                              addressHierarchyLevels={addressHierarchyLevels}
-                            />
-                          </Column>
-                        )}
-                      {/* Dynamic Address Hierarchy Dropdowns - Always show when new hierarchy is enabled */}
-                      {configurationProperties.USE_NEW_ADDRESS_HIERARCHY ===
-                        "true" &&
-                        addressHierarchyLevels.length > 0 &&
-                        addressHierarchyLevels.map((level, levelIndex) => (
-                          <Column lg={8} md={4} sm={4} key={level.level}>
-                            <Field name={`addressHierarchy_${levelIndex}`}>
-                              {({ field }) => (
-                                <Select
-                                  id={`address_hierarchy_${levelIndex}`}
                                   value={
-                                    values[`addressHierarchy_${levelIndex}`] ||
+                                    values.patientContact?.person?.lastName ||
                                     ""
                                   }
                                   name={field.name}
-                                  labelText={level.typeName}
-                                  onChange={(e) => {
-                                    setFieldValue(
-                                      `addressHierarchy_${levelIndex}`,
-                                      e.target.value,
-                                    );
-                                    handleAddressHierarchySelection(
-                                      levelIndex,
-                                      e.target.value,
-                                      setFieldValue,
-                                    );
-                                    // For backward compatibility, also set healthRegion/healthDistrict
-                                    if (levelIndex === 0) {
-                                      setFieldValue(
-                                        "healthRegion",
-                                        e.target.value,
-                                      );
-                                      handleRegionSelection(e, values);
-                                    } else if (levelIndex === 1) {
-                                      setFieldValue(
-                                        "healthDistrict",
-                                        e.target.value,
-                                      );
-                                    }
-                                  }}
-                                >
-                                  <SelectItem text="" value="" />
-                                  {(
-                                    addressHierarchyValues[levelIndex] || []
-                                  ).map((item, index) => (
-                                    <SelectItem
-                                      text={item.value}
-                                      value={item.id}
-                                      key={index}
-                                    />
-                                  ))}
-                                </Select>
-                              )}
-                            </Field>
-                          </Column>
-                        ))}
-                      {/* Legacy Health Region/District - Show ONLY if new hierarchy is explicitly disabled */}
-                      {configurationProperties.USE_NEW_ADDRESS_HIERARCHY ===
-                        "false" && (
-                        <>
-                          <Column lg={8} md={4} sm={4}>
-                            <Field name="healthRegion">
-                              {({ field }) => (
-                                <Select
-                                  id="health_region"
-                                  value={values.healthRegion || ""}
-                                  name={field.name}
                                   labelText={intl.formatMessage({
-                                    id: "patient.address.healthregion",
+                                    id: "patientcontact.person.lastname",
                                   })}
+                                  id={field.name}
                                   onChange={(e) =>
-                                    handleRegionSelection(e, values)
+                                    handleLastContactNameChange(e)
                                   }
-                                  helperText={intl.formatMessage({
-                                    id: "patient.emergency.additional.region",
+                                  placeholder={intl.formatMessage({
+                                    id: "patient.emergency.lastname",
                                   })}
-                                >
-                                  <SelectItem text="" value="" />
-                                  {healthRegions?.map((region, index) => (
-                                    <SelectItem
-                                      text={region.value}
-                                      value={region.id}
-                                      key={index}
-                                    />
-                                  ))}
-                                </Select>
+                                />
                               )}
                             </Field>
                           </Column>
-
                           <Column lg={8} md={4} sm={4}>
-                            <Field name="healthDistrict">
+                            <Field name="patientContact.person.firstName">
                               {({ field }) => (
-                                <Select
-                                  id="health_district"
-                                  value={values.healthDistrict || ""}
+                                <TextInput
+                                  value={
+                                    values.patientContact?.person?.firstName ||
+                                    ""
+                                  }
                                   name={field.name}
                                   labelText={intl.formatMessage({
-                                    id: "patient.address.healthdistrict",
+                                    id: "patientcontact.person.firstname",
+                                  })}
+                                  id={field.name}
+                                  onChange={(e) =>
+                                    handleFirstContactNameChange(e)
+                                  }
+                                  placeholder={intl.formatMessage({
+                                    id: "patient.emergency.firstname",
+                                  })}
+                                />
+                              )}
+                            </Field>
+                          </Column>
+                          <Column lg={16} md={8} sm={4}>
+                            {" "}
+                            <br></br>
+                          </Column>
+                          <Column lg={8} md={4} sm={4}>
+                            <Field name="patientContact.person.email">
+                              {({ field }) => (
+                                <TextInput
+                                  value={
+                                    values.patientContact?.person?.email || ""
+                                  }
+                                  name={field.name}
+                                  labelText={intl.formatMessage({
+                                    id: "patientcontact.person.email",
+                                  })}
+                                  id={field.name}
+                                  placeholder={intl.formatMessage({
+                                    id: "patient.emergency.email",
+                                  })}
+                                />
+                              )}
+                            </Field>
+                            <div className="error">
+                              <ErrorMessage name="patientContact.person.email"></ErrorMessage>
+                            </div>
+                            <div className="error"></div>
+                          </Column>
+                          <Column lg={8} md={4} sm={4}>
+                            <Field name="patientContact.person.primaryPhone">
+                              {({ field }) => (
+                                <TextInput
+                                  value={
+                                    values.patientContact?.person
+                                      ?.primaryPhone || ""
+                                  }
+                                  name={field.name}
+                                  id="contactPhone"
+                                  onBlur={(e) => {
+                                    handlePhoneValidation(e);
+                                  }}
+                                  labelText={intl.formatMessage(
+                                    {
+                                      id: "patient.label.contactphone",
+                                      defaultMessage:
+                                        "Contact Phone: {PHONE_FORMAT}",
+                                    },
+                                    {
+                                      PHONE_FORMAT:
+                                        configurationProperties.PHONE_FORMAT,
+                                    },
+                                  )}
+                                  invalid={!phoneValidation.contactPhone.status}
+                                  invalidText={
+                                    phoneValidation.contactPhone.status
+                                      ? ""
+                                      : phoneValidation.contactPhone.body
+                                  }
+                                  placeholder={intl.formatMessage({
+                                    id: "patient.emergency.phone",
+                                  })}
+                                />
+                              )}
+                            </Field>
+                          </Column>
+                          <Column lg={16} md={8} sm={4}>
+                            {" "}
+                            <br></br>
+                          </Column>
+                        </Grid>
+                      </AccordionItem>
+                    )}
+                    {showPatientAdditionalInfoOnOrderEntry && (
+                      <AccordionItem
+                        title={intl.formatMessage({
+                          id: "patient.label.additionalInfo",
+                        })}
+                      >
+                        <Grid>
+                          {/* Legacy address fields - Show ONLY if new hierarchy is disabled */}
+                          {configurationProperties.USE_NEW_ADDRESS_HIERARCHY ===
+                            "false" && (
+                            <>
+                              <Column lg={16} md={8} sm={4}>
+                                {" "}
+                                <br></br>
+                              </Column>
+                              <Column lg={8} md={4} sm={4}>
+                                <Field name="city">
+                                  {({ field }) => (
+                                    <TextInput
+                                      value={values.city || ""}
+                                      name={field.name}
+                                      labelText={intl.formatMessage({
+                                        id: "patient.address.town",
+                                      })}
+                                      id={field.name}
+                                      placeholder={intl.formatMessage({
+                                        id: "patient.emergency.additional.town",
+                                      })}
+                                    />
+                                  )}
+                                </Field>
+                              </Column>
+                              <Column lg={8} md={4} sm={4}>
+                                <Field name="streetAddress">
+                                  {({ field }) => (
+                                    <TextInput
+                                      value={values.streetAddress || ""}
+                                      name={field.name}
+                                      labelText={intl.formatMessage({
+                                        id: "patient.address.street",
+                                      })}
+                                      id={field.name}
+                                      placeholder={intl.formatMessage({
+                                        id: "patient.emergency.additional.street",
+                                      })}
+                                    />
+                                  )}
+                                </Field>
+                              </Column>
+                              <Column lg={16} md={8} sm={4}>
+                                {" "}
+                                <br></br>
+                              </Column>
+                              <Column lg={8} md={4} sm={4}>
+                                <Field name="commune">
+                                  {({ field }) => (
+                                    <TextInput
+                                      value={values.commune || ""}
+                                      name={field.name}
+                                      labelText={intl.formatMessage({
+                                        id: "patient.address.camp",
+                                      })}
+                                      id={field.name}
+                                      placeholder={intl.formatMessage({
+                                        id: "patient.emergency.additional.camp",
+                                      })}
+                                    />
+                                  )}
+                                </Field>
+                              </Column>
+                            </>
+                          )}
+                          <Column lg={16} md={8} sm={4}>
+                            {" "}
+                            <br></br>
+                          </Column>
+                          {/* Address Hierarchy Section - Quick Search */}
+                          {configurationProperties.USE_NEW_ADDRESS_HIERARCHY ===
+                            "true" &&
+                            addressHierarchyLevels.length > 0 && (
+                              <Column lg={16} md={8} sm={4}>
+                                <AddressSearch
+                                  onAddressSelect={(levels) =>
+                                    handleAddressSearchSelect(
+                                      levels,
+                                      setFieldValue,
+                                    )
+                                  }
+                                  addressHierarchyLevels={
+                                    addressHierarchyLevels
+                                  }
+                                />
+                              </Column>
+                            )}
+                          {/* Dynamic Address Hierarchy Dropdowns - Always show when new hierarchy is enabled */}
+                          {configurationProperties.USE_NEW_ADDRESS_HIERARCHY ===
+                            "true" &&
+                            addressHierarchyLevels.length > 0 &&
+                            addressHierarchyLevels.map((level, levelIndex) => (
+                              <Column lg={8} md={4} sm={4} key={level.level}>
+                                <Field name={`addressHierarchy_${levelIndex}`}>
+                                  {({ field }) => (
+                                    <Select
+                                      id={`address_hierarchy_${levelIndex}`}
+                                      value={
+                                        values[
+                                          `addressHierarchy_${levelIndex}`
+                                        ] || ""
+                                      }
+                                      name={field.name}
+                                      labelText={level.typeName}
+                                      onChange={(e) => {
+                                        setFieldValue(
+                                          `addressHierarchy_${levelIndex}`,
+                                          e.target.value,
+                                        );
+                                        handleAddressHierarchySelection(
+                                          levelIndex,
+                                          e.target.value,
+                                          setFieldValue,
+                                        );
+                                        // For backward compatibility, also set healthRegion/healthDistrict
+                                        if (levelIndex === 0) {
+                                          setFieldValue(
+                                            "healthRegion",
+                                            e.target.value,
+                                          );
+                                          handleRegionSelection(e, values);
+                                        } else if (levelIndex === 1) {
+                                          setFieldValue(
+                                            "healthDistrict",
+                                            e.target.value,
+                                          );
+                                        }
+                                      }}
+                                    >
+                                      <SelectItem text="" value="" />
+                                      {(
+                                        addressHierarchyValues[levelIndex] || []
+                                      ).map((item, index) => (
+                                        <SelectItem
+                                          text={item.value}
+                                          value={item.id}
+                                          key={index}
+                                        />
+                                      ))}
+                                    </Select>
+                                  )}
+                                </Field>
+                              </Column>
+                            ))}
+                          {/* Legacy Health Region/District - Show ONLY if new hierarchy is explicitly disabled */}
+                          {configurationProperties.USE_NEW_ADDRESS_HIERARCHY ===
+                            "false" && (
+                            <>
+                              <Column lg={8} md={4} sm={4}>
+                                <Field name="healthRegion">
+                                  {({ field }) => (
+                                    <Select
+                                      id="health_region"
+                                      value={values.healthRegion || ""}
+                                      name={field.name}
+                                      labelText={intl.formatMessage({
+                                        id: "patient.address.healthregion",
+                                      })}
+                                      onChange={(e) =>
+                                        handleRegionSelection(e, values)
+                                      }
+                                      helperText={intl.formatMessage({
+                                        id: "patient.emergency.additional.region",
+                                      })}
+                                    >
+                                      <SelectItem text="" value="" />
+                                      {healthRegions?.map((region, index) => (
+                                        <SelectItem
+                                          text={region.value}
+                                          value={region.id}
+                                          key={index}
+                                        />
+                                      ))}
+                                    </Select>
+                                  )}
+                                </Field>
+                              </Column>
+
+                              <Column lg={8} md={4} sm={4}>
+                                <Field name="healthDistrict">
+                                  {({ field }) => (
+                                    <Select
+                                      id="health_district"
+                                      value={values.healthDistrict || ""}
+                                      name={field.name}
+                                      labelText={intl.formatMessage({
+                                        id: "patient.address.healthdistrict",
+                                      })}
+                                      onChange={() => {}}
+                                      helperText={intl.formatMessage({
+                                        id: "patient.emergency.additional.district",
+                                      })}
+                                    >
+                                      <SelectItem text="" value="" />
+                                      {healthDistricts.map(
+                                        (district, index) => (
+                                          <SelectItem
+                                            text={district.value}
+                                            value={district.value}
+                                            key={index}
+                                          />
+                                        ),
+                                      )}
+                                    </Select>
+                                  )}
+                                </Field>
+                              </Column>
+                            </>
+                          )}
+                          <Column lg={16} md={8} sm={4}>
+                            {" "}
+                            <br></br>
+                          </Column>
+                          <Column lg={8} md={4} sm={4}>
+                            <Field name="education">
+                              {({ field }) => (
+                                <Select
+                                  id="education"
+                                  value={values.education || ""}
+                                  name={field.name}
+                                  labelText={intl.formatMessage({
+                                    id: "patient.eduction",
                                   })}
                                   onChange={() => {}}
                                   helperText={intl.formatMessage({
-                                    id: "patient.emergency.additional.district",
+                                    id: "patient.emergency.additional.education",
                                   })}
                                 >
                                   <SelectItem text="" value="" />
-                                  {healthDistricts.map((district, index) => (
+                                  {educationList.map((education, index) => (
                                     <SelectItem
-                                      text={district.value}
-                                      value={district.value}
+                                      text={education.value}
+                                      value={education.value}
                                       key={index}
                                     />
                                   ))}
@@ -1388,117 +1687,86 @@ function CreatePatientForm(props) {
                               )}
                             </Field>
                           </Column>
-                        </>
-                      )}
-                      <Column lg={16} md={8} sm={4}>
-                        {" "}
-                        <br></br>
-                      </Column>
-                      <Column lg={8} md={4} sm={4}>
-                        <Field name="education">
-                          {({ field }) => (
-                            <Select
-                              id="education"
-                              value={values.education || ""}
-                              name={field.name}
-                              labelText={intl.formatMessage({
-                                id: "patient.eduction",
-                              })}
-                              onChange={() => {}}
-                              helperText={intl.formatMessage({
-                                id: "patient.emergency.additional.education",
-                              })}
-                            >
-                              <SelectItem text="" value="" />
-                              {educationList.map((education, index) => (
-                                <SelectItem
-                                  text={education.value}
-                                  value={education.value}
-                                  key={index}
+                          <Column lg={8} md={4} sm={4}>
+                            <Field name="maritialStatus">
+                              {({ field }) => (
+                                <Select
+                                  id="maritialStatus"
+                                  value={values.maritialStatus || ""}
+                                  name={field.name}
+                                  labelText={intl.formatMessage({
+                                    id: "patient.maritalstatus",
+                                  })}
+                                  onChange={() => {}}
+                                  helperText={intl.formatMessage({
+                                    id: "patient.emergency.additional.maritalstatus",
+                                  })}
+                                >
+                                  <SelectItem text="" value="" />
+                                  {maritalStatuses.map((status, index) => (
+                                    <SelectItem
+                                      text={status.value}
+                                      value={status.value}
+                                      key={index}
+                                    />
+                                  ))}
+                                </Select>
+                              )}
+                            </Field>
+                          </Column>
+                          <Column lg={16} md={8} sm={4}>
+                            {" "}
+                            <br></br>
+                          </Column>
+                          <Column lg={8} md={4} sm={4}>
+                            <Field name="nationality">
+                              {({ field }) => (
+                                <Select
+                                  id="nationality"
+                                  value={values.nationality || ""}
+                                  name={field.name}
+                                  labelText={intl.formatMessage({
+                                    id: "patient.nationality",
+                                  })}
+                                  onChange={() => {}}
+                                  helperText={intl.formatMessage({
+                                    id: "patient.emergency.additional.nationnality",
+                                  })}
+                                >
+                                  <SelectItem text="" value="" />
+                                  {nationalityList.map((nationality, index) => (
+                                    <SelectItem
+                                      text={nationality.label}
+                                      value={nationality.value}
+                                      key={index}
+                                    />
+                                  ))}
+                                </Select>
+                              )}
+                            </Field>
+                          </Column>
+                          <Column lg={8} md={4} sm={4}>
+                            <Field name="otherNationality">
+                              {({ field }) => (
+                                <TextInput
+                                  value={values.otherNationality || ""}
+                                  name={field.name}
+                                  labelText={intl.formatMessage({
+                                    id: "patient.nationality.other",
+                                  })}
+                                  id={field.name}
+                                  placeholder={intl.formatMessage({
+                                    id: "patient.emergency.additional.othernationality",
+                                  })}
                                 />
-                              ))}
-                            </Select>
-                          )}
-                        </Field>
-                      </Column>
-                      <Column lg={8} md={4} sm={4}>
-                        <Field name="maritialStatus">
-                          {({ field }) => (
-                            <Select
-                              id="maritialStatus"
-                              value={values.maritialStatus || ""}
-                              name={field.name}
-                              labelText={intl.formatMessage({
-                                id: "patient.maritalstatus",
-                              })}
-                              onChange={() => {}}
-                              helperText={intl.formatMessage({
-                                id: "patient.emergency.additional.maritalstatus",
-                              })}
-                            >
-                              <SelectItem text="" value="" />
-                              {maritalStatuses.map((status, index) => (
-                                <SelectItem
-                                  text={status.value}
-                                  value={status.value}
-                                  key={index}
-                                />
-                              ))}
-                            </Select>
-                          )}
-                        </Field>
-                      </Column>
-                      <Column lg={16} md={8} sm={4}>
-                        {" "}
-                        <br></br>
-                      </Column>
-                      <Column lg={8} md={4} sm={4}>
-                        <Field name="nationality">
-                          {({ field }) => (
-                            <Select
-                              id="nationality"
-                              value={values.nationality || ""}
-                              name={field.name}
-                              labelText={intl.formatMessage({
-                                id: "patient.nationality",
-                              })}
-                              onChange={() => {}}
-                              helperText={intl.formatMessage({
-                                id: "patient.emergency.additional.nationnality",
-                              })}
-                            >
-                              <SelectItem text="" value="" />
-                              {nationalityList.map((nationality, index) => (
-                                <SelectItem
-                                  text={nationality.label}
-                                  value={nationality.value}
-                                  key={index}
-                                />
-                              ))}
-                            </Select>
-                          )}
-                        </Field>
-                      </Column>
-                      <Column lg={8} md={4} sm={4}>
-                        <Field name="otherNationality">
-                          {({ field }) => (
-                            <TextInput
-                              value={values.otherNationality || ""}
-                              name={field.name}
-                              labelText={intl.formatMessage({
-                                id: "patient.nationality.other",
-                              })}
-                              id={field.name}
-                              placeholder={intl.formatMessage({
-                                id: "patient.emergency.additional.othernationality",
-                              })}
-                            />
-                          )}
-                        </Field>
-                      </Column>
-                    </Grid>
-                  </AccordionItem>
-                </Accordion>
+                              )}
+                            </Field>
+                          </Column>
+                        </Grid>
+                      </AccordionItem>
+                    )}
+                  </Accordion>
+                )}
               </Column>
               <Column lg={16} md={8} sm={4}>
                 {" "}

@@ -23,7 +23,6 @@ import { FormattedMessage, useIntl } from "react-intl";
 import PatientHeader from "../common/PatientHeader";
 import PageBreadCrumb from "../common/PageBreadCrumb";
 import ModifyOrderEntryValidationSchema from "../formModel/validationSchema/ModifyOrderEntryValidationSchema";
-import { sampleObject } from "../addOrder/Index";
 let breadcrumbs = [
   { label: "home.label", link: "/" },
   { label: "sample.label.search.Order", link: "/SampleEdit" },
@@ -43,7 +42,7 @@ const ModifyOrder = () => {
 
   const [page, setPage] = useState(firstPageNumber);
   const [orderFormValues, setOrderFormValues] = useState(ModifyOrderFormValues);
-  const [samples, setSamples] = useState([sampleObject]);
+  const [samples, setSamples] = useState([]);
   const [errors, setErrors] = useState([]);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [patientId, setPatientId] = useState("");
@@ -132,6 +131,7 @@ const ModifyOrder = () => {
         <FormattedMessage id="save.order.success.msg" />,
         NotificationKinds.success,
       );
+      window.location.assign("/SampleEdit");
     } else {
       showAlertMessage(
         <FormattedMessage id="server.error.msg" />,
@@ -145,7 +145,6 @@ const ModifyOrder = () => {
       return;
     }
     setIsSubmitting(true);
-    setPage(page + 1);
     orderFormValues.sampleOrderItems.modified = true;
     //remove display Lists rom the form
     orderFormValues.sampleOrderItems.priorityList = [];
@@ -210,8 +209,13 @@ const ModifyOrder = () => {
               storageLocation?.positionCoordinate ||
               storageLocation?.position?.coordinate ||
               "";
+            const cugCode = sampleItem.sampleXML?.cug || "";
+            const cugReservationToken =
+              sampleItem.sampleXML?.cugReservationToken || "";
+            const cugReservationContextId =
+              sampleItem.sampleXML?.cugReservationContextId || "";
 
-            sampleXmlString += `<sample sampleID='${sampleItem.sampleTypeId}' date='${sampleItem.sampleXML.collectionDate}' time='${sampleItem.sampleXML.collectionTime}' collector='${sampleItem.sampleXML.collector}' tests='${tests}' testSectionMap='' testSampleTypeMap='' panels='' rejected='${sampleItem.sampleXML.rejected}' rejectReasonId='${sampleItem.sampleXML.rejectionReason}' initialConditionIds='' storageLocationId='${storageLocationId}' storageLocationType='${storageLocationType}' storagePositionCoordinate='${storagePositionCoordinate}' />`;
+            sampleXmlString += `<sample sampleID='${sampleItem.sampleTypeId}' date='${sampleItem.sampleXML.collectionDate}' time='${sampleItem.sampleXML.collectionTime}' collector='${sampleItem.sampleXML.collector}' tests='${tests}' testSectionMap='' testSampleTypeMap='' panels='' rejected='${sampleItem.sampleXML.rejected}' rejectReasonId='${sampleItem.sampleXML.rejectionReason}' cug='${cugCode}' cugReservationToken='${cugReservationToken}' cugReservationContextId='${cugReservationContextId}' initialConditionIds='' storageLocationId='${storageLocationId}' storageLocationType='${storageLocationType}' storagePositionCoordinate='${storagePositionCoordinate}' />`;
           }
           if (sampleItem.referralItems.length > 0) {
             const referredInstitutes = Object.keys(sampleItem.referralItems)
@@ -334,6 +338,7 @@ const ModifyOrder = () => {
                       setSamples={setSamples}
                       samples={samples}
                       error={elementError}
+                      patientId={patientId}
                     />
                   )}
                   {page === orderPageNumber && (

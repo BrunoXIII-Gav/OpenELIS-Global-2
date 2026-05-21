@@ -95,6 +95,7 @@ const EditSample = (props) => {
       id: buildRowId(test),
       accessionNumber: test.accessionNumber || "",
       sampleType: test.sampleType || "",
+      cugCode: test.cugCode || "",
       collectionDate: normalizeCollectionDate(test.collectionDate),
       collectionTime: normalizeCollectionTime(test.collectionTime),
       quantity: test.quantity || "",
@@ -568,6 +569,8 @@ const EditSample = (props) => {
       return <TableCell key={cell.id}>{cell.value}</TableCell>;
     } else if (cell.info.header === "sampleType") {
       return <TableCell key={cell.id}>{cell.value}</TableCell>;
+    } else if (cell.info.header === "cugCode") {
+      return <TableCell key={cell.id}>{cell.value || ""}</TableCell>;
     } else if (cell.info.header === "collectionDate") {
       return (
         <>
@@ -963,6 +966,11 @@ const EditSample = (props) => {
                   }}
                   sampleTypeObject={sampleTypeObject}
                   error={error}
+                  patientId={props.patientId || ""}
+                  existingCugs={(samples || [])
+                    .filter((_, sampleIndex) => sampleIndex !== i)
+                    .map((entry) => entry?.sampleXML?.cug)
+                    .filter(Boolean)}
                 />
               </div>
             );

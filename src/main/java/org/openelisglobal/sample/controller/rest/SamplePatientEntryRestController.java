@@ -66,6 +66,8 @@ import org.springframework.http.MediaType;
 import org.springframework.http.ResponseEntity;
 import org.springframework.stereotype.Controller;
 import org.springframework.validation.BindingResult;
+import org.springframework.validation.FieldError;
+import org.springframework.validation.ObjectError;
 import org.springframework.validation.annotation.Validated;
 import org.springframework.web.bind.WebDataBinder;
 import org.springframework.web.bind.annotation.GetMapping;
@@ -81,6 +83,7 @@ import org.springframework.web.servlet.support.RequestContextUtils;
 @Controller
 @RequestMapping(value = "/rest/")
 public class SamplePatientEntryRestController extends BaseSampleEntryController {
+    private static final String ERROR_MESSAGE_HEADER = "X-OpenELIS-Error-Message";
 
     @Value("${org.openelisglobal.requester.identifier:}")
     private String requestFhirUuid;
@@ -141,7 +144,8 @@ public class SamplePatientEntryRestController extends BaseSampleEntryController 
             "referralItems*.referralReasonId", "referralItems*.referrer", "referralItems*.referredInstituteId",
             "referralItems*.referredSendDate", "referralItems*.referredTestId", "referralItems*.referredReportDate",
             "referralItems*.note", "useReferral", "sampleOrderItems.additionalQuestions", "sampleOrderItems.programId",
-            "sampleOrderItems.additionalFieldValues*", "sampleOrderItems.additionalFieldFiles*" };
+            "sampleOrderItems.additionalFieldValues*", "sampleOrderItems.additionalFieldFiles*",
+            "sampleOrderItems.additionalFieldReservationTokens*" };
 
     @Autowired
     private SamplePatientEntryFormValidator formValidator;
@@ -241,7 +245,7 @@ public class SamplePatientEntryRestController extends BaseSampleEntryController 
         if (result.hasErrors()) {
             saveErrors(result);
             setupForm(form, request, "");
-            return ResponseEntity.status(HttpStatus.BAD_REQUEST).body(form);
+            return buildErrorResponse(form, result, HttpStatus.BAD_REQUEST);
         }
         SamplePatientUpdateData updateData = new SamplePatientUpdateData(getSysUserId(request));
 
@@ -286,7 +290,7 @@ public class SamplePatientEntryRestController extends BaseSampleEntryController 
         if (result.hasErrors()) {
             saveErrors(result);
             setupForm(form, request, "");
-            return ResponseEntity.status(HttpStatus.BAD_REQUEST).body(form);
+            return buildErrorResponse(form, result, HttpStatus.BAD_REQUEST);
         }
 
         try {
@@ -332,6 +336,14 @@ public class SamplePatientEntryRestController extends BaseSampleEntryController 
 
             // String fhir_json = fhirTransformService.CreateFhirFromOESample(updateData,
             // patientUpdate, patientInfo, form, request);
+        } catch (IllegalArgumentException e) {
+            LogEvent.logError(e);
+            String detail = buildIllegalArgumentExceptionDetail(e);
+            result.reject("errors.ValidationException", new Object[] { detail }, detail);
+            saveErrors(result);
+            setupForm(form, request, "");
+            request.setAttribute(ALLOW_EDITS_KEY, "false");
+            return buildErrorResponse(form, result, HttpStatus.BAD_REQUEST, detail);
         } catch (LIMSRuntimeException e) {
             // ActionError error;
             HttpStatus status = HttpStatus.BAD_REQUEST;
@@ -352,7 +364,7 @@ public class SamplePatientEntryRestController extends BaseSampleEntryController 
 
             setupForm(form, request, "");
             request.setAttribute(ALLOW_EDITS_KEY, "false");
-            return ResponseEntity.status(status).body(form);
+            return buildErrorResponse(form, result, status, null);
         }
         redirectAttributes.addFlashAttribute(FWD_SUCCESS, true);
         if (form.getRememberSiteAndRequester()) {
@@ -393,6 +405,110 @@ public class SamplePatientEntryRestController extends BaseSampleEntryController 
         }
 
         return ResponseEntity.ok(form);
+    }
+
+    private ResponseEntity<SamplePatientEntryForm> buildErrorResponse(SamplePatientEntryForm form, BindingResult result,
+            HttpStatus status) {
+        return buildErrorResponse(form, result, status, null);
+    }
+
+    private ResponseEntity<SamplePatientEntryForm> buildErrorResponse(SamplePatientEntryForm form, BindingResult result,
+            HttpStatus status, String fallbackDetail) {
+        String errorSummary = summarizeErrors(result, fallbackDetail);
+        if (!GenericValidator.isBlankOrNull(errorSummary)) {
+            LogEvent.logWarn(this.getClass().getSimpleName(), "samplePatientEntrySave",
+                    "Validation/persistence failed with status " + status.value() + ": " + errorSummary);
+        }
+        return ResponseEntity.status(status).header(ERROR_MESSAGE_HEADER, errorSummary).body(form);
+    }
+
+    private String summarizeErrors(BindingResult result, String fallbackDetail) {
+        StringBuilder errorMessage = new StringBuilder();
+        for (ObjectError error : result.getGlobalErrors()) {
+            String resolved = MessageUtil.getMessageOrDefault(error.getCode(), error.getArguments(),
+                    error.getDefaultMessage());
+            String defaultMessage = StringUtils.trimToNull(error.getDefaultMessage());
+            if (!GenericValidator.isBlankOrNull(resolved)) {
+                if (errorMessage.length() > 0) {
+                    errorMessage.append(" | ");
+                }
+                errorMessage.append(resolved.trim());
+                if (defaultMessage != null && !StringUtils.equalsIgnoreCase(defaultMessage, resolved)) {
+                    errorMessage.append(": ").append(defaultMessage);
+                }
+            } else if (defaultMessage != null) {
+                if (errorMessage.length() > 0) {
+                    errorMessage.append(" | ");
+                }
+                errorMessage.append(defaultMessage);
+            }
+        }
+        for (FieldError error : result.getFieldErrors()) {
+            String resolved = MessageUtil.getMessageOrDefault(error.getCode(), error.getArguments(),
+                    error.getDefaultMessage());
+            String defaultMessage = StringUtils.trimToNull(error.getDefaultMessage());
+            if (!GenericValidator.isBlankOrNull(resolved)) {
+                if (errorMessage.length() > 0) {
+                    errorMessage.append(" | ");
+                }
+                errorMessage.append(error.getField()).append(": ").append(resolved.trim());
+                if (defaultMessage != null && !StringUtils.equalsIgnoreCase(defaultMessage, resolved)) {
+                    errorMessage.append(": ").append(defaultMessage);
+                }
+            } else if (defaultMessage != null) {
+                if (errorMessage.length() > 0) {
+                    errorMessage.append(" | ");
+                }
+                errorMessage.append(error.getField()).append(": ").append(defaultMessage);
+            }
+        }
+
+        if (errorMessage.length() == 0) {
+            String trimmedFallbackDetail = StringUtils.trimToNull(fallbackDetail);
+            if (trimmedFallbackDetail != null) {
+                errorMessage.append(trimmedFallbackDetail);
+            }
+        }
+
+        String summary = errorMessage.toString().trim();
+        if (summary.length() > 900) {
+            return summary.substring(0, 900);
+        }
+        return summary;
+    }
+
+    private String buildIllegalArgumentExceptionDetail(IllegalArgumentException exception) {
+        if (exception == null) {
+            return null;
+        }
+
+        String baseMessage = StringUtils.trimToNull(exception.getMessage());
+        StackTraceElement[] stackTrace = exception.getStackTrace();
+        if (stackTrace == null || stackTrace.length == 0) {
+            return baseMessage;
+        }
+
+        StackTraceElement source = null;
+        for (StackTraceElement element : stackTrace) {
+            if (element == null) {
+                continue;
+            }
+            String className = StringUtils.defaultString(element.getClassName());
+            if (!className.startsWith("java.") && !className.startsWith("jdk.")) {
+                source = element;
+                break;
+            }
+        }
+
+        if (source == null) {
+            source = stackTrace[0];
+        }
+
+        String sourceInfo = source.getClassName() + "." + source.getMethodName() + ":" + source.getLineNumber();
+        if (baseMessage == null) {
+            return sourceInfo;
+        }
+        return baseMessage + " @ " + sourceInfo;
     }
 
     private void setupForm(SamplePatientEntryForm form, HttpServletRequest request, String externalOrderNumber)

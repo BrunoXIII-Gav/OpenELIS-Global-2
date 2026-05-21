@@ -42,6 +42,206 @@ import StorageLocationSelector from "../storage/StorageLocationSelector";
 import ResultMultiSelect from "../common/multiSelect";
 import CascadingMultiSelect from "../common/cascadingMultiSelect";
 
+const AdditionalFieldEditor = ({
+  inputId,
+  fieldLabel,
+  fieldType,
+  value,
+  activeOptions,
+  onCommit,
+}) => {
+  const [draftValue, setDraftValue] = useState(value || "");
+
+  useEffect(() => {
+    setDraftValue(value || "");
+  }, [value, inputId, fieldType]);
+
+  const commitValue = (nextValue = draftValue) => {
+    onCommit(nextValue == null ? "" : nextValue);
+  };
+
+  switch (fieldType) {
+    case "TEXTAREA":
+      return (
+        <TextArea
+          id={inputId}
+          labelText={fieldLabel}
+          rows={2}
+          value={draftValue}
+          onChange={(event) => setDraftValue(event.target.value)}
+          onBlur={() => commitValue()}
+        />
+      );
+    case "NUMBER":
+      return (
+        <TextInput
+          id={inputId}
+          labelText={fieldLabel}
+          type="number"
+          value={draftValue}
+          onChange={(event) => setDraftValue(event.target.value)}
+          onBlur={() => commitValue()}
+        />
+      );
+    case "DATE":
+      return (
+        <TextInput
+          id={inputId}
+          labelText={fieldLabel}
+          type="date"
+          value={draftValue}
+          onChange={(event) => setDraftValue(event.target.value)}
+          onBlur={() => commitValue()}
+        />
+      );
+    case "DATETIME":
+      return (
+        <TextInput
+          id={inputId}
+          labelText={fieldLabel}
+          type="datetime-local"
+          value={draftValue}
+          onChange={(event) => setDraftValue(event.target.value)}
+          onBlur={() => commitValue()}
+        />
+      );
+    case "BOOLEAN":
+      return (
+        <Checkbox
+          id={inputId}
+          labelText={fieldLabel}
+          checked={draftValue === "true"}
+          onChange={(event) => {
+            const nextValue = event.target.checked ? "true" : "false";
+            setDraftValue(nextValue);
+            commitValue(nextValue);
+          }}
+        />
+      );
+    case "SELECT":
+      return (
+        <Select
+          id={inputId}
+          labelText={fieldLabel}
+          value={draftValue}
+          onChange={(event) => {
+            const nextValue = event.target.value;
+            setDraftValue(nextValue);
+            commitValue(nextValue);
+          }}
+        >
+          <SelectItem value="" text="" />
+          {activeOptions.map((option) => (
+            <SelectItem
+              key={`${inputId}-${option.optionKey}`}
+              value={option.optionKey}
+              text={option.optionLabel || option.optionKey}
+            />
+          ))}
+        {(!Array.isArray(data.additionalFieldDefinitions) ||
+          !data.additionalFieldDefinitions.some(
+            (fieldDefinition) => fieldDefinition?.active !== false,
+          )) && (
+          <Grid style={{ marginTop: "1rem" }}>
+            <Column lg={16}>
+              <h5 style={{ marginBottom: "0.75rem" }}>Results</h5>
+            </Column>
+            <Column lg={4} md={4} sm={4}>
+              <Field name={"testResult[" + data.id + "].resultValue"}>
+                {() => (
+                  <>
+                    <p style={{ marginBottom: "0.5rem" }}>
+                      {intl.formatMessage({ id: "column.name.result" })}
+                    </p>
+                    {renderCell(data, 0, { id: "result" }, data.id)}
+                  </>
+                )}
+              </Field>
+            </Column>
+          </Grid>
+        )}
+        </Select>
+      );
+    case "RADIO":
+      return (
+        <div>
+          <label htmlFor={inputId} style={{ display: "block" }}>
+            {fieldLabel}
+          </label>
+          <RadioButtonGroup
+            id={inputId}
+            legendText=""
+            name={inputId}
+            valueSelected={draftValue}
+            onChange={(valueSelected) => {
+              setDraftValue(valueSelected);
+              commitValue(valueSelected);
+            }}
+          >
+            {activeOptions.map((option) => (
+              <RadioButton
+                key={`${inputId}-${option.optionKey}`}
+                id={`${inputId}-${option.optionKey}`}
+                labelText={option.optionLabel || option.optionKey}
+                value={option.optionKey}
+              />
+            ))}
+          </RadioButtonGroup>
+        </div>
+      );
+    case "MULTISELECT": {
+      const selectedValues = (draftValue || "")
+        .split(",")
+        .map((item) => item.trim())
+        .filter((item) => item.length > 0);
+
+      return (
+        <div>
+          <label
+            htmlFor={inputId}
+            style={{ display: "block", marginBottom: "0.25rem" }}
+          >
+            {fieldLabel}
+          </label>
+          <select
+            id={inputId}
+            multiple
+            value={selectedValues}
+            onChange={(event) => {
+              const values = Array.from(event.target.selectedOptions).map(
+                (option) => option.value,
+              );
+              const nextValue = values.join(",");
+              setDraftValue(nextValue);
+              commitValue(nextValue);
+            }}
+            style={{ width: "100%", minHeight: "5rem" }}
+          >
+            {activeOptions.map((option) => (
+              <option
+                key={`${inputId}-${option.optionKey}`}
+                value={option.optionKey}
+              >
+                {option.optionLabel || option.optionKey}
+              </option>
+            ))}
+          </select>
+        </div>
+      );
+    }
+    default:
+      return (
+        <TextInput
+          id={inputId}
+          labelText={fieldLabel}
+          value={draftValue}
+          onChange={(event) => setDraftValue(event.target.value)}
+          onBlur={() => commitValue()}
+        />
+      );
+  }
+};
+
 function ResultSearchPage() {
   const [originalResultForm, setOriginalResultForm] = useState({
     testResult: [],
@@ -874,6 +1074,8 @@ export function SearchResults(props) {
 
   const isResultsReferralEnabled =
     configurationProperties.RESULTS_REFERRAL_ENABLED === "true";
+  const showStorageLocationOnResultEntry =
+    configurationProperties.showStorageLocationOnResultEntry !== "false";
   const hasReferralSelectionData =
     referalOrganizations.length > 0 && referralReasons.length > 0;
   const showReferralControls =
@@ -902,12 +1104,13 @@ export function SearchResults(props) {
 
     if (configurationProperties.allowResultRejection == "true") {
       if (columns) {
-        const updatedList = [
-          ...columns.slice(0, 8),
+        const notesIndex = columns.findIndex((column) => column.id === "notes");
+        const insertAt = notesIndex >= 0 ? notesIndex : columns.length;
+        columns = [
+          ...columns.slice(0, insertAt),
           resultColumn,
-          ...columns.slice(8),
+          ...columns.slice(insertAt),
         ];
-        columns = updatedList;
       }
     }
   };
@@ -946,7 +1149,7 @@ export function SearchResults(props) {
         return renderCell(row, index, column, id);
       },
       sortable: true,
-      width: "15rem",
+      width: "18rem",
     },
     {
       id: "normalRange",
@@ -964,12 +1167,7 @@ export function SearchResults(props) {
       width: "5rem",
     },
     {
-      id: "result",
-      name: intl.formatMessage({ id: "column.name.result" }),
-      cell: (row, index, column, id) => {
-        return renderCell(row, index, column, id);
-      },
-      width: "20rem",
+      width: "12rem",
     },
     {
       id: "currentResult",
@@ -985,9 +1183,21 @@ export function SearchResults(props) {
       cell: (row, index, column, id) => {
         return renderCell(row, index, column, id);
       },
-      width: "25rem",
+      width: "30rem",
     },
   ];
+
+  // Display-only hide: keep logic/data in code but do not render these columns.
+  const hiddenColumnIds = new Set([
+    "analyzerResult",
+    "normalRange",
+    "currentResult",
+  ]);
+  const visibleColumns = columns.filter(
+    (column) => !hiddenColumnIds.has(column.id),
+  );
+
+  columns = columns.filter((column) => column?.id !== "result");
 
   const renderCell = (row, index, column, id) => {
     let formatLabNum = configurationProperties.AccessionFormat === "ALPHANUM";
@@ -1477,206 +1687,18 @@ export function SearchResults(props) {
       return null;
     }
 
-    switch (fieldType) {
-      case "TEXTAREA":
-        return (
-          <TextArea
-            id={inputId}
-            labelText={fieldLabel}
-            rows={2}
-            value={fieldValue || ""}
-            onChange={(event) =>
-              handleAdditionalFieldChange(
-                data.id,
-                fieldKey,
-                fieldType,
-                event.target.value,
-              )
-            }
-          />
-        );
-      case "NUMBER":
-        return (
-          <TextInput
-            id={inputId}
-            labelText={fieldLabel}
-            type="number"
-            value={fieldValue || ""}
-            onChange={(event) =>
-              handleAdditionalFieldChange(
-                data.id,
-                fieldKey,
-                fieldType,
-                event.target.value,
-              )
-            }
-          />
-        );
-      case "DATE":
-        return (
-          <TextInput
-            id={inputId}
-            labelText={fieldLabel}
-            type="date"
-            value={fieldValue || ""}
-            onChange={(event) =>
-              handleAdditionalFieldChange(
-                data.id,
-                fieldKey,
-                fieldType,
-                event.target.value,
-              )
-            }
-          />
-        );
-      case "DATETIME":
-        return (
-          <TextInput
-            id={inputId}
-            labelText={fieldLabel}
-            type="datetime-local"
-            value={fieldValue || ""}
-            onChange={(event) =>
-              handleAdditionalFieldChange(
-                data.id,
-                fieldKey,
-                fieldType,
-                event.target.value,
-              )
-            }
-          />
-        );
-      case "BOOLEAN":
-        return (
-          <Checkbox
-            id={inputId}
-            labelText={fieldLabel}
-            checked={fieldValue === "true"}
-            onChange={(event) =>
-              handleAdditionalFieldChange(
-                data.id,
-                fieldKey,
-                fieldType,
-                event.target.checked,
-              )
-            }
-          />
-        );
-      case "SELECT":
-        return (
-          <Select
-            id={inputId}
-            labelText={fieldLabel}
-            value={fieldValue || ""}
-            onChange={(event) =>
-              handleAdditionalFieldChange(
-                data.id,
-                fieldKey,
-                fieldType,
-                event.target.value,
-              )
-            }
-          >
-            <SelectItem value="" text="" />
-            {activeOptions.map((option) => (
-              <SelectItem
-                key={`${inputId}-${option.optionKey}`}
-                value={option.optionKey}
-                text={option.optionLabel || option.optionKey}
-              />
-            ))}
-          </Select>
-        );
-      case "RADIO":
-        return (
-          <div>
-            <label htmlFor={inputId} style={{ display: "block" }}>
-              {fieldLabel}
-            </label>
-            <RadioButtonGroup
-              id={inputId}
-              legendText=""
-              name={inputId}
-              valueSelected={fieldValue || ""}
-              onChange={(valueSelected) =>
-                handleAdditionalFieldChange(
-                  data.id,
-                  fieldKey,
-                  fieldType,
-                  valueSelected,
-                )
-              }
-            >
-              {activeOptions.map((option) => (
-                <RadioButton
-                  key={`${inputId}-${option.optionKey}`}
-                  id={`${inputId}-${option.optionKey}`}
-                  labelText={option.optionLabel || option.optionKey}
-                  value={option.optionKey}
-                />
-              ))}
-            </RadioButtonGroup>
-          </div>
-        );
-      case "MULTISELECT": {
-        const selectedValues = (fieldValue || "")
-          .split(",")
-          .map((value) => value.trim())
-          .filter((value) => value.length > 0);
-        return (
-          <div>
-            <label
-              htmlFor={inputId}
-              style={{ display: "block", marginBottom: "0.25rem" }}
-            >
-              {fieldLabel}
-            </label>
-            <select
-              id={inputId}
-              multiple
-              value={selectedValues}
-              onChange={(event) => {
-                const values = Array.from(event.target.selectedOptions).map(
-                  (option) => option.value,
-                );
-                handleAdditionalFieldChange(
-                  data.id,
-                  fieldKey,
-                  fieldType,
-                  values,
-                );
-              }}
-              style={{ width: "100%", minHeight: "5rem" }}
-            >
-              {activeOptions.map((option) => (
-                <option
-                  key={`${inputId}-${option.optionKey}`}
-                  value={option.optionKey}
-                >
-                  {option.optionLabel || option.optionKey}
-                </option>
-              ))}
-            </select>
-          </div>
-        );
-      }
-      default:
-        return (
-          <TextInput
-            id={inputId}
-            labelText={fieldLabel}
-            value={fieldValue || ""}
-            onChange={(event) =>
-              handleAdditionalFieldChange(
-                data.id,
-                fieldKey,
-                fieldType,
-                event.target.value,
-              )
-            }
-          />
-        );
-    }
+    return (
+      <AdditionalFieldEditor
+        inputId={inputId}
+        fieldLabel={fieldLabel}
+        fieldType={fieldType}
+        value={fieldValue || ""}
+        activeOptions={activeOptions}
+        onCommit={(nextValue) =>
+          handleAdditionalFieldChange(data.id, fieldKey, fieldType, nextValue)
+        }
+      />
+    );
   };
 
   const renderReferral = ({ data }) => {
@@ -1684,7 +1706,11 @@ export function SearchResults(props) {
     const analysisId = data.id;
     const sampleItemId = data.sampleItemId;
 
-    if (sampleItemId && !sampleLocations[analysisId]) {
+    if (
+      showStorageLocationOnResultEntry &&
+      sampleItemId &&
+      !sampleLocations[analysisId]
+    ) {
       fetchSampleLocation(analysisId, sampleItemId);
     }
 
@@ -1850,13 +1876,30 @@ export function SearchResults(props) {
             </>
           )}
         </Grid>
-        {Array.isArray(data.additionalFieldDefinitions) &&
-          data.additionalFieldDefinitions.length > 0 && (
+        {(Array.isArray(data.additionalFieldDefinitions) &&
+          data.additionalFieldDefinitions.some(
+            (fieldDefinition) => fieldDefinition?.active !== false,
+          )) && (
             <Grid style={{ marginTop: "1rem" }}>
               <Column lg={16}>
                 <h5 style={{ marginBottom: "0.75rem" }}>
-                  <FormattedMessage id="results.additionalFields.title" />
+                  Results
                 </h5>
+              </Column>
+              <Column lg={4} md={4} sm={4}>
+                <Field name={"testResult[" + data.id + "].resultValue"}>
+                  {() => (
+                    <>
+                      <p style={{ marginBottom: "0.5rem" }}>
+                        {typeof data?.resultName === "string" &&
+                        data.resultName.trim().length > 0
+                          ? data.resultName.trim()
+                          : intl.formatMessage({ id: "column.name.result" })}
+                      </p>
+                      {renderCell(data, 0, { id: "result" }, data.id)}
+                    </>
+                  )}
+                </Field>
               </Column>
               {data.additionalFieldDefinitions
                 .filter((fieldDefinition) => fieldDefinition?.active !== false)
@@ -1872,34 +1915,38 @@ export function SearchResults(props) {
                 ))}
             </Grid>
           )}
-        {/* Storage Location Widget - INT-002: Integration point */}
-        <Grid style={{ marginTop: "1rem" }}>
-          <Column lg={16}>
-            <StorageLocationSelector
-              workflow="results"
-              showQuickFind={true}
-              sampleInfo={{
-                sampleItemId: sampleItemId || null,
-                sampleItemExternalId:
-                  locationData && typeof locationData === "object"
-                    ? locationData.sampleItemExternalId
-                    : null,
-                sampleAccessionNumber: data.accessionNumber,
-                sampleId: sampleItemId || data.accessionNumber, // Use sampleItemId
-                type: data.sampleType || "",
-                status: data.sampleStatus || "Active",
-              }}
-              hierarchicalPath={currentLocationPath}
-              onLocationChange={(locationData) => {
-                handleLocationAssignment(
-                  locationData,
-                  analysisId,
-                  sampleItemId,
-                );
-              }}
-            />
-          </Column>
-        </Grid>
+        {showStorageLocationOnResultEntry && (
+          <>
+            {/* Storage Location Widget - INT-002: Integration point */}
+            <Grid style={{ marginTop: "1rem" }}>
+              <Column lg={16}>
+                <StorageLocationSelector
+                  workflow="results"
+                  showQuickFind={true}
+                  sampleInfo={{
+                    sampleItemId: sampleItemId || null,
+                    sampleItemExternalId:
+                      locationData && typeof locationData === "object"
+                        ? locationData.sampleItemExternalId
+                        : null,
+                    sampleAccessionNumber: data.accessionNumber,
+                    sampleId: sampleItemId || data.accessionNumber, // Use sampleItemId
+                    type: data.sampleType || "",
+                    status: data.sampleStatus || "Active",
+                  }}
+                  hierarchicalPath={currentLocationPath}
+                  onLocationChange={(locationData) => {
+                    handleLocationAssignment(
+                      locationData,
+                      analysisId,
+                      sampleItemId,
+                    );
+                  }}
+                />
+              </Column>
+            </Grid>
+          </>
+        )}
       </>
     );
   };
@@ -2227,26 +2274,16 @@ export function SearchResults(props) {
           initialValues={SearchResultFormValues}
           //validationSchema={}
           onSubmit
-          onChange
         >
-          {({
-            // values,
-            // errors,
-            // touched,
-            handleChange,
-            //handleBlur,
-            // handleSubmit,
-          }) => (
-            <Form
-              onChange={handleChange}
-              //onBlur={handleBlur}
-            >
+          {() => (
+            <Form>
               <DataTable
+                keyField="id"
                 data={props.results?.testResult?.slice(
                   (page - 1) * pageSize,
                   page * pageSize,
                 )}
-                columns={columns}
+                columns={visibleColumns}
                 isSortable
                 expandableRows
                 expandableRowsComponent={renderReferral}
