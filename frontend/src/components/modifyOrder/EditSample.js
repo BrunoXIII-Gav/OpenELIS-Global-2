@@ -943,13 +943,13 @@ const EditSample = (props) => {
       <Stack gap={10}>
         <div className="orderLegendBody">
           <h3>
-            <FormattedMessage id="order.label.add" />
+            <FormattedMessage id="order.sample.section.heading" />
           </h3>
           {samples.map((sample, i) => {
             return (
               <div className="sampleType" key={i}>
                 <h4>
-                  <FormattedMessage id="label.button.sample" /> {i + 1}
+                  <FormattedMessage id="order.sample.card.label" /> {i + 1}
                 </h4>
                 <Link href="#" onClick={(e) => handleRemoveSample(e, sample)}>
                   {<FormattedMessage id="sample.remove.action" />}
@@ -978,7 +978,7 @@ const EditSample = (props) => {
           <Row>
             <div className="inlineDiv">
               <Button onClick={handleAddNewSample}>
-                {<FormattedMessage id="sample.add.action" />}
+                {<FormattedMessage id="order.sample.add.action" />}
                 &nbsp; &nbsp;
                 <Add size={16} />
               </Button>

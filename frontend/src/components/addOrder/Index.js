@@ -1011,7 +1011,7 @@ const Index = () => {
                   })}
                 />
                 <ProgressStep
-                  label={intl.formatMessage({ id: "sample.add.action" })}
+                  label={intl.formatMessage({ id: "order.step.add.request" })}
                 />
                 <ProgressStep
                   label={intl.formatMessage({ id: "order.label.add" })}
