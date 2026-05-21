@@ -38,6 +38,9 @@ import org.openelisglobal.systemuser.service.SystemUserService;
 import org.openelisglobal.systemuser.valueholder.SystemUser;
 import org.openelisglobal.test.service.TestService;
 import org.openelisglobal.test.valueholder.Test;
+import org.openelisglobal.patient.util.PatientUtil;
+import org.openelisglobal.patientidentity.valueholder.PatientIdentity;
+import org.openelisglobal.patientidentitytype.util.PatientIdentityTypeMap;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.http.MediaType;
 import org.springframework.stereotype.Controller;
@@ -173,9 +176,7 @@ public class PatientDashBoardProvider {
                         orderBean.setLabNumber(sample.getAccessionNumber() != null ? sample.getAccessionNumber() : "");
 
                         try {
-                            if (sampleHumanService.getPatientForSample(sample) != null) {
-                                orderBean.setPatientId(sampleHumanService.getPatientForSample(sample).getNationalId());
-                            }
+                            orderBean.setPatientId(getDisplayPatientIdentifier(sampleHumanService.getPatientForSample(sample)));
                         } catch (Exception e) {
                             orderBean.setPatientId("");
                         }
@@ -224,7 +225,7 @@ public class PatientDashBoardProvider {
                         orderBean.setId(sample.getId());
                         orderBean.setPriority(sample.getPriority() != null ? sample.getPriority().toString() : "");
                         orderBean.setLabNumber(labNumber);
-                        orderBean.setPatientId(sampleHumanService.getPatientForSample(sample).getNationalId());
+                        orderBean.setPatientId(getDisplayPatientIdentifier(sampleHumanService.getPatientForSample(sample)));
                         orderBean.setOrderDate(
                                 sample.getLastupdated() != null ? sdf.format(sample.getLastupdated()) : "");
                         orderBean.setTestName("");
@@ -320,11 +321,28 @@ public class PatientDashBoardProvider {
                 orderBean.setTestName(test.getLocalizedTestName().getLocalizedValue());
             }
 
-            orderBean.setPatientId(eOrder.getPatient().getNationalId());
+            orderBean.setPatientId(getDisplayPatientIdentifier(eOrder.getPatient()));
             orderBeanList.add(orderBean);
         });
 
         return orderBeanList;
+    }
+
+    private String getDisplayPatientIdentifier(org.openelisglobal.patient.valueholder.Patient patient) {
+        if (patient == null) {
+            return "";
+        }
+        try {
+            List<PatientIdentity> identityList = PatientUtil.getIdentityListForPatient(patient.getId());
+            String subjectNumber = PatientIdentityTypeMap.getInstance().getIdentityValue(identityList, "SUBJECT");
+            if (!GenericValidator.isBlankOrNull(subjectNumber)) {
+                return subjectNumber;
+            }
+        } catch (Exception e) {
+            // Keep dashboard resilient; fallback to nationalId below.
+        }
+        String nationalId = patient.getNationalId();
+        return GenericValidator.isBlankOrNull(nationalId) ? "" : nationalId;
     }
 
     @GetMapping(value = "home-dashboard/metrics", produces = MediaType.APPLICATION_JSON_VALUE)

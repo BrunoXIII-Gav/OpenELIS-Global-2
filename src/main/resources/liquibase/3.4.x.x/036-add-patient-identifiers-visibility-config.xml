@@ -1,0 +1,45 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<databaseChangeLog
+    xmlns="http://www.liquibase.org/xml/ns/dbchangelog"
+    xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+    xsi:schemaLocation="http://www.liquibase.org/xml/ns/dbchangelog
+      http://www.liquibase.org/xml/ns/dbchangelog/dbchangelog-3.8.xsd">
+
+    <changeSet author="openelis" id="1">
+        <preConditions onFail="MARK_RAN">
+            <sqlCheck expectedResult="0">SELECT count(*) FROM clinlims.site_information WHERE name = 'showPatNationalIdField'</sqlCheck>
+        </preConditions>
+        <comment>Add toggle to show/hide National ID field in patient forms</comment>
+        <insert schemaName="clinlims" tableName="site_information">
+            <column name="id" valueSequenceNext="site_information_seq" />
+            <column name="name" value="showPatNationalIdField" />
+            <column name="lastupdated" valueComputed="${now}" />
+            <column name="description" value="Show National ID field in patient forms" />
+            <column name="value" value="true" />
+            <column name="encrypted" value="false" />
+            <column name="domain_id" valueComputed="(SELECT id FROM site_information_domain WHERE name = 'patientEntryConfig')" />
+            <column name="value_type" value="boolean" />
+            <column name="group" value="0" />
+            <column name="description_key" value="siteInfo.showPatNationalIdField" />
+        </insert>
+    </changeSet>
+
+    <changeSet author="openelis" id="2">
+        <preConditions onFail="MARK_RAN">
+            <sqlCheck expectedResult="0">SELECT count(*) FROM clinlims.site_information WHERE name = 'showPatOptionalIdsOnOrder'</sqlCheck>
+        </preConditions>
+        <comment>Add toggle to show/hide optional patient ID checkboxes (DNI/Passport/Foreign ID)</comment>
+        <insert schemaName="clinlims" tableName="site_information">
+            <column name="id" valueSequenceNext="site_information_seq" />
+            <column name="name" value="showPatOptionalIdsOnOrder" />
+            <column name="lastupdated" valueComputed="${now}" />
+            <column name="description" value="Show optional patient ID checkboxes (DNI/Passport/Foreign ID)" />
+            <column name="value" value="true" />
+            <column name="encrypted" value="false" />
+            <column name="domain_id" valueComputed="(SELECT id FROM site_information_domain WHERE name = 'patientEntryConfig')" />
+            <column name="value_type" value="boolean" />
+            <column name="group" value="0" />
+            <column name="description_key" value="siteInfo.showPatOptionalIdsOnOrder" />
+        </insert>
+    </changeSet>
+</databaseChangeLog>

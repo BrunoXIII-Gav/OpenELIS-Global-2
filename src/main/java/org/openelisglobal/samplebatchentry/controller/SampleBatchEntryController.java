@@ -58,6 +58,7 @@ public class SampleBatchEntryController extends BaseController {
             "patientProperties.patientLastUpdated", "patientProperties.personLastUpdated",
             "patientProperties.patientUpdateStatus", "patientProperties.patientPK", "patientProperties.guid",
             "patientProperties.STnumber", "patientProperties.subjectNumber", "patientProperties.nationalId",
+            "patientProperties.dni", "patientProperties.passportNumber", "patientProperties.foreignId",
             "patientProperties.lastName", "patientProperties.firstName", "patientProperties.aka",
             "patientProperties.birthDateForDisplay", "patientProperties.age", "patientProperties.gender",
             //

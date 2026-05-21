@@ -139,6 +139,9 @@ public class PatientSearchPopulateRestController {
         patientInfo.setOtherNationality(identityMap.getIdentityValue(identityList, "OTHER NATIONALITY"));
         patientInfo.setHealthDistrict(identityMap.getIdentityValue(identityList, "HEALTH DISTRICT"));
         patientInfo.setHealthRegion(identityMap.getIdentityValue(identityList, "HEALTH REGION"));
+        patientInfo.setDni(getIdentityValueSafe(identityList, "DNI"));
+        patientInfo.setPassportNumber(getIdentityValueSafe(identityList, "PASSPORT"));
+        patientInfo.setForeignId(getIdentityValueSafe(identityList, "FOREIGN_ID"));
         patientInfo.setGuid(identityMap.getIdentityValue(identityList, "GUID"));
 
         // Retrieve dynamic address hierarchy values (ADDRESS_HIERARCHY_0,

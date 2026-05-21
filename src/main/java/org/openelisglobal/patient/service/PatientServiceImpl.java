@@ -259,9 +259,16 @@ public class PatientServiceImpl extends AuditableBaseObjectServiceImpl<Patient, 
 
         if (!GenericValidator.isBlankOrNull(patient.getNationalId())) {
             return patient.getNationalId();
-        } else {
-            return getIdentityInfo(patient, PATIENT_NATIONAL_IDENTITY);
         }
+
+        String nationalIdentity = getIdentityInfo(patient, PATIENT_NATIONAL_IDENTITY);
+        if (!GenericValidator.isBlankOrNull(nationalIdentity)) {
+            return nationalIdentity;
+        }
+
+        // Fallback to clinical history (SUBJECT) when national ID is intentionally
+        // empty in deployments that avoid sensitive IDs in operational workflows.
+        return getIdentityInfo(patient, PATIENT_SUBJECT_IDENTITY);
     }
 
     /*
@@ -675,6 +682,9 @@ public class PatientServiceImpl extends AuditableBaseObjectServiceImpl<Patient, 
         persistIdentityType(patientInfo.getHealthDistrict(), "HEALTH DISTRICT", patientInfo, patient, sysUserId);
         persistIdentityType(patientInfo.getHealthRegion(), "HEALTH REGION", patientInfo, patient, sysUserId);
         persistIdentityType(patientInfo.getOtherNationality(), "OTHER NATIONALITY", patientInfo, patient, sysUserId);
+        persistIdentityType(patientInfo.getDni(), "DNI", patientInfo, patient, sysUserId);
+        persistIdentityType(patientInfo.getPassportNumber(), "PASSPORT", patientInfo, patient, sysUserId);
+        persistIdentityType(patientInfo.getForeignId(), "FOREIGN_ID", patientInfo, patient, sysUserId);
         persistIdentityType(patientInfo.getGuid(), "GUID", patientInfo, patient, sysUserId);
 
         // Persist dynamic address hierarchy values (addressHierarchy_0,

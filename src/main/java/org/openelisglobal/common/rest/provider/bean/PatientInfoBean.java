@@ -29,6 +29,9 @@ public class PatientInfoBean implements Serializable {
     private String STnumber;
     private String subjectNumber;
     private String nationalId;
+    private String dni;
+    private String passportNumber;
+    private String foreignId;
     private String guid;
     private String lastName;
     private String firstName;
@@ -128,6 +131,30 @@ public class PatientInfoBean implements Serializable {
 
     public void setNationalId(String nationalId) {
         this.nationalId = nationalId;
+    }
+
+    public String getDni() {
+        return dni;
+    }
+
+    public void setDni(String dni) {
+        this.dni = dni;
+    }
+
+    public String getPassportNumber() {
+        return passportNumber;
+    }
+
+    public void setPassportNumber(String passportNumber) {
+        this.passportNumber = passportNumber;
+    }
+
+    public String getForeignId() {
+        return foreignId;
+    }
+
+    public void setForeignId(String foreignId) {
+        this.foreignId = foreignId;
     }
 
     public String getLastName() {
