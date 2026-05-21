@@ -491,13 +491,13 @@ const HomeDashBoard: React.FC<DashBoardProps> = () => {
                 <Link
                   style={{ color: "blue" }}
                   href={
-                    selectedTile.type == "ORDERS_IN_PROGRESS" ||
-                    selectedTile.type == "AWAITING_SAMPLE"
+                    selectedTile.type == "ORDERS_IN_PROGRESS"
                       ? "/ModifyOrder?accessionNumber=" + cell.value
-                      : selectedTile.type == "AWAITING_RESULTS"
-                        ? "/result?type=order&doRange=false&accessionNumber=" +
-                          cell.value
-                        : "validation?type=order&accessionNumber=" + cell.value
+                      : selectedTile.type == "AWAITING_SAMPLE"
+                        ? "/SampleManagement?accessionNumber=" + cell.value
+                        : selectedTile.type == "AWAITING_RESULTS"
+                          ? "/result?type=order&doRange=false&accessionNumber=" + cell.value
+                          : "validation?type=order&accessionNumber=" + cell.value
                   }
                 >
                   <u>{convertAlphaNumLabNumForDisplay(cell.value)}</u>
@@ -659,7 +659,7 @@ const HomeDashBoard: React.FC<DashBoardProps> = () => {
                       <Tile key={index} className="dashboard-tile">
                         <h3 className="tile-title">{tile.title}</h3>
                         <p className="tile-subtitle">{tile.subTitle}</p>
-                        <p className="tile-value">{tile.value}</p>
+                        <p className="tile-value">{Number(tile.value).toFixed(2)}</p>
                       </Tile>
                     ))}
                   </div>
@@ -770,7 +770,16 @@ const HomeDashBoard: React.FC<DashBoardProps> = () => {
                         )
                         .slice((page - 1) * pageSize, page * pageSize)}
                       headers={
-                        selectedTile.type === "ORDERS_IN_PROGRESS"
+                        [
+                          "ORDERS_IN_PROGRESS",
+                          "ORDERS_COMPLETED_TODAY",
+                          "ORDERS_PATIALLY_COMPLETED_TODAY",
+                          "ORDERS_REJECTED_TODAY",
+                          "ORDERS_FOR_USER",
+                          "UN_PRINTED_RESULTS",
+                          "INCOMING_ORDERS",
+                          "DELAYED_TURN_AROUND"
+                        ].includes(selectedTile.type)
                           ? orderHeadersInProgress
                           : selectedTile.type === "ORDERS_ENTERED_BY_USER_TODAY"
                             ? userHeaders

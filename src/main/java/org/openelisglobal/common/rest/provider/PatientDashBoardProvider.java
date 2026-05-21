@@ -259,7 +259,13 @@ public class PatientDashBoardProvider {
                 userOrderBean.setId(userId);
                 userOrderBean.setUserFirstName(user.getFirstName());
                 userOrderBean.setUserLastName(user.getLastName());
-                userOrderBean.setCountOfOrdersEntered(userOrdersMap.get(userId).size());
+                
+                long uniqueOrdersCount = analysisList.stream()
+                        .map(a -> a.getSampleItem().getSample().getId())
+                        .distinct()
+                        .count();
+                
+                userOrderBean.setCountOfOrdersEntered((int) uniqueOrdersCount);
                 userOrders.add(userOrderBean);
             }
         });
@@ -280,7 +286,7 @@ public class PatientDashBoardProvider {
         });
 
         if (userOrdersMap.get(userId) != null) {
-            return convertAnalysesToOrderBean(userOrdersMap.get(userId));
+            return convertAnalysesToGroupedOrderBean(userOrdersMap.get(userId));
         }
         return new ArrayList<>();
     }
@@ -386,7 +392,9 @@ public class PatientDashBoardProvider {
                 break;
             case ORDERS_COMPLETED_TODAY:
                 String finalizedId = iStatusService.getStatusID(AnalysisStatus.Finalized);
-                long completed = allAnalysesInRange.stream().filter(a -> a.getStatusId().equals(finalizedId)).count();
+                long completed = allAnalysesInRange.stream()
+                        .filter(a -> a.getStatusId().equals(finalizedId))
+                        .map(a -> a.getSampleItem().getSample().getId()).distinct().count();
                 metrics.setOrdersCompletedToday((int) completed);
                 break;
             case ORDERS_PATIALLY_COMPLETED_TODAY:
@@ -394,17 +402,24 @@ public class PatientDashBoardProvider {
                 String rejId = iStatusService.getStatusID(AnalysisStatus.SampleRejected);
                 String finId = iStatusService.getStatusID(AnalysisStatus.Finalized);
                 long partial = allAnalysesInRange.stream()
-                        .filter(a -> !a.getStatusId().equals(rejId) && !a.getStatusId().equals(finId)).count();
+                        .filter(a -> !a.getStatusId().equals(rejId) && !a.getStatusId().equals(finId))
+                        .map(a -> a.getSampleItem().getSample().getId()).distinct().count();
                 metrics.setPatiallyCompletedToday((int) partial);
                 metrics.setOrderEnterdByUserToday((int) partial);
                 break;
             case ORDERS_REJECTED_TODAY:
                 String rejectedId = iStatusService.getStatusID(AnalysisStatus.SampleRejected);
-                long rejected = allAnalysesInRange.stream().filter(a -> a.getStatusId().equals(rejectedId)).count();
+                long rejected = allAnalysesInRange.stream()
+                        .filter(a -> a.getStatusId().equals(rejectedId))
+                        .map(a -> a.getSampleItem().getSample().getId()).distinct().count();
                 metrics.setOrdersRejectedToday((int) rejected);
                 break;
             case UN_PRINTED_RESULTS:
-                metrics.setUnPritendResults(unprintedResults(sqlStartDate, sqlEndDate).size());
+                long unprintedOrders = unprintedResults(sqlStartDate, sqlEndDate).stream()
+                        .map(a -> a.getSampleItem().getSample().getId())
+                        .distinct()
+                        .count();
+                metrics.setUnPritendResults((int) unprintedOrders);
                 break;
             case INCOMING_ORDERS:
                 List<Integer> estausIds = new ArrayList<>();
@@ -418,7 +433,11 @@ public class PatientDashBoardProvider {
                 metrics.setAverageTurnAroudTime(calculateAverageReceptionToValidationTime(allTimeStart, allTimeEnd));
                 break;
             case DELAYED_TURN_AROUND:
-                metrics.setDelayedTurnAround(analysesWithDelayedTurnAroundTime(sqlStartDate, sqlEndDate).size());
+                long delayedOrders = analysesWithDelayedTurnAroundTime(sqlStartDate, sqlEndDate).stream()
+                        .map(a -> a.getSampleItem().getSample().getId())
+                        .distinct()
+                        .count();
+                metrics.setDelayedTurnAround((int) delayedOrders);
                 break;
             default:
                 break;
@@ -528,7 +547,7 @@ public class PatientDashBoardProvider {
                 if (a.getStatusId().equals(finalizedId))
                     filteredAnalyses.add(a);
             });
-            return convertAnalysesToOrderBean(filteredAnalyses);
+            return convertAnalysesToGroupedOrderBean(filteredAnalyses);
 
         case ORDERS_PATIALLY_COMPLETED_TODAY:
             String rejId = iStatusService.getStatusID(AnalysisStatus.SampleRejected);
@@ -537,7 +556,7 @@ public class PatientDashBoardProvider {
                 if (!a.getStatusId().equals(rejId) && !a.getStatusId().equals(finId))
                     filteredAnalyses.add(a);
             });
-            return convertAnalysesToOrderBean(filteredAnalyses);
+            return convertAnalysesToGroupedOrderBean(filteredAnalyses);
 
         case ORDERS_ENTERED_BY_USER_TODAY:
             String rejectedOnly = iStatusService.getStatusID(AnalysisStatus.SampleRejected);
@@ -553,10 +572,10 @@ public class PatientDashBoardProvider {
                 if (a.getStatusId().equals(rejectedId))
                     filteredAnalyses.add(a);
             });
-            return convertAnalysesToOrderBean(filteredAnalyses);
+            return convertAnalysesToGroupedOrderBean(filteredAnalyses);
 
         case UN_PRINTED_RESULTS:
-            return convertAnalysesToOrderBean(unprintedResults(sqlStartDate, sqlEndDate));
+            return convertAnalysesToGroupedOrderBean(unprintedResults(sqlStartDate, sqlEndDate));
 
         case INCOMING_ORDERS:
             List<Integer> estausIds = new ArrayList<>();
@@ -570,7 +589,7 @@ public class PatientDashBoardProvider {
             return new ArrayList<>();
 
         case DELAYED_TURN_AROUND:
-            return convertAnalysesToOrderBean(analysesWithDelayedTurnAroundTime(sqlStartDate, sqlEndDate));
+            return convertAnalysesToGroupedOrderBean(analysesWithDelayedTurnAroundTime(sqlStartDate, sqlEndDate));
 
         case ORDERS_FOR_USER:
             if (StringUtils.isNotBlank(systemUserId)) {
