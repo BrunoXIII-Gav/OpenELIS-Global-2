@@ -138,28 +138,6 @@ const AdditionalFieldEditor = ({
               text={option.optionLabel || option.optionKey}
             />
           ))}
-        {(!Array.isArray(data.additionalFieldDefinitions) ||
-          !data.additionalFieldDefinitions.some(
-            (fieldDefinition) => fieldDefinition?.active !== false,
-          )) && (
-          <Grid style={{ marginTop: "1rem" }}>
-            <Column lg={16}>
-              <h5 style={{ marginBottom: "0.75rem" }}>Results</h5>
-            </Column>
-            <Column lg={4} md={4} sm={4}>
-              <Field name={"testResult[" + data.id + "].resultValue"}>
-                {() => (
-                  <>
-                    <p style={{ marginBottom: "0.5rem" }}>
-                      {intl.formatMessage({ id: "column.name.result" })}
-                    </p>
-                    {renderCell(data, 0, { id: "result" }, data.id)}
-                  </>
-                )}
-              </Field>
-            </Column>
-          </Grid>
-        )}
         </Select>
       );
     case "RADIO":
@@ -1876,10 +1854,7 @@ export function SearchResults(props) {
             </>
           )}
         </Grid>
-        {(Array.isArray(data.additionalFieldDefinitions) &&
-          data.additionalFieldDefinitions.some(
-            (fieldDefinition) => fieldDefinition?.active !== false,
-          )) && (
+        {true && (
             <Grid style={{ marginTop: "1rem" }}>
               <Column lg={16}>
                 <h5 style={{ marginBottom: "0.75rem" }}>
@@ -1901,18 +1876,19 @@ export function SearchResults(props) {
                   )}
                 </Field>
               </Column>
-              {data.additionalFieldDefinitions
-                .filter((fieldDefinition) => fieldDefinition?.active !== false)
-                .map((fieldDefinition, index) => (
-                  <Column
-                    lg={4}
-                    md={4}
-                    sm={4}
-                    key={`additional-field-render-${data.id}-${fieldDefinition.fieldKey || index}`}
-                  >
-                    {renderAdditionalFieldInput(data, fieldDefinition)}
-                  </Column>
-                ))}
+              {Array.isArray(data.additionalFieldDefinitions) &&
+                data.additionalFieldDefinitions
+                  .filter((fieldDefinition) => fieldDefinition?.active !== false)
+                  .map((fieldDefinition, index) => (
+                    <Column
+                      lg={4}
+                      md={4}
+                      sm={4}
+                      key={`additional-field-render-${data.id}-${fieldDefinition.fieldKey || index}`}
+                    >
+                      {renderAdditionalFieldInput(data, fieldDefinition)}
+                    </Column>
+                  ))}
             </Grid>
           )}
         {showStorageLocationOnResultEntry && (

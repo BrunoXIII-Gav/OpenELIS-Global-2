@@ -135,8 +135,7 @@ export const TestStepForm = ({
     } else if (
       Array.isArray(previousData.additionalFields) &&
       previousData.additionalFields.length > 0 &&
-      (!Array.isArray(normalizedData.additionalFields) ||
-        normalizedData.additionalFields.length === 0)
+      normalizedData.additionalFields === undefined
     ) {
       mergedData.additionalFields = previousData.additionalFields;
     }
@@ -190,8 +189,7 @@ export const TestStepForm = ({
     } else if (
       Array.isArray(previousData.additionalFields) &&
       previousData.additionalFields.length > 0 &&
-      (!Array.isArray(newData?.additionalFields) ||
-        newData.additionalFields.length === 0)
+      newData?.additionalFields === undefined
     ) {
       mergedData.additionalFields = previousData.additionalFields;
     }
