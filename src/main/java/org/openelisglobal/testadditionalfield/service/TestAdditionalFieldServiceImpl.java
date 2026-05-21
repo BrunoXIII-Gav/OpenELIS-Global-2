@@ -276,7 +276,8 @@ public class TestAdditionalFieldServiceImpl implements TestAdditionalFieldServic
 
     @Override
     public void validateAndPersistAnalysisValues(String testId, String analysisId, Map<String, String> fieldValues,
-            String currentUserId, Map<String, List<TestAdditionalFieldPayload>> activeFieldsByTestCache) {
+            String currentUserId, Map<String, List<TestAdditionalFieldPayload>> activeFieldsByTestCache,
+            boolean enforceRequired) {
         List<TestAdditionalFieldPayload> fieldDefinitions = null;
         if (activeFieldsByTestCache != null) {
             fieldDefinitions = activeFieldsByTestCache.get(testId);
@@ -323,7 +324,7 @@ public class TestAdditionalFieldServiceImpl implements TestAdditionalFieldServic
             }
 
             if (normalizedValue == null) {
-                if (Boolean.TRUE.equals(fieldDefinition.getRequired())) {
+                if (enforceRequired && Boolean.TRUE.equals(fieldDefinition.getRequired())) {
                     throw new LIMSRuntimeException("Additional field is required: "
                             + StringUtils.defaultString(fieldDefinition.getDisplayName()));
                 }

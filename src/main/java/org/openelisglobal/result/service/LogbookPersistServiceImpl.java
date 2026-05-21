@@ -163,7 +163,7 @@ public class LogbookPersistServiceImpl implements LogbookResultsPersistService {
                 continue;
             }
             testAdditionalFieldService.validateAndPersistAnalysisValues(item.getTestId(), item.getAnalysisId(),
-                    item.getAdditionalFieldValues(), sysUserId, activeFieldsByTestCache);
+                    item.getAdditionalFieldValues(), sysUserId, activeFieldsByTestCache, false);
         }
     }
 

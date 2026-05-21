@@ -95,6 +95,7 @@ import org.openelisglobal.statusofsample.util.StatusRules;
 import org.openelisglobal.systemuser.service.SystemUserService;
 import org.openelisglobal.systemuser.service.UserService;
 import org.openelisglobal.test.beanItems.TestResultItem;
+import org.openelisglobal.testadditionalfield.bean.TestAdditionalFieldPayload;
 import org.openelisglobal.test.service.TestSectionService;
 import org.openelisglobal.test.valueholder.TestSection;
 import org.openelisglobal.typeoftestresult.service.TypeOfTestResultServiceImpl;
@@ -831,6 +832,10 @@ public class LogbookResultsRestController extends LogbookResultsBaseController {
             return SpringContext.getBean(IStatusService.class).getStatusID(AnalysisStatus.TechnicalRejected);
         } else if (testResult.isShadowRejected()) {
             return SpringContext.getBean(IStatusService.class).getStatusID(AnalysisStatus.Canceled);
+        } else if (!noResults(testResult.getShadowResultValue(), testResult.getMultiSelectResultValues(),
+                testResult.getResultType()) && !hasCompleteAdditionalResultFields(testResult)) {
+            // Do not move to validation/finalized until all active additional result fields are filled.
+            return SpringContext.getBean(IStatusService.class).getStatusID(AnalysisStatus.NotStarted);
         } else if (alwaysValidate || !testResult.isValid() || ResultUtil.isForcedToAcceptance(testResult)) {
             return SpringContext.getBean(IStatusService.class).getStatusID(AnalysisStatus.TechnicalAcceptance);
         } else if (noResults(testResult.getShadowResultValue(), testResult.getMultiSelectResultValues(),
@@ -856,6 +861,37 @@ public class LogbookResultsRestController extends LogbookResultsBaseController {
 
         return (GenericValidator.isBlankOrNull(value) && GenericValidator.isBlankOrNull(multiSelectValue))
                 || (TypeOfTestResultServiceImpl.ResultType.DICTIONARY.matches(type) && "0".equals(value));
+    }
+
+    private boolean hasCompleteAdditionalResultFields(TestResultItem testResultItem) {
+        List<TestAdditionalFieldPayload> definitions = testResultItem.getAdditionalFieldDefinitions();
+        if (definitions == null || definitions.isEmpty()) {
+            return true;
+        }
+
+        Map<String, String> values = testResultItem.getAdditionalFieldValues();
+        if (values == null) {
+            values = new HashMap<>();
+        }
+
+        for (TestAdditionalFieldPayload definition : definitions) {
+            if (definition == null || Boolean.FALSE.equals(definition.getActive())) {
+                continue;
+            }
+            if (!Boolean.TRUE.equals(definition.getRequired())) {
+                continue;
+            }
+            String fieldKey = definition.getFieldKey();
+            if (GenericValidator.isBlankOrNull(fieldKey)) {
+                continue;
+            }
+
+            if (GenericValidator.isBlankOrNull(values.get(fieldKey))) {
+                return false;
+            }
+        }
+
+        return true;
     }
 
     private ResultInventory createTestKitLinkIfNeeded(TestResultItem testResult, String testKitName) {

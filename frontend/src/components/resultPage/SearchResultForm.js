@@ -68,7 +68,11 @@ const AdditionalFieldEditor = ({
           labelText={fieldLabel}
           rows={2}
           value={draftValue}
-          onChange={(event) => setDraftValue(event.target.value)}
+          onChange={(event) => {
+            const nextValue = event.target.value;
+            setDraftValue(nextValue);
+            commitValue(nextValue);
+          }}
           onBlur={() => commitValue()}
         />
       );
@@ -79,7 +83,11 @@ const AdditionalFieldEditor = ({
           labelText={fieldLabel}
           type="number"
           value={draftValue}
-          onChange={(event) => setDraftValue(event.target.value)}
+          onChange={(event) => {
+            const nextValue = event.target.value;
+            setDraftValue(nextValue);
+            commitValue(nextValue);
+          }}
           onBlur={() => commitValue()}
         />
       );
@@ -90,7 +98,11 @@ const AdditionalFieldEditor = ({
           labelText={fieldLabel}
           type="date"
           value={draftValue}
-          onChange={(event) => setDraftValue(event.target.value)}
+          onChange={(event) => {
+            const nextValue = event.target.value;
+            setDraftValue(nextValue);
+            commitValue(nextValue);
+          }}
           onBlur={() => commitValue()}
         />
       );
@@ -101,7 +113,11 @@ const AdditionalFieldEditor = ({
           labelText={fieldLabel}
           type="datetime-local"
           value={draftValue}
-          onChange={(event) => setDraftValue(event.target.value)}
+          onChange={(event) => {
+            const nextValue = event.target.value;
+            setDraftValue(nextValue);
+            commitValue(nextValue);
+          }}
           onBlur={() => commitValue()}
         />
       );
@@ -213,7 +229,11 @@ const AdditionalFieldEditor = ({
           id={inputId}
           labelText={fieldLabel}
           value={draftValue}
-          onChange={(event) => setDraftValue(event.target.value)}
+          onChange={(event) => {
+            const nextValue = event.target.value;
+            setDraftValue(nextValue);
+            commitValue(nextValue);
+          }}
           onBlur={() => commitValue()}
         />
       );
@@ -1642,6 +1662,7 @@ export function SearchResults(props) {
     }
 
     row.additionalFieldValues = additionalFieldValues;
+    row.additionalFieldShadowValues = { ...additionalFieldValues };
     row.isModified = "true";
     form.testResult[rowId] = row;
     props.setResultForm(form);
@@ -2055,6 +2076,9 @@ export function SearchResults(props) {
     var form = { ...props.results };
     var jp = require("jsonpath");
     jp.value(form, name, value);
+    if (name === "testResult[" + rowId + "].resultValue") {
+      jp.value(form, "testResult[" + rowId + "].shadowResultValue", value);
+    }
     var refer = jp.query(form, "testResult[" + rowId + "].refer")[0];
     var testId = jp.query(form, "testResult[" + rowId + "].testId")[0];
     var referList = { ...referTest };
