@@ -52,8 +52,8 @@ public abstract class ConfigurationProperties {
         Addressline3label("Address line 3 label", "text"), // The address lines 3 can be used to specify anything
         GeographicUnit1Label("Geographic Unit 1 Label", "text"), // The Geographical units for a particular region
         GeographicUnit2Label("Geographic Unit 2 Label", "text"), // The Geographical units for a particular district
-        AccessionFormat("acessionFormat", "text"), // Format of accession number can be one of SITEYEARNUM, YEARNUM OR
-        // PROGRAMNUM, ALPHANUM see AccessionNumberValidatorFactory
+        AccessionFormat("acessionFormat", "text"), // Format of accession number can be one of SITEYEARNUM, PREFIXNUM,
+        // YEARNUM, PROGRAMNUM, ALPHANUM see AccessionNumberValidatorFactory
         ReflexAction("reflexAction", "text"), // In combination with flags in reflex table determines actual action,
         // should be
         // standardize
@@ -208,6 +208,8 @@ public abstract class ConfigurationProperties {
         SHOW_PATIENT_OPTIONAL_IDENTIFIERS_ON_ORDER_ENTRY("showPatOptionalIdsOnOrder", "text"), // If true show DNI /
                                                                                                  // passport / foreign
                                                                                                  // ID optional fields
+        SHOW_ORDER_PROGRAM_ON_ORDER_ENTRY("showOrderProgramOnOrderEntry", "text"), // If true show Program step in
+                                                                                     // order entry workflow
         SHOW_PATIENT_NATIONAL_ID_FIELD("showPatNationalIdField", "text"), // If true show national ID field in patient
                                                                            // forms
         QA_SAMPLE_ID_REQUIRED("sample id required", "text"), // True if sample id required from referring lab

@@ -48,6 +48,7 @@ public class ResultValidationItem implements ResultItem, Serializable {
 
     private String analysisMethod;
     private String testName;
+    private String resultName;
     private String testId;
 
     private String resultValue;
@@ -191,6 +192,14 @@ public class ResultValidationItem implements ResultItem, Serializable {
 
     public void setTestName(String testName) {
         this.testName = testName;
+    }
+
+    public String getResultName() {
+        return resultName;
+    }
+
+    public void setResultName(String resultName) {
+        this.resultName = resultName;
     }
 
     public String getResultValue() {

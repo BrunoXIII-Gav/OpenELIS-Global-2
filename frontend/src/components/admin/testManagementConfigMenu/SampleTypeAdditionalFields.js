@@ -77,6 +77,7 @@ const SampleTypeAdditionalFields = () => {
   const [selectedSampleTypeId, setSelectedSampleTypeId] = useState("");
   const [fields, setFields] = useState([]);
   const [formState, setFormState] = useState(initialFormState);
+  const [editingFieldId, setEditingFieldId] = useState(null);
   const fromSampleEntryConfig =
     new URLSearchParams(location.search).get("source") === "sampleEntryConfig";
   const breadcrumbs = buildBreadcrumbs(fromSampleEntryConfig);
@@ -136,7 +137,44 @@ const SampleTypeAdditionalFields = () => {
       .filter((option) => option.optionLabel !== "");
   };
 
-  const handleCreateField = (event) => {
+  const toOptionLines = (options) =>
+    (Array.isArray(options) ? options : [])
+      .filter((option) => option?.active !== false)
+      .sort((left, right) => (left?.sortOrder ?? 0) - (right?.sortOrder ?? 0))
+      .map((option) =>
+        option?.optionKey
+          ? `${option.optionKey}|${option.optionLabel || option.optionKey}`
+          : option?.optionLabel || "",
+      )
+      .filter(Boolean)
+      .join("\n");
+
+  const startEditingField = (field) => {
+    if (!field?.id) {
+      return;
+    }
+
+    setEditingFieldId(field.id);
+    setFormState({
+      fieldKey: field.fieldKey || "",
+      displayName: field.displayName || "",
+      fieldType: field.fieldType || "TEXT",
+      required: !!field.required,
+      defaultValue: field.defaultValue || "",
+      maxLength:
+        field.maxLength !== null && field.maxLength !== undefined
+          ? String(field.maxLength)
+          : "",
+      optionLines: toOptionLines(field.options),
+    });
+  };
+
+  const resetForm = () => {
+    setEditingFieldId(null);
+    setFormState(initialFormState);
+  };
+
+  const handleSaveField = (event) => {
     event.preventDefault();
 
     if (!selectedSampleTypeId) {
@@ -171,13 +209,15 @@ const SampleTypeAdditionalFields = () => {
       return;
     }
 
+    const sourceField = fields.find((field) => field.id === editingFieldId);
+
     const payload = {
       sampleTypeId: selectedSampleTypeId,
       fieldKey: formState.fieldKey,
       displayName: formState.displayName,
       fieldType: formState.fieldType,
       required: formState.required,
-      active: true,
+      active: sourceField ? sourceField.active : true,
       defaultValue: formState.defaultValue,
       maxLength:
         formState.maxLength && formState.maxLength !== ""
@@ -185,6 +225,48 @@ const SampleTypeAdditionalFields = () => {
           : null,
       options,
     };
+
+    if (sourceField && optionsRequired) {
+      const existingOptionsByKey = new Map(
+        (sourceField.options || []).map((option) => [option.optionKey, option]),
+      );
+      payload.options = payload.options.map((option) => {
+        const existing = existingOptionsByKey.get(option.optionKey);
+        return existing ? { ...option, id: existing.id } : option;
+      });
+    }
+
+    const onSaveSuccess = () => {
+      showNotification(
+        NotificationKinds.success,
+        intl.formatMessage({
+          id: "sample.additional.fields.create.success",
+        }),
+      );
+      resetForm();
+      fetchFields(selectedSampleTypeId);
+    };
+
+    if (editingFieldId) {
+      putToOpenElisServer(
+        `/rest/sample-type-additional-fields/${editingFieldId}`,
+        JSON.stringify(payload),
+        (status) => {
+          if (status >= 200 && status < 300) {
+            onSaveSuccess();
+            return;
+          }
+
+          showNotification(
+            NotificationKinds.error,
+            intl.formatMessage({
+              id: "sample.additional.fields.create.error",
+            }),
+          );
+        },
+      );
+      return;
+    }
 
     postToOpenElisServerJsonResponse(
       "/rest/sample-type-additional-fields",
@@ -201,13 +283,7 @@ const SampleTypeAdditionalFields = () => {
           return;
         }
 
-        showNotification(
-          NotificationKinds.success,
-          intl.formatMessage({ id: "sample.additional.fields.create.success" }),
-        );
-
-        setFormState(initialFormState);
-        fetchFields(selectedSampleTypeId);
+        onSaveSuccess();
       },
     );
   };
@@ -349,6 +425,7 @@ const SampleTypeAdditionalFields = () => {
                   id="sampleTypeAdditionalFieldsSelector"
                   labelText={intl.formatMessage({ id: "sample.type.label" })}
                   value={selectedSampleTypeId}
+                  disabled={editingFieldId !== null}
                   onChange={(event) =>
                     setSelectedSampleTypeId(event.target.value)
                   }
@@ -436,6 +513,7 @@ const SampleTypeAdditionalFields = () => {
                         <SelectItem value="TEXTAREA" text="TEXTAREA" />
                         <SelectItem value="NUMBER" text="NUMBER" />
                         <SelectItem value="DATE" text="DATE" />
+                        <SelectItem value="TIME" text="TIME" />
                         <SelectItem value="DATETIME" text="DATETIME" />
                         <SelectItem value="BOOLEAN" text="BOOLEAN" />
                         <SelectItem value="SELECT" text="SELECT" />
@@ -526,11 +604,20 @@ const SampleTypeAdditionalFields = () => {
 
                   <div>
                     <Button
-                      onClick={handleCreateField}
+                      onClick={handleSaveField}
                       disabled={!selectedSampleTypeId}
                     >
-                      <FormattedMessage id="sample.additional.fields.create.action" />
+                      {editingFieldId ? (
+                        <FormattedMessage id="button.save" />
+                      ) : (
+                        <FormattedMessage id="sample.additional.fields.create.action" />
+                      )}
                     </Button>
+                    {editingFieldId ? (
+                      <Button kind="ghost" onClick={resetForm}>
+                        <FormattedMessage id="button.cancel" />
+                      </Button>
+                    ) : null}
                   </div>
                 </Stack>
               </Column>
@@ -616,6 +703,14 @@ const SampleTypeAdditionalFields = () => {
                               )}
                             </TableCell>
                             <TableCell>
+                              <Button
+                                kind="ghost"
+                                size="sm"
+                                onClick={() => startEditingField(field)}
+                              >
+                                <FormattedMessage id="button.edit" />
+                              </Button>
+                              {"  "}
                               {field.active ? (
                                 <Button
                                   kind="danger--tertiary"

@@ -189,14 +189,6 @@ const Validation = (props) => {
       width: "8rem",
     },
     {
-      id: "result",
-      name: intl.formatMessage({ id: "column.name.result" }),
-      cell: (row, index, column, id) => {
-        return renderCell(row, index, column, id);
-      },
-      width: "8rem",
-    },
-    {
       id: "save",
       name: intl.formatMessage({ id: "column.name.save" }),
       cell: (row, index, column, id) => {
@@ -720,6 +712,11 @@ const Validation = (props) => {
   };
 
   const renderExpandedRow = ({ data }) => {
+    const primaryResultLabel =
+      typeof data?.resultName === "string" && data.resultName.trim().length > 0
+        ? data.resultName.trim()
+        : intl.formatMessage({ id: "column.name.result" });
+    const primaryResultValue = getDisplayPrimaryResult(data);
     const additionalDefinitions = Array.isArray(
       data?.additionalFieldDefinitions,
     )
@@ -741,16 +738,22 @@ const Validation = (props) => {
               })}
             </h5>
           </Column>
-          {additionalDefinitions.length === 0 && (
-            <Column lg={16} md={8} sm={4}>
-              <p style={{ margin: 0 }}>
-                {intl.formatMessage({
-                  id: "validation.expand.additionalFields.empty",
-                  defaultMessage: "No additional fields.",
-                })}
-              </p>
-            </Column>
-          )}
+          <Column lg={4} md={4} sm={4}>
+            <div style={{ marginBottom: "0.5rem" }}>
+              <div
+                style={{
+                  fontSize: "0.75rem",
+                  color: "#6f6f6f",
+                  marginBottom: "0.2rem",
+                }}
+              >
+                {primaryResultLabel}
+              </div>
+              <div style={{ wordBreak: "break-word" }}>
+                {primaryResultValue || "-"}
+              </div>
+            </div>
+          </Column>
           {additionalDefinitions.map((fieldDefinition, index) => {
             const key =
               fieldDefinition?.fieldKey ||
@@ -808,6 +811,18 @@ const Validation = (props) => {
   const isRowLockedForCurrentUser = (row) =>
     isValidatedDisplayRow(row) ||
     (Boolean(row?.approvedByCurrentUser) && !currentUserIsMedicalValidator);
+
+  const getDisplayPrimaryResult = (row) => {
+    switch (row?.resultType) {
+      case "M":
+      case "C":
+      case "D":
+        return row?.dictionaryResults?.find((result) => result.id == row.result)
+          ?.value;
+      default:
+        return row?.result;
+    }
+  };
 
   const renderCell = (row, index, column, id) => {
     let formatLabNum = configurationProperties.AccessionFormat === "ALPHANUM";
@@ -950,22 +965,7 @@ const Validation = (props) => {
         );
 
       case "result":
-        switch (row.resultType) {
-          case "M":
-          case "C":
-          case "D":
-            return (
-              <>
-                {
-                  row.dictionaryResults.find(
-                    (result) => result.id == row.result,
-                  )?.value
-                }
-              </>
-            );
-          default:
-            return row.result;
-        }
+        return getDisplayPrimaryResult(row);
 
       default:
     }

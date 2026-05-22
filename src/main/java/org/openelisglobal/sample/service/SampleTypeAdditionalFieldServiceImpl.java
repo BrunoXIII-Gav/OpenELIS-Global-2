@@ -3,6 +3,7 @@ package org.openelisglobal.sample.service;
 import java.math.BigDecimal;
 import java.time.LocalDate;
 import java.time.LocalDateTime;
+import java.time.LocalTime;
 import java.time.format.DateTimeFormatter;
 import java.time.format.DateTimeParseException;
 import java.util.ArrayList;
@@ -639,6 +640,9 @@ public class SampleTypeAdditionalFieldServiceImpl implements SampleTypeAdditiona
         case DATE:
             validateDate(trimmedValue);
             return trimmedValue;
+        case TIME:
+            validateTime(trimmedValue);
+            return trimmedValue;
         case DATETIME:
             validateDateTime(trimmedValue);
             return trimmedValue;
@@ -706,6 +710,20 @@ public class SampleTypeAdditionalFieldServiceImpl implements SampleTypeAdditiona
         }
 
         throw new LIMSRuntimeException("Invalid datetime format. Expected yyyy-MM-ddTHH:mm or yyyy-MM-ddTHH:mm:ss");
+    }
+
+    private void validateTime(String value) {
+        List<DateTimeFormatter> acceptedFormats = List.of(DateTimeFormatter.ofPattern("HH:mm"),
+                DateTimeFormatter.ofPattern("HH:mm:ss"));
+        for (DateTimeFormatter acceptedFormat : acceptedFormats) {
+            try {
+                LocalTime.parse(value, acceptedFormat);
+                return;
+            } catch (DateTimeParseException e) {
+                // try next format
+            }
+        }
+        throw new LIMSRuntimeException("Invalid time format. Expected HH:mm or HH:mm:ss");
     }
 
     private void validateBoolean(String value) {

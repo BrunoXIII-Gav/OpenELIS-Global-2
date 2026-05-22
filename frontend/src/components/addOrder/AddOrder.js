@@ -525,6 +525,24 @@ const AddOrder = (props) => {
             />
           </Column>
         );
+      case "TIME":
+        return (
+          <Column key={field.fieldKey} lg={8} md={4} sm={4}>
+            <TextInput
+              id={`order-dynamic-${field.fieldKey}`}
+              labelText={label}
+              type="time"
+              value={value}
+              onChange={(event) =>
+                handleAdditionalFieldValueChange(
+                  field.fieldKey,
+                  event.target.value,
+                )
+              }
+              readOnly={readonly}
+            />
+          </Column>
+        );
       case "DATETIME":
         return (
           <Column key={field.fieldKey} lg={8} md={4} sm={4}>
@@ -1850,7 +1868,8 @@ const AddOrder = (props) => {
                 <CustomLabNumberInput
                   name="labNo"
                   placeholder={intl.formatMessage({
-                    id: "input.placeholder.labNo",
+                    id: "input.placeholder.orderNo",
+                    defaultMessage: "Enter Order Number",
                   })}
                   value={
                     isModifyOrder
@@ -1863,7 +1882,10 @@ const AddOrder = (props) => {
                   onKeyPress={handleKeyPress}
                   labelText={
                     <>
-                      <FormattedMessage id="sample.label.labnumber" />{" "}
+                      <FormattedMessage
+                        id="order.label.number"
+                        defaultMessage="Order Number"
+                      />{" "}
                       <span className="requiredlabel">*</span>
                     </>
                   }

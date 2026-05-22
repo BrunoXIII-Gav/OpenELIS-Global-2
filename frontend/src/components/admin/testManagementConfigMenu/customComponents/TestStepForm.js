@@ -1284,6 +1284,7 @@ export const StepThreeTestResultTypeAndLoinc = ({
     "TEXTAREA",
     "NUMBER",
     "DATE",
+    "TIME",
     "DATETIME",
     "BOOLEAN",
     "SELECT",

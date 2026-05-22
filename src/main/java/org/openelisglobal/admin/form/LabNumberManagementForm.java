@@ -14,6 +14,10 @@ public class LabNumberManagementForm {
     @SafeHtml
     private String alphanumPrefix;
 
+    @Length(max = 20, min = 0)
+    @SafeHtml
+    private String sitePrefix;
+
     public AccessionFormat getLabNumberType() {
         return labNumberType;
     }
@@ -36,5 +40,13 @@ public class LabNumberManagementForm {
 
     public void setAlphanumPrefix(String alphanumPrefix) {
         this.alphanumPrefix = alphanumPrefix;
+    }
+
+    public String getSitePrefix() {
+        return sitePrefix;
+    }
+
+    public void setSitePrefix(String sitePrefix) {
+        this.sitePrefix = sitePrefix;
     }
 }

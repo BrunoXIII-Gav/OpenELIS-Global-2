@@ -136,13 +136,17 @@ const SampleType = (props) => {
   });
   const [loading, setLoading] = useState(true);
   const [sampleFixedFieldConfigs, setSampleFixedFieldConfigs] = useState([]);
-  const [waitingForSampleFixedFieldConfig, setWaitingForSampleFixedFieldConfig] =
-    useState(true);
+  const [
+    waitingForSampleFixedFieldConfig,
+    setWaitingForSampleFixedFieldConfig,
+  ] = useState(true);
 
   function getSampleFixedFieldConfig(fieldKey) {
-    return sampleFixedFieldConfigs.find(
-      (c) => c?.fieldKey?.toLowerCase() === fieldKey?.toLowerCase(),
-    ) || null;
+    return (
+      sampleFixedFieldConfigs.find(
+        (c) => c?.fieldKey?.toLowerCase() === fieldKey?.toLowerCase(),
+      ) || null
+    );
   }
 
   function isSampleFieldVisible(fieldKey) {
@@ -985,9 +989,11 @@ const SampleType = (props) => {
         ? "number"
         : fieldType === "DATE"
           ? "date"
-          : fieldType === "DATETIME"
-            ? "datetime-local"
-            : "text";
+          : fieldType === "TIME"
+            ? "time"
+            : fieldType === "DATETIME"
+              ? "datetime-local"
+              : "text";
 
     return (
       <TextInput

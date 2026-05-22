@@ -106,6 +106,21 @@ const AdditionalFieldEditor = ({
           onBlur={() => commitValue()}
         />
       );
+    case "TIME":
+      return (
+        <TextInput
+          id={inputId}
+          labelText={fieldLabel}
+          type="time"
+          value={draftValue}
+          onChange={(event) => {
+            const nextValue = event.target.value;
+            setDraftValue(nextValue);
+            commitValue(nextValue);
+          }}
+          onBlur={() => commitValue()}
+        />
+      );
     case "DATETIME":
       return (
         <TextInput
@@ -1876,42 +1891,40 @@ export function SearchResults(props) {
           )}
         </Grid>
         {true && (
-            <Grid style={{ marginTop: "1rem" }}>
-              <Column lg={16}>
-                <h5 style={{ marginBottom: "0.75rem" }}>
-                  Results
-                </h5>
-              </Column>
-              <Column lg={4} md={4} sm={4}>
-                <Field name={"testResult[" + data.id + "].resultValue"}>
-                  {() => (
-                    <>
-                      <p style={{ marginBottom: "0.5rem" }}>
-                        {typeof data?.resultName === "string" &&
-                        data.resultName.trim().length > 0
-                          ? data.resultName.trim()
-                          : intl.formatMessage({ id: "column.name.result" })}
-                      </p>
-                      {renderCell(data, 0, { id: "result" }, data.id)}
-                    </>
-                  )}
-                </Field>
-              </Column>
-              {Array.isArray(data.additionalFieldDefinitions) &&
-                data.additionalFieldDefinitions
-                  .filter((fieldDefinition) => fieldDefinition?.active !== false)
-                  .map((fieldDefinition, index) => (
-                    <Column
-                      lg={4}
-                      md={4}
-                      sm={4}
-                      key={`additional-field-render-${data.id}-${fieldDefinition.fieldKey || index}`}
-                    >
-                      {renderAdditionalFieldInput(data, fieldDefinition)}
-                    </Column>
-                  ))}
-            </Grid>
-          )}
+          <Grid style={{ marginTop: "1rem" }}>
+            <Column lg={16}>
+              <h5 style={{ marginBottom: "0.75rem" }}>Results</h5>
+            </Column>
+            <Column lg={4} md={4} sm={4}>
+              <Field name={"testResult[" + data.id + "].resultValue"}>
+                {() => (
+                  <>
+                    <p style={{ marginBottom: "0.5rem" }}>
+                      {typeof data?.resultName === "string" &&
+                      data.resultName.trim().length > 0
+                        ? data.resultName.trim()
+                        : intl.formatMessage({ id: "column.name.result" })}
+                    </p>
+                    {renderCell(data, 0, { id: "result" }, data.id)}
+                  </>
+                )}
+              </Field>
+            </Column>
+            {Array.isArray(data.additionalFieldDefinitions) &&
+              data.additionalFieldDefinitions
+                .filter((fieldDefinition) => fieldDefinition?.active !== false)
+                .map((fieldDefinition, index) => (
+                  <Column
+                    lg={4}
+                    md={4}
+                    sm={4}
+                    key={`additional-field-render-${data.id}-${fieldDefinition.fieldKey || index}`}
+                  >
+                    {renderAdditionalFieldInput(data, fieldDefinition)}
+                  </Column>
+                ))}
+          </Grid>
+        )}
         {showStorageLocationOnResultEntry && (
           <>
             {/* Storage Location Widget - INT-002: Integration point */}

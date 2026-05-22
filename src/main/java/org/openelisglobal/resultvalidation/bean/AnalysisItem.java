@@ -36,6 +36,8 @@ public class AnalysisItem implements Serializable {
 
     private String testName;
 
+    private String resultName;
+
     @ValidAccessionNumber(groups = { ResultValidationForm.ResultValidation.class })
     private String accessionNumber;
 
@@ -230,6 +232,14 @@ public class AnalysisItem implements Serializable {
 
     public void setTestName(String testName) {
         this.testName = testName;
+    }
+
+    public String getResultName() {
+        return resultName;
+    }
+
+    public void setResultName(String resultName) {
+        this.resultName = resultName;
     }
 
     public void setUnits(String units) {

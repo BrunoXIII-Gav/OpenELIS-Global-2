@@ -440,6 +440,7 @@ public class ResultsValidationUtility {
         testItem.setAnalysis(analysis);
         testItem.setSequenceNumber(sequenceNumber);
         testItem.setTestName(displayTestName);
+        testItem.setResultName(test.getStoredName());
         testItem.setTestId(test.getId());
         setResultLimitDependencies(resultLimit, testItem, testResults);
         testItem.setAnalysisMethod(analysis.getAnalysisType());
@@ -659,6 +660,7 @@ public class ResultsValidationUtility {
         analysisResultItem.setNormalRange(testResultItem.getNormalRange());
         analysisResultItem.setPatientName(testResultItem.getPatientName());
         analysisResultItem.setTestName(testName);
+        analysisResultItem.setResultName(testResultItem.getResultName());
         analysisResultItem.setUnits(testUnits);
         analysisResultItem.setAnalysisId(testResultItem.getAnalysis().getId());
         analysisResultItem.setStatusId(testResultItem.getAnalysis().getStatusId());
