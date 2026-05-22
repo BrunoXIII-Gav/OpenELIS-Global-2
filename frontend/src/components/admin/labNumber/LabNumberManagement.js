@@ -69,10 +69,11 @@ function LabNumberManagement() {
   }, [configurationProperties]);
 
   useEffect(() => {
-    if (!(labNumberValues.labNumberType === "ALPHANUM")) {
-      fetchLegacyLabNumNoIncrement();
+    if (labNumberValues.labNumberType === "ALPHANUM") {
+      generateSampleLabNum();
+    } else {
+      fetchLabNumNoIncrementForFormat(labNumberValues.labNumberType);
     }
-    generateSampleLabNum();
   }, [labNumberValues]);
 
   const handleFieldChange = (e) => {
@@ -149,9 +150,12 @@ function LabNumberManagement() {
     setSampleLabNumForDisplay(convertAlphaNumLabNumForDisplay(labNumber));
   };
 
-  const fetchLegacyLabNumNoIncrement = () => {
+  const fetchLabNumNoIncrementForFormat = (format) => {
+    if (!format) {
+      return;
+    }
     getFromOpenElisServer(
-      "/rest/SampleEntryGenerateScanProvider?noIncrement=true&format=SITEYEARNUM",
+      `/rest/SampleEntryGenerateScanProvider?noIncrement=true&format=${format}`,
       (res) => {
         if (res.status) {
           setSampleLabNumForDisplay(res.body);
@@ -188,6 +192,7 @@ function LabNumberManagement() {
                 >
                   <SelectItem value="ALPHANUM" text="Alpha Numeric" />
                   <SelectItem value="SITEYEARNUM" text="Legacy" />
+                  <SelectItem value="PREFIXNUM" text="Prefix Numeric" />
                 </Select>
               </Column>
               <Column lg={8} md={4} sm={2}></Column>
@@ -229,6 +234,20 @@ function LabNumberManagement() {
                     </span>
                   </Column>
                 </>
+              )}
+              {labNumberValues.labNumberType !== "ALPHANUM" && (
+                <Column lg={8} md={4} sm={2}>
+                  <TextInput
+                    type="text"
+                    name="sitePrefix"
+                    id="sitePrefix"
+                    labelText={intl.formatMessage({ id: "labNumber.prefix" })}
+                    value={labNumberValues.sitePrefix}
+                    onChange={handleFieldChange}
+                    enableCounter={true}
+                    maxCount={20}
+                  />
+                </Column>
               )}
               <br></br>
               <Column lg={16} md={8} sm={4}>

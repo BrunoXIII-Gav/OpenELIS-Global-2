@@ -26,6 +26,8 @@ public class LabNumberManagementController {
 
         form.setAlphanumPrefix(
                 ConfigurationProperties.getInstance().getPropertyValueUpperCase(Property.ALPHANUM_ACCESSION_PREFIX));
+        form.setSitePrefix(
+                ConfigurationProperties.getInstance().getPropertyValueUpperCase(Property.ACCESSION_NUMBER_PREFIX));
         form.setLabNumberType(AccessionFormat
                 .valueOf(ConfigurationProperties.getInstance().getPropertyValue(Property.AccessionFormat)));
         form.setUsePrefix("true".equals(
@@ -40,6 +42,8 @@ public class LabNumberManagementController {
 
         map.put(Property.ALPHANUM_ACCESSION_PREFIX.getDBName(),
                 form.getAlphanumPrefix() != null ? form.getAlphanumPrefix().toUpperCase() : "");
+        map.put(Property.ACCESSION_NUMBER_PREFIX.getDBName(),
+                form.getSitePrefix() != null ? form.getSitePrefix().toUpperCase() : "");
         map.put(Property.AccessionFormat.getDBName(), form.getLabNumberType().name());
         map.put(Property.USE_ALPHANUM_ACCESSION_PREFIX.getDBName(), form.getUsePrefix().toString());
         siteInformationService.updateSiteInformationByName(map);
