@@ -14,7 +14,7 @@ import EditSample from "./EditSample";
 import AddOrder from "../addOrder/AddOrder";
 import "../addOrder/add-order.scss";
 import { ModifyOrderFormValues } from "../formModel/innitialValues/OrderEntryFormValues";
-import { NotificationContext } from "../layout/Layout";
+import { NotificationContext, ConfigurationContext } from "../layout/Layout";
 import { AlertDialog, NotificationKinds } from "../common/CustomNotification";
 import { postToOpenElisServer, getFromOpenElisServer } from "../utils/Utils";
 import EditOrderEntryAdditionalQuestions from "./EditOrderEntryAdditionalQuestions";
@@ -32,13 +32,22 @@ const ModifyOrder = () => {
   const componentMounted = useRef(false);
 
   const intl = useIntl();
+  const { configurationProperties } = useContext(ConfigurationContext);
 
+  const showProgramStep =
+    configurationProperties.SHOW_ORDER_PROGRAM_ON_ORDER_ENTRY !== "false";
   const firstPageNumber = 0;
-  const lastPageNumber = 3;
-  const programPageNumber = firstPageNumber + 0;
-  const samplePageNumber = firstPageNumber + 1;
-  const orderPageNumber = firstPageNumber + 2;
-  const successMsgPageNumber = lastPageNumber;
+  const programPageNumber = showProgramStep ? firstPageNumber : -1;
+  const samplePageNumber = showProgramStep
+    ? firstPageNumber + 1
+    : firstPageNumber;
+  const orderPageNumber = showProgramStep
+    ? firstPageNumber + 2
+    : firstPageNumber + 1;
+  const successMsgPageNumber = showProgramStep
+    ? firstPageNumber + 3
+    : firstPageNumber + 2;
+  const lastPageNumber = successMsgPageNumber;
 
   const [page, setPage] = useState(firstPageNumber);
   const [orderFormValues, setOrderFormValues] = useState(ModifyOrderFormValues);
@@ -303,29 +312,65 @@ const ModifyOrder = () => {
                     <FormattedMessage id="order.test.request.heading" />
                   </h2>
                   {page <= orderPageNumber && (
-                    <ProgressIndicator
-                      currentIndex={page}
-                      className="ProgressIndicator"
-                      spaceEqually={true}
-                      onChange={(e) => handleTabClickHandler(e)}
-                    >
-                      <ProgressStep
-                        disabled={orderFormValues.sampleOrderItems.labNo == ""}
-                        label={intl.formatMessage({
-                          id: "order.step.program.selection",
-                        })}
-                      />
-                      <ProgressStep
-                        disabled={orderFormValues.sampleOrderItems.labNo == ""}
-                        label={intl.formatMessage({
-                          id: "order.step.add.request",
-                        })}
-                      />
-                      <ProgressStep
-                        disabled={orderFormValues.sampleOrderItems.labNo == ""}
-                        label={intl.formatMessage({ id: "order.label.add" })}
-                      />
-                    </ProgressIndicator>
+                    <>
+                      {showProgramStep ? (
+                        <ProgressIndicator
+                          currentIndex={page}
+                          className="ProgressIndicator"
+                          spaceEqually={true}
+                          onChange={(e) => handleTabClickHandler(e)}
+                        >
+                          <ProgressStep
+                            disabled={
+                              orderFormValues.sampleOrderItems.labNo == ""
+                            }
+                            label={intl.formatMessage({
+                              id: "order.step.program.selection",
+                            })}
+                          />
+                          <ProgressStep
+                            disabled={
+                              orderFormValues.sampleOrderItems.labNo == ""
+                            }
+                            label={intl.formatMessage({
+                              id: "order.step.add.request",
+                            })}
+                          />
+                          <ProgressStep
+                            disabled={
+                              orderFormValues.sampleOrderItems.labNo == ""
+                            }
+                            label={intl.formatMessage({
+                              id: "order.label.add",
+                            })}
+                          />
+                        </ProgressIndicator>
+                      ) : (
+                        <ProgressIndicator
+                          currentIndex={page}
+                          className="ProgressIndicator"
+                          spaceEqually={true}
+                          onChange={(e) => handleTabClickHandler(e)}
+                        >
+                          <ProgressStep
+                            disabled={
+                              orderFormValues.sampleOrderItems.labNo == ""
+                            }
+                            label={intl.formatMessage({
+                              id: "order.step.add.request",
+                            })}
+                          />
+                          <ProgressStep
+                            disabled={
+                              orderFormValues.sampleOrderItems.labNo == ""
+                            }
+                            label={intl.formatMessage({
+                              id: "order.label.add",
+                            })}
+                          />
+                        </ProgressIndicator>
+                      )}
+                    </>
                   )}
                   {page === programPageNumber && (
                     <EditOrderEntryAdditionalQuestions

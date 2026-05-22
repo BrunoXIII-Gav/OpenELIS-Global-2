@@ -40,12 +40,21 @@ const Index = () => {
   const intl = useIntl();
 
   const firstPageNumber = 0;
-  const lastPageNumber = 4;
   const patientInfoPageNumber = firstPageNumber;
-  const programPageNumber = firstPageNumber + 1;
-  const samplePageNumber = firstPageNumber + 2;
-  const orderPageNumber = firstPageNumber + 3;
-  const successMsgPageNumber = lastPageNumber;
+  const { configurationProperties } = useContext(ConfigurationContext);
+  const showProgramStep =
+    configurationProperties.SHOW_ORDER_PROGRAM_ON_ORDER_ENTRY !== "false";
+  const programPageNumber = showProgramStep ? firstPageNumber + 1 : -1;
+  const samplePageNumber = showProgramStep
+    ? firstPageNumber + 2
+    : firstPageNumber + 1;
+  const orderPageNumber = showProgramStep
+    ? firstPageNumber + 3
+    : firstPageNumber + 2;
+  const successMsgPageNumber = showProgramStep
+    ? firstPageNumber + 4
+    : firstPageNumber + 3;
+  const lastPageNumber = successMsgPageNumber;
   const [changed, setChanged] = useState({
     "sampleOrderItems.providerFirstName": false,
     "sampleOrderItems.providerLastName": false,
@@ -74,7 +83,6 @@ const Index = () => {
 
   const { notificationVisible, setNotificationVisible, addNotification } =
     useContext(NotificationContext);
-  const { configurationProperties } = useContext(ConfigurationContext);
 
   useEffect(() => {
     if (configurationProperties.ACCEPT_EXTERNAL_ORDERS === "true") {
@@ -869,7 +877,7 @@ const Index = () => {
         return;
       }
     }
-    if (page <= lastPageNumber && page >= firstPageNumber) {
+    if (page < lastPageNumber && page >= firstPageNumber) {
       setPage(page + 1);
     }
   };
@@ -995,28 +1003,54 @@ const Index = () => {
               <FormattedMessage id="order.test.request.heading" />
             </h2>
             {page <= orderPageNumber && (
-              <ProgressIndicator
-                currentIndex={page}
-                className="ProgressIndicator"
-                spaceEqually={true}
-                onChange={(e) => handleTabClickHandler(e)}
-              >
-                <ProgressStep
-                  complete
-                  label={intl.formatMessage({ id: "order.step.patient.info" })}
-                />
-                <ProgressStep
-                  label={intl.formatMessage({
-                    id: "order.step.program.selection",
-                  })}
-                />
-                <ProgressStep
-                  label={intl.formatMessage({ id: "order.step.add.request" })}
-                />
-                <ProgressStep
-                  label={intl.formatMessage({ id: "order.label.add" })}
-                />
-              </ProgressIndicator>
+              <>
+                {showProgramStep ? (
+                  <ProgressIndicator
+                    currentIndex={page}
+                    className="ProgressIndicator"
+                    spaceEqually={true}
+                    onChange={(e) => handleTabClickHandler(e)}
+                  >
+                    <ProgressStep
+                      complete
+                      label={intl.formatMessage({
+                        id: "order.step.patient.info",
+                      })}
+                    />
+                    <ProgressStep
+                      label={intl.formatMessage({
+                        id: "order.step.program.selection",
+                      })}
+                    />
+                    <ProgressStep
+                      label={intl.formatMessage({ id: "order.step.add.request" })}
+                    />
+                    <ProgressStep
+                      label={intl.formatMessage({ id: "order.label.add" })}
+                    />
+                  </ProgressIndicator>
+                ) : (
+                  <ProgressIndicator
+                    currentIndex={page}
+                    className="ProgressIndicator"
+                    spaceEqually={true}
+                    onChange={(e) => handleTabClickHandler(e)}
+                  >
+                    <ProgressStep
+                      complete
+                      label={intl.formatMessage({
+                        id: "order.step.patient.info",
+                      })}
+                    />
+                    <ProgressStep
+                      label={intl.formatMessage({ id: "order.step.add.request" })}
+                    />
+                    <ProgressStep
+                      label={intl.formatMessage({ id: "order.label.add" })}
+                    />
+                  </ProgressIndicator>
+                )}
+              </>
             )}
 
             {page === patientInfoPageNumber && (

@@ -389,9 +389,11 @@ const EditSample = (props) => {
         ? "number"
         : fieldType === "DATE"
           ? "date"
-          : fieldType === "DATETIME"
-            ? "datetime-local"
-            : "text";
+          : fieldType === "TIME"
+            ? "time"
+            : fieldType === "DATETIME"
+              ? "datetime-local"
+              : "text";
 
     return (
       <TextInput
