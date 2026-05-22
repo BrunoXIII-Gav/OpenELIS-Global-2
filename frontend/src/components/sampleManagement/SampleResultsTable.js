@@ -1,4 +1,10 @@
-import React, { useMemo, useState, useCallback, useEffect, useRef } from "react";
+import React, {
+  useMemo,
+  useState,
+  useCallback,
+  useEffect,
+  useRef,
+} from "react";
 import {
   DataTable,
   TableContainer,
@@ -75,7 +81,14 @@ function SampleResultsTable({
   const [additionalFieldsBySampleId, setAdditionalFieldsBySampleId] = useState(
     {},
   );
+  const [testNamesBySampleTypeId, setTestNamesBySampleTypeId] = useState({});
   const [savingBySampleId, setSavingBySampleId] = useState({});
+  const [isNarrowViewport, setIsNarrowViewport] = useState(() => {
+    if (typeof window === "undefined") {
+      return false;
+    }
+    return window.innerWidth <= 1366;
+  });
   const componentMounted = useRef(false);
   const lastSampleSignatureRef = useRef("");
 
@@ -103,7 +116,9 @@ function SampleResultsTable({
         .toLowerCase()
         .replace(/\./g, "")
         .replace(/\s+/g, " ");
-      const match = normalized.match(/^(\d{1,2}):(\d{2})(?::\d{2})?\s*([ap]m)?$/);
+      const match = normalized.match(
+        /^(\d{1,2}):(\d{2})(?::\d{2})?\s*([ap]m)?$/,
+      );
       if (match) {
         const hourRaw = Number(match[1]);
         const minuteRaw = Number(match[2]);
@@ -115,7 +130,12 @@ function SampleResultsTable({
               hour24 += 12;
             }
           }
-          if (hour24 >= 0 && hour24 <= 23 && minuteRaw >= 0 && minuteRaw <= 59) {
+          if (
+            hour24 >= 0 &&
+            hour24 <= 23 &&
+            minuteRaw >= 0 &&
+            minuteRaw <= 59
+          ) {
             return `${String(hour24).padStart(2, "0")}:${String(minuteRaw).padStart(2, "0")}`;
           }
         }
@@ -150,13 +170,26 @@ function SampleResultsTable({
         setUomList(res);
         return;
       }
-      setUomList(Array.isArray(res?.existingUomList) ? res.existingUomList : []);
+      setUomList(
+        Array.isArray(res?.existingUomList) ? res.existingUomList : [],
+      );
     };
     getFromOpenElisServer("/rest/displayList/UNIT_OF_MEASURE", fetchUoms);
 
     return () => {
       componentMounted.current = false;
     };
+  }, []);
+
+  useEffect(() => {
+    if (typeof window === "undefined") {
+      return undefined;
+    }
+    const handleResize = () => {
+      setIsNarrowViewport(window.innerWidth <= 1366);
+    };
+    window.addEventListener("resize", handleResize);
+    return () => window.removeEventListener("resize", handleResize);
   }, []);
 
   useEffect(() => {
@@ -177,7 +210,9 @@ function SampleResultsTable({
       new Set(
         sampleItems
           .map((item) => item.sampleTypeId)
-          .filter((sampleTypeId) => sampleTypeId && String(sampleTypeId) !== ""),
+          .filter(
+            (sampleTypeId) => sampleTypeId && String(sampleTypeId) !== "",
+          ),
       ),
     );
 
@@ -195,12 +230,39 @@ function SampleResultsTable({
           const fields = Array.isArray(response?.additionalFields)
             ? response.additionalFields
             : [];
+          const tests = Array.isArray(response?.tests) ? response.tests : [];
+
+          if (tests.length > 0) {
+            const testNamesMap = {};
+            tests.forEach((test) => {
+              const testId = String(
+                test?.id !== undefined && test?.id !== null
+                  ? test.id
+                  : test?.testId || "",
+              ).trim();
+              const testName = String(
+                test?.name || test?.testName || "",
+              ).trim();
+              if (testId && testName) {
+                testNamesMap[testId] = testName;
+              }
+            });
+            if (Object.keys(testNamesMap).length > 0) {
+              setTestNamesBySampleTypeId((prev) => ({
+                ...prev,
+                [String(sampleTypeId)]: testNamesMap,
+              }));
+            }
+          }
+
           if (fields.length === 0) {
             return;
           }
 
           const sampleIdsForType = sampleItems
-            .filter((item) => String(item.sampleTypeId) === String(sampleTypeId))
+            .filter(
+              (item) => String(item.sampleTypeId) === String(sampleTypeId),
+            )
             .map((item) => item.id);
 
           setAdditionalFieldsBySampleId((prev) => {
@@ -353,11 +415,16 @@ function SampleResultsTable({
         sampleAccessionNumber: item.sampleAccessionNumber || "",
         cugCode: item.cugCode || "-",
         sampleType: item.sampleType || "-",
+        sampleTypeId: item.sampleTypeId ? String(item.sampleTypeId) : "",
         quantityRaw: item.quantityDisplay ?? item.quantity ?? "",
-        unitOfMeasureIdRaw: item.unitOfMeasureId ? String(item.unitOfMeasureId) : "",
+        unitOfMeasureIdRaw: item.unitOfMeasureId
+          ? String(item.unitOfMeasureId)
+          : "",
         collectorRaw: item.collector || "",
         collectionDateRaw: toDateInputValue(item.collectionDate),
-        collectionTimeRaw: toTimeInputValue(item.collectionTime || item.collectionDate),
+        collectionTimeRaw: toTimeInputValue(
+          item.collectionTime || item.collectionDate,
+        ),
         quantity: item.quantity
           ? `${item.quantity} ${item.unitOfMeasure || ""}`
           : "-",
@@ -378,6 +445,39 @@ function SampleResultsTable({
       };
     });
   }, [sampleItems]);
+
+  const resolveTestName = useCallback(
+    (test, sampleTypeId) => {
+      if (!test) {
+        return "-";
+      }
+
+      const rawName = String(test.testName || test.name || "").trim();
+      const isNumericOnlyName = /^\d+$/.test(rawName);
+      if (rawName && !isNumericOnlyName) {
+        return rawName;
+      }
+
+      const testId = String(
+        test.testId !== undefined && test.testId !== null
+          ? test.testId
+          : test.id || "",
+      ).trim();
+      const typeId = String(sampleTypeId || "").trim();
+      if (typeId && testId) {
+        const mappedName = testNamesBySampleTypeId?.[typeId]?.[testId];
+        if (mappedName) {
+          return mappedName;
+        }
+      }
+
+      if (rawName) {
+        return rawName;
+      }
+      return testId || "-";
+    },
+    [testNamesBySampleTypeId],
+  );
 
   const updateAdditionalFieldValue = (sampleId, fieldKey, value) => {
     setAdditionalFieldValuesBySampleId((prev) => ({
@@ -430,15 +530,23 @@ function SampleResultsTable({
       const normalizedFieldKey = normalizeAdditionalFieldKey(field?.fieldKey);
       if (
         normalizedFieldKey &&
-        Object.prototype.hasOwnProperty.call(rawMergedValues, normalizedFieldKey)
+        Object.prototype.hasOwnProperty.call(
+          rawMergedValues,
+          normalizedFieldKey,
+        )
       ) {
         additionalValues[fieldKey] = rawMergedValues[normalizedFieldKey];
         return;
       }
-      const normalizedDisplayName = normalizeAdditionalFieldKey(field?.displayName);
+      const normalizedDisplayName = normalizeAdditionalFieldKey(
+        field?.displayName,
+      );
       if (
         normalizedDisplayName &&
-        Object.prototype.hasOwnProperty.call(rawMergedValues, normalizedDisplayName)
+        Object.prototype.hasOwnProperty.call(
+          rawMergedValues,
+          normalizedDisplayName,
+        )
       ) {
         additionalValues[fieldKey] = rawMergedValues[normalizedDisplayName];
       }
@@ -475,7 +583,8 @@ function SampleResultsTable({
           d.collectionDate !== undefined ||
           d.collectionTime !== undefined ||
           d.removeSample !== undefined,
-      ) || {};
+      ) ||
+      {};
 
     const sampleLevel = {
       quantity:
@@ -536,7 +645,10 @@ function SampleResultsTable({
 
   const toDisplayTime = (timeValue) => {
     if (!timeValue) return "";
-    if (timeValue.toUpperCase().includes("AM") || timeValue.toUpperCase().includes("PM")) {
+    if (
+      timeValue.toUpperCase().includes("AM") ||
+      timeValue.toUpperCase().includes("PM")
+    ) {
       return timeValue;
     }
     const [hourText, minuteText] = String(timeValue).split(":");
@@ -601,7 +713,11 @@ function SampleResultsTable({
   };
 
   const handleSaveSampleChanges = (sampleId, originalRow, additionalFields) => {
-    const payload = buildSampleSavePayload(sampleId, originalRow, additionalFields);
+    const payload = buildSampleSavePayload(
+      sampleId,
+      originalRow,
+      additionalFields,
+    );
     setSavingBySampleId((prev) => ({ ...prev, [sampleId]: true }));
     const sampleUpdate = payload?.sampleUpdates?.[0];
     const accessionNumber = originalRow?.sampleAccessionNumber || "";
@@ -630,7 +746,10 @@ function SampleResultsTable({
           return;
         }
 
-        const updated = applySampleUpdateToSampleEditForm(sampleEditForm, sampleUpdate);
+        const updated = applySampleUpdateToSampleEditForm(
+          sampleEditForm,
+          sampleUpdate,
+        );
         if (!updated) {
           setSavingBySampleId((prev) => ({ ...prev, [sampleId]: false }));
           if (onPersistResult) {
@@ -653,7 +772,9 @@ function SampleResultsTable({
                 success: status === 200,
                 message:
                   status === 200
-                    ? intl.formatMessage({ id: "sample.management.success.title" })
+                    ? intl.formatMessage({
+                        id: "sample.management.success.title",
+                      })
                     : "Failed to save sample changes",
               });
             }
@@ -794,7 +915,9 @@ function SampleResultsTable({
    */
   const renderExpandedContent = (row) => {
     const originalRow = rows.find((r) => r.id === row.id);
-    const shouldShowCurrentTests = Boolean(currentTestsVisibleBySampleId[row.id]);
+    const shouldShowCurrentTests = Boolean(
+      currentTestsVisibleBySampleId[row.id],
+    );
     const additionalFields = Array.isArray(additionalFieldsBySampleId[row.id])
       ? additionalFieldsBySampleId[row.id]
       : Array.isArray(originalRow?.additionalFields)
@@ -856,7 +979,9 @@ function SampleResultsTable({
               }}
             >
               <div style={{ flex: 1 }}>
-                <div style={{ fontWeight: "500" }}>{test.testName}</div>
+                <div style={{ fontWeight: "500" }}>
+                  {resolveTestName(test, originalRow.sampleTypeId)}
+                </div>
                 <div
                   style={{
                     fontSize: "0.75rem",
@@ -897,7 +1022,11 @@ function SampleResultsTable({
                     })}
                     hasIconOnly
                     onClick={() =>
-                      handleCancelTest(row.id, test.analysisId, test.testName)
+                      handleCancelTest(
+                        row.id,
+                        test.analysisId,
+                        resolveTestName(test, originalRow.sampleTypeId),
+                      )
                     }
                     disabled={!canCancelTest(test.status)}
                     tooltipPosition="left"
@@ -907,314 +1036,553 @@ function SampleResultsTable({
             </div>
           ))}
         </div>
-        {shouldShowCurrentTests && (
-          <div style={{ marginTop: "1rem" }}>
-            <DataTable
-              rows={(() => {
-                const orderedTests = originalRow.orderedTests || [];
-                const firstTestId = orderedTests[0]?.analysisId;
-                const sampleDetails =
-                  currentTestDetailsByKey[`${row.id}__sample`] ||
-                  (firstTestId
-                    ? currentTestDetailsByKey[`${row.id}-${firstTestId}`]
-                    : {}) ||
-                  {};
+        {shouldShowCurrentTests &&
+          (() => {
+            const orderedTests = originalRow.orderedTests || [];
+            const firstTestId = orderedTests[0]?.analysisId;
+            const primarySampleRowId = firstTestId
+              ? `${row.id}-${firstTestId}`
+              : `${row.id}__sample`;
+            const sampleDetails =
+              currentTestDetailsByKey[`${row.id}__sample`] ||
+              (firstTestId
+                ? currentTestDetailsByKey[`${row.id}-${firstTestId}`]
+                : {}) ||
+              {};
+            const sampleQuantity =
+              sampleDetails.quantity !== undefined
+                ? sampleDetails.quantity
+                : originalRow.quantityRaw || "";
+            const sampleUom =
+              sampleDetails.unitOfMeasureId !== undefined
+                ? sampleDetails.unitOfMeasureId
+                : originalRow.unitOfMeasureIdRaw || "";
+            const sampleCollector =
+              sampleDetails.collector !== undefined
+                ? sampleDetails.collector
+                : originalRow.collectorRaw || "";
+            const sampleDate =
+              sampleDetails.collectionDate !== undefined
+                ? sampleDetails.collectionDate
+                : originalRow.collectionDateRaw || "";
+            const sampleTime =
+              sampleDetails.collectionTime !== undefined
+                ? sampleDetails.collectionTime
+                : originalRow.collectionTimeRaw || "";
 
-                return orderedTests.map((test, index) => {
-                  const key = `${row.id}-${test.analysisId}`;
-                  const details = currentTestDetailsByKey[key] || {};
-                  const isPrimarySampleRow = index === 0;
-                  return {
-                    id: key,
-                    isPrimarySampleRow,
-                    accessionNumber: isPrimarySampleRow
-                      ? originalRow.externalId || ""
-                      : "",
-                    sampleType: isPrimarySampleRow
-                      ? originalRow.sampleType || ""
-                      : "",
-                    quantity: isPrimarySampleRow
-                      ? sampleDetails.quantity !== undefined
-                        ? sampleDetails.quantity
-                        : originalRow.quantityRaw || ""
-                      : "",
-                    unitOfMeasureId: isPrimarySampleRow
-                      ? sampleDetails.unitOfMeasureId !== undefined
-                        ? sampleDetails.unitOfMeasureId
-                        : originalRow.unitOfMeasureIdRaw || test.unitOfMeasureId || ""
-                      : "",
-                    collector: isPrimarySampleRow
-                      ? sampleDetails.collector !== undefined
-                        ? sampleDetails.collector
-                        : originalRow.collectorRaw || ""
-                      : "",
-                    collectionTime: isPrimarySampleRow
-                      ? sampleDetails.collectionTime !== undefined
-                        ? sampleDetails.collectionTime
-                        : originalRow.collectionTimeRaw || ""
-                      : "",
-                    collectionDate: isPrimarySampleRow
-                      ? sampleDetails.collectionDate !== undefined
-                        ? sampleDetails.collectionDate
-                        : originalRow.collectionDateRaw || ""
-                      : "",
-                    removeSample: isPrimarySampleRow
-                      ? Boolean(sampleDetails.removeSample)
-                      : false,
-                    testName: test.testName || "",
-                    hasResults: Boolean(
-                      typeof details.resultsRecorded === "boolean"
-                        ? details.resultsRecorded
-                        : test.hasResults,
-                    ),
-                    canceled: Boolean(
-                      typeof details.cancelTest === "boolean"
-                        ? details.cancelTest
-                        : test.canceled,
-                    ),
-                  };
-                });
-              })()}
-              headers={OrderCurrentTestsHeaders}
-            >
-              {({ rows: cRows, headers: cHeaders, getHeaderProps, getTableProps }) => {
-                const page = currentTestsPageBySampleId[row.id] || 1;
-                const pageSize = currentTestsPageSizeBySampleId[row.id] || 5;
-                const pagedRows = cRows
-                  .slice((page - 1) * pageSize)
-                  .slice(0, pageSize);
-                const primarySampleRowId = `${row.id}-${originalRow.orderedTests?.[0]?.analysisId}`;
-                const inputWidths = {
-                  quantity: "6rem",
-                  uom: "8rem",
-                  collector: "8rem",
-                  date: "10rem",
-                  time: "8rem",
-                };
-
-                return (
-                  <>
-                    <div style={{ width: "100%", overflowX: "auto" }}>
-                      <TableContainer
-                        title={intl.formatMessage({ id: "currentests.title" })}
-                      >
-                        <Table
-                          {...getTableProps()}
-                          style={{ minWidth: "1100px" }}
-                        >
-                          <TableHead>
-                            <TableRow>
-                              {cHeaders.map((header) => (
-                                <TableHeader key={header.key} {...getHeaderProps({ header })}>
-                                  {header.header}
-                                </TableHeader>
-                              ))}
-                            </TableRow>
-                          </TableHead>
-                          <TableBody>
-                            {pagedRows.map((cRow) => (
-                              <TableRow key={cRow.id}>
-                                {cRow.cells.map((cell) => {
-                                  const isPrimarySampleRow =
-                                    cRow.id === primarySampleRowId;
-                                  if (cell.info.header === "sampleType") {
-                                    return <TableCell key={cell.id}>{cell.value}</TableCell>;
-                                  }
-                                  if (cell.info.header === "quantity") {
-                                    if (!isPrimarySampleRow) {
-                                      return <TableCell key={cell.id}></TableCell>;
-                                    }
-                                    return (
-                                      <TableCell key={cell.id}>
-                                        <TextInput
-                                          id={`${cell.id}-quantity`}
-                                          labelText=""
-                                          size="lg"
-                                          style={{ minWidth: inputWidths.quantity }}
-                                          value={cell.value || ""}
-                                          onChange={(e) =>
-                                            handleCurrentTestFieldChange(cRow.id, "quantity", e.target.value)
-                                          }
-                                        />
-                                      </TableCell>
-                                    );
-                                  }
-                                  if (cell.info.header === "unitOfMeasureId") {
-                                    if (!isPrimarySampleRow) {
-                                      return <TableCell key={cell.id}></TableCell>;
-                                    }
-                                    return (
-                                      <TableCell key={cell.id}>
-                                        <Select
-                                          id={`${cell.id}-uom`}
-                                          labelText=""
-                                          size="lg"
-                                          style={{ minWidth: inputWidths.uom }}
-                                          value={cell.value || ""}
-                                          onChange={(e) =>
-                                            handleCurrentTestFieldChange(
-                                              cRow.id,
-                                              "unitOfMeasureId",
-                                              e.target.value,
-                                            )
-                                          }
-                                        >
-                                          <SelectItem value="" text="Select units" />
-                                          {uomList.map((uom) => (
-                                            <SelectItem key={uom.id} value={String(uom.id)} text={uom.value} />
-                                          ))}
-                                        </Select>
-                                      </TableCell>
-                                    );
-                                  }
-                                  if (cell.info.header === "collector") {
-                                    if (!isPrimarySampleRow) {
-                                      return <TableCell key={cell.id}></TableCell>;
-                                    }
-                                    return (
-                                      <TableCell key={cell.id}>
-                                        <TextInput
-                                          id={`${cell.id}-collector`}
-                                          labelText=""
-                                          size="lg"
-                                          style={{ minWidth: inputWidths.collector }}
-                                          value={cell.value || ""}
-                                          onChange={(e) =>
-                                            handleCurrentTestFieldChange(cRow.id, "collector", e.target.value)
-                                          }
-                                        />
-                                      </TableCell>
-                                    );
-                                  }
-                                  if (cell.info.header === "collectionDate") {
-                                    if (!isPrimarySampleRow) {
-                                      return <TableCell key={cell.id}></TableCell>;
-                                    }
-                                    return (
-                                      <TableCell key={cell.id}>
-                                        <TextInput
-                                          id={`${cell.id}-date`}
-                                          type="date"
-                                          labelText=""
-                                          size="lg"
-                                          style={{ minWidth: inputWidths.date }}
-                                          value={cell.value || ""}
-                                          onChange={(e) =>
-                                            handleCurrentTestFieldChange(
-                                              cRow.id,
-                                              "collectionDate",
-                                              e.target.value,
-                                            )
-                                          }
-                                        />
-                                      </TableCell>
-                                    );
-                                  }
-                                  if (cell.info.header === "collectionTime") {
-                                    if (!isPrimarySampleRow) {
-                                      return <TableCell key={cell.id}></TableCell>;
-                                    }
-                                    return (
-                                      <TableCell key={cell.id}>
-                                        <TextInput
-                                          id={`${cell.id}-time`}
-                                          type="time"
-                                          labelText=""
-                                          size="lg"
-                                          style={{ minWidth: inputWidths.time }}
-                                          value={cell.value || ""}
-                                          onChange={(e) =>
-                                            handleCurrentTestFieldChange(
-                                              cRow.id,
-                                              "collectionTime",
-                                              e.target.value,
-                                            )
-                                          }
-                                        />
-                                      </TableCell>
-                                    );
-                                  }
-                                  if (cell.info.header === "removeSample") {
-                                    if (!isPrimarySampleRow) {
-                                      return <TableCell key={cell.id}></TableCell>;
-                                    }
-                                    return (
-                                      <TableCell key={cell.id}>
-                                        <Checkbox
-                                          id={`${cell.id}-remove`}
-                                          labelText=""
-                                          checked={Boolean(cell.value)}
-                                          onChange={(e) =>
-                                            handleCurrentTestFieldChange(
-                                              cRow.id,
-                                              "removeSample",
-                                              e.target.checked,
-                                            )
-                                          }
-                                        />
-                                      </TableCell>
-                                    );
-                                  }
-                                  if (cell.info.header === "hasResults") {
-                                    return (
-                                      <TableCell key={cell.id}>
-                                        <Checkbox
-                                          id={`${cell.id}-has-results`}
-                                          labelText=""
-                                          checked={Boolean(cell.value)}
-                                          disabled
-                                        />
-                                      </TableCell>
-                                    );
-                                  }
-                                  if (cell.info.header === "canceled") {
-                                    return (
-                                      <TableCell key={cell.id}>
-                                        <Checkbox
-                                          id={`${cell.id}-canceled`}
-                                          labelText=""
-                                          checked={Boolean(cell.value)}
-                                          onChange={(e) =>
-                                            handleCurrentTestFieldChange(
-                                              cRow.id,
-                                              "cancelTest",
-                                              e.target.checked,
-                                            )
-                                          }
-                                        />
-                                      </TableCell>
-                                    );
-                                  }
-                                  return <TableCell key={cell.id}>{cell.value}</TableCell>;
-                                })}
-                              </TableRow>
-                            ))}
-                          </TableBody>
-                        </Table>
-                      </TableContainer>
-                    </div>
-                    <Pagination
-                      page={page}
-                      pageSize={pageSize}
-                      pageSizes={[5, 10, 20, 30]}
-                      totalItems={cRows.length}
-                      onChange={(evt) => {
-                        setCurrentTestsPageBySampleId((prev) => ({
-                          ...prev,
-                          [row.id]: evt.page,
-                        }));
-                        setCurrentTestsPageSizeBySampleId((prev) => ({
-                          ...prev,
-                          [row.id]: evt.pageSize,
-                        }));
-                      }}
+            if (isNarrowViewport) {
+              return (
+                <div style={{ marginTop: "1rem" }}>
+                  <h4 style={{ marginBottom: "0.75rem" }}>
+                    {intl.formatMessage({ id: "currentests.title" })}
+                  </h4>
+                  <div
+                    style={{
+                      display: "grid",
+                      gridTemplateColumns:
+                        "repeat(auto-fit, minmax(180px, 1fr))",
+                      gap: "0.75rem",
+                    }}
+                  >
+                    <TextInput
+                      id={`${row.id}-compact-quantity`}
+                      labelText={intl.formatMessage({
+                        id: "sample.quantity.label",
+                      })}
+                      value={sampleQuantity}
+                      onChange={(e) =>
+                        handleCurrentTestFieldChange(
+                          primarySampleRowId,
+                          "quantity",
+                          e.target.value,
+                        )
+                      }
                     />
-                  </>
-                );
-              }}
-            </DataTable>
-          </div>
-        )}
+                    <Select
+                      id={`${row.id}-compact-uom`}
+                      labelText={intl.formatMessage({ id: "sample.uom.label" })}
+                      value={sampleUom}
+                      onChange={(e) =>
+                        handleCurrentTestFieldChange(
+                          primarySampleRowId,
+                          "unitOfMeasureId",
+                          e.target.value,
+                        )
+                      }
+                    >
+                      <SelectItem value="" text="Select units" />
+                      {uomList.map((uom) => (
+                        <SelectItem
+                          key={uom.id}
+                          value={String(uom.id)}
+                          text={uom.value}
+                        />
+                      ))}
+                    </Select>
+                    <TextInput
+                      id={`${row.id}-compact-collector`}
+                      labelText={intl.formatMessage({ id: "collector.label" })}
+                      value={sampleCollector}
+                      onChange={(e) =>
+                        handleCurrentTestFieldChange(
+                          primarySampleRowId,
+                          "collector",
+                          e.target.value,
+                        )
+                      }
+                    />
+                    <TextInput
+                      id={`${row.id}-compact-date`}
+                      type="date"
+                      labelText={intl.formatMessage({
+                        id: "sample.collection.date",
+                      })}
+                      value={sampleDate}
+                      onChange={(e) =>
+                        handleCurrentTestFieldChange(
+                          primarySampleRowId,
+                          "collectionDate",
+                          e.target.value,
+                        )
+                      }
+                    />
+                    <TextInput
+                      id={`${row.id}-compact-time`}
+                      type="time"
+                      labelText={intl.formatMessage({
+                        id: "sample.collection.time",
+                      })}
+                      value={sampleTime}
+                      onChange={(e) =>
+                        handleCurrentTestFieldChange(
+                          primarySampleRowId,
+                          "collectionTime",
+                          e.target.value,
+                        )
+                      }
+                    />
+                  </div>
+                  <div style={{ marginTop: "1rem" }}>
+                    <h5 style={{ marginBottom: "0.5rem" }}>
+                      {intl.formatMessage({
+                        id: "sample.entry.project.testName",
+                      })}
+                    </h5>
+                    <div style={{ display: "grid", gap: "0.5rem" }}>
+                      {orderedTests.map((test) => (
+                        <div
+                          key={`${row.id}-compact-test-${test.analysisId}`}
+                          style={{
+                            padding: "0.5rem 0.75rem",
+                            border: "1px solid #e0e0e0",
+                            borderRadius: "4px",
+                            backgroundColor: "#f4f4f4",
+                          }}
+                        >
+                          {resolveTestName(test, originalRow.sampleTypeId)}
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                </div>
+              );
+            }
+
+            return (
+              <div style={{ marginTop: "1rem" }}>
+                <DataTable
+                  rows={orderedTests.map((test, index) => {
+                    const key = `${row.id}-${test.analysisId}`;
+                    const details = currentTestDetailsByKey[key] || {};
+                    const isPrimarySampleRow = index === 0;
+                    return {
+                      id: key,
+                      isPrimarySampleRow,
+                      accessionNumber: isPrimarySampleRow
+                        ? originalRow.externalId || ""
+                        : "",
+                      sampleType: isPrimarySampleRow
+                        ? originalRow.sampleType || ""
+                        : "",
+                      quantity: isPrimarySampleRow
+                        ? sampleDetails.quantity !== undefined
+                          ? sampleDetails.quantity
+                          : originalRow.quantityRaw || ""
+                        : "",
+                      unitOfMeasureId: isPrimarySampleRow
+                        ? sampleDetails.unitOfMeasureId !== undefined
+                          ? sampleDetails.unitOfMeasureId
+                          : originalRow.unitOfMeasureIdRaw ||
+                            test.unitOfMeasureId ||
+                            ""
+                        : "",
+                      collector: isPrimarySampleRow
+                        ? sampleDetails.collector !== undefined
+                          ? sampleDetails.collector
+                          : originalRow.collectorRaw || ""
+                        : "",
+                      collectionTime: isPrimarySampleRow
+                        ? sampleDetails.collectionTime !== undefined
+                          ? sampleDetails.collectionTime
+                          : originalRow.collectionTimeRaw || ""
+                        : "",
+                      collectionDate: isPrimarySampleRow
+                        ? sampleDetails.collectionDate !== undefined
+                          ? sampleDetails.collectionDate
+                          : originalRow.collectionDateRaw || ""
+                        : "",
+                      removeSample: isPrimarySampleRow
+                        ? Boolean(sampleDetails.removeSample)
+                        : false,
+                      testName: resolveTestName(test, originalRow.sampleTypeId),
+                      hasResults: Boolean(
+                        typeof details.resultsRecorded === "boolean"
+                          ? details.resultsRecorded
+                          : test.hasResults,
+                      ),
+                      canceled: Boolean(
+                        typeof details.cancelTest === "boolean"
+                          ? details.cancelTest
+                          : test.canceled,
+                      ),
+                    };
+                  })}
+                  headers={OrderCurrentTestsHeaders}
+                >
+                  {({
+                    rows: cRows,
+                    headers: cHeaders,
+                    getHeaderProps,
+                    getTableProps,
+                  }) => {
+                    const page = currentTestsPageBySampleId[row.id] || 1;
+                    const pageSize =
+                      currentTestsPageSizeBySampleId[row.id] || 5;
+                    const pagedRows = cRows
+                      .slice((page - 1) * pageSize)
+                      .slice(0, pageSize);
+                    const currentTestsHeaders = cHeaders.filter(
+                      (header) =>
+                        ![
+                          "accessionNumber",
+                          "sampleType",
+                          "cugCode",
+                          "removeSample",
+                          "hasResults",
+                          "canceled",
+                        ].includes(header.key),
+                    );
+                    const inputWidths = {
+                      quantity: "5rem",
+                      uom: "7rem",
+                      collector: "7rem",
+                      date: "8.5rem",
+                      time: "7rem",
+                    };
+
+                    return (
+                      <>
+                        <div style={{ width: "100%", overflowX: "auto" }}>
+                          <TableContainer
+                            title={intl.formatMessage({
+                              id: "currentests.title",
+                            })}
+                          >
+                            <Table
+                              {...getTableProps()}
+                              style={{ width: "100%" }}
+                            >
+                              <TableHead>
+                                <TableRow>
+                                  {currentTestsHeaders.map((header) => (
+                                    <TableHeader
+                                      key={header.key}
+                                      {...getHeaderProps({ header })}
+                                    >
+                                      {header.header}
+                                    </TableHeader>
+                                  ))}
+                                </TableRow>
+                              </TableHead>
+                              <TableBody>
+                                {pagedRows.map((cRow) => (
+                                  <TableRow key={cRow.id}>
+                                    {cRow.cells
+                                      .filter((cell) =>
+                                        currentTestsHeaders.some(
+                                          (header) =>
+                                            header.key === cell.info.header,
+                                        ),
+                                      )
+                                      .map((cell) => {
+                                        const isPrimarySampleRow =
+                                          cRow.id === primarySampleRowId;
+                                        if (cell.info.header === "sampleType") {
+                                          return (
+                                            <TableCell key={cell.id}>
+                                              {cell.value}
+                                            </TableCell>
+                                          );
+                                        }
+                                        if (cell.info.header === "quantity") {
+                                          if (!isPrimarySampleRow) {
+                                            return (
+                                              <TableCell
+                                                key={cell.id}
+                                              ></TableCell>
+                                            );
+                                          }
+                                          return (
+                                            <TableCell key={cell.id}>
+                                              <TextInput
+                                                id={`${cell.id}-quantity`}
+                                                labelText=""
+                                                size="lg"
+                                                style={{
+                                                  minWidth:
+                                                    inputWidths.quantity,
+                                                }}
+                                                value={cell.value || ""}
+                                                onChange={(e) =>
+                                                  handleCurrentTestFieldChange(
+                                                    cRow.id,
+                                                    "quantity",
+                                                    e.target.value,
+                                                  )
+                                                }
+                                              />
+                                            </TableCell>
+                                          );
+                                        }
+                                        if (
+                                          cell.info.header === "unitOfMeasureId"
+                                        ) {
+                                          if (!isPrimarySampleRow) {
+                                            return (
+                                              <TableCell
+                                                key={cell.id}
+                                              ></TableCell>
+                                            );
+                                          }
+                                          return (
+                                            <TableCell key={cell.id}>
+                                              <Select
+                                                id={`${cell.id}-uom`}
+                                                labelText=""
+                                                size="lg"
+                                                style={{
+                                                  minWidth: inputWidths.uom,
+                                                }}
+                                                value={cell.value || ""}
+                                                onChange={(e) =>
+                                                  handleCurrentTestFieldChange(
+                                                    cRow.id,
+                                                    "unitOfMeasureId",
+                                                    e.target.value,
+                                                  )
+                                                }
+                                              >
+                                                <SelectItem
+                                                  value=""
+                                                  text="Select units"
+                                                />
+                                                {uomList.map((uom) => (
+                                                  <SelectItem
+                                                    key={uom.id}
+                                                    value={String(uom.id)}
+                                                    text={uom.value}
+                                                  />
+                                                ))}
+                                              </Select>
+                                            </TableCell>
+                                          );
+                                        }
+                                        if (cell.info.header === "collector") {
+                                          if (!isPrimarySampleRow) {
+                                            return (
+                                              <TableCell
+                                                key={cell.id}
+                                              ></TableCell>
+                                            );
+                                          }
+                                          return (
+                                            <TableCell key={cell.id}>
+                                              <TextInput
+                                                id={`${cell.id}-collector`}
+                                                labelText=""
+                                                size="lg"
+                                                style={{
+                                                  minWidth:
+                                                    inputWidths.collector,
+                                                }}
+                                                value={cell.value || ""}
+                                                onChange={(e) =>
+                                                  handleCurrentTestFieldChange(
+                                                    cRow.id,
+                                                    "collector",
+                                                    e.target.value,
+                                                  )
+                                                }
+                                              />
+                                            </TableCell>
+                                          );
+                                        }
+                                        if (
+                                          cell.info.header === "collectionDate"
+                                        ) {
+                                          if (!isPrimarySampleRow) {
+                                            return (
+                                              <TableCell
+                                                key={cell.id}
+                                              ></TableCell>
+                                            );
+                                          }
+                                          return (
+                                            <TableCell key={cell.id}>
+                                              <TextInput
+                                                id={`${cell.id}-date`}
+                                                type="date"
+                                                labelText=""
+                                                size="lg"
+                                                style={{
+                                                  minWidth: inputWidths.date,
+                                                }}
+                                                value={cell.value || ""}
+                                                onChange={(e) =>
+                                                  handleCurrentTestFieldChange(
+                                                    cRow.id,
+                                                    "collectionDate",
+                                                    e.target.value,
+                                                  )
+                                                }
+                                              />
+                                            </TableCell>
+                                          );
+                                        }
+                                        if (
+                                          cell.info.header === "collectionTime"
+                                        ) {
+                                          if (!isPrimarySampleRow) {
+                                            return (
+                                              <TableCell
+                                                key={cell.id}
+                                              ></TableCell>
+                                            );
+                                          }
+                                          return (
+                                            <TableCell key={cell.id}>
+                                              <TextInput
+                                                id={`${cell.id}-time`}
+                                                type="time"
+                                                labelText=""
+                                                size="lg"
+                                                style={{
+                                                  minWidth: inputWidths.time,
+                                                }}
+                                                value={cell.value || ""}
+                                                onChange={(e) =>
+                                                  handleCurrentTestFieldChange(
+                                                    cRow.id,
+                                                    "collectionTime",
+                                                    e.target.value,
+                                                  )
+                                                }
+                                              />
+                                            </TableCell>
+                                          );
+                                        }
+                                        if (
+                                          cell.info.header === "removeSample"
+                                        ) {
+                                          if (!isPrimarySampleRow) {
+                                            return (
+                                              <TableCell
+                                                key={cell.id}
+                                              ></TableCell>
+                                            );
+                                          }
+                                          return (
+                                            <TableCell key={cell.id}>
+                                              <Checkbox
+                                                id={`${cell.id}-remove`}
+                                                labelText=""
+                                                checked={Boolean(cell.value)}
+                                                onChange={(e) =>
+                                                  handleCurrentTestFieldChange(
+                                                    cRow.id,
+                                                    "removeSample",
+                                                    e.target.checked,
+                                                  )
+                                                }
+                                              />
+                                            </TableCell>
+                                          );
+                                        }
+                                        if (cell.info.header === "hasResults") {
+                                          return (
+                                            <TableCell key={cell.id}>
+                                              <Checkbox
+                                                id={`${cell.id}-has-results`}
+                                                labelText=""
+                                                checked={Boolean(cell.value)}
+                                                disabled
+                                              />
+                                            </TableCell>
+                                          );
+                                        }
+                                        if (cell.info.header === "canceled") {
+                                          return (
+                                            <TableCell key={cell.id}>
+                                              <Checkbox
+                                                id={`${cell.id}-canceled`}
+                                                labelText=""
+                                                checked={Boolean(cell.value)}
+                                                onChange={(e) =>
+                                                  handleCurrentTestFieldChange(
+                                                    cRow.id,
+                                                    "cancelTest",
+                                                    e.target.checked,
+                                                  )
+                                                }
+                                              />
+                                            </TableCell>
+                                          );
+                                        }
+                                        return (
+                                          <TableCell key={cell.id}>
+                                            {cell.value}
+                                          </TableCell>
+                                        );
+                                      })}
+                                  </TableRow>
+                                ))}
+                              </TableBody>
+                            </Table>
+                          </TableContainer>
+                        </div>
+                        <Pagination
+                          page={page}
+                          pageSize={pageSize}
+                          pageSizes={[5, 10, 20, 30]}
+                          totalItems={cRows.length}
+                          onChange={(evt) => {
+                            setCurrentTestsPageBySampleId((prev) => ({
+                              ...prev,
+                              [row.id]: evt.page,
+                            }));
+                            setCurrentTestsPageSizeBySampleId((prev) => ({
+                              ...prev,
+                              [row.id]: evt.pageSize,
+                            }));
+                          }}
+                        />
+                      </>
+                    );
+                  }}
+                </DataTable>
+              </div>
+            );
+          })()}
         {shouldShowCurrentTests && additionalFields.length > 0 && (
           <div style={{ marginTop: "1.5rem" }}>
             <h4 style={{ marginBottom: "0.75rem" }}>
@@ -1270,7 +1638,10 @@ function SampleResultsTable({
                         )
                       }
                     >
-                      <SelectItem text={intl.formatMessage({ id: "label.select" })} value="" />
+                      <SelectItem
+                        text={intl.formatMessage({ id: "label.select" })}
+                        value=""
+                      />
                       {options.map((option, optionIdx) => (
                         <SelectItem
                           key={`${fieldId}_option_${optionIdx}`}
@@ -1337,9 +1708,11 @@ function SampleResultsTable({
                     ? "number"
                     : fieldType === "DATE"
                       ? "date"
-                      : fieldType === "DATETIME"
-                        ? "datetime-local"
-                        : "text";
+                      : fieldType === "TIME"
+                        ? "time"
+                        : fieldType === "DATETIME"
+                          ? "datetime-local"
+                          : "text";
 
                 return (
                   <TextInput
