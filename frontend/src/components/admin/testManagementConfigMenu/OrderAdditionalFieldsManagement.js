@@ -40,6 +40,7 @@ const FIELD_TYPE_OPTIONS = [
   "TEXTAREA",
   "NUMBER",
   "DATE",
+  "TIME",
   "DATETIME",
   "BOOLEAN",
   "SELECT",

@@ -6,6 +6,7 @@ import com.fasterxml.jackson.databind.node.ArrayNode;
 import java.math.BigDecimal;
 import java.time.LocalDate;
 import java.time.LocalDateTime;
+import java.time.LocalTime;
 import java.time.format.DateTimeFormatter;
 import java.time.format.DateTimeParseException;
 import java.util.ArrayList;
@@ -1067,6 +1068,9 @@ public class OrderAdditionalFieldServiceImpl implements OrderAdditionalFieldServ
         case DATE:
             validateDate(trimmedValue);
             return trimmedValue;
+        case TIME:
+            validateTime(trimmedValue);
+            return trimmedValue;
         case DATETIME:
             validateDateTime(trimmedValue);
             return trimmedValue;
@@ -1139,6 +1143,20 @@ public class OrderAdditionalFieldServiceImpl implements OrderAdditionalFieldServ
         }
         throw new IllegalArgumentException(
                 "Invalid datetime value: " + value + ". Expected format yyyy-MM-dd'T'HH:mm[:ss]");
+    }
+
+    private void validateTime(String value) {
+        List<DateTimeFormatter> formatters = List.of(DateTimeFormatter.ofPattern("HH:mm"),
+                DateTimeFormatter.ofPattern("HH:mm:ss"));
+        for (DateTimeFormatter formatter : formatters) {
+            try {
+                LocalTime.parse(value, formatter);
+                return;
+            } catch (DateTimeParseException e) {
+                // Continue checking other formats.
+            }
+        }
+        throw new IllegalArgumentException("Invalid time value: " + value + ". Expected format HH:mm[:ss]");
     }
 
     private void validateBoolean(String value) {
