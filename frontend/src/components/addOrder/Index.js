@@ -4,12 +4,14 @@ import PatientInfo from "./PatientInfo";
 import AddSample from "./AddSample";
 import AddOrder from "./AddOrder";
 import "./add-order.scss";
-import { createSampleOrderFormValues } from "../formModel/innitialValues/OrderEntryFormValues";
+import {
+  createSampleOrderFormValues,
+} from "../formModel/innitialValues/OrderEntryFormValues";
 import { NotificationContext, ConfigurationContext } from "../layout/Layout";
 import { AlertDialog, NotificationKinds } from "../common/CustomNotification";
 import {
   getFromOpenElisServer,
-  postToOpenElisServerFullResponse,
+  postToOpenElisServer,
   postToOpenElisServerForBlob,
 } from "../utils/Utils";
 import OrderEntryAdditionalQuestions from "./OrderEntryAdditionalQuestions";
@@ -40,21 +42,7 @@ const Index = () => {
   const intl = useIntl();
 
   const firstPageNumber = 0;
-  const patientInfoPageNumber = firstPageNumber;
-  const { configurationProperties } = useContext(ConfigurationContext);
-  const showProgramStep =
-    configurationProperties.SHOW_ORDER_PROGRAM_ON_ORDER_ENTRY !== "false";
-  const programPageNumber = showProgramStep ? firstPageNumber + 1 : -1;
-  const samplePageNumber = showProgramStep
-    ? firstPageNumber + 2
-    : firstPageNumber + 1;
-  const orderPageNumber = showProgramStep
-    ? firstPageNumber + 3
-    : firstPageNumber + 2;
-  const successMsgPageNumber = showProgramStep
-    ? firstPageNumber + 4
-    : firstPageNumber + 3;
-  const lastPageNumber = successMsgPageNumber;
+  const patientInfoPageNumber = 0;
   const [changed, setChanged] = useState({
     "sampleOrderItems.providerFirstName": false,
     "sampleOrderItems.providerLastName": false,
@@ -64,7 +52,7 @@ const Index = () => {
   const [orderFormValues, setOrderFormValues] = useState(
     createSampleOrderFormValues,
   );
-  const [samples, setSamples] = useState([createSampleObject()]);
+  const [samples, setSamples] = useState([]);
   const [errors, setErrors] = useState([]);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [isConsentDownloading, setIsConsentDownloading] = useState(false);
@@ -83,6 +71,13 @@ const Index = () => {
 
   const { notificationVisible, setNotificationVisible, addNotification } =
     useContext(NotificationContext);
+  const { configurationProperties } = useContext(ConfigurationContext);
+  const showProgramSelection = configurationProperties?.showProgramSelection !== "false";
+  const programPageNumber = showProgramSelection ? 1 : null;
+  const samplePageNumber = showProgramSelection ? 2 : 1;
+  const orderPageNumber = showProgramSelection ? 3 : 2;
+  const lastPageNumber = showProgramSelection ? 4 : 3;
+  const successMsgPageNumber = lastPageNumber;
 
   useEffect(() => {
     if (configurationProperties.ACCEPT_EXTERNAL_ORDERS === "true") {
@@ -275,7 +270,6 @@ const Index = () => {
               providerFax: person.fax || "",
               providerCmp: data?.npi || "",
               providerRne: data?.externalId || "",
-              providerDni: data?.dni || "",
               providerSpecialty: data?.specialty || "",
             },
           });
@@ -291,7 +285,6 @@ const Index = () => {
         providerFax: requester.fax,
         providerCmp: requester.cmp || "",
         providerRne: requester.rne || "",
-        providerDni: requester.dni || "",
         providerSpecialty: requester.specialty || "",
       };
     }
@@ -574,31 +567,17 @@ const Index = () => {
     });
   };
 
-  const handlePost = async (response) => {
+  const handlePost = (status) => {
     setIsSubmitting(false);
-    if (response.status === 200) {
+    if (status === 200) {
       showAlertMessage(
         <FormattedMessage id="save.order.success.msg" />,
         NotificationKinds.success,
       );
       setPage(page + 1);
     } else {
-      let detailedMessage =
-        response.headers.get("X-OpenELIS-Error-Message") || "";
-      if (!detailedMessage) {
-        try {
-          detailedMessage = await response.text();
-        } catch (e) {
-          detailedMessage = "";
-        }
-      }
-      if (detailedMessage && detailedMessage.trim().startsWith("{")) {
-        detailedMessage = "";
-      }
-      const genericMessage = intl.formatMessage({ id: "server.error.msg" });
-      const fallbackWithStatus = `${genericMessage} (HTTP ${response.status})`;
       showAlertMessage(
-        detailedMessage || fallbackWithStatus,
+        <FormattedMessage id="server.error.msg" />,
         NotificationKinds.error,
       );
     }
@@ -620,45 +599,8 @@ const Index = () => {
     if (isSubmitting) {
       return;
     }
-    const subjectNumber = String(
-      orderFormValues?.patientProperties?.subjectNumber || "",
-    ).trim();
-    if (!subjectNumber) {
-      showAlertMessage(
-        `${intl.formatMessage({ id: "patient.subject.number" })}: ${intl.formatMessage({ id: "required.invalidtext" })}`,
-        NotificationKinds.error,
-      );
-      return;
-    }
-    const invalidCugSample = (samples || []).find(
-      (sampleItem) =>
-        String(sampleItem?.sampleXML?.cugValidationMessage || "").trim() !== "",
-    );
-    if (invalidCugSample) {
-      showAlertMessage(
-        invalidCugSample.sampleXML.cugValidationMessage,
-        NotificationKinds.error,
-      );
-      return;
-    }
-    const missingCugSample = (samples || []).find((sampleItem) => {
-      const cugValue = String(sampleItem?.sampleXML?.cug || "").trim();
-      return cugValue === "";
-    });
-    if (missingCugSample) {
-      showAlertMessage(
-        intl.formatMessage({ id: "sample.cug.required" }),
-        NotificationKinds.error,
-      );
-      return;
-    }
     setIsSubmitting(true);
     const payload = JSON.parse(JSON.stringify(orderFormValues));
-    payload.patientProperties = payload.patientProperties || {};
-    payload.patientProperties.patientUpdateStatus =
-      payload.patientProperties.patientUpdateStatus ||
-      payload.patientUpdateStatus ||
-      "ADD";
 
     if ("years" in payload.patientProperties) {
       delete payload.patientProperties.years;
@@ -682,7 +624,7 @@ const Index = () => {
     payload.sampleOrderItems.paymentOptions = [];
     payload.sampleOrderItems.testLocationCodeList = [];
     console.log(JSON.stringify(payload));
-    postToOpenElisServerFullResponse(
+    postToOpenElisServer(
       "/rest/SamplePatientEntry",
       JSON.stringify(payload),
       handlePost,
@@ -788,11 +730,6 @@ const Index = () => {
             const gpsAccuracy = sampleItem.sampleXML?.gpsAccuracy || "";
             const gpsCaptureMethod =
               sampleItem.sampleXML?.gpsCaptureMethod || "";
-            const cugCode = sampleItem.sampleXML?.cug || "";
-            const cugReservationToken =
-              sampleItem.sampleXML?.cugReservationToken || "";
-            const cugReservationContextId =
-              sampleItem.sampleXML?.cugReservationContextId || "";
 
             const additionalFieldValues =
               sampleItem.sampleXML?.additionalFieldValues || {};
@@ -814,7 +751,7 @@ const Index = () => {
               })
               .join("");
 
-            sampleXmlString += `<sample sampleID='${escapeXmlAttribute(sampleItem.sampleTypeId)}' date='${escapeXmlAttribute(sampleItem.sampleXML.collectionDate)}' time='${escapeXmlAttribute(sampleItem.sampleXML.collectionTime)}' collector='${escapeXmlAttribute(sampleItem.sampleXML.collector)}' quantity='${escapeXmlAttribute(sampleItem.sampleXML.quantity)}' uom='${escapeXmlAttribute(sampleItem.sampleXML.uom)}' tests='${escapeXmlAttribute(tests)}' testSectionMap='' testSampleTypeMap='' panels='${escapeXmlAttribute(panels)}' rejected='${escapeXmlAttribute(sampleItem.sampleXML.rejected)}' rejectReasonId='${escapeXmlAttribute(sampleItem.sampleXML.rejectionReason)}' cug='${escapeXmlAttribute(cugCode)}' cugReservationToken='${escapeXmlAttribute(cugReservationToken)}' cugReservationContextId='${escapeXmlAttribute(cugReservationContextId)}' initialConditionIds='' storageLocationId='${escapeXmlAttribute(storageLocationId)}' storageLocationType='${escapeXmlAttribute(storageLocationType)}' storagePositionCoordinate='${escapeXmlAttribute(storagePositionCoordinate)}' gpsLatitude='${escapeXmlAttribute(gpsLatitude)}' gpsLongitude='${escapeXmlAttribute(gpsLongitude)}' gpsAccuracy='${escapeXmlAttribute(gpsAccuracy)}' gpsCaptureMethod='${escapeXmlAttribute(gpsCaptureMethod)}'>`;
+            sampleXmlString += `<sample sampleID='${escapeXmlAttribute(sampleItem.sampleTypeId)}' date='${escapeXmlAttribute(sampleItem.sampleXML.collectionDate)}' time='${escapeXmlAttribute(sampleItem.sampleXML.collectionTime)}' collector='${escapeXmlAttribute(sampleItem.sampleXML.collector)}' quantity='${escapeXmlAttribute(sampleItem.sampleXML.quantity)}' uom='${escapeXmlAttribute(sampleItem.sampleXML.uom)}' tests='${escapeXmlAttribute(tests)}' testSectionMap='' testSampleTypeMap='' panels='${escapeXmlAttribute(panels)}' rejected='${escapeXmlAttribute(sampleItem.sampleXML.rejected)}' rejectReasonId='${escapeXmlAttribute(sampleItem.sampleXML.rejectionReason)}' initialConditionIds='' storageLocationId='${escapeXmlAttribute(storageLocationId)}' storageLocationType='${escapeXmlAttribute(storageLocationType)}' storagePositionCoordinate='${escapeXmlAttribute(storagePositionCoordinate)}' gpsLatitude='${escapeXmlAttribute(gpsLatitude)}' gpsLongitude='${escapeXmlAttribute(gpsLongitude)}' gpsAccuracy='${escapeXmlAttribute(gpsAccuracy)}' gpsCaptureMethod='${escapeXmlAttribute(gpsCaptureMethod)}'>`;
             if (additionalFieldEntries !== "") {
               sampleXmlString += `<additionalFields>${additionalFieldEntries}</additionalFields>`;
             }
@@ -865,19 +802,7 @@ const Index = () => {
   };
 
   const navigateForward = () => {
-    if (page === patientInfoPageNumber) {
-      const subjectNumber = String(
-        orderFormValues?.patientProperties?.subjectNumber || "",
-      ).trim();
-      if (!subjectNumber) {
-        showAlertMessage(
-          `${intl.formatMessage({ id: "patient.subject.number" })}: ${intl.formatMessage({ id: "required.invalidtext" })}`,
-          NotificationKinds.error,
-        );
-        return;
-      }
-    }
-    if (page < lastPageNumber && page >= firstPageNumber) {
+    if (page <= lastPageNumber && page >= firstPageNumber) {
       setPage(page + 1);
     }
   };
@@ -921,10 +846,7 @@ const Index = () => {
     const orderItems = orderFormValues?.sampleOrderItems || {};
     const providerFirst = orderItems.providerFirstName || "";
     const providerLast = orderItems.providerLastName || "";
-    const providerDni = orderItems.providerDni || "";
-    const firstSampleWithCug = (samples || []).find(
-      (sample) => (sample?.sampleXML?.cug || "").trim() !== "",
-    );
+    const providerDni = orderItems.providerRne || orderItems.providerCmp || "";
     return {
       patient: {
         firstName: patient.firstName || "",
@@ -946,7 +868,6 @@ const Index = () => {
       orderAdditionalFieldValues: orderItems.additionalFieldValues || {},
       orderDate:
         orderItems.requestDate || configurationProperties?.currentDateAsText,
-      cug: firstSampleWithCug?.sampleXML?.cug || "",
     };
   };
 
@@ -1003,54 +924,28 @@ const Index = () => {
               <FormattedMessage id="order.test.request.heading" />
             </h2>
             {page <= orderPageNumber && (
-              <>
-                {showProgramStep ? (
-                  <ProgressIndicator
-                    currentIndex={page}
-                    className="ProgressIndicator"
-                    spaceEqually={true}
-                    onChange={(e) => handleTabClickHandler(e)}
-                  >
-                    <ProgressStep
-                      complete
-                      label={intl.formatMessage({
-                        id: "order.step.patient.info",
-                      })}
-                    />
-                    <ProgressStep
-                      label={intl.formatMessage({
-                        id: "order.step.program.selection",
-                      })}
-                    />
-                    <ProgressStep
-                      label={intl.formatMessage({ id: "order.step.add.request" })}
-                    />
-                    <ProgressStep
-                      label={intl.formatMessage({ id: "order.label.add" })}
-                    />
-                  </ProgressIndicator>
-                ) : (
-                  <ProgressIndicator
-                    currentIndex={page}
-                    className="ProgressIndicator"
-                    spaceEqually={true}
-                    onChange={(e) => handleTabClickHandler(e)}
-                  >
-                    <ProgressStep
-                      complete
-                      label={intl.formatMessage({
-                        id: "order.step.patient.info",
-                      })}
-                    />
-                    <ProgressStep
-                      label={intl.formatMessage({ id: "order.step.add.request" })}
-                    />
-                    <ProgressStep
-                      label={intl.formatMessage({ id: "order.label.add" })}
-                    />
-                  </ProgressIndicator>
-                )}
-              </>
+              <ProgressIndicator
+                currentIndex={page}
+                className="ProgressIndicator"
+                spaceEqually={true}
+                onChange={(e) => handleTabClickHandler(e)}
+              >
+                <ProgressStep
+                  complete
+                  label={intl.formatMessage({ id: "order.step.patient.info" })}
+                />
+                {showProgramSelection ? <ProgressStep
+                  label={intl.formatMessage({
+                    id: "order.step.program.selection",
+                  })}
+                /> : <></>}
+                <ProgressStep
+                  label={intl.formatMessage({ id: "sample.add.action" })}
+                />
+                <ProgressStep
+                  label={intl.formatMessage({ id: "order.label.add" })}
+                />
+              </ProgressIndicator>
             )}
 
             {page === patientInfoPageNumber && (
@@ -1061,7 +956,7 @@ const Index = () => {
                 setPhoneValidation={setPhoneValidation}
               />
             )}
-            {page === programPageNumber && (
+            {showProgramSelection && page === programPageNumber && (
               <OrderEntryAdditionalQuestions
                 orderFormValues={orderFormValues}
                 setOrderFormValues={setOrderFormValues}
@@ -1072,7 +967,6 @@ const Index = () => {
                 error={elementError}
                 setSamples={setSamples}
                 samples={samples}
-                orderFormValues={orderFormValues}
               />
             )}
             {page === orderPageNumber && (

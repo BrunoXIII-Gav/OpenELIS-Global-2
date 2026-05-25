@@ -14,7 +14,7 @@ import EditSample from "./EditSample";
 import AddOrder from "../addOrder/AddOrder";
 import "../addOrder/add-order.scss";
 import { ModifyOrderFormValues } from "../formModel/innitialValues/OrderEntryFormValues";
-import { NotificationContext, ConfigurationContext } from "../layout/Layout";
+import { ConfigurationContext, NotificationContext } from "../layout/Layout";
 import { AlertDialog, NotificationKinds } from "../common/CustomNotification";
 import { postToOpenElisServer, getFromOpenElisServer } from "../utils/Utils";
 import EditOrderEntryAdditionalQuestions from "./EditOrderEntryAdditionalQuestions";
@@ -23,6 +23,7 @@ import { FormattedMessage, useIntl } from "react-intl";
 import PatientHeader from "../common/PatientHeader";
 import PageBreadCrumb from "../common/PageBreadCrumb";
 import ModifyOrderEntryValidationSchema from "../formModel/validationSchema/ModifyOrderEntryValidationSchema";
+import { sampleObject } from "../addOrder/Index";
 let breadcrumbs = [
   { label: "home.label", link: "/" },
   { label: "sample.label.search.Order", link: "/SampleEdit" },
@@ -32,26 +33,12 @@ const ModifyOrder = () => {
   const componentMounted = useRef(false);
 
   const intl = useIntl();
-  const { configurationProperties } = useContext(ConfigurationContext);
 
-  const showProgramStep =
-    configurationProperties.SHOW_ORDER_PROGRAM_ON_ORDER_ENTRY !== "false";
   const firstPageNumber = 0;
-  const programPageNumber = showProgramStep ? firstPageNumber : -1;
-  const samplePageNumber = showProgramStep
-    ? firstPageNumber + 1
-    : firstPageNumber;
-  const orderPageNumber = showProgramStep
-    ? firstPageNumber + 2
-    : firstPageNumber + 1;
-  const successMsgPageNumber = showProgramStep
-    ? firstPageNumber + 3
-    : firstPageNumber + 2;
-  const lastPageNumber = successMsgPageNumber;
 
   const [page, setPage] = useState(firstPageNumber);
   const [orderFormValues, setOrderFormValues] = useState(ModifyOrderFormValues);
-  const [samples, setSamples] = useState([]);
+  const [samples, setSamples] = useState([sampleObject]);
   const [errors, setErrors] = useState([]);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [patientId, setPatientId] = useState("");
@@ -123,6 +110,13 @@ const ModifyOrder = () => {
 
   const { notificationVisible, setNotificationVisible, addNotification } =
     useContext(NotificationContext);
+  const { configurationProperties } = useContext(ConfigurationContext);
+  const showProgramSelection = configurationProperties?.showProgramSelection !== "false";
+  const programPageNumber = showProgramSelection ? 0 : null;
+  const samplePageNumber = showProgramSelection ? 1 : 0;
+  const orderPageNumber = showProgramSelection ? 2 : 1;
+  const lastPageNumber = showProgramSelection ? 3 : 2;
+  const successMsgPageNumber = lastPageNumber;
 
   const showAlertMessage = (msg, kind) => {
     setNotificationVisible(true);
@@ -140,7 +134,6 @@ const ModifyOrder = () => {
         <FormattedMessage id="save.order.success.msg" />,
         NotificationKinds.success,
       );
-      window.location.assign("/SampleEdit");
     } else {
       showAlertMessage(
         <FormattedMessage id="server.error.msg" />,
@@ -154,6 +147,7 @@ const ModifyOrder = () => {
       return;
     }
     setIsSubmitting(true);
+    setPage(page + 1);
     orderFormValues.sampleOrderItems.modified = true;
     //remove display Lists rom the form
     orderFormValues.sampleOrderItems.priorityList = [];
@@ -218,13 +212,8 @@ const ModifyOrder = () => {
               storageLocation?.positionCoordinate ||
               storageLocation?.position?.coordinate ||
               "";
-            const cugCode = sampleItem.sampleXML?.cug || "";
-            const cugReservationToken =
-              sampleItem.sampleXML?.cugReservationToken || "";
-            const cugReservationContextId =
-              sampleItem.sampleXML?.cugReservationContextId || "";
 
-            sampleXmlString += `<sample sampleID='${sampleItem.sampleTypeId}' date='${sampleItem.sampleXML.collectionDate}' time='${sampleItem.sampleXML.collectionTime}' collector='${sampleItem.sampleXML.collector}' tests='${tests}' testSectionMap='' testSampleTypeMap='' panels='' rejected='${sampleItem.sampleXML.rejected}' rejectReasonId='${sampleItem.sampleXML.rejectionReason}' cug='${cugCode}' cugReservationToken='${cugReservationToken}' cugReservationContextId='${cugReservationContextId}' initialConditionIds='' storageLocationId='${storageLocationId}' storageLocationType='${storageLocationType}' storagePositionCoordinate='${storagePositionCoordinate}' />`;
+            sampleXmlString += `<sample sampleID='${sampleItem.sampleTypeId}' date='${sampleItem.sampleXML.collectionDate}' time='${sampleItem.sampleXML.collectionTime}' collector='${sampleItem.sampleXML.collector}' tests='${tests}' testSectionMap='' testSampleTypeMap='' panels='' rejected='${sampleItem.sampleXML.rejected}' rejectReasonId='${sampleItem.sampleXML.rejectionReason}' initialConditionIds='' storageLocationId='${storageLocationId}' storageLocationType='${storageLocationType}' storagePositionCoordinate='${storagePositionCoordinate}' />`;
           }
           if (sampleItem.referralItems.length > 0) {
             const referredInstitutes = Object.keys(sampleItem.referralItems)
@@ -312,67 +301,29 @@ const ModifyOrder = () => {
                     <FormattedMessage id="order.test.request.heading" />
                   </h2>
                   {page <= orderPageNumber && (
-                    <>
-                      {showProgramStep ? (
-                        <ProgressIndicator
-                          currentIndex={page}
-                          className="ProgressIndicator"
-                          spaceEqually={true}
-                          onChange={(e) => handleTabClickHandler(e)}
-                        >
-                          <ProgressStep
-                            disabled={
-                              orderFormValues.sampleOrderItems.labNo == ""
-                            }
-                            label={intl.formatMessage({
-                              id: "order.step.program.selection",
-                            })}
-                          />
-                          <ProgressStep
-                            disabled={
-                              orderFormValues.sampleOrderItems.labNo == ""
-                            }
-                            label={intl.formatMessage({
-                              id: "order.step.add.request",
-                            })}
-                          />
-                          <ProgressStep
-                            disabled={
-                              orderFormValues.sampleOrderItems.labNo == ""
-                            }
-                            label={intl.formatMessage({
-                              id: "order.label.add",
-                            })}
-                          />
-                        </ProgressIndicator>
-                      ) : (
-                        <ProgressIndicator
-                          currentIndex={page}
-                          className="ProgressIndicator"
-                          spaceEqually={true}
-                          onChange={(e) => handleTabClickHandler(e)}
-                        >
-                          <ProgressStep
-                            disabled={
-                              orderFormValues.sampleOrderItems.labNo == ""
-                            }
-                            label={intl.formatMessage({
-                              id: "order.step.add.request",
-                            })}
-                          />
-                          <ProgressStep
-                            disabled={
-                              orderFormValues.sampleOrderItems.labNo == ""
-                            }
-                            label={intl.formatMessage({
-                              id: "order.label.add",
-                            })}
-                          />
-                        </ProgressIndicator>
-                      )}
-                    </>
+                    <ProgressIndicator
+                      currentIndex={page}
+                      className="ProgressIndicator"
+                      spaceEqually={true}
+                      onChange={(e) => handleTabClickHandler(e)}
+                    >
+                      {showProgramSelection ? <ProgressStep
+                        disabled={orderFormValues.sampleOrderItems.labNo == ""}
+                        label={intl.formatMessage({
+                          id: "order.step.program.selection",
+                        })}
+                      /> : <></>}
+                      <ProgressStep
+                        disabled={orderFormValues.sampleOrderItems.labNo == ""}
+                        label={intl.formatMessage({ id: "sample.add.action" })}
+                      />
+                      <ProgressStep
+                        disabled={orderFormValues.sampleOrderItems.labNo == ""}
+                        label={intl.formatMessage({ id: "order.label.add" })}
+                      />
+                    </ProgressIndicator>
                   )}
-                  {page === programPageNumber && (
+                  {showProgramSelection && page === programPageNumber && (
                     <EditOrderEntryAdditionalQuestions
                       orderFormValues={orderFormValues}
                       setOrderFormValues={setOrderFormValues}
@@ -385,7 +336,6 @@ const ModifyOrder = () => {
                       setSamples={setSamples}
                       samples={samples}
                       error={elementError}
-                      patientId={patientId}
                     />
                   )}
                   {page === orderPageNumber && (
