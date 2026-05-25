@@ -170,7 +170,7 @@ public class CustomFormAuthenticationSuccessHandler extends SavedRequestAwareAut
             // showAdminMenu |= permittedPages.contains("MasterList");
         }
 
-        if (passwordExpiringSoon(loginInfo)) {
+        if (passwordExpiringSoon(loginInfo) && !notificationDAO.hasUnreadPasswordExpiryNotification(su)) {
             Notification notification = new Notification();
             notification.setMessage("Your password will expire in " + loginInfo.getPasswordExpiredDayNo()
                     + " day(s). Please update it soon.");

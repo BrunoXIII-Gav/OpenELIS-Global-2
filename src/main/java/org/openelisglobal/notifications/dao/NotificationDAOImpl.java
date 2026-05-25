@@ -64,4 +64,20 @@ public class NotificationDAOImpl implements NotificationDAO {
         TypedQuery<SystemUser> query = entityManager.createQuery("SELECT u FROM SystemUser u", SystemUser.class);
         return query.getResultList();
     }
+
+    @Override
+    public boolean hasUnreadPasswordExpiryNotification(SystemUser user) {
+        if (user == null) {
+            return false;
+        }
+        TypedQuery<Long> query = entityManager.createQuery(
+                "SELECT COUNT(n) FROM Notification n "
+                        + "WHERE n.user = :user "
+                        + "AND n.readAt IS NULL "
+                        + "AND n.message LIKE :messagePattern",
+                Long.class);
+        query.setParameter("user", user);
+        query.setParameter("messagePattern", "Your password will expire in % day(s). Please update it soon.");
+        return query.getSingleResult() > 0;
+    }
 }

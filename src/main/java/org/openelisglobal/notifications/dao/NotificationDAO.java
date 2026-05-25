@@ -19,4 +19,6 @@ public interface NotificationDAO {
     void setAllUserNotificationsToRead(Long userId);
 
     List<SystemUser> getSystemUsers();
+
+    boolean hasUnreadPasswordExpiryNotification(SystemUser user);
 }
