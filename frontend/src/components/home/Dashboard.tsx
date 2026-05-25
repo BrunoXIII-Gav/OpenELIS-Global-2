@@ -22,6 +22,8 @@ import {
   Tag,
   DatePicker,
   DatePickerInput,
+  Select,
+  SelectItem,
 } from "@carbon/react";
 import "./Dashboard.css";
 import { Minimize, Maximize, ArrowLeft, ArrowRight } from "@carbon/react/icons";
@@ -91,6 +93,7 @@ const HomeDashBoard: React.FC<DashBoardProps> = () => {
 
   const [startDate, setStartDate] = useState("");
   const [endDate, setEndDate] = useState("");
+  const [selectedTestType, setSelectedTestType] = useState("all");
 
   const handleDateChange = (dates) => {
     if (dates.length === 2) {
@@ -130,6 +133,17 @@ const HomeDashBoard: React.FC<DashBoardProps> = () => {
   const { notificationVisible, setNotificationVisible, addNotification } =
     useContext(NotificationContext) as Notification;
 
+  const supportsTestTypeFilter =
+    selectedTile?.type === "AWAITING_RESULTS" ||
+    selectedTile?.type === "ORDERS_READY_FOR_VALIDATION";
+
+  const buildTestTypeParam = () => {
+    if (!supportsTestTypeFilter || selectedTestType === "all") {
+      return "";
+    }
+    return `&testType=${encodeURIComponent(selectedTestType)}`;
+  };
+
   useEffect(() => {
     setNextPage(null);
     setPreviousPage(null);
@@ -164,14 +178,14 @@ const HomeDashBoard: React.FC<DashBoardProps> = () => {
             selectedTile.type +
             "?systemUserId=" +
             selectedTile.id +
-            `&startDate=${startDate}&endDate=${endDate}`,
+            `&startDate=${startDate}&endDate=${endDate}${buildTestTypeParam()}`,
           loadData,
         );
       } else {
         getFromOpenElisServer(
           "/rest/home-dashboard/" +
             selectedTile.type +
-            `?startDate=${startDate}&endDate=${endDate}`,
+            `?startDate=${startDate}&endDate=${endDate}${buildTestTypeParam()}`,
           loadData,
         );
       }
@@ -180,7 +194,7 @@ const HomeDashBoard: React.FC<DashBoardProps> = () => {
     return () => {
       componentMounted.current = false;
     };
-  }, [selectedTile, startDate, endDate]);
+  }, [selectedTile, startDate, endDate, selectedTestType]);
 
   useEffect(() => {
     getFromOpenElisServer(
@@ -198,7 +212,9 @@ const HomeDashBoard: React.FC<DashBoardProps> = () => {
     setTestSections(res);
     hasRole(userSessionDetails, "Global Administrator")
       ? setSelectedTestSection("all")
-      : setSelectedTestSection(res[0]?.id);
+      : setSelectedTestSection(
+          res && res.length > 0 && res[0]?.id != null ? String(res[0].id) : "",
+        );
   };
 
   const loadNextResultsPage = () => {
@@ -208,7 +224,7 @@ const HomeDashBoard: React.FC<DashBoardProps> = () => {
         selectedTile.type +
         "?page=" +
         nextPage +
-        `&startDate=${startDate}&endDate=${endDate}`,
+        `&startDate=${startDate}&endDate=${endDate}${buildTestTypeParam()}`,
       loadData,
     );
   };
@@ -220,7 +236,7 @@ const HomeDashBoard: React.FC<DashBoardProps> = () => {
         selectedTile.type +
         "?page=" +
         previousPage +
-        `&startDate=${startDate}&endDate=${endDate}`,
+        `&startDate=${startDate}&endDate=${endDate}${buildTestTypeParam()}`,
       loadData,
     );
   };
@@ -409,6 +425,7 @@ const HomeDashBoard: React.FC<DashBoardProps> = () => {
 
     setStartDate("");
     setEndDate("");
+    setSelectedTestType("all");
 
     if (selectedTile.type == "ORDERS_FOR_USER") {
       const tile: Tile = {
@@ -420,11 +437,18 @@ const HomeDashBoard: React.FC<DashBoardProps> = () => {
         value: counts.orderEnterdByUserToday,
       };
       setSelectedTile(tile);
+      setSelectedTestType("all");
     } else {
       setSelectedTile(null);
       hasRole(userSessionDetails, "Global Administrator")
         ? setSelectedTestSection("all")
-        : setSelectedTestSection(testSections[0]?.id);
+        : setSelectedTestSection(
+            testSections &&
+              testSections.length > 0 &&
+              testSections[0]?.id != null
+              ? String(testSections[0].id)
+              : "",
+          );
     }
   };
 
@@ -653,6 +677,43 @@ const HomeDashBoard: React.FC<DashBoardProps> = () => {
     },
   ];
 
+  const testTypeOptions = Array.from(
+    new Set(
+      (data || [])
+        .map((item) => item?.testName)
+        .filter((name) => typeof name === "string" && name.trim().length > 0),
+    ),
+  ).sort((a, b) => a.localeCompare(b));
+
+  const matchesSelectedFilters = (item) => {
+    const shouldFilterBySection =
+      tilesWithTabs.includes(selectedTile.type) &&
+      selectedTestSection != "all" &&
+      selectedTestSection !== "";
+
+    const matchesSection = (() => {
+      if (!shouldFilterBySection) {
+        return true;
+      }
+      const rawSectionValue = String(item?.testSection ?? "").trim();
+      if (!rawSectionValue) {
+        return true;
+      }
+      const sectionIds = rawSectionValue
+        .split(",")
+        .map((value) => value.trim())
+        .filter((value) => value.length > 0);
+      return sectionIds.includes(String(selectedTestSection));
+    })();
+
+    const matchesTestType =
+      supportsTestTypeFilter && selectedTestType !== "all"
+        ? item?.testName === selectedTestType
+        : true;
+
+    return matchesSection && matchesTestType;
+  };
+
   return (
     <>
       {loading && <Loading description="Loading Dasboard..." />}
@@ -733,6 +794,34 @@ const HomeDashBoard: React.FC<DashBoardProps> = () => {
                     size="md"
                   />
                 </DatePicker>
+                {supportsTestTypeFilter && (
+                  <div style={{ maxWidth: "22rem", marginTop: "1rem" }}>
+                    <Select
+                      id="dashboard-test-type-filter"
+                      labelText={intl.formatMessage({
+                        id: "dashboard.filter.test.type",
+                      })}
+                      value={selectedTestType}
+                      onChange={(event) =>
+                        setSelectedTestType(event.target.value)
+                      }
+                    >
+                      <SelectItem
+                        value="all"
+                        text={intl.formatMessage({
+                          id: "dashboard.filter.test.type.all",
+                        })}
+                      />
+                      {testTypeOptions.map((testName) => (
+                        <SelectItem
+                          key={testName}
+                          value={testName}
+                          text={testName}
+                        />
+                      ))}
+                    </Select>
+                  </div>
+                )}
               </div>
             )}
             <div className="gridBoundary">
@@ -814,7 +903,7 @@ const HomeDashBoard: React.FC<DashBoardProps> = () => {
                                     <Tab
                                       key={id}
                                       onClick={() =>
-                                        setSelectedTestSection(item.id)
+                                        setSelectedTestSection(String(item.id))
                                       }
                                     >
                                       {item.value}
@@ -833,7 +922,7 @@ const HomeDashBoard: React.FC<DashBoardProps> = () => {
                                     <Tab
                                       key={id}
                                       onClick={() =>
-                                        setSelectedTestSection(item.id)
+                                        setSelectedTestSection(String(item.id))
                                       }
                                     >
                                       {item.value}
@@ -848,12 +937,7 @@ const HomeDashBoard: React.FC<DashBoardProps> = () => {
                     )}
                     <DataTable
                       rows={data
-                        .filter((item) =>
-                          tilesWithTabs.includes(selectedTile.type) &&
-                          selectedTestSection != "all"
-                            ? item.testSection === selectedTestSection
-                            : true,
-                        )
+                        .filter((item) => matchesSelectedFilters(item))
                         .slice((page - 1) * pageSize, page * pageSize)}
                       headers={
                         [
@@ -919,12 +1003,8 @@ const HomeDashBoard: React.FC<DashBoardProps> = () => {
                       pageSize={pageSize}
                       pageSizes={[10, 20, 30, 50, 100]}
                       totalItems={
-                        data.filter((item) =>
-                          tilesWithTabs.includes(selectedTile.type) &&
-                          selectedTestSection != "all"
-                            ? item.testSection === selectedTestSection
-                            : true,
-                        ).length
+                        data.filter((item) => matchesSelectedFilters(item))
+                          .length
                       }
                       forwardText={intl.formatMessage({
                         id: "pagination.forward",

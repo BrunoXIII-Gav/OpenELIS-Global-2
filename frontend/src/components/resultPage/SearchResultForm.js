@@ -1335,6 +1335,17 @@ export function SearchResults(props) {
       width: "12rem",
     },
     {
+      id: "sampleUsage",
+      name: intl.formatMessage({
+        id: "result.entry.sampleUsage",
+        defaultMessage: "Sample Usage",
+      }),
+      cell: (row, index, column, id) => {
+        return renderCell(row, index, column, id);
+      },
+      width: "12rem",
+    },
+    {
       id: "currentResult",
       name: intl.formatMessage({ id: "column.name.currentResult" }),
       cell: (row, index, column, id) => {
@@ -1422,6 +1433,20 @@ export function SearchResults(props) {
             {testName}
             <br></br>
             {sampleType}
+            {row.dependentChild && (
+              <>
+                <br></br>
+                <small>
+                  {intl.formatMessage(
+                    {
+                      id: "result.entry.dependentChild",
+                      defaultMessage: "Child of {parentTest}",
+                    },
+                    { parentTest: row.dependencyParentTestName || "Parent" },
+                  )}
+                </small>
+              </>
+            )}
           </div>
         );
 
@@ -1648,6 +1673,35 @@ export function SearchResults(props) {
           default:
             return row.shadowResultValue;
         }
+      case "sampleUsage":
+        if (!row.dependentChild) {
+          return <></>;
+        }
+
+        return (
+          <Stack gap={2}>
+            <small>
+              {intl.formatMessage(
+                {
+                  id: "result.entry.remainingQuantity",
+                  defaultMessage: "Remaining: {quantity}",
+                },
+                { quantity: row.sampleRemainingQuantity || "-" },
+              )}
+            </small>
+            <TextInput
+              id={"sampleUsageQuantity" + row.id}
+              name={"testResult[" + row.id + "].sampleUsageQuantity"}
+              labelText=""
+              type="number"
+              step="0.001"
+              min="0"
+              value={row.sampleUsageQuantity || ""}
+              disabled={row.sampleUsageLocked === true}
+              onChange={(e) => handleChange(e, row.id)}
+            />
+          </Stack>
+        );
       default:
         return;
     }
@@ -2390,6 +2444,53 @@ export function SearchResults(props) {
     if (isSubmitting) {
       return;
     }
+
+    const dependentChildMissingUsage = props.results.testResult.find((item) => {
+      if (!item.dependentChild || item.sampleUsageLocked === true) {
+        return false;
+      }
+
+      const hasResult =
+        (item.resultType === "M" || item.resultType === "C"
+          ? item.multiSelectResultValues &&
+            item.multiSelectResultValues !== "{}"
+          : item.shadowResultValue &&
+            !(item.resultType === "D" && item.shadowResultValue === "0")) ||
+        (item.resultType !== "M" &&
+          item.resultType !== "C" &&
+          item.resultValue &&
+          !(item.resultType === "D" && item.resultValue === "0")) ||
+        item.refer === true ||
+        item.refer === "true" ||
+        item.shadowRejected === true ||
+        item.shadowRejected === "true";
+
+      if (!hasResult) {
+        return false;
+      }
+
+      if (!item.sampleUsageQuantity) {
+        return true;
+      }
+
+      const parsed = Number(item.sampleUsageQuantity);
+      return Number.isNaN(parsed) || parsed <= 0;
+    });
+
+    if (dependentChildMissingUsage) {
+      addNotification({
+        title: intl.formatMessage({ id: "notification.title" }),
+        message: intl.formatMessage({
+          id: "result.entry.sampleUsage.required",
+          defaultMessage:
+            "Dependent child tests require a valid sample usage quantity.",
+        }),
+        kind: NotificationKinds.error,
+      });
+      setNotificationVisible(true);
+      return;
+    }
+
     setIsSubmitting(true);
     values.status = saveStatus;
     var searchEndPoint = "/rest/LogbookResults";
@@ -2407,7 +2508,7 @@ export function SearchResults(props) {
   const setResponse = (resp) => {
     console.debug("setStatus" + JSON.stringify(resp));
     setIsSubmitting(false);
-    if (resp) {
+    if (resp && !resp.error && !(resp.status && resp.status >= 400)) {
       addNotification({
         title: intl.formatMessage({ id: "notification.title" }),
         message: createMesssage(resp),
@@ -2424,7 +2525,10 @@ export function SearchResults(props) {
     } else {
       addNotification({
         title: intl.formatMessage({ id: "notification.title" }),
-        message: intl.formatMessage({ id: "error.save.msg" }),
+        message:
+          resp?.message ||
+          resp?.statusText ||
+          intl.formatMessage({ id: "error.save.msg" }),
         kind: NotificationKinds.error,
       });
     }

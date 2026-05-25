@@ -98,6 +98,7 @@ import MethodRenameEntry from "./testManagementConfigMenu/MethodRenameEntry.js";
 import OrderAdditionalFieldsManagement from "./testManagementConfigMenu/OrderAdditionalFieldsManagement.js";
 import UserSessionDetailsContext from "../../UserSessionDetailsContext";
 import { Roles } from "../utils/Utils";
+import TestParentChildDependency from "./testManagementConfigMenu/TestParentChildDependency.js";
 
 function Admin() {
   const intl = useIntl();
@@ -189,6 +190,12 @@ function Admin() {
               onClick={handleNavigation(`${path}/calculatedValue`)}
             >
               <FormattedMessage id="sidenav.label.admin.testmgt.calculated" />
+            </SideNavMenuItem>
+            <SideNavMenuItem
+              data-cy="testParentChildDependency"
+              onClick={handleNavigation(`${path}/TestParentChildDependency`)}
+            >
+              <FormattedMessage id="sidenav.label.admin.testmgt.parentchild" />
             </SideNavMenuItem>
           </SideNavMenu>
           <SideNavLink
@@ -571,6 +578,10 @@ function Admin() {
         <Route
           path={`${path}/MethodRenameEntry`}
           component={MethodRenameEntry}
+        />
+        <Route
+          path={`${path}/TestParentChildDependency`}
+          component={TestParentChildDependency}
         />
         <Route
           path={`${path}/NonConformityConfigurationMenu`}

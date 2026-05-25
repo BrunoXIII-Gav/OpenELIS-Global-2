@@ -1,0 +1,116 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<databaseChangeLog
+  xmlns="http://www.liquibase.org/xml/ns/dbchangelog"
+  xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+  xsi:schemaLocation="http://www.liquibase.org/xml/ns/dbchangelog http://www.liquibase.org/xml/ns/dbchangelog/dbchangelog-3.8.xsd">
+
+  <changeSet id="tes-padre-001-create-parent-child-table" author="codex">
+    <preConditions onFail="MARK_RAN">
+      <not>
+        <tableExists schemaName="clinlims" tableName="test_parent_child_dependency"/>
+      </not>
+    </preConditions>
+
+    <createSequence schemaName="clinlims" sequenceName="test_parent_child_dependency_seq" startValue="1" incrementBy="1"/>
+
+    <createTable schemaName="clinlims" tableName="test_parent_child_dependency">
+      <column name="id" type="NUMERIC(10,0)" valueSequenceNext="test_parent_child_dependency_seq">
+        <constraints primaryKey="true" nullable="false" primaryKeyName="pk_test_parent_child_dependency"/>
+      </column>
+      <column name="parent_test_id" type="NUMERIC(10,0)">
+        <constraints nullable="false"/>
+      </column>
+      <column name="child_test_id" type="NUMERIC(10,0)">
+        <constraints nullable="false"/>
+      </column>
+      <column name="active" type="BOOLEAN" defaultValueBoolean="true">
+        <constraints nullable="false"/>
+      </column>
+      <column name="display_order" type="INTEGER"/>
+      <column name="lastupdated" type="TIMESTAMP" defaultValueComputed="CURRENT_TIMESTAMP">
+        <constraints nullable="false"/>
+      </column>
+    </createTable>
+
+    <addForeignKeyConstraint baseTableSchemaName="clinlims"
+                             baseTableName="test_parent_child_dependency"
+                             baseColumnNames="parent_test_id"
+                             referencedTableSchemaName="clinlims"
+                             referencedTableName="test"
+                             referencedColumnNames="id"
+                             constraintName="fk_tpcd_parent_test"/>
+
+    <addForeignKeyConstraint baseTableSchemaName="clinlims"
+                             baseTableName="test_parent_child_dependency"
+                             baseColumnNames="child_test_id"
+                             referencedTableSchemaName="clinlims"
+                             referencedTableName="test"
+                             referencedColumnNames="id"
+                             constraintName="fk_tpcd_child_test"/>
+
+    <addUniqueConstraint schemaName="clinlims"
+                         tableName="test_parent_child_dependency"
+                         columnNames="parent_test_id,child_test_id"
+                         constraintName="uk_tpcd_parent_child"/>
+
+    <addUniqueConstraint schemaName="clinlims"
+                         tableName="test_parent_child_dependency"
+                         columnNames="child_test_id"
+                         constraintName="uk_tpcd_child_single_parent"/>
+
+    <createIndex schemaName="clinlims" tableName="test_parent_child_dependency" indexName="idx_tpcd_parent_test">
+      <column name="parent_test_id"/>
+    </createIndex>
+
+    <createIndex schemaName="clinlims" tableName="test_parent_child_dependency" indexName="idx_tpcd_child_test">
+      <column name="child_test_id"/>
+    </createIndex>
+
+    <sql>
+      ALTER TABLE clinlims.test_parent_child_dependency
+      ADD CONSTRAINT chk_tpcd_parent_not_child
+      CHECK (parent_test_id &lt;&gt; child_test_id);
+    </sql>
+  </changeSet>
+
+  <changeSet id="tes-padre-002-add-analysis-sample-used-quantity" author="codex">
+    <preConditions onFail="MARK_RAN">
+      <tableExists schemaName="clinlims" tableName="analysis"/>
+      <not>
+        <columnExists schemaName="clinlims" tableName="analysis" columnName="sample_used_quantity"/>
+      </not>
+    </preConditions>
+
+    <addColumn schemaName="clinlims" tableName="analysis">
+      <column name="sample_used_quantity" type="DECIMAL(10,3)"/>
+    </addColumn>
+
+    <sql>
+      ALTER TABLE clinlims.analysis
+      ADD CONSTRAINT chk_analysis_sample_used_quantity_non_negative
+      CHECK (sample_used_quantity IS NULL OR sample_used_quantity &gt;= 0);
+    </sql>
+  </changeSet>
+
+  <changeSet id="tes-padre-003-register-audit-reference-table" author="codex">
+    <preConditions onFail="MARK_RAN">
+      <sqlCheck expectedResult="0">
+        SELECT COUNT(*) FROM clinlims.reference_tables WHERE name = 'TEST_PARENT_CHILD_DEPENDENCY'
+      </sqlCheck>
+    </preConditions>
+
+    <insert schemaName="clinlims" tableName="reference_tables">
+      <column name="id" valueSequenceNext="reference_tables_seq"/>
+      <column name="name" value="TEST_PARENT_CHILD_DEPENDENCY"/>
+      <column name="keep_history" value="Y"/>
+      <column name="is_hl7_encoded" value="N"/>
+    </insert>
+
+    <rollback>
+      <delete schemaName="clinlims" tableName="reference_tables">
+        <where>name = 'TEST_PARENT_CHILD_DEPENDENCY'</where>
+      </delete>
+    </rollback>
+  </changeSet>
+
+</databaseChangeLog>

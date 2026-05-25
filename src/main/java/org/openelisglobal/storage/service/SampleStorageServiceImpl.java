@@ -4,9 +4,11 @@ import java.sql.Timestamp;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+import jakarta.servlet.http.HttpServletRequest;
 import org.hibernate.StaleObjectStateException;
 import org.openelisglobal.common.exception.LIMSRuntimeException;
 import org.openelisglobal.common.services.IStatusService;
+import org.openelisglobal.common.util.ControllerUtills;
 import org.openelisglobal.sample.service.SampleService;
 import org.openelisglobal.sample.valueholder.Sample;
 import org.openelisglobal.sampleitem.dao.SampleItemDAO;
@@ -23,6 +25,9 @@ import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
+import org.springframework.web.context.request.RequestAttributes;
+import org.springframework.web.context.request.RequestContextHolder;
+import org.springframework.web.context.request.ServletRequestAttributes;
 
 /**
  * Implementation of SampleStorageService - Handles sample assignment and
@@ -57,6 +62,22 @@ public class SampleStorageServiceImpl implements SampleStorageService {
 
     @Autowired
     private SystemUserService systemUserService;
+
+    private Integer resolveCurrentUserIdOrDefault() {
+        try {
+            RequestAttributes requestAttributes = RequestContextHolder.getRequestAttributes();
+            if (requestAttributes instanceof ServletRequestAttributes) {
+                HttpServletRequest request = ((ServletRequestAttributes) requestAttributes).getRequest();
+                String sysUserId = ControllerUtills.getSysUserId(request);
+                if (sysUserId != null && !sysUserId.trim().isEmpty()) {
+                    return Integer.valueOf(sysUserId.trim());
+                }
+            }
+        } catch (Exception e) {
+            logger.warn("Unable to resolve current system user id for storage assignment. Using default user id 1", e);
+        }
+        return 1;
+    }
 
     @Override
     public CapacityWarning calculateCapacity(StorageRack rack) {
@@ -397,7 +418,7 @@ public class SampleStorageServiceImpl implements SampleStorageService {
                 movement.setMovementDate(new Timestamp(System.currentTimeMillis()));
                 movement.setReason(
                         "Disposal: " + reason + " | Method: " + method + (notes != null ? " | Notes: " + notes : ""));
-                movement.setMovedByUserId(1); // Default to system user
+                movement.setMovedByUserId(resolveCurrentUserIdOrDefault());
 
                 movementIdInt = sampleStorageMovementDAO.insert(movement);
             }
@@ -751,7 +772,7 @@ public class SampleStorageServiceImpl implements SampleStorageService {
             }
             assignment.setAssignedDate(new Timestamp(System.currentTimeMillis()));
             assignment.setNotes(notes);
-            assignment.setAssignedByUserId(1); // Default to system user for tests
+            assignment.setAssignedByUserId(resolveCurrentUserIdOrDefault());
 
             Integer assignmentIdInt = sampleStorageAssignmentDAO.insert(assignment);
             String assignmentId = assignmentIdInt != null ? assignmentIdInt.toString() : null;
@@ -793,7 +814,7 @@ public class SampleStorageServiceImpl implements SampleStorageService {
 
             movement.setMovementDate(new Timestamp(System.currentTimeMillis()));
             movement.setReason(notes);
-            movement.setMovedByUserId(1); // Default to system user for tests
+            movement.setMovedByUserId(resolveCurrentUserIdOrDefault());
 
             // Log movement audit record for debugging
             if (logger.isDebugEnabled()) {
@@ -956,6 +977,7 @@ public class SampleStorageServiceImpl implements SampleStorageService {
                     existingAssignment.setPositionCoordinate(null);
                 }
                 existingAssignment.setAssignedDate(new Timestamp(System.currentTimeMillis()));
+                existingAssignment.setAssignedByUserId(resolveCurrentUserIdOrDefault());
                 if (reason != null) {
                     existingAssignment.setNotes(reason);
                 }
@@ -986,7 +1008,7 @@ public class SampleStorageServiceImpl implements SampleStorageService {
                 if (reason != null) {
                     assignment.setNotes(reason);
                 }
-                assignment.setAssignedByUserId(1); // Default to system user for tests
+                assignment.setAssignedByUserId(resolveCurrentUserIdOrDefault());
                 sampleStorageAssignmentDAO.insert(assignment);
 
                 // Log initial assignment for debugging
@@ -1037,7 +1059,7 @@ public class SampleStorageServiceImpl implements SampleStorageService {
 
             movement.setMovementDate(new Timestamp(System.currentTimeMillis()));
             movement.setReason(reason);
-            movement.setMovedByUserId(1); // Default to system user for tests
+            movement.setMovedByUserId(resolveCurrentUserIdOrDefault());
 
             // Log new location for debugging
             if (logger.isDebugEnabled()) {
