@@ -18,13 +18,78 @@ import DataTable from "react-data-table-component";
 import { FormattedMessage, useIntl } from "react-intl";
 import ValidationSearchFormValues from "../formModel/innitialValues/ValidationSearchFormValues";
 import { NotificationKinds } from "../common/CustomNotification";
-import {
-  convertAlphaNumLabNumForDisplay,
-  postToOpenElisServer,
-} from "../utils/Utils";
+import { postToOpenElisServer } from "../utils/Utils";
 import { NotificationContext } from "../layout/Layout";
 import { ConfigurationContext } from "../layout/Layout";
 import config from "../../config.json";
+
+const normalizeResultEntryScope = (scopeValue) =>
+  String(scopeValue || "").toUpperCase() === "PRELIMINARY"
+    ? "PRELIMINARY"
+    : "OFFICIAL";
+
+const parseAdditionalFieldMetadata = (fieldDefinition) => {
+  const metadataJson = fieldDefinition?.metadataJson;
+  if (!metadataJson || typeof metadataJson !== "string") {
+    return {};
+  }
+  try {
+    const parsed = JSON.parse(metadataJson);
+    return parsed && typeof parsed === "object" ? parsed : {};
+  } catch (e) {
+    return {};
+  }
+};
+
+const getFieldBlockAndScope = (fieldDefinition) => {
+  const metadata = parseAdditionalFieldMetadata(fieldDefinition);
+  const entryScope = normalizeResultEntryScope(
+    fieldDefinition?.entryScope || metadata.entryScope,
+  );
+  const fallbackBlock =
+    entryScope === "PRELIMINARY" ? "Preliminary" : "Official";
+  const blockNameRaw =
+    fieldDefinition?.blockName || metadata.resultBlock || metadata.blockName;
+  const blockName =
+    typeof blockNameRaw === "string" && blockNameRaw.trim().length > 0
+      ? blockNameRaw.trim()
+      : fallbackBlock;
+  return { blockName, entryScope };
+};
+
+const parseDocumentFieldValue = (rawValue) => {
+  if (!rawValue || typeof rawValue !== "string") {
+    return null;
+  }
+  try {
+    const parsed = JSON.parse(rawValue);
+    if (!parsed || typeof parsed !== "object") {
+      return null;
+    }
+    const fileName = String(parsed.fileName || "").trim();
+    const base64Content = String(parsed.base64Content || "").trim();
+    if (!fileName || !base64Content) {
+      return null;
+    }
+    return {
+      fileName,
+      fileType: String(parsed.fileType || "").trim(),
+      base64Content,
+    };
+  } catch (e) {
+    return null;
+  }
+};
+
+const openAdditionalFieldDocument = (filePayload) => {
+  const fileType = String(filePayload?.fileType || "").trim();
+  const base64Content = String(filePayload?.base64Content || "").trim();
+  if (!base64Content) {
+    return;
+  }
+  const mime = fileType || "application/octet-stream";
+  window.open(`data:${mime};base64,${base64Content}`, "_blank");
+};
 
 const Validation = (props) => {
   const componentMounted = useRef(false);
@@ -88,9 +153,6 @@ const Validation = (props) => {
     }
   };
 
-  const isRowReadyForMedicalValidation = (row) =>
-    Number(row?.approvedCount || 0) >= Number(row?.requiredApprovals || 1);
-
   const getAcceptedAnalysisIds = () => {
     const acceptedRows =
       props?.results?.resultList?.filter(
@@ -98,8 +160,6 @@ const Validation = (props) => {
           result?.isAccepted &&
           result?.analysisId &&
           !result?.readOnly &&
-          (!currentUserIsMedicalValidator ||
-            isRowReadyForMedicalValidation(result)) &&
           (!result?.approvedByCurrentUser || currentUserIsMedicalValidator),
       ) || [];
     return [...new Set(acceptedRows.map((result) => result.analysisId))];
@@ -411,27 +471,6 @@ const Validation = (props) => {
       setNotificationVisible(true);
       return;
     }
-    if (currentUserIsMedicalValidator && hasAcceptedSelections) {
-      const selectedRows = liveResultList.filter(
-        (row) => row?.isAccepted && !row?.readOnly,
-      );
-      const hasRowsWithoutBiologistApprovals = selectedRows.some(
-        (row) => !isRowReadyForMedicalValidation(row),
-      );
-      if (hasRowsWithoutBiologistApprovals) {
-        addNotification({
-          kind: NotificationKinds.warning,
-          title: intl.formatMessage({ id: "notification.title" }),
-          message: intl.formatMessage({
-            id: "validation.medical.approvals.required",
-            defaultMessage:
-              "Some selected rows still need biologist approvals before medical validation.",
-          }),
-        });
-        setNotificationVisible(true);
-        return;
-      }
-    }
     props.results.medicalValidationConfirmed =
       currentUserIsMedicalValidator &&
       hasAcceptedSelections &&
@@ -726,6 +765,31 @@ const Validation = (props) => {
       : [];
     const additionalValues = data?.additionalFieldValues || {};
     const attachedFile = data?.resultFile;
+    const groupedBlocks = [];
+    const groupedByName = new Map();
+    additionalDefinitions.forEach((fieldDefinition) => {
+      const { blockName, entryScope } = getFieldBlockAndScope(fieldDefinition);
+      if (!groupedByName.has(blockName)) {
+        const group = { blockName, entryScope, fields: [] };
+        groupedByName.set(blockName, group);
+        groupedBlocks.push(group);
+      }
+      groupedByName.get(blockName).fields.push(fieldDefinition);
+    });
+    const officialBlockName = intl.formatMessage({
+      id: "results.block.official",
+      defaultMessage: "Official",
+    });
+    const hasOfficialScopeBlock = groupedBlocks.some(
+      (block) => normalizeResultEntryScope(block.entryScope) === "OFFICIAL",
+    );
+    if (!hasOfficialScopeBlock) {
+      groupedBlocks.unshift({
+        blockName: officialBlockName,
+        entryScope: "OFFICIAL",
+        fields: [],
+      });
+    }
 
     return (
       <div style={{ padding: "1rem 1.25rem" }}>
@@ -738,44 +802,93 @@ const Validation = (props) => {
               })}
             </h5>
           </Column>
-          <Column lg={4} md={4} sm={4}>
-            <div style={{ marginBottom: "0.5rem" }}>
-              <div
-                style={{
-                  fontSize: "0.75rem",
-                  color: "#6f6f6f",
-                  marginBottom: "0.2rem",
-                }}
-              >
-                {primaryResultLabel}
-              </div>
-              <div style={{ wordBreak: "break-word" }}>
-                {primaryResultValue || "-"}
-              </div>
-            </div>
-          </Column>
-          {additionalDefinitions.map((fieldDefinition, index) => {
-            const key =
-              fieldDefinition?.fieldKey ||
-              `validation-extra-field-${data?.analysisId || data?.id}-${index}`;
-            const value = additionalValues[fieldDefinition?.fieldKey] || "";
-            return (
-              <Column lg={4} md={4} sm={4} key={key}>
-                <div style={{ marginBottom: "0.5rem" }}>
-                  <div
-                    style={{
-                      fontSize: "0.75rem",
-                      color: "#6f6f6f",
-                      marginBottom: "0.2rem",
-                    }}
-                  >
-                    {fieldDefinition?.displayName || fieldDefinition?.fieldKey}
-                  </div>
-                  <div style={{ wordBreak: "break-word" }}>{value || "-"}</div>
-                </div>
-              </Column>
-            );
-          })}
+          {(() => {
+            let primaryRendered = false;
+            return groupedBlocks.map((block, blockIndex) => {
+              const shouldRenderPrimary =
+                !primaryRendered &&
+                normalizeResultEntryScope(block.entryScope) === "OFFICIAL";
+              if (shouldRenderPrimary) {
+                primaryRendered = true;
+              }
+              const blockTitle = block.blockName || officialBlockName;
+              return (
+                <React.Fragment
+                  key={`validation-block-${data?.analysisId || data?.id}-${blockIndex}-${blockTitle}`}
+                >
+                  <Column lg={16} md={8} sm={4}>
+                    <h6
+                      style={{ marginBottom: "0.5rem", marginTop: "0.25rem" }}
+                    >
+                      {blockTitle}
+                    </h6>
+                  </Column>
+                  {shouldRenderPrimary && (
+                    <Column lg={4} md={4} sm={4}>
+                      <div style={{ marginBottom: "0.5rem" }}>
+                        <div
+                          style={{
+                            fontSize: "0.75rem",
+                            color: "#6f6f6f",
+                            marginBottom: "0.2rem",
+                          }}
+                        >
+                          {primaryResultLabel}
+                        </div>
+                        <div style={{ wordBreak: "break-word" }}>
+                          {primaryResultValue || "-"}
+                        </div>
+                      </div>
+                    </Column>
+                  )}
+                  {block.fields.map((fieldDefinition, index) => {
+                    const key =
+                      fieldDefinition?.fieldKey ||
+                      `validation-extra-field-${data?.analysisId || data?.id}-${index}`;
+                    const value =
+                      additionalValues[fieldDefinition?.fieldKey] || "";
+                    const fieldType = String(
+                      fieldDefinition?.fieldType || "TEXT",
+                    ).toUpperCase();
+                    const documentValue =
+                      fieldType === "DOCUMENT"
+                        ? parseDocumentFieldValue(value)
+                        : null;
+                    return (
+                      <Column lg={4} md={4} sm={4} key={key}>
+                        <div style={{ marginBottom: "0.5rem" }}>
+                          <div
+                            style={{
+                              fontSize: "0.75rem",
+                              color: "#6f6f6f",
+                              marginBottom: "0.2rem",
+                            }}
+                          >
+                            {fieldDefinition?.displayName ||
+                              fieldDefinition?.fieldKey}
+                          </div>
+                          <div style={{ wordBreak: "break-word" }}>
+                            {documentValue?.fileName ? (
+                              <Link
+                                style={{ cursor: "pointer" }}
+                                onClick={() =>
+                                  openAdditionalFieldDocument(documentValue)
+                                }
+                              >
+                                {documentValue.fileName}
+                              </Link>
+                            ) : (
+                              value || "-"
+                            )}
+                          </div>
+                        </div>
+                      </Column>
+                    );
+                  })}
+                </React.Fragment>
+              );
+            });
+          })()}
         </Grid>
 
         <Grid style={{ marginTop: "0.75rem" }}>
@@ -825,27 +938,21 @@ const Validation = (props) => {
   };
 
   const renderCell = (row, index, column, id) => {
-    let formatLabNum = configurationProperties.AccessionFormat === "ALPHANUM";
     const fullTestName = row.testName;
     const splitIndex = fullTestName.lastIndexOf("(");
     const testName = fullTestName.substring(0, splitIndex);
     const sampleType = fullTestName.substring(splitIndex);
     switch (column.id) {
-      case "sampleInfo":
+      case "sampleInfo": {
+        const sampleCode = row.cugCode || row.accessionNumber;
         return (
           <>
             <Button
               onClick={async () => {
                 if ("clipboard" in navigator) {
-                  return await navigator.clipboard.writeText(
-                    row.accessionNumber,
-                  );
+                  return await navigator.clipboard.writeText(sampleCode);
                 } else {
-                  return document.execCommand(
-                    "copy",
-                    true,
-                    row.accessionNumber,
-                  );
+                  return document.execCommand("copy", true, sampleCode);
                 }
               }}
               kind="ghost"
@@ -857,9 +964,9 @@ const Validation = (props) => {
             />
             <div className="sampleInfo" data-testid="LabNo">
               <br></br>
-              {formatLabNum
-                ? convertAlphaNumLabNumForDisplay(row.accessionNumber)
-                : row.accessionNumber}
+              {sampleCode}
+              <br></br>
+              {row.receivedDate || ""}
               <br></br>
               <br></br>
             </div>
@@ -875,6 +982,7 @@ const Validation = (props) => {
             )}
           </>
         );
+      }
       case "testName":
         return (
           <div className="sampleInfo" data-testid="sampleInfo">
@@ -898,10 +1006,7 @@ const Validation = (props) => {
                     value={true}
                     checked={Boolean(row?.isAccepted)}
                     disabled={
-                      validationLocked ||
-                      isRowLockedForCurrentUser(row) ||
-                      (currentUserIsMedicalValidator &&
-                        !isRowReadyForMedicalValidation(row))
+                      validationLocked || isRowLockedForCurrentUser(row)
                     }
                     onChange={(e) => handleCheckBox(e, row.id)}
                   />
@@ -1021,9 +1126,7 @@ const Validation = (props) => {
                   (result) =>
                     result.normal == true &&
                     !result.readOnly &&
-                    !result.approvedByCurrentUser &&
-                    (!currentUserIsMedicalValidator ||
-                      isRowReadyForMedicalValidation(result)),
+                    !result.approvedByCurrentUser,
                 );
                 nomalResults.forEach((result) => {
                   const checkbox = document.getElementById(
@@ -1046,11 +1149,7 @@ const Validation = (props) => {
                   return;
                 }
                 const nomalResults = liveResultList.filter(
-                  (result) =>
-                    !result.readOnly &&
-                    !result.approvedByCurrentUser &&
-                    (!currentUserIsMedicalValidator ||
-                      isRowReadyForMedicalValidation(result)),
+                  (result) => !result.readOnly && !result.approvedByCurrentUser,
                 );
                 nomalResults.forEach((result) => {
                   const checkbox = document.getElementById(
@@ -1073,11 +1172,7 @@ const Validation = (props) => {
                   return;
                 }
                 const nomalResults = liveResultList.filter(
-                  (result) =>
-                    !result.readOnly &&
-                    !result.approvedByCurrentUser &&
-                    (!currentUserIsMedicalValidator ||
-                      isRowReadyForMedicalValidation(result)),
+                  (result) => !result.readOnly && !result.approvedByCurrentUser,
                 );
                 nomalResults.forEach((result) => {
                   const checkbox = document.getElementById(

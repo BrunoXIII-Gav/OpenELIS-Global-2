@@ -33,6 +33,9 @@ public class OrderFixedFieldConfig extends BaseObject<Integer> {
     @Column(name = "readonly", nullable = false)
     private Boolean readonly;
 
+    @Column(name = "show_in_sample_reception", nullable = false)
+    private Boolean showInSampleReception;
+
     @Column(name = "sort_order", nullable = false)
     private Integer sortOrder;
 
@@ -79,6 +82,14 @@ public class OrderFixedFieldConfig extends BaseObject<Integer> {
 
     public void setReadonly(Boolean readonly) {
         this.readonly = readonly;
+    }
+
+    public Boolean getShowInSampleReception() {
+        return showInSampleReception;
+    }
+
+    public void setShowInSampleReception(Boolean showInSampleReception) {
+        this.showInSampleReception = showInSampleReception;
     }
 
     public Integer getSortOrder() {

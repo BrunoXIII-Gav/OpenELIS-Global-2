@@ -37,6 +37,7 @@ public final class ClinicalPatientData {
     private String conclusion;
     private String finishDate;
     private String accessionNumber;
+    private String sampleCug;
     private String receivedDate;
     private String testDate;
     private String referralSentDate;
@@ -86,6 +87,9 @@ public final class ClinicalPatientData {
     private String requesterCmp;
     private String requesterRne;
     private String requesterSpecialty;
+    private String dni;
+    private String passportNumber;
+    private String foreignId;
     private String tbOrderReason;
     private String tbDiagnosticReason;
     private String tbFollowupReason;
@@ -115,6 +119,7 @@ public final class ClinicalPatientData {
         conclusion = data.getConclusion();
         finishDate = data.getFinishDate();
         accessionNumber = data.getAccessionNumber();
+        sampleCug = data.getSampleCug();
         receivedDate = data.getReceivedDate();
         testDate = data.getTestDate();
         referralSentDate = data.getReferralSentDate();
@@ -162,6 +167,9 @@ public final class ClinicalPatientData {
         requesterCmp = data.getRequesterCmp();
         requesterRne = data.getRequesterRne();
         requesterSpecialty = data.getRequesterSpecialty();
+        dni = data.getDni();
+        passportNumber = data.getPassportNumber();
+        foreignId = data.getForeignId();
         additionalFieldValues = new HashMap<>(data.getAdditionalFieldValues());
     }
 
@@ -203,6 +211,14 @@ public final class ClinicalPatientData {
 
     public void setAccessionNumber(String accessionNumber) {
         this.accessionNumber = accessionNumber;
+    }
+
+    public String getSampleCug() {
+        return sampleCug;
+    }
+
+    public void setSampleCug(String sampleCug) {
+        this.sampleCug = sampleCug;
     }
 
     public String getPatientName() {
@@ -744,6 +760,30 @@ public final class ClinicalPatientData {
 
     public void setRequesterSpecialty(String requesterSpecialty) {
         this.requesterSpecialty = requesterSpecialty;
+    }
+
+    public String getDni() {
+        return dni;
+    }
+
+    public void setDni(String dni) {
+        this.dni = dni;
+    }
+
+    public String getPassportNumber() {
+        return passportNumber;
+    }
+
+    public void setPassportNumber(String passportNumber) {
+        this.passportNumber = passportNumber;
+    }
+
+    public String getForeignId() {
+        return foreignId;
+    }
+
+    public void setForeignId(String foreignId) {
+        this.foreignId = foreignId;
     }
 
     public Map<String, String> getAdditionalFieldValues() {

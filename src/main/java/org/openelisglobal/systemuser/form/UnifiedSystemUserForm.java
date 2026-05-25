@@ -44,6 +44,13 @@ public class UnifiedSystemUserForm extends BaseForm {
     @ValidName(nameType = NameType.LAST_NAME)
     private String userLastName = "";
 
+    @Pattern(regexp = ValidationHelper.ID_REGEX)
+    private String linkedProviderPersonId = "";
+
+    private String signatureImageData;
+
+    private String signatureImageContentType = "";
+
     // for display
     private List<DisplayRole> globalRoles;
 
@@ -52,6 +59,9 @@ public class UnifiedSystemUserForm extends BaseForm {
 
     // for display
     private List<IdValuePair> testSections;
+
+    // for display
+    private List<IdValuePair> practitionerPersons;
 
     /**
      * There are multiple fields in the ui-form mapped to this field, because the
@@ -171,6 +181,30 @@ public class UnifiedSystemUserForm extends BaseForm {
         this.userLastName = userLastName;
     }
 
+    public String getLinkedProviderPersonId() {
+        return linkedProviderPersonId;
+    }
+
+    public void setLinkedProviderPersonId(String linkedProviderPersonId) {
+        this.linkedProviderPersonId = linkedProviderPersonId;
+    }
+
+    public String getSignatureImageData() {
+        return signatureImageData;
+    }
+
+    public void setSignatureImageData(String signatureImageData) {
+        this.signatureImageData = signatureImageData;
+    }
+
+    public String getSignatureImageContentType() {
+        return signatureImageContentType;
+    }
+
+    public void setSignatureImageContentType(String signatureImageContentType) {
+        this.signatureImageContentType = signatureImageContentType;
+    }
+
     public List<DisplayRole> getGlobalRoles() {
         return globalRoles;
     }
@@ -249,6 +283,14 @@ public class UnifiedSystemUserForm extends BaseForm {
 
     public void setTestSections(List<IdValuePair> testSections) {
         this.testSections = testSections;
+    }
+
+    public List<IdValuePair> getPractitionerPersons() {
+        return practitionerPersons;
+    }
+
+    public void setPractitionerPersons(List<IdValuePair> practitionerPersons) {
+        this.practitionerPersons = practitionerPersons;
     }
 
     public String getTestSectionId() {

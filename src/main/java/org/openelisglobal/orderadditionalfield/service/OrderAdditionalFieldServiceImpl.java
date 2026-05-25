@@ -518,6 +518,7 @@ public class OrderAdditionalFieldServiceImpl implements OrderAdditionalFieldServ
                 fallback.setVisible(true);
                 fallback.setRequired(false);
                 fallback.setReadonly(false);
+                fallback.setShowInSampleReception(false);
                 fallback.setSortOrder(fixedFieldDefault.sortOrder);
                 result.add(fallback);
             } else {
@@ -549,6 +550,8 @@ public class OrderAdditionalFieldServiceImpl implements OrderAdditionalFieldServ
             entity.setVisible(payload.getVisible() == null || payload.getVisible());
             entity.setRequired(payload.getRequired() != null && payload.getRequired());
             entity.setReadonly(payload.getReadonly() != null && payload.getReadonly());
+            entity.setShowInSampleReception(
+                    payload.getShowInSampleReception() != null && payload.getShowInSampleReception());
             entity.setSortOrder(
                     payload.getSortOrder() == null ? getDefaultSortOrder(normalizedKey) : payload.getSortOrder());
             entity.setSysUserId(currentUserId);
@@ -612,6 +615,7 @@ public class OrderAdditionalFieldServiceImpl implements OrderAdditionalFieldServ
         payload.setVisible(config.getVisible());
         payload.setRequired(config.getRequired());
         payload.setReadonly(config.getReadonly());
+        payload.setShowInSampleReception(config.getShowInSampleReception());
         payload.setSortOrder(config.getSortOrder());
         return payload;
     }

@@ -99,8 +99,126 @@ li.clickableUserDetails:hover {
   ) !important;
 }
 
+:root {
+  --oe-admin-sidenav-width: 16rem;
+  --oe-admin-sidenav-rail-width: 3rem;
+  --oe-main-sidenav-rail-width: 3rem;
+}
+
 .adminPageContent {
-  margin: 0 1% 0 18%;
+  margin: 0 1% 0 var(--oe-admin-sidenav-width, 16rem);
+}
+
+.admin-quick-links {
+  margin-top: var(--cds-spacing-06, 1.5rem);
+}
+
+.admin-quick-link-column {
+  margin-bottom: var(--cds-spacing-05, 1rem);
+}
+
+.admin-quick-link-tile {
+  height: 100%;
+}
+
+.admin-quick-link-content {
+  display: flex;
+  flex-direction: column;
+  gap: var(--cds-spacing-03, 0.5rem);
+}
+
+.admin-quick-link-icon {
+  display: inline-flex;
+}
+
+.oe-admin-sidenav.cds--side-nav {
+  top: 3rem;
+  height: calc(100vh - 3rem);
+  width: var(--oe-admin-sidenav-width, 16rem);
+  z-index: 7990;
+}
+
+/* Admin menu labels: allow wrapping instead of truncating with ellipsis. */
+.oe-admin-sidenav.cds--side-nav .cds--side-nav__link-text,
+.oe-admin-sidenav.cds--side-nav .cds--side-nav__submenu-title {
+  white-space: normal !important;
+  overflow: visible !important;
+  text-overflow: clip !important;
+  line-height: 1.25;
+}
+
+.oe-admin-sidenav.cds--side-nav .cds--side-nav__link,
+.oe-admin-sidenav.cds--side-nav .cds--side-nav__submenu {
+  min-height: 3rem;
+  height: auto;
+  align-items: flex-start;
+  padding-top: 0.6rem;
+  padding-bottom: 0.6rem;
+}
+
+.oe-admin-context .oe-admin-sidenav.cds--side-nav {
+  left: var(--oe-main-sidenav-rail-width, 3rem);
+  border-left: 1px solid rgba(255, 255, 255, 0.14);
+}
+
+/* Keep the primary sidenav fully anchored/painted at the left edge.
+   This avoids the white rail strip when expanding in admin context. */
+.oe-admin-context nav.cds--side-nav:not(.oe-admin-sidenav) {
+  left: 0 !important;
+  background-color: var(--site-branding-sidenav-bg, #295785) !important;
+}
+
+.oe-admin-context
+  nav.cds--side-nav:not(.oe-admin-sidenav)
+  .cds--side-nav__navigation,
+.oe-admin-context
+  nav.cds--side-nav:not(.oe-admin-sidenav)
+  .cds--side-nav__items,
+.oe-admin-context nav.cds--side-nav:not(.oe-admin-sidenav) .cds--side-nav__menu,
+.oe-admin-context
+  nav.cds--side-nav:not(.oe-admin-sidenav)
+  .cds--side-nav__menu-item,
+.oe-admin-context .cds--side-nav__rail {
+  background-color: var(--site-branding-sidenav-bg, #295785) !important;
+}
+
+.oe-admin-context .adminPageContent {
+  margin-left: calc(
+    var(--oe-main-sidenav-rail-width, 3rem) +
+      var(--oe-admin-sidenav-width, 16rem)
+  );
+}
+
+/* In CLOSE mode, primary sidenav is collapsed (no visible rail panel),
+   so admin sidenav must start at x=0 to avoid a white gap. */
+.content-nav-close.oe-admin-context .oe-admin-sidenav.cds--side-nav {
+  left: 0;
+  border-left: none;
+}
+
+.content-nav-close.oe-admin-context .adminPageContent {
+  margin-left: var(--oe-admin-sidenav-width, 16rem);
+}
+
+/* When the main sidenav is temporarily expanded, avoid rendering the
+   admin sidenav underneath it (prevents blank/overlap artifacts). */
+.content-nav-show.oe-admin-context .oe-admin-sidenav.cds--side-nav {
+  visibility: hidden;
+  pointer-events: none;
+}
+
+.content-nav-show.oe-admin-context .adminPageContent {
+  margin-left: var(--oe-main-sidenav-rail-width, 3rem);
+}
+
+@media screen and (min-width: 1057px) {
+  .content-nav-locked.oe-admin-context .oe-admin-sidenav.cds--side-nav {
+    left: 16rem;
+  }
+
+  .content-nav-locked.oe-admin-context .adminPageContent {
+    margin-left: calc(16rem + var(--oe-admin-sidenav-width, 16rem));
+  }
 }
 
 .pageContent {
@@ -541,15 +659,35 @@ button {
 
 @media screen and (max-width: 1053px) {
   .adminPageContent {
-    margin-left: 9%;
+    margin-left: 0;
     margin-right: 5%;
   }
 }
 
 @media screen and (max-width: 500px) {
   .adminPageContent {
-    margin-left: 15%;
+    margin-left: 0;
     margin-right: 5%;
+  }
+}
+
+@media screen and (max-width: 1056px) {
+  .oe-admin-sidenav.cds--side-nav {
+    width: var(--oe-admin-sidenav-width, 16rem);
+  }
+
+  .oe-admin-sidenav.cds--side-nav .cds--side-nav__link-text,
+  .oe-admin-sidenav.cds--side-nav .cds--side-nav__submenu-title {
+    opacity: 1;
+  }
+
+  .oe-admin-context .oe-admin-sidenav.cds--side-nav {
+    left: 0;
+    border-left: none;
+  }
+
+  .oe-admin-context .adminPageContent {
+    margin-left: 0;
   }
 }
 

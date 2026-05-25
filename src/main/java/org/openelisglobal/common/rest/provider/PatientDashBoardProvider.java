@@ -5,6 +5,7 @@ import jakarta.servlet.http.HttpServletRequest;
 import java.lang.reflect.InvocationTargetException;
 import java.time.Duration;
 import java.time.LocalDate;
+import java.time.ZoneId;
 import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.HashSet;
@@ -81,52 +82,126 @@ public class PatientDashBoardProvider {
     @Autowired
     SystemUserService systemUserService;
 
+    private Long toEpochMillis(java.sql.Date date) {
+        if (date == null) {
+            return null;
+        }
+        return date.toLocalDate().atStartOfDay(ZoneId.systemDefault()).toInstant().toEpochMilli();
+    }
+
+    private Long toEpochMillis(java.sql.Timestamp timestamp) {
+        return timestamp == null ? null : timestamp.toInstant().toEpochMilli();
+    }
+
+    private Double toDurationHours(Long startMillis, Long endMillis) {
+        if (startMillis == null || endMillis == null || endMillis < startMillis) {
+            return null;
+        }
+        return Duration.ofMillis(endMillis - startMillis).toMinutes() / 60.0;
+    }
+
+    private double averageHours(List<Double> hours) {
+        return hours.isEmpty() ? 0.0 : hours.stream().mapToDouble(Double::doubleValue).average().orElse(0.0);
+    }
+
     private double calculateAverageReceptionToValidationTime(java.sql.Date start, java.sql.Date end) {
         List<Analysis> analyses = analysisService.getAnalysisStartedOrCompletedInDateRange(start, end);
+        if (analyses == null || analyses.isEmpty()) {
+            return 0.0;
+        }
         String finalizedId = iStatusService.getStatusID(AnalysisStatus.Finalized);
-        List<Long> hours = new ArrayList<>();
+        String technicalAcceptanceId = iStatusService.getStatusID(AnalysisStatus.TechnicalAcceptance);
+        List<Double> hours = new ArrayList<>();
 
         for (Analysis analysis : analyses) {
-            if (analysis.getStatusId().equals(finalizedId) && analysis.getStartedDate() != null
-                    && analysis.getReleasedDate() != null) {
-                LocalDate localStartDate = analysis.getStartedDate().toLocalDate();
-                LocalDate localEndDate = analysis.getReleasedDate().toLocalDate();
-                hours.add(Duration.between(localStartDate.atStartOfDay(), localEndDate.atStartOfDay()).toHours());
+            if (!(StringUtils.equals(analysis.getStatusId(), finalizedId)
+                    || StringUtils.equals(analysis.getStatusId(), technicalAcceptanceId))) {
+                continue;
+            }
+            Long startMillis = toEpochMillis(analysis.getStartedDate());
+            if (startMillis == null && analysis.getSampleItem() != null) {
+                startMillis = toEpochMillis(analysis.getSampleItem().getCollectionDate());
+            }
+            Long endMillis = toEpochMillis(analysis.getReleasedDate());
+            if (endMillis == null) {
+                endMillis = toEpochMillis(analysis.getLastupdated());
+            }
+            if (endMillis == null) {
+                endMillis = toEpochMillis(analysis.getCompletedDate());
+            }
+            Double durationHours = toDurationHours(startMillis, endMillis);
+            if (durationHours != null) {
+                hours.add(durationHours);
             }
         }
-        return hours.isEmpty() ? 0.0 : hours.stream().mapToLong(Long::longValue).average().orElse(0.0);
+        return averageHours(hours);
     }
 
     private double calculateAverageReceptionToResultTime(java.sql.Date start, java.sql.Date end) {
         List<Analysis> analyses = analysisService.getAnalysisStartedOrCompletedInDateRange(start, end);
+        if (analyses == null || analyses.isEmpty()) {
+            return 0.0;
+        }
         String rejectedId = iStatusService.getStatusID(AnalysisStatus.SampleRejected);
-        List<Long> hours = new ArrayList<>();
+        List<Double> hours = new ArrayList<>();
 
         for (Analysis analysis : analyses) {
-            if (!analysis.getStatusId().equals(rejectedId) && analysis.getStartedDate() != null
-                    && analysis.getCompletedDate() != null) {
-                LocalDate localStartDate = analysis.getStartedDate().toLocalDate();
-                LocalDate localEndDate = analysis.getCompletedDate().toLocalDate();
-                hours.add(Duration.between(localStartDate.atStartOfDay(), localEndDate.atStartOfDay()).toHours());
+            if (StringUtils.equals(analysis.getStatusId(), rejectedId)) {
+                continue;
+            }
+            Long startMillis = toEpochMillis(analysis.getStartedDate());
+            if (startMillis == null && analysis.getSampleItem() != null) {
+                startMillis = toEpochMillis(analysis.getSampleItem().getCollectionDate());
+            }
+            Long endMillis = toEpochMillis(analysis.getEnteredDate());
+            if (endMillis == null) {
+                endMillis = toEpochMillis(analysis.getCompletedDate());
+            }
+            if (endMillis == null) {
+                endMillis = toEpochMillis(analysis.getLastupdated());
+            }
+            Double durationHours = toDurationHours(startMillis, endMillis);
+            if (durationHours != null) {
+                hours.add(durationHours);
             }
         }
-        return hours.isEmpty() ? 0.0 : hours.stream().mapToLong(Long::longValue).average().orElse(0.0);
+        return averageHours(hours);
     }
 
     private double calculateAverageResultToValidationTime(java.sql.Date start, java.sql.Date end) {
         List<Analysis> analyses = analysisService.getAnalysisStartedOrCompletedInDateRange(start, end);
+        if (analyses == null || analyses.isEmpty()) {
+            return 0.0;
+        }
         String finalizedId = iStatusService.getStatusID(AnalysisStatus.Finalized);
-        List<Long> hours = new ArrayList<>();
+        String technicalAcceptanceId = iStatusService.getStatusID(AnalysisStatus.TechnicalAcceptance);
+        List<Double> hours = new ArrayList<>();
 
         for (Analysis analysis : analyses) {
-            if (analysis.getStatusId().equals(finalizedId) && analysis.getCompletedDate() != null
-                    && analysis.getReleasedDate() != null) {
-                LocalDate localStartDate = analysis.getCompletedDate().toLocalDate();
-                LocalDate localEndDate = analysis.getReleasedDate().toLocalDate();
-                hours.add(Duration.between(localStartDate.atStartOfDay(), localEndDate.atStartOfDay()).toHours());
+            if (!(StringUtils.equals(analysis.getStatusId(), finalizedId)
+                    || StringUtils.equals(analysis.getStatusId(), technicalAcceptanceId))) {
+                continue;
+            }
+            Long startMillis = toEpochMillis(analysis.getEnteredDate());
+            if (startMillis == null) {
+                startMillis = toEpochMillis(analysis.getCompletedDate());
+            }
+            if (startMillis == null) {
+                startMillis = toEpochMillis(analysis.getStartedDate());
+            }
+            if (startMillis == null && analysis.getSampleItem() != null) {
+                startMillis = toEpochMillis(analysis.getSampleItem().getCollectionDate());
+            }
+            Long endMillis = toEpochMillis(analysis.getReleasedDate());
+            if (endMillis == null) {
+                endMillis = toEpochMillis(analysis.getLastupdated());
+            }
+            Double durationHours = toDurationHours(startMillis, endMillis);
+            if (durationHours != null) {
+                hours.add(durationHours);
             }
         }
-        return hours.isEmpty() ? 0.0 : hours.stream().mapToLong(Long::longValue).average().orElse(0.0);
+        return averageHours(hours);
     }
 
     private List<Analysis> analysesWithDelayedTurnAroundTime(java.sql.Date start, java.sql.Date end) {
@@ -174,6 +249,8 @@ public class PatientDashBoardProvider {
                     if (sample != null) {
                         orderBean.setPriority(sample.getPriority() != null ? sample.getPriority().toString() : "");
                         orderBean.setLabNumber(sample.getAccessionNumber() != null ? sample.getAccessionNumber() : "");
+                        orderBean.setCugCode(
+                                analysis.getSampleItem() != null ? analysis.getSampleItem().getCugCode() : "");
 
                         try {
                             orderBean.setPatientId(getDisplayPatientIdentifier(sampleHumanService.getPatientForSample(sample)));
@@ -183,6 +260,7 @@ public class PatientDashBoardProvider {
                     } else {
                         orderBean.setPriority("");
                         orderBean.setLabNumber("");
+                        orderBean.setCugCode("");
                         orderBean.setPatientId("");
                     }
 
@@ -225,6 +303,9 @@ public class PatientDashBoardProvider {
                         orderBean.setId(sample.getId());
                         orderBean.setPriority(sample.getPriority() != null ? sample.getPriority().toString() : "");
                         orderBean.setLabNumber(labNumber);
+                        orderBean.setCugCode(analysis.getSampleItem().getCugCode() != null
+                                ? analysis.getSampleItem().getCugCode()
+                                : "");
                         orderBean.setPatientId(getDisplayPatientIdentifier(sampleHumanService.getPatientForSample(sample)));
                         orderBean.setOrderDate(
                                 sample.getLastupdated() != null ? sdf.format(sample.getLastupdated()) : "");
@@ -302,6 +383,7 @@ public class PatientDashBoardProvider {
             Sample sample = sampleService.getSampleByReferringId(eOrder.getExternalId());
             if (sample != null) {
                 orderBean.setLabNumber(sample.getAccessionNumber());
+                orderBean.setCugCode("");
             }
 
             Test test = null;
@@ -331,6 +413,37 @@ public class PatientDashBoardProvider {
             orderBeanList.add(orderBean);
         });
 
+        return orderBeanList;
+    }
+
+    private List<OrderDisplayBean> convertAnalysesToGroupedBySampleItemOrderBean(List<Analysis> analyses) {
+        List<OrderDisplayBean> orderBeanList = new ArrayList<>();
+        java.text.SimpleDateFormat sdf = new java.text.SimpleDateFormat("yyyy-MM-dd HH:mm:ss");
+        Set<String> processedSampleItems = new HashSet<>();
+
+        if (analyses != null) {
+            analyses.forEach(analysis -> {
+                if (analysis != null && analysis.getSampleItem() != null && analysis.getSampleItem().getSample() != null) {
+                    SampleItem sampleItem = analysis.getSampleItem();
+                    if (processedSampleItems.contains(sampleItem.getId())) {
+                        return;
+                    }
+                    processedSampleItems.add(sampleItem.getId());
+
+                    Sample sample = sampleItem.getSample();
+                    OrderDisplayBean orderBean = new OrderDisplayBean();
+                    orderBean.setId(sampleItem.getId());
+                    orderBean.setPriority(sample.getPriority() != null ? sample.getPriority().toString() : "");
+                    orderBean.setLabNumber(sample.getAccessionNumber() != null ? sample.getAccessionNumber() : "");
+                    orderBean.setCugCode(sampleItem.getCugCode() != null ? sampleItem.getCugCode() : "");
+                    orderBean.setPatientId(getDisplayPatientIdentifier(sampleHumanService.getPatientForSample(sample)));
+                    orderBean.setOrderDate(sample.getLastupdated() != null ? sdf.format(sample.getLastupdated()) : "");
+                    orderBean.setTestName("");
+                    orderBean.setTestSection(analysis.getTestSection() != null ? analysis.getTestSection().getId() : "");
+                    orderBeanList.add(orderBean);
+                }
+            });
+        }
         return orderBeanList;
     }
 
@@ -385,13 +498,13 @@ public class PatientDashBoardProvider {
                             boolean hasCollectionDate = si.getCollectionDate() != null;
 
                             return !(hasCollector && hasCollectionDate);
-                        }).count();
+                        }).map(a -> a.getSampleItem().getId()).distinct().count();
 
                 metrics.setAwaitingSample((int) incompleteSamples);
                 break;
             case AWAITING_RESULTS:
                 String notStartedForSamplesId = iStatusService.getStatusID(AnalysisStatus.NotStarted);
-                long uniqueSamples = allAnalysesInRange.stream()
+                long awaitingResultRows = allAnalysesInRange.stream()
                         .filter(a -> a.getStatusId().equals(notStartedForSamplesId) && a.getSampleItem() != null)
                         .filter(a -> {
 
@@ -400,8 +513,8 @@ public class PatientDashBoardProvider {
                             boolean hasCollectionDate = si.getCollectionDate() != null;
 
                             return hasCollector && hasCollectionDate;
-                        }).map(a -> a.getSampleItem().getId()).distinct().count();
-                metrics.setAwaitingResults((int) uniqueSamples);
+                        }).count();
+                metrics.setAwaitingResults((int) awaitingResultRows);
                 break;
             case ORDERS_READY_FOR_VALIDATION:
                 String readyId = iStatusService.getStatusID(AnalysisStatus.TechnicalAcceptance);
@@ -532,7 +645,7 @@ public class PatientDashBoardProvider {
                     }
                 }
             });
-            return convertAnalysesToOrderBean(filteredAnalyses);
+            return convertAnalysesToGroupedBySampleItemOrderBean(filteredAnalyses);
 
         case ORDERS_READY_FOR_VALIDATION:
             String readyId = iStatusService.getStatusID(AnalysisStatus.TechnicalAcceptance);

@@ -27,6 +27,7 @@ public class ResultValidationItem implements ResultItem, Serializable {
 
     private static final long serialVersionUID = 1L;
     private String accessionNumber;
+    private String cugCode;
     private String sequenceNumber;
     private boolean showSampleDetails = true;
     /*
@@ -296,6 +297,14 @@ public class ResultValidationItem implements ResultItem, Serializable {
 
     public String getReceivedDate() {
         return receivedDate;
+    }
+
+    public String getCugCode() {
+        return cugCode;
+    }
+
+    public void setCugCode(String cugCode) {
+        this.cugCode = cugCode;
     }
 
     public void setResult(Result result) {

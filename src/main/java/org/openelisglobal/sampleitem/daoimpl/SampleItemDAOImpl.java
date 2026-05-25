@@ -349,6 +349,23 @@ public class SampleItemDAOImpl extends BaseDAOImpl<SampleItem, String> implement
     }
 
     @Override
+    @Transactional(readOnly = true)
+    public SampleItem findSampleItemByCugCode(String cugCode) throws LIMSRuntimeException {
+        if (cugCode == null || cugCode.trim().isEmpty()) {
+            return null;
+        }
+        try {
+            String hql = "FROM SampleItem si WHERE lower(si.cugCode) = :cugCode ORDER BY si.id DESC";
+            List<SampleItem> sampleItems = entityManager.unwrap(Session.class).createQuery(hql, SampleItem.class)
+                    .setParameter("cugCode", cugCode.trim().toLowerCase()).setMaxResults(1).list();
+            return sampleItems.isEmpty() ? null : sampleItems.get(0);
+        } catch (RuntimeException e) {
+            LogEvent.logError(e);
+            throw new LIMSRuntimeException("Error finding sample item by CUG code", e);
+        }
+    }
+
+    @Override
     @Transactional
     public boolean insertData(SampleItem sampleItem) throws LIMSRuntimeException {
         try {

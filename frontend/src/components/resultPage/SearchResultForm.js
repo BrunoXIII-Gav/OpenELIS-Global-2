@@ -4,7 +4,6 @@ import "../Style.css";
 import {
   getFromOpenElisServer,
   postToOpenElisServerJsonResponse,
-  convertAlphaNumLabNumForDisplay,
   Roles,
 } from "../utils/Utils";
 import {
@@ -21,6 +20,7 @@ import {
   SelectItem,
   Loading,
   Link,
+  FileUploader,
   RadioButtonGroup,
   RadioButton,
 } from "@carbon/react";
@@ -36,11 +36,79 @@ import ReferredOutTests from "./resultsReferredOut/ReferredOutTests";
 import { ConfigurationContext } from "../layout/Layout";
 import config from "../../config.json";
 import CustomDatePicker from "../common/CustomDatePicker";
-import AsyncAvatar from "../patient/photoManagement/photoAvatar/AyncAvatar";
 import CompactFileInput from "./fileUpload/FileInput";
 import StorageLocationSelector from "../storage/StorageLocationSelector";
 import ResultMultiSelect from "../common/multiSelect";
 import CascadingMultiSelect from "../common/cascadingMultiSelect";
+
+const parseAdditionalFieldMetadata = (fieldDefinition) => {
+  const metadataJson = fieldDefinition?.metadataJson;
+  if (!metadataJson || typeof metadataJson !== "string") {
+    return {};
+  }
+  try {
+    const parsed = JSON.parse(metadataJson);
+    return parsed && typeof parsed === "object" ? parsed : {};
+  } catch (e) {
+    return {};
+  }
+};
+
+const parseDocumentFieldValue = (rawValue) => {
+  if (!rawValue || typeof rawValue !== "string") {
+    return null;
+  }
+  try {
+    const parsed = JSON.parse(rawValue);
+    if (!parsed || typeof parsed !== "object") {
+      return null;
+    }
+    const fileName = String(parsed.fileName || "").trim();
+    const fileType = String(parsed.fileType || "").trim();
+    const base64Content = String(parsed.base64Content || "").trim();
+    if (!fileName || !base64Content) {
+      return null;
+    }
+    return { fileName, fileType, base64Content };
+  } catch (e) {
+    return null;
+  }
+};
+
+const encodeDocumentFieldValue = (filePayload) => {
+  if (!filePayload) {
+    return "";
+  }
+  return JSON.stringify({
+    fileName: filePayload.fileName || "",
+    fileType: filePayload.fileType || "",
+    base64Content: filePayload.base64Content || "",
+  });
+};
+
+const readFileAsBase64 = (file) =>
+  new Promise((resolve, reject) => {
+    const reader = new FileReader();
+    reader.onload = () => {
+      const base64 = String(reader.result || "");
+      const [, content = ""] = base64.split(",", 2);
+      resolve(content);
+    };
+    reader.onerror = () =>
+      reject(new Error("Failed to convert selected file to base64"));
+    reader.readAsDataURL(file);
+  });
+
+const openDocumentFieldValue = (filePayload) => {
+  const fileType = String(filePayload?.fileType || "").trim();
+  const base64Content = String(filePayload?.base64Content || "").trim();
+  if (!base64Content) {
+    return;
+  }
+  const safeFileType = fileType || "application/octet-stream";
+  const source = `data:${safeFileType};base64,${base64Content}`;
+  window.open(source, "_blank", "noopener,noreferrer");
+};
 
 const AdditionalFieldEditor = ({
   inputId,
@@ -48,6 +116,7 @@ const AdditionalFieldEditor = ({
   fieldType,
   value,
   activeOptions,
+  fieldMetadata,
   onCommit,
 }) => {
   const [draftValue, setDraftValue] = useState(value || "");
@@ -61,6 +130,68 @@ const AdditionalFieldEditor = ({
   };
 
   switch (fieldType) {
+    case "DOCUMENT": {
+      const currentDocument = parseDocumentFieldValue(draftValue);
+      const acceptedMimeTypes = Array.isArray(fieldMetadata?.document?.accept)
+        ? fieldMetadata.document.accept
+        : [];
+      const maxSizeMb = Number.parseInt(fieldMetadata?.document?.maxSizeMb, 10);
+      const maxBytes =
+        Number.isFinite(maxSizeMb) && maxSizeMb > 0
+          ? maxSizeMb * 1024 * 1024
+          : null;
+
+      return (
+        <div>
+          <label
+            htmlFor={inputId}
+            style={{ display: "block", marginBottom: "0.25rem" }}
+          >
+            {fieldLabel}
+          </label>
+          <FileUploader
+            id={inputId}
+            buttonLabel={<FormattedMessage id="label.button.uploadfile" />}
+            filenameStatus={currentDocument ? "complete" : ""}
+            accept={
+              acceptedMimeTypes.length > 0 ? acceptedMimeTypes : undefined
+            }
+            multiple={false}
+            filename={currentDocument?.fileName}
+            onChange={async (event) => {
+              const file = event.target.files?.[0];
+              if (!file) {
+                return;
+              }
+              if (maxBytes != null && file.size > maxBytes) {
+                return;
+              }
+              try {
+                const base64Content = await readFileAsBase64(file);
+                const nextPayload = {
+                  fileName: file.name,
+                  fileType: file.type,
+                  base64Content,
+                };
+                const encoded = encodeDocumentFieldValue(nextPayload);
+                setDraftValue(encoded);
+                commitValue(encoded);
+              } catch (error) {
+                console.error(error);
+              }
+            }}
+          />
+          {currentDocument?.fileName ? (
+            <Link
+              style={{ cursor: "pointer" }}
+              onClick={() => openDocumentFieldValue(currentDocument)}
+            >
+              {currentDocument.fileName}
+            </Link>
+          ) : null}
+        </div>
+      );
+    }
     case "TEXTAREA":
       return (
         <TextArea
@@ -253,6 +384,27 @@ const AdditionalFieldEditor = ({
         />
       );
   }
+};
+
+const normalizeResultEntryScope = (scopeValue) =>
+  String(scopeValue || "").toUpperCase() === "PRELIMINARY"
+    ? "PRELIMINARY"
+    : "OFFICIAL";
+
+const getFieldBlockAndScope = (fieldDefinition) => {
+  const metadata = parseAdditionalFieldMetadata(fieldDefinition);
+  const entryScope = normalizeResultEntryScope(
+    fieldDefinition?.entryScope || metadata.entryScope,
+  );
+  const fallbackBlock =
+    entryScope === "PRELIMINARY" ? "Preliminary" : "Official";
+  const blockNameRaw =
+    fieldDefinition?.blockName || metadata.resultBlock || metadata.blockName;
+  const blockName =
+    typeof blockNameRaw === "string" && blockNameRaw.trim().length > 0
+      ? blockNameRaw.trim()
+      : fallbackBlock;
+  return { blockName, entryScope };
 };
 
 function ResultSearchPage() {
@@ -1213,7 +1365,6 @@ export function SearchResults(props) {
   columns = columns.filter((column) => column?.id !== "result");
 
   const renderCell = (row, index, column, id) => {
-    let formatLabNum = configurationProperties.AccessionFormat === "ALPHANUM";
     const fullTestName = row.testName;
     const splitIndex = fullTestName.lastIndexOf("(");
     const testName = fullTestName.substring(0, splitIndex);
@@ -1221,7 +1372,8 @@ export function SearchResults(props) {
 
     console.debug("renderCell: index: " + index + ", id: " + id);
     switch (column.id) {
-      case "sampleInfo":
+      case "sampleInfo": {
+        const sampleCode = row.cugCode || row.accessionNumber;
         // return <input id={"results_" + id} type="text" size="6"></input>
         return (
           <>
@@ -1229,15 +1381,9 @@ export function SearchResults(props) {
               <Button
                 onClick={async () => {
                   if ("clipboard" in navigator) {
-                    return await navigator.clipboard.writeText(
-                      row.accessionNumber,
-                    );
+                    return await navigator.clipboard.writeText(sampleCode);
                   } else {
-                    return document.execCommand(
-                      "copy",
-                      true,
-                      row.accessionNumber,
-                    );
+                    return document.execCommand("copy", true, sampleCode);
                   }
                 }}
                 kind="ghost"
@@ -1250,23 +1396,11 @@ export function SearchResults(props) {
             </div>
             <div className="sampleInfo">
               <br></br>
-              {(formatLabNum
-                ? convertAlphaNumLabNumForDisplay(row.accessionNumber)
-                : row.accessionNumber) +
-                "-" +
-                row.sequenceNumber}
+              {sampleCode}
               <br></br>
-              {row.patientName} <br></br>
-              {row.patientInfo}
+              {row.receivedDate || ""}
               <br></br>
               <br></br>
-            </div>
-            <div>
-              <AsyncAvatar
-                patientId={row.patientId}
-                hasPhoto={true}
-                patientName={row.patientName || ""}
-              />
             </div>
             {row.nonconforming && (
               <picture>
@@ -1280,6 +1414,7 @@ export function SearchResults(props) {
             )}
           </>
         );
+      }
       case "testName":
         return (
           <div className="sampleInfo">
@@ -1695,6 +1830,7 @@ export function SearchResults(props) {
         ? data.additionalFieldValues[fieldKey]
         : "";
     const fieldLabel = fieldDefinition?.displayName || fieldKey;
+    const fieldMetadata = parseAdditionalFieldMetadata(fieldDefinition);
     const inputId = `additional-field-${data.id}-${fieldKey}`;
 
     if (!fieldKey) {
@@ -1708,6 +1844,7 @@ export function SearchResults(props) {
         fieldType={fieldType}
         value={fieldValue || ""}
         activeOptions={activeOptions}
+        fieldMetadata={fieldMetadata}
         onCommit={(nextValue) =>
           handleAdditionalFieldChange(data.id, fieldKey, fieldType, nextValue)
         }
@@ -1895,34 +2032,98 @@ export function SearchResults(props) {
             <Column lg={16}>
               <h5 style={{ marginBottom: "0.75rem" }}>Results</h5>
             </Column>
-            <Column lg={4} md={4} sm={4}>
-              <Field name={"testResult[" + data.id + "].resultValue"}>
-                {() => (
-                  <>
-                    <p style={{ marginBottom: "0.5rem" }}>
-                      {typeof data?.resultName === "string" &&
-                      data.resultName.trim().length > 0
-                        ? data.resultName.trim()
-                        : intl.formatMessage({ id: "column.name.result" })}
-                    </p>
-                    {renderCell(data, 0, { id: "result" }, data.id)}
-                  </>
-                )}
-              </Field>
-            </Column>
-            {Array.isArray(data.additionalFieldDefinitions) &&
-              data.additionalFieldDefinitions
-                .filter((fieldDefinition) => fieldDefinition?.active !== false)
-                .map((fieldDefinition, index) => (
-                  <Column
-                    lg={4}
-                    md={4}
-                    sm={4}
-                    key={`additional-field-render-${data.id}-${fieldDefinition.fieldKey || index}`}
+            {(() => {
+              const activeAdditionalFields = Array.isArray(
+                data.additionalFieldDefinitions,
+              )
+                ? data.additionalFieldDefinitions.filter(
+                    (fieldDefinition) => fieldDefinition?.active !== false,
+                  )
+                : [];
+              const groupedBlocks = [];
+              const groupedByName = new Map();
+
+              activeAdditionalFields.forEach((fieldDefinition) => {
+                const { blockName, entryScope } =
+                  getFieldBlockAndScope(fieldDefinition);
+                if (!groupedByName.has(blockName)) {
+                  const group = { blockName, entryScope, fields: [] };
+                  groupedByName.set(blockName, group);
+                  groupedBlocks.push(group);
+                }
+                groupedByName.get(blockName).fields.push(fieldDefinition);
+              });
+
+              const officialBlockName = intl.formatMessage({
+                id: "results.block.official",
+                defaultMessage: "Official",
+              });
+              const primaryResultLabel =
+                typeof data?.resultName === "string" &&
+                data.resultName.trim().length > 0
+                  ? data.resultName.trim()
+                  : intl.formatMessage({ id: "column.name.result" });
+              let primaryRendered = false;
+              const hasOfficialScopeBlock = groupedBlocks.some(
+                (block) =>
+                  normalizeResultEntryScope(block.entryScope) === "OFFICIAL",
+              );
+
+              if (!hasOfficialScopeBlock) {
+                groupedBlocks.unshift({
+                  blockName: officialBlockName,
+                  entryScope: "OFFICIAL",
+                  fields: [],
+                });
+              }
+
+              return groupedBlocks.map((block, blockIndex) => {
+                const shouldRenderPrimary =
+                  !primaryRendered &&
+                  normalizeResultEntryScope(block.entryScope) === "OFFICIAL";
+                if (shouldRenderPrimary) {
+                  primaryRendered = true;
+                }
+                const blockTitle = block.blockName || officialBlockName;
+                return (
+                  <React.Fragment
+                    key={`result-block-${data.id}-${blockIndex}-${blockTitle}`}
                   >
-                    {renderAdditionalFieldInput(data, fieldDefinition)}
-                  </Column>
-                ))}
+                    <Column lg={16} md={8} sm={4}>
+                      <h6
+                        style={{ marginBottom: "0.5rem", marginTop: "0.25rem" }}
+                      >
+                        {blockTitle}
+                      </h6>
+                    </Column>
+                    {shouldRenderPrimary && (
+                      <Column lg={4} md={4} sm={4}>
+                        <Field name={"testResult[" + data.id + "].resultValue"}>
+                          {() => (
+                            <>
+                              <p style={{ marginBottom: "0.5rem" }}>
+                                {primaryResultLabel}
+                              </p>
+                              {renderCell(data, 0, { id: "result" }, data.id)}
+                            </>
+                          )}
+                        </Field>
+                      </Column>
+                    )}
+                    {block.fields.map((fieldDefinition, fieldIndex) => (
+                      <Column
+                        lg={4}
+                        md={4}
+                        sm={4}
+                        key={`additional-field-render-${data.id}-${fieldDefinition.fieldKey || fieldIndex}`}
+                      >
+                        {renderAdditionalFieldInput(data, fieldDefinition)}
+                      </Column>
+                    ))}
+                  </React.Fragment>
+                );
+              });
+            })()}
           </Grid>
         )}
         {showStorageLocationOnResultEntry && (

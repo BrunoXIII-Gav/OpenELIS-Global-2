@@ -38,6 +38,15 @@
         <property name="isEmployee" type="java.lang.String">
             <column name="IS_EMPLOYEE" length="1" not-null="true" />
         </property>
+        <property name="linkedProviderPersonId" type="java.lang.String">
+            <column name="LINKED_PROVIDER_PERSON_ID" length="20" />
+        </property>
+        <property name="signatureImageData" type="java.lang.String">
+            <column name="SIGNATURE_IMAGE_DATA" />
+        </property>
+        <property name="signatureImageContentType" type="java.lang.String">
+            <column name="SIGNATURE_IMAGE_CONTENT_TYPE" length="64" />
+        </property>
     </class>
     <!-- <query name="systemuser.getNext"> -->
     <!-- from SystemUser su order by su.lastName, su.firstName -->

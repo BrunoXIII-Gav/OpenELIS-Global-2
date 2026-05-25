@@ -53,6 +53,8 @@ import org.openelisglobal.role.service.RoleService;
 import org.openelisglobal.sample.service.SampleService;
 import org.openelisglobal.sample.valueholder.Sample;
 import org.openelisglobal.samplehuman.service.SampleHumanService;
+import org.openelisglobal.sampleitem.service.SampleItemService;
+import org.openelisglobal.sampleitem.valueholder.SampleItem;
 import org.openelisglobal.search.service.SearchResultsService;
 import org.openelisglobal.spring.util.SpringContext;
 import org.openelisglobal.systemuser.service.SystemUserService;
@@ -89,6 +91,8 @@ public class AccessionValidationRestController extends BaseResultValidationContr
     private OrderAdditionalFieldService orderAdditionalFieldService;
     @Autowired
     private UserRoleService userRoleService;
+    @Autowired
+    private SampleItemService sampleItemService;
 
     private static final String[] ALLOWED_FIELDS = new String[] { "testSectionId", "paging.currentPage", "testSection",
             "testName", "resultList*.accessionNumber", "resultList*.analysisId", "resultList*.testId",
@@ -200,12 +204,15 @@ public class AccessionValidationRestController extends BaseResultValidationContr
             if (!(GenericValidator.isBlankOrNull(form.getTestSectionId())
                     && GenericValidator.isBlankOrNull(form.getAccessionNumber())
                     && GenericValidator.isBlankOrNull(form.getTestDate()))) {
+                String searchValue = StringUtils.trimToNull(form.getAccessionNumber());
+                SampleItem cugSampleItem = resolveSampleItemByCugCode(searchValue);
 
                 if (doRange) {
                     resultList = resultsValidationUtility.getResultValidationList(getValidationStatus(),
                             form.getTestSectionId(), form.getAccessionNumber(), form.getTestDate());
                     if (resultList.isEmpty() && StringUtils.isNotBlank(form.getAccessionNumber())) {
-                        Sample sample = getSample(form.getAccessionNumber());
+                        Sample sample = cugSampleItem != null ? cugSampleItem.getSample()
+                                : getSample(form.getAccessionNumber());
                         if (sample != null) {
                             resultList = resultsValidationUtility
                                     .getValidationAnalysisBySampleIncludingValidated(sample, getValidationStatus());
@@ -213,7 +220,8 @@ public class AccessionValidationRestController extends BaseResultValidationContr
                     }
                 } else {
                     if (StringUtils.isNotBlank(form.getAccessionNumber())) {
-                        Sample sample = getSample(form.getAccessionNumber());
+                        Sample sample = cugSampleItem != null ? cugSampleItem.getSample()
+                                : getSample(form.getAccessionNumber());
                         if (sample == null) {
                             setEmptyResults(form);
                             return form;
@@ -223,6 +231,7 @@ public class AccessionValidationRestController extends BaseResultValidationContr
                         }
                     }
                 }
+                resultList = filterAnalysisItemsBySampleItem(resultList, cugSampleItem);
 
                 filteredresultList = filterAnalysisResultsByValidationRoles(currentUserId, resultList);
                 request.setAttribute("pageSize", filteredresultList.size());
@@ -471,7 +480,6 @@ public class AccessionValidationRestController extends BaseResultValidationContr
             IResultSaveService resultValidationSave, boolean areListeners, ResultValidationForm form) {
 
         List<String> analysisIdList = new ArrayList<>();
-        int minApproversRequired = analysisValidationApprovalService.getMinimumApproversRequired();
         String finalizedStatus = SpringContext.getBean(IStatusService.class).getStatusID(AnalysisStatus.Finalized);
         String technicalAcceptanceStatus = SpringContext.getBean(IStatusService.class)
                 .getStatusID(AnalysisStatus.TechnicalAcceptance);
@@ -491,10 +499,9 @@ public class AccessionValidationRestController extends BaseResultValidationContr
                 if (!analysisIdList.contains(analysis.getId())) {
 
                     if (analysisItem.getIsAccepted()) {
-                        int approvalCount = analysisItem.getApprovedCount();
                         if (biologistValidator && !analysisItem.isApprovedByCurrentUser()) {
-                            approvalCount = analysisValidationApprovalService
-                                    .registerApprovalAndGetCount(analysis.getId(), currentUserId);
+                            analysisValidationApprovalService.registerApprovalAndGetCount(analysis.getId(),
+                                    currentUserId);
                         }
 
                         if (!technicalAcceptanceStatus.equals(analysis.getStatusId())
@@ -504,7 +511,7 @@ public class AccessionValidationRestController extends BaseResultValidationContr
                             analysisUpdateList.add(analysis);
                         }
 
-                        if (medicalValidator && medicalPreviewConfirmed && approvalCount >= minApproversRequired
+                        if (medicalValidator && medicalPreviewConfirmed
                                 && !finalizedStatus.equals(analysis.getStatusId())) {
                             analysis.setStatusId(finalizedStatus);
                             analysis.setReleasedDate(new java.sql.Date(Calendar.getInstance().getTimeInMillis()));
@@ -763,6 +770,33 @@ public class AccessionValidationRestController extends BaseResultValidationContr
             sample = sampleService.getSampleByAccessionNumber(searchValue.substring(0, searchValue.indexOf('-')));
         }
         return sample;
+    }
+
+    private SampleItem resolveSampleItemByCugCode(String accessionOrSearchTerm) {
+        String searchValue = accessionOrSearchTerm == null ? null : accessionOrSearchTerm.trim();
+        if (StringUtils.isBlank(searchValue)) {
+            return null;
+        }
+        return sampleItemService.findSampleItemByCugCode(searchValue);
+    }
+
+    private List<AnalysisItem> filterAnalysisItemsBySampleItem(List<AnalysisItem> resultList, SampleItem sampleItem) {
+        if (sampleItem == null || StringUtils.isBlank(sampleItem.getCugCode()) || resultList == null
+                || resultList.isEmpty()) {
+            return resultList;
+        }
+
+        String targetCug = sampleItem.getCugCode().trim();
+        List<AnalysisItem> filtered = new ArrayList<>();
+        for (AnalysisItem item : resultList) {
+            if (item == null) {
+                continue;
+            }
+            if (StringUtils.equalsIgnoreCase(StringUtils.trimToEmpty(item.getCugCode()), targetCug)) {
+                filtered.add(item);
+            }
+        }
+        return filtered;
     }
 
     private Patient getPatient(Sample sample) {

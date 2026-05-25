@@ -38,6 +38,35 @@ import {
 } from "../utils/Utils";
 import { OrderCurrentTestsHeaders } from "../data/orderCurrentTestsHeaders";
 
+const ORDER_FIXED_FIELD_LABEL_MESSAGE_IDS = {
+  priority: "sample.management.order.fixed.priority",
+  requestDate: "sample.management.order.fixed.requestDate",
+  receivedDateForDisplay:
+    "sample.management.order.fixed.receivedDateForDisplay",
+  receivedTime: "sample.management.order.fixed.receivedTime",
+  nextVisitDate: "sample.management.order.fixed.nextVisitDate",
+  referringSiteName: "sample.management.order.fixed.referringSiteName",
+  referringSiteDepartmentId:
+    "sample.management.order.fixed.referringSiteDepartmentId",
+  provisionalClinicalDiagnosis:
+    "sample.management.order.fixed.provisionalClinicalDiagnosis",
+  providerFirstName: "sample.management.order.fixed.providerFirstName",
+  providerLastName: "sample.management.order.fixed.providerLastName",
+  providerCmp: "sample.management.order.fixed.providerCmp",
+  providerRne: "sample.management.order.fixed.providerRne",
+  providerDni: "sample.management.order.fixed.providerDni",
+  providerSpecialty: "sample.management.order.fixed.providerSpecialty",
+  providerWorkPhone: "sample.management.order.fixed.providerWorkPhone",
+  providerFax: "sample.management.order.fixed.providerFax",
+  providerEmail: "sample.management.order.fixed.providerEmail",
+  paymentOptionSelection:
+    "sample.management.order.fixed.paymentOptionSelection",
+  testLocationCode: "sample.management.order.fixed.testLocationCode",
+  otherLocationCode: "sample.management.order.fixed.otherLocationCode",
+  rememberSiteAndRequester:
+    "sample.management.order.fixed.rememberSiteAndRequester",
+};
+
 /**
  * SampleResultsTable - Display search results for sample items in a data table.
  *
@@ -160,6 +189,16 @@ function SampleResultsTable({
   const resolveAdditionalFieldKey = (field) => {
     const candidate = field?.fieldKey || field?.key || field?.displayName || "";
     return normalizeAdditionalFieldKey(candidate);
+  };
+
+  const resolveOrderFieldLabel = (field) => {
+    if (field?.source === "fixed") {
+      const messageId = ORDER_FIXED_FIELD_LABEL_MESSAGE_IDS[field?.fieldKey];
+      if (messageId) {
+        return intl.formatMessage({ id: messageId });
+      }
+    }
+    return field?.displayName || field?.fieldKey || "";
   };
 
   useEffect(() => {
@@ -440,6 +479,9 @@ function SampleResultsTable({
         orderedTests: item.orderedTests || [],
         additionalFields,
         additionalFieldValues,
+        orderReceptionFields: Array.isArray(item.orderReceptionFields)
+          ? item.orderReceptionFields
+          : [],
         testCount: testCount,
         tests: testCount > 0 ? `${testCount}` : "-",
       };
@@ -927,6 +969,11 @@ function SampleResultsTable({
       ...(originalRow?.additionalFieldValues || {}),
       ...(additionalFieldValuesBySampleId[row.id] || {}),
     };
+    const orderReceptionFields = Array.isArray(
+      originalRow?.orderReceptionFields,
+    )
+      ? originalRow.orderReceptionFields
+      : [];
     if (!originalRow || originalRow.orderedTests.length === 0) {
       return (
         <div
@@ -1583,13 +1630,62 @@ function SampleResultsTable({
               </div>
             );
           })()}
+        {shouldShowCurrentTests && orderReceptionFields.length > 0 && (
+          <div style={{ marginTop: "1.5rem" }}>
+            <h4 style={{ marginBottom: "0.75rem" }}>
+              <FormattedMessage id="sample.management.order.fields.heading" />
+            </h4>
+            <div style={{ display: "grid", gap: "0.75rem" }}>
+              {orderReceptionFields.map((field, index) => {
+                const fieldId = `sample_mgmt_order_readonly_${row.id}_${field.fieldKey}_${index}`;
+                const rawValue =
+                  field?.value === undefined || field?.value === null
+                    ? ""
+                    : String(field.value);
+                const displayValue =
+                  field?.fieldType === "BOOLEAN"
+                    ? rawValue.toLowerCase() === "true"
+                      ? intl.formatMessage({ id: "yes.option" })
+                      : rawValue.toLowerCase() === "false"
+                        ? intl.formatMessage({ id: "no.option" })
+                        : rawValue
+                    : rawValue;
+                const label = resolveOrderFieldLabel(field);
+
+                if (displayValue.length > 120) {
+                  return (
+                    <TextArea
+                      key={fieldId}
+                      id={fieldId}
+                      labelText={label}
+                      value={displayValue}
+                      readOnly
+                    />
+                  );
+                }
+
+                return (
+                  <TextInput
+                    key={fieldId}
+                    id={fieldId}
+                    labelText={label}
+                    value={displayValue}
+                    readOnly
+                  />
+                );
+              })}
+            </div>
+          </div>
+        )}
         {shouldShowCurrentTests && additionalFields.length > 0 && (
           <div style={{ marginTop: "1.5rem" }}>
             <h4 style={{ marginBottom: "0.75rem" }}>
               <FormattedMessage id="sample.additional.fields.heading" />
             </h4>
             <div style={{ marginBottom: "0.75rem", fontWeight: 500 }}>
-              {originalRow.externalId} - {originalRow.sampleType}
+              {(originalRow.cugCode || originalRow.externalId || "-") +
+                " - " +
+                (originalRow.sampleType || "")}
             </div>
             <div style={{ display: "grid", gap: "0.75rem" }}>
               {additionalFields.map((field, idx) => {

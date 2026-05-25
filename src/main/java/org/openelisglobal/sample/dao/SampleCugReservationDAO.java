@@ -7,6 +7,8 @@ import org.openelisglobal.sample.valueholder.SampleCugReservation;
 
 public interface SampleCugReservationDAO extends BaseDAO<SampleCugReservation, Integer> {
 
+    Optional<SampleCugReservation> insertIfValueAvailable(SampleCugReservation reservation);
+
     Optional<SampleCugReservation> findByReservationToken(String reservationToken);
 
     Optional<SampleCugReservation> findActiveByContextAndUser(String reservationContextId, Integer userId);

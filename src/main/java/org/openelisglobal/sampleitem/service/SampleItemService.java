@@ -27,6 +27,8 @@ public interface SampleItemService extends BaseObjectService<SampleItem, String>
 
     List<SampleItem> getSampleItemsByExternalID(String externalId);
 
+    SampleItem findSampleItemByCugCode(String cugCode);
+
     boolean insertAliquots(SampleItem lastSampleItem, List<SampleItem> sampleItemsToInsert,
             List<List<String>> analysisGroups);
 }

@@ -62,6 +62,7 @@ import BatchTestReassignmentAndCancelation from "./BatchTestReassignmentAndCance
 import TestNotificationConfigMenu from "./testNotificationConfigMenu/TestNotificationConfigMenu.js";
 import TestNotificationConfigEdit from "./testNotificationConfigMenu/TestNotificationConfigEdit.js";
 import SearchIndexManagement from "./searchIndexManagement/SearchIndexManagement";
+import AdminHome from "./AdminHome";
 import TestManagementConfigMenu from "./testManagementConfigMenu/TestManagementConfigMenu.js";
 import ValidationTemplateOverrideConfig from "../reports/ValidationTemplateOverrideConfig";
 import ConsentTemplateConfig from "../reports/ConsentTemplateConfig";
@@ -169,6 +170,7 @@ function Admin() {
         aria-label="Side navigation"
         defaultExpanded={true}
         isRail={isSmallScreen}
+        className="oe-admin-sidenav"
       >
         <SideNavItems className="adminSideNav">
           <SideNavMenu
@@ -443,6 +445,7 @@ function Admin() {
       </SideNav>
 
       <Switch>
+        <Route exact path={path} component={AdminHome} />
         <Route path={`${path}/reflex`} component={ReflexTestManagement} />
         <Route path={`${path}/calculatedValue`} component={CalculatedValue} />
         <Route path={`${path}/TestCatalog`} component={TestCatalog} />

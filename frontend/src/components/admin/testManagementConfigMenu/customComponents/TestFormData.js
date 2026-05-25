@@ -41,6 +41,44 @@ export const TestFormData = {
   ],
 };
 
+const ENTRY_SCOPE_OFFICIAL = "OFFICIAL";
+const ENTRY_SCOPE_PRELIMINARY = "PRELIMINARY";
+const DEFAULT_OFFICIAL_BLOCK = "Official";
+const DEFAULT_PRELIMINARY_BLOCK = "Preliminary";
+
+const parseResultFieldMetadata = (metadataJson) => {
+  const defaults = {
+    blockName: DEFAULT_OFFICIAL_BLOCK,
+    entryScope: ENTRY_SCOPE_OFFICIAL,
+    includeInValidation: true,
+  };
+  if (!metadataJson || typeof metadataJson !== "string") {
+    return defaults;
+  }
+  try {
+    const parsed = JSON.parse(metadataJson);
+    const scope =
+      String(parsed?.entryScope || "").toUpperCase() === ENTRY_SCOPE_PRELIMINARY
+        ? ENTRY_SCOPE_PRELIMINARY
+        : ENTRY_SCOPE_OFFICIAL;
+    const blockName =
+      typeof parsed?.resultBlock === "string" && parsed.resultBlock.trim()
+        ? parsed.resultBlock.trim()
+        : scope === ENTRY_SCOPE_PRELIMINARY
+          ? DEFAULT_PRELIMINARY_BLOCK
+          : DEFAULT_OFFICIAL_BLOCK;
+    const includeInValidation =
+      typeof parsed?.includeInValidation === "boolean"
+        ? parsed.includeInValidation
+        : scope === ENTRY_SCOPE_PRELIMINARY
+          ? false
+          : true;
+    return { blockName, entryScope: scope, includeInValidation };
+  } catch (e) {
+    return defaults;
+  }
+};
+
 export const extractAgeRangeParts = (rangeStr) => {
   const [start, end] = rangeStr.split("-");
 
@@ -148,6 +186,7 @@ export const mapTestCatBeanToFormData = (test) => {
                 ? ""
                 : String(field.maxLength),
             metadataJson: field.metadataJson || "",
+            ...parseResultFieldMetadata(field.metadataJson),
             options: Array.isArray(field.options)
               ? field.options
                   .filter((option) => option?.optionLabel)

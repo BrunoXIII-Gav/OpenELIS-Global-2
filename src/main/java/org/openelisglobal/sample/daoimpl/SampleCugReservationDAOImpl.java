@@ -4,7 +4,9 @@ import java.sql.Timestamp;
 import java.util.Optional;
 import org.apache.commons.lang3.StringUtils;
 import org.hibernate.Session;
+import org.hibernate.query.NativeQuery;
 import org.hibernate.query.Query;
+import org.hibernate.type.StandardBasicTypes;
 import org.openelisglobal.common.daoimpl.BaseDAOImpl;
 import org.openelisglobal.sample.dao.SampleCugReservationDAO;
 import org.openelisglobal.sample.valueholder.SampleCugReservation;
@@ -19,6 +21,41 @@ public class SampleCugReservationDAOImpl extends BaseDAOImpl<SampleCugReservatio
 
     public SampleCugReservationDAOImpl() {
         super(SampleCugReservation.class);
+    }
+
+    @Override
+    public Optional<SampleCugReservation> insertIfValueAvailable(SampleCugReservation reservation) {
+        if (reservation == null) {
+            return Optional.empty();
+        }
+
+        String sql = "insert into sample_cug_reservation ("
+                + "id, reserved_value, reservation_token, reservation_context_id, sample_id, patient_id, "
+                + "reserved_by_user_id, status, expires_at, sys_user_id, last_updated"
+                + ") values ("
+                + "nextval('sample_cug_reservation_seq'), :reservedValue, :reservationToken, "
+                + ":reservationContextId, :sampleId, :patientId, :reservedByUserId, :status, :expiresAt, :sysUserId, now()"
+                + ") on conflict (reserved_value) do nothing returning id";
+
+        NativeQuery<?> query = entityManager.unwrap(Session.class).createNativeQuery(sql);
+        query.setParameter("reservedValue", reservation.getReservedValue());
+        query.setParameter("reservationToken", reservation.getReservationToken());
+        query.setParameter("reservationContextId", reservation.getReservationContextId());
+        query.setParameter("sampleId", reservation.getSampleId(), StandardBasicTypes.INTEGER);
+        query.setParameter("patientId", reservation.getPatientId(), StandardBasicTypes.INTEGER);
+        query.setParameter("reservedByUserId", reservation.getReservedByUserId(), StandardBasicTypes.INTEGER);
+        query.setParameter("status", reservation.getStatus());
+        query.setParameter("expiresAt", reservation.getExpiresAt(), StandardBasicTypes.TIMESTAMP);
+        query.setParameter("sysUserId",
+                reservation.getSysUserId() == null ? null : Integer.valueOf(reservation.getSysUserId()),
+                StandardBasicTypes.INTEGER);
+
+        Object result = query.uniqueResult();
+        if (!(result instanceof Number)) {
+            return Optional.empty();
+        }
+        Integer reservationId = ((Number) result).intValue();
+        return get(reservationId);
     }
 
     @Override

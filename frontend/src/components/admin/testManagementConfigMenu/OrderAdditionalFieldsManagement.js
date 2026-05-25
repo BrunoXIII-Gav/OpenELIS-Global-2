@@ -101,6 +101,7 @@ const defaultNewField = {
   requiredWhen: [],
   documentAccept: "application/pdf",
   documentMaxSizeMb: "5",
+  showInSampleReception: false,
 };
 
 const OrderAdditionalFieldsManagement = () => {
@@ -276,6 +277,7 @@ const OrderAdditionalFieldsManagement = () => {
       : [];
 
     const documentMetadata = metadata?.document || {};
+    const sampleReceptionMetadata = metadata?.sampleReception || {};
     const optionLines = (field?.options || [])
       .filter((option) => option?.active !== false)
       .sort((left, right) => (left?.sortOrder ?? 0) - (right?.sortOrder ?? 0))
@@ -312,6 +314,10 @@ const OrderAdditionalFieldsManagement = () => {
         ? documentMetadata.accept.join(", ")
         : "application/pdf",
       documentMaxSizeMb: String(documentMetadata.maxSizeMb ?? 5),
+      showInSampleReception: Boolean(
+        sampleReceptionMetadata.showInSampleReception ??
+          metadata?.showInSampleReception,
+      ),
     };
   };
 
@@ -434,6 +440,13 @@ const OrderAdditionalFieldsManagement = () => {
           metadata.document.maxSizeMb = maxSizeMb;
         }
       }
+    }
+
+    if (formValue.showInSampleReception) {
+      metadata.sampleReception = {
+        ...(metadata.sampleReception || {}),
+        showInSampleReception: true,
+      };
     }
 
     return {
@@ -878,6 +891,9 @@ const OrderAdditionalFieldsManagement = () => {
                       <FormattedMessage id="order.additional.fields.readonly" />
                     </TableHeader>
                     <TableHeader>
+                      <FormattedMessage id="order.additional.fields.showInSampleReception" />
+                    </TableHeader>
+                    <TableHeader>
                       <FormattedMessage id="order.additional.fields.sortOrder" />
                     </TableHeader>
                   </TableRow>
@@ -923,6 +939,20 @@ const OrderAdditionalFieldsManagement = () => {
                             updateFixedConfig(
                               config.fieldKey,
                               "readonly",
+                              checked,
+                            )
+                          }
+                        />
+                      </TableCell>
+                      <TableCell>
+                        <Checkbox
+                          id={`fixed-sample-reception-${config.fieldKey}`}
+                          labelText=""
+                          checked={!!config.showInSampleReception}
+                          onChange={(_event, { checked }) =>
+                            updateFixedConfig(
+                              config.fieldKey,
+                              "showInSampleReception",
                               checked,
                             )
                           }
@@ -1120,6 +1150,21 @@ const OrderAdditionalFieldsManagement = () => {
                   }
                 />
               </Column>
+              <Column lg={8} md={4} sm={4}>
+                <Checkbox
+                  id="order-additional-show-in-sample-reception"
+                  labelText={intl.formatMessage({
+                    id: "order.additional.fields.showInSampleReception",
+                  })}
+                  checked={newField.showInSampleReception}
+                  onChange={(_event, { checked }) =>
+                    setNewField((previous) => ({
+                      ...previous,
+                      showInSampleReception: checked,
+                    }))
+                  }
+                />
+              </Column>
             </Grid>
 
             {(newField.fieldType === "SELECT" ||
@@ -1259,6 +1304,22 @@ const OrderAdditionalFieldsManagement = () => {
                 searchable: field.searchable,
                 searchUnique: field.searchUnique,
                 active: field.active,
+                showInSampleReception: Boolean(
+                  (() => {
+                    if (!field?.metadataJson) {
+                      return false;
+                    }
+                    try {
+                      const parsed = JSON.parse(field.metadataJson);
+                      return Boolean(
+                        parsed?.sampleReception?.showInSampleReception ??
+                          parsed?.showInSampleReception,
+                      );
+                    } catch (_error) {
+                      return false;
+                    }
+                  })(),
+                ),
                 options: field.options || [],
               }))}
               headers={[
@@ -1308,6 +1369,12 @@ const OrderAdditionalFieldsManagement = () => {
                   key: "active",
                   header: intl.formatMessage({
                     id: "order.additional.fields.active",
+                  }),
+                },
+                {
+                  key: "showInSampleReception",
+                  header: intl.formatMessage({
+                    id: "order.additional.fields.showInSampleReception",
                   }),
                 },
                 {
@@ -1428,6 +1495,17 @@ const OrderAdditionalFieldsManagement = () => {
                               ) : (
                                 <Tag type="red">
                                   <FormattedMessage id="status.inactive" />
+                                </Tag>
+                              )}
+                            </TableCell>
+                            <TableCell>
+                              {row.cells[8].value ? (
+                                <Tag type="blue">
+                                  <FormattedMessage id="yes.option" />
+                                </Tag>
+                              ) : (
+                                <Tag type="gray">
+                                  <FormattedMessage id="no.option" />
                                 </Tag>
                               )}
                             </TableCell>

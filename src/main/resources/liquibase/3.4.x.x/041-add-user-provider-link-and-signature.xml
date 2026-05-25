@@ -1,0 +1,68 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<databaseChangeLog
+  xmlns="http://www.liquibase.org/xml/ns/dbchangelog"
+  xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+  xsi:schemaLocation="http://www.liquibase.org/xml/ns/dbchangelog http://www.liquibase.org/xml/ns/dbchangelog/dbchangelog-3.8.xsd">
+
+  <changeSet id="041-01-add-system-user-provider-link-and-signature-columns" author="openelis">
+    <preConditions onFail="MARK_RAN">
+      <and>
+        <tableExists tableName="system_user"/>
+        <not>
+          <columnExists tableName="system_user" columnName="linked_provider_person_id"/>
+        </not>
+      </and>
+    </preConditions>
+
+    <addColumn tableName="system_user">
+      <column name="linked_provider_person_id" type="VARCHAR(20)"/>
+      <column name="signature_image_data" type="TEXT"/>
+      <column name="signature_image_content_type" type="VARCHAR(64)"/>
+    </addColumn>
+
+    <rollback>
+      <dropColumn tableName="system_user" columnName="signature_image_content_type"/>
+      <dropColumn tableName="system_user" columnName="signature_image_data"/>
+      <dropColumn tableName="system_user" columnName="linked_provider_person_id"/>
+    </rollback>
+  </changeSet>
+
+  <changeSet id="041-02-add-provider-selection-policy-config" author="openelis">
+    <preConditions onFail="MARK_RAN">
+      <sqlCheck expectedResult="0">SELECT count(*) FROM clinlims.site_information WHERE name = 'orderProviderSelectionPolicy'</sqlCheck>
+    </preConditions>
+
+    <insert schemaName="clinlims" tableName="site_information">
+      <column name="id" valueSequenceNext="site_information_seq" />
+      <column name="name" value="orderProviderSelectionPolicy" />
+      <column name="lastupdated" valueComputed="${now}" />
+      <column name="description" value="Provider selection policy in order entry: OPEN or SELF_ONLY" />
+      <column name="value" value="OPEN" />
+      <column name="encrypted" value="false" />
+      <column name="domain_id" valueComputed="(SELECT id FROM site_information_domain WHERE name = 'patientEntryConfig')" />
+      <column name="value_type" value="text" />
+      <column name="group" value="0" />
+      <column name="description_key" value="siteInfo.orderProviderSelectionPolicy" />
+    </insert>
+  </changeSet>
+
+  <changeSet id="041-03-add-provider-selection-override-role-config" author="openelis">
+    <preConditions onFail="MARK_RAN">
+      <sqlCheck expectedResult="0">SELECT count(*) FROM clinlims.site_information WHERE name = 'orderProviderOverrideRoles'</sqlCheck>
+    </preConditions>
+
+    <insert schemaName="clinlims" tableName="site_information">
+      <column name="id" valueSequenceNext="site_information_seq" />
+      <column name="name" value="orderProviderOverrideRoles" />
+      <column name="lastupdated" valueComputed="${now}" />
+      <column name="description" value="Comma-separated role names that can bypass SELF_ONLY provider policy" />
+      <column name="value" value="Global Administrator,Admin" />
+      <column name="encrypted" value="false" />
+      <column name="domain_id" valueComputed="(SELECT id FROM site_information_domain WHERE name = 'patientEntryConfig')" />
+      <column name="value_type" value="text" />
+      <column name="group" value="0" />
+      <column name="description_key" value="siteInfo.orderProviderOverrideRoles" />
+    </insert>
+  </changeSet>
+
+</databaseChangeLog>

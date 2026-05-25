@@ -11,8 +11,6 @@ import java.util.Map;
 import java.util.Optional;
 import java.util.UUID;
 import org.apache.commons.lang3.StringUtils;
-import org.hibernate.exception.ConstraintViolationException;
-import org.openelisglobal.common.exception.LIMSRuntimeException;
 import org.openelisglobal.common.services.SampleAddService.SampleTestCollection;
 import org.openelisglobal.sample.bean.SampleCugPreviewRequest;
 import org.openelisglobal.sample.bean.SampleCugPreviewResponse;
@@ -148,29 +146,18 @@ public class SampleCugServiceImpl implements SampleCugService {
             reservation.setStatus(ReservationStatus.RESERVED.name());
             reservation.setExpiresAt(calculateExpiry(DEFAULT_RESERVATION_TTL_MINUTES));
             reservation.setSysUserId(currentUserId);
-            try {
-                Integer reservationId = sampleCugReservationDAO.insert(reservation);
-                return sampleCugReservationDAO.get(reservationId).orElse(reservation);
-            } catch (LIMSRuntimeException e) {
-                if (isReservationValueUniqueViolation(e)) {
-                    Optional<SampleCugReservation> activeContextReservation = sampleCugReservationDAO
-                            .findActiveByContextAndUser(contextId, userNumericId);
-                    if (activeContextReservation.isPresent() && !isExpired(activeContextReservation.get())) {
-                        return activeContextReservation.get();
-                    }
-                    generatedInContext.add(generatedValue);
-                    continue;
-                }
-                throw e;
-            } catch (ConstraintViolationException e) {
-                generatedInContext.add(generatedValue);
-            } catch (RuntimeException e) {
-                if (isReservationValueUniqueViolation(e)) {
-                    generatedInContext.add(generatedValue);
-                    continue;
-                }
-                throw e;
+            Optional<SampleCugReservation> insertedReservation = sampleCugReservationDAO
+                    .insertIfValueAvailable(reservation);
+            if (insertedReservation.isPresent()) {
+                return insertedReservation.get();
             }
+
+            Optional<SampleCugReservation> activeContextReservation = sampleCugReservationDAO
+                    .findActiveByContextAndUser(contextId, userNumericId);
+            if (activeContextReservation.isPresent() && !isExpired(activeContextReservation.get())) {
+                return activeContextReservation.get();
+            }
+            generatedInContext.add(generatedValue);
         }
 
         throw new IllegalArgumentException(
@@ -410,27 +397,6 @@ public class SampleCugServiceImpl implements SampleCugService {
 
     private void expireOutdatedReservations() {
         sampleCugReservationDAO.expireReservations(new Timestamp(System.currentTimeMillis()));
-    }
-
-    private boolean isReservationValueUniqueViolation(Throwable throwable) {
-        Throwable current = throwable;
-        while (current != null) {
-            if (current instanceof ConstraintViolationException) {
-                ConstraintViolationException constraintViolationException = (ConstraintViolationException) current;
-                String constraintName = StringUtils.trimToEmpty(constraintViolationException.getConstraintName());
-                if ("uq_sample_cug_reservation_value".equalsIgnoreCase(constraintName)) {
-                    return true;
-                }
-            }
-            String message = StringUtils.trimToEmpty(current.getMessage());
-            if (StringUtils.containsIgnoreCase(message, "uq_sample_cug_reservation_value")
-                    || StringUtils.containsIgnoreCase(message, "duplicate key value")
-                            && StringUtils.containsIgnoreCase(message, "reserved_value")) {
-                return true;
-            }
-            current = current.getCause();
-        }
-        return false;
     }
 
     private static final class CugComponents {

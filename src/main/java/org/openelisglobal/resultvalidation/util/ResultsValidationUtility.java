@@ -437,6 +437,9 @@ public class ResultsValidationUtility {
         ResultValidationItem testItem = new ResultValidationItem();
 
         testItem.setAccessionNumber(accessionNumber);
+        Sample sample = analysis.getSampleItem() == null ? null : analysis.getSampleItem().getSample();
+        testItem.setCugCode(analysis.getSampleItem() == null ? null : analysis.getSampleItem().getCugCode());
+        testItem.setReceivedDate(sample == null ? null : sample.getReceivedDateForDisplay());
         testItem.setAnalysis(analysis);
         testItem.setSequenceNumber(sequenceNumber);
         testItem.setTestName(displayTestName);
@@ -653,6 +656,8 @@ public class ResultsValidationUtility {
         testUnits = augmentUOMWithRange(testUnits, testResultItem.getResult());
 
         analysisResultItem.setAccessionNumber(testResultItem.getAccessionNumber());
+        analysisResultItem.setCugCode(testResultItem.getCugCode());
+        analysisResultItem.setReceivedDate(testResultItem.getReceivedDate());
         analysisResultItem.setLowerCritical(
                 testResultItem.getLowerCritical() == Double.NEGATIVE_INFINITY ? 0 : testResultItem.getLowerCritical());
         analysisResultItem.setHigherCritical(testResultItem.getHigherCritical() == Double.POSITIVE_INFINITY ? 0
@@ -715,8 +720,21 @@ public class ResultsValidationUtility {
         if (definitions == null) {
             definitions = new ArrayList<>();
         }
+        definitions = definitions.stream().filter(this::shouldIncludeInValidation)
+                .collect(Collectors.toCollection(ArrayList::new));
         additionalFieldDefinitionsByTestId.put(testId, definitions);
         return definitions;
+    }
+
+    private boolean shouldIncludeInValidation(TestAdditionalFieldPayload definition) {
+        if (definition == null || Boolean.FALSE.equals(definition.getActive())) {
+            return false;
+        }
+        if (definition.getIncludeInValidation() != null) {
+            return Boolean.TRUE.equals(definition.getIncludeInValidation());
+        }
+        String scope = definition.getEntryScope();
+        return !"PRELIMINARY".equalsIgnoreCase(scope);
     }
 
     private AnalysisItem.ResultFileForm toResultFileForm(ResultFile file) {

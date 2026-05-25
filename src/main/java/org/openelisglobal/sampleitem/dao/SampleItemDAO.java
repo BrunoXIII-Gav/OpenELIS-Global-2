@@ -70,6 +70,8 @@ public interface SampleItemDAO extends BaseDAO<SampleItem, String> {
 
     Sample findSampleByCugCode(String cugCode) throws LIMSRuntimeException;
 
+    SampleItem findSampleItemByCugCode(String cugCode) throws LIMSRuntimeException;
+
     public boolean insertAliquots(SampleItem lastSampleItem, List<SampleItem> sampleItemsToInsert,
             List<List<String>> analysisGroups) throws LIMSRuntimeException;
 

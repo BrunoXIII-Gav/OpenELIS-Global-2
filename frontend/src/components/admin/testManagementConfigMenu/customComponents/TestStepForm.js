@@ -1290,8 +1290,25 @@ export const StepThreeTestResultTypeAndLoinc = ({
     "SELECT",
     "MULTISELECT",
     "RADIO",
+    "DOCUMENT",
   ];
+  const entryScopeOptions = ["OFFICIAL", "PRELIMINARY"];
   const optionBasedTypes = new Set(["SELECT", "MULTISELECT", "RADIO"]);
+  const defaultOfficialBlock = intl.formatMessage({
+    id: "test.additionalFields.block.defaultOfficial",
+    defaultMessage: "Official",
+  });
+  const defaultPreliminaryBlock = intl.formatMessage({
+    id: "test.additionalFields.block.defaultPreliminary",
+    defaultMessage: "Preliminary",
+  });
+  const [editingAdditionalFieldIndexes, setEditingAdditionalFieldIndexes] =
+    useState([]);
+
+  useEffect(() => {
+    setEditingAdditionalFieldIndexes([]);
+  }, [formData?.testId]);
+
   const normalizeAdditionalFieldKey = (field = {}) => {
     const source = (field.fieldKey || field.displayName || "").trim();
     const normalized = source
@@ -1303,8 +1320,144 @@ export const StepThreeTestResultTypeAndLoinc = ({
     return normalized;
   };
 
+  const parseFieldMetadata = (metadataJson) => {
+    if (!metadataJson || typeof metadataJson !== "string") {
+      return {};
+    }
+    try {
+      const parsed = JSON.parse(metadataJson);
+      return parsed && typeof parsed === "object" ? parsed : {};
+    } catch (e) {
+      return {};
+    }
+  };
+
+  const sanitizeEntryScope = (scopeValue) => {
+    const normalized = String(scopeValue || "").toUpperCase();
+    return normalized === "PRELIMINARY" ? "PRELIMINARY" : "OFFICIAL";
+  };
+
+  const resolveDefaultBlockName = (scope) =>
+    scope === "PRELIMINARY" ? defaultPreliminaryBlock : defaultOfficialBlock;
+
+  const resolveFieldMetadata = (field = {}) => {
+    const parsedMetadata = parseFieldMetadata(field.metadataJson);
+    const entryScope = sanitizeEntryScope(
+      field.entryScope || parsedMetadata.entryScope,
+    );
+    const blockNameRaw =
+      field.blockName ?? parsedMetadata.resultBlock ?? parsedMetadata.blockName;
+    const blockName =
+      typeof blockNameRaw === "string" && blockNameRaw.trim().length > 0
+        ? blockNameRaw.trim()
+        : resolveDefaultBlockName(entryScope);
+    const includeInValidationRaw =
+      field.includeInValidation ?? parsedMetadata.includeInValidation;
+    const includeInValidation =
+      typeof includeInValidationRaw === "boolean"
+        ? includeInValidationRaw
+        : entryScope === "PRELIMINARY"
+          ? false
+          : true;
+
+    return { blockName, entryScope, includeInValidation };
+  };
+
+  const parseCsvValues = (value) => {
+    if (Array.isArray(value)) {
+      return value
+        .map((entry) => String(entry || "").trim())
+        .filter((entry) => entry.length > 0);
+    }
+    return String(value || "")
+      .split(",")
+      .map((entry) => entry.trim())
+      .filter((entry) => entry.length > 0);
+  };
+
+  const resolveDocumentSettings = (field = {}) => {
+    const parsedMetadata = parseFieldMetadata(field.metadataJson);
+    const metadataDocument = parsedMetadata?.document || {};
+    const acceptedValues = Array.isArray(metadataDocument.accept)
+      ? metadataDocument.accept
+      : [];
+    const metadataMaxSize =
+      metadataDocument.maxSizeMb == null
+        ? ""
+        : String(metadataDocument.maxSizeMb);
+
+    return {
+      documentAccept:
+        field.documentAccept != null
+          ? String(field.documentAccept)
+          : acceptedValues.join(","),
+      documentMaxSizeMb:
+        field.documentMaxSizeMb != null
+          ? String(field.documentMaxSizeMb)
+          : metadataMaxSize,
+    };
+  };
+
+  const buildFieldMetadataJson = (field = {}) => {
+    const parsedMetadata = parseFieldMetadata(field.metadataJson);
+    const resolved = resolveFieldMetadata(field);
+    const metadata = {
+      ...parsedMetadata,
+      resultBlock: resolved.blockName,
+      entryScope: resolved.entryScope,
+      includeInValidation: resolved.includeInValidation,
+    };
+
+    if (String(field.fieldType || "").toUpperCase() === "DOCUMENT") {
+      const acceptedMimeTypes = parseCsvValues(field.documentAccept);
+      const maxSizeMb = Number.parseInt(field.documentMaxSizeMb, 10);
+      const documentMetadata = {};
+      if (acceptedMimeTypes.length > 0) {
+        documentMetadata.accept = acceptedMimeTypes;
+      }
+      if (Number.isFinite(maxSizeMb) && maxSizeMb > 0) {
+        documentMetadata.maxSizeMb = maxSizeMb;
+      }
+      if (Object.keys(documentMetadata).length > 0) {
+        metadata.document = documentMetadata;
+      } else if (metadata.document) {
+        delete metadata.document;
+      }
+    } else if (metadata.document) {
+      delete metadata.document;
+    }
+
+    return JSON.stringify({
+      ...metadata,
+    });
+  };
+
+  const normalizeAdditionalFieldsForSubmit = (fields) => {
+    const source = Array.isArray(fields) ? fields : [];
+    return source.map((field, index) => {
+      const resolved = resolveFieldMetadata(field);
+      return {
+        ...field,
+        sortOrder:
+          typeof field?.sortOrder === "number" ? field.sortOrder : index + 1,
+        blockName: resolved.blockName,
+        entryScope: resolved.entryScope,
+        includeInValidation: resolved.includeInValidation,
+        metadataJson: buildFieldMetadataJson({ ...field, ...resolved }),
+      };
+    });
+  };
+
   const handleSubmit = (values) => {
-    handleNextStep(values, true);
+    handleNextStep(
+      {
+        ...values,
+        additionalFields: normalizeAdditionalFieldsForSubmit(
+          values.additionalFields,
+        ),
+      },
+      true,
+    );
   };
 
   return (
@@ -1322,6 +1475,10 @@ export const StepThreeTestResultTypeAndLoinc = ({
                   .trim()
                   .required("Display Name is required"),
                 fieldType: Yup.string().required("Field Type is required"),
+                blockName: Yup.string().trim().required("Block is required"),
+                entryScope: Yup.string()
+                  .oneOf(["OFFICIAL", "PRELIMINARY"])
+                  .required("Entry Scope is required"),
                 options: Yup.array().when(["fieldType", "active"], {
                   is: (fieldType, active) =>
                     optionBasedTypes.has(fieldType) && active !== false,
@@ -1440,8 +1597,22 @@ export const StepThreeTestResultTypeAndLoinc = ({
           const normalizedAdditionalFields = Array.isArray(
             values.additionalFields,
           )
-            ? values.additionalFields
+            ? values.additionalFields.map((field) => {
+                const resolved = resolveFieldMetadata(field);
+                const documentSettings = resolveDocumentSettings(field);
+                return {
+                  ...field,
+                  ...resolved,
+                  ...documentSettings,
+                };
+              })
             : [];
+          const activeAdditionalFields = normalizedAdditionalFields
+            .map((field, index) => ({ field, fieldIndex: index }))
+            .filter(({ field }) => field?.active !== false);
+          const inactiveAdditionalFields = normalizedAdditionalFields
+            .map((field, index) => ({ field, fieldIndex: index }))
+            .filter(({ field }) => field?.active === false);
 
           const handleAddAdditionalField = () => {
             const nextFields = [
@@ -1455,30 +1626,99 @@ export const StepThreeTestResultTypeAndLoinc = ({
                 sortOrder: normalizedAdditionalFields.length + 1,
                 defaultValue: "",
                 maxLength: "",
-                metadataJson: "",
+                metadataJson: JSON.stringify({
+                  resultBlock: defaultOfficialBlock,
+                  entryScope: "OFFICIAL",
+                  includeInValidation: true,
+                }),
+                blockName: defaultOfficialBlock,
+                entryScope: "OFFICIAL",
+                includeInValidation: true,
+                documentAccept: "",
+                documentMaxSizeMb: "",
                 options: [],
               },
             ];
             setFieldValue("additionalFields", nextFields);
+            setEditingAdditionalFieldIndexes((previous) =>
+              Array.from(new Set([...previous, nextFields.length - 1])),
+            );
           };
 
-          const handleRemoveAdditionalField = (fieldIndex) => {
-            const nextFields = normalizedAdditionalFields
-              .filter((_, index) => index !== fieldIndex)
-              .map((field, index) => ({ ...field, sortOrder: index + 1 }));
+          const handleDisableAdditionalField = (fieldIndex) => {
+            const nextFields = [...normalizedAdditionalFields];
+            const target = { ...(nextFields[fieldIndex] || {}) };
+            target.active = false;
+            target.metadataJson = buildFieldMetadataJson(target);
+            nextFields[fieldIndex] = target;
             setFieldValue("additionalFields", nextFields);
+            setEditingAdditionalFieldIndexes((previous) =>
+              previous.filter((index) => index !== fieldIndex),
+            );
+          };
+
+          const handleEnableAdditionalField = (fieldIndex) => {
+            const nextFields = [...normalizedAdditionalFields];
+            const target = { ...(nextFields[fieldIndex] || {}) };
+            target.active = true;
+            target.metadataJson = buildFieldMetadataJson(target);
+            nextFields[fieldIndex] = target;
+            setFieldValue("additionalFields", nextFields);
+          };
+
+          const handleStartEditAdditionalField = (fieldIndex) => {
+            setEditingAdditionalFieldIndexes((previous) =>
+              Array.from(new Set([...previous, fieldIndex])),
+            );
+          };
+
+          const handleStopEditAdditionalField = (fieldIndex) => {
+            setEditingAdditionalFieldIndexes((previous) =>
+              previous.filter((index) => index !== fieldIndex),
+            );
           };
 
           const handleAdditionalFieldChange = (fieldIndex, key, newValue) => {
             const nextFields = [...normalizedAdditionalFields];
             const target = { ...(nextFields[fieldIndex] || {}) };
             target[key] = newValue;
+            if (key === "entryScope") {
+              const normalizedScope = sanitizeEntryScope(newValue);
+              target.entryScope = normalizedScope;
+              if (
+                !target.blockName ||
+                (typeof target.blockName === "string" &&
+                  target.blockName.trim().length === 0)
+              ) {
+                target.blockName = resolveDefaultBlockName(normalizedScope);
+              }
+              if (normalizedScope === "PRELIMINARY") {
+                target.includeInValidation = false;
+              } else if (target.includeInValidation == null) {
+                target.includeInValidation = true;
+              }
+            }
             if (key === "fieldType" && !optionBasedTypes.has(newValue)) {
               target.options = [];
             }
+            if (
+              key === "fieldType" &&
+              String(newValue || "").toUpperCase() !== "DOCUMENT"
+            ) {
+              target.documentAccept = "";
+              target.documentMaxSizeMb = "";
+            }
+            const resolved = resolveFieldMetadata(target);
+            target.blockName = resolved.blockName;
+            target.entryScope = resolved.entryScope;
+            target.includeInValidation = resolved.includeInValidation;
+            target.metadataJson = buildFieldMetadataJson(target);
             nextFields[fieldIndex] = target;
             setFieldValue("additionalFields", nextFields);
           };
+
+          const isFieldEditable = (fieldIndex, field) =>
+            !field?.id || editingAdditionalFieldIndexes.includes(fieldIndex);
 
           const handleAddFieldOption = (fieldIndex) => {
             const nextFields = [...normalizedAdditionalFields];
@@ -1603,9 +1843,10 @@ export const StepThreeTestResultTypeAndLoinc = ({
                     >
                       <FormattedMessage id="test.additionalFields.description" />
                     </p>
-                    {normalizedAdditionalFields.map((field, fieldIndex) => {
+                    {activeAdditionalFields.map(({ field, fieldIndex }) => {
                       const fieldType = field?.fieldType || "TEXT";
                       const supportsOptions = optionBasedTypes.has(fieldType);
+                      const isEditable = isFieldEditable(fieldIndex, field);
                       return (
                         <Section
                           key={`additional-field-${fieldIndex}`}
@@ -1623,6 +1864,7 @@ export const StepThreeTestResultTypeAndLoinc = ({
                                   id: "test.additionalFields.displayName",
                                 })}
                                 value={field?.displayName || ""}
+                                readOnly={!isEditable}
                                 onChange={(event) =>
                                   handleAdditionalFieldChange(
                                     fieldIndex,
@@ -1639,6 +1881,7 @@ export const StepThreeTestResultTypeAndLoinc = ({
                                   id: "test.additionalFields.fieldKey",
                                 })}
                                 value={field?.fieldKey || ""}
+                                readOnly={!isEditable}
                                 onChange={(event) =>
                                   handleAdditionalFieldChange(
                                     fieldIndex,
@@ -1655,6 +1898,7 @@ export const StepThreeTestResultTypeAndLoinc = ({
                                   id: "test.additionalFields.fieldType",
                                 })}
                                 value={fieldType}
+                                disabled={!isEditable}
                                 onChange={(event) =>
                                   handleAdditionalFieldChange(
                                     fieldIndex,
@@ -1674,6 +1918,59 @@ export const StepThreeTestResultTypeAndLoinc = ({
                                 )}
                               </Select>
                             </Column>
+                            <Column lg={3} md={4} sm={4}>
+                              <TextInput
+                                id={`additional-field-block-${fieldIndex}`}
+                                labelText={intl.formatMessage({
+                                  id: "test.additionalFields.blockName",
+                                  defaultMessage: "Block",
+                                })}
+                                value={field?.blockName || ""}
+                                readOnly={!isEditable}
+                                onChange={(event) =>
+                                  handleAdditionalFieldChange(
+                                    fieldIndex,
+                                    "blockName",
+                                    event.target.value,
+                                  )
+                                }
+                              />
+                            </Column>
+                            <Column lg={3} md={4} sm={4}>
+                              <Select
+                                id={`additional-field-scope-${fieldIndex}`}
+                                labelText={intl.formatMessage({
+                                  id: "test.additionalFields.entryScope",
+                                  defaultMessage: "Entry Scope",
+                                })}
+                                value={field?.entryScope || "OFFICIAL"}
+                                disabled={!isEditable}
+                                onChange={(event) =>
+                                  handleAdditionalFieldChange(
+                                    fieldIndex,
+                                    "entryScope",
+                                    event.target.value,
+                                  )
+                                }
+                              >
+                                {entryScopeOptions.map((scopeOption) => (
+                                  <SelectItem
+                                    key={`${fieldIndex}-scope-${scopeOption}`}
+                                    value={scopeOption}
+                                    text={intl.formatMessage({
+                                      id:
+                                        scopeOption === "OFFICIAL"
+                                          ? "test.additionalFields.entryScope.official"
+                                          : "test.additionalFields.entryScope.preliminary",
+                                      defaultMessage:
+                                        scopeOption === "OFFICIAL"
+                                          ? "Official"
+                                          : "Preliminary",
+                                    })}
+                                  />
+                                ))}
+                              </Select>
+                            </Column>
                             <Column lg={2} md={2} sm={2}>
                               <TextInput
                                 id={`additional-field-max-length-${fieldIndex}`}
@@ -1681,7 +1978,14 @@ export const StepThreeTestResultTypeAndLoinc = ({
                                   id: "test.additionalFields.maxLength",
                                 })}
                                 type="number"
-                                value={field?.maxLength || ""}
+                                value={
+                                  fieldType === "DOCUMENT"
+                                    ? ""
+                                    : field?.maxLength || ""
+                                }
+                                readOnly={
+                                  !isEditable || fieldType === "DOCUMENT"
+                                }
                                 onChange={(event) =>
                                   handleAdditionalFieldChange(
                                     fieldIndex,
@@ -1697,7 +2001,14 @@ export const StepThreeTestResultTypeAndLoinc = ({
                                 labelText={intl.formatMessage({
                                   id: "test.additionalFields.defaultValue",
                                 })}
-                                value={field?.defaultValue || ""}
+                                value={
+                                  fieldType === "DOCUMENT"
+                                    ? ""
+                                    : field?.defaultValue || ""
+                                }
+                                readOnly={
+                                  !isEditable || fieldType === "DOCUMENT"
+                                }
                                 onChange={(event) =>
                                   handleAdditionalFieldChange(
                                     fieldIndex,
@@ -1707,6 +2018,56 @@ export const StepThreeTestResultTypeAndLoinc = ({
                                 }
                               />
                             </Column>
+                            {fieldType === "DOCUMENT" && (
+                              <>
+                                <Column lg={8} md={4} sm={4}>
+                                  <TextInput
+                                    id={`additional-field-document-accept-${fieldIndex}`}
+                                    labelText={intl.formatMessage({
+                                      id: "order.additional.fields.document.accept",
+                                    })}
+                                    value={field?.documentAccept || ""}
+                                    readOnly={!isEditable}
+                                    onChange={(event) =>
+                                      handleAdditionalFieldChange(
+                                        fieldIndex,
+                                        "documentAccept",
+                                        event.target.value,
+                                      )
+                                    }
+                                  />
+                                  <p
+                                    style={{
+                                      fontSize: "0.75rem",
+                                      color: "#6f6f6f",
+                                      marginTop: "0.25rem",
+                                    }}
+                                  >
+                                    {intl.formatMessage({
+                                      id: "order.additional.fields.document.accept.helper",
+                                    })}
+                                  </p>
+                                </Column>
+                                <Column lg={3} md={4} sm={4}>
+                                  <TextInput
+                                    id={`additional-field-document-max-size-${fieldIndex}`}
+                                    labelText={intl.formatMessage({
+                                      id: "order.additional.fields.document.maxSizeMb",
+                                    })}
+                                    type="number"
+                                    value={field?.documentMaxSizeMb || ""}
+                                    readOnly={!isEditable}
+                                    onChange={(event) =>
+                                      handleAdditionalFieldChange(
+                                        fieldIndex,
+                                        "documentMaxSizeMb",
+                                        event.target.value,
+                                      )
+                                    }
+                                  />
+                                </Column>
+                              </>
+                            )}
                             <Column lg={16} md={8} sm={4}>
                               <div
                                 style={{
@@ -1722,6 +2083,7 @@ export const StepThreeTestResultTypeAndLoinc = ({
                                     id: "test.additionalFields.required",
                                   })}
                                   checked={field?.required === true}
+                                  disabled={!isEditable}
                                   onChange={(event) =>
                                     handleAdditionalFieldChange(
                                       fieldIndex,
@@ -1731,28 +2093,56 @@ export const StepThreeTestResultTypeAndLoinc = ({
                                   }
                                 />
                                 <Checkbox
-                                  id={`additional-field-active-${fieldIndex}`}
+                                  id={`additional-field-validation-${fieldIndex}`}
                                   labelText={intl.formatMessage({
-                                    id: "test.additionalFields.active",
+                                    id: "test.additionalFields.includeInValidation",
+                                    defaultMessage: "Include In Validation",
                                   })}
-                                  checked={field?.active !== false}
+                                  checked={field?.includeInValidation !== false}
+                                  disabled={
+                                    !isEditable ||
+                                    field?.entryScope === "PRELIMINARY"
+                                  }
                                   onChange={(event) =>
                                     handleAdditionalFieldChange(
                                       fieldIndex,
-                                      "active",
+                                      "includeInValidation",
                                       event.target.checked,
                                     )
                                   }
                                 />
                                 <Button
-                                  kind="danger--tertiary"
+                                  kind="tertiary"
                                   size="sm"
                                   type="button"
                                   onClick={() =>
-                                    handleRemoveAdditionalField(fieldIndex)
+                                    isEditable
+                                      ? handleStopEditAdditionalField(
+                                          fieldIndex,
+                                        )
+                                      : handleStartEditAdditionalField(
+                                          fieldIndex,
+                                        )
                                   }
                                 >
-                                  <FormattedMessage id="test.additionalFields.removeField" />
+                                  <FormattedMessage
+                                    id={
+                                      isEditable
+                                        ? "label.button.cancel"
+                                        : "label.button.edit"
+                                    }
+                                  />
+                                </Button>
+                                <Button
+                                  kind="danger--tertiary"
+                                  size="sm"
+                                  type="button"
+                                  disabled={!isEditable}
+                                  onClick={() =>
+                                    handleDisableAdditionalField(fieldIndex)
+                                  }
+                                >
+                                  <FormattedMessage id="test.additionalFields.disableField" />
                                 </Button>
                               </div>
                             </Column>
@@ -1777,6 +2167,7 @@ export const StepThreeTestResultTypeAndLoinc = ({
                                               id: "test.additionalFields.optionLabel",
                                             })}
                                             value={option?.optionLabel || ""}
+                                            readOnly={!isEditable}
                                             onChange={(event) =>
                                               handleFieldOptionChange(
                                                 fieldIndex,
@@ -1794,6 +2185,7 @@ export const StepThreeTestResultTypeAndLoinc = ({
                                               id: "test.additionalFields.optionKey",
                                             })}
                                             value={option?.optionKey || ""}
+                                            readOnly={!isEditable}
                                             onChange={(event) =>
                                               handleFieldOptionChange(
                                                 fieldIndex,
@@ -1811,6 +2203,7 @@ export const StepThreeTestResultTypeAndLoinc = ({
                                               id: "test.additionalFields.active",
                                             })}
                                             checked={option?.active !== false}
+                                            disabled={!isEditable}
                                             onChange={(event) =>
                                               handleFieldOptionChange(
                                                 fieldIndex,
@@ -1826,6 +2219,7 @@ export const StepThreeTestResultTypeAndLoinc = ({
                                             kind="danger--tertiary"
                                             size="sm"
                                             type="button"
+                                            disabled={!isEditable}
                                             onClick={() =>
                                               handleRemoveFieldOption(
                                                 fieldIndex,
@@ -1844,6 +2238,7 @@ export const StepThreeTestResultTypeAndLoinc = ({
                                     size="sm"
                                     type="button"
                                     style={{ marginTop: "0.5rem" }}
+                                    disabled={!isEditable}
                                     onClick={() =>
                                       handleAddFieldOption(fieldIndex)
                                     }
@@ -1865,6 +2260,59 @@ export const StepThreeTestResultTypeAndLoinc = ({
                     >
                       <FormattedMessage id="test.additionalFields.addField" />
                     </Button>
+                    {inactiveAdditionalFields.length > 0 && (
+                      <div style={{ marginTop: "1rem" }}>
+                        <Heading level={6} size="compact-01">
+                          <FormattedMessage id="test.additionalFields.disabled.title" />
+                        </Heading>
+                        {inactiveAdditionalFields.map(
+                          ({ field, fieldIndex }) => (
+                            <Section
+                              key={`inactive-additional-field-${fieldIndex}`}
+                              style={{
+                                border: "1px solid #e0e0e0",
+                                padding: "0.75rem",
+                                marginTop: "0.5rem",
+                                opacity: 0.8,
+                              }}
+                            >
+                              <Grid condensed fullWidth>
+                                <Column lg={8} md={4} sm={4}>
+                                  <p style={{ marginBottom: "0.25rem" }}>
+                                    <strong>{field?.displayName || "-"}</strong>
+                                  </p>
+                                  <p style={{ marginBottom: "0.25rem" }}>
+                                    {field?.fieldKey || "-"} |{" "}
+                                    {field?.fieldType || "TEXT"} |{" "}
+                                    {field?.blockName || defaultOfficialBlock}
+                                  </p>
+                                </Column>
+                                <Column lg={8} md={4} sm={4}>
+                                  <div
+                                    style={{
+                                      display: "flex",
+                                      justifyContent: "flex-end",
+                                      gap: "0.5rem",
+                                    }}
+                                  >
+                                    <Button
+                                      kind="tertiary"
+                                      size="sm"
+                                      type="button"
+                                      onClick={() =>
+                                        handleEnableAdditionalField(fieldIndex)
+                                      }
+                                    >
+                                      <FormattedMessage id="button.activate" />
+                                    </Button>
+                                  </div>
+                                </Column>
+                              </Grid>
+                            </Section>
+                          ),
+                        )}
+                      </div>
+                    )}
                   </div>
                   <br />
                   <div>

@@ -48,4 +48,6 @@
   <include relativeToChangelogFile="true" file="037-map-sample-management-route-module-access.xml"/>
   <include relativeToChangelogFile="true" file="038-remap-sample-management-to-reception-module.xml"/>
   <include relativeToChangelogFile="true" file="039-add-order-program-step-visibility-config.xml"/>
+  <include relativeToChangelogFile="true" file="040-add-order-fixed-field-sample-reception-visibility.xml"/>
+  <include relativeToChangelogFile="true" file="041-add-user-provider-link-and-signature.xml"/>
 </databaseChangeLog>
