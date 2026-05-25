@@ -1721,7 +1721,8 @@ const StorageDashboard = () => {
 
     if (occupied) {
       const sampleCode =
-        sampleInfo?.externalId || sampleInfo?.sampleItemId || sampleInfo?.cug;
+        sampleInfo?.externalId || sampleInfo?.sampleItemId;
+      const cugCode = sampleInfo?.cugCode || sampleInfo?.cug;
       setAssignSampleId("");
       setAssignNotes("");
       setAssignStatus({
@@ -1729,10 +1730,13 @@ const StorageDashboard = () => {
         message: intl.formatMessage(
           {
             id: "storage.boxes.assign.readOnlyOccupied",
-            defaultMessage:
-              "Position {coordinate} is occupied by sample {sampleCode}. Read-only view.",
+            defaultMessage: "Position {coordinate} is occupied by sample {sampleCode}{cugSuffix}. Read-only view.",
           },
-          { coordinate, sampleCode: sampleCode || "N/A" },
+          {
+            coordinate,
+            sampleCode: sampleCode || "N/A",
+            cugSuffix: cugCode ? ` (CUG: ${cugCode})` : "",
+          },
         ),
       });
     }
@@ -3068,8 +3072,9 @@ const StorageDashboard = () => {
   const selectedCoordinateSampleCode =
     selectedCoordinateSampleInfo?.externalId ||
     selectedCoordinateSampleInfo?.sampleItemId ||
-    selectedCoordinateSampleInfo?.cug ||
     "";
+  const selectedCoordinateSampleCug =
+    selectedCoordinateSampleInfo?.cugCode || selectedCoordinateSampleInfo?.cug;
 
   return (
     <div className="storage-dashboard">
@@ -4823,10 +4828,13 @@ const StorageDashboard = () => {
                           <p className="helper-text">
                             <FormattedMessage
                               id="storage.boxes.assign.occupiedBy"
-                              defaultMessage="Occupied by sample: {sampleCode}"
+                              defaultMessage="Occupied by sample: {sampleCode}{cugSuffix}"
                               values={{
                                 sampleCode:
                                   selectedCoordinateSampleCode || "N/A",
+                                cugSuffix: selectedCoordinateSampleCug
+                                  ? ` (CUG: ${selectedCoordinateSampleCug})`
+                                  : "",
                               }}
                             />
                           </p>
