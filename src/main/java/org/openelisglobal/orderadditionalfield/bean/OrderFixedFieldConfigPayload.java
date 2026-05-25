@@ -7,6 +7,7 @@ public class OrderFixedFieldConfigPayload {
     private Boolean visible;
     private Boolean required;
     private Boolean readonly;
+    private Boolean showInSampleReception;
     private Integer sortOrder;
 
     public Integer getId() {
@@ -47,6 +48,14 @@ public class OrderFixedFieldConfigPayload {
 
     public void setReadonly(Boolean readonly) {
         this.readonly = readonly;
+    }
+
+    public Boolean getShowInSampleReception() {
+        return showInSampleReception;
+    }
+
+    public void setShowInSampleReception(Boolean showInSampleReception) {
+        this.showInSampleReception = showInSampleReception;
     }
 
     public Integer getSortOrder() {

@@ -142,6 +142,12 @@ const AddOrder = (props) => {
     return config ? config.readonly === true : false;
   };
 
+  const isProviderSelectionLocked =
+    orderFormValues?.sampleOrderItems?.providerSelectionLocked === true;
+
+  const isProviderFieldLocked = (fieldKey) =>
+    isProviderSelectionLocked || isFieldReadonly(fieldKey);
+
   const buildRequesterDisplayValue = () => {
     const sampleOrderItems = orderFormValues?.sampleOrderItems || {};
     const firstName = (sampleOrderItems.providerFirstName || "").trim();
@@ -803,6 +809,8 @@ const AddOrder = (props) => {
         value={buildRequesterDisplayValue()}
         onSelect={handleProviderSelectOptions}
         onChange={clearProviderId}
+        disabled={isProviderSelectionLocked}
+        readOnly={isProviderSelectionLocked}
         label={
           <>
             <FormattedMessage id="order.search.requester.label" />{" "}
@@ -1006,7 +1014,7 @@ const AddOrder = (props) => {
               }
               disabled={
                 configurationProperties.restrictFreeTextProviderEntry ===
-                  "true" || isFieldReadonly("providerFirstName")
+                  "true" || isProviderFieldLocked("providerFirstName")
               }
               onChange={handleRequesterFirstName}
               onClick={() => handleChange("sampleOrderItems.providerFirstName")}
@@ -1040,7 +1048,7 @@ const AddOrder = (props) => {
               }
               disabled={
                 configurationProperties.restrictFreeTextProviderEntry ===
-                  "true" || isFieldReadonly("providerLastName")
+                  "true" || isProviderFieldLocked("providerLastName")
               }
               value={orderFormValues.sampleOrderItems.providerLastName}
               onClick={() => handleChange("sampleOrderItems.providerLastName")}
@@ -1066,7 +1074,7 @@ const AddOrder = (props) => {
               })}
               disabled={
                 configurationProperties.restrictFreeTextProviderEntry ===
-                  "true" || isFieldReadonly("providerWorkPhone")
+                  "true" || isProviderFieldLocked("providerWorkPhone")
               }
               onChange={handleRequesterWorkPhone}
               value={orderFormValues.sampleOrderItems.providerWorkPhone}
@@ -1084,7 +1092,7 @@ const AddOrder = (props) => {
             <TextInput
               name="providerCmp"
               labelText="CMP"
-              disabled={isFieldReadonly("providerCmp")}
+              disabled={isProviderFieldLocked("providerCmp")}
               onChange={handleRequesterCmp}
               value={orderFormValues.sampleOrderItems.providerCmp || ""}
               id="providerCmpId"
@@ -1097,7 +1105,7 @@ const AddOrder = (props) => {
             <TextInput
               name="providerRne"
               labelText="RNE"
-              disabled={isFieldReadonly("providerRne")}
+              disabled={isProviderFieldLocked("providerRne")}
               onChange={handleRequesterRne}
               value={orderFormValues.sampleOrderItems.providerRne || ""}
               id="providerRneId"
@@ -1110,7 +1118,7 @@ const AddOrder = (props) => {
             <TextInput
               name="providerDni"
               labelText="DNI"
-              disabled={isFieldReadonly("providerDni")}
+              disabled={isProviderFieldLocked("providerDni")}
               onChange={handleRequesterDni}
               value={orderFormValues.sampleOrderItems.providerDni || ""}
               id="providerDniId"
@@ -1128,7 +1136,7 @@ const AddOrder = (props) => {
                   id: "provider.specialty.label",
                   defaultMessage: "Specialty",
                 })}
-                disabled={isFieldReadonly("providerSpecialty")}
+                disabled={isProviderFieldLocked("providerSpecialty")}
                 onChange={handleRequesterSpecialty}
                 value={orderFormValues.sampleOrderItems.providerSpecialty || ""}
               >
@@ -1148,7 +1156,7 @@ const AddOrder = (props) => {
                   id: "provider.specialty.label",
                   defaultMessage: "Specialty",
                 })}
-                disabled={isFieldReadonly("providerSpecialty")}
+                disabled={isProviderFieldLocked("providerSpecialty")}
                 onChange={handleRequesterSpecialty}
                 value={orderFormValues.sampleOrderItems.providerSpecialty || ""}
                 id="providerSpecialtyId"
@@ -1169,7 +1177,7 @@ const AddOrder = (props) => {
               })}
               disabled={
                 configurationProperties.restrictFreeTextProviderEntry ===
-                  "true" || isFieldReadonly("providerFax")
+                  "true" || isProviderFieldLocked("providerFax")
               }
               onChange={handleRequesterFax}
               value={orderFormValues.sampleOrderItems.providerFax}
@@ -1190,7 +1198,7 @@ const AddOrder = (props) => {
               })}
               disabled={
                 configurationProperties.restrictFreeTextProviderEntry ===
-                  "true" || isFieldReadonly("providerEmail")
+                  "true" || isProviderFieldLocked("providerEmail")
               }
               onChange={handleRequesterEmail}
               value={orderFormValues.sampleOrderItems.providerEmail}
@@ -1535,6 +1543,9 @@ const AddOrder = (props) => {
   }
 
   function handleProviderSelectOptions(providerId) {
+    if (isProviderSelectionLocked) {
+      return;
+    }
     handleChange("sampleOrderItems.providerId");
     setOrderFormValues({
       ...orderFormValues,
@@ -1595,7 +1606,10 @@ const AddOrder = (props) => {
     });
   }
 
-  function clearProviderId(e) {
+  function clearProviderId() {
+    if (isProviderSelectionLocked) {
+      return;
+    }
     handleChange("sampleOrderItems.providerId");
     setOrderFormValues({
       ...orderFormValues,
@@ -1762,6 +1776,7 @@ const AddOrder = (props) => {
 
   const getSampleEntryPreform = (response) => {
     if (componentMounted.current && response?.sampleOrderItems) {
+      const responseOrderItems = response.sampleOrderItems;
       setSiteNames(response.sampleOrderItems.referringSiteList || []);
       setPaymentOptions(response.sampleOrderItems.paymentOptions || []);
       setSamplingPerformed(
@@ -1791,11 +1806,15 @@ const AddOrder = (props) => {
           previous.sampleOrderItems.additionalFieldFiles &&
           Object.keys(previous.sampleOrderItems.additionalFieldFiles).length
         );
+        const shouldApplyProviderFromResponse =
+          responseOrderItems.providerSelectionLocked === true ||
+          !previous.sampleOrderItems.providerPersonId;
 
         if (
           !shouldAdoptAdditionalFields &&
           !shouldAdoptFixedConfigs &&
-          !shouldAdoptAdditionalFiles
+          !shouldAdoptAdditionalFiles &&
+          !shouldApplyProviderFromResponse
         ) {
           return previous;
         }
@@ -1815,6 +1834,45 @@ const AddOrder = (props) => {
             additionalFieldFiles: shouldAdoptAdditionalFiles
               ? responseAdditionalFieldFiles
               : previous.sampleOrderItems.additionalFieldFiles,
+            providerSelectionLocked: shouldApplyProviderFromResponse
+              ? responseOrderItems.providerSelectionLocked === true
+              : previous.sampleOrderItems.providerSelectionLocked,
+            linkedProviderPersonId: shouldApplyProviderFromResponse
+              ? responseOrderItems.linkedProviderPersonId || ""
+              : previous.sampleOrderItems.linkedProviderPersonId,
+            providerId: shouldApplyProviderFromResponse
+              ? responseOrderItems.providerId || ""
+              : previous.sampleOrderItems.providerId,
+            providerPersonId: shouldApplyProviderFromResponse
+              ? responseOrderItems.providerPersonId || ""
+              : previous.sampleOrderItems.providerPersonId,
+            providerFirstName: shouldApplyProviderFromResponse
+              ? responseOrderItems.providerFirstName || ""
+              : previous.sampleOrderItems.providerFirstName,
+            providerLastName: shouldApplyProviderFromResponse
+              ? responseOrderItems.providerLastName || ""
+              : previous.sampleOrderItems.providerLastName,
+            providerWorkPhone: shouldApplyProviderFromResponse
+              ? responseOrderItems.providerWorkPhone || ""
+              : previous.sampleOrderItems.providerWorkPhone,
+            providerFax: shouldApplyProviderFromResponse
+              ? responseOrderItems.providerFax || ""
+              : previous.sampleOrderItems.providerFax,
+            providerEmail: shouldApplyProviderFromResponse
+              ? responseOrderItems.providerEmail || ""
+              : previous.sampleOrderItems.providerEmail,
+            providerCmp: shouldApplyProviderFromResponse
+              ? responseOrderItems.providerCmp || ""
+              : previous.sampleOrderItems.providerCmp,
+            providerRne: shouldApplyProviderFromResponse
+              ? responseOrderItems.providerRne || ""
+              : previous.sampleOrderItems.providerRne,
+            providerDni: shouldApplyProviderFromResponse
+              ? responseOrderItems.providerDni || ""
+              : previous.sampleOrderItems.providerDni,
+            providerSpecialty: shouldApplyProviderFromResponse
+              ? responseOrderItems.providerSpecialty || ""
+              : previous.sampleOrderItems.providerSpecialty,
           },
         };
       });

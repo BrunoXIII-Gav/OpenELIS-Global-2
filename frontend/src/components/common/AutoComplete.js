@@ -30,6 +30,9 @@ function AutoComplete(props) {
   }, [props]);
 
   const onChange = (e) => {
+    if (props.disabled || props.readOnly) {
+      return;
+    }
     const { suggestions } = props;
     const userInput = e.currentTarget.value;
     setTextValue(userInput);
@@ -53,6 +56,9 @@ function AutoComplete(props) {
   };
 
   const onClick = (e, id, suggestion) => {
+    if (props.disabled || props.readOnly) {
+      return;
+    }
     const { onSelect } = props;
     setTextValue(suggestion.value);
     setActiveSuggestion(0);
@@ -67,6 +73,9 @@ function AutoComplete(props) {
   };
 
   const onKeyDown = (e) => {
+    if (props.disabled || props.readOnly) {
+      return;
+    }
     // Handeling enter key
     const { onSelect } = props;
     if (e.keyCode === 13) {
@@ -144,6 +153,8 @@ function AutoComplete(props) {
         onChange={onChange}
         onKeyDown={onKeyDown}
         value={textValue}
+        disabled={props.disabled}
+        readOnly={props.readOnly}
         invalid={invalid}
         required={props.required ? props.required : false}
         invalidText={props.invalidText}
