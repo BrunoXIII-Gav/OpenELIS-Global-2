@@ -413,10 +413,13 @@ public class ValidationTemplateOverrideRestController extends BaseRestController
     private List<Map<String, String>> buildSourceOptions(List<String> testIds) {
         List<Map<String, String>> options = new ArrayList<>();
         addSourceOption(options, "patientName", "Patient Name");
+        addSourceOption(options, "dni", "DNI");
+        addSourceOption(options, "passportNumber", "Passport");
+        addSourceOption(options, "foreignId", "Foreigner Card");
         addSourceOption(options, "nationalId", "National ID");
         addSourceOption(options, "subjectNumber", "HC / Subject Number");
-        addSourceOption(options, "sampleCug", "Sample CUG (fixed)");
-        addSourceOption(options, "accessionNumber", "CUG / Accession Number");
+        addSourceOption(options, "sampleCug", "CUG");
+        addSourceOption(options, "accessionNumber", "Accession Number");
         addSourceOption(options, "gender", "Gender");
         addSourceOption(options, "dob", "Birth Date");
         addSourceOption(options, "patientSiteNumber", "Contact");
@@ -614,9 +617,9 @@ public class ValidationTemplateOverrideRestController extends BaseRestController
     private List<Map<String, Object>> buildDefaultSectionFields() {
         List<Map<String, Object>> fields = new ArrayList<>();
         fields.add(defaultField("patientName", "PATIENT", "APELLIDOS Y NOMBRES", "patientName", 10));
-        fields.add(defaultField("dni", "PATIENT", "DNI", "nationalId", 20));
+        fields.add(defaultField("dni", "PATIENT", "DNI", "dni", 20));
         fields.add(defaultField("hc", "PATIENT", "HC", "subjectNumber", 30));
-        fields.add(defaultField("cug", "PATIENT", "CUG", "accessionNumber", 40));
+        fields.add(defaultField("cug", "PATIENT", "CUG", "sampleCug", 40));
         fields.add(defaultField("gender", "PATIENT", "GENERO", "gender", 50));
         fields.add(defaultField("birthDate", "PATIENT", "FECHA DE NACIMIENTO", "dob", 60));
         fields.add(defaultField("contact", "PATIENT", "CONTACTO", "patientSiteNumber", 70));

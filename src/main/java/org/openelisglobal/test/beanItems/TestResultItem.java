@@ -143,6 +143,7 @@ public class TestResultItem implements ResultItem, Serializable {
 
     @Pattern(regexp = ValidationHelper.ID_REGEX, groups = { LogbookResultsForm.LogbookResults.class })
     private String sampleItemId;
+    private String cugCode;
 
     @SafeHtml(level = SafeHtml.SafeListLevel.NONE, groups = { WorkplanForm.PrintWorkplan.class })
     private String patientInfo;
@@ -731,6 +732,14 @@ public class TestResultItem implements ResultItem, Serializable {
 
     public String getReceivedDate() {
         return receivedDate;
+    }
+
+    public String getCugCode() {
+        return cugCode;
+    }
+
+    public void setCugCode(String cugCode) {
+        this.cugCode = cugCode;
     }
 
     public void setResult(Result result) {

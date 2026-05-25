@@ -66,6 +66,8 @@ import org.openelisglobal.patient.service.PatientService;
 import org.openelisglobal.patient.service.PatientServiceImpl;
 import org.openelisglobal.patient.valueholder.Patient;
 import org.openelisglobal.patientidentity.service.PatientIdentityService;
+import org.openelisglobal.patientidentitytype.service.PatientIdentityTypeService;
+import org.openelisglobal.patientidentitytype.valueholder.PatientIdentityType;
 import org.openelisglobal.patientidentity.valueholder.PatientIdentity;
 import org.openelisglobal.person.service.PersonService;
 import org.openelisglobal.person.valueholder.Person;
@@ -113,6 +115,8 @@ public abstract class PatientReport extends Report {
     protected PatientService patientService = SpringContext.getBean(PatientService.class);
     protected PersonService personService = SpringContext.getBean(PersonService.class);
     protected ProviderService providerService = SpringContext.getBean(ProviderService.class);
+    protected PatientIdentityService patientIdentityService = SpringContext.getBean(PatientIdentityService.class);
+    protected PatientIdentityTypeService patientIdentityTypeService = SpringContext.getBean(PatientIdentityTypeService.class);
     protected TestService testService = SpringContext.getBean(TestService.class);
     protected ReferralReasonService referralReasonService = SpringContext.getBean(ReferralReasonService.class);
     protected ReferralService referralService = SpringContext.getBean(ReferralService.class);
@@ -616,6 +620,20 @@ public abstract class PatientReport extends Report {
         return identity;
     }
 
+    protected String getIdentityByTypeName(Patient patient, String identityTypeName) {
+        if (patient == null || GenericValidator.isBlankOrNull(identityTypeName)) {
+            return "";
+        }
+        PatientIdentityType identityType = patientIdentityTypeService
+                .getNamedIdentityType(identityTypeName.toUpperCase());
+        if (identityType == null || GenericValidator.isBlankOrNull(identityType.getId())) {
+            return "";
+        }
+        PatientIdentity identity = patientIdentityService
+                .getPatitentIdentityForPatientAndType(patient.getId(), identityType.getId());
+        return identity == null ? "" : org.apache.commons.lang3.StringUtils.defaultString(identity.getIdentityData());
+    }
+
     protected void setPatientName(ClinicalPatientData data) {
         data.setPatientName(patientService.getLastFirstName(currentPatient));
         data.setFirstName(patientService.getFirstName(currentPatient));
@@ -999,6 +1017,9 @@ public abstract class PatientReport extends Report {
         data.setAge(createReadableAge(data.getDob()));
         data.setGender(patientService.getGender(currentPatient));
         data.setNationalId(patientService.getNationalId(currentPatient));
+        data.setDni(getIdentityByTypeName(currentPatient, "DNI"));
+        data.setPassportNumber(getIdentityByTypeName(currentPatient, "PASSPORT"));
+        data.setForeignId(getIdentityByTypeName(currentPatient, "FOREIGN_ID"));
         setPatientName(data);
         data.setDept(patientDept);
         data.setCommune(patientCommune);
@@ -1029,6 +1050,8 @@ public abstract class PatientReport extends Report {
             data.setOrderDate(DateUtil
                     .convertTimestampToStringDateAndConfiguredHourTime(sampleService.getOrderedDate(currentSample)));
             data.setSampleId(sampleService.getAccessionNumber(currentSample) + "-" + data.getSampleSortOrder());
+            data.setSampleCug(
+                    currentAnalysis.getSampleItem() == null ? null : currentAnalysis.getSampleItem().getCugCode());
             data.setSampleType(analysisService.getTypeOfSample(currentAnalysis).getLocalizedName());
             data.setCollectionDateTime(DateUtil.convertTimestampToStringDateAndConfiguredHourTime(
                     currentAnalysis.getSampleItem().getCollectionDate()));

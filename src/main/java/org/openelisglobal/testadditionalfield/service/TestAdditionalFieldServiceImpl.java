@@ -1,5 +1,7 @@
 package org.openelisglobal.testadditionalfield.service;
 
+import com.fasterxml.jackson.databind.JsonNode;
+import com.fasterxml.jackson.databind.ObjectMapper;
 import java.math.BigDecimal;
 import java.time.LocalDate;
 import java.time.LocalDateTime;
@@ -7,6 +9,7 @@ import java.time.LocalTime;
 import java.time.format.DateTimeFormatter;
 import java.time.format.DateTimeParseException;
 import java.util.ArrayList;
+import java.util.Base64;
 import java.util.Collections;
 import java.util.HashMap;
 import java.util.HashSet;
@@ -36,6 +39,8 @@ import org.springframework.transaction.annotation.Transactional;
 @Transactional
 public class TestAdditionalFieldServiceImpl implements TestAdditionalFieldService {
 
+    private static final ObjectMapper OBJECT_MAPPER = new ObjectMapper();
+
     private static final Pattern FIELD_KEY_PATTERN = Pattern.compile("^[a-zA-Z][a-zA-Z0-9_\\-]{1,79}$");
     private static final DateTimeFormatter DATE_TIME_MINUTES = DateTimeFormatter.ofPattern("yyyy-MM-dd'T'HH:mm");
     private static final DateTimeFormatter DATE_TIME_SECONDS = DateTimeFormatter.ofPattern("yyyy-MM-dd'T'HH:mm:ss");
@@ -43,6 +48,15 @@ public class TestAdditionalFieldServiceImpl implements TestAdditionalFieldServic
             .ofPattern("yyyy-MM-dd HH:mm:ss");
 
     private static final Set<FieldType> OPTION_TYPES = Set.of(FieldType.SELECT, FieldType.RADIO, FieldType.MULTISELECT);
+    private static final String ENTRY_SCOPE_OFFICIAL = "OFFICIAL";
+    private static final String ENTRY_SCOPE_PRELIMINARY = "PRELIMINARY";
+    private static final String DEFAULT_RESULT_BLOCK_NAME = "Official";
+    private static final String DEFAULT_PRELIMINARY_BLOCK_NAME = "Preliminary";
+    private static final String META_RESULT_BLOCK = "resultBlock";
+    private static final String META_ENTRY_SCOPE = "entryScope";
+    private static final String META_INCLUDE_IN_VALIDATION = "includeInValidation";
+    private static final int DEFAULT_DOCUMENT_MAX_SIZE_MB = 10;
+    private static final String DEFAULT_DOCUMENT_MIME_TYPE = "application/pdf";
 
     @Autowired
     private TestAdditionalFieldDefinitionDAO definitionDAO;
@@ -574,6 +588,7 @@ public class TestAdditionalFieldServiceImpl implements TestAdditionalFieldServic
         payload.setDefaultValue(definition.getDefaultValue());
         payload.setMaxLength(definition.getMaxLength());
         payload.setMetadataJson(definition.getMetadataJson());
+        applyResultEntryMetadata(payload);
         return payload;
     }
 
@@ -689,6 +704,69 @@ public class TestAdditionalFieldServiceImpl implements TestAdditionalFieldServic
         List<TestAdditionalFieldOption> existing = optionDAO.findByDefinitionId(fieldId, true);
         return existing.stream().map(TestAdditionalFieldOption::getSortOrder).filter(value -> value != null)
                 .max(Integer::compareTo).map(max -> max + 1).orElse(1);
+    }
+
+    private void applyResultEntryMetadata(TestAdditionalFieldPayload payload) {
+        String defaultScope = ENTRY_SCOPE_OFFICIAL;
+        String defaultBlockName = DEFAULT_RESULT_BLOCK_NAME;
+        Boolean defaultIncludeInValidation = Boolean.TRUE;
+
+        String metadataJson = payload == null ? null : payload.getMetadataJson();
+        if (StringUtils.isBlank(metadataJson)) {
+            payload.setEntryScope(defaultScope);
+            payload.setBlockName(defaultBlockName);
+            payload.setIncludeInValidation(defaultIncludeInValidation);
+            return;
+        }
+
+        try {
+            JsonNode root = OBJECT_MAPPER.readTree(metadataJson);
+            String entryScope = normalizeEntryScope(asText(root, META_ENTRY_SCOPE), defaultScope);
+            boolean preliminary = ENTRY_SCOPE_PRELIMINARY.equals(entryScope);
+            String blockName = StringUtils.trimToNull(asText(root, META_RESULT_BLOCK));
+            if (blockName == null) {
+                blockName = preliminary ? DEFAULT_PRELIMINARY_BLOCK_NAME : DEFAULT_RESULT_BLOCK_NAME;
+            }
+
+            Boolean includeInValidation = null;
+            JsonNode includeNode = root.get(META_INCLUDE_IN_VALIDATION);
+            if (includeNode != null && !includeNode.isNull()) {
+                includeInValidation = includeNode.asBoolean();
+            }
+            if (includeInValidation == null) {
+                includeInValidation = preliminary ? Boolean.FALSE : Boolean.TRUE;
+            }
+
+            payload.setEntryScope(entryScope);
+            payload.setBlockName(blockName);
+            payload.setIncludeInValidation(includeInValidation);
+        } catch (Exception ignored) {
+            payload.setEntryScope(defaultScope);
+            payload.setBlockName(defaultBlockName);
+            payload.setIncludeInValidation(defaultIncludeInValidation);
+        }
+    }
+
+    private String normalizeEntryScope(String rawScope, String fallback) {
+        String normalized = StringUtils.upperCase(StringUtils.trimToNull(rawScope));
+        if (ENTRY_SCOPE_PRELIMINARY.equals(normalized)) {
+            return ENTRY_SCOPE_PRELIMINARY;
+        }
+        if (ENTRY_SCOPE_OFFICIAL.equals(normalized)) {
+            return ENTRY_SCOPE_OFFICIAL;
+        }
+        return fallback;
+    }
+
+    private String asText(JsonNode root, String key) {
+        if (root == null || StringUtils.isBlank(key)) {
+            return null;
+        }
+        JsonNode node = root.get(key);
+        if (node == null || node.isNull()) {
+            return null;
+        }
+        return node.asText();
     }
 
     private void saveOptionsForDefinition(Integer definitionId, List<TestAdditionalFieldOptionPayload> options,
@@ -816,8 +894,98 @@ public class TestAdditionalFieldServiceImpl implements TestAdditionalFieldServic
             return trimmedValue;
         case MULTISELECT:
             return normalizeAndValidateMultiSelect(fieldDefinition, trimmedValue);
+        case DOCUMENT:
+            return normalizeAndValidateDocument(fieldDefinition, trimmedValue);
         default:
             return trimmedValue;
+        }
+    }
+
+    private String normalizeAndValidateDocument(TestAdditionalFieldPayload fieldDefinition, String rawJsonValue) {
+        try {
+            JsonNode root = OBJECT_MAPPER.readTree(rawJsonValue);
+            String fileName = StringUtils.trimToNull(asText(root, "fileName"));
+            String fileType = StringUtils.trimToNull(asText(root, "fileType"));
+            String base64Content = StringUtils.trimToNull(asText(root, "base64Content"));
+
+            if (fileName == null || base64Content == null) {
+                throw new LIMSRuntimeException(
+                        "Invalid document payload for field: " + fieldDefinition.getDisplayName());
+            }
+
+            byte[] contentBytes;
+            try {
+                contentBytes = Base64.getDecoder().decode(base64Content);
+            } catch (IllegalArgumentException base64Error) {
+                throw new LIMSRuntimeException(
+                        "Invalid document payload for field: " + fieldDefinition.getDisplayName());
+            }
+
+            List<String> allowedMimeTypes = resolveDocumentAcceptedMimeTypes(fieldDefinition.getMetadataJson());
+            if (StringUtils.isNotBlank(fileType) && !allowedMimeTypes.isEmpty()
+                    && allowedMimeTypes.stream().noneMatch(mime -> StringUtils.equalsIgnoreCase(mime, fileType))) {
+                throw new LIMSRuntimeException("Unsupported file type for field: " + fieldDefinition.getDisplayName());
+            }
+
+            int maxSizeMb = resolveDocumentMaxSizeMb(fieldDefinition.getMetadataJson());
+            long maxBytes = maxSizeMb * 1024L * 1024L;
+            if (contentBytes.length > maxBytes) {
+                throw new LIMSRuntimeException(
+                        "File exceeds max size for field: " + fieldDefinition.getDisplayName());
+            }
+
+            Map<String, String> normalized = new HashMap<>();
+            normalized.put("fileName", fileName);
+            normalized.put("fileType",
+                    StringUtils.defaultIfBlank(fileType, allowedMimeTypes.isEmpty() ? DEFAULT_DOCUMENT_MIME_TYPE
+                            : allowedMimeTypes.get(0)));
+            normalized.put("base64Content", base64Content);
+            return OBJECT_MAPPER.writeValueAsString(normalized);
+        } catch (LIMSRuntimeException e) {
+            throw e;
+        } catch (Exception e) {
+            throw new LIMSRuntimeException("Invalid document payload for field: " + fieldDefinition.getDisplayName());
+        }
+    }
+
+    private List<String> resolveDocumentAcceptedMimeTypes(String metadataJson) {
+        if (StringUtils.isBlank(metadataJson)) {
+            return List.of(DEFAULT_DOCUMENT_MIME_TYPE);
+        }
+        try {
+            JsonNode root = OBJECT_MAPPER.readTree(metadataJson);
+            JsonNode documentNode = root.path("document");
+            if (!documentNode.path("accept").isArray()) {
+                return List.of(DEFAULT_DOCUMENT_MIME_TYPE);
+            }
+
+            List<String> accepted = new ArrayList<>();
+            for (JsonNode acceptNode : documentNode.path("accept")) {
+                String value = StringUtils.trimToNull(acceptNode.asText());
+                if (value != null) {
+                    accepted.add(value);
+                }
+            }
+            return accepted.isEmpty() ? List.of(DEFAULT_DOCUMENT_MIME_TYPE) : accepted;
+        } catch (Exception e) {
+            return List.of(DEFAULT_DOCUMENT_MIME_TYPE);
+        }
+    }
+
+    private int resolveDocumentMaxSizeMb(String metadataJson) {
+        if (StringUtils.isBlank(metadataJson)) {
+            return DEFAULT_DOCUMENT_MAX_SIZE_MB;
+        }
+        try {
+            JsonNode root = OBJECT_MAPPER.readTree(metadataJson);
+            JsonNode documentNode = root.path("document");
+            if (!documentNode.path("maxSizeMb").isNumber()) {
+                return DEFAULT_DOCUMENT_MAX_SIZE_MB;
+            }
+            int maxSize = documentNode.path("maxSizeMb").asInt();
+            return maxSize > 0 ? maxSize : DEFAULT_DOCUMENT_MAX_SIZE_MB;
+        } catch (Exception e) {
+            return DEFAULT_DOCUMENT_MAX_SIZE_MB;
         }
     }
 

@@ -16,6 +16,9 @@ public class TestAdditionalFieldPayload {
     private String defaultValue;
     private Integer maxLength;
     private String metadataJson;
+    private String blockName;
+    private String entryScope;
+    private Boolean includeInValidation;
     private List<TestAdditionalFieldOptionPayload> options = new ArrayList<>();
 
     public Integer getId() {
@@ -104,6 +107,30 @@ public class TestAdditionalFieldPayload {
 
     public void setMetadataJson(String metadataJson) {
         this.metadataJson = metadataJson;
+    }
+
+    public String getBlockName() {
+        return blockName;
+    }
+
+    public void setBlockName(String blockName) {
+        this.blockName = blockName;
+    }
+
+    public String getEntryScope() {
+        return entryScope;
+    }
+
+    public void setEntryScope(String entryScope) {
+        this.entryScope = entryScope;
+    }
+
+    public Boolean getIncludeInValidation() {
+        return includeInValidation;
+    }
+
+    public void setIncludeInValidation(Boolean includeInValidation) {
+        this.includeInValidation = includeInValidation;
     }
 
     public List<TestAdditionalFieldOptionPayload> getOptions() {

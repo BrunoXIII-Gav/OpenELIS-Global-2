@@ -201,7 +201,9 @@ public class TestModifyEntryRestController extends BaseController {
             bean.setResultName(test.getStoredName());
             bean.setActive(test.isActive() ? "Active" : "Not active");
             bean.setUom(testService.getUOM(test, false));
-            bean.setAdditionalFields(testAdditionalFieldService.getFieldsForTest(test.getId(), false));
+            // Include inactive fields so Test Modify UI can display and reactivate
+            // previously disabled additional fields.
+            bean.setAdditionalFields(testAdditionalFieldService.getFieldsForTest(test.getId(), true));
             if (TypeOfTestResultServiceImpl.ResultType.NUMERIC.matches(resultType)
                     && testResultService.getAllActiveTestResultsPerTest(test).size() != 0) {
                 bean.setSignificantDigits(

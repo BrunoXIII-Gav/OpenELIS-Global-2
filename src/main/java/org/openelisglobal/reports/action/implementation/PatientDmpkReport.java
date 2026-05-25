@@ -1,31 +1,48 @@
 package org.openelisglobal.reports.action.implementation;
 
 import java.io.ByteArrayInputStream;
+import java.nio.charset.StandardCharsets;
 import java.text.Normalizer;
 import java.util.ArrayList;
 import java.util.Arrays;
+import java.util.Base64;
 import java.util.Collections;
 import java.util.Comparator;
 import java.util.HashMap;
 import java.util.LinkedHashMap;
+import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
 import java.util.Optional;
+import java.util.Set;
 import java.util.stream.Collectors;
 import net.sf.jasperreports.engine.JRException;
 import net.sf.jasperreports.engine.JasperCompileManager;
 import net.sf.jasperreports.engine.JasperRunManager;
+import org.openelisglobal.analysis.valueholder.Analysis;
+import org.openelisglobal.audittrail.valueholder.History;
 import org.apache.commons.lang3.StringUtils;
 import org.apache.commons.validator.GenericValidator;
 import org.json.JSONArray;
 import org.json.JSONObject;
 import org.openelisglobal.common.util.DateUtil;
+import org.openelisglobal.history.service.HistoryService;
 import org.openelisglobal.image.service.ImageService;
 import org.openelisglobal.image.valueholder.Image;
+import org.openelisglobal.person.valueholder.Person;
+import org.openelisglobal.provider.valueholder.Provider;
+import org.openelisglobal.referencetables.service.ReferenceTablesService;
 import org.openelisglobal.reports.action.implementation.reportBeans.ClinicalPatientData;
 import org.openelisglobal.reports.form.ReportForm;
+import org.openelisglobal.sample.util.AccessionNumberUtil;
+import org.openelisglobal.sample.valueholder.Sample;
 import org.openelisglobal.spring.util.SpringContext;
+import org.openelisglobal.systemuser.service.SystemUserService;
+import org.openelisglobal.systemuser.valueholder.SystemUser;
+import org.openelisglobal.testadditionalfield.bean.TestAdditionalFieldPayload;
+import org.openelisglobal.testadditionalfield.dao.AnalysisAdditionalFieldValueDAO;
+import org.openelisglobal.testadditionalfield.valueholder.AnalysisAdditionalFieldValue;
 
 /**
  * DMPK-specific patient report entry point.
@@ -37,6 +54,8 @@ import org.openelisglobal.spring.util.SpringContext;
 public class PatientDmpkReport extends PatientCILNSPClinical_vreduit {
 
     private static final String DEFAULT_NOT_REGISTERED = "NO REGISTRADO";
+    private static final String ENTRY_SCOPE_PRELIMINARY = "PRELIMINARY";
+    private static final String ANALYSIS_REFERENCE_TABLE = "ANALYSIS";
     private static final String DEFAULT_PROCEDURE_TEXT = "El analisis molecular del gen DMPK consiste en la amplificacion "
             + "por PCR y la discriminacion de la presencia o ausencia del alelo mutado mayor o igual a 50 repeticiones CTG.";
     private static final String DEFAULT_INTERPRETATION_TEXT = "El diagnostico molecular se define por el numero "
@@ -44,6 +63,11 @@ public class PatientDmpkReport extends PatientCILNSPClinical_vreduit {
     private static final List<String> SECTION_PRINT_ORDER = Arrays.asList("PATIENT", "REQUESTING_PHYSICIAN", "SAMPLE",
             "MOLECULAR_RESULT", "CONCLUSION");
     private final ImageService imageService = SpringContext.getBean(ImageService.class);
+    private final AnalysisAdditionalFieldValueDAO analysisAdditionalFieldValueDAO = SpringContext
+            .getBean(AnalysisAdditionalFieldValueDAO.class);
+    private final HistoryService historyService = SpringContext.getBean(HistoryService.class);
+    private final ReferenceTablesService referenceTablesService = SpringContext.getBean(ReferenceTablesService.class);
+    private final SystemUserService systemUserService = SpringContext.getBean(SystemUserService.class);
     private List<ClinicalPatientData> scopedReportItems;
     private String dmpkJrxmlPath;
     private String dmpkJasperPath;
@@ -111,9 +135,9 @@ public class PatientDmpkReport extends PatientCILNSPClinical_vreduit {
 
         Map<String, String> fixedFieldValues = new HashMap<>();
         fixedFieldValues.put("patientName", first == null ? "" : StringUtils.defaultString(first.getPatientName()));
-        fixedFieldValues.put("dni", first == null ? "" : StringUtils.defaultString(first.getNationalId()));
+        fixedFieldValues.put("dni", first == null ? "" : StringUtils.defaultString(first.getDni()));
         fixedFieldValues.put("hc", first == null ? "" : StringUtils.defaultString(first.getSubjectNumber()));
-        fixedFieldValues.put("cug", first == null ? "" : StringUtils.defaultString(first.getAccessionNumber()));
+        fixedFieldValues.put("cug", first == null ? "" : StringUtils.defaultString(first.getSampleCug()));
         fixedFieldValues.put("gender", first == null ? "" : StringUtils.defaultString(first.getGender()));
         fixedFieldValues.put("birthDate", first == null ? "" : StringUtils.defaultString(first.getDob()));
         fixedFieldValues.put("contact", first == null ? "" : StringUtils.defaultString(first.getPatientSiteNumber()));
@@ -177,9 +201,19 @@ public class PatientDmpkReport extends PatientCILNSPClinical_vreduit {
         reportParameters.put("dmpkInterpretationText",
                 resolveConstant(config, "interpretationText", DEFAULT_INTERPRETATION_TEXT));
         reportParameters.put("dmpkConclusionText", conclusionText);
-        reportParameters.put("dmpkDeliveryDate", resolveConstant(config, "deliveryDate", ""));
-        reportParameters.put("dmpkAnalyzedBy", resolveConstant(config, "analyzedBy", ""));
-        reportParameters.put("dmpkInterpretedBy", resolveConstant(config, "interpretedBy", ""));
+        reportParameters.put("dmpkDeliveryDate",
+                DateUtil.convertSqlDateToStringDate(new java.sql.Date(System.currentTimeMillis())));
+
+        String analyzedByComputed = resolveAnalyzedByUsers();
+        reportParameters.put("dmpkAnalyzedBy",
+                StringUtils.defaultIfBlank(analyzedByComputed, resolveConstant(config, "analyzedBy", "")));
+
+        InterpretedByInfo interpretedByInfo = resolveInterpretedByInfo();
+        reportParameters.put("dmpkInterpretedBy",
+                StringUtils.defaultIfBlank(interpretedByInfo.displayName, resolveConstant(config, "interpretedBy", "")));
+        reportParameters.put("dmpkInterpretedBySpecialty", StringUtils.defaultString(interpretedByInfo.specialty));
+        reportParameters.put("dmpkInterpretedBySignature", interpretedByInfo.signatureImageStream);
+
         reportParameters.put("dmpkFooterLeft", resolveConstant(config, "footerLeft", "Servicio de Neurogenetica"));
         reportParameters.put("dmpkFooterRight", resolveConstant(config, "footerRight", "Lima, Peru"));
 
@@ -220,7 +254,20 @@ public class PatientDmpkReport extends PatientCILNSPClinical_vreduit {
                 continue;
             }
             String normalizedKey = normalizeFixedFieldKey(field.key, field.source);
-            String resolvedValue = resolveSourceValue(field.source, first, fixedFieldValues);
+            String sourceKey = field.source;
+            if ("cug".equalsIgnoreCase(normalizedKey) && "accessionNumber".equalsIgnoreCase(sourceKey)) {
+                sourceKey = "sampleCug";
+            }
+            if ("dni".equalsIgnoreCase(normalizedKey) && "subjectNumber".equalsIgnoreCase(sourceKey)) {
+                sourceKey = "nationalId";
+            }
+            if ("dni".equalsIgnoreCase(normalizedKey) && "nationalId".equalsIgnoreCase(sourceKey)) {
+                sourceKey = "dni";
+            }
+            if ("hc".equalsIgnoreCase(normalizedKey) && "nationalId".equalsIgnoreCase(sourceKey)) {
+                sourceKey = "subjectNumber";
+            }
+            String resolvedValue = resolveSourceValue(sourceKey, first, fixedFieldValues);
             if (fixedFieldValues.containsKey(normalizedKey)) {
                 fixedFieldValues.put(normalizedKey, StringUtils.defaultString(resolvedValue));
                 if (StringUtils.isNotBlank(field.label) && fixedFieldLabels.containsKey(normalizedKey)) {
@@ -293,6 +340,15 @@ public class PatientDmpkReport extends PatientCILNSPClinical_vreduit {
         if ("patientName".equalsIgnoreCase(normalized)) {
             return first == null ? "" : StringUtils.defaultString(first.getPatientName());
         }
+        if ("dni".equalsIgnoreCase(normalized)) {
+            return first == null ? "" : StringUtils.defaultString(first.getDni());
+        }
+        if ("passportNumber".equalsIgnoreCase(normalized)) {
+            return first == null ? "" : StringUtils.defaultString(first.getPassportNumber());
+        }
+        if ("foreignId".equalsIgnoreCase(normalized)) {
+            return first == null ? "" : StringUtils.defaultString(first.getForeignId());
+        }
         if ("nationalId".equalsIgnoreCase(normalized)) {
             return first == null ? "" : StringUtils.defaultString(first.getNationalId());
         }
@@ -300,7 +356,7 @@ public class PatientDmpkReport extends PatientCILNSPClinical_vreduit {
             return first == null ? "" : StringUtils.defaultString(first.getSubjectNumber());
         }
         if ("sampleCug".equalsIgnoreCase(normalized)) {
-            return first == null ? "" : StringUtils.defaultString(first.getAccessionNumber());
+            return first == null ? "" : StringUtils.defaultString(first.getSampleCug());
         }
         if ("accessionNumber".equalsIgnoreCase(normalized)) {
             return first == null ? "" : StringUtils.defaultString(first.getAccessionNumber());
@@ -564,6 +620,289 @@ public class PatientDmpkReport extends PatientCILNSPClinical_vreduit {
         return normalized.contains("dmpk") || normalized.contains("quinasa") || normalized.contains("dm1");
     }
 
+    private String resolveAnalyzedByUsers() {
+        List<Analysis> analyses = getScopedDmpkAnalyses();
+        if (analyses.isEmpty()) {
+            return "";
+        }
+
+        Set<String> uniqueAnalyzedBy = new LinkedHashSet<>();
+        for (Analysis analysis : analyses) {
+            Set<Integer> preliminaryFieldDefIds = getBlockFieldDefinitionIds(analysis, true);
+            Set<Integer> allBlockFieldDefIds = getBlockFieldDefinitionIds(analysis, false);
+
+            Set<Integer> targetFieldDefIds = preliminaryFieldDefIds.isEmpty() ? allBlockFieldDefIds
+                    : preliminaryFieldDefIds;
+            if (targetFieldDefIds.isEmpty()) {
+                continue;
+            }
+
+            Integer analysisId = parseInteger(analysis.getId());
+            if (analysisId == null) {
+                continue;
+            }
+
+            List<AnalysisAdditionalFieldValue> values = analysisAdditionalFieldValueDAO
+                    .findByAnalysisIdAndFieldDefinitionIds(analysisId, new ArrayList<>(targetFieldDefIds));
+            for (AnalysisAdditionalFieldValue value : values) {
+                if (value == null || StringUtils.isBlank(StringUtils.trimToNull(value.getFieldValue()))) {
+                    continue;
+                }
+                String displayName = getUserDisplayName(value.getSysUserId());
+                if (StringUtils.isNotBlank(displayName)) {
+                    uniqueAnalyzedBy.add(displayName);
+                }
+            }
+        }
+
+        return String.join(", ", uniqueAnalyzedBy);
+    }
+
+    private InterpretedByInfo resolveInterpretedByInfo() {
+        List<Analysis> analyses = getScopedDmpkAnalyses();
+        if (analyses.isEmpty()) {
+            return InterpretedByInfo.empty();
+        }
+
+        String analysisTableId = Optional.ofNullable(referenceTablesService.getReferenceTableByName(ANALYSIS_REFERENCE_TABLE))
+                .map(referenceTable -> referenceTable.getId()).orElse(null);
+        if (StringUtils.isBlank(analysisTableId)) {
+            return InterpretedByInfo.empty();
+        }
+
+        History latestFinalization = null;
+        for (Analysis analysis : analyses) {
+            if (analysis == null || StringUtils.isBlank(analysis.getId())) {
+                continue;
+            }
+
+            List<History> historyList = historyService.getHistoryByRefIdAndRefTableId(analysis.getId(), analysisTableId);
+            if (historyList == null || historyList.isEmpty()) {
+                continue;
+            }
+
+            History latestStatusChange = null;
+            History latestAnyUpdate = null;
+            for (History history : historyList) {
+                if (history == null || !"U".equals(history.getActivity())) {
+                    continue;
+                }
+                if (latestAnyUpdate == null || isMoreRecent(history, latestAnyUpdate)) {
+                    latestAnyUpdate = history;
+                }
+                if (hasStatusChange(history) && (latestStatusChange == null || isMoreRecent(history, latestStatusChange))) {
+                    latestStatusChange = history;
+                }
+            }
+
+            History selectedForAnalysis = latestStatusChange != null ? latestStatusChange : latestAnyUpdate;
+            if (selectedForAnalysis != null
+                    && (latestFinalization == null || isMoreRecent(selectedForAnalysis, latestFinalization))) {
+                latestFinalization = selectedForAnalysis;
+            }
+        }
+
+        if (latestFinalization == null || StringUtils.isBlank(latestFinalization.getSysUserId())) {
+            return InterpretedByInfo.empty();
+        }
+
+        return buildInterpretedByInfo(latestFinalization.getSysUserId());
+    }
+
+    private boolean isMoreRecent(History candidate, History current) {
+        if (candidate == null) {
+            return false;
+        }
+        if (current == null || current.getTimestamp() == null) {
+            return true;
+        }
+        if (candidate.getTimestamp() == null) {
+            return false;
+        }
+        return candidate.getTimestamp().after(current.getTimestamp());
+    }
+
+    private boolean hasStatusChange(History history) {
+        if (history == null || history.getChanges() == null || history.getChanges().length == 0) {
+            return false;
+        }
+        String changes = new String(history.getChanges(), StandardCharsets.UTF_8);
+        return StringUtils.isNotBlank(extractSimpleTag(changes, "statusId"));
+    }
+
+    private String extractSimpleTag(String xmlText, String tagName) {
+        if (StringUtils.isBlank(xmlText) || StringUtils.isBlank(tagName)) {
+            return null;
+        }
+        String startTag = "<" + tagName + ">";
+        int begin = xmlText.indexOf(startTag);
+        if (begin < 0) {
+            return null;
+        }
+        begin += startTag.length();
+        int end = xmlText.indexOf("</" + tagName + ">");
+        if (end < 0 || end < begin) {
+            return null;
+        }
+        return xmlText.substring(begin, end);
+    }
+
+    private InterpretedByInfo buildInterpretedByInfo(String systemUserId) {
+        SystemUser user = systemUserService.getUserById(systemUserId);
+        if (user == null) {
+            return InterpretedByInfo.empty();
+        }
+
+        String displayName = getUserDisplayName(systemUserId);
+        String specialty = "";
+        if (StringUtils.isNotBlank(user.getLinkedProviderPersonId())) {
+            Person linkedPerson = personService.getPersonById(user.getLinkedProviderPersonId());
+            if (linkedPerson != null) {
+                Provider linkedProvider = providerService.getProviderByPerson(linkedPerson);
+                if (linkedProvider != null) {
+                    specialty = StringUtils.defaultString(linkedProvider.getSpecialty());
+                }
+            }
+        }
+
+        ByteArrayInputStream signatureStream = decodeSignatureImage(user.getSignatureImageData());
+        return new InterpretedByInfo(displayName, specialty, signatureStream);
+    }
+
+    private ByteArrayInputStream decodeSignatureImage(String signatureImageData) {
+        String raw = StringUtils.trimToNull(signatureImageData);
+        if (raw == null) {
+            return null;
+        }
+        try {
+            String base64Payload = raw;
+            if (StringUtils.startsWithIgnoreCase(base64Payload, "data:")) {
+                int commaIndex = base64Payload.indexOf(',');
+                if (commaIndex > -1 && commaIndex + 1 < base64Payload.length()) {
+                    base64Payload = base64Payload.substring(commaIndex + 1);
+                }
+            }
+            byte[] decoded = Base64.getDecoder().decode(base64Payload);
+            return decoded.length == 0 ? null : new ByteArrayInputStream(decoded);
+        } catch (IllegalArgumentException decodeError) {
+            return null;
+        }
+    }
+
+    private List<Analysis> getScopedDmpkAnalyses() {
+        Set<String> accessionNumbers = getScopedReportItems().stream()
+                .map(ClinicalPatientData::getSampleId)
+                .filter(StringUtils::isNotBlank)
+                .map(this::extractBaseAccession)
+                .filter(StringUtils::isNotBlank)
+                .collect(Collectors.toCollection(LinkedHashSet::new));
+
+        if (accessionNumbers.isEmpty()) {
+            accessionNumbers = getScopedReportItems().stream()
+                    .map(ClinicalPatientData::getAccessionNumber)
+                    .filter(StringUtils::isNotBlank)
+                    .map(this::extractBaseAccession)
+                    .filter(StringUtils::isNotBlank)
+                    .collect(Collectors.toCollection(LinkedHashSet::new));
+        }
+
+        Map<String, Analysis> uniqueById = new LinkedHashMap<>();
+        for (String accessionNumber : accessionNumbers) {
+            Sample sample = sampleService.getSampleByAccessionNumber(accessionNumber);
+            if (sample == null || StringUtils.isBlank(sample.getId())) {
+                continue;
+            }
+
+            List<Analysis> analysesForSample = analysisService.getAnalysesBySampleId(sample.getId());
+            if (analysesForSample == null || analysesForSample.isEmpty()) {
+                continue;
+            }
+
+            for (Analysis analysis : analysesForSample) {
+                if (analysis != null && StringUtils.isNotBlank(analysis.getId()) && isDmpkAnalysis(analysis)) {
+                    uniqueById.put(analysis.getId(), analysis);
+                }
+            }
+        }
+
+        return new ArrayList<>(uniqueById.values());
+    }
+
+    private boolean isDmpkAnalysis(Analysis analysis) {
+        if (analysis == null) {
+            return false;
+        }
+        String testName = StringUtils.defaultString(analysisService.getTestDisplayName(analysis));
+        if (StringUtils.isBlank(testName) && analysis.getTest() != null) {
+            testName = StringUtils.defaultString(analysis.getTest().getDescription(), analysis.getTest().getName());
+        }
+        String normalized = normalizeAliasToken(testName);
+        return normalized.contains("dmpk") || normalized.contains("quinasa") || normalized.contains("dm1");
+    }
+
+    private Set<Integer> getBlockFieldDefinitionIds(Analysis analysis, boolean preliminaryOnly) {
+        if (analysis == null || analysis.getTest() == null || StringUtils.isBlank(analysis.getTest().getId())) {
+            return Collections.emptySet();
+        }
+
+        List<TestAdditionalFieldPayload> fields = testAdditionalFieldService.getFieldsForTest(analysis.getTest().getId(),
+                false);
+        if (fields == null || fields.isEmpty()) {
+            return Collections.emptySet();
+        }
+
+        Set<Integer> fieldIds = new LinkedHashSet<>();
+        for (TestAdditionalFieldPayload field : fields) {
+            if (field == null || field.getId() == null) {
+                continue;
+            }
+            String entryScope = StringUtils.defaultString(field.getEntryScope()).trim().toUpperCase(Locale.ROOT);
+            boolean hasBlockMeta = StringUtils.isNotBlank(field.getBlockName()) || StringUtils.isNotBlank(entryScope);
+            if (!hasBlockMeta) {
+                continue;
+            }
+            if (preliminaryOnly && !ENTRY_SCOPE_PRELIMINARY.equals(entryScope)) {
+                continue;
+            }
+            fieldIds.add(field.getId());
+        }
+        return fieldIds;
+    }
+
+    private String getUserDisplayName(String userId) {
+        if (StringUtils.isBlank(userId)) {
+            return "";
+        }
+        SystemUser user = systemUserService.getUserById(userId);
+        if (user == null) {
+            return "";
+        }
+        String fullName = StringUtils.normalizeSpace(
+                StringUtils.defaultString(user.getFirstName()) + " " + StringUtils.defaultString(user.getLastName()));
+        return StringUtils.defaultIfBlank(fullName, StringUtils.defaultString(user.getDisplayName()));
+    }
+
+    private String extractBaseAccession(String accessionWithSampleSuffix) {
+        if (StringUtils.isBlank(accessionWithSampleSuffix)) {
+            return "";
+        }
+        if (accessionWithSampleSuffix.contains("-")) {
+            return AccessionNumberUtil.getAccessionNumberFromSampleItemAccessionNumber(accessionWithSampleSuffix);
+        }
+        return accessionWithSampleSuffix;
+    }
+
+    private Integer parseInteger(String value) {
+        if (StringUtils.isBlank(value)) {
+            return null;
+        }
+        try {
+            return Integer.valueOf(value);
+        } catch (NumberFormatException ignored) {
+            return null;
+        }
+    }
+
     private List<String> getConfiguredKeys(JSONObject config, String slotName) {
         if (config == null) {
             return Collections.emptyList();
@@ -654,5 +993,21 @@ public class PatientDmpkReport extends PatientCILNSPClinical_vreduit {
         private String source;
         private int order;
         private boolean enabled;
+    }
+
+    private static class InterpretedByInfo {
+        private final String displayName;
+        private final String specialty;
+        private final ByteArrayInputStream signatureImageStream;
+
+        private InterpretedByInfo(String displayName, String specialty, ByteArrayInputStream signatureImageStream) {
+            this.displayName = StringUtils.defaultString(displayName);
+            this.specialty = StringUtils.defaultString(specialty);
+            this.signatureImageStream = signatureImageStream;
+        }
+
+        private static InterpretedByInfo empty() {
+            return new InterpretedByInfo("", "", null);
+        }
     }
 }
