@@ -19,6 +19,7 @@
   <include relativeToChangelogFile="true" file="011-create-analyzer-pending-code.xml"/>
   <include relativeToChangelogFile="true" file="012-add-organization-type-hierarchy-level.xml"/>
   <include relativeToChangelogFile="true" file="013-create-sample-type-additional-fields.xml"/>
+  <include relativeToChangelogFile="true" file="013-test-parent-child-dependency.xml"/>
   <include relativeToChangelogFile="true" file="014-add-last-updated-to-sample-additional-fields.xml"/>
   <include relativeToChangelogFile="true" file="013-create-test-additional-fields.xml"/>
   <include relativeToChangelogFile="true" file="013-create-order-additional-fields.xml"/>

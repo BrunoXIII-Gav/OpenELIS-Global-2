@@ -1,0 +1,31 @@
+<?xml version="1.0"?>
+<!DOCTYPE hibernate-mapping PUBLIC "-//Hibernate/Hibernate Mapping DTD 3.0//EN"
+"http://www.hibernate.org/dtd/hibernate-mapping-3.0.dtd">
+
+<hibernate-mapping>
+    <class name="org.openelisglobal.testdependency.valueholder.TestParentChildDependency"
+        table="TEST_PARENT_CHILD_DEPENDENCY" optimistic-lock="version" dynamic-update="true">
+        <id name="id"
+            type="org.openelisglobal.hibernate.resources.usertype.LIMSStringNumberUserType">
+            <column name="ID" precision="10" scale="0" />
+            <generator class="org.openelisglobal.hibernate.resources.StringSequenceGenerator">
+                <param name="sequence_name">test_parent_child_dependency_seq</param>
+            </generator>
+        </id>
+        <version name="lastupdated" column="LASTUPDATED"
+            type="timestamp" access="field" />
+
+        <many-to-one name="parentTest"
+            class="org.openelisglobal.test.valueholder.Test" fetch="select" lazy="false">
+            <column name="PARENT_TEST_ID" precision="10" scale="0" />
+        </many-to-one>
+
+        <many-to-one name="childTest"
+            class="org.openelisglobal.test.valueholder.Test" fetch="select" lazy="false">
+            <column name="CHILD_TEST_ID" precision="10" scale="0" />
+        </many-to-one>
+
+        <property name="active" type="java.lang.Boolean" column="ACTIVE" />
+        <property name="displayOrder" type="java.lang.Integer" column="DISPLAY_ORDER" />
+    </class>
+</hibernate-mapping>

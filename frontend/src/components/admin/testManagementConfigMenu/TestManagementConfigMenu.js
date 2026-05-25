@@ -357,6 +357,18 @@ function TestManagementConfigMenu() {
                 >
                   <FormattedMessage id="sidenav.label.admin.testmgt.calculated" />
                 </ClickableTile>
+                <br />
+                <ClickableTile
+                  href="/MasterListsPage/TestParentChildDependency"
+                  id="TestParentChildDependency"
+                >
+                  <FormattedMessage id="configuration.test.parentchild" />
+                  <UnorderedList nested>
+                    <ListItem>
+                      <FormattedMessage id="configuration.test.parentchild.explain" />
+                    </ListItem>
+                  </UnorderedList>
+                </ClickableTile>
               </UnorderedList>
             </Column>
           </Grid>

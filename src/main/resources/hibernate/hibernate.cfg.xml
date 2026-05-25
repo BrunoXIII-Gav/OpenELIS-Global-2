@@ -77,6 +77,7 @@
         <mapping resource="hibernate/hbm/StatusOfSample.hbm.xml" />
         <mapping resource="hibernate/hbm/SystemUser.hbm.xml" />
         <mapping resource="hibernate/hbm/Test.hbm.xml" />
+        <mapping resource="hibernate/hbm/TestParentChildDependency.hbm.xml" />
         <mapping resource="hibernate/hbm/TestSection.hbm.xml" />
         <mapping resource="hibernate/hbm/RenameTestSection.hbm.xml" />
         <mapping resource="hibernate/hbm/RenameMethod.hbm.xml" />

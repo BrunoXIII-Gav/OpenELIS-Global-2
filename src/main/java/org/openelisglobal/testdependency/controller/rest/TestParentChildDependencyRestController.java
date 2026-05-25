@@ -1,0 +1,140 @@
+package org.openelisglobal.testdependency.controller.rest;
+
+import jakarta.servlet.http.HttpServletRequest;
+import java.util.List;
+import java.util.stream.Collectors;
+import org.apache.commons.validator.GenericValidator;
+import org.openelisglobal.common.log.LogEvent;
+import org.openelisglobal.common.rest.BaseRestController;
+import org.openelisglobal.test.service.TestService;
+import org.openelisglobal.test.valueholder.Test;
+import org.openelisglobal.testdependency.form.TestParentChildDependencyForm;
+import org.openelisglobal.testdependency.service.TestParentChildDependencyService;
+import org.openelisglobal.testdependency.valueholder.TestParentChildDependency;
+import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.http.HttpStatus;
+import org.springframework.http.MediaType;
+import org.springframework.http.ResponseEntity;
+import org.springframework.validation.annotation.Validated;
+import org.springframework.web.bind.annotation.DeleteMapping;
+import org.springframework.web.bind.annotation.GetMapping;
+import org.springframework.web.bind.annotation.PathVariable;
+import org.springframework.web.bind.annotation.PostMapping;
+import org.springframework.web.bind.annotation.RequestBody;
+import org.springframework.web.bind.annotation.RequestMapping;
+import org.springframework.web.bind.annotation.RequestParam;
+import org.springframework.web.bind.annotation.ResponseBody;
+import org.springframework.web.bind.annotation.RestController;
+
+@RestController
+@RequestMapping("/rest/test-parent-child-dependencies")
+@Validated
+public class TestParentChildDependencyRestController extends BaseRestController {
+
+    @Autowired
+    private TestParentChildDependencyService dependencyService;
+
+    @Autowired
+    private TestService testService;
+
+    @GetMapping(produces = MediaType.APPLICATION_JSON_VALUE)
+    @ResponseBody
+    public ResponseEntity<List<TestParentChildDependencyForm>> getDependencies(
+            @RequestParam(required = false) String parentTestId,
+            @RequestParam(required = false) Boolean activeOnly) {
+
+        List<TestParentChildDependency> dependencies;
+        boolean active = activeOnly != null && activeOnly.booleanValue();
+
+        if (!GenericValidator.isBlankOrNull(parentTestId)) {
+            dependencies = dependencyService.getByParentTestId(parentTestId);
+            if (active) {
+                dependencies = dependencies.stream().filter(d -> Boolean.TRUE.equals(d.getActive()))
+                        .collect(Collectors.toList());
+            }
+        } else if (active) {
+            dependencies = dependencyService.getAllActive();
+        } else {
+            dependencies = dependencyService.getAll();
+        }
+
+        List<TestParentChildDependencyForm> forms = dependencies.stream().map(this::toForm).collect(Collectors.toList());
+        return ResponseEntity.ok(forms);
+    }
+
+    @PostMapping(consumes = MediaType.APPLICATION_JSON_VALUE, produces = MediaType.APPLICATION_JSON_VALUE)
+    @ResponseBody
+    public ResponseEntity<TestParentChildDependencyForm> upsertDependency(
+            @RequestBody TestParentChildDependencyForm form,
+            HttpServletRequest request) {
+
+        String parentTestId = form.getParentTestId();
+        String childTestId = form.getChildTestId();
+
+        if (GenericValidator.isBlankOrNull(parentTestId) || GenericValidator.isBlankOrNull(childTestId)) {
+            throw new IllegalArgumentException("parentTestId and childTestId are required");
+        }
+
+        if (parentTestId.equals(childTestId)) {
+            throw new IllegalArgumentException("A test cannot be parent and child at the same time");
+        }
+
+        Test parentTest = testService.get(parentTestId);
+        Test childTest = testService.get(childTestId);
+        if (parentTest == null || childTest == null) {
+            throw new IllegalArgumentException("Parent and child tests must exist");
+        }
+
+        TestParentChildDependency dependency;
+        if (!GenericValidator.isBlankOrNull(form.getId())) {
+            dependency = dependencyService.get(form.getId());
+            if (dependency == null) {
+                throw new IllegalArgumentException("Dependency not found: " + form.getId());
+            }
+        } else {
+            TestParentChildDependency existing = dependencyService.getByChildTestId(childTestId);
+            dependency = existing != null ? existing : new TestParentChildDependency();
+        }
+
+        dependency.setParentTest(parentTest);
+        dependency.setChildTest(childTest);
+        dependency.setActive(form.getActive() == null ? Boolean.TRUE : form.getActive());
+        dependency.setDisplayOrder(form.getDisplayOrder());
+        dependency.setSysUserId(getSysUserId(request));
+
+        if (GenericValidator.isBlankOrNull(dependency.getId())) {
+            dependencyService.insert(dependency);
+        } else {
+            dependencyService.update(dependency);
+        }
+
+        return ResponseEntity.status(HttpStatus.OK).body(toForm(dependency));
+    }
+
+    @DeleteMapping(value = "/{id}")
+    @ResponseBody
+    public ResponseEntity<Void> deleteDependency(@PathVariable String id) {
+        TestParentChildDependency dependency = dependencyService.get(id);
+        if (dependency == null) {
+            return ResponseEntity.notFound().build();
+        }
+
+        try {
+            dependencyService.delete(dependency);
+            return ResponseEntity.noContent().build();
+        } catch (Exception e) {
+            LogEvent.logError(this.getClass().getSimpleName(), "deleteDependency", e.toString());
+            return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR).build();
+        }
+    }
+
+    private TestParentChildDependencyForm toForm(TestParentChildDependency dependency) {
+        TestParentChildDependencyForm form = new TestParentChildDependencyForm();
+        form.setId(dependency.getId());
+        form.setParentTestId(dependency.getParentTest() != null ? dependency.getParentTest().getId() : null);
+        form.setChildTestId(dependency.getChildTest() != null ? dependency.getChildTest().getId() : null);
+        form.setActive(dependency.getActive());
+        form.setDisplayOrder(dependency.getDisplayOrder());
+        return form;
+    }
+}
