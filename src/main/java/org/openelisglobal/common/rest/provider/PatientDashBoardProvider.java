@@ -9,6 +9,8 @@ import java.time.ZoneId;
 import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.HashSet;
+import java.util.LinkedHashMap;
+import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
@@ -287,36 +289,51 @@ public class PatientDashBoardProvider {
     private List<OrderDisplayBean> convertAnalysesToGroupedOrderBean(List<Analysis> analyses) {
         List<OrderDisplayBean> orderBeanList = new ArrayList<>();
         java.text.SimpleDateFormat sdf = new java.text.SimpleDateFormat("yyyy-MM-dd HH:mm:ss");
-        Set<String> processedLabNumbers = new HashSet<>();
+        Map<String, OrderDisplayBean> groupedByLabNumber = new LinkedHashMap<>();
+        Map<String, Set<String>> testSectionsByLabNumber = new HashMap<>();
 
-        if (analyses != null) {
-            analyses.forEach(analysis -> {
-                if (analysis != null && analysis.getSampleItem() != null
-                        && analysis.getSampleItem().getSample() != null) {
-                    Sample sample = analysis.getSampleItem().getSample();
-                    String labNumber = sample.getAccessionNumber() != null ? sample.getAccessionNumber() : "";
-
-                    if (!labNumber.isEmpty() && !processedLabNumbers.contains(labNumber)) {
-                        processedLabNumbers.add(labNumber);
-
-                        OrderDisplayBean orderBean = new OrderDisplayBean();
-                        orderBean.setId(sample.getId());
-                        orderBean.setPriority(sample.getPriority() != null ? sample.getPriority().toString() : "");
-                        orderBean.setLabNumber(labNumber);
-                        orderBean.setCugCode(analysis.getSampleItem().getCugCode() != null
-                                ? analysis.getSampleItem().getCugCode()
-                                : "");
-                        orderBean.setPatientId(getDisplayPatientIdentifier(sampleHumanService.getPatientForSample(sample)));
-                        orderBean.setOrderDate(
-                                sample.getLastupdated() != null ? sdf.format(sample.getLastupdated()) : "");
-                        orderBean.setTestName("");
-                        orderBean.setTestSection("");
-
-                        orderBeanList.add(orderBean);
-                    }
-                }
-            });
+        if (analyses == null) {
+            return orderBeanList;
         }
+
+        analyses.forEach(analysis -> {
+            if (analysis == null || analysis.getSampleItem() == null || analysis.getSampleItem().getSample() == null) {
+                return;
+            }
+
+            Sample sample = analysis.getSampleItem().getSample();
+            String labNumber = sample.getAccessionNumber() != null ? sample.getAccessionNumber() : "";
+            if (labNumber.isEmpty()) {
+                return;
+            }
+
+            OrderDisplayBean orderBean = groupedByLabNumber.get(labNumber);
+            if (orderBean == null) {
+                orderBean = new OrderDisplayBean();
+                orderBean.setId(sample.getId());
+                orderBean.setPriority(sample.getPriority() != null ? sample.getPriority().toString() : "");
+                orderBean.setLabNumber(labNumber);
+                orderBean.setCugCode(
+                        analysis.getSampleItem().getCugCode() != null ? analysis.getSampleItem().getCugCode() : "");
+                orderBean.setPatientId(getDisplayPatientIdentifier(sampleHumanService.getPatientForSample(sample)));
+                orderBean.setOrderDate(sample.getLastupdated() != null ? sdf.format(sample.getLastupdated()) : "");
+                orderBean.setTestName("");
+                groupedByLabNumber.put(labNumber, orderBean);
+                testSectionsByLabNumber.put(labNumber, new LinkedHashSet<>());
+            }
+
+            String testSectionId = analysis.getTestSection() != null ? analysis.getTestSection().getId() : "";
+            if (StringUtils.isNotBlank(testSectionId)) {
+                testSectionsByLabNumber.get(labNumber).add(testSectionId);
+            }
+        });
+
+        groupedByLabNumber.forEach((labNumber, bean) -> {
+            Set<String> sectionSet = testSectionsByLabNumber.get(labNumber);
+            bean.setTestSection(sectionSet == null || sectionSet.isEmpty() ? "" : String.join(",", sectionSet));
+            orderBeanList.add(bean);
+        });
+
         return orderBeanList;
     }
 
@@ -586,7 +603,8 @@ public class PatientDashBoardProvider {
     @ResponseBody
     public PatientDashBoardForm getDashBoardDisplayList(HttpServletRequest request,
             @PathVariable DashBoardTile.TileType listType, @RequestParam(required = false) String systemUserId,
-            @RequestParam(required = false) String startDate, @RequestParam(required = false) String endDate)
+            @RequestParam(required = false) String startDate, @RequestParam(required = false) String endDate,
+            @RequestParam(required = false) String testType)
             throws InvocationTargetException, IllegalAccessException, NoSuchMethodException {
 
         PatientDashBoardForm response = new PatientDashBoardForm();
@@ -595,7 +613,7 @@ public class PatientDashBoardProvider {
 
         String requestedPage = request.getParameter("page");
         if (GenericValidator.isBlankOrNull(requestedPage)) {
-            orderDisplayBeans = retreiveOrders(listType, systemUserId, startDate, endDate);
+            orderDisplayBeans = retreiveOrders(listType, systemUserId, startDate, endDate, testType);
 
             paging.setDatabaseResults(request, response, orderDisplayBeans);
         } else {
@@ -611,7 +629,7 @@ public class PatientDashBoardProvider {
      * getdashBoardDisplayList method.
      */
     private List<OrderDisplayBean> retreiveOrders(DashBoardTile.TileType listType, String systemUserId,
-            String startDate, String endDate) {
+            String startDate, String endDate, String testType) {
         java.sql.Date sqlStartDate = (startDate != null && !startDate.isEmpty()) ? java.sql.Date.valueOf(startDate)
                 : java.sql.Date.valueOf("2000-01-01");
 
@@ -653,7 +671,7 @@ public class PatientDashBoardProvider {
                 if (a.getStatusId().equals(readyId))
                     filteredAnalyses.add(a);
             });
-            return convertAnalysesToOrderBean(filteredAnalyses);
+            return convertAnalysesToOrderBean(filterByTestType(filteredAnalyses, testType));
 
         case AWAITING_RESULTS:
             String awaitingId = iStatusService.getStatusID(AnalysisStatus.NotStarted);
@@ -670,7 +688,7 @@ public class PatientDashBoardProvider {
                 }
             });
 
-            return convertAnalysesToOrderBean(filteredAnalyses);
+            return convertAnalysesToOrderBean(filterByTestType(filteredAnalyses, testType));
 
         case ORDERS_COMPLETED_TODAY:
             String finalizedId = iStatusService.getStatusID(AnalysisStatus.Finalized);
@@ -733,6 +751,25 @@ public class PatientDashBoardProvider {
             }
         }
         return new ArrayList<>();
+    }
+
+    private List<Analysis> filterByTestType(List<Analysis> analyses, String testType) {
+        if (analyses == null || analyses.isEmpty() || StringUtils.isBlank(testType)
+                || StringUtils.equalsIgnoreCase(testType, "all")) {
+            return analyses;
+        }
+
+        List<Analysis> filtered = new ArrayList<>();
+        for (Analysis analysis : analyses) {
+            if (analysis == null || analysis.getTest() == null) {
+                continue;
+            }
+            String localizedName = analysis.getTest().getLocalizedName();
+            if (StringUtils.isNotBlank(localizedName) && StringUtils.equalsIgnoreCase(localizedName, testType)) {
+                filtered.add(analysis);
+            }
+        }
+        return filtered;
     }
 
     @GetMapping(value = "home-dashboard/turn-around-time-metrics", produces = MediaType.APPLICATION_JSON_VALUE)
