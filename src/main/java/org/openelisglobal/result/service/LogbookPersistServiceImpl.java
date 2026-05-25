@@ -27,6 +27,8 @@ import org.openelisglobal.result.action.util.ResultSet;
 import org.openelisglobal.result.action.util.ResultsUpdateDataSet;
 import org.openelisglobal.sample.service.SampleService;
 import org.openelisglobal.sample.valueholder.Sample;
+import org.openelisglobal.sampleitem.service.SampleItemService;
+import org.openelisglobal.sampleitem.valueholder.SampleItem;
 import org.openelisglobal.spring.util.SpringContext;
 import org.openelisglobal.test.beanItems.TestResultItem;
 import org.openelisglobal.testadditionalfield.bean.TestAdditionalFieldPayload;
@@ -61,6 +63,8 @@ public class LogbookPersistServiceImpl implements LogbookResultsPersistService {
     private ReferralSetService referralSetService;
     @Autowired
     private TestAdditionalFieldService testAdditionalFieldService;
+    @Autowired
+    private SampleItemService sampleItemService;
 
     @Override
     @Transactional
@@ -130,6 +134,9 @@ public class LogbookPersistServiceImpl implements LogbookResultsPersistService {
         }
 
         persistAdditionalFieldValues(actionDataSet, sysUserId);
+        for (SampleItem sampleItem : actionDataSet.getModifiedSampleItems()) {
+            sampleItemService.update(sampleItem);
+        }
 
         ResultSaveService.removeDeletedResultsInTransaction(actionDataSet.getDeletableResults(), sysUserId);
 

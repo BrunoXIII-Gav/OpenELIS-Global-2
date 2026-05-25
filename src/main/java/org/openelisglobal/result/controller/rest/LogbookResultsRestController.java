@@ -2,6 +2,8 @@
 package org.openelisglobal.result.controller.rest;
 
 import jakarta.servlet.http.HttpServletRequest;
+import java.math.BigDecimal;
+import java.math.RoundingMode;
 import java.lang.reflect.InvocationTargetException;
 import java.sql.Timestamp;
 import java.time.OffsetDateTime;
@@ -99,10 +101,14 @@ import org.openelisglobal.test.beanItems.TestResultItem;
 import org.openelisglobal.testadditionalfield.bean.TestAdditionalFieldPayload;
 import org.openelisglobal.test.service.TestSectionService;
 import org.openelisglobal.test.valueholder.TestSection;
+import org.openelisglobal.testdependency.service.TestParentChildDependencyService;
+import org.openelisglobal.testdependency.valueholder.TestParentChildDependency;
 import org.openelisglobal.typeoftestresult.service.TypeOfTestResultServiceImpl;
 import org.openelisglobal.userrole.service.UserRoleService;
 import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.http.HttpStatus;
 import org.springframework.http.MediaType;
+import org.springframework.http.ResponseEntity;
 import org.springframework.stereotype.Controller;
 import org.springframework.validation.BindingResult;
 import org.springframework.validation.Errors;
@@ -116,6 +122,7 @@ import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.ResponseBody;
+import org.springframework.web.bind.annotation.ExceptionHandler;
 
 @Controller
 @RequestMapping(value = "/rest/")
@@ -137,6 +144,7 @@ public class LogbookResultsRestController extends LogbookResultsBaseController {
             "testResult*.qualifiedResultValue", "testResult*.qualifiedResultValue", "testResult*.shadowReferredOut",
             "testResult*.referredOut", "testResult*.referralReasonId", "testResult*.technician",
             "testResult*.shadowRejected", "testResult*.rejected", "testResult*.rejectReasonId", "testResult*.note",
+            "testResult*.sampleUsageQuantity",
             "paging.currentPage", "testResult*.resultFile", "testResult*.resultFile.fileName",
             "testResult*.resultFile.fileType", "testResult*.resultFile.base64Content", "testResult*.refer",
             "testResult*.referralItem.referralReasonId", "testResult*.referralItem.referredInstituteId",
@@ -187,6 +195,8 @@ public class LogbookResultsRestController extends LogbookResultsBaseController {
     private NotificationDAO notificationDAO;
     @Autowired
     private SystemUserService systemUserService;
+    @Autowired
+    private TestParentChildDependencyService testParentChildDependencyService;
 
     private final String RESULT_SUBJECT = "Result Note";
     private final String REFERRAL_CONFORMATION_ID;
@@ -644,10 +654,12 @@ public class LogbookResultsRestController extends LogbookResultsBaseController {
 
     private void createResultsFromItems(ResultsUpdateDataSet actionDataSet, boolean supportReferrals,
             boolean alwaysValidate, boolean useTechnicianName, String statusRuleSet) {
+        Map<String, SampleItem> sampleItemsBeingUpdated = new HashMap<>();
 
         for (TestResultItem testResultItem : actionDataSet.getModifiedItems()) {
 
             Analysis analysis = analysisService.get(testResultItem.getAnalysisId());
+            applyParentChildDependencyAndUsage(testResultItem, analysis, actionDataSet, sampleItemsBeingUpdated);
             analysis.setStatusId(getStatusForTestResult(testResultItem, alwaysValidate));
             analysis.setSysUserId(getSysUserId(request));
             if (!GenericValidator.isBlankOrNull(testResultItem.getTestMethod())) {
@@ -702,6 +714,112 @@ public class LogbookResultsRestController extends LogbookResultsBaseController {
                 handleReferrals(testResultItem, testResultItem.getReferralItem(), results, analysis, actionDataSet);
             }
         }
+    }
+
+    private void applyParentChildDependencyAndUsage(TestResultItem testResultItem, Analysis analysis,
+            ResultsUpdateDataSet actionDataSet, Map<String, SampleItem> sampleItemsBeingUpdated) {
+        if (analysis == null || analysis.getTest() == null || analysis.getSampleItem() == null) {
+            return;
+        }
+
+        TestParentChildDependency dependency = testParentChildDependencyService
+                .getActiveByChildTestId(analysis.getTest().getId());
+        if (dependency == null || dependency.getParentTest() == null) {
+            return;
+        }
+
+        Analysis parentAnalysis = analysisService.getAnalysisBySampleItemAndTest(analysis.getSampleItem().getId(),
+                dependency.getParentTest().getId());
+        if (parentAnalysis == null) {
+            throw new IllegalArgumentException("Parent analysis not found for dependent test configuration");
+        }
+
+        if (!isCompletedForDependency(parentAnalysis)) {
+            throw new IllegalArgumentException("Parent test must be completed before entering child test results");
+        }
+
+        analysis.setParentAnalysis(parentAnalysis);
+
+        if (analysis.getSampleUsedQuantity() != null) {
+            if (!GenericValidator.isBlankOrNull(testResultItem.getSampleUsageQuantity())) {
+                BigDecimal attemptedUsage = parseAndValidateUsageQuantity(testResultItem.getSampleUsageQuantity());
+                if (analysis.getSampleUsedQuantity().compareTo(attemptedUsage) != 0) {
+                    throw new IllegalArgumentException("Sample usage quantity cannot be changed after first save");
+                }
+            }
+            return;
+        }
+
+        boolean requiresUsage = hasEnteredResult(testResultItem) || ResultUtil.isReferred(testResultItem)
+                || ResultUtil.isRejected(testResultItem) || ResultUtil.isForcedToAcceptance(testResultItem);
+
+        if (!requiresUsage) {
+            return;
+        }
+
+        if (GenericValidator.isBlankOrNull(testResultItem.getSampleUsageQuantity())) {
+            throw new IllegalArgumentException("Sample usage quantity is required for dependent child tests");
+        }
+
+        BigDecimal usageQuantity = parseAndValidateUsageQuantity(testResultItem.getSampleUsageQuantity());
+        String sampleItemId = analysis.getSampleItem().getId();
+
+        SampleItem sampleItem = sampleItemsBeingUpdated.get(sampleItemId);
+        if (sampleItem == null) {
+            sampleItem = sampleItemService.get(sampleItemId);
+            if (sampleItem == null) {
+                throw new IllegalArgumentException("Sample item not found for analysis");
+            }
+        }
+
+        if (!sampleItem.canAliquot(usageQuantity)) {
+            throw new IllegalArgumentException("Insufficient remaining quantity for dependent child test usage");
+        }
+
+        sampleItem.decrementRemainingQuantity(usageQuantity);
+        sampleItem.setSysUserId(getSysUserId(request));
+        sampleItemsBeingUpdated.put(sampleItemId, sampleItem);
+        actionDataSet.addModifiedSampleItem(sampleItem);
+
+        analysis.setSampleItem(sampleItem);
+        analysis.setSampleUsedQuantity(usageQuantity);
+    }
+
+    private boolean hasEnteredResult(TestResultItem testResultItem) {
+        String value = testResultItem.getShadowResultValue();
+        if (TypeOfTestResultServiceImpl.ResultType.isMultiSelectVariant(testResultItem.getResultType())) {
+            return !GenericValidator.isBlankOrNull(testResultItem.getMultiSelectResultValues())
+                    && !"{}".equals(testResultItem.getMultiSelectResultValues());
+        }
+
+        if (GenericValidator.isBlankOrNull(value)) {
+            return false;
+        }
+
+        return !(TypeOfTestResultServiceImpl.ResultType.DICTIONARY.matches(testResultItem.getResultType())
+                && "0".equals(value));
+    }
+
+    private BigDecimal parseAndValidateUsageQuantity(String usageQuantity) {
+        try {
+            BigDecimal parsed = new BigDecimal(usageQuantity.trim()).setScale(3, RoundingMode.HALF_UP);
+            if (parsed.compareTo(BigDecimal.ZERO) <= 0) {
+                throw new IllegalArgumentException("Sample usage quantity must be greater than zero");
+            }
+            return parsed;
+        } catch (NumberFormatException e) {
+            throw new IllegalArgumentException("Sample usage quantity must be a valid number");
+        }
+    }
+
+    private boolean isCompletedForDependency(Analysis analysis) {
+        if (analysis == null || GenericValidator.isBlankOrNull(analysis.getStatusId())) {
+            return false;
+        }
+
+        IStatusService statusService = SpringContext.getBean(IStatusService.class);
+        return statusService.matches(analysis.getStatusId(), AnalysisStatus.Finalized)
+                || statusService.matches(analysis.getStatusId(), AnalysisStatus.TechnicalAcceptance);
     }
 
     private void handleReferrals(TestResultItem testResultItem, ReferralItem referralItem, List<Result> results,
@@ -1072,6 +1190,14 @@ public class LogbookResultsRestController extends LogbookResultsBaseController {
         file.setLastupdated(now);
 
         return file;
+    }
+
+    @ExceptionHandler(IllegalArgumentException.class)
+    @ResponseBody
+    public ResponseEntity<Map<String, String>> handleIllegalArgumentException(IllegalArgumentException e) {
+        Map<String, String> error = new HashMap<>();
+        error.put("message", e.getMessage());
+        return ResponseEntity.status(HttpStatus.BAD_REQUEST).body(error);
     }
 
     private String findLogBookForward(String forward) {

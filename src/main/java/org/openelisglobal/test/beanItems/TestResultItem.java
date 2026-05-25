@@ -212,6 +212,14 @@ public class TestResultItem implements ResultItem, Serializable {
 
     private String initialSampleCondition;
     private String sampleType;
+    private boolean dependentChild = false;
+    private String dependencyParentAnalysisId;
+    private String dependencyParentTestId;
+    private String dependencyParentTestName;
+    private boolean dependencyParentCompleted = false;
+    private String sampleRemainingQuantity;
+    private String sampleUsageQuantity;
+    private boolean sampleUsageLocked = false;
     private boolean failedValidation = false;
     private boolean nonconforming = false;
     private String testSortOrder = null;
@@ -829,6 +837,70 @@ public class TestResultItem implements ResultItem, Serializable {
 
     public String getSampleType() {
         return sampleType;
+    }
+
+    public boolean isDependentChild() {
+        return dependentChild;
+    }
+
+    public void setDependentChild(boolean dependentChild) {
+        this.dependentChild = dependentChild;
+    }
+
+    public String getDependencyParentAnalysisId() {
+        return dependencyParentAnalysisId;
+    }
+
+    public void setDependencyParentAnalysisId(String dependencyParentAnalysisId) {
+        this.dependencyParentAnalysisId = dependencyParentAnalysisId;
+    }
+
+    public String getDependencyParentTestId() {
+        return dependencyParentTestId;
+    }
+
+    public void setDependencyParentTestId(String dependencyParentTestId) {
+        this.dependencyParentTestId = dependencyParentTestId;
+    }
+
+    public String getDependencyParentTestName() {
+        return dependencyParentTestName;
+    }
+
+    public void setDependencyParentTestName(String dependencyParentTestName) {
+        this.dependencyParentTestName = dependencyParentTestName;
+    }
+
+    public boolean isDependencyParentCompleted() {
+        return dependencyParentCompleted;
+    }
+
+    public void setDependencyParentCompleted(boolean dependencyParentCompleted) {
+        this.dependencyParentCompleted = dependencyParentCompleted;
+    }
+
+    public String getSampleRemainingQuantity() {
+        return sampleRemainingQuantity;
+    }
+
+    public void setSampleRemainingQuantity(String sampleRemainingQuantity) {
+        this.sampleRemainingQuantity = sampleRemainingQuantity;
+    }
+
+    public String getSampleUsageQuantity() {
+        return sampleUsageQuantity;
+    }
+
+    public void setSampleUsageQuantity(String sampleUsageQuantity) {
+        this.sampleUsageQuantity = sampleUsageQuantity;
+    }
+
+    public boolean isSampleUsageLocked() {
+        return sampleUsageLocked;
+    }
+
+    public void setSampleUsageLocked(boolean sampleUsageLocked) {
+        this.sampleUsageLocked = sampleUsageLocked;
     }
 
     public void setFailedValidation(boolean failedValidation) {

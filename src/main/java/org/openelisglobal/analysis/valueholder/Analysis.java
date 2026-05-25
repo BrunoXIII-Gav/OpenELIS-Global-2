@@ -17,6 +17,7 @@ package org.openelisglobal.analysis.valueholder;
 
 import java.sql.Date;
 import java.sql.Timestamp;
+import java.math.BigDecimal;
 import java.util.List;
 import java.util.UUID;
 import org.apache.commons.validator.GenericValidator;
@@ -85,6 +86,7 @@ public class Analysis extends BaseObject<String> implements NoteObject {
     private boolean correctedSincePatientReport;
     private ValueHolderInterface method;
     private ResultFile resultFile;
+    private BigDecimal sampleUsedQuantity;
 
     public Analysis() {
         super();
@@ -517,6 +519,14 @@ public class Analysis extends BaseObject<String> implements NoteObject {
 
     public void setResultFile(ResultFile resultFile) {
         this.resultFile = resultFile;
+    }
+
+    public BigDecimal getSampleUsedQuantity() {
+        return sampleUsedQuantity;
+    }
+
+    public void setSampleUsedQuantity(BigDecimal sampleUsedQuantity) {
+        this.sampleUsedQuantity = sampleUsedQuantity;
     }
 
 }

@@ -23,6 +23,7 @@ import org.openelisglobal.common.services.IResultSaveService;
 import org.openelisglobal.note.valueholder.Note;
 import org.openelisglobal.referral.valueholder.ReferralSet;
 import org.openelisglobal.result.valueholder.Result;
+import org.openelisglobal.sampleitem.valueholder.SampleItem;
 import org.openelisglobal.spring.util.SpringContext;
 import org.openelisglobal.test.beanItems.TestResultItem;
 import org.springframework.validation.Errors;
@@ -37,6 +38,7 @@ public class ResultsUpdateDataSet implements IResultSaveService {
     private List<Result> deletableResults = new ArrayList<>();
     private List<ReferralSet> savableReferralSets = new ArrayList<>();
     private List<String> referredAnalysisIds = new ArrayList<>();
+    private List<SampleItem> modifiedSampleItems = new ArrayList<>();
     private Analysis previousAnalysis = new Analysis();
     private ResultsValidation resultValidation = SpringContext.getBean(ResultsValidation.class);
     private List<Note> noteList = new ArrayList<>();
@@ -88,6 +90,21 @@ public class ResultsUpdateDataSet implements IResultSaveService {
 
     public List<String> getReferredAnalysisIds() {
         return referredAnalysisIds;
+    }
+
+    public List<SampleItem> getModifiedSampleItems() {
+        return modifiedSampleItems;
+    }
+
+    public void addModifiedSampleItem(SampleItem sampleItem) {
+        if (sampleItem == null || sampleItem.getId() == null) {
+            return;
+        }
+
+        boolean exists = modifiedSampleItems.stream().anyMatch(existing -> sampleItem.getId().equals(existing.getId()));
+        if (!exists) {
+            modifiedSampleItems.add(sampleItem);
+        }
     }
 
     public Analysis getPreviousAnalysis() {

@@ -16,6 +16,7 @@
 package org.openelisglobal.result.action.util;
 
 import jakarta.annotation.PostConstruct;
+import java.math.BigDecimal;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.Comparator;
@@ -93,6 +94,8 @@ import org.openelisglobal.test.valueholder.TbMethodTest;
 import org.openelisglobal.test.valueholder.Test;
 import org.openelisglobal.testadditionalfield.bean.TestAdditionalFieldPayload;
 import org.openelisglobal.testadditionalfield.service.TestAdditionalFieldService;
+import org.openelisglobal.testdependency.service.TestParentChildDependencyService;
+import org.openelisglobal.testdependency.valueholder.TestParentChildDependency;
 import org.openelisglobal.testreflex.action.util.TestReflexUtil;
 import org.openelisglobal.testreflex.valueholder.TestReflex;
 import org.openelisglobal.testresult.service.TestResultService;
@@ -162,6 +165,8 @@ public class ResultsLoadUtility {
     @Autowired
     private TestAdditionalFieldService testAdditionalFieldService;
     @Autowired
+    private TestParentChildDependencyService testParentChildDependencyService;
+    @Autowired
     private TbMethodTestService tbMethodTestService;
     @Autowired
     private MethodService methodService;
@@ -186,6 +191,8 @@ public class ResultsLoadUtility {
     private final Map<String, List<TestAdditionalFieldPayload>> additionalFieldDefinitionCache = new HashMap<>();
     private final Map<String, List<IdValuePair>> methodOptionsByTestIdCache = new HashMap<>();
     private final Map<String, String> methodLabelByIdCache = new HashMap<>();
+    private final Map<String, TestParentChildDependency> dependencyByChildTestId = new HashMap<>();
+    private final Map<String, Analysis> parentAnalysisBySampleAndTest = new HashMap<>();
 
     @PostConstruct
     public void initializeGlobalVariables() {
@@ -229,6 +236,7 @@ public class ResultsLoadUtility {
         additionalFieldDefinitionCache.clear();
         methodOptionsByTestIdCache.clear();
         methodLabelByIdCache.clear();
+        clearDependencyCaches();
         // TODO: Re-enable after new inventory frontend integration
         // activeKits = null;
         samples = new ArrayList<>();
@@ -251,6 +259,7 @@ public class ResultsLoadUtility {
         additionalFieldDefinitionCache.clear();
         methodOptionsByTestIdCache.clear();
         methodLabelByIdCache.clear();
+        clearDependencyCaches();
         // TODO: Re-enable after new inventory frontend integration
         // activeKits = null;
         inventoryNeeded = false;
@@ -313,6 +322,7 @@ public class ResultsLoadUtility {
         additionalFieldDefinitionCache.clear();
         methodOptionsByTestIdCache.clear();
         methodLabelByIdCache.clear();
+        clearDependencyCaches();
 
         List<TestResultItem> selectedTestList = new ArrayList<>();
 
@@ -433,6 +443,10 @@ public class ResultsLoadUtility {
     private List<TestResultItem> getTestResultItemFromAnalysis(Analysis analysis, String patientName,
             String patientInfo, String nationalId) throws LIMSRuntimeException {
         List<TestResultItem> testResultList = new ArrayList<>();
+        DependencyContext dependencyContext = resolveDependencyContext(analysis);
+        if (dependencyContext.isDependentChild && !dependencyContext.parentCompleted) {
+            return testResultList;
+        }
 
         SampleItem sampleItem = analysis.getSampleItem();
         List<Result> resultList = resultService.getResultsByAnalysis(analysis);
@@ -493,6 +507,7 @@ public class ResultsLoadUtility {
                     result, sampleItem.getSample().getAccessionNumber(), patientName, patientInfo, techSignature,
                     techSignatureId, initialConditions, SpringContext.getBean(TypeOfSampleService.class)
                             .getTypeOfSampleNameForId(sampleItem.getTypeOfSampleId()));
+            applyDependencyContextToResultItem(resultItem, dependencyContext, analysis);
             resultItem.setNationalId(nationalId);
             testResultList.add(resultItem);
 
@@ -846,6 +861,92 @@ public class ResultsLoadUtility {
 
     private boolean isReadOnly(boolean isConclusion, boolean isCD4Conclusion) {
         return isConclusion || isCD4Conclusion || isLockCurrentResults();
+    }
+
+    private void clearDependencyCaches() {
+        dependencyByChildTestId.clear();
+        parentAnalysisBySampleAndTest.clear();
+    }
+
+    private DependencyContext resolveDependencyContext(Analysis analysis) {
+        DependencyContext context = new DependencyContext();
+        if (analysis == null || analysis.getTest() == null || analysis.getSampleItem() == null) {
+            return context;
+        }
+
+        String childTestId = analysis.getTest().getId();
+        if (GenericValidator.isBlankOrNull(childTestId)) {
+            return context;
+        }
+
+        TestParentChildDependency dependency = dependencyByChildTestId.get(childTestId);
+        if (dependency == null && !dependencyByChildTestId.containsKey(childTestId)) {
+            dependency = testParentChildDependencyService.getActiveByChildTestId(childTestId);
+            dependencyByChildTestId.put(childTestId, dependency);
+        }
+
+        if (dependency == null || dependency.getParentTest() == null) {
+            return context;
+        }
+
+        context.isDependentChild = true;
+        context.parentTestId = dependency.getParentTest().getId();
+        context.parentTestName = dependency.getParentTest().getLocalizedName();
+
+        String parentLookupKey = analysis.getSampleItem().getId() + ":" + dependency.getParentTest().getId();
+        Analysis parentAnalysis = parentAnalysisBySampleAndTest.get(parentLookupKey);
+        if (parentAnalysis == null) {
+            parentAnalysis = analysisService.getAnalysisBySampleItemAndTest(analysis.getSampleItem().getId(),
+                    dependency.getParentTest().getId());
+            parentAnalysisBySampleAndTest.put(parentLookupKey, parentAnalysis);
+        }
+
+        context.parentAnalysis = parentAnalysis;
+        context.parentCompleted = isAnalysisCompleted(parentAnalysis);
+        return context;
+    }
+
+    private boolean isAnalysisCompleted(Analysis analysis) {
+        if (analysis == null || GenericValidator.isBlankOrNull(analysis.getStatusId())) {
+            return false;
+        }
+
+        IStatusService statusService = SpringContext.getBean(IStatusService.class);
+        return statusService.matches(analysis.getStatusId(), AnalysisStatus.Finalized)
+                || statusService.matches(analysis.getStatusId(), AnalysisStatus.TechnicalAcceptance);
+    }
+
+    private void applyDependencyContextToResultItem(TestResultItem resultItem, DependencyContext context,
+            Analysis analysis) {
+        if (!context.isDependentChild) {
+            return;
+        }
+
+        resultItem.setDependentChild(true);
+        resultItem.setDependencyParentTestId(context.parentTestId);
+        resultItem.setDependencyParentTestName(context.parentTestName);
+        resultItem.setDependencyParentAnalysisId(context.parentAnalysis != null ? context.parentAnalysis.getId() : null);
+        resultItem.setDependencyParentCompleted(context.parentCompleted);
+
+        BigDecimal remaining = analysis.getSampleItem().getEffectiveRemainingQuantity();
+        if (remaining != null) {
+            resultItem.setSampleRemainingQuantity(remaining.toPlainString());
+        }
+
+        if (analysis.getSampleUsedQuantity() != null) {
+            resultItem.setSampleUsageQuantity(analysis.getSampleUsedQuantity().toPlainString());
+            resultItem.setSampleUsageLocked(true);
+        } else {
+            resultItem.setSampleUsageLocked(false);
+        }
+    }
+
+    private static class DependencyContext {
+        private boolean isDependentChild = false;
+        private String parentTestId;
+        private String parentTestName;
+        private Analysis parentAnalysis;
+        private boolean parentCompleted = false;
     }
 
     private void setResultLimitDependencies(ResultLimit resultLimit, TestResultItem testItem,
