@@ -78,7 +78,8 @@ public class UnifiedSystemUserRestController extends BaseController {
     private static final String[] ALLOWED_FIELDS = new String[] { "systemUserId", "loginUserId", "userLoginName",
             "userPassword", "confirmPassword", "userFirstName", "userLastName", "expirationDate", "timeout",
             "accountLocked", "accountDisabled", "accountActive", "selectedRoles*", "selectedLabUnitRoles",
-            "testSectionId", "systemUsers", "systemUserIdToCopy", "allowCopyUserRoles" };
+            "testSectionId", "systemUsers", "systemUserIdToCopy", "allowCopyUserRoles", "linkedProviderPersonId",
+            "signatureImageData", "signatureImageContentType" };
 
     @Autowired
     private UnifiedSystemUserFormValidator formValidator;
@@ -171,6 +172,7 @@ public class UnifiedSystemUserRestController extends BaseController {
         // load testSections for drop down
         List<IdValuePair> testSections = DisplayListService.getInstance().getList(ListType.TEST_SECTION_ACTIVE);
         form.setTestSections(testSections);
+        form.setPractitionerPersons(DisplayListService.getInstance().getList(ListType.PRACTITIONER_PERSONS));
         form.setSystemUsers(getDisplaySystemUsersJsonArray());
         addFlashMsgsToRequest(request);
         // return findForward(FWD_SUCCESS, form);
@@ -378,6 +380,9 @@ public class UnifiedSystemUserRestController extends BaseController {
             form.setSystemUserId(systemUser.getId());
             form.setUserFirstName(systemUser.getFirstName());
             form.setUserLastName(systemUser.getLastName());
+            form.setLinkedProviderPersonId(StringUtils.defaultString(systemUser.getLinkedProviderPersonId()));
+            form.setSignatureImageData(systemUser.getSignatureImageData());
+            form.setSignatureImageContentType(StringUtils.defaultString(systemUser.getSignatureImageContentType()));
             form.setAccountActive(systemUser.getIsActive());
             form.setSystemUserLastupdated(systemUser.getLastupdated());
 
@@ -662,6 +667,9 @@ public class UnifiedSystemUserRestController extends BaseController {
         systemUser.setExternalId("1");
         String initial = systemUser.getFirstName().substring(0, 1) + systemUser.getLastName().substring(0, 1);
         systemUser.setInitials(initial);
+        systemUser.setLinkedProviderPersonId(StringUtils.trimToNull(form.getLinkedProviderPersonId()));
+        systemUser.setSignatureImageData(StringUtils.trimToNull(form.getSignatureImageData()));
+        systemUser.setSignatureImageContentType(StringUtils.trimToNull(form.getSignatureImageContentType()));
         systemUser.setSysUserId(loggedOnUserId);
 
         return systemUser;

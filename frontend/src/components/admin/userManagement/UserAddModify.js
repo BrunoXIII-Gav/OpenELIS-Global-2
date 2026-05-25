@@ -32,6 +32,7 @@ import {
   getFromOpenElisServer,
   postToOpenElisServer,
   postToOpenElisServerJsonResponse,
+  toBase64,
 } from "../../utils/Utils.js";
 import CustomDatePicker from "../../common/CustomDatePicker.js";
 import AutoComplete from "../../common/AutoComplete.js";
@@ -248,6 +249,10 @@ function UserAddModify() {
         userLastName: userData.userLastName,
         userLoginName: userData.userLoginName,
         userPassword: userData.userPassword,
+        linkedProviderPersonId: userData.linkedProviderPersonId || "",
+        signatureImageData: userData.signatureImageData || "",
+        signatureImageContentType: userData.signatureImageContentType || "",
+        practitionerPersons: userData.practitionerPersons || [],
       };
 
       const userManagementInfoToPost = {
@@ -276,6 +281,10 @@ function UserAddModify() {
         userLastName: userData.userLastName,
         userLoginName: userData.userLoginName,
         userPassword: userData.userPassword,
+        linkedProviderPersonId: userData.linkedProviderPersonId || "",
+        signatureImageData: userData.signatureImageData || "",
+        signatureImageContentType: userData.signatureImageContentType || "",
+        practitionerPersons: userData.practitionerPersons || [],
       };
       setUserDataShow(userManagementInfoToShow);
       setUserDataPost(userManagementInfoToPost);
@@ -615,6 +624,64 @@ function UserAddModify() {
       ...prevUserData,
       userLastName: value,
     }));
+  }
+
+  function handleLinkedProviderSelect(providerPersonId) {
+    setUserDataPost((prevUserDataPost) => ({
+      ...prevUserDataPost,
+      linkedProviderPersonId: providerPersonId || "",
+    }));
+    setUserDataShow((prevUserData) => ({
+      ...prevUserData,
+      linkedProviderPersonId: providerPersonId || "",
+    }));
+    setSaveButton(false);
+  }
+
+  function clearLinkedProvider() {
+    setUserDataPost((prevUserDataPost) => ({
+      ...prevUserDataPost,
+      linkedProviderPersonId: "",
+    }));
+    setUserDataShow((prevUserData) => ({
+      ...prevUserData,
+      linkedProviderPersonId: "",
+    }));
+    setSaveButton(false);
+  }
+
+  async function handleSignatureFileChange(event) {
+    const file = event?.target?.files?.[0];
+    if (!file) {
+      return;
+    }
+    const dataUrl = await toBase64(file);
+    const contentType = file.type || "image/png";
+    setUserDataPost((prevUserDataPost) => ({
+      ...prevUserDataPost,
+      signatureImageData: dataUrl,
+      signatureImageContentType: contentType,
+    }));
+    setUserDataShow((prevUserData) => ({
+      ...prevUserData,
+      signatureImageData: dataUrl,
+      signatureImageContentType: contentType,
+    }));
+    setSaveButton(false);
+  }
+
+  function clearSignatureImage() {
+    setUserDataPost((prevUserDataPost) => ({
+      ...prevUserDataPost,
+      signatureImageData: "",
+      signatureImageContentType: "",
+    }));
+    setUserDataShow((prevUserData) => ({
+      ...prevUserData,
+      signatureImageData: "",
+      signatureImageContentType: "",
+    }));
+    setSaveButton(false);
   }
 
   function handleExpirationDateChange(date) {
@@ -1064,6 +1131,66 @@ function UserAddModify() {
                       }
                       onChange={(e) => handleUserLastNameChange(e)}
                     />
+                  </Column>
+                </Grid>
+                <br />
+                <Grid fullWidth={true}>
+                  <Column lg={8} md={4} sm={4}>
+                    <FormattedMessage id="unifiedSystemUser.linked.provider.label" />
+                    {" :"}
+                  </Column>
+                  <Column lg={8} md={4} sm={4}>
+                    <AutoComplete
+                      id="linked-provider-person"
+                      name="linkedProviderPersonId"
+                      allowFreeText={false}
+                      value={userDataShow?.linkedProviderPersonId || ""}
+                      onSelect={handleLinkedProviderSelect}
+                      onChange={clearLinkedProvider}
+                      suggestions={userDataShow?.practitionerPersons || []}
+                      label=""
+                    />
+                  </Column>
+                </Grid>
+                <br />
+                <Grid fullWidth={true}>
+                  <Column lg={8} md={4} sm={4}>
+                    <FormattedMessage id="unifiedSystemUser.signature.label" />
+                    {" :"}
+                  </Column>
+                  <Column lg={8} md={4} sm={4}>
+                    <input
+                      id="user-signature-image"
+                      type="file"
+                      accept="image/png,image/jpeg,image/webp"
+                      onChange={handleSignatureFileChange}
+                    />
+                    {userDataShow?.signatureImageData ? (
+                      <>
+                        <br />
+                        <img
+                          src={userDataShow.signatureImageData}
+                          alt={intl.formatMessage({
+                            id: "unifiedSystemUser.signature.preview.alt",
+                          })}
+                          style={{
+                            maxWidth: "240px",
+                            maxHeight: "120px",
+                            border: "1px solid #c6c6c6",
+                            marginTop: "8px",
+                            marginBottom: "8px",
+                          }}
+                        />
+                        <br />
+                        <Button
+                          kind="ghost"
+                          size="sm"
+                          onClick={clearSignatureImage}
+                        >
+                          <FormattedMessage id="unifiedSystemUser.signature.remove" />
+                        </Button>
+                      </>
+                    ) : null}
                   </Column>
                 </Grid>
                 <br />

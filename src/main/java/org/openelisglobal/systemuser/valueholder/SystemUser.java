@@ -38,6 +38,12 @@ public class SystemUser extends EnumValueItemImpl implements PermissionAgent {
 
     private String initials;
 
+    private String linkedProviderPersonId;
+
+    private String signatureImageData;
+
+    private String signatureImageContentType;
+
     public SystemUser() {
     }
 
@@ -115,5 +121,29 @@ public class SystemUser extends EnumValueItemImpl implements PermissionAgent {
 
     public String getShortNameForDisplay() {
         return getNameForDisplay();
+    }
+
+    public String getLinkedProviderPersonId() {
+        return linkedProviderPersonId;
+    }
+
+    public void setLinkedProviderPersonId(String linkedProviderPersonId) {
+        this.linkedProviderPersonId = linkedProviderPersonId;
+    }
+
+    public String getSignatureImageData() {
+        return signatureImageData;
+    }
+
+    public void setSignatureImageData(String signatureImageData) {
+        this.signatureImageData = signatureImageData;
+    }
+
+    public String getSignatureImageContentType() {
+        return signatureImageContentType;
+    }
+
+    public void setSignatureImageContentType(String signatureImageContentType) {
+        this.signatureImageContentType = signatureImageContentType;
     }
 }
