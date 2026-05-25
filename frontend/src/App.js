@@ -239,6 +239,11 @@ export default function App() {
   const onChangeLanguage = (lang) => {
     changeLanguageReact(lang);
     changeLanguageBackend(lang);
+    // Re-apply branding after locale switch because IntlProvider remounts
+    // themed subtrees and Carbon theme tokens can revert to defaults.
+    setTimeout(() => {
+      loadAndApplyBranding();
+    }, 0);
   };
 
   const refresh = async (callback) => {

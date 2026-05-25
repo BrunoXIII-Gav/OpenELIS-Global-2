@@ -8,7 +8,7 @@ import {
   Button,
   Tag,
 } from "@carbon/react";
-import { Add, Chemistry, CheckboxChecked, Printer } from "@carbon/icons-react";
+import { Add, Chemistry, CheckboxChecked } from "@carbon/icons-react";
 import { FormattedMessage, useIntl } from "react-intl";
 import PageBreadCrumb from "../common/PageBreadCrumb";
 import SampleSearch from "./SampleSearch";
@@ -16,7 +16,6 @@ import SampleResultsTable from "./SampleResultsTable";
 import CreateAliquotModal from "./CreateAliquotModal";
 import AddTestsModal from "./AddTestsModal";
 import { getFromOpenElisServer } from "../utils/Utils";
-import config from "../../config.json";
 
 /**
  * SampleManagement - Main container component for Sample Management feature.
@@ -329,19 +328,6 @@ export default function SampleManagement() {
 
     // Clear selection after adding tests
     setSelectedSampleIds([]);
-  };
-
-  /**
-   * Handle printing barcode for the sample.
-   * Uses the accession number from the search response.
-   */
-  const handlePrintBarCode = () => {
-    if (searchResponse && searchResponse.accessionNumber) {
-      const barcodesPdf =
-        config.serverBaseUrl +
-        `/LabelMakerServlet?labNo=${searchResponse.accessionNumber}`;
-      window.open(barcodesPdf);
-    }
   };
 
   /**
@@ -665,15 +651,6 @@ export default function SampleManagement() {
                     />
                   </Button>
 
-                  {/* Print Barcode Button */}
-                  <Button
-                    kind="tertiary"
-                    renderIcon={Printer}
-                    onClick={handlePrintBarCode}
-                  >
-                    <FormattedMessage id="print.barcode" />
-                  </Button>
-
                   {/* Toggle Current Tests Section */}
                   <Button kind="tertiary" onClick={handleToggleCurrentTests}>
                     <FormattedMessage
@@ -746,77 +723,318 @@ export default function SampleManagement() {
     </>
   );
 }
-  const mergeWithSampleEditData = (searchResp, sampleEditResp) => {
-    if (!searchResp || !Array.isArray(searchResp.sampleItems) || !sampleEditResp) {
-      return searchResp;
+
+const normalizeOrderFieldKey = (value) =>
+  String(value || "")
+    .trim()
+    .toLowerCase()
+    .replace(/[^a-z0-9_-]/g, "_")
+    .replace(/_+/g, "_")
+    .replace(/^_+/, "");
+
+const parseFieldMetadata = (metadataJson) => {
+  if (!metadataJson || typeof metadataJson !== "string") {
+    return {};
+  }
+  try {
+    const parsed = JSON.parse(metadataJson);
+    return parsed && typeof parsed === "object" ? parsed : {};
+  } catch (_error) {
+    return {};
+  }
+};
+
+const mapValueFromIdList = (collection, rawValue) => {
+  if (
+    !Array.isArray(collection) ||
+    rawValue === undefined ||
+    rawValue === null
+  ) {
+    return "";
+  }
+  const normalizedRaw = String(rawValue);
+  const match = collection.find(
+    (entry) => String(entry?.id ?? entry?.value ?? "") === normalizedRaw,
+  );
+  return match?.value || "";
+};
+
+const stringifyDisplayValue = (value) => {
+  if (value === undefined || value === null) {
+    return "";
+  }
+  if (typeof value === "string") {
+    return value;
+  }
+  if (typeof value === "number" || typeof value === "boolean") {
+    return String(value);
+  }
+  if (Array.isArray(value)) {
+    return value.map((entry) => stringifyDisplayValue(entry)).join(", ");
+  }
+  if (typeof value === "object") {
+    return (
+      value?.value ||
+      value?.label ||
+      value?.name ||
+      (value?.id !== undefined && value?.id !== null ? String(value.id) : "")
+    );
+  }
+  return "";
+};
+
+const resolveFixedFieldDisplayValue = (sampleOrderItems, fieldKey) => {
+  const rawValue = sampleOrderItems?.[fieldKey];
+  if (rawValue === undefined || rawValue === null || rawValue === "") {
+    return "";
+  }
+
+  if (fieldKey === "priority") {
+    return (
+      mapValueFromIdList(sampleOrderItems?.priorityList, rawValue) ||
+      stringifyDisplayValue(rawValue)
+    );
+  }
+
+  if (fieldKey === "referringSiteDepartmentId") {
+    return (
+      mapValueFromIdList(
+        sampleOrderItems?.referringSiteDepartmentList,
+        rawValue,
+      ) || stringifyDisplayValue(rawValue)
+    );
+  }
+
+  if (fieldKey === "paymentOptionSelection") {
+    return (
+      mapValueFromIdList(sampleOrderItems?.paymentOptions, rawValue) ||
+      stringifyDisplayValue(rawValue)
+    );
+  }
+
+  if (fieldKey === "testLocationCode") {
+    return (
+      mapValueFromIdList(sampleOrderItems?.testLocationCodeList, rawValue) ||
+      stringifyDisplayValue(rawValue)
+    );
+  }
+
+  return stringifyDisplayValue(rawValue);
+};
+
+const isCustomFieldShownInSampleReception = (field) => {
+  const metadata = parseFieldMetadata(field?.metadataJson);
+  return Boolean(
+    metadata?.sampleReception?.showInSampleReception ||
+      metadata?.showInSampleReception,
+  );
+};
+
+const resolveCustomFieldDisplayValue = (field, valuesByKey, filesByKey) => {
+  const fieldKey = String(field?.fieldKey || "");
+  const fieldType = String(field?.fieldType || "TEXT").toUpperCase();
+
+  if (fieldType === "DOCUMENT") {
+    const filePayload = filesByKey?.[fieldKey];
+    return (
+      filePayload?.fileName || filePayload?.name || filePayload?.fileType || ""
+    );
+  }
+
+  const rawValue = valuesByKey?.[fieldKey];
+  if (rawValue === undefined || rawValue === null || rawValue === "") {
+    return "";
+  }
+
+  if (fieldType === "BOOLEAN") {
+    return rawValue === true || String(rawValue).toLowerCase() === "true"
+      ? "true"
+      : "false";
+  }
+
+  const options = Array.isArray(field?.options) ? field.options : [];
+  if (fieldType === "SELECT" || fieldType === "RADIO") {
+    const selected = options.find(
+      (option) => String(option?.optionKey || "") === String(rawValue),
+    );
+    return selected?.optionLabel || String(rawValue);
+  }
+
+  if (fieldType === "MULTISELECT") {
+    const selectedKeys = String(rawValue)
+      .split(",")
+      .map((entry) => entry.trim())
+      .filter(Boolean);
+    if (selectedKeys.length === 0) {
+      return "";
     }
+    const labels = selectedKeys.map((selectedKey) => {
+      const selected = options.find(
+        (option) => String(option?.optionKey || "") === selectedKey,
+      );
+      return selected?.optionLabel || selectedKey;
+    });
+    return labels.join(", ");
+  }
 
-    const existingTests = Array.isArray(sampleEditResp.existingTests)
-      ? sampleEditResp.existingTests
-      : [];
+  return String(rawValue);
+};
 
-    const bySampleItemId = existingTests.reduce((acc, test) => {
-      const key = String(test.sampleItemId || "");
-      if (!key) return acc;
-      if (!acc[key]) acc[key] = [];
-      acc[key].push(test);
-      return acc;
-    }, {});
+const buildOrderReceptionFields = (sampleOrderItems) => {
+  if (!sampleOrderItems || typeof sampleOrderItems !== "object") {
+    return [];
+  }
 
-    const mergedItems = searchResp.sampleItems.map((item) => {
-      const sampleTests = bySampleItemId[String(item.id)] || [];
-      if (sampleTests.length === 0) {
-        return item;
-      }
+  const fixedConfigs = Array.isArray(sampleOrderItems.fixedFieldConfigs)
+    ? sampleOrderItems.fixedFieldConfigs
+    : [];
+  const orderAdditionalFields = Array.isArray(sampleOrderItems.additionalFields)
+    ? sampleOrderItems.additionalFields
+    : [];
+  const additionalFieldValues = sampleOrderItems.additionalFieldValues || {};
+  const additionalFieldFiles = sampleOrderItems.additionalFieldFiles || {};
 
-      const first = sampleTests[0];
-      const additionalFieldValues =
-        first.additionalFieldValues && Object.keys(first.additionalFieldValues).length > 0
-          ? first.additionalFieldValues
-          : item.additionalFieldValues || {};
-      const additionalFields =
-        Array.isArray(first.additionalFields) && first.additionalFields.length > 0
-          ? first.additionalFields
-          : item.additionalFields || [];
+  const fixedFields = fixedConfigs
+    .filter(
+      (config) =>
+        config?.fieldKey &&
+        config?.showInSampleReception === true &&
+        config?.visible !== false,
+    )
+    .sort((left, right) => (left?.sortOrder ?? 0) - (right?.sortOrder ?? 0))
+    .map((config) => ({
+      source: "fixed",
+      fieldKey: config.fieldKey,
+      displayName: config.fieldKey,
+      fieldType: "TEXT",
+      value: resolveFixedFieldDisplayValue(sampleOrderItems, config.fieldKey),
+      sortOrder: config?.sortOrder ?? 0,
+    }));
 
+  const customFields = orderAdditionalFields
+    .filter(
+      (field) =>
+        field?.fieldKey &&
+        field?.active !== false &&
+        isCustomFieldShownInSampleReception(field),
+    )
+    .sort((left, right) => (left?.sortOrder ?? 0) - (right?.sortOrder ?? 0))
+    .map((field) => {
+      const normalizedKey = normalizeOrderFieldKey(field.fieldKey);
+      const directValue =
+        resolveCustomFieldDisplayValue(
+          field,
+          additionalFieldValues,
+          additionalFieldFiles,
+        ) ||
+        resolveCustomFieldDisplayValue(
+          field,
+          { [field.fieldKey]: additionalFieldValues?.[normalizedKey] },
+          additionalFieldFiles,
+        );
       return {
-        ...item,
-        quantityDisplay:
-          first.quantity !== undefined && first.quantity !== null && first.quantity !== ""
-            ? String(first.quantity)
-            : item.quantityDisplay,
-        quantity: first.quantity !== undefined && first.quantity !== null && first.quantity !== ""
-          ? Number(first.quantity)
-          : item.quantity,
-        unitOfMeasureId:
-          first.unitOfMeasureId !== undefined && first.unitOfMeasureId !== null
-            ? String(first.unitOfMeasureId)
-            : item.unitOfMeasureId,
-        collector:
-          first.collector !== undefined && first.collector !== null ? first.collector : item.collector,
-        collectionDate: first.collectionDate || item.collectionDate,
-        collectionTime: first.collectionTime || item.collectionTime,
-        additionalFields,
-        additionalFieldValues,
+        source: "custom",
+        fieldKey: field.fieldKey,
+        displayName: field.displayName || field.fieldKey,
+        fieldType: field.fieldType || "TEXT",
+        value: directValue,
+        sortOrder: field?.sortOrder ?? 0,
       };
     });
 
-    return {
-      ...searchResp,
-      sampleItems: mergedItems,
-    };
-  };
+  return [...fixedFields, ...customFields];
+};
 
-  const hydrateSearchResponse = (response, callback) => {
-    if (!response?.accessionNumber) {
-      callback(response);
-      return;
+const mergeWithSampleEditData = (searchResp, sampleEditResp) => {
+  if (
+    !searchResp ||
+    !Array.isArray(searchResp.sampleItems) ||
+    !sampleEditResp
+  ) {
+    return searchResp;
+  }
+
+  const existingTests = Array.isArray(sampleEditResp.existingTests)
+    ? sampleEditResp.existingTests
+    : [];
+  const orderReceptionFields = buildOrderReceptionFields(
+    sampleEditResp?.sampleOrderItems,
+  );
+
+  const bySampleItemId = existingTests.reduce((acc, test) => {
+    const key = String(test.sampleItemId || "");
+    if (!key) return acc;
+    if (!acc[key]) acc[key] = [];
+    acc[key].push(test);
+    return acc;
+  }, {});
+
+  const mergedItems = searchResp.sampleItems.map((item) => {
+    const sampleTests = bySampleItemId[String(item.id)] || [];
+    if (sampleTests.length === 0) {
+      return {
+        ...item,
+        orderReceptionFields,
+      };
     }
 
-    getFromOpenElisServer(
-      `/rest/SampleEdit?accessionNumber=${encodeURIComponent(response.accessionNumber)}`,
-      (sampleEditResp) => {
-        callback(mergeWithSampleEditData(response, sampleEditResp));
-      },
-    );
+    const first = sampleTests[0];
+    const additionalFieldValues =
+      first.additionalFieldValues &&
+      Object.keys(first.additionalFieldValues).length > 0
+        ? first.additionalFieldValues
+        : item.additionalFieldValues || {};
+    const additionalFields =
+      Array.isArray(first.additionalFields) && first.additionalFields.length > 0
+        ? first.additionalFields
+        : item.additionalFields || [];
+
+    return {
+      ...item,
+      quantityDisplay:
+        first.quantity !== undefined &&
+        first.quantity !== null &&
+        first.quantity !== ""
+          ? String(first.quantity)
+          : item.quantityDisplay,
+      quantity:
+        first.quantity !== undefined &&
+        first.quantity !== null &&
+        first.quantity !== ""
+          ? Number(first.quantity)
+          : item.quantity,
+      unitOfMeasureId:
+        first.unitOfMeasureId !== undefined && first.unitOfMeasureId !== null
+          ? String(first.unitOfMeasureId)
+          : item.unitOfMeasureId,
+      collector:
+        first.collector !== undefined && first.collector !== null
+          ? first.collector
+          : item.collector,
+      collectionDate: first.collectionDate || item.collectionDate,
+      collectionTime: first.collectionTime || item.collectionTime,
+      additionalFields,
+      additionalFieldValues,
+      orderReceptionFields,
+    };
+  });
+
+  return {
+    ...searchResp,
+    sampleItems: mergedItems,
   };
+};
+
+const hydrateSearchResponse = (response, callback) => {
+  if (!response?.accessionNumber) {
+    callback(response);
+    return;
+  }
+
+  getFromOpenElisServer(
+    `/rest/SampleEdit?accessionNumber=${encodeURIComponent(response.accessionNumber)}`,
+    (sampleEditResp) => {
+      callback(mergeWithSampleEditData(response, sampleEditResp));
+    },
+  );
+};

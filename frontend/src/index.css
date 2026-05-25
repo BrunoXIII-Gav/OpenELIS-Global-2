@@ -32,7 +32,11 @@ code {
  * tokens in that subtree. Bridge those tokens to branding variables so
  * buttons/links do not fall back to default blue/purple.
  */
-.cds--white {
+.cds--white,
+[data-carbon-theme="white"],
+[data-carbon-theme="g10"],
+[data-carbon-theme="g90"],
+[data-carbon-theme="g100"] {
   --cds-button-primary: var(--site-branding-primary, #0f62fe);
   --cds-button-primary-hover: var(--site-branding-primary, #0f62fe);
   --cds-button-primary-active: var(--site-branding-primary, #0f62fe);

@@ -128,6 +128,12 @@ public class SampleOrderItem implements Serializable {
     // for display
     private List<IdValuePair> providersList;
 
+    // for display/policy
+    private boolean providerSelectionLocked;
+
+    // for display/policy
+    private String linkedProviderPersonId;
+
     @Pattern(regexp = ValidationHelper.ID_REGEX, groups = { SamplePatientEntryForm.SamplePatientEntry.class,
             SamplePatientEntryBatch.class })
     private String providerId;
@@ -361,6 +367,22 @@ public class SampleOrderItem implements Serializable {
 
     public void setReferringPatientNumber(String referringPatientNumber) {
         this.referringPatientNumber = referringPatientNumber;
+    }
+
+    public boolean isProviderSelectionLocked() {
+        return providerSelectionLocked;
+    }
+
+    public void setProviderSelectionLocked(boolean providerSelectionLocked) {
+        this.providerSelectionLocked = providerSelectionLocked;
+    }
+
+    public String getLinkedProviderPersonId() {
+        return linkedProviderPersonId;
+    }
+
+    public void setLinkedProviderPersonId(String linkedProviderPersonId) {
+        this.linkedProviderPersonId = linkedProviderPersonId;
     }
 
     public String getReferringSiteId() {

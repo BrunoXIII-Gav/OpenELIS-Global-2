@@ -121,6 +121,12 @@ public class SampleItemServiceImpl extends AuditableBaseObjectServiceImpl<Sample
     }
 
     @Override
+    @Transactional(readOnly = true)
+    public SampleItem findSampleItemByCugCode(String cugCode) {
+        return getBaseObjectDAO().findSampleItemByCugCode(cugCode);
+    }
+
+    @Override
     public boolean insertAliquots(SampleItem lastSampleItem, List<SampleItem> sampleItemsToInsert,
             List<List<String>> analysisGroups) {
         getBaseObjectDAO().insertAliquots(lastSampleItem, sampleItemsToInsert, analysisGroups);

@@ -82,6 +82,9 @@ function OEHeader({
   const intl = useIntl();
   const location = useLocation();
   const history = useHistory();
+  const isAdminContext =
+    location.pathname.startsWith("/MasterListsPage") ||
+    location.pathname.startsWith("/admin");
 
   const [switchCollapsed, setSwitchCollapsed] = useState(true);
   const [menus, setMenus] = useState({
@@ -104,6 +107,7 @@ function OEHeader({
   const [readNotifications, setReadNotifications] = useState([]);
   const [searchBar, setSearchBar] = useState(false);
   const [helpOpen, setHelpOpen] = useState(false);
+  const wasAdminContextRef = useRef(isAdminContext);
   scrollRef.current = window.scrollY;
   useLayoutEffect(() => {
     window.scrollTo(0, scrollRef.current);
@@ -697,6 +701,40 @@ function OEHeader({
     });
   };
 
+  const handleSideNavToggle = () => {
+    const canUseOverlay =
+      typeof window !== "undefined" &&
+      typeof window.matchMedia === "function" &&
+      window.matchMedia("(max-width: 1056px)").matches;
+
+    if (isAdminContext) {
+      setMode(
+        mode === SIDENAV_MODES.CLOSE ? SIDENAV_MODES.SHOW : SIDENAV_MODES.CLOSE,
+      );
+      return;
+    }
+
+    if (canUseOverlay) {
+      toggleSideNav();
+      return;
+    }
+
+    if (mode === SIDENAV_MODES.CLOSE) {
+      setMode(SIDENAV_MODES.LOCK);
+      return;
+    }
+
+    setMode(SIDENAV_MODES.CLOSE);
+  };
+
+  useEffect(() => {
+    const wasAdminContext = wasAdminContextRef.current;
+    if (!wasAdminContext && isAdminContext && mode !== SIDENAV_MODES.CLOSE) {
+      setMode(SIDENAV_MODES.CLOSE);
+    }
+    wasAdminContextRef.current = isAdminContext;
+  }, [isAdminContext, mode, SIDENAV_MODES, setMode]);
+
   return (
     <>
       <div className="container">
@@ -719,7 +757,7 @@ function OEHeader({
                       ? "Pin menu"
                       : "Close menu"
                 }
-                onClick={toggleSideNav}
+                onClick={handleSideNavToggle}
                 title={
                   mode === SIDENAV_MODES.CLOSE
                     ? "Open menu"

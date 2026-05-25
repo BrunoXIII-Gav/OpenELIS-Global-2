@@ -1714,24 +1714,28 @@ const StorageDashboard = () => {
     handleBoxDeleteModalClose();
   };
 
-  const handleCoordinateSelect = (coordinate, isOccupied) => {
-    if (isOccupied) {
-      // Show error notification for occupied position
-      setAssignStatus({
-        kind: "error",
-        message: intl.formatMessage(
-          {
-            id: "storage.boxes.coordinate.occupied",
-            defaultMessage:
-              "Position {coordinate} is already occupied. Please select a different position.",
-          },
-          { coordinate },
-        ),
-      });
-      return;
-    }
+  const handleCoordinateSelect = (coordinate, sampleInfo) => {
+    const occupied = !!sampleInfo;
     setSelectedCoordinate(coordinate);
     setAssignStatus(null);
+
+    if (occupied) {
+      const sampleCode =
+        sampleInfo?.externalId || sampleInfo?.sampleItemId || sampleInfo?.cug;
+      setAssignSampleId("");
+      setAssignNotes("");
+      setAssignStatus({
+        kind: "info",
+        message: intl.formatMessage(
+          {
+            id: "storage.boxes.assign.readOnlyOccupied",
+            defaultMessage:
+              "Position {coordinate} is occupied by sample {sampleCode}. Read-only view.",
+          },
+          { coordinate, sampleCode: sampleCode || "N/A" },
+        ),
+      });
+    }
   };
 
   const handleAssignToBox = async () => {
@@ -1962,10 +1966,10 @@ const StorageDashboard = () => {
       ),
     },
     {
-      key: "sampleAccessionNumber",
+      key: "cugCode",
       header: intl.formatMessage(
-        { id: "sample.accession.number" },
-        { defaultMessage: "Sample Accession" },
+        { id: "sample.cug.label" },
+        { defaultMessage: "CUG" },
       ),
     },
     { key: "type", header: intl.formatMessage({ id: "sample.type" }) },
@@ -2875,8 +2879,9 @@ const StorageDashboard = () => {
       const sampleItemExternalId = sampleItem.sampleItemExternalId || null;
       const displayId = sampleItemExternalId || sampleItemId;
 
-      // Secondary context: Parent Sample accession number
+      // Secondary context: CUG code for the sample item
       const sampleAccessionNumber = sampleItem.sampleAccessionNumber || "";
+      const cugCode = sampleItem.cugCode || "";
       const isDisposed =
         sampleItem.isDisposed === true ||
         sampleItem.isDisposed === "true" ||
@@ -2886,7 +2891,7 @@ const StorageDashboard = () => {
       return {
         id: sampleItemId, // Use sampleItemId for row ID
         sampleItemId: displayId, // Display: External ID if available, otherwise ID
-        sampleAccessionNumber: sampleAccessionNumber, // Parent Sample accession for context
+        cugCode: cugCode, // Display CUG instead of parent accession number
         type: sampleItem.type || sampleItem.sampleType || "",
         status: isDisposed ? (
           <Tag type="red">
@@ -2938,7 +2943,14 @@ const StorageDashboard = () => {
   const boxDropdownItems = (boxesForGrid || []).map((box) => ({
     id: box.id,
     label: box.label,
-    description: `${box.type || ""} (${box.rows || 0}×${box.columns || 0}) ${box.occupied ? "• Occupied" : ""}`,
+    description: `${box.type || ""} (${box.rows || 0}×${box.columns || 0}) ${
+      box.occupied
+        ? `• ${intl.formatMessage({
+            id: "storage.boxes.status.occupied",
+            defaultMessage: "Occupied",
+          })}`
+        : ""
+    }`,
     ...box,
   }));
 
@@ -2991,11 +3003,17 @@ const StorageDashboard = () => {
                   className={`rack-grid-cell ${
                     occupied ? "occupied" : "available"
                   } ${isSelected ? "selected" : ""}`}
-                  onClick={() => handleCoordinateSelect(coordinate, occupied)}
+                  onClick={() => handleCoordinateSelect(coordinate, sampleInfo)}
                   aria-disabled={occupied}
                   title={
                     occupied && tooltip
-                      ? `Sample: ${tooltip}`
+                      ? intl.formatMessage(
+                          {
+                            id: "storage.boxes.sample.tooltip",
+                            defaultMessage: "Sample: {sampleCode}",
+                          },
+                          { sampleCode: tooltip },
+                        )
                       : occupied
                         ? intl.formatMessage({
                             id: "storage.boxes.status.occupied",
@@ -3041,6 +3059,17 @@ const StorageDashboard = () => {
       </div>
     );
   };
+
+  const selectedCoordinateSampleInfo =
+    selectedBox && selectedCoordinate
+      ? selectedBox.occupiedCoordinates?.[selectedCoordinate]
+      : null;
+  const selectedCoordinateIsOccupied = !!selectedCoordinateSampleInfo;
+  const selectedCoordinateSampleCode =
+    selectedCoordinateSampleInfo?.externalId ||
+    selectedCoordinateSampleInfo?.sampleItemId ||
+    selectedCoordinateSampleInfo?.cug ||
+    "";
 
   return (
     <div className="storage-dashboard">
@@ -4696,10 +4725,29 @@ const StorageDashboard = () => {
                   <Column lg={16} md={8} sm={4} className="boxes-status">
                     {selectedBox && (
                       <Tile>
-                        <p className="rack-details">
-                          <strong>{selectedBox.label}</strong>{" "}
-                          {selectedBox.type ? `(${selectedBox.type})` : ""}
-                        </p>
+                        {/*
+                          Keep backend `type` as source-of-truth but localize common labels for display.
+                        */}
+                        {(() => {
+                          const typeLabel =
+                            selectedBox.type === "box"
+                              ? intl.formatMessage({
+                                  id: "storage.tab.boxes",
+                                  defaultMessage: "Boxes",
+                                })
+                              : selectedBox.type === "plate"
+                                ? intl.formatMessage({
+                                    id: "storage.boxes.type.plate",
+                                    defaultMessage: "Plate",
+                                  })
+                                : selectedBox.type;
+                          return (
+                            <p className="rack-details">
+                              <strong>{selectedBox.label}</strong>{" "}
+                              {typeLabel ? `(${typeLabel})` : ""}
+                            </p>
+                          );
+                        })()}
                         <p className="rack-details">
                           <FormattedMessage
                             id="storage.boxes.grid.dimensions"
@@ -4769,6 +4817,20 @@ const StorageDashboard = () => {
                           />
                         )}
                       </p>
+                      {selectedBox &&
+                        selectedCoordinate &&
+                        selectedCoordinateIsOccupied && (
+                          <p className="helper-text">
+                            <FormattedMessage
+                              id="storage.boxes.assign.occupiedBy"
+                              defaultMessage="Occupied by sample: {sampleCode}"
+                              values={{
+                                sampleCode:
+                                  selectedCoordinateSampleCode || "N/A",
+                              }}
+                            />
+                          </p>
+                        )}
                       <TextInput
                         id="assign-sample-id"
                         data-testid="assign-sample-id"
@@ -4782,7 +4844,11 @@ const StorageDashboard = () => {
                         })}
                         value={assignSampleId}
                         onChange={(e) => setAssignSampleId(e.target.value)}
-                        disabled={!selectedBox || !selectedCoordinate}
+                        disabled={
+                          !selectedBox ||
+                          !selectedCoordinate ||
+                          selectedCoordinateIsOccupied
+                        }
                       />
                       <TextArea
                         id="assign-notes"
@@ -4794,7 +4860,7 @@ const StorageDashboard = () => {
                         value={assignNotes}
                         onChange={(e) => setAssignNotes(e.target.value)}
                         rows={3}
-                        disabled={!selectedBox}
+                        disabled={!selectedBox || selectedCoordinateIsOccupied}
                       />
                       {assignStatus && (
                         <InlineNotification
@@ -4806,10 +4872,15 @@ const StorageDashboard = () => {
                                   id: "storage.boxes.assign.success.title",
                                   defaultMessage: "Assignment saved",
                                 })
-                              : intl.formatMessage({
-                                  id: "storage.boxes.assign.error.title",
-                                  defaultMessage: "Assignment failed",
-                                })
+                              : assignStatus.kind === "info"
+                                ? intl.formatMessage({
+                                    id: "storage.boxes.assign.info.title",
+                                    defaultMessage: "Information",
+                                  })
+                                : intl.formatMessage({
+                                    id: "storage.boxes.assign.error.title",
+                                    defaultMessage: "Assignment failed",
+                                  })
                           }
                           subtitle={assignStatus.message}
                         />
@@ -4819,7 +4890,9 @@ const StorageDashboard = () => {
                           kind="primary"
                           disabled={
                             !selectedBox ||
+                            !selectedCoordinate ||
                             !assignSampleId ||
+                            selectedCoordinateIsOccupied ||
                             boxesLoading ||
                             isMovingSample
                           }

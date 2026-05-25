@@ -9,6 +9,7 @@ public class OrderDisplayBean {
     private String patientId;
 
     private String labNumber;
+    private String cugCode;
 
     private String testName;
 
@@ -68,6 +69,14 @@ public class OrderDisplayBean {
 
     public void setLabNumber(String labNumber) {
         this.labNumber = labNumber;
+    }
+
+    public String getCugCode() {
+        return cugCode;
+    }
+
+    public void setCugCode(String cugCode) {
+        this.cugCode = cugCode;
     }
 
     public String getTestName() {

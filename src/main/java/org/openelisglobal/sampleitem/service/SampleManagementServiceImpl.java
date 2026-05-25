@@ -96,18 +96,25 @@ public class SampleManagementServiceImpl implements SampleManagementService {
     @Override
     @Transactional(readOnly = true)
     public SearchSamplesResponse searchByAccessionNumber(String accessionNumber, boolean includeTests) {
-        // Step 1: Find sample by accession number
-        Sample sample = sampleService.getSampleByAccessionNumber(accessionNumber);
+        String searchValue = accessionNumber == null ? null : accessionNumber.trim();
+        // Step 1: Find sample by accession number (or CUG via SampleService fallback)
+        Sample sample = sampleService.getSampleByAccessionNumber(searchValue);
 
         // Step 2: If no sample found, return empty results
         if (sample == null) {
             return new SearchSamplesResponse(accessionNumber, new ArrayList<>(), 0);
         }
 
-        // Step 3: Get all sample items for this sample with hierarchy eagerly loaded
-        List<SampleItem> sampleItems = sampleItemDAO.getSampleItemsBySampleId(sample.getId());
-        System.out.println("SampleManagementServiceImpl.searchByAccessionNumber: Retrieved " + sampleItems.size()
-                + " sample items for accession number " + accessionNumber);
+        // If the search term is a CUG, only return that single sample item.
+        SampleItem searchedByCug = sampleItemDAO.findSampleItemByCugCode(searchValue);
+        List<SampleItem> sampleItems;
+        if (searchedByCug != null && searchedByCug.getSample() != null
+                && sample.getId().equals(searchedByCug.getSample().getId())) {
+            sampleItems = new ArrayList<>();
+            sampleItems.add(searchedByCug);
+        } else {
+            sampleItems = sampleItemDAO.getSampleItemsBySampleId(sample.getId());
+        }
 
         // Step 4: If hierarchy is needed, use getSampleItemsWithHierarchy for eager
         // loading
@@ -115,8 +122,6 @@ public class SampleManagementServiceImpl implements SampleManagementService {
             List<String> sampleItemIds = sampleItems.stream().map(SampleItem::getId).collect(Collectors.toList());
             sampleItems = sampleItemDAO.getSampleItemsWithHierarchy(sampleItemIds);
         }
-        System.out.println("SampleManagementServiceImpl.searchByAccessionNumber: Retrieved2 " + sampleItems.size()
-                + " sample items for accession number " + accessionNumber);
         // Step 5: Convert entities to DTOs WITHIN transaction boundary
         List<SampleItemDTO> dtos = sampleItems.stream().map(item -> convertToDTO(item, includeTests))
                 .collect(Collectors.toList());

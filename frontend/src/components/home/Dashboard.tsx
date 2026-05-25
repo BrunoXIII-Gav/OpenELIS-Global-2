@@ -360,20 +360,32 @@ const HomeDashBoard: React.FC<DashBoardProps> = () => {
 
   const averageTimeTileList: Array<Tile> = [
     {
-      title: "Reception To Validation Average Time",
-      subTitle: "Reception To Validation Average Time",
+      title: (
+        <FormattedMessage id="dashboard.avg.turn.around.reception.validation" />
+      ),
+      subTitle: (
+        <FormattedMessage id="dashboard.avg.turn.around.reception.validation" />
+      ),
       type: "AVERAGE_TURN_AROUND_TIME",
       value: timeMetrics.receptionToValidation,
     },
     {
-      title: "Reception To Result Average Time",
-      subTitle: "Reception To Result Average Time",
+      title: (
+        <FormattedMessage id="dashboard.avg.turn.around.reception.result" />
+      ),
+      subTitle: (
+        <FormattedMessage id="dashboard.avg.turn.around.reception.result" />
+      ),
       type: "AVERAGE_TURN_AROUND_TIME",
       value: timeMetrics.receptionToResult,
     },
     {
-      title: "Result To Validation Average Time",
-      subTitle: "Result To Validation Average Time",
+      title: (
+        <FormattedMessage id="dashboard.avg.turn.around.result.validation" />
+      ),
+      subTitle: (
+        <FormattedMessage id="dashboard.avg.turn.around.result.validation" />
+      ),
       type: "AVERAGE_TURN_AROUND_TIME",
       value: timeMetrics.resultToValidation,
     },
@@ -463,8 +475,37 @@ const HomeDashBoard: React.FC<DashBoardProps> = () => {
       setPageSize(pageInfo.pageSize);
     }
   };
+
+  const buildTileHref = (
+    tileType: MetricType,
+    searchValue: string,
+  ): string | null => {
+    if (!searchValue) {
+      return null;
+    }
+    if (tileType === "ORDERS_IN_PROGRESS") {
+      return "/ModifyOrder?accessionNumber=" + searchValue;
+    }
+    if (tileType === "AWAITING_SAMPLE") {
+      return "/SampleManagement?accessionNumber=" + searchValue;
+    }
+    if (tileType === "AWAITING_RESULTS") {
+      return "/result?type=order&doRange=false&accessionNumber=" + searchValue;
+    }
+    if (tileType === "ORDERS_READY_FOR_VALIDATION") {
+      return "validation?type=order&accessionNumber=" + searchValue;
+    }
+    return null;
+  };
+
   const renderCell = (cell, row) => {
     if (cell.info.header === "labNumber" && cell.value) {
+      const accessionHref = buildTileHref(selectedTile.type, cell.value);
+      const shouldLink =
+        selectedTile.type == "ORDERS_IN_PROGRESS" ||
+        selectedTile.type == "AWAITING_SAMPLE" ||
+        selectedTile.type == "AWAITING_RESULTS" ||
+        selectedTile.type == "ORDERS_READY_FOR_VALIDATION";
       return (
         <TableCell key={cell.id}>
           <>
@@ -484,22 +525,8 @@ const HomeDashBoard: React.FC<DashBoardProps> = () => {
                 hasIconOnly
                 renderIcon={Copy}
               />
-              {selectedTile.type == "ORDERS_IN_PROGRESS" ||
-              selectedTile.type == "AWAITING_SAMPLE" ||
-              selectedTile.type == "AWAITING_RESULTS" ||
-              selectedTile.type == "ORDERS_READY_FOR_VALIDATION" ? (
-                <Link
-                  style={{ color: "blue" }}
-                  href={
-                    selectedTile.type == "ORDERS_IN_PROGRESS"
-                      ? "/ModifyOrder?accessionNumber=" + cell.value
-                      : selectedTile.type == "AWAITING_SAMPLE"
-                        ? "/SampleManagement?accessionNumber=" + cell.value
-                        : selectedTile.type == "AWAITING_RESULTS"
-                          ? "/result?type=order&doRange=false&accessionNumber=" + cell.value
-                          : "validation?type=order&accessionNumber=" + cell.value
-                  }
-                >
+              {shouldLink && accessionHref ? (
+                <Link style={{ color: "blue" }} href={accessionHref}>
                   <u>{convertAlphaNumLabNumForDisplay(cell.value)}</u>
                 </Link>
               ) : (
@@ -507,6 +534,28 @@ const HomeDashBoard: React.FC<DashBoardProps> = () => {
               )}
             </div>
           </>
+        </TableCell>
+      );
+    } else if (cell.info.header === "cugCode") {
+      const cugHref = buildTileHref(selectedTile.type, cell.value);
+      const shouldLink =
+        selectedTile.type == "ORDERS_IN_PROGRESS" ||
+        selectedTile.type == "AWAITING_SAMPLE" ||
+        selectedTile.type == "AWAITING_RESULTS" ||
+        selectedTile.type == "ORDERS_READY_FOR_VALIDATION";
+      return (
+        <TableCell key={cell.id}>
+          {cell.value ? (
+            shouldLink && cugHref ? (
+              <Link style={{ color: "blue" }} href={cugHref}>
+                <u>{cell.value}</u>
+              </Link>
+            ) : (
+              cell.value
+            )
+          ) : (
+            ""
+          )}
         </TableCell>
       );
     } else if (cell.info.header === "countOfOrdersEntered" && cell.value) {
@@ -557,8 +606,35 @@ const HomeDashBoard: React.FC<DashBoardProps> = () => {
       header: <FormattedMessage id="eorder.labNumber" />,
     },
     {
+      key: "cugCode",
+      header: <FormattedMessage id="sample.management.table.header.cug" />,
+    },
+    {
       key: "testName",
       header: <FormattedMessage id="eorder.test.name" />,
+    },
+  ];
+
+  const orderHeadersAwaitingSample = [
+    {
+      key: "priority",
+      header: <FormattedMessage id="eorder.priority" />,
+    },
+    {
+      key: "orderDate",
+      header: <FormattedMessage id="sample.label.orderdate" />,
+    },
+    {
+      key: "patientId",
+      header: <FormattedMessage id="patient.id" />,
+    },
+    {
+      key: "labNumber",
+      header: <FormattedMessage id="eorder.labNumber" />,
+    },
+    {
+      key: "cugCode",
+      header: <FormattedMessage id="sample.management.table.header.cug" />,
     },
   ];
 
@@ -591,7 +667,11 @@ const HomeDashBoard: React.FC<DashBoardProps> = () => {
             >
               <h3 className="tile-title">{tile.title}</h3>
               <p className="tile-subtitle">{tile.subTitle}</p>
-              <p className="tile-value">{tile.value}</p>
+              <p className="tile-value">
+                {tile.type === "AVERAGE_TURN_AROUND_TIME"
+                  ? Number(tile.value || 0).toFixed(2)
+                  : tile.value}
+              </p>
 
               <div className="tile-icon">
                 <div
@@ -615,7 +695,11 @@ const HomeDashBoard: React.FC<DashBoardProps> = () => {
               <Column lg={16} md={8} sm={4}>
                 <h3 className="tile-title-view">{selectedTile.title}</h3>
                 <p className="tile-subtitle-view">{selectedTile.subTitle}</p>
-                <p className="tile-value-view">{selectedTile.value}</p>
+                <p className="tile-value-view">
+                  {selectedTile.type === "AVERAGE_TURN_AROUND_TIME"
+                    ? Number(selectedTile.value || 0).toFixed(2)
+                    : selectedTile.value}
+                </p>
                 {
                   <div className="tile-icon">
                     <div onClick={handleMinimizeClick} className="icon-wrapper">
@@ -659,7 +743,9 @@ const HomeDashBoard: React.FC<DashBoardProps> = () => {
                       <Tile key={index} className="dashboard-tile">
                         <h3 className="tile-title">{tile.title}</h3>
                         <p className="tile-subtitle">{tile.subTitle}</p>
-                        <p className="tile-value">{Number(tile.value).toFixed(2)}</p>
+                        <p className="tile-value">
+                          {Number(tile.value).toFixed(2)}
+                        </p>
                       </Tile>
                     ))}
                   </div>
@@ -778,12 +864,14 @@ const HomeDashBoard: React.FC<DashBoardProps> = () => {
                           "ORDERS_FOR_USER",
                           "UN_PRINTED_RESULTS",
                           "INCOMING_ORDERS",
-                          "DELAYED_TURN_AROUND"
+                          "DELAYED_TURN_AROUND",
                         ].includes(selectedTile.type)
                           ? orderHeadersInProgress
                           : selectedTile.type === "ORDERS_ENTERED_BY_USER_TODAY"
                             ? userHeaders
-                            : orderHeadersWithTest
+                            : selectedTile.type === "AWAITING_SAMPLE"
+                              ? orderHeadersAwaitingSample
+                              : orderHeadersWithTest
                       }
                       isSortable
                     >

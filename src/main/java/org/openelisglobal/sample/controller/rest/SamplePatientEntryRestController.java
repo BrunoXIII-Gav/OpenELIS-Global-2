@@ -4,6 +4,7 @@ import jakarta.servlet.http.HttpServletRequest;
 import jakarta.validation.constraints.Pattern;
 import java.lang.reflect.InvocationTargetException;
 import java.time.OffsetDateTime;
+import java.util.Arrays;
 import java.util.List;
 import java.util.Map;
 import java.util.UUID;
@@ -40,6 +41,8 @@ import org.openelisglobal.patient.action.IPatientUpdate;
 import org.openelisglobal.patient.action.IPatientUpdate.PatientUpdateStatus;
 import org.openelisglobal.patient.action.bean.PatientManagementInfo;
 import org.openelisglobal.patient.action.bean.PatientSearch;
+import org.openelisglobal.person.service.PersonService;
+import org.openelisglobal.person.valueholder.Person;
 import org.openelisglobal.provider.service.ProviderService;
 import org.openelisglobal.provider.valueholder.Provider;
 import org.openelisglobal.sample.action.util.SamplePatientUpdateData;
@@ -57,6 +60,7 @@ import org.openelisglobal.sample.valueholder.SampleAdditionalField.AdditionalFie
 import org.openelisglobal.spring.util.SpringContext;
 import org.openelisglobal.systemuser.service.SystemUserService;
 import org.openelisglobal.systemuser.service.UserService;
+import org.openelisglobal.systemuser.valueholder.SystemUser;
 import org.openelisglobal.userrole.service.UserRoleService;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.beans.factory.annotation.Value;
@@ -84,6 +88,9 @@ import org.springframework.web.servlet.support.RequestContextUtils;
 @RequestMapping(value = "/rest/")
 public class SamplePatientEntryRestController extends BaseSampleEntryController {
     private static final String ERROR_MESSAGE_HEADER = "X-OpenELIS-Error-Message";
+    private static final String PROP_PROVIDER_SELECTION_POLICY = "orderProviderSelectionPolicy";
+    private static final String PROP_PROVIDER_SELECTION_OVERRIDE_ROLES = "orderProviderOverrideRoles";
+    private static final String PROVIDER_SELECTION_POLICY_SELF_ONLY = "SELF_ONLY";
 
     @Value("${org.openelisglobal.requester.identifier:}")
     private String requestFhirUuid;
@@ -162,6 +169,8 @@ public class SamplePatientEntryRestController extends BaseSampleEntryController 
 
     @Autowired
     private ProviderService providerService;
+    @Autowired
+    private PersonService personService;
 
     @Autowired
     private ElectronicOrderService electronicOrderService;
@@ -226,6 +235,7 @@ public class SamplePatientEntryRestController extends BaseSampleEntryController 
             form.getSampleOrderItems().setReferringSiteDepartmentName(
                     (String) inputFlashMap.get("sampleOrderItems.referringSiteDepartmentName"));
         }
+        applySelfOnlyProviderPolicyToForm(request, form.getSampleOrderItems());
         addFlashMsgsToRequest(request);
         return form;
     }
@@ -241,6 +251,8 @@ public class SamplePatientEntryRestController extends BaseSampleEntryController 
             @Validated(SamplePatientEntryForm.SamplePatientEntry.class) @RequestBody SamplePatientEntryForm form,
             BindingResult result, RedirectAttributes redirectAttributes)
             throws IllegalAccessException, InvocationTargetException, NoSuchMethodException {
+
+        enforceSelfOnlyProviderPolicy(request, form, result);
 
         formValidator.validate(form, result);
         if (result.hasErrors()) {
@@ -406,6 +418,101 @@ public class SamplePatientEntryRestController extends BaseSampleEntryController 
         }
 
         return ResponseEntity.ok(form);
+    }
+
+    private void enforceSelfOnlyProviderPolicy(HttpServletRequest request, SamplePatientEntryForm form,
+            BindingResult result) {
+        Provider linkedProvider = getLinkedProviderIfSelfOnlyApplies(request);
+        if (linkedProvider == null) {
+            return;
+        }
+
+        SampleOrderItem sampleOrder = form.getSampleOrderItems();
+        String submittedProviderPersonId = StringUtils.trimToEmpty(sampleOrder.getProviderPersonId());
+        String linkedProviderPersonId = linkedProvider.getPerson() == null ? ""
+                : StringUtils.trimToEmpty(linkedProvider.getPerson().getId());
+
+        if (!linkedProviderPersonId.equals(submittedProviderPersonId)) {
+            result.reject("errors.provider.self.only", "Provider selection is restricted to the linked account.");
+            return;
+        }
+
+        applyLinkedProviderToOrderItem(sampleOrder, linkedProvider, true);
+    }
+
+    private void applySelfOnlyProviderPolicyToForm(HttpServletRequest request, SampleOrderItem sampleOrderItem) {
+        Provider linkedProvider = getLinkedProviderIfSelfOnlyApplies(request);
+        if (linkedProvider == null) {
+            return;
+        }
+        applyLinkedProviderToOrderItem(sampleOrderItem, linkedProvider, true);
+    }
+
+    private Provider getLinkedProviderIfSelfOnlyApplies(HttpServletRequest request) {
+        if (!isSelfOnlyProviderPolicyEnabled()) {
+            return null;
+        }
+
+        String sysUserId = getSysUserId(request);
+        if (isProviderPolicyOverrideUser(sysUserId)) {
+            return null;
+        }
+
+        SystemUser currentUser = systemUserService.get(sysUserId);
+        if (currentUser == null || GenericValidator.isBlankOrNull(currentUser.getLinkedProviderPersonId())) {
+            return null;
+        }
+
+        Person person = personService.get(currentUser.getLinkedProviderPersonId());
+        if (person == null) {
+            LogEvent.logWarn(this.getClass().getSimpleName(), "getLinkedProviderIfSelfOnlyApplies",
+                    "Linked provider person not found for userId=" + sysUserId);
+            return null;
+        }
+
+        Provider provider = providerService.getProviderByPerson(person);
+        if (provider == null || provider.getPerson() == null) {
+            LogEvent.logWarn(this.getClass().getSimpleName(), "getLinkedProviderIfSelfOnlyApplies",
+                    "No provider found for linked personId=" + person.getId() + ", userId=" + sysUserId);
+            return null;
+        }
+
+        return provider;
+    }
+
+    private boolean isSelfOnlyProviderPolicyEnabled() {
+        String policy = ConfigurationProperties.getInstance().getPropertyValue(PROP_PROVIDER_SELECTION_POLICY);
+        return PROVIDER_SELECTION_POLICY_SELF_ONLY.equalsIgnoreCase(StringUtils.trimToEmpty(policy));
+    }
+
+    private boolean isProviderPolicyOverrideUser(String systemUserId) {
+        if (GenericValidator.isBlankOrNull(systemUserId)) {
+            return false;
+        }
+
+        String configuredRoles = ConfigurationProperties.getInstance()
+                .getPropertyValue(PROP_PROVIDER_SELECTION_OVERRIDE_ROLES);
+        String rolesToCheck = StringUtils.isBlank(configuredRoles) ? "Global Administrator,Admin" : configuredRoles;
+
+        return Arrays.stream(rolesToCheck.split(",")).map(String::trim).filter(StringUtils::isNotBlank)
+                .anyMatch(roleName -> userRoleService.userInRole(systemUserId, roleName));
+    }
+
+    private void applyLinkedProviderToOrderItem(SampleOrderItem sampleOrder, Provider linkedProvider, boolean locked) {
+        Person person = linkedProvider.getPerson();
+        sampleOrder.setProviderSelectionLocked(locked);
+        sampleOrder.setLinkedProviderPersonId(person == null ? null : person.getId());
+        sampleOrder.setProviderId(linkedProvider.getId());
+        sampleOrder.setProviderPersonId(person == null ? null : person.getId());
+        sampleOrder.setProviderFirstName(person == null ? null : person.getFirstName());
+        sampleOrder.setProviderLastName(person == null ? null : person.getLastName());
+        sampleOrder.setProviderWorkPhone(person == null ? null : person.getWorkPhone());
+        sampleOrder.setProviderEmail(person == null ? null : person.getEmail());
+        sampleOrder.setProviderFax(person == null ? null : person.getFax());
+        sampleOrder.setProviderCmp(linkedProvider.getNpi());
+        sampleOrder.setProviderRne(linkedProvider.getExternalId());
+        sampleOrder.setProviderDni(linkedProvider.getDni());
+        sampleOrder.setProviderSpecialty(linkedProvider.getSpecialty());
     }
 
     private ResponseEntity<SamplePatientEntryForm> buildErrorResponse(SamplePatientEntryForm form, BindingResult result,

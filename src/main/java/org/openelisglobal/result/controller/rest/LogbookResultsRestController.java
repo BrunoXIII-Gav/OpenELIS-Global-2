@@ -89,6 +89,7 @@ import org.openelisglobal.sample.valueholder.OrderPriority;
 import org.openelisglobal.sample.valueholder.Sample;
 import org.openelisglobal.samplehuman.service.SampleHumanService;
 import org.openelisglobal.sampleitem.service.SampleItemService;
+import org.openelisglobal.sampleitem.valueholder.SampleItem;
 import org.openelisglobal.search.service.SearchResultsService;
 import org.openelisglobal.spring.util.SpringContext;
 import org.openelisglobal.statusofsample.util.StatusRules;
@@ -317,16 +318,20 @@ public class LogbookResultsRestController extends LogbookResultsBaseController {
             } else if (!GenericValidator.isBlankOrNull(form.getAccessionNumber())
                     || !GenericValidator.isBlankOrNull(patientPK)) {
                 tests.clear();
+                String searchValue = StringUtils.trimToNull(labNumber);
+                SampleItem cugSampleItem = resolveSampleItemByCugCode(searchValue);
                 if (doRange) {
                     tests = resultsLoadUtility.getUnfinishedTestResultItemsByAccession(labNumber,
                             upperRangeAccessionNumber, doRange, finished);
                     if (tests.isEmpty() && StringUtils.isBlank(upperRangeAccessionNumber)
                             && StringUtils.isNotBlank(labNumber)) {
-                        Sample sample = resolveSampleByAccessionOrSearchableValue(labNumber);
+                        Sample sample = cugSampleItem != null ? cugSampleItem.getSample()
+                                : resolveSampleByAccessionOrSearchableValue(labNumber);
                         if (sample != null && !GenericValidator.isBlankOrNull(sample.getId())) {
                             form.setAccessionNumber(sample.getAccessionNumber());
                             patient = getPatient(sample);
                             tests = resultsLoadUtility.getGroupedTestsForSample(sample, patient);
+                            tests = filterTestsBySampleItem(tests, cugSampleItem);
                             if (patient != null) {
                                 patientName = patientService.getLastFirstName(patient);
                                 patientInfo = patient.getNationalId() + ", " + patient.getGender() + ", "
@@ -334,11 +339,13 @@ public class LogbookResultsRestController extends LogbookResultsBaseController {
                             }
                         }
                     }
+                    tests = filterTestsBySampleItem(tests, cugSampleItem);
                 } else {
                     resultsLoadUtility.setLockCurrentResults(modifyResultsRoleBased() && userNotInRole(request));
                     LogEvent.logInfo(this.getClass().getSimpleName(), "getLogbookResults",
                             "Searching for sample with search value: " + labNumber);
-                    Sample sample = resolveSampleByAccessionOrSearchableValue(labNumber);
+                    Sample sample = cugSampleItem != null ? cugSampleItem.getSample()
+                            : resolveSampleByAccessionOrSearchableValue(labNumber);
                     if (sample != null) {
                         LogEvent.logInfo(this.getClass().getSimpleName(), "getLogbookResults", "Found sample: id="
                                 + sample.getId() + ", accessionNumber=" + sample.getAccessionNumber());
@@ -347,6 +354,7 @@ public class LogbookResultsRestController extends LogbookResultsBaseController {
                             patient = getPatient(sample);
 
                             tests = resultsLoadUtility.getGroupedTestsForSample(sample, patient);
+                            tests = filterTestsBySampleItem(tests, cugSampleItem);
                             LogEvent.logInfo(this.getClass().getSimpleName(), "getLogbookResults",
                                     "getGroupedTestsForSample returned " + tests.size() + " tests for sample "
                                             + sample.getId());
@@ -878,6 +886,9 @@ public class LogbookResultsRestController extends LogbookResultsBaseController {
             if (definition == null || Boolean.FALSE.equals(definition.getActive())) {
                 continue;
             }
+            if (!shouldIncludeInValidation(definition)) {
+                continue;
+            }
             if (!Boolean.TRUE.equals(definition.getRequired())) {
                 continue;
             }
@@ -892,6 +903,17 @@ public class LogbookResultsRestController extends LogbookResultsBaseController {
         }
 
         return true;
+    }
+
+    private boolean shouldIncludeInValidation(TestAdditionalFieldPayload definition) {
+        if (definition == null || Boolean.FALSE.equals(definition.getActive())) {
+            return false;
+        }
+        if (definition.getIncludeInValidation() != null) {
+            return Boolean.TRUE.equals(definition.getIncludeInValidation());
+        }
+        String scope = definition.getEntryScope();
+        return !"PRELIMINARY".equalsIgnoreCase(scope);
     }
 
     private ResultInventory createTestKitLinkIfNeeded(TestResultItem testResult, String testKitName) {
@@ -984,6 +1006,39 @@ public class LogbookResultsRestController extends LogbookResultsBaseController {
 
     private Patient getPatient(Sample sample) {
         return sampleHumanService.getPatientForSample(sample);
+    }
+
+    private SampleItem resolveSampleItemByCugCode(String accessionOrSearchTerm) {
+        String searchValue = accessionOrSearchTerm == null ? null : accessionOrSearchTerm.trim();
+        if (StringUtils.isBlank(searchValue)) {
+            return null;
+        }
+        return sampleItemService.findSampleItemByCugCode(searchValue);
+    }
+
+    private List<TestResultItem> filterTestsBySampleItem(List<TestResultItem> tests, SampleItem sampleItem) {
+        if (sampleItem == null || GenericValidator.isBlankOrNull(sampleItem.getId()) || tests == null || tests.isEmpty()) {
+            return tests;
+        }
+
+        List<TestResultItem> filtered = new ArrayList<>();
+        boolean separatorAdded = false;
+        for (TestResultItem item : tests) {
+            if (item == null) {
+                continue;
+            }
+            if (item.getIsGroupSeparator()) {
+                if (!separatorAdded) {
+                    filtered.add(item);
+                    separatorAdded = true;
+                }
+                continue;
+            }
+            if (sampleItem.getId().equals(item.getSampleItemId())) {
+                filtered.add(item);
+            }
+        }
+        return filtered;
     }
 
     private Sample resolveSampleByAccessionOrSearchableValue(String accessionOrSearchTerm) {

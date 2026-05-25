@@ -12,6 +12,8 @@ import org.openelisglobal.sample.valueholder.Sample;
 import org.openelisglobal.sampleitem.dao.SampleItemDAO;
 import org.openelisglobal.sampleitem.service.SampleItemService;
 import org.openelisglobal.sampleitem.valueholder.SampleItem;
+import org.openelisglobal.systemuser.service.SystemUserService;
+import org.openelisglobal.systemuser.valueholder.SystemUser;
 import org.openelisglobal.storage.dao.*;
 import org.openelisglobal.storage.valueholder.*;
 import org.slf4j.Logger;
@@ -52,6 +54,9 @@ public class SampleStorageServiceImpl implements SampleStorageService {
 
     @Autowired
     private IStatusService statusService;
+
+    @Autowired
+    private SystemUserService systemUserService;
 
     @Override
     public CapacityWarning calculateCapacity(StorageRack rack) {
@@ -102,6 +107,7 @@ public class SampleStorageServiceImpl implements SampleStorageService {
         logger.info("getAllSamplesWithAssignments: Found {} total assignments", assignments.size());
 
         List<Map<String, Object>> response = new java.util.ArrayList<>();
+        Map<Integer, String> userDisplayNameCache = new HashMap<>();
 
         for (SampleItem sampleItem : allSampleItems) {
             if (sampleItem == null || sampleItem.getId() == null) {
@@ -149,7 +155,8 @@ public class SampleStorageServiceImpl implements SampleStorageService {
                 String hierarchicalPath = buildHierarchicalPathForAssignment(assignment);
 
                 map.put("location", hierarchicalPath != null ? hierarchicalPath : "");
-                map.put("assignedBy", assignment.getAssignedByUserId());
+                map.put("assignedByUserId", assignment.getAssignedByUserId());
+                map.put("assignedBy", resolveUserDisplayName(assignment.getAssignedByUserId(), userDisplayNameCache));
                 map.put("date", assignment.getAssignedDate() != null ? assignment.getAssignedDate().toString() : "");
                 // Include position coordinate and notes as separate fields for editing
                 String posCoord = assignment.getPositionCoordinate() != null ? assignment.getPositionCoordinate() : "";
@@ -167,6 +174,7 @@ public class SampleStorageServiceImpl implements SampleStorageService {
                 // No assignment - sample is unassigned
                 map.put("location", "");
                 map.put("assignedBy", null);
+                map.put("assignedByUserId", null);
                 map.put("date", "");
                 map.put("positionCoordinate", "");
                 map.put("notes", "");
@@ -200,6 +208,36 @@ public class SampleStorageServiceImpl implements SampleStorageService {
                 response.size());
 
         return response;
+    }
+
+    private String resolveUserDisplayName(Integer userId, Map<Integer, String> cache) {
+        if (userId == null) {
+            return null;
+        }
+        if (cache.containsKey(userId)) {
+            return cache.get(userId);
+        }
+        String fallback = String.valueOf(userId);
+        try {
+            SystemUser systemUser = systemUserService.get(String.valueOf(userId));
+            if (systemUser == null) {
+                cache.put(userId, fallback);
+                return fallback;
+            }
+            String display = systemUser.getNameForDisplay();
+            if (display == null || display.trim().isEmpty()) {
+                display = systemUser.getLoginName();
+            }
+            if (display == null || display.trim().isEmpty()) {
+                display = fallback;
+            }
+            cache.put(userId, display);
+            return display;
+        } catch (Exception e) {
+            logger.warn("Unable to resolve storage assignedBy user for id={}", userId, e);
+            cache.put(userId, fallback);
+            return fallback;
+        }
     }
 
     @Override

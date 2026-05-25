@@ -54,14 +54,20 @@ export default function Layout(props) {
     location.pathname.startsWith("/analyzers") ||
     location.pathname.startsWith("/AnalyzerManagement");
 
+  const isAdminContext =
+    location.pathname.startsWith("/MasterListsPage") ||
+    location.pathname.startsWith("/admin");
+
   const layoutConfig = {
     storageKeyPrefix: pageStorageKeyPrefix
       ? pageStorageKeyPrefix
-      : isStorageContext
-        ? "storage"
-        : isAnalyzerContext
-          ? "analyzer"
-          : "main",
+      : isAdminContext
+        ? "admin"
+        : isStorageContext
+          ? "storage"
+          : isAnalyzerContext
+            ? "analyzer"
+            : "main",
     // Storage and analyzer workflows benefit from locked (persistent) sidenav
     // All other routes default to collapsed (rail) mode
     defaultMode: pageDefaultMode
@@ -170,7 +176,11 @@ export default function Layout(props) {
           <Theme theme="white">
             <Content
               data-testid="content-wrapper"
-              className={isLocked ? "content-nav-locked" : ""}
+              className={`${mode === SIDENAV_MODES.LOCK ? "content-nav-locked" : ""} ${
+                mode === SIDENAV_MODES.SHOW ? "content-nav-show" : ""
+              } ${mode === SIDENAV_MODES.CLOSE ? "content-nav-close" : ""} ${
+                isAdminContext ? "oe-admin-context" : ""
+              }`.trim()}
             >
               {children}
             </Content>
