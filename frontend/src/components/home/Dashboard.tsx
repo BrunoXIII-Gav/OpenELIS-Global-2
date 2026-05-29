@@ -91,19 +91,39 @@ const HomeDashBoard: React.FC<DashBoardProps> = () => {
     delayedTurnAround: 0,
   });
 
+  const [tileVisibility, setTileVisibility] = useState({
+    ORDERS_PATIALLY_COMPLETED_TODAY: true,
+    ORDERS_ENTERED_BY_USER_TODAY: true,
+    ORDERS_REJECTED_TODAY: true,
+    UN_PRINTED_RESULTS: true,
+    INCOMING_ORDERS: true,
+  });
+
   const [startDate, setStartDate] = useState("");
   const [endDate, setEndDate] = useState("");
   const [selectedTestType, setSelectedTestType] = useState("all");
 
   const handleDateChange = (dates) => {
-    if (dates.length === 2) {
-      const start = dates[0].toLocaleDateString("en-CA");
-      const end = dates[1].toLocaleDateString("en-CA");
-      setStartDate(start);
-      setEndDate(end);
-    } else if (dates.length === 0) {
+    
+    if (!dates || dates.length === 0) {
       setStartDate("");
       setEndDate("");
+      return;
+    }
+
+    const formatSafeDate = (d) => {
+      const year = d.getFullYear();
+      const month = String(d.getMonth() + 1).padStart(2, "0");
+      const day = String(d.getDate()).padStart(2, "0");
+      return `${year}-${month}-${day}`;
+    };
+
+    if (dates.length >= 1) {
+      const start = formatSafeDate(dates[0]);
+      const end = dates.length === 2 && dates[1] ? formatSafeDate(dates[1]) : start;
+      
+      setStartDate(start);
+      setEndDate(end);
     }
   };
 
@@ -154,6 +174,15 @@ const HomeDashBoard: React.FC<DashBoardProps> = () => {
     getFromOpenElisServer(
       `/rest/home-dashboard/metrics?startDate=${startDate}&endDate=${endDate}`,
       loadCount,
+    );
+
+    getFromOpenElisServer(
+      `/rest/home-dashboard/visibility-config`,
+      (data) => {
+        if (data) {
+          setTileVisibility(data);
+        }
+      }
     );
 
     return () => {
@@ -287,7 +316,7 @@ const HomeDashBoard: React.FC<DashBoardProps> = () => {
     setLoading(false);
   };
 
-  const tileList: Array<Tile> = [
+  const allTiles: Array<Tile> = [
     {
       title: <FormattedMessage id="dashboard.in.progress.label" />,
       subTitle: <FormattedMessage id="dashboard.in.progress.subtitle.label" />,
@@ -373,6 +402,13 @@ const HomeDashBoard: React.FC<DashBoardProps> = () => {
       value: counts.delayedTurnAround,
     },
   ];
+
+  const tileList = allTiles.filter((tile) => {
+    if (tileVisibility[tile.type] !== undefined) {
+      return tileVisibility[tile.type];
+    }
+    return true; 
+  });
 
   const averageTimeTileList: Array<Tile> = [
     {
