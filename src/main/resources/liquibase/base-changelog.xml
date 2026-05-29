@@ -17,4 +17,16 @@
   <include file="liquibase/3.2.x.x/base.xml" />
   <include file="liquibase/3.3.x.x/base.xml" />
   <include file="liquibase/3.4.x.x/base.xml" />
+
+  <changeSet id="20260529-dashboard-config" author="admin">
+      <sql>
+          INSERT INTO clinlims.site_information (id, name, description, value, value_type, domain_id, lastupdated) VALUES 
+          (nextval('clinlims.site_information_seq'), 'dash_show_partial_comp', 'Show partially completed tests card', 'false', 'boolean', 1, NOW()),
+          (nextval('clinlims.site_information_seq'), 'dash_show_user_orders', 'Show current user orders cards', 'false', 'boolean', 1, NOW()),
+          (nextval('clinlims.site_information_seq'), 'dash_show_rejected', 'Show rejected samples card', 'false', 'boolean', 1, NOW()),
+          (nextval('clinlims.site_information_seq'), 'dash_show_unprinted', 'Show unprinted results card', 'false', 'boolean', 1, NOW()),
+          (nextval('clinlims.site_information_seq'), 'dash_show_incoming', 'Show incoming samples card', 'false', 'boolean', 1, NOW());
+      </sql>
+  </changeSet>
+
 </databaseChangeLog>
