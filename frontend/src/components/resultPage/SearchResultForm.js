@@ -281,6 +281,7 @@ const AdditionalFieldEditor = ({
         />
       );
     case "SELECT":
+    case "SYSTEM_USER_BIOLOGIST_SELECT":
       return (
         <Select
           id={inputId}
@@ -1338,7 +1339,7 @@ export function SearchResults(props) {
       id: "sampleUsage",
       name: intl.formatMessage({
         id: "result.entry.sampleUsage",
-        defaultMessage: "Sample Usage",
+        defaultMessage: "Cantidad usada",
       }),
       cell: (row, index, column, id) => {
         return renderCell(row, index, column, id);
@@ -1368,6 +1369,7 @@ export function SearchResults(props) {
     "analyzerResult",
     "normalRange",
     "currentResult",
+    "accept",
   ]);
   const visibleColumns = columns.filter(
     (column) => !hiddenColumnIds.has(column.id),
@@ -1684,7 +1686,7 @@ export function SearchResults(props) {
               {intl.formatMessage(
                 {
                   id: "result.entry.remainingQuantity",
-                  defaultMessage: "Remaining: {quantity}",
+                  defaultMessage: "Restantes: {quantity}",
                 },
                 { quantity: row.sampleRemainingQuantity || "-" },
               )}
@@ -2477,6 +2479,58 @@ export function SearchResults(props) {
       return Number.isNaN(parsed) || parsed <= 0;
     });
 
+    const dependentChildMissingRemaining = props.results.testResult.find(
+      (item) => {
+        if (!item.dependentChild || item.sampleUsageLocked === true) {
+          return false;
+        }
+
+        const hasResult =
+          (item.resultType === "M" || item.resultType === "C"
+            ? item.multiSelectResultValues &&
+              item.multiSelectResultValues !== "{}"
+            : item.shadowResultValue &&
+              !(item.resultType === "D" && item.shadowResultValue === "0")) ||
+          (item.resultType !== "M" &&
+            item.resultType !== "C" &&
+            item.resultValue &&
+            !(item.resultType === "D" && item.resultValue === "0")) ||
+          item.refer === true ||
+          item.refer === "true" ||
+          item.shadowRejected === true ||
+          item.shadowRejected === "true";
+
+        if (!hasResult) {
+          return false;
+        }
+
+        if (
+          item.sampleRemainingQuantity === null ||
+          item.sampleRemainingQuantity === undefined ||
+          item.sampleRemainingQuantity === ""
+        ) {
+          return true;
+        }
+
+        const remaining = Number(item.sampleRemainingQuantity);
+        return Number.isNaN(remaining);
+      },
+    );
+
+    if (dependentChildMissingRemaining) {
+      addNotification({
+        title: intl.formatMessage({ id: "notification.title" }),
+        message: intl.formatMessage({
+          id: "result.entry.sampleUsage.remaining.missing",
+          defaultMessage:
+            "Dependent child tests require a valid remaining quantity from the configured parent source.",
+        }),
+        kind: NotificationKinds.error,
+      });
+      setNotificationVisible(true);
+      return;
+    }
+
     if (dependentChildMissingUsage) {
       addNotification({
         title: intl.formatMessage({ id: "notification.title" }),
@@ -2569,25 +2623,6 @@ export function SearchResults(props) {
       {notificationVisible === true ? <AlertDialog /> : ""}
       {addRejectResult()}
       <>
-        {props.results?.testResult?.length > 0 && (
-          <Grid style={{ marginTop: "20px" }} className="gridBoundary">
-            <Column lg={3} />
-            <Column lg={7} sm={4}>
-              <picture>
-                <img
-                  src={config.serverBaseUrl + "/images/nonconforming.gif"}
-                  alt="nonconforming"
-                  width="25"
-                  height="20"
-                />
-              </picture>
-              <b>
-                {" "}
-                <FormattedMessage id="validation.label.nonconform" />
-              </b>
-            </Column>
-          </Grid>
-        )}
         <Formik
           initialValues={SearchResultFormValues}
           //validationSchema={}

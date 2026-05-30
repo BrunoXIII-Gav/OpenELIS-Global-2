@@ -914,7 +914,11 @@ const SampleType = (props) => {
       );
     }
 
-    if (fieldType === "SELECT" || fieldType === "RADIO") {
+    if (
+      fieldType === "SELECT" ||
+      fieldType === "RADIO" ||
+      fieldType === "SYSTEM_USER_BIOLOGIST_SELECT"
+    ) {
       return (
         <Select
           id={`additional_field_${index}_${fieldKey}`}

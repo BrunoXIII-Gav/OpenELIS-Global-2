@@ -1,0 +1,113 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<databaseChangeLog
+  xmlns="http://www.liquibase.org/xml/ns/dbchangelog"
+  xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+  xsi:schemaLocation="http://www.liquibase.org/xml/ns/dbchangelog http://www.liquibase.org/xml/ns/dbchangelog/dbchangelog-3.8.xsd">
+
+  <changeSet id="042-01-add-system-user-professional-profile-column" author="openelis">
+    <preConditions onFail="MARK_RAN">
+      <and>
+        <tableExists tableName="system_user"/>
+        <not>
+          <columnExists tableName="system_user" columnName="professional_profile_code"/>
+        </not>
+      </and>
+    </preConditions>
+
+    <addColumn tableName="system_user">
+      <column name="professional_profile_code" type="VARCHAR(64)"/>
+    </addColumn>
+
+    <rollback>
+      <dropColumn tableName="system_user" columnName="professional_profile_code"/>
+    </rollback>
+  </changeSet>
+
+  <changeSet id="042-02-add-professional-profile-options-config" author="openelis">
+    <preConditions onFail="MARK_RAN">
+      <sqlCheck expectedResult="1">
+        SELECT CASE WHEN EXISTS (
+          SELECT 1 FROM clinlims.site_information_domain WHERE name = 'sampleEntryConfig'
+        ) THEN 1 ELSE 0 END
+      </sqlCheck>
+      <sqlCheck expectedResult="0">SELECT count(*) FROM clinlims.site_information WHERE name = 'professionalProfileOptions'</sqlCheck>
+    </preConditions>
+
+    <insert schemaName="clinlims" tableName="site_information">
+      <column name="id" valueSequenceNext="site_information_seq" />
+      <column name="name" value="professionalProfileOptions" />
+      <column name="lastupdated" valueComputed="${now}" />
+      <column name="description" value="Comma-separated professional profile options as CODE|Label" />
+      <column name="value" value="BIOLOGIST|Biólogo,MEDICAL_DOCTOR|Médico" />
+      <column name="encrypted" value="false" />
+      <column name="domain_id" valueComputed="(SELECT id FROM site_information_domain WHERE name = 'sampleEntryConfig')" />
+      <column name="value_type" value="text" />
+      <column name="group" value="0" />
+    </insert>
+
+    <rollback>
+      <delete schemaName="clinlims" tableName="site_information">
+        <where>name = 'professionalProfileOptions'</where>
+      </delete>
+    </rollback>
+  </changeSet>
+
+  <changeSet id="042-03-add-sample-collector-profile-config" author="openelis">
+    <preConditions onFail="MARK_RAN">
+      <sqlCheck expectedResult="1">
+        SELECT CASE WHEN EXISTS (
+          SELECT 1 FROM clinlims.site_information_domain WHERE name = 'sampleEntryConfig'
+        ) THEN 1 ELSE 0 END
+      </sqlCheck>
+      <sqlCheck expectedResult="0">SELECT count(*) FROM clinlims.site_information WHERE name = 'sampleCollectorProfileCode'</sqlCheck>
+    </preConditions>
+
+    <insert schemaName="clinlims" tableName="site_information">
+      <column name="id" valueSequenceNext="site_information_seq" />
+      <column name="name" value="sampleCollectorProfileCode" />
+      <column name="lastupdated" valueComputed="${now}" />
+      <column name="description" value="Professional profile code used to populate sample collector selector" />
+      <column name="value" value="BIOLOGIST" />
+      <column name="encrypted" value="false" />
+      <column name="domain_id" valueComputed="(SELECT id FROM site_information_domain WHERE name = 'sampleEntryConfig')" />
+      <column name="value_type" value="text" />
+      <column name="group" value="0" />
+    </insert>
+
+    <rollback>
+      <delete schemaName="clinlims" tableName="site_information">
+        <where>name = 'sampleCollectorProfileCode'</where>
+      </delete>
+    </rollback>
+  </changeSet>
+
+  <changeSet id="042-04-add-validation-interpreter-profile-config" author="openelis">
+    <preConditions onFail="MARK_RAN">
+      <sqlCheck expectedResult="1">
+        SELECT CASE WHEN EXISTS (
+          SELECT 1 FROM clinlims.site_information_domain WHERE name = 'sampleEntryConfig'
+        ) THEN 1 ELSE 0 END
+      </sqlCheck>
+      <sqlCheck expectedResult="0">SELECT count(*) FROM clinlims.site_information WHERE name = 'validationInterpreterProfileCode'</sqlCheck>
+    </preConditions>
+
+    <insert schemaName="clinlims" tableName="site_information">
+      <column name="id" valueSequenceNext="site_information_seq" />
+      <column name="name" value="validationInterpreterProfileCode" />
+      <column name="lastupdated" valueComputed="${now}" />
+      <column name="description" value="Professional profile code used for validation interpreter assignment" />
+      <column name="value" value="MEDICAL_DOCTOR" />
+      <column name="encrypted" value="false" />
+      <column name="domain_id" valueComputed="(SELECT id FROM site_information_domain WHERE name = 'sampleEntryConfig')" />
+      <column name="value_type" value="text" />
+      <column name="group" value="0" />
+    </insert>
+
+    <rollback>
+      <delete schemaName="clinlims" tableName="site_information">
+        <where>name = 'validationInterpreterProfileCode'</where>
+      </delete>
+    </rollback>
+  </changeSet>
+
+</databaseChangeLog>

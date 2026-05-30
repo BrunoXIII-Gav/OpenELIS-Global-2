@@ -99,6 +99,7 @@ import org.openelisglobal.systemuser.service.SystemUserService;
 import org.openelisglobal.systemuser.service.UserService;
 import org.openelisglobal.test.beanItems.TestResultItem;
 import org.openelisglobal.testadditionalfield.bean.TestAdditionalFieldPayload;
+import org.openelisglobal.testadditionalfield.service.TestAdditionalFieldService;
 import org.openelisglobal.test.service.TestSectionService;
 import org.openelisglobal.test.valueholder.TestSection;
 import org.openelisglobal.testdependency.service.TestParentChildDependencyService;
@@ -197,6 +198,8 @@ public class LogbookResultsRestController extends LogbookResultsBaseController {
     private SystemUserService systemUserService;
     @Autowired
     private TestParentChildDependencyService testParentChildDependencyService;
+    @Autowired
+    private TestAdditionalFieldService testAdditionalFieldService;
 
     private final String RESULT_SUBJECT = "Result Note";
     private final String REFERRAL_CONFORMATION_ID;
@@ -762,26 +765,13 @@ public class LogbookResultsRestController extends LogbookResultsBaseController {
         }
 
         BigDecimal usageQuantity = parseAndValidateUsageQuantity(testResultItem.getSampleUsageQuantity());
-        String sampleItemId = analysis.getSampleItem().getId();
-
-        SampleItem sampleItem = sampleItemsBeingUpdated.get(sampleItemId);
-        if (sampleItem == null) {
-            sampleItem = sampleItemService.get(sampleItemId);
-            if (sampleItem == null) {
-                throw new IllegalArgumentException("Sample item not found for analysis");
-            }
+        String sampleUsageSource = normalizeSampleUsageSource(dependency.getSampleUsageSource());
+        if (TestParentChildDependency.SAMPLE_USAGE_SOURCE_PARENT_TEST_FIELD.equals(sampleUsageSource)) {
+            validateParentFieldBasedUsageLimit(analysis, parentAnalysis, dependency.getParentResultFieldKey(),
+                    usageQuantity);
+        } else {
+            applySampleItemBasedUsage(analysis, actionDataSet, sampleItemsBeingUpdated, usageQuantity);
         }
-
-        if (!sampleItem.canAliquot(usageQuantity)) {
-            throw new IllegalArgumentException("Insufficient remaining quantity for dependent child test usage");
-        }
-
-        sampleItem.decrementRemainingQuantity(usageQuantity);
-        sampleItem.setSysUserId(getSysUserId(request));
-        sampleItemsBeingUpdated.put(sampleItemId, sampleItem);
-        actionDataSet.addModifiedSampleItem(sampleItem);
-
-        analysis.setSampleItem(sampleItem);
         analysis.setSampleUsedQuantity(usageQuantity);
     }
 
@@ -820,6 +810,103 @@ public class LogbookResultsRestController extends LogbookResultsBaseController {
         IStatusService statusService = SpringContext.getBean(IStatusService.class);
         return statusService.matches(analysis.getStatusId(), AnalysisStatus.Finalized)
                 || statusService.matches(analysis.getStatusId(), AnalysisStatus.TechnicalAcceptance);
+    }
+
+    private String normalizeSampleUsageSource(String sampleUsageSource) {
+        if (GenericValidator.isBlankOrNull(sampleUsageSource)) {
+            return TestParentChildDependency.SAMPLE_USAGE_SOURCE_SAMPLE_ITEM_REMAINING;
+        }
+        return sampleUsageSource.trim().toUpperCase();
+    }
+
+    private void applySampleItemBasedUsage(Analysis analysis, ResultsUpdateDataSet actionDataSet,
+            Map<String, SampleItem> sampleItemsBeingUpdated, BigDecimal usageQuantity) {
+        String sampleItemId = analysis.getSampleItem().getId();
+        SampleItem sampleItem = sampleItemsBeingUpdated.get(sampleItemId);
+        if (sampleItem == null) {
+            sampleItem = sampleItemService.get(sampleItemId);
+            if (sampleItem == null) {
+                throw new IllegalArgumentException("Sample item not found for analysis");
+            }
+        }
+
+        if (!sampleItem.canAliquot(usageQuantity)) {
+            throw new IllegalArgumentException("Insufficient remaining quantity for dependent child test usage");
+        }
+
+        sampleItem.decrementRemainingQuantity(usageQuantity);
+        sampleItem.setSysUserId(getSysUserId(request));
+        sampleItemsBeingUpdated.put(sampleItemId, sampleItem);
+        actionDataSet.addModifiedSampleItem(sampleItem);
+        analysis.setSampleItem(sampleItem);
+    }
+
+    private void validateParentFieldBasedUsageLimit(Analysis analysis, Analysis parentAnalysis, String parentFieldKey,
+            BigDecimal usageQuantity) {
+        BigDecimal parentCapacity = resolveParentFieldCapacity(parentAnalysis, parentFieldKey);
+        BigDecimal alreadyConsumed = getExistingParentChildConsumedUsage(analysis, parentAnalysis);
+        BigDecimal remaining = parentCapacity.subtract(alreadyConsumed);
+        if (remaining.compareTo(BigDecimal.ZERO) < 0) {
+            remaining = BigDecimal.ZERO;
+        }
+        if (usageQuantity.compareTo(remaining) > 0) {
+            throw new IllegalArgumentException("Insufficient remaining quantity from parent test field");
+        }
+    }
+
+    private BigDecimal resolveParentFieldCapacity(Analysis parentAnalysis, String parentFieldKey) {
+        if (GenericValidator.isBlankOrNull(parentFieldKey)) {
+            throw new IllegalArgumentException("Parent result field key is not configured for dependency");
+        }
+
+        List<TestAdditionalFieldPayload> definitions = testAdditionalFieldService
+                .getFieldsForTest(parentAnalysis.getTest().getId(), false);
+        TestAdditionalFieldPayload targetDefinition = definitions.stream()
+                .filter(def -> parentFieldKey.equals(def.getFieldKey())).findFirst().orElse(null);
+        if (targetDefinition == null) {
+            throw new IllegalArgumentException("Configured parent result field was not found");
+        }
+        if (!"NUMBER".equalsIgnoreCase(targetDefinition.getFieldType())) {
+            throw new IllegalArgumentException("Configured parent result field must be numeric");
+        }
+
+        Map<String, String> values = testAdditionalFieldService.getAnalysisValuesForFields(parentAnalysis.getId(),
+                definitions);
+        String raw = values == null ? null : values.get(parentFieldKey);
+        if (GenericValidator.isBlankOrNull(raw)) {
+            throw new IllegalArgumentException("Parent result field value is required to consume child sample usage");
+        }
+
+        try {
+            BigDecimal parsed = new BigDecimal(raw.trim()).setScale(3, RoundingMode.HALF_UP);
+            if (parsed.compareTo(BigDecimal.ZERO) < 0) {
+                throw new IllegalArgumentException("Parent result field value must be zero or positive");
+            }
+            return parsed;
+        } catch (NumberFormatException e) {
+            throw new IllegalArgumentException("Parent result field value must be numeric");
+        }
+    }
+
+    private BigDecimal getExistingParentChildConsumedUsage(Analysis currentAnalysis, Analysis parentAnalysis) {
+        if (currentAnalysis == null || currentAnalysis.getSampleItem() == null || parentAnalysis == null) {
+            return BigDecimal.ZERO;
+        }
+        List<Analysis> analyses = analysisService.getAnalysesBySampleItem(currentAnalysis.getSampleItem());
+        BigDecimal consumed = BigDecimal.ZERO;
+        for (Analysis analysis : analyses) {
+            if (analysis == null || analysis.getId() == null || analysis.getSampleUsedQuantity() == null
+                    || analysis.getParentAnalysis() == null || analysis.getParentAnalysis().getId() == null) {
+                continue;
+            }
+            if (analysis.getId().equals(currentAnalysis.getId())) {
+                continue;
+            }
+            if (parentAnalysis.getId().equals(analysis.getParentAnalysis().getId())) {
+                consumed = consumed.add(analysis.getSampleUsedQuantity());
+            }
+        }
+        return consumed;
     }
 
     private void handleReferrals(TestResultItem testResultItem, ReferralItem referralItem, List<Result> results,

@@ -1,6 +1,8 @@
 package org.openelisglobal.resultvalidation.service;
 
 import java.util.ArrayList;
+import java.sql.Date;
+import java.time.LocalDate;
 import java.util.List;
 import org.openelisglobal.analysis.service.AnalysisService;
 import org.openelisglobal.analysis.valueholder.Analysis;
@@ -48,7 +50,11 @@ public class ResultValidationServiceImpl implements ResultValidationService {
             ArrayList<Result> resultUpdateList, List<AnalysisItem> resultItemList, ArrayList<Sample> sampleUpdateList,
             ArrayList<Note> noteUpdateList, IResultSaveService resultSaveService, List<IResultUpdate> updaters,
             String sysUserId) {
-        ResultSaveService.removeDeletedResultsInTransaction(deletableList, sysUserId);
+        if (deletableList != null && !deletableList.isEmpty()) {
+            ResultSaveService.removeDeletedResultsInTransaction(deletableList, sysUserId);
+        }
+
+        applyValidationDates(analysisUpdateList, resultItemList);
 
         // update analysis
         for (Analysis analysis : analysisUpdateList) {
@@ -97,6 +103,23 @@ public class ResultValidationServiceImpl implements ResultValidationService {
 
         for (IResultUpdate updater : updaters) {
             updater.transactionalUpdate(resultSaveService);
+        }
+    }
+
+    void applyValidationDates(List<Analysis> analysisUpdateList, List<AnalysisItem> resultItemList) {
+        for (Analysis analysis : analysisUpdateList) {
+            for (AnalysisItem analysisItem : resultItemList) {
+                if (!analysis.getId().equals(analysisItem.getAnalysisId())) {
+                    continue;
+                }
+
+                if (analysisItem.getValidationDate() == null || analysisItem.getValidationDate().isBlank()) {
+                    break;
+                }
+
+                analysis.setValidationDate(Date.valueOf(LocalDate.parse(analysisItem.getValidationDate())));
+                break;
+            }
         }
     }
 

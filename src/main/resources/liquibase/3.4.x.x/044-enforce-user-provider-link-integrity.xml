@@ -1,0 +1,106 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<databaseChangeLog
+  xmlns="http://www.liquibase.org/xml/ns/dbchangelog"
+  xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+  xsi:schemaLocation="http://www.liquibase.org/xml/ns/dbchangelog http://www.liquibase.org/xml/ns/dbchangelog/dbchangelog-3.8.xsd">
+
+  <changeSet id="044-01-nullify-invalid-linked-provider-person-id" author="openelis">
+    <preConditions onFail="MARK_RAN">
+      <and>
+        <tableExists tableName="system_user"/>
+        <tableExists tableName="person"/>
+        <columnExists tableName="system_user" columnName="linked_provider_person_id"/>
+      </and>
+    </preConditions>
+
+    <sql>
+      UPDATE system_user su
+      SET linked_provider_person_id = NULL
+      WHERE su.linked_provider_person_id IS NOT NULL
+        AND (
+          trim(su.linked_provider_person_id) = ''
+          OR su.linked_provider_person_id !~ '^[0-9]+$'
+          OR NOT EXISTS (
+            SELECT 1
+            FROM person p
+            WHERE CAST(p.id AS VARCHAR(20)) = su.linked_provider_person_id
+          )
+        );
+    </sql>
+  </changeSet>
+
+  <changeSet id="044-02-convert-linked-provider-person-id-to-numeric" author="openelis">
+    <preConditions onFail="MARK_RAN">
+      <and>
+        <tableExists tableName="system_user"/>
+        <columnExists tableName="system_user" columnName="linked_provider_person_id"/>
+      </and>
+    </preConditions>
+
+    <sql>
+      ALTER TABLE system_user
+      ALTER COLUMN linked_provider_person_id TYPE NUMERIC(10,0)
+      USING linked_provider_person_id::NUMERIC;
+    </sql>
+
+    <rollback>
+      <sql>
+        ALTER TABLE system_user
+        ALTER COLUMN linked_provider_person_id TYPE VARCHAR(20)
+        USING linked_provider_person_id::VARCHAR;
+      </sql>
+    </rollback>
+  </changeSet>
+
+  <changeSet id="044-03-add-system-user-linked-provider-person-index" author="openelis">
+    <preConditions onFail="MARK_RAN">
+      <and>
+        <tableExists tableName="system_user"/>
+        <columnExists tableName="system_user" columnName="linked_provider_person_id"/>
+        <not>
+          <indexExists tableName="system_user" indexName="idx_system_user_linked_provider_person"/>
+        </not>
+      </and>
+    </preConditions>
+
+    <createIndex tableName="system_user" indexName="idx_system_user_linked_provider_person">
+      <column name="linked_provider_person_id"/>
+    </createIndex>
+
+    <rollback>
+      <dropIndex tableName="system_user" indexName="idx_system_user_linked_provider_person"/>
+    </rollback>
+  </changeSet>
+
+  <changeSet id="044-04-add-fk-system-user-linked-provider-person" author="openelis">
+    <preConditions onFail="MARK_RAN">
+      <and>
+        <tableExists tableName="system_user"/>
+        <tableExists tableName="person"/>
+        <columnExists tableName="system_user" columnName="linked_provider_person_id"/>
+        <columnExists tableName="person" columnName="id"/>
+        <not>
+          <foreignKeyConstraintExists foreignKeyName="fk_system_user_linked_provider_person"/>
+        </not>
+      </and>
+    </preConditions>
+
+    <addForeignKeyConstraint
+      baseTableName="system_user"
+      baseColumnNames="linked_provider_person_id"
+      referencedTableName="person"
+      referencedColumnNames="id"
+      constraintName="fk_system_user_linked_provider_person"
+      deferrable="false"
+      initiallyDeferred="false"
+      onDelete="SET NULL"
+      onUpdate="CASCADE"/>
+
+    <rollback>
+      <dropForeignKeyConstraint
+        baseTableName="system_user"
+        constraintName="fk_system_user_linked_provider_person"/>
+    </rollback>
+  </changeSet>
+
+</databaseChangeLog>

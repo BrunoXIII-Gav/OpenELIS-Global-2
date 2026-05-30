@@ -36,6 +36,12 @@ public class Provider extends BaseObject<String> implements DesynchronousCapable
 
     private String dni;
 
+    private String professionalProfileCode;
+
+    private String professionalInitials;
+
+    private String cbpCode;
+
     private ValueHolderInterface person;
 
     private String selectedPersonId;
@@ -97,6 +103,30 @@ public class Provider extends BaseObject<String> implements DesynchronousCapable
 
     public void setDni(String dni) {
         this.dni = dni;
+    }
+
+    public String getProfessionalProfileCode() {
+        return professionalProfileCode;
+    }
+
+    public void setProfessionalProfileCode(String professionalProfileCode) {
+        this.professionalProfileCode = professionalProfileCode;
+    }
+
+    public String getProfessionalInitials() {
+        return professionalInitials;
+    }
+
+    public void setProfessionalInitials(String professionalInitials) {
+        this.professionalInitials = professionalInitials;
+    }
+
+    public String getCbpCode() {
+        return cbpCode;
+    }
+
+    public void setCbpCode(String cbpCode) {
+        this.cbpCode = cbpCode;
     }
 
     public Person getPerson() {

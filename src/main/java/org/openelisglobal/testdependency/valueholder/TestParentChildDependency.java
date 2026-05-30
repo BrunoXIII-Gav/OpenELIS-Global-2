@@ -8,12 +8,16 @@ import org.openelisglobal.test.valueholder.Test;
 public class TestParentChildDependency extends BaseObject<String> {
 
     private static final long serialVersionUID = 1L;
+    public static final String SAMPLE_USAGE_SOURCE_SAMPLE_ITEM_REMAINING = "SAMPLE_ITEM_REMAINING";
+    public static final String SAMPLE_USAGE_SOURCE_PARENT_TEST_FIELD = "PARENT_TEST_FIELD";
 
     private String id;
     private ValueHolderInterface parentTest;
     private ValueHolderInterface childTest;
     private Boolean active = Boolean.TRUE;
     private Integer displayOrder;
+    private String sampleUsageSource = SAMPLE_USAGE_SOURCE_SAMPLE_ITEM_REMAINING;
+    private String parentResultFieldKey;
 
     public TestParentChildDependency() {
         super();
@@ -61,5 +65,21 @@ public class TestParentChildDependency extends BaseObject<String> {
 
     public void setDisplayOrder(Integer displayOrder) {
         this.displayOrder = displayOrder;
+    }
+
+    public String getSampleUsageSource() {
+        return sampleUsageSource;
+    }
+
+    public void setSampleUsageSource(String sampleUsageSource) {
+        this.sampleUsageSource = sampleUsageSource;
+    }
+
+    public String getParentResultFieldKey() {
+        return parentResultFieldKey;
+    }
+
+    public void setParentResultFieldKey(String parentResultFieldKey) {
+        this.parentResultFieldKey = parentResultFieldKey;
     }
 }

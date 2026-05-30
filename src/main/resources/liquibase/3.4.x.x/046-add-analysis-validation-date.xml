@@ -1,0 +1,23 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<databaseChangeLog
+  xmlns="http://www.liquibase.org/xml/ns/dbchangelog"
+  xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+  xsi:schemaLocation="http://www.liquibase.org/xml/ns/dbchangelog http://www.liquibase.org/xml/ns/dbchangelog/dbchangelog-3.8.xsd">
+
+  <changeSet id="046-01-add-analysis-validation-date" author="openelis">
+    <preConditions onFail="MARK_RAN">
+      <tableExists schemaName="clinlims" tableName="analysis"/>
+      <not>
+        <columnExists schemaName="clinlims" tableName="analysis" columnName="validation_date"/>
+      </not>
+    </preConditions>
+
+    <addColumn schemaName="clinlims" tableName="analysis">
+      <column name="validation_date" type="DATE"/>
+    </addColumn>
+
+    <rollback>
+      <dropColumn schemaName="clinlims" tableName="analysis" columnName="validation_date"/>
+    </rollback>
+  </changeSet>
+</databaseChangeLog>

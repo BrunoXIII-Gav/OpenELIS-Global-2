@@ -22,6 +22,7 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.stream.Collectors;
+import org.apache.commons.lang3.StringUtils;
 import org.apache.commons.validator.GenericValidator;
 import org.openelisglobal.address.service.AddressHierarchyConfigurationHandler;
 import org.openelisglobal.analyzer.service.AnalyzerService;
@@ -96,7 +97,8 @@ public class DisplayListService implements LocaleChangeListener {
         RESULT_TYPE_CODES, UNIT_OF_MEASURE, UNIT_OF_MEASURE_ACTIVE, UNIT_OF_MEASURE_INACTIVE, DICTIONARY_TEST_RESULTS,
         LAB_COMPONENT, SEVERITY_CONSEQUENCES_LIST, SEVERITY_RECURRENCE_LIST, ACTION_TYPE_LIST, LABORATORY_COMPONENT,
         SAMPLE_NATURE, ELECTRONIC_ORDER_STATUSES, METHODS, METHODS_INACTIVE, METHOD_BY_NAME, PRACTITIONER_PERSONS,
-        ORDER_PRIORITY, PROGRAM, IMMUNOHISTOCHEMISTRY_STATUS, PATHOLOGY_STATUS, CYTOLOGY_SPECIMEN_ADEQUACY_SATISFACTION,
+        ORDER_PROVIDER_PERSONS, ORDER_PRIORITY, PROGRAM, IMMUNOHISTOCHEMISTRY_STATUS, PATHOLOGY_STATUS,
+        CYTOLOGY_SPECIMEN_ADEQUACY_SATISFACTION,
         PATHOLOGY_TECHNIQUES, PATHOLOGIST_REQUESTS, PATHOLOGY_REQUEST_STATUS, PATHOLOGIST_CONCLUSIONS,
         IMMUNOHISTOCHEMISTRY_REPORT_TYPES, IMMUNOHISTOCHEMISTRY_MARKERS_TESTS, CYTOLOGY_STATUS, NOTEBOOK_STATUS,
         CYTOLOGY_SATISFACTORY_FOR_EVALUATION, CYTOLOGY_UN_SATISFACTORY_FOR_EVALUATION, CYTOLOGY_REPORT_TYPES,
@@ -523,6 +525,7 @@ public class DisplayListService implements LocaleChangeListener {
         typeToListMap.put(ListType.LABORATORY_COMPONENT, createLaboratoryComponentList());
         typeToListMap.put(ListType.ELECTRONIC_ORDER_STATUSES, createElectronicOrderStatusList());
         typeToListMap.put(ListType.PRACTITIONER_PERSONS, createActivePractitionerPersonsList());
+        typeToListMap.put(ListType.ORDER_PROVIDER_PERSONS, createActiveOrderProviderPersonsList());
         typeToListMap.put(ListType.ORDER_PRIORITY, createSamplePriorityList());
         typeToListMap.put(ListType.IHC_BREAST_CANCER_REPORT_INTENSITY,
                 createDictionaryListForCategory("ihc_breast_cancer_report_intensity"));
@@ -571,6 +574,10 @@ public class DisplayListService implements LocaleChangeListener {
         }
         case PRACTITIONER_PERSONS: {
             typeToListMap.put(ListType.PRACTITIONER_PERSONS, createActivePractitionerPersonsList());
+            break;
+        }
+        case ORDER_PROVIDER_PERSONS: {
+            typeToListMap.put(ListType.ORDER_PROVIDER_PERSONS, createActiveOrderProviderPersonsList());
             break;
         }
         case SAMPLE_PATIENT_REFERRING_CLINIC: {
@@ -668,9 +675,27 @@ public class DisplayListService implements LocaleChangeListener {
     }
 
     private List<IdValuePair> createActivePractitionerPersonsList() {
+        return createActivePractitionerPersonsList(null);
+    }
+
+    private List<IdValuePair> createActiveOrderProviderPersonsList() {
+        String configuredProfileCode = ConfigurationProperties.getInstance()
+                .getPropertyValue(Property.orderProviderProfessionalProfileCode);
+        String normalizedProfileCode = StringUtils.trimToNull(configuredProfileCode);
+        return createActivePractitionerPersonsList(normalizedProfileCode);
+    }
+
+    private List<IdValuePair> createActivePractitionerPersonsList(String requiredProfileCode) {
         List<IdValuePair> providerDisplayList = new ArrayList<>();
+        String normalizedRequiredProfileCode = StringUtils.upperCase(StringUtils.trimToNull(requiredProfileCode));
 
         List<Provider> providerList = providerService.getAllActiveProviders();
+        if (normalizedRequiredProfileCode != null) {
+            providerList = providerList.stream().filter(provider -> normalizedRequiredProfileCode.equals(
+                    StringUtils.upperCase(StringUtils.trimToEmpty(provider.getProfessionalProfileCode()))))
+                    .collect(Collectors.toList());
+        }
+
         providerList.sort((e, f) -> {
             String lastNameE = e.getPerson().getLastName();
             String lastNameF = f.getPerson().getLastName();

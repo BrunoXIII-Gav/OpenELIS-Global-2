@@ -4,6 +4,11 @@ import { TextInput } from "@carbon/react";
 
 function AutoComplete(props) {
   const allowFreeText = props.allowFreeText;
+  const maxSuggestions =
+    Number.isFinite(Number(props.maxSuggestions)) &&
+    Number(props.maxSuggestions) > 0
+      ? Number(props.maxSuggestions)
+      : null;
 
   const [textValue, setTextValue] = useState("");
   const [activeSuggestion, setActiveSuggestion] = useState(0);
@@ -36,10 +41,13 @@ function AutoComplete(props) {
     const { suggestions } = props;
     const userInput = e.currentTarget.value;
     setTextValue(userInput);
-    const filteredSuggestions = suggestions.filter(
+    const allMatches = suggestions.filter(
       (suggestion) =>
         suggestion.value.toLowerCase().indexOf(userInput.toLowerCase()) > -1,
     );
+    const filteredSuggestions = maxSuggestions
+      ? allMatches.slice(0, maxSuggestions)
+      : allMatches;
 
     setActiveSuggestion(0);
     setFilteredSuggestions(filteredSuggestions);

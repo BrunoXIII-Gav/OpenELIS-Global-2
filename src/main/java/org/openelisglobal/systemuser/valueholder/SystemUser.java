@@ -44,6 +44,8 @@ public class SystemUser extends EnumValueItemImpl implements PermissionAgent {
 
     private String signatureImageContentType;
 
+    private String professionalProfileCode;
+
     public SystemUser() {
     }
 
@@ -145,5 +147,13 @@ public class SystemUser extends EnumValueItemImpl implements PermissionAgent {
 
     public void setSignatureImageContentType(String signatureImageContentType) {
         this.signatureImageContentType = signatureImageContentType;
+    }
+
+    public String getProfessionalProfileCode() {
+        return professionalProfileCode;
+    }
+
+    public void setProfessionalProfileCode(String professionalProfileCode) {
+        this.professionalProfileCode = professionalProfileCode;
     }
 }

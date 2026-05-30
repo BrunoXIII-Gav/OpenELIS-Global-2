@@ -7,6 +7,8 @@ public class TestParentChildDependencyForm {
     private String childTestId;
     private Boolean active = Boolean.TRUE;
     private Integer displayOrder;
+    private String sampleUsageSource;
+    private String parentResultFieldKey;
 
     public String getId() {
         return id;
@@ -46,5 +48,21 @@ public class TestParentChildDependencyForm {
 
     public void setDisplayOrder(Integer displayOrder) {
         this.displayOrder = displayOrder;
+    }
+
+    public String getSampleUsageSource() {
+        return sampleUsageSource;
+    }
+
+    public void setSampleUsageSource(String sampleUsageSource) {
+        this.sampleUsageSource = sampleUsageSource;
+    }
+
+    public String getParentResultFieldKey() {
+        return parentResultFieldKey;
+    }
+
+    public void setParentResultFieldKey(String parentResultFieldKey) {
+        this.parentResultFieldKey = parentResultFieldKey;
     }
 }

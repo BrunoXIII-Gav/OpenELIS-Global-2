@@ -452,7 +452,7 @@
 					<textFieldExpression><![CDATA[$P{dmpkDeliveryDate}]]></textFieldExpression>
 				</textField>
 				<textField isBlankWhenNull="true" textAdjust="StretchHeight">
-					<reportElement x="6" y="700" width="360" height="28" uuid="20f0f6a3-1baf-41fa-a199-b57be8f0293a"/>
+					<reportElement x="6" y="700" width="360" height="52" uuid="20f0f6a3-1baf-41fa-a199-b57be8f0293a"/>
 					<textElement>
 						<font size="9.0"/>
 					</textElement>

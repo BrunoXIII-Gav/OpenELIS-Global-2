@@ -1,7 +1,13 @@
-import React, { useContext, useState, useEffect, useRef } from "react";
+import React, {
+  useContext,
+  useState,
+  useEffect,
+  useRef,
+  useMemo,
+  useCallback,
+} from "react";
 import {
   Heading,
-  Button,
   Loading,
   Grid,
   Column,
@@ -14,7 +20,6 @@ import {
   TableHeader,
   TableCell,
   TableSelectRow,
-  TableSelectAll,
   TableContainer,
   Pagination,
   Search,
@@ -78,13 +83,16 @@ function ProviderMenu() {
   const [lastName, setLastName] = useState("");
   const [firstName, setFirstName] = useState("");
   const [telephone, setTelephone] = useState("");
-  const [fhirUuid, setFhirUuid] = useState("");
   const [fax, setFax] = useState("");
   const [email, setEmail] = useState("");
   const [cmp, setCmp] = useState("");
   const [rne, setRne] = useState("");
   const [dni, setDni] = useState("");
   const [specialty, setSpecialty] = useState("");
+  const [professionalProfileCode, setProfessionalProfileCode] =
+    useState("MEDICAL_DOCTOR");
+  const [professionalInitials, setProfessionalInitials] = useState("");
+  const [cbpCode, setCbpCode] = useState("");
   const [isActive, setIsActive] = useState({ id: "yes", value: "Yes" });
 
   const yesOrNo = [
@@ -92,19 +100,56 @@ function ProviderMenu() {
     { id: "no", value: "No" },
   ];
 
-  const providerSpecialtyOptions = (
-    configurationProperties?.providerSpecialtyOptions || ""
-  )
-    .split(/[\n,]+/)
-    .map((entry) => entry.trim())
-    .filter(Boolean)
-    .map((entry) => {
-      const parts = entry.split("|");
-      const id = (parts[0] || "").trim();
-      const value = (parts[1] || parts[0] || "").trim();
-      return id ? { id, value } : null;
-    })
-    .filter(Boolean);
+  const providerSpecialtyOptions = useMemo(
+    () =>
+      (configurationProperties?.providerSpecialtyOptions || "")
+        .split(/[\n,]+/)
+        .map((entry) => entry.trim())
+        .filter(Boolean)
+        .map((entry) => {
+          const parts = entry.split("|");
+          const id = (parts[0] || "").trim();
+          const value = (parts[1] || parts[0] || "").trim();
+          return id ? { id, value } : null;
+        })
+        .filter(Boolean),
+    [configurationProperties?.providerSpecialtyOptions],
+  );
+
+  const professionalProfileOptions = useMemo(
+    () =>
+      (configurationProperties?.professionalProfileOptions || "")
+        .split(",")
+        .map((entry) => entry.trim())
+        .filter(Boolean)
+        .map((entry) => {
+          const [codeRaw, labelRaw] = entry.split("|");
+          const code = (codeRaw || "").trim();
+          const label = (labelRaw || codeRaw || "").trim();
+          return code ? { code, label } : null;
+        })
+        .filter(Boolean),
+    [configurationProperties?.professionalProfileOptions],
+  );
+  const profileLabelByCode = useMemo(
+    () =>
+      professionalProfileOptions.reduce((acc, option) => {
+        acc[option.code] = option.label;
+        return acc;
+      }, {}),
+    [professionalProfileOptions],
+  );
+  const selectedProfessionalProfileItem = useMemo(
+    () =>
+      professionalProfileOptions.find(
+        (option) => option.code === professionalProfileCode,
+      ) || null,
+    [professionalProfileOptions, professionalProfileCode],
+  );
+
+  const isBiologistProfile =
+    (professionalProfileCode || "").toUpperCase() === "BIOLOGIST";
+  const isAnyModalOpen = isAddModalOpen || isUpdateModalOpen;
 
   const handleMenuItems = (res) => {
     if (!res) {
@@ -157,6 +202,13 @@ function ProviderMenu() {
           rne: item.externalId,
           dni: item.dni,
           specialty: item.specialty,
+          professionalProfileCode: item.professionalProfileCode || "",
+          professionalProfileLabel:
+            profileLabelByCode[item.professionalProfileCode] ||
+            item.professionalProfileCode ||
+            "",
+          professionalInitials: item.professionalInitials,
+          cbpCode: item.cbpCode,
         };
       });
       setFromRecordCount(providerMenuList.fromRecordCount);
@@ -164,7 +216,7 @@ function ProviderMenu() {
       setTotalRecordCount(providerMenuList.totalRecordCount);
       setProviderMenuListShow(newProviderMenuList);
     }
-  }, [providerMenuList]);
+  }, [providerMenuList, profileLabelByCode]);
 
   useEffect(() => {
     if (selectedRowIds.length === 1) {
@@ -255,6 +307,9 @@ function ProviderMenu() {
     setRne("");
     setDni("");
     setSpecialty("");
+    setProfessionalProfileCode("MEDICAL_DOCTOR");
+    setProfessionalInitials("");
+    setCbpCode("");
     setIsActive({ id: "yes", value: "Yes" });
     setIsAddModalOpen(true);
   };
@@ -275,6 +330,9 @@ function ProviderMenu() {
     setRne(provider.rne || "");
     setDni(provider.dni || "");
     setSpecialty(provider.specialty || "");
+    setProfessionalProfileCode(provider.professionalProfileCode || "");
+    setProfessionalInitials(provider.professionalInitials || "");
+    setCbpCode(provider.cbpCode || "");
     setIsActive(
       provider.active ? { id: "yes", value: "Yes" } : { id: "no", value: "No" },
     );
@@ -298,6 +356,9 @@ function ProviderMenu() {
       externalId: rne,
       dni,
       specialty,
+      professionalProfileCode,
+      professionalInitials,
+      cbpCode,
       active: isActive.id === "yes",
     };
     postToOpenElisServerFullResponse(
@@ -324,6 +385,9 @@ function ProviderMenu() {
       externalId: rne,
       dni,
       specialty,
+      professionalProfileCode,
+      professionalInitials,
+      cbpCode,
       active: isActive.id === "yes",
     };
     postToOpenElisServerFullResponse(
@@ -357,10 +421,17 @@ function ProviderMenu() {
     }
   };
 
-  const handleFaxChange = (event) => {
-    const value = event.target.value;
-    if (value === "" || (/^\d+$/.test(value) && value.length <= 10)) {
-      setFax(value);
+  const handleProfessionalInitialsChange = (event) => {
+    const value = (event.target.value || "").toUpperCase();
+    if (/^[A-Z.\s-]*$/.test(value) && value.length <= 25) {
+      setProfessionalInitials(value);
+    }
+  };
+
+  const handleCbpCodeChange = (event) => {
+    const value = (event.target.value || "").toUpperCase();
+    if (/^[A-Z0-9-]*$/.test(value) && value.length <= 32) {
+      setCbpCode(value);
     }
   };
 
@@ -375,6 +446,7 @@ function ProviderMenu() {
           })}
           value={specialty || ""}
           onChange={(event) => setSpecialty(event.target.value)}
+          disabled={isBiologistProfile}
         >
           <SelectItem value="" text="" />
           {providerSpecialtyOptions.map((option) => (
@@ -397,35 +469,140 @@ function ProviderMenu() {
         })}
         value={specialty}
         onChange={(event) => setSpecialty(event.target.value)}
+        disabled={isBiologistProfile}
       />
     );
   };
 
-  const renderCell = (cell, row) => {
-    if (cell.info.header === "select") {
-      return (
-        <TableSelectRow
-          key={cell.id}
-          id={cell.id}
-          checked={selectedRowIds.includes(row.id)}
-          name="selectRowCheckbox"
-          ariaLabel="selectRows"
-          onSelect={(e) => {
-            e.stopPropagation();
-            if (selectedRowIds.includes(row.id)) {
-              setSelectedRowIds(selectedRowIds.filter((id) => id !== row.id));
-            } else {
-              setSelectedRowIds([...selectedRowIds, row.id]);
-            }
-          }}
-        />
-      );
-    } else if (cell.info.header === "active") {
-      return <TableCell key={cell.id}>{cell.value.toString()}</TableCell>;
+  useEffect(() => {
+    if (isBiologistProfile) {
+      setCmp("");
+      setRne("");
+      setSpecialty("");
     } else {
-      return <TableCell key={cell.id}>{cell.value}</TableCell>;
+      setProfessionalInitials("");
+      setCbpCode("");
     }
-  };
+  }, [isBiologistProfile]);
+
+  const renderCell = useCallback(
+    (cell, row) => {
+      if (cell.info.header === "select") {
+        return (
+          <TableSelectRow
+            key={cell.id}
+            id={cell.id}
+            checked={selectedRowIds.includes(row.id)}
+            name="selectRowCheckbox"
+            ariaLabel="selectRows"
+            onSelect={(e) => {
+              e.stopPropagation();
+              if (selectedRowIds.includes(row.id)) {
+                setSelectedRowIds(selectedRowIds.filter((id) => id !== row.id));
+              } else {
+                setSelectedRowIds([...selectedRowIds, row.id]);
+              }
+            }}
+          />
+        );
+      } else if (cell.info.header === "active") {
+        return <TableCell key={cell.id}>{cell.value.toString()}</TableCell>;
+      } else {
+        return <TableCell key={cell.id}>{cell.value}</TableCell>;
+      }
+    },
+    [selectedRowIds],
+  );
+
+  const tableHeaders = useMemo(
+    () => [
+      {
+        key: "select",
+        header: intl.formatMessage({
+          id: "provider.select",
+        }),
+      },
+      {
+        key: "lastName",
+        header: intl.formatMessage({
+          id: "provider.providerLastName",
+        }),
+      },
+      {
+        key: "firstName",
+        header: intl.formatMessage({
+          id: "provider.providerFirstName",
+        }),
+      },
+      {
+        key: "professionalProfileLabel",
+        header: intl.formatMessage({
+          id: "provider.professional.profile",
+        }),
+      },
+      {
+        key: "active",
+        header: intl.formatMessage({
+          id: "provider.isActive",
+        }),
+      },
+      {
+        key: "telephone",
+        header: intl.formatMessage({
+          id: "provider.telephone",
+        }),
+      },
+      {
+        key: "cmp",
+        header: "CMP",
+      },
+      {
+        key: "rne",
+        header: "RNE",
+      },
+      {
+        key: "dni",
+        header: "DNI",
+      },
+      {
+        key: "specialty",
+        header: intl.formatMessage({
+          id: "provider.specialty.label",
+          defaultMessage: "Specialty",
+        }),
+      },
+      {
+        key: "professionalInitials",
+        header: intl.formatMessage({
+          id: "provider.professional.initials",
+        }),
+      },
+      {
+        key: "cbpCode",
+        header: intl.formatMessage({
+          id: "provider.cbp.code",
+        }),
+      },
+      {
+        key: "fax",
+        header: intl.formatMessage({
+          id: "provider.fax",
+        }),
+      },
+      {
+        key: "email",
+        header: intl.formatMessage({
+          id: "provider.email",
+        }),
+      },
+    ],
+    [intl],
+  );
+
+  const pagedProviderRows = useMemo(
+    () => providerMenuListShow.slice((page - 1) * pageSize, page * pageSize),
+    [providerMenuListShow, page, pageSize],
+  );
 
   if (!loading) {
     return (
@@ -465,149 +642,223 @@ function ProviderMenu() {
           type="type1"
         />
         <br />
-        <Modal
-          open={isAddModalOpen}
-          modalHeading="Add Provider"
-          primaryButtonText="Add"
-          secondaryButtonText="Cancel"
-          onRequestSubmit={handleAddProvider}
-          onRequestClose={closeAddModal}
-        >
-          <TextInput
-            id="lastName"
-            labelText={intl.formatMessage({ id: "provider.providerLastName" })}
-            value={lastName}
-            onChange={(e) => handleLastNameChange(e)}
-            required
-          />
-          <TextInput
-            id="firstName"
-            labelText={intl.formatMessage({ id: "provider.providerFirstName" })}
-            value={firstName}
-            onChange={(e) => handleFirstNameChange(e)}
-            required
-          />
-          <TextInput
-            id="telephone"
-            labelText={intl.formatMessage({ id: "provider.telephone" })}
-            value={telephone}
-            onChange={(e) => handleTelephoneChange(e)}
-          />
-          <TextInput
-            id="cmp"
-            labelText="CMP"
-            value={cmp}
-            onChange={(e) => setCmp(e.target.value)}
-          />
-          <TextInput
-            id="rne"
-            labelText="RNE"
-            value={rne}
-            onChange={(e) => setRne(e.target.value)}
-          />
-          <TextInput
-            id="dni"
-            labelText="DNI"
-            value={dni}
-            onChange={(e) => setDni(e.target.value)}
-          />
-          {renderSpecialtyInput()}
+        {isAddModalOpen ? (
+          <Modal
+            open={isAddModalOpen}
+            modalHeading="Add Provider"
+            primaryButtonText="Add"
+            secondaryButtonText="Cancel"
+            onRequestSubmit={handleAddProvider}
+            onRequestClose={closeAddModal}
+          >
+            <Dropdown
+              id="professional-profile-code"
+              titleText={intl.formatMessage({
+                id: "provider.professional.profile",
+              })}
+              label={intl.formatMessage({ id: "provider.select" })}
+              items={professionalProfileOptions}
+              itemToString={(item) => (item ? item.label : "")}
+              selectedItem={selectedProfessionalProfileItem}
+              onChange={({ selectedItem }) =>
+                setProfessionalProfileCode(selectedItem?.code || "")
+              }
+            />
+            <TextInput
+              id="lastName"
+              labelText={intl.formatMessage({
+                id: "provider.providerLastName",
+              })}
+              value={lastName}
+              onChange={(e) => handleLastNameChange(e)}
+              required
+            />
+            <TextInput
+              id="firstName"
+              labelText={intl.formatMessage({
+                id: "provider.providerFirstName",
+              })}
+              value={firstName}
+              onChange={(e) => handleFirstNameChange(e)}
+              required
+            />
+            <TextInput
+              id="telephone"
+              labelText={intl.formatMessage({ id: "provider.telephone" })}
+              value={telephone}
+              onChange={(e) => handleTelephoneChange(e)}
+            />
+            <TextInput
+              id="cmp"
+              labelText="CMP"
+              value={cmp}
+              onChange={(e) => setCmp(e.target.value)}
+              disabled={isBiologistProfile}
+            />
+            <TextInput
+              id="rne"
+              labelText="RNE"
+              value={rne}
+              onChange={(e) => setRne(e.target.value)}
+              disabled={isBiologistProfile}
+            />
+            <TextInput
+              id="dni"
+              labelText="DNI"
+              value={dni}
+              onChange={(e) => setDni(e.target.value)}
+            />
+            {renderSpecialtyInput()}
+            <TextInput
+              id="professionalInitials"
+              labelText={intl.formatMessage({
+                id: "provider.professional.initials",
+              })}
+              value={professionalInitials}
+              onChange={handleProfessionalInitialsChange}
+              disabled={!isBiologistProfile}
+            />
+            <TextInput
+              id="cbpCode"
+              labelText={intl.formatMessage({ id: "provider.cbp.code" })}
+              value={cbpCode}
+              onChange={handleCbpCodeChange}
+              disabled={!isBiologistProfile}
+            />
 
-          <Dropdown
-            className="dropdown-list"
-            id="isActive"
-            titleText="Active"
-            label={intl.formatMessage({ id: "provider.select" })}
-            items={yesOrNo}
-            itemToString={(item) => (item ? item.value : "")}
-            selectedItem={isActive}
-            onChange={({ selectedItem }) => setIsActive(selectedItem)}
-          />
-          <TextInput
-            id="fax"
-            labelText={intl.formatMessage({ id: "provider.fax" })}
-            value={fax}
-            onChange={(e) => setFax(e.target.value)}
-          />
-          <TextInput
-            id="email"
-            type="email"
-            labelText={intl.formatMessage({ id: "provider.email" })}
-            value={email}
-            onChange={(e) => setEmail(e.target.value)}
-          />
-        </Modal>
+            <Dropdown
+              className="dropdown-list"
+              id="isActive"
+              titleText="Active"
+              label={intl.formatMessage({ id: "provider.select" })}
+              items={yesOrNo}
+              itemToString={(item) => (item ? item.value : "")}
+              selectedItem={isActive}
+              onChange={({ selectedItem }) => setIsActive(selectedItem)}
+            />
+            <TextInput
+              id="fax"
+              labelText={intl.formatMessage({ id: "provider.fax" })}
+              value={fax}
+              onChange={(e) => setFax(e.target.value)}
+            />
+            <TextInput
+              id="email"
+              type="email"
+              labelText={intl.formatMessage({ id: "provider.email" })}
+              value={email}
+              onChange={(e) => setEmail(e.target.value)}
+            />
+          </Modal>
+        ) : null}
 
-        <Modal
-          open={isUpdateModalOpen}
-          modalHeading="Update Provider"
-          primaryButtonText="Update"
-          secondaryButtonText="Cancel"
-          onRequestSubmit={handleUpdateProvider}
-          onRequestClose={closeUpdateModal}
-        >
-          <TextInput
-            id="lastName"
-            labelText={intl.formatMessage({ id: "provider.providerLastName" })}
-            value={lastName}
-            onChange={(e) => handleLastNameChange(e)}
-            required
-          />
-          <TextInput
-            id="firstName"
-            labelText={intl.formatMessage({ id: "provider.providerFirstName" })}
-            value={firstName}
-            onChange={(e) => handleFirstNameChange(e)}
-            required
-          />
-          <TextInput
-            id="telephone"
-            labelText={intl.formatMessage({ id: "provider.telephone" })}
-            value={telephone}
-            onChange={(e) => handleTelephoneChange(e)}
-          />
-          <TextInput
-            id="cmp"
-            labelText="CMP"
-            value={cmp}
-            onChange={(e) => setCmp(e.target.value)}
-          />
-          <TextInput
-            id="rne"
-            labelText="RNE"
-            value={rne}
-            onChange={(e) => setRne(e.target.value)}
-          />
-          <TextInput
-            id="dni"
-            labelText="DNI"
-            value={dni}
-            onChange={(e) => setDni(e.target.value)}
-          />
-          {renderSpecialtyInput()}
-          <Dropdown
-            id="isActive"
-            titleText="Active"
-            label={intl.formatMessage({ id: "provider.select" })}
-            items={yesOrNo}
-            itemToString={(item) => (item ? item.value : "")}
-            selectedItem={isActive}
-            onChange={({ selectedItem }) => setIsActive(selectedItem)}
-          />
-          <TextInput
-            id="fax"
-            labelText={intl.formatMessage({ id: "provider.fax" })}
-            value={fax}
-            onChange={(e) => setFax(e.target.value)}
-          />
-          <TextInput
-            id="email"
-            type="email"
-            labelText={intl.formatMessage({ id: "provider.email" })}
-            value={email}
-            onChange={(e) => setEmail(e.target.value)}
-          />
-        </Modal>
+        {isUpdateModalOpen ? (
+          <Modal
+            open={isUpdateModalOpen}
+            modalHeading="Update Provider"
+            primaryButtonText="Update"
+            secondaryButtonText="Cancel"
+            onRequestSubmit={handleUpdateProvider}
+            onRequestClose={closeUpdateModal}
+          >
+            <Dropdown
+              id="professional-profile-code-update"
+              titleText={intl.formatMessage({
+                id: "provider.professional.profile",
+              })}
+              label={intl.formatMessage({ id: "provider.select" })}
+              items={professionalProfileOptions}
+              itemToString={(item) => (item ? item.label : "")}
+              selectedItem={selectedProfessionalProfileItem}
+              onChange={({ selectedItem }) =>
+                setProfessionalProfileCode(selectedItem?.code || "")
+              }
+            />
+            <TextInput
+              id="lastName"
+              labelText={intl.formatMessage({
+                id: "provider.providerLastName",
+              })}
+              value={lastName}
+              onChange={(e) => handleLastNameChange(e)}
+              required
+            />
+            <TextInput
+              id="firstName"
+              labelText={intl.formatMessage({
+                id: "provider.providerFirstName",
+              })}
+              value={firstName}
+              onChange={(e) => handleFirstNameChange(e)}
+              required
+            />
+            <TextInput
+              id="telephone"
+              labelText={intl.formatMessage({ id: "provider.telephone" })}
+              value={telephone}
+              onChange={(e) => handleTelephoneChange(e)}
+            />
+            <TextInput
+              id="cmp"
+              labelText="CMP"
+              value={cmp}
+              onChange={(e) => setCmp(e.target.value)}
+              disabled={isBiologistProfile}
+            />
+            <TextInput
+              id="rne"
+              labelText="RNE"
+              value={rne}
+              onChange={(e) => setRne(e.target.value)}
+              disabled={isBiologistProfile}
+            />
+            <TextInput
+              id="dni"
+              labelText="DNI"
+              value={dni}
+              onChange={(e) => setDni(e.target.value)}
+            />
+            {renderSpecialtyInput()}
+            <TextInput
+              id="professionalInitials-update"
+              labelText={intl.formatMessage({
+                id: "provider.professional.initials",
+              })}
+              value={professionalInitials}
+              onChange={handleProfessionalInitialsChange}
+              disabled={!isBiologistProfile}
+            />
+            <TextInput
+              id="cbpCode-update"
+              labelText={intl.formatMessage({ id: "provider.cbp.code" })}
+              value={cbpCode}
+              onChange={handleCbpCodeChange}
+              disabled={!isBiologistProfile}
+            />
+            <Dropdown
+              id="isActive"
+              titleText="Active"
+              label={intl.formatMessage({ id: "provider.select" })}
+              items={yesOrNo}
+              itemToString={(item) => (item ? item.value : "")}
+              selectedItem={isActive}
+              onChange={({ selectedItem }) => setIsActive(selectedItem)}
+            />
+            <TextInput
+              id="fax"
+              labelText={intl.formatMessage({ id: "provider.fax" })}
+              value={fax}
+              onChange={(e) => setFax(e.target.value)}
+            />
+            <TextInput
+              id="email"
+              type="email"
+              labelText={intl.formatMessage({ id: "provider.email" })}
+              value={email}
+              onChange={(e) => setEmail(e.target.value)}
+            />
+          </Modal>
+        ) : null}
 
         <div className="orderLegendBody">
           <Grid>
@@ -632,86 +883,11 @@ function ProviderMenu() {
             </Column>
           </Grid>
           <br />
-          <>
+          {!isAnyModalOpen ? (
             <Grid fullWidth={true} className="gridBoundary">
               <Column lg={16} md={8} sm={4}>
-                <DataTable
-                  rows={providerMenuListShow.slice(
-                    (page - 1) * pageSize,
-                    page * pageSize,
-                  )}
-                  headers={[
-                    {
-                      key: "select",
-                      header: intl.formatMessage({
-                        id: "provider.select",
-                      }),
-                    },
-                    {
-                      key: "lastName",
-                      header: intl.formatMessage({
-                        id: "provider.providerLastName",
-                      }),
-                    },
-
-                    {
-                      key: "firstName",
-                      header: intl.formatMessage({
-                        id: "provider.providerFirstName",
-                      }),
-                    },
-                    {
-                      key: "active",
-                      header: intl.formatMessage({
-                        id: "provider.isActive",
-                      }),
-                    },
-                    {
-                      key: "telephone",
-                      header: intl.formatMessage({
-                        id: "provider.telephone",
-                      }),
-                    },
-                    {
-                      key: "cmp",
-                      header: "CMP",
-                    },
-                    {
-                      key: "rne",
-                      header: "RNE",
-                    },
-                    {
-                      key: "dni",
-                      header: "DNI",
-                    },
-                    {
-                      key: "specialty",
-                      header: intl.formatMessage({
-                        id: "provider.specialty.label",
-                        defaultMessage: "Specialty",
-                      }),
-                    },
-                    {
-                      key: "fax",
-                      header: intl.formatMessage({
-                        id: "provider.fax",
-                      }),
-                    },
-                    {
-                      key: "email",
-                      header: intl.formatMessage({
-                        id: "provider.email",
-                      }),
-                    },
-                  ]}
-                >
-                  {({
-                    rows,
-                    headers,
-                    getHeaderProps,
-                    getTableProps,
-                    getSelectionProps,
-                  }) => (
+                <DataTable rows={pagedProviderRows} headers={tableHeaders}>
+                  {({ rows, headers, getHeaderProps, getTableProps }) => (
                     <TableContainer>
                       <Table {...getTableProps()}>
                         <TableHead>
@@ -796,7 +972,7 @@ function ProviderMenu() {
                 />
               </Column>
             </Grid>
-          </>
+          ) : null}
         </div>
       </div>
     </>

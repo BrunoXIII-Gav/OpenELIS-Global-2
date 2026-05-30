@@ -27,5 +27,7 @@
 
         <property name="active" type="java.lang.Boolean" column="ACTIVE" />
         <property name="displayOrder" type="java.lang.Integer" column="DISPLAY_ORDER" />
+        <property name="sampleUsageSource" type="java.lang.String" column="SAMPLE_USAGE_SOURCE" />
+        <property name="parentResultFieldKey" type="java.lang.String" column="PARENT_RESULT_FIELD_KEY" />
     </class>
 </hibernate-mapping>

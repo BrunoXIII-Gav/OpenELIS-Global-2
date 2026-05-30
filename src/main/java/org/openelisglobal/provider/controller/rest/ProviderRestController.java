@@ -1,6 +1,11 @@
 package org.openelisglobal.provider.controller.rest;
 
+import java.util.Comparator;
+import java.util.List;
 import java.util.UUID;
+import java.util.stream.Collectors;
+import org.apache.commons.lang3.StringUtils;
+import org.openelisglobal.common.util.IdValuePair;
 import org.openelisglobal.person.service.PersonService;
 import org.openelisglobal.person.valueholder.Person;
 import org.openelisglobal.provider.service.ProviderService;
@@ -41,6 +46,27 @@ public class ProviderRestController {
         return ResponseEntity.ok(person);
     }
 
+    @GetMapping(value = "/providers/professional-profile/{profileCode}", produces = MediaType.APPLICATION_JSON_VALUE)
+    @ResponseBody
+    public ResponseEntity<List<IdValuePair>> getProviderPersonsByProfessionalProfile(@PathVariable String profileCode) {
+        final String normalizedProfileCode = normalizeProfessionalProfileCode(profileCode);
+        if (StringUtils.isBlank(normalizedProfileCode)) {
+            return ResponseEntity.ok(List.of());
+        }
+
+        List<IdValuePair> providers = providerService.getAllActiveProviders().stream()
+                .filter(provider -> provider.getPerson() != null && StringUtils.isNotBlank(provider.getPerson().getId()))
+                .filter(provider -> normalizedProfileCode
+                        .equals(normalizeProfessionalProfileCode(provider.getProfessionalProfileCode())))
+                .map(provider -> new IdValuePair(provider.getPerson().getId(),
+                        buildProviderDisplayLabel(provider, normalizedProfileCode)))
+                .filter(pair -> StringUtils.isNotBlank(pair.getValue()))
+                .sorted(Comparator.comparing(IdValuePair::getValue, String.CASE_INSENSITIVE_ORDER))
+                .collect(Collectors.toList());
+
+        return ResponseEntity.ok(providers);
+    }
+
     @PostMapping(value = "/Provider/FhirUuid", produces = MediaType.APPLICATION_JSON_VALUE)
     @ResponseBody
     public ResponseEntity<?> insertOrUpdateProviderByFhirUuid(@RequestParam(required = false) UUID fhirUuid,
@@ -54,5 +80,49 @@ public class ProviderRestController {
         } catch (Exception e) {
             return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR).body("Error processing request.");
         }
+    }
+
+    private String buildProviderDisplayLabel(Provider provider, String normalizedProfileCode) {
+        String dni = StringUtils.trimToEmpty(provider.getDni());
+        if ("BIOLOGIST".equals(normalizedProfileCode)) {
+            String initials = StringUtils.trimToEmpty(provider.getProfessionalInitials());
+            if (StringUtils.isNotBlank(dni) && StringUtils.isNotBlank(initials)) {
+                return dni + " - " + initials;
+            }
+            if (StringUtils.isNotBlank(dni)) {
+                return dni;
+            }
+            return initials;
+        }
+
+        String firstName = provider.getPerson() == null ? "" : StringUtils.trimToEmpty(provider.getPerson().getFirstName());
+        String lastName = provider.getPerson() == null ? "" : StringUtils.trimToEmpty(provider.getPerson().getLastName());
+        String fullName = (lastName + ", " + firstName).trim();
+        if (StringUtils.isNotBlank(dni) && StringUtils.isNotBlank(fullName) && !",".equals(fullName)) {
+            String cleanName = fullName.replaceAll("^,\\s*", "").replaceAll("\\s+,\\s*$", "");
+            return dni + " - " + cleanName;
+        }
+        if (StringUtils.isNotBlank(dni)) {
+            return dni;
+        }
+        if (StringUtils.isNotBlank(fullName) && !",".equals(fullName)) {
+            return fullName.replaceAll("^,\\s*", "").replaceAll("\\s+,\\s*$", "");
+        }
+        return StringUtils.trimToEmpty(provider.getId());
+    }
+
+    private String normalizeProfessionalProfileCode(String rawValue) {
+        String normalized = StringUtils.upperCase(StringUtils.trimToEmpty(rawValue));
+        if (StringUtils.isBlank(normalized)) {
+            return "";
+        }
+
+        if ("BIOLOGO".equals(normalized) || "BIOLOGISTA".equals(normalized)) {
+            return "BIOLOGIST";
+        }
+        if ("MEDICO".equals(normalized) || "MÉDICO".equals(normalized) || "DOCTOR".equals(normalized)) {
+            return "MEDICAL_DOCTOR";
+        }
+        return normalized;
     }
 }

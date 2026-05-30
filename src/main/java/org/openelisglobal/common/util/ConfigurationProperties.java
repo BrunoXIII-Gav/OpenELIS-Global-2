@@ -266,6 +266,13 @@ public abstract class ConfigurationProperties {
         GPS_TIMEOUT_SECONDS("gpsTimeoutSeconds", "text"), // timeout in seconds for GPS location requests
         ENABLED_ORDER_PRIORITIES("enabledOrderPriorities", "text"), // comma-separated enabled priorities for UI lists
         providerSpecialtyOptions("providerSpecialtyOptions", "text"), // comma-separated provider specialty options
+        professionalProfileOptions("professionalProfileOptions", "text"), // comma-separated
+                                                                           // CODE|Label options
+        orderProviderProfessionalProfileCode("orderProviderProfileCode", "text"), // profile code allowed on order
+                                                                                    // requester/provider selector
+        sampleCollectorProfessionalProfileCode("sampleCollectorProfileCode", "text"), // profile code for collector
+        validationInterpreterProfessionalProfileCode("validationInterpreterProfileCode", "text"), // profile code for
+                                                                                                   // interpreter
         USE_NEW_ADDRESS_HIERARCHY("useNewAddressHierarchy", "text"); // if true, use new configurable address hierarchy
 
         // visible on

@@ -51,4 +51,9 @@
   <include relativeToChangelogFile="true" file="039-add-order-program-step-visibility-config.xml"/>
   <include relativeToChangelogFile="true" file="040-add-order-fixed-field-sample-reception-visibility.xml"/>
   <include relativeToChangelogFile="true" file="041-add-user-provider-link-and-signature.xml"/>
+  <include relativeToChangelogFile="true" file="042-add-professional-profile-config-and-user-column.xml"/>
+  <include relativeToChangelogFile="true" file="043-add-provider-professional-profile-fields.xml"/>
+  <include relativeToChangelogFile="true" file="044-enforce-user-provider-link-integrity.xml"/>
+  <include relativeToChangelogFile="true" file="045-add-parent-child-sample-usage-source.xml"/>
+  <include relativeToChangelogFile="true" file="046-add-analysis-validation-date.xml"/>
 </databaseChangeLog>

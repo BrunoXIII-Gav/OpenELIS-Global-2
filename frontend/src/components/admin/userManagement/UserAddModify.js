@@ -30,7 +30,6 @@ import {
 } from "../../layout/Layout.js";
 import {
   getFromOpenElisServer,
-  postToOpenElisServer,
   postToOpenElisServerJsonResponse,
   toBase64,
 } from "../../utils/Utils.js";
@@ -117,6 +116,22 @@ const toggleAllPermissionsForLabUnit = (
   return updatedRoles;
 };
 
+const parseProfessionalProfileOptions = (rawOptions = "") =>
+  String(rawOptions || "")
+    .split(",")
+    .map((token) => token.trim())
+    .filter(Boolean)
+    .map((token) => {
+      const [codeRaw, labelRaw] = token.split("|");
+      const code = String(codeRaw || "").trim();
+      const label = String(labelRaw || codeRaw || "").trim();
+      if (!code) {
+        return null;
+      }
+      return { code, label: label || code };
+    })
+    .filter(Boolean);
+
 function UserAddModify() {
   const { notificationVisible, setNotificationVisible, addNotification } =
     useContext(NotificationContext);
@@ -125,7 +140,7 @@ function UserAddModify() {
   const componentMounted = useRef(false);
   const intl = useIntl();
 
-  const [saveButton, setSaveButton] = useState(true);
+  const [, setSaveButton] = useState(true);
   const [validation, setValidation] = useState({
     validatepassword: false,
     password: false,
@@ -143,6 +158,9 @@ function UserAddModify() {
   const [userData, setUserData] = useState(null);
   const [userDataShow, setUserDataShow] = useState({});
   const [userDataPost, setUserDataPost] = useState(null);
+  const [linkedProviderSuggestions, setLinkedProviderSuggestions] = useState(
+    [],
+  );
   const [selectedGlobalLabUnitRoles, setSelectedGlobalLabUnitRoles] = useState(
     [],
   );
@@ -163,6 +181,48 @@ function UserAddModify() {
     }
     return "0";
   })();
+
+  const professionalProfileOptions = parseProfessionalProfileOptions(
+    configurationProperties?.professionalProfileOptions,
+  );
+
+  useEffect(() => {
+    const selectedProfileCode = String(
+      userDataShow?.professionalProfileCode || "MEDICAL_DOCTOR",
+    ).trim();
+    if (!selectedProfileCode) {
+      setLinkedProviderSuggestions([]);
+      return;
+    }
+
+    getFromOpenElisServer(
+      `/rest/providers/professional-profile/${encodeURIComponent(selectedProfileCode)}`,
+      (providers) => {
+        const normalizedProviders = Array.isArray(providers) ? providers : [];
+        setLinkedProviderSuggestions(normalizedProviders);
+
+        const currentLinkedProviderId = String(
+          userDataShow?.linkedProviderPersonId || "",
+        ).trim();
+        if (
+          currentLinkedProviderId &&
+          !normalizedProviders.some(
+            (provider) =>
+              String(provider?.id || "").trim() === currentLinkedProviderId,
+          )
+        ) {
+          setUserDataPost((prevUserDataPost) => ({
+            ...prevUserDataPost,
+            linkedProviderPersonId: "",
+          }));
+          setUserDataShow((prevUserDataShow) => ({
+            ...prevUserDataShow,
+            linkedProviderPersonId: "",
+          }));
+        }
+      },
+    );
+  }, [userDataShow?.professionalProfileCode]);
 
   useEffect(() => {
     componentMounted.current = true;
@@ -250,6 +310,7 @@ function UserAddModify() {
         userLoginName: userData.userLoginName,
         userPassword: userData.userPassword,
         linkedProviderPersonId: userData.linkedProviderPersonId || "",
+        professionalProfileCode: userData.professionalProfileCode || "",
         signatureImageData: userData.signatureImageData || "",
         signatureImageContentType: userData.signatureImageContentType || "",
         practitionerPersons: userData.practitionerPersons || [],
@@ -282,6 +343,7 @@ function UserAddModify() {
         userLoginName: userData.userLoginName,
         userPassword: userData.userPassword,
         linkedProviderPersonId: userData.linkedProviderPersonId || "",
+        professionalProfileCode: userData.professionalProfileCode || "",
         signatureImageData: userData.signatureImageData || "",
         signatureImageContentType: userData.signatureImageContentType || "",
         practitionerPersons: userData.practitionerPersons || [],
@@ -645,6 +707,21 @@ function UserAddModify() {
     }));
     setUserDataShow((prevUserData) => ({
       ...prevUserData,
+      linkedProviderPersonId: "",
+    }));
+    setSaveButton(false);
+  }
+
+  function handleProfessionalProfileChange(e) {
+    const profileCode = e?.target?.value || "";
+    setUserDataPost((prevUserDataPost) => ({
+      ...prevUserDataPost,
+      professionalProfileCode: profileCode,
+      linkedProviderPersonId: "",
+    }));
+    setUserDataShow((prevUserData) => ({
+      ...prevUserData,
+      professionalProfileCode: profileCode,
       linkedProviderPersonId: "",
     }));
     setSaveButton(false);
@@ -1144,12 +1221,42 @@ function UserAddModify() {
                       id="linked-provider-person"
                       name="linkedProviderPersonId"
                       allowFreeText={false}
+                      maxSuggestions={6}
                       value={userDataShow?.linkedProviderPersonId || ""}
                       onSelect={handleLinkedProviderSelect}
                       onChange={clearLinkedProvider}
-                      suggestions={userDataShow?.practitionerPersons || []}
+                      suggestions={linkedProviderSuggestions}
                       label=""
                     />
+                  </Column>
+                </Grid>
+                <br />
+                <Grid fullWidth={true}>
+                  <Column lg={8} md={4} sm={4}>
+                    <FormattedMessage id="unifiedSystemUser.professional.profile.label" />
+                    {" :"}
+                  </Column>
+                  <Column lg={8} md={4} sm={4}>
+                    <Select
+                      id="professional-profile-code"
+                      labelText=""
+                      value={userDataShow?.professionalProfileCode || ""}
+                      onChange={handleProfessionalProfileChange}
+                    >
+                      <SelectItem
+                        value=""
+                        text={intl.formatMessage({
+                          id: "unifiedSystemUser.professional.profile.select",
+                        })}
+                      />
+                      {professionalProfileOptions.map((option) => (
+                        <SelectItem
+                          key={option.code}
+                          value={option.code}
+                          text={option.label}
+                        />
+                      ))}
+                    </Select>
                   </Column>
                 </Grid>
                 <br />

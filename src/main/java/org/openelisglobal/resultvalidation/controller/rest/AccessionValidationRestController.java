@@ -514,7 +514,6 @@ public class AccessionValidationRestController extends BaseResultValidationContr
                         if (medicalValidator && medicalPreviewConfirmed
                                 && !finalizedStatus.equals(analysis.getStatusId())) {
                             analysis.setStatusId(finalizedStatus);
-                            analysis.setReleasedDate(new java.sql.Date(Calendar.getInstance().getTimeInMillis()));
                             if (!analysisIdList.contains(analysis.getId())) {
                                 analysisIdList.add(analysis.getId());
                                 analysisUpdateList.add(analysis);
