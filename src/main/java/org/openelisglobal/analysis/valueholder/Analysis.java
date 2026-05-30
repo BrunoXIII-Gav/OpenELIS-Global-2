@@ -58,6 +58,8 @@ public class Analysis extends BaseObject<String> implements NoteObject {
     private String completedDateForDisplay = null;
     private Date releasedDate = null;
     private String releasedDateForDisplay = null;
+    private Date validationDate = null;
+    private String validationDateForDisplay = null;
     private Date printedDate = null;
     private String printedDateForDisplay = null;
     private String isReportable;
@@ -256,6 +258,26 @@ public class Analysis extends BaseObject<String> implements NoteObject {
         // also update the java.sql.Date
         String locale = ConfigurationProperties.getInstance().getPropertyValue(Property.DEFAULT_LANG_LOCALE);
         releasedDate = DateUtil.convertStringDateToSqlDate(this.releasedDateForDisplay, locale);
+    }
+
+    public Date getValidationDate() {
+        return validationDate;
+    }
+
+    public void setValidationDate(Date validationDate) {
+        this.validationDate = validationDate;
+        validationDateForDisplay = DateUtil.convertSqlDateToStringDate(validationDate);
+    }
+
+    public String getValidationDateForDisplay() {
+        return validationDateForDisplay;
+    }
+
+    public void setValidationDateForDisplay(String validationDateForDisplay) {
+        this.validationDateForDisplay = validationDateForDisplay;
+        // also update the java.sql.Date
+        String locale = ConfigurationProperties.getInstance().getPropertyValue(Property.DEFAULT_LANG_LOCALE);
+        validationDate = DateUtil.convertStringDateToSqlDate(this.validationDateForDisplay, locale);
     }
 
     public String getSoClientReference() {

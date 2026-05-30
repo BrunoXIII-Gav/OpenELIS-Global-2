@@ -669,6 +669,8 @@ public class ResultsValidationUtility {
         analysisResultItem.setUnits(testUnits);
         analysisResultItem.setAnalysisId(testResultItem.getAnalysis().getId());
         analysisResultItem.setStatusId(testResultItem.getAnalysis().getStatusId());
+        analysisResultItem.setValidationDate(testResultItem.getAnalysis().getValidationDate() == null ? null
+            : testResultItem.getAnalysis().getValidationDate().toLocalDate().toString());
         analysisResultItem.setPastNotes(testResultItem.getPastNotes());
         analysisResultItem.setResultId(testResultItem.getResultId());
         analysisResultItem.setResultType(testResultItem.getResultType());

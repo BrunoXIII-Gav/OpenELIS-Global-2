@@ -383,7 +383,7 @@ public class AccessionValidationRangeController extends BaseResultValidationCont
                     if (analysisItem.getIsAccepted()) {
                         analysis.setStatusId(
                                 SpringContext.getBean(IStatusService.class).getStatusID(AnalysisStatus.Finalized));
-                        analysis.setReleasedDate(new java.sql.Date(Calendar.getInstance().getTimeInMillis()));
+                        analysis.setValidationDate(new java.sql.Date(Calendar.getInstance().getTimeInMillis()));
                         analysisIdList.add(analysis.getId());
                         analysisUpdateList.add(analysis);
                     }

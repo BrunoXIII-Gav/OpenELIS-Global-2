@@ -92,6 +92,8 @@ public class AnalysisItem implements Serializable {
 
     private String completeDate;
 
+    private String validationDate;
+
     private boolean isPositive = false;
 
     private boolean isHighlighted = false;
@@ -369,6 +371,14 @@ public class AnalysisItem implements Serializable {
 
     public String getCompleteDate() {
         return completeDate;
+    }
+
+    public void setValidationDate(String validationDate) {
+        this.validationDate = validationDate;
+    }
+
+    public String getValidationDate() {
+        return validationDate;
     }
 
     public void setPositive(boolean isPositive) {

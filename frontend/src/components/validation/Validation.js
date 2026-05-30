@@ -119,6 +119,7 @@ const Validation = (props) => {
   const [downloadModalOpen, setDownloadModalOpen] = useState(false);
   const [downloadOptions, setDownloadOptions] = useState([]);
   const [selectedDownloadOption, setSelectedDownloadOption] = useState("");
+  const [validationDatesByRowId, setValidationDatesByRowId] = useState({});
 
   const validationReportName =
     configurationProperties?.validationReportName || DEFAULT_VALIDATION_REPORT;
@@ -220,6 +221,21 @@ const Validation = (props) => {
     setSavedAnalysisIds([]);
   }, [accessionNumberFromUrl]);
 
+  useEffect(() => {
+    const nextDates = {};
+    (props?.results?.resultList || []).forEach((row) => {
+      const rawDateValue =
+        row?.validationDate || row?.sentDate_ || row?.completeDate || "";
+      const dateValue = String(rawDateValue || "")
+        .trim()
+        .slice(0, 10);
+      if (dateValue) {
+        nextDates[row.id] = dateValue;
+      }
+    });
+    setValidationDatesByRowId(nextDates);
+  }, [props?.results?.resultList, accessionNumberFromUrl]);
+
   const columns = [
     {
       id: "sampleInfo",
@@ -255,6 +271,17 @@ const Validation = (props) => {
         return renderCell(row, index, column, id);
       },
       width: "8rem",
+    },
+    {
+      id: "validationDate",
+      name: intl.formatMessage({
+        id: "column.name.validationDate",
+        defaultMessage: "Validation Date",
+      }),
+      cell: (row, index, column, id) => {
+        return renderCell(row, index, column, id);
+      },
+      width: "12rem",
     },
     {
       id: "approvals",
@@ -373,6 +400,19 @@ const Validation = (props) => {
       setNotificationVisible(true);
       return;
     }
+    if (hasAcceptedRowsMissingValidationDate) {
+      addNotification({
+        kind: NotificationKinds.warning,
+        title: intl.formatMessage({ id: "notification.title" }),
+        message: intl.formatMessage({
+          id: "validation.date.required.preview",
+          defaultMessage:
+            "Enter validation date for each selected test before previewing.",
+        }),
+      });
+      setNotificationVisible(true);
+      return;
+    }
 
     const reportChoices = buildDownloadChoices(acceptedAnalysisIds);
     const sameChoicesAsCurrent = areSameChoiceSet(
@@ -449,6 +489,19 @@ const Validation = (props) => {
           id: "validation.preview.noSelection",
           defaultMessage:
             "Select at least one result marked for validation before previewing.",
+        }),
+      });
+      setNotificationVisible(true);
+      return;
+    }
+    if (hasAcceptedRowsMissingValidationDate) {
+      addNotification({
+        kind: NotificationKinds.warning,
+        title: intl.formatMessage({ id: "notification.title" }),
+        message: intl.formatMessage({
+          id: "validation.date.required.save",
+          defaultMessage:
+            "Enter validation date for each selected test before saving.",
         }),
       });
       setNotificationVisible(true);
@@ -658,6 +711,30 @@ const Validation = (props) => {
     jp.value(form, name, checked);
     resetPreviewGate();
   };
+
+  const getRowValidationDateValue = (row) => {
+    const fromState = validationDatesByRowId[row?.id];
+    if (fromState) {
+      return fromState;
+    }
+    const fallback = row?.validationDate || row?.sentDate_ || "";
+    return String(fallback || "")
+      .trim()
+      .slice(0, 10);
+  };
+
+  const handleValidationDateChange = (e, rowId) => {
+    const { value } = e.target;
+    let form = props.results;
+    var jp = require("jsonpath");
+    jp.value(form, "resultList[" + rowId + "].validationDate", value);
+    setValidationDatesByRowId((previous) => ({
+      ...previous,
+      [rowId]: value,
+    }));
+    resetPreviewGate();
+  };
+
   const validateResults = (e, rowId) => {
     handleChange(e, rowId);
   };
@@ -1015,6 +1092,18 @@ const Validation = (props) => {
             </div>
           </>
         );
+      case "validationDate":
+        return (
+          <input
+            id={"resultList" + row.id + ".validationDate"}
+            name={"resultList[" + row.id + "].validationDate"}
+            type="date"
+            value={getRowValidationDateValue(row)}
+            disabled={validationLocked || isRowLockedForCurrentUser(row)}
+            onChange={(e) => handleValidationDateChange(e, row.id)}
+            className="bx--text-input"
+          />
+        );
       case "approvals":
         return (
           <span>
@@ -1084,12 +1173,22 @@ const Validation = (props) => {
   const displayResultList = liveResultList;
   const validationLocked = !hasLiveResults;
   const acceptedAnalysisCount = getAcceptedAnalysisIds().length;
+  const acceptedRowsMissingValidationDate = liveResultList.filter(
+    (row) =>
+      row?.isAccepted &&
+      !row?.readOnly &&
+      !isRowLockedForCurrentUser(row) &&
+      !getRowValidationDateValue(row),
+  );
+  const hasAcceptedRowsMissingValidationDate =
+    acceptedRowsMissingValidationDate.length > 0;
   const rejectedAnalysisCount = getRejectedAnalysisIds().length;
   const requiresMedicalPreview =
     currentUserIsMedicalValidator && acceptedAnalysisCount > 0;
   const canSave =
     !validationLocked &&
     (acceptedAnalysisCount > 0 || rejectedAnalysisCount > 0) &&
+    !hasAcceptedRowsMissingValidationDate &&
     (!requiresMedicalPreview || (hasOpenedPreview && previewConfirmed));
   const canDownload =
     savedAnalysisIds.length > 0 || (!hasLiveResults && hasValidatedRows);
@@ -1098,21 +1197,7 @@ const Validation = (props) => {
     <>
       {hasLiveResults && (
         <Grid style={{ marginTop: "20px" }} className="gridBoundary">
-          <Column lg={7} md={8} sm={2}>
-            <picture>
-              <img
-                src={config.serverBaseUrl + "/images/nonconforming.gif"}
-                alt="nonconforming"
-                width="25" // Set your desired width
-                height="20" // Set your desired height
-              />
-            </picture>
-            <b>
-              {" "}
-              <FormattedMessage id="validation.label.nonconform" />
-            </b>
-          </Column>
-          <Column lg={3} md={2} sm={4}>
+          <Column lg={5} md={4} sm={4}>
             <Checkbox
               id={"saveallnormal"}
               name={"autochecks"}
@@ -1138,7 +1223,7 @@ const Validation = (props) => {
               }}
             />
           </Column>
-          <Column lg={3} md={2} sm={4}>
+          <Column lg={5} md={4} sm={4}>
             <Checkbox
               id={"saveallresults"}
               name={"autochecks"}
@@ -1161,7 +1246,7 @@ const Validation = (props) => {
               }}
             />
           </Column>
-          <Column lg={3} md={2} sm={4}>
+          <Column lg={5} md={4} sm={4}>
             <Checkbox
               id={"retestalltests"}
               name={"autochecks"}
@@ -1259,6 +1344,7 @@ const Validation = (props) => {
                     disabled={
                       validationLocked ||
                       !hasLiveResults ||
+                      hasAcceptedRowsMissingValidationDate ||
                       acceptedAnalysisCount === 0 ||
                       isSubmitting
                     }

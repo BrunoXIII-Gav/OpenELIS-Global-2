@@ -62,6 +62,9 @@
         <property name="releasedDate" type="java.sql.Date">
             <column name="RELEASED_DATE" length="7" />
         </property>
+        <property name="validationDate" type="java.sql.Date">
+            <column name="VALIDATION_DATE" length="7" />
+        </property>
         <property name="enteredDate" type="java.sql.Timestamp">
             <column name="ENTRY_DATE" length="7" />
         </property>
