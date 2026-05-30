@@ -47,6 +47,8 @@ const defaultFormState = {
   id: "",
   parentTestId: "",
   childTestId: "",
+  sampleUsageSource: "SAMPLE_ITEM_REMAINING",
+  parentResultFieldKey: "",
   displayOrder: "",
   active: true,
 };
@@ -65,6 +67,8 @@ function TestParentChildDependency() {
   const [tests, setTests] = useState([]);
   const [dependencies, setDependencies] = useState([]);
   const [formState, setFormState] = useState(defaultFormState);
+  const [parentFieldOptions, setParentFieldOptions] = useState([]);
+  const [isLoadingParentFields, setIsLoadingParentFields] = useState(false);
 
   const testNameById = useMemo(() => {
     const map = {};
@@ -137,6 +141,27 @@ function TestParentChildDependency() {
 
   const resetForm = () => {
     setFormState(defaultFormState);
+    setParentFieldOptions([]);
+  };
+
+  const loadParentFieldOptions = (parentTestId) => {
+    if (!parentTestId) {
+      setParentFieldOptions([]);
+      setIsLoadingParentFields(false);
+      return;
+    }
+
+    setIsLoadingParentFields(true);
+    getFromOpenElisServer(
+      `/rest/test-parent-child-dependencies/parent-test-fields?parentTestId=${parentTestId}`,
+      (response) => {
+        if (!componentMounted.current) {
+          return;
+        }
+        setParentFieldOptions(Array.isArray(response) ? response : []);
+        setIsLoadingParentFields(false);
+      },
+    );
   };
 
   const onSampleTypeChange = (sampleTypeId) => {
@@ -199,6 +224,20 @@ function TestParentChildDependency() {
       return false;
     }
 
+    if (
+      formState.sampleUsageSource === "PARENT_TEST_FIELD" &&
+      !formState.parentResultFieldKey
+    ) {
+      notifyError(
+        intl.formatMessage({
+          id: "test.dependency.validation.parentFieldRequired",
+          defaultMessage:
+            "A parent test numeric field is required when source is parent test field.",
+        }),
+      );
+      return false;
+    }
+
     return true;
   };
 
@@ -214,6 +253,11 @@ function TestParentChildDependency() {
       parentTestId: formState.parentTestId,
       childTestId: formState.childTestId,
       active: formState.active,
+      sampleUsageSource: formState.sampleUsageSource,
+      parentResultFieldKey:
+        formState.sampleUsageSource === "PARENT_TEST_FIELD"
+          ? formState.parentResultFieldKey || null
+          : null,
       displayOrder:
         Number.isFinite(displayOrderValue) && displayOrderValue >= 0
           ? displayOrderValue
@@ -246,6 +290,9 @@ function TestParentChildDependency() {
       id: dependency.id || "",
       parentTestId: dependency.parentTestId || "",
       childTestId: dependency.childTestId || "",
+      sampleUsageSource:
+        dependency.sampleUsageSource || "SAMPLE_ITEM_REMAINING",
+      parentResultFieldKey: dependency.parentResultFieldKey || "",
       displayOrder:
         dependency.displayOrder === null ||
         dependency.displayOrder === undefined
@@ -253,6 +300,7 @@ function TestParentChildDependency() {
           : String(dependency.displayOrder),
       active: dependency.active !== false,
     });
+    loadParentFieldOptions(dependency.parentTestId || "");
   };
 
   const onDelete = (dependency) => {
@@ -386,12 +434,18 @@ function TestParentChildDependency() {
                   />
                 }
                 value={formState.parentTestId}
-                onChange={(e) =>
+                onChange={(e) => {
+                  const nextParentTestId = e.target.value;
                   setFormState((prev) => ({
                     ...prev,
-                    parentTestId: e.target.value,
-                  }))
-                }
+                    parentTestId: nextParentTestId,
+                    parentResultFieldKey:
+                      prev.parentTestId !== nextParentTestId
+                        ? ""
+                        : prev.parentResultFieldKey,
+                  }));
+                  loadParentFieldOptions(nextParentTestId);
+                }}
                 disabled={
                   isLoading || isSaving || isLoadingTests || !selectedSampleType
                 }
@@ -440,6 +494,93 @@ function TestParentChildDependency() {
                 ))}
               </Select>
             </Column>
+          </Grid>
+          <br />
+          <Grid fullWidth={true}>
+            <Column lg={6} md={4} sm={4}>
+              <Select
+                id="sampleUsageSource"
+                labelText={
+                  <FormattedMessage
+                    id="test.dependency.sampleUsageSource"
+                    defaultMessage="Sample Usage Source"
+                  />
+                }
+                value={formState.sampleUsageSource}
+                onChange={(e) => {
+                  const nextSource = e.target.value;
+                  setFormState((prev) => ({
+                    ...prev,
+                    sampleUsageSource: nextSource,
+                    parentResultFieldKey:
+                      nextSource === "PARENT_TEST_FIELD"
+                        ? prev.parentResultFieldKey
+                        : "",
+                  }));
+                  if (nextSource === "PARENT_TEST_FIELD") {
+                    loadParentFieldOptions(formState.parentTestId);
+                  }
+                }}
+                disabled={isLoading || isSaving || !selectedSampleType}
+              >
+                <SelectItem
+                  value="SAMPLE_ITEM_REMAINING"
+                  text={intl.formatMessage({
+                    id: "test.dependency.sampleUsageSource.sampleItem",
+                    defaultMessage: "Sample Item Remaining Quantity",
+                  })}
+                />
+                <SelectItem
+                  value="PARENT_TEST_FIELD"
+                  text={intl.formatMessage({
+                    id: "test.dependency.sampleUsageSource.parentField",
+                    defaultMessage: "Numeric Field from Parent Test Result",
+                  })}
+                />
+              </Select>
+            </Column>
+            {formState.sampleUsageSource === "PARENT_TEST_FIELD" && (
+              <Column lg={6} md={4} sm={4}>
+                <Select
+                  id="parentResultFieldKey"
+                  labelText={
+                    <FormattedMessage
+                      id="test.dependency.parentResultFieldKey"
+                      defaultMessage="Parent Result Field"
+                    />
+                  }
+                  value={formState.parentResultFieldKey || ""}
+                  onChange={(e) =>
+                    setFormState((prev) => ({
+                      ...prev,
+                      parentResultFieldKey: e.target.value,
+                    }))
+                  }
+                  disabled={
+                    isLoading ||
+                    isSaving ||
+                    !selectedSampleType ||
+                    !formState.parentTestId ||
+                    isLoadingParentFields
+                  }
+                >
+                  <SelectItem
+                    value=""
+                    text={intl.formatMessage({
+                      id: "test.dependency.select.parentField",
+                      defaultMessage: "-- Select parent numeric field --",
+                    })}
+                  />
+                  {parentFieldOptions.map((field) => (
+                    <SelectItem
+                      key={field.fieldKey}
+                      value={field.fieldKey}
+                      text={`${field.displayName} (${field.fieldKey})`}
+                    />
+                  ))}
+                </Select>
+              </Column>
+            )}
           </Grid>
           <br />
           <Grid fullWidth={true}>
@@ -535,6 +676,18 @@ function TestParentChildDependency() {
                       </TableHeader>
                       <TableHeader>
                         <FormattedMessage
+                          id="test.dependency.sampleUsageSource"
+                          defaultMessage="Sample Usage Source"
+                        />
+                      </TableHeader>
+                      <TableHeader>
+                        <FormattedMessage
+                          id="test.dependency.parentResultFieldKey"
+                          defaultMessage="Parent Result Field"
+                        />
+                      </TableHeader>
+                      <TableHeader>
+                        <FormattedMessage
                           id="test.dependency.displayOrder"
                           defaultMessage="Display Order"
                         />
@@ -556,7 +709,7 @@ function TestParentChildDependency() {
                   <TableBody>
                     {sortedDependencies.length === 0 ? (
                       <TableRow>
-                        <TableCell colSpan={5}>
+                        <TableCell colSpan={7}>
                           {selectedSampleType ? (
                             <FormattedMessage
                               id="test.dependency.empty"
@@ -580,6 +733,23 @@ function TestParentChildDependency() {
                           <TableCell>
                             {testNameById[String(dependency.childTestId)] ||
                               dependency.childTestId}
+                          </TableCell>
+                          <TableCell>
+                            {dependency.sampleUsageSource ===
+                            "PARENT_TEST_FIELD"
+                              ? intl.formatMessage({
+                                  id: "test.dependency.sampleUsageSource.parentField",
+                                  defaultMessage:
+                                    "Numeric Field from Parent Test Result",
+                                })
+                              : intl.formatMessage({
+                                  id: "test.dependency.sampleUsageSource.sampleItem",
+                                  defaultMessage:
+                                    "Sample Item Remaining Quantity",
+                                })}
+                          </TableCell>
+                          <TableCell>
+                            {dependency.parentResultFieldKey || "-"}
                           </TableCell>
                           <TableCell>
                             {dependency.displayOrder === null ||

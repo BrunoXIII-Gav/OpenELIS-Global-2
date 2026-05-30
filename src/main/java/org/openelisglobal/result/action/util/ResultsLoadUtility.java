@@ -193,6 +193,8 @@ public class ResultsLoadUtility {
     private final Map<String, String> methodLabelByIdCache = new HashMap<>();
     private final Map<String, TestParentChildDependency> dependencyByChildTestId = new HashMap<>();
     private final Map<String, Analysis> parentAnalysisBySampleAndTest = new HashMap<>();
+    private final Map<String, List<Analysis>> analysesBySampleItemIdCache = new HashMap<>();
+    private final Map<String, BigDecimal> parentFieldNumericValueCache = new HashMap<>();
 
     @PostConstruct
     public void initializeGlobalVariables() {
@@ -866,6 +868,8 @@ public class ResultsLoadUtility {
     private void clearDependencyCaches() {
         dependencyByChildTestId.clear();
         parentAnalysisBySampleAndTest.clear();
+        analysesBySampleItemIdCache.clear();
+        parentFieldNumericValueCache.clear();
     }
 
     private DependencyContext resolveDependencyContext(Analysis analysis) {
@@ -903,6 +907,16 @@ public class ResultsLoadUtility {
 
         context.parentAnalysis = parentAnalysis;
         context.parentCompleted = isAnalysisCompleted(parentAnalysis);
+        context.sampleUsageSource = dependency.getSampleUsageSource();
+        context.parentResultFieldKey = dependency.getParentResultFieldKey();
+
+        if (TestParentChildDependency.SAMPLE_USAGE_SOURCE_PARENT_TEST_FIELD.equals(context.sampleUsageSource)) {
+            context.sampleUsageFromParentField = true;
+            BigDecimal parentBasedRemaining = calculateRemainingFromParentField(analysis, context);
+            if (parentBasedRemaining != null) {
+                context.sampleRemainingQuantity = parentBasedRemaining.toPlainString();
+            }
+        }
         return context;
     }
 
@@ -928,9 +942,13 @@ public class ResultsLoadUtility {
         resultItem.setDependencyParentAnalysisId(context.parentAnalysis != null ? context.parentAnalysis.getId() : null);
         resultItem.setDependencyParentCompleted(context.parentCompleted);
 
-        BigDecimal remaining = analysis.getSampleItem().getEffectiveRemainingQuantity();
-        if (remaining != null) {
-            resultItem.setSampleRemainingQuantity(remaining.toPlainString());
+        if (context.sampleUsageFromParentField) {
+            resultItem.setSampleRemainingQuantity(context.sampleRemainingQuantity);
+        } else {
+            BigDecimal remaining = analysis.getSampleItem().getEffectiveRemainingQuantity();
+            if (remaining != null) {
+                resultItem.setSampleRemainingQuantity(remaining.toPlainString());
+            }
         }
 
         if (analysis.getSampleUsedQuantity() != null) {
@@ -947,6 +965,86 @@ public class ResultsLoadUtility {
         private String parentTestName;
         private Analysis parentAnalysis;
         private boolean parentCompleted = false;
+        private String sampleUsageSource = TestParentChildDependency.SAMPLE_USAGE_SOURCE_SAMPLE_ITEM_REMAINING;
+        private String parentResultFieldKey;
+        private String sampleRemainingQuantity;
+        private boolean sampleUsageFromParentField = false;
+    }
+
+    private BigDecimal calculateRemainingFromParentField(Analysis childAnalysis, DependencyContext context) {
+        if (childAnalysis == null || childAnalysis.getSampleItem() == null || context == null
+                || context.parentAnalysis == null || GenericValidator.isBlankOrNull(context.parentResultFieldKey)) {
+            return null;
+        }
+
+        BigDecimal totalAvailable = resolveParentFieldNumericValue(context.parentAnalysis, context.parentTestId,
+                context.parentResultFieldKey);
+        if (totalAvailable == null) {
+            return null;
+        }
+
+        BigDecimal alreadyConsumed = getConsumedUsageForParentAnalysis(childAnalysis.getSampleItem().getId(),
+                context.parentAnalysis.getId());
+        BigDecimal remaining = totalAvailable.subtract(alreadyConsumed);
+        if (remaining.compareTo(BigDecimal.ZERO) < 0) {
+            return BigDecimal.ZERO;
+        }
+        return remaining;
+    }
+
+    private BigDecimal resolveParentFieldNumericValue(Analysis parentAnalysis, String parentTestId, String fieldKey) {
+        String cacheKey = parentAnalysis.getId() + ":" + fieldKey;
+        if (parentFieldNumericValueCache.containsKey(cacheKey)) {
+            return parentFieldNumericValueCache.get(cacheKey);
+        }
+
+        List<TestAdditionalFieldPayload> parentFieldDefinitions = getAdditionalFieldsForTest(parentTestId);
+        Map<String, String> parentValues = testAdditionalFieldService.getAnalysisValuesForFields(parentAnalysis.getId(),
+                parentFieldDefinitions);
+        String rawValue = parentValues == null ? null : parentValues.get(fieldKey);
+        BigDecimal numericValue = parsePositiveBigDecimal(rawValue);
+        parentFieldNumericValueCache.put(cacheKey, numericValue);
+        return numericValue;
+    }
+
+    private BigDecimal getConsumedUsageForParentAnalysis(String sampleItemId, String parentAnalysisId) {
+        if (GenericValidator.isBlankOrNull(sampleItemId) || GenericValidator.isBlankOrNull(parentAnalysisId)) {
+            return BigDecimal.ZERO;
+        }
+
+        List<Analysis> analyses = analysesBySampleItemIdCache.computeIfAbsent(sampleItemId, ignored -> {
+            SampleItem sampleItem = sampleItemService.get(sampleItemId);
+            if (sampleItem == null) {
+                return new ArrayList<>();
+            }
+            return analysisService.getAnalysesBySampleItem(sampleItem);
+        });
+
+        BigDecimal consumed = BigDecimal.ZERO;
+        for (Analysis analysis : analyses) {
+            if (analysis == null || analysis.getParentAnalysis() == null || analysis.getSampleUsedQuantity() == null) {
+                continue;
+            }
+            if (parentAnalysisId.equals(analysis.getParentAnalysis().getId())) {
+                consumed = consumed.add(analysis.getSampleUsedQuantity());
+            }
+        }
+        return consumed;
+    }
+
+    private BigDecimal parsePositiveBigDecimal(String value) {
+        if (GenericValidator.isBlankOrNull(value)) {
+            return null;
+        }
+        try {
+            BigDecimal parsed = new BigDecimal(value.trim());
+            if (parsed.compareTo(BigDecimal.ZERO) < 0) {
+                return null;
+            }
+            return parsed;
+        } catch (NumberFormatException e) {
+            return null;
+        }
     }
 
     private void setResultLimitDependencies(ResultLimit resultLimit, TestResultItem testItem,

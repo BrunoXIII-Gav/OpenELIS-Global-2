@@ -1,0 +1,33 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<databaseChangeLog
+  xmlns="http://www.liquibase.org/xml/ns/dbchangelog"
+  xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+  xsi:schemaLocation="http://www.liquibase.org/xml/ns/dbchangelog http://www.liquibase.org/xml/ns/dbchangelog/dbchangelog-3.8.xsd">
+
+  <changeSet id="045-01-add-parent-child-sample-usage-source-columns" author="openelis">
+    <preConditions onFail="MARK_RAN">
+      <tableExists schemaName="clinlims" tableName="test_parent_child_dependency"/>
+    </preConditions>
+
+    <addColumn schemaName="clinlims" tableName="test_parent_child_dependency">
+      <column name="sample_usage_source" type="VARCHAR(40)" defaultValue="SAMPLE_ITEM_REMAINING">
+        <constraints nullable="false"/>
+      </column>
+      <column name="parent_result_field_key" type="VARCHAR(80)"/>
+    </addColumn>
+
+    <sql>
+      ALTER TABLE clinlims.test_parent_child_dependency
+      ADD CONSTRAINT chk_tpcd_sample_usage_source
+      CHECK (sample_usage_source IN ('SAMPLE_ITEM_REMAINING', 'PARENT_TEST_FIELD'));
+    </sql>
+
+    <rollback>
+      <dropColumn schemaName="clinlims" tableName="test_parent_child_dependency" columnName="parent_result_field_key"/>
+      <dropColumn schemaName="clinlims" tableName="test_parent_child_dependency" columnName="sample_usage_source"/>
+      <sql>
+        ALTER TABLE clinlims.test_parent_child_dependency DROP CONSTRAINT IF EXISTS chk_tpcd_sample_usage_source;
+      </sql>
+    </rollback>
+  </changeSet>
+</databaseChangeLog>
