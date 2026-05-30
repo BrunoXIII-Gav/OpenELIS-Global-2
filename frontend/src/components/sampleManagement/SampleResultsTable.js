@@ -96,6 +96,24 @@ function SampleResultsTable({
 }) {
   const intl = useIntl();
 
+  const normalizeProfileCode = (rawValue) => {
+    const normalized = String(rawValue || "")
+      .trim()
+      .toUpperCase();
+    if (!normalized) return "";
+    if (normalized === "BIOLOGO" || normalized === "BIOLOGISTA") {
+      return "BIOLOGIST";
+    }
+    if (
+      normalized === "MEDICO" ||
+      normalized === "MÉDICO" ||
+      normalized === "DOCTOR"
+    ) {
+      return "MEDICAL_DOCTOR";
+    }
+    return normalized;
+  };
+
   // Track which tests are being cancelled (loading state)
   const [cancellingTests, setCancellingTests] = useState({});
   const [currentTestDetailsByKey, setCurrentTestDetailsByKey] = useState({});
@@ -105,6 +123,7 @@ function SampleResultsTable({
   const [currentTestsPageSizeBySampleId, setCurrentTestsPageSizeBySampleId] =
     useState({});
   const [uomList, setUomList] = useState([]);
+  const [collectorUsers, setCollectorUsers] = useState([]);
   const [additionalFieldValuesBySampleId, setAdditionalFieldValuesBySampleId] =
     useState({});
   const [additionalFieldsBySampleId, setAdditionalFieldsBySampleId] = useState(
@@ -120,6 +139,27 @@ function SampleResultsTable({
   });
   const componentMounted = useRef(false);
   const lastSampleSignatureRef = useRef("");
+
+  const getCollectorOptionsWithCurrentValue = useCallback(
+    (currentValue) => {
+      const options = [...collectorUsers];
+      const normalizedCurrentValue = String(currentValue || "").trim();
+      if (
+        normalizedCurrentValue &&
+        !options.some(
+          (option) =>
+            String(option.value || "").trim() === normalizedCurrentValue,
+        )
+      ) {
+        options.push({
+          id: `legacy-${normalizedCurrentValue}`,
+          value: normalizedCurrentValue,
+        });
+      }
+      return options;
+    },
+    [collectorUsers],
+  );
 
   const toDateInputValue = (value) => {
     if (!value) return "";
@@ -214,6 +254,38 @@ function SampleResultsTable({
       );
     };
     getFromOpenElisServer("/rest/displayList/UNIT_OF_MEASURE", fetchUoms);
+
+    const fetchCollectorUsers = (profileCode) => {
+      const normalizedCode = normalizeProfileCode(profileCode);
+      if (!normalizedCode) {
+        if (componentMounted.current) {
+          setCollectorUsers([]);
+        }
+        return;
+      }
+      getFromOpenElisServer(
+        `/rest/users/professional-profile/${encodeURIComponent(
+          normalizedCode,
+        )}?activeOnly=true`,
+        (usersResponse) => {
+          if (!componentMounted.current) return;
+          const options = Array.isArray(usersResponse)
+            ? usersResponse.map((item) => ({
+                id: item.id,
+                value: item.value,
+              }))
+            : [];
+          setCollectorUsers(options);
+        },
+      );
+    };
+
+    getFromOpenElisServer("/rest/open-configuration-properties", (config) => {
+      if (!componentMounted.current) return;
+      const collectorProfileCode =
+        config?.sampleCollectorProfessionalProfileCode || "BIOLOGIST";
+      fetchCollectorUsers(normalizeProfileCode(collectorProfileCode));
+    });
 
     return () => {
       componentMounted.current = false;
@@ -1038,7 +1110,7 @@ function SampleResultsTable({
                     marginTop: "0.25rem",
                   }}
                 >
-                  {test.status && (
+                  {shouldRenderStatusTag(test.status) && (
                     <Tag type={getTestStatusType(test.status)} size="sm">
                       {test.status}
                     </Tag>
@@ -1166,10 +1238,10 @@ function SampleResultsTable({
                         />
                       ))}
                     </Select>
-                    <TextInput
+                    <Select
                       id={`${row.id}-compact-collector`}
                       labelText={intl.formatMessage({ id: "collector.label" })}
-                      value={sampleCollector}
+                      value={sampleCollector || ""}
                       onChange={(e) =>
                         handleCurrentTestFieldChange(
                           primarySampleRowId,
@@ -1177,7 +1249,23 @@ function SampleResultsTable({
                           e.target.value,
                         )
                       }
-                    />
+                    >
+                      <SelectItem
+                        value=""
+                        text={intl.formatMessage({
+                          id: "collector.select.placeholder",
+                        })}
+                      />
+                      {getCollectorOptionsWithCurrentValue(sampleCollector).map(
+                        (collectorOption) => (
+                          <SelectItem
+                            key={collectorOption.id}
+                            value={collectorOption.value}
+                            text={collectorOption.value}
+                          />
+                        ),
+                      )}
+                    </Select>
                     <TextInput
                       id={`${row.id}-compact-date`}
                       type="date"
@@ -1454,7 +1542,7 @@ function SampleResultsTable({
                                           }
                                           return (
                                             <TableCell key={cell.id}>
-                                              <TextInput
+                                              <Select
                                                 id={`${cell.id}-collector`}
                                                 labelText=""
                                                 size="lg"
@@ -1470,7 +1558,25 @@ function SampleResultsTable({
                                                     e.target.value,
                                                   )
                                                 }
-                                              />
+                                              >
+                                                <SelectItem
+                                                  value=""
+                                                  text={intl.formatMessage({
+                                                    id: "collector.select.placeholder",
+                                                  })}
+                                                />
+                                                {getCollectorOptionsWithCurrentValue(
+                                                  cell.value,
+                                                ).map((collectorOption) => (
+                                                  <SelectItem
+                                                    key={`${cell.id}-${collectorOption.id}`}
+                                                    value={
+                                                      collectorOption.value
+                                                    }
+                                                    text={collectorOption.value}
+                                                  />
+                                                ))}
+                                              </Select>
                                             </TableCell>
                                           );
                                         }
@@ -1719,7 +1825,11 @@ function SampleResultsTable({
                   );
                 }
 
-                if (fieldType === "SELECT" || fieldType === "RADIO") {
+                if (
+                  fieldType === "SELECT" ||
+                  fieldType === "RADIO" ||
+                  fieldType === "SYSTEM_USER_BIOLOGIST_SELECT"
+                ) {
                   return (
                     <Select
                       key={fieldId}
@@ -1887,6 +1997,11 @@ function SampleResultsTable({
       return "cyan";
     }
     return "gray";
+  };
+
+  const shouldRenderStatusTag = (status) => {
+    if (!status) return false;
+    return !/^\d+$/.test(String(status).trim());
   };
 
   /**

@@ -585,6 +585,7 @@ const AddOrder = (props) => {
           </Column>
         );
       case "SELECT":
+      case "SYSTEM_USER_BIOLOGIST_SELECT":
         return (
           <Column key={field.fieldKey} lg={8} md={4} sm={4}>
             <Select

@@ -47,6 +47,8 @@ public class UnifiedSystemUserForm extends BaseForm {
     @Pattern(regexp = ValidationHelper.ID_REGEX)
     private String linkedProviderPersonId = "";
 
+    private String professionalProfileCode = "";
+
     private String signatureImageData;
 
     private String signatureImageContentType = "";
@@ -187,6 +189,14 @@ public class UnifiedSystemUserForm extends BaseForm {
 
     public void setLinkedProviderPersonId(String linkedProviderPersonId) {
         this.linkedProviderPersonId = linkedProviderPersonId;
+    }
+
+    public String getProfessionalProfileCode() {
+        return professionalProfileCode;
+    }
+
+    public void setProfessionalProfileCode(String professionalProfileCode) {
+        this.professionalProfileCode = professionalProfileCode;
     }
 
     public String getSignatureImageData() {

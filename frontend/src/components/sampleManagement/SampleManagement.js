@@ -853,7 +853,11 @@ const resolveCustomFieldDisplayValue = (field, valuesByKey, filesByKey) => {
   }
 
   const options = Array.isArray(field?.options) ? field.options : [];
-  if (fieldType === "SELECT" || fieldType === "RADIO") {
+  if (
+    fieldType === "SELECT" ||
+    fieldType === "RADIO" ||
+    fieldType === "SYSTEM_USER_BIOLOGIST_SELECT"
+  ) {
     const selected = options.find(
       (option) => String(option?.optionKey || "") === String(rawValue),
     );

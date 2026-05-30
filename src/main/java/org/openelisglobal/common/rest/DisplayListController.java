@@ -475,6 +475,14 @@ public class DisplayListController extends BaseRestController {
                 ConfigurationProperties.getInstance().getPropertyValue(Property.GPS_TIMEOUT_SECONDS));
         configs.put(Property.providerSpecialtyOptions.toString(),
                 ConfigurationProperties.getInstance().getPropertyValue(Property.providerSpecialtyOptions));
+        configs.put(Property.professionalProfileOptions.toString(),
+                ConfigurationProperties.getInstance().getPropertyValue(Property.professionalProfileOptions));
+        configs.put(Property.orderProviderProfessionalProfileCode.toString(), ConfigurationProperties.getInstance()
+                .getPropertyValue(Property.orderProviderProfessionalProfileCode));
+        configs.put(Property.sampleCollectorProfessionalProfileCode.toString(), ConfigurationProperties.getInstance()
+                .getPropertyValue(Property.sampleCollectorProfessionalProfileCode));
+        configs.put(Property.validationInterpreterProfessionalProfileCode.toString(), ConfigurationProperties
+                .getInstance().getPropertyValue(Property.validationInterpreterProfessionalProfileCode));
         configs.put(Property.VALIDATION_MIN_APPROVERS.toString(),
                 ConfigurationProperties.getInstance().getPropertyValue(Property.VALIDATION_MIN_APPROVERS));
         return configs;

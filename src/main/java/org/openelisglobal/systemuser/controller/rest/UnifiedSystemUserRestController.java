@@ -35,6 +35,8 @@ import org.openelisglobal.common.validator.BaseErrors;
 import org.openelisglobal.login.dao.UserModuleService;
 import org.openelisglobal.login.service.LoginUserService;
 import org.openelisglobal.login.valueholder.LoginUser;
+import org.openelisglobal.provider.service.ProviderService;
+import org.openelisglobal.provider.valueholder.Provider;
 import org.openelisglobal.role.action.bean.DisplayRole;
 import org.openelisglobal.role.service.RoleService;
 import org.openelisglobal.role.valueholder.Role;
@@ -79,7 +81,7 @@ public class UnifiedSystemUserRestController extends BaseController {
             "userPassword", "confirmPassword", "userFirstName", "userLastName", "expirationDate", "timeout",
             "accountLocked", "accountDisabled", "accountActive", "selectedRoles*", "selectedLabUnitRoles",
             "testSectionId", "systemUsers", "systemUserIdToCopy", "allowCopyUserRoles", "linkedProviderPersonId",
-            "signatureImageData", "signatureImageContentType" };
+            "professionalProfileCode", "signatureImageData", "signatureImageContentType" };
 
     @Autowired
     private UnifiedSystemUserFormValidator formValidator;
@@ -96,6 +98,8 @@ public class UnifiedSystemUserRestController extends BaseController {
     private UserModuleService userModuleService;
     @Autowired
     private UserService userService;
+    @Autowired
+    private ProviderService providerService;
     @Autowired
     private TestSectionService testSectionService;
     // private static final String RESERVED_ADMIN_NAME = "admin";
@@ -145,6 +149,33 @@ public class UnifiedSystemUserRestController extends BaseController {
         List<IdValuePair> idValues = users.stream().map(e -> new IdValuePair(e.getId(), e.getDisplayName()))
                 .collect(Collectors.toList());
         return idValues;
+    }
+
+    @GetMapping(value = "/users/professional-profile/{profileCode}")
+    @ResponseBody
+    public List<IdValuePair> getUsersByProfessionalProfile(
+            @PathVariable String profileCode,
+            @RequestParam(name = "activeOnly", defaultValue = "true") boolean activeOnly) {
+        final String normalizedProfileCode = normalizeProfessionalProfileCode(profileCode);
+        if (StringUtils.isBlank(normalizedProfileCode)) {
+            return Collections.emptyList();
+        }
+
+        Map<String, Provider> providersByPersonId = providerService.getAllActiveProviders().stream()
+                .filter(provider -> provider.getPerson() != null && StringUtils.isNotBlank(provider.getPerson().getId()))
+                .collect(Collectors.toMap(provider -> provider.getPerson().getId(), provider -> provider,
+                        (left, right) -> left));
+
+        return systemUserService.getAll().stream()
+                .filter(user -> !activeOnly || YES.equalsIgnoreCase(user.getIsActive()))
+                .filter(user -> normalizedProfileCode
+                        .equals(normalizeProfessionalProfileCode(user.getProfessionalProfileCode())))
+                .filter(user -> isUserEligibleForProfileDisplay(user, providersByPersonId, normalizedProfileCode))
+                .sorted(Comparator.comparing(SystemUser::getNameForDisplay, String.CASE_INSENSITIVE_ORDER))
+                .map(user -> new IdValuePair(user.getId(),
+                        buildProfessionalDisplayLabel(user, providersByPersonId.get(user.getLinkedProviderPersonId()))))
+                .filter(pair -> StringUtils.isNotBlank(pair.getValue()))
+                .collect(Collectors.toList());
     }
 
     @GetMapping(value = "/UnifiedSystemUser")
@@ -381,6 +412,7 @@ public class UnifiedSystemUserRestController extends BaseController {
             form.setUserFirstName(systemUser.getFirstName());
             form.setUserLastName(systemUser.getLastName());
             form.setLinkedProviderPersonId(StringUtils.defaultString(systemUser.getLinkedProviderPersonId()));
+            form.setProfessionalProfileCode(StringUtils.defaultString(systemUser.getProfessionalProfileCode()));
             form.setSignatureImageData(systemUser.getSignatureImageData());
             form.setSignatureImageContentType(StringUtils.defaultString(systemUser.getSignatureImageContentType()));
             form.setAccountActive(systemUser.getIsActive());
@@ -501,6 +533,7 @@ public class UnifiedSystemUserRestController extends BaseController {
 
         passwordUpdated = passwordHasBeenUpdated(loginUserNew, form);
         validateUser(form, errors, loginUserNew, passwordUpdated, loginUserId);
+        validateLinkedProviderProfileConsistency(form, errors);
 
         if (errors.hasErrors()) {
             saveErrors(errors);
@@ -623,6 +656,77 @@ public class UnifiedSystemUserRestController extends BaseController {
         return PasswordValidationFactory.getPasswordValidator().passwordValid(password);
     }
 
+    private void validateLinkedProviderProfileConsistency(UnifiedSystemUserForm form, Errors errors) {
+        String linkedProviderPersonId = StringUtils.trimToNull(form.getLinkedProviderPersonId());
+        String selectedProfileCode = normalizeProfessionalProfileCode(form.getProfessionalProfileCode());
+
+        if (linkedProviderPersonId == null || StringUtils.isBlank(selectedProfileCode)) {
+            return;
+        }
+
+        Provider linkedProvider = providerService.getAllActiveProviders().stream()
+                .filter(provider -> provider.getPerson() != null)
+                .filter(provider -> linkedProviderPersonId.equals(provider.getPerson().getId()))
+                .findFirst()
+                .orElse(null);
+
+        if (linkedProvider == null) {
+            return;
+        }
+
+        String providerProfileCode = normalizeProfessionalProfileCode(linkedProvider.getProfessionalProfileCode());
+        if (StringUtils.isNotBlank(providerProfileCode) && !providerProfileCode.equals(selectedProfileCode)) {
+            errors.reject("errors.user.provider.profile.mismatch",
+                    "Linked provider profile does not match selected user profile.");
+        }
+    }
+
+    private String buildProfessionalDisplayLabel(SystemUser user, Provider linkedProvider) {
+        String profileCode = normalizeProfessionalProfileCode(user.getProfessionalProfileCode());
+        if ("BIOLOGIST".equals(profileCode) && linkedProvider != null) {
+            String initials = StringUtils.trimToEmpty(linkedProvider.getProfessionalInitials());
+            if (StringUtils.isNotBlank(initials)) {
+                return initials;
+            }
+            return "";
+        }
+        return user.getNameForDisplay();
+    }
+
+    private boolean isUserEligibleForProfileDisplay(SystemUser user, Map<String, Provider> providersByPersonId,
+            String normalizedProfileCode) {
+        if (!"BIOLOGIST".equals(normalizedProfileCode)) {
+            return true;
+        }
+
+        Provider linkedProvider = providersByPersonId.get(user.getLinkedProviderPersonId());
+        if (linkedProvider == null) {
+            return false;
+        }
+
+        String providerProfileCode = normalizeProfessionalProfileCode(linkedProvider.getProfessionalProfileCode());
+        if (!"BIOLOGIST".equals(providerProfileCode)) {
+            return false;
+        }
+
+        return StringUtils.isNotBlank(StringUtils.trimToEmpty(linkedProvider.getProfessionalInitials()));
+    }
+
+    private String normalizeProfessionalProfileCode(String rawValue) {
+        String normalized = StringUtils.upperCase(StringUtils.trimToEmpty(rawValue));
+        if (StringUtils.isBlank(normalized)) {
+            return "";
+        }
+
+        if ("BIOLOGO".equals(normalized) || "BIOLOGISTA".equals(normalized)) {
+            return "BIOLOGIST";
+        }
+        if ("MEDICO".equals(normalized) || "MÉDICO".equals(normalized) || "DOCTOR".equals(normalized)) {
+            return "MEDICAL_DOCTOR";
+        }
+        return normalized;
+    }
+
     private LoginUser createLoginUser(UnifiedSystemUserForm form, String loginUserId, boolean loginUserNew,
             boolean passwordUpdated, String loggedOnUserId) {
 
@@ -668,11 +772,32 @@ public class UnifiedSystemUserRestController extends BaseController {
         String initial = systemUser.getFirstName().substring(0, 1) + systemUser.getLastName().substring(0, 1);
         systemUser.setInitials(initial);
         systemUser.setLinkedProviderPersonId(StringUtils.trimToNull(form.getLinkedProviderPersonId()));
+        systemUser.setProfessionalProfileCode(resolveUserProfessionalProfileCode(form));
         systemUser.setSignatureImageData(StringUtils.trimToNull(form.getSignatureImageData()));
         systemUser.setSignatureImageContentType(StringUtils.trimToNull(form.getSignatureImageContentType()));
         systemUser.setSysUserId(loggedOnUserId);
 
         return systemUser;
+    }
+
+    private String resolveUserProfessionalProfileCode(UnifiedSystemUserForm form) {
+        String selectedProfileCode = StringUtils.trimToNull(form.getProfessionalProfileCode());
+        if (selectedProfileCode != null) {
+            return selectedProfileCode;
+        }
+
+        String linkedProviderPersonId = StringUtils.trimToNull(form.getLinkedProviderPersonId());
+        if (linkedProviderPersonId == null) {
+            return null;
+        }
+
+        return providerService.getAllActiveProviders().stream()
+                .filter(provider -> provider.getPerson() != null)
+                .filter(provider -> linkedProviderPersonId.equals(provider.getPerson().getId()))
+                .map(Provider::getProfessionalProfileCode)
+                .map(StringUtils::trimToNull)
+                .findFirst()
+                .orElse(null);
     }
 
     private void disableNavigationButtons(HttpServletRequest request) {

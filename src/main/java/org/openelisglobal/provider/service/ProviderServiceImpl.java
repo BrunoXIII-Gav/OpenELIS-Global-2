@@ -3,6 +3,7 @@ package org.openelisglobal.provider.service;
 import java.util.List;
 import java.util.Optional;
 import java.util.UUID;
+import org.apache.commons.lang3.StringUtils;
 import org.openelisglobal.common.log.LogEvent;
 import org.openelisglobal.common.service.AuditableBaseObjectServiceImpl;
 import org.openelisglobal.person.service.PersonService;
@@ -120,6 +121,7 @@ public class ProviderServiceImpl extends AuditableBaseObjectServiceImpl<Provider
     @Transactional
     public Provider insertOrUpdateProviderByFhirUuid(UUID fhirUuid, Provider provider) {
         Provider dbProvider = getProviderByFhirId(fhirUuid);
+        String normalizedProfileCode = resolveProfessionalProfileCode(provider.getProfessionalProfileCode());
 
         if (dbProvider != null) {
             dbProvider.setActive(provider.getActive());
@@ -127,6 +129,8 @@ public class ProviderServiceImpl extends AuditableBaseObjectServiceImpl<Provider
             dbProvider.setExternalId(provider.getExternalId());
             dbProvider.setSpecialty(provider.getSpecialty());
             dbProvider.setDni(provider.getDni());
+            dbProvider.setProfessionalProfileCode(normalizedProfileCode);
+            applyProfileSpecificFields(dbProvider, normalizedProfileCode, provider);
             dbProvider.getPerson().setLastName(provider.getPerson().getLastName());
             dbProvider.getPerson().setMiddleName(provider.getPerson().getMiddleName());
             dbProvider.getPerson().setFirstName(provider.getPerson().getFirstName());
@@ -141,11 +145,37 @@ public class ProviderServiceImpl extends AuditableBaseObjectServiceImpl<Provider
                 fhirUuid = UUID.randomUUID();
             }
             provider.setFhirUuid(fhirUuid);
+            provider.setProfessionalProfileCode(normalizedProfileCode);
+            applyProfileSpecificFields(provider, normalizedProfileCode, provider);
             provider.getPerson().setSysUserId("1");
             provider.setPerson(personService.save(provider.getPerson()));
             provider.setSysUserId("1");
             dbProvider = save(provider);
         }
         return dbProvider;
+    }
+
+    private String resolveProfessionalProfileCode(String profileCode) {
+        String normalized = StringUtils.upperCase(StringUtils.trimToNull(profileCode));
+        return normalized == null ? "MEDICAL_DOCTOR" : normalized;
+    }
+
+    private void applyProfileSpecificFields(Provider target, String profileCode, Provider source) {
+        if ("BIOLOGIST".equals(profileCode)) {
+            target.setProfessionalInitials(StringUtils.trimToNull(source.getProfessionalInitials()));
+            target.setCbpCode(StringUtils.trimToNull(source.getCbpCode()));
+            target.setNpi(null);
+            target.setExternalId(null);
+            target.setSpecialty(null);
+            target.setDni(StringUtils.trimToNull(source.getDni()));
+            return;
+        }
+
+        target.setNpi(StringUtils.trimToNull(source.getNpi()));
+        target.setExternalId(StringUtils.trimToNull(source.getExternalId()));
+        target.setSpecialty(StringUtils.trimToNull(source.getSpecialty()));
+        target.setDni(StringUtils.trimToNull(source.getDni()));
+        target.setProfessionalInitials(null);
+        target.setCbpCode(null);
     }
 }

@@ -10,6 +10,7 @@ import java.time.format.DateTimeFormatter;
 import java.time.format.DateTimeParseException;
 import java.util.ArrayList;
 import java.util.Base64;
+import java.util.Comparator;
 import java.util.Collections;
 import java.util.HashMap;
 import java.util.HashSet;
@@ -22,6 +23,12 @@ import java.util.regex.Pattern;
 import java.util.stream.Collectors;
 import org.apache.commons.lang3.StringUtils;
 import org.openelisglobal.common.exception.LIMSRuntimeException;
+import org.openelisglobal.person.service.PersonService;
+import org.openelisglobal.person.valueholder.Person;
+import org.openelisglobal.provider.service.ProviderService;
+import org.openelisglobal.provider.valueholder.Provider;
+import org.openelisglobal.systemuser.service.SystemUserService;
+import org.openelisglobal.systemuser.valueholder.SystemUser;
 import org.openelisglobal.testadditionalfield.bean.TestAdditionalFieldOptionPayload;
 import org.openelisglobal.testadditionalfield.bean.TestAdditionalFieldPayload;
 import org.openelisglobal.testadditionalfield.dao.AnalysisAdditionalFieldValueDAO;
@@ -47,7 +54,11 @@ public class TestAdditionalFieldServiceImpl implements TestAdditionalFieldServic
     private static final DateTimeFormatter DATE_TIME_WITH_SPACE_SECONDS = DateTimeFormatter
             .ofPattern("yyyy-MM-dd HH:mm:ss");
 
-    private static final Set<FieldType> OPTION_TYPES = Set.of(FieldType.SELECT, FieldType.RADIO, FieldType.MULTISELECT);
+    private static final Set<FieldType> OPTION_TYPES = Set.of(FieldType.SELECT, FieldType.RADIO, FieldType.MULTISELECT,
+            FieldType.SYSTEM_USER_BIOLOGIST_SELECT);
+    private static final Set<FieldType> STATIC_OPTION_TYPES = Set.of(FieldType.SELECT, FieldType.RADIO,
+            FieldType.MULTISELECT);
+    private static final String BIOLOGIST_PROFILE_CODE = "BIOLOGIST";
     private static final String ENTRY_SCOPE_OFFICIAL = "OFFICIAL";
     private static final String ENTRY_SCOPE_PRELIMINARY = "PRELIMINARY";
     private static final String DEFAULT_RESULT_BLOCK_NAME = "Official";
@@ -66,6 +77,15 @@ public class TestAdditionalFieldServiceImpl implements TestAdditionalFieldServic
 
     @Autowired
     private AnalysisAdditionalFieldValueDAO valueDAO;
+
+    @Autowired
+    private SystemUserService systemUserService;
+
+    @Autowired
+    private PersonService personService;
+
+    @Autowired
+    private ProviderService providerService;
 
     @Override
     @Transactional(readOnly = true)
@@ -222,7 +242,7 @@ public class TestAdditionalFieldServiceImpl implements TestAdditionalFieldServic
                 definitionDAO.update(definition);
             }
 
-            if (isOptionFieldType(fieldType)) {
+            if (isStaticOptionFieldType(fieldType)) {
                 upsertOptionsForDefinition(definition.getId(), payload.getOptions(), currentUserId);
             } else {
                 deactivateAllOptions(definition.getId(), currentUserId);
@@ -419,7 +439,7 @@ public class TestAdditionalFieldServiceImpl implements TestAdditionalFieldServic
             FieldType fieldType = parseFieldType(payload.getFieldType());
             definition.setFieldType(fieldType.name());
 
-            if (!isOptionFieldType(fieldType)) {
+            if (!isStaticOptionFieldType(fieldType)) {
                 deactivateAllOptions(fieldId, currentUserId);
             }
         }
@@ -447,7 +467,7 @@ public class TestAdditionalFieldServiceImpl implements TestAdditionalFieldServic
         definitionDAO.update(definition);
 
         if (payload.getOptions() != null && !payload.getOptions().isEmpty()
-                && isOptionFieldType(parseFieldType(definition.getFieldType()))) {
+                && isStaticOptionFieldType(parseFieldType(definition.getFieldType()))) {
             upsertOptionsForDefinition(definition.getId(), payload.getOptions(), currentUserId);
         }
 
@@ -483,7 +503,7 @@ public class TestAdditionalFieldServiceImpl implements TestAdditionalFieldServic
                 .orElseThrow(() -> new IllegalArgumentException("Field definition not found: " + fieldId));
 
         FieldType fieldType = parseFieldType(definition.getFieldType());
-        if (!isOptionFieldType(fieldType)) {
+        if (!isStaticOptionFieldType(fieldType)) {
             throw new IllegalArgumentException("Options can only be added for SELECT, RADIO, or MULTISELECT fields");
         }
 
@@ -569,7 +589,12 @@ public class TestAdditionalFieldServiceImpl implements TestAdditionalFieldServic
         List<TestAdditionalFieldPayload> payloads = new ArrayList<>();
         for (TestAdditionalFieldDefinition definition : definitions) {
             TestAdditionalFieldPayload payload = mapDefinitionToPayload(definition);
-            payload.setOptions(optionsByDefinitionId.getOrDefault(definition.getId(), Collections.emptyList()));
+            List<TestAdditionalFieldOptionPayload> resolvedOptions = optionsByDefinitionId
+                    .getOrDefault(definition.getId(), Collections.emptyList());
+            if (isDynamicBiologistField(definition)) {
+                resolvedOptions = buildDynamicBiologistOptions();
+            }
+            payload.setOptions(resolvedOptions);
             payloads.add(payload);
         }
         return payloads;
@@ -606,6 +631,10 @@ public class TestAdditionalFieldServiceImpl implements TestAdditionalFieldServic
         TestAdditionalFieldDefinition definition = definitionDAO.get(fieldId)
                 .orElseThrow(() -> new IllegalArgumentException("Field definition not found: " + fieldId));
         TestAdditionalFieldPayload payload = mapDefinitionToPayload(definition);
+        if (isDynamicBiologistField(definition)) {
+            payload.setOptions(buildDynamicBiologistOptions());
+            return payload;
+        }
         List<TestAdditionalFieldOption> options = optionDAO.findByDefinitionId(fieldId, includeInactiveOptions);
         payload.setOptions(options.stream().map(this::mapOptionToPayload).collect(Collectors.toList()));
         return payload;
@@ -694,6 +723,86 @@ public class TestAdditionalFieldServiceImpl implements TestAdditionalFieldServic
         return OPTION_TYPES.contains(fieldType);
     }
 
+    private boolean isStaticOptionFieldType(FieldType fieldType) {
+        return STATIC_OPTION_TYPES.contains(fieldType);
+    }
+
+    private boolean isDynamicBiologistField(TestAdditionalFieldDefinition definition) {
+        if (definition == null || StringUtils.isBlank(definition.getFieldType())) {
+            return false;
+        }
+        return FieldType.SYSTEM_USER_BIOLOGIST_SELECT.name().equalsIgnoreCase(definition.getFieldType().trim());
+    }
+
+    private List<TestAdditionalFieldOptionPayload> buildDynamicBiologistOptions() {
+        List<SystemUser> allUsers = systemUserService.getAllSystemUsers();
+        if (allUsers == null || allUsers.isEmpty()) {
+            return Collections.emptyList();
+        }
+
+        List<TestAdditionalFieldOptionPayload> options = new ArrayList<>();
+        int order = 1;
+        for (SystemUser user : allUsers) {
+            if (user == null || StringUtils.isBlank(user.getId()) || !isActiveSystemUser(user)) {
+                continue;
+            }
+
+            Provider linkedProvider = resolveLinkedProvider(user);
+            if (linkedProvider == null || !Boolean.TRUE.equals(linkedProvider.getActive())
+                    || !BIOLOGIST_PROFILE_CODE.equalsIgnoreCase(StringUtils.trimToEmpty(linkedProvider.getProfessionalProfileCode()))) {
+                continue;
+            }
+
+            String displayName = StringUtils.normalizeSpace(
+                    StringUtils.defaultString(user.getFirstName()) + " " + StringUtils.defaultString(user.getLastName()));
+            if (StringUtils.isBlank(displayName)) {
+                displayName = StringUtils.defaultIfBlank(user.getNameForDisplay(), user.getLoginName());
+            }
+            String initials = StringUtils.defaultIfBlank(linkedProvider.getProfessionalInitials(), user.getInitials());
+            String cbp = StringUtils.defaultIfBlank(linkedProvider.getCbpCode(), linkedProvider.getNpi());
+
+            StringBuilder label = new StringBuilder();
+            if (StringUtils.isNotBlank(initials)) {
+                label.append(initials).append(" - ");
+            }
+            label.append(displayName);
+            if (StringUtils.isNotBlank(cbp)) {
+                label.append(" - CBP ").append(cbp);
+            }
+            label.append(" - BIOLOGISTA");
+
+            TestAdditionalFieldOptionPayload optionPayload = new TestAdditionalFieldOptionPayload();
+            optionPayload.setOptionKey(user.getId());
+            optionPayload.setOptionLabel(label.toString());
+            optionPayload.setSortOrder(order++);
+            optionPayload.setActive(true);
+            options.add(optionPayload);
+        }
+
+        options.sort(Comparator.comparing(option -> StringUtils.defaultString(option.getOptionLabel()),
+                String.CASE_INSENSITIVE_ORDER));
+        for (int i = 0; i < options.size(); i++) {
+            options.get(i).setSortOrder(i + 1);
+        }
+        return options;
+    }
+
+    private boolean isActiveSystemUser(SystemUser user) {
+        String activeFlag = StringUtils.upperCase(StringUtils.trimToEmpty(user.getIsActive()));
+        return "Y".equals(activeFlag) || "YES".equals(activeFlag) || "TRUE".equals(activeFlag);
+    }
+
+    private Provider resolveLinkedProvider(SystemUser user) {
+        if (user == null || StringUtils.isBlank(user.getLinkedProviderPersonId())) {
+            return null;
+        }
+        Person person = personService.getPersonById(user.getLinkedProviderPersonId());
+        if (person == null) {
+            return null;
+        }
+        return providerService.getProviderByPerson(person);
+    }
+
     private Integer getNextSortOrder(Integer testId) {
         List<TestAdditionalFieldDefinition> existing = definitionDAO.findByTestId(testId, true);
         return existing.stream().map(TestAdditionalFieldDefinition::getSortOrder).filter(value -> value != null)
@@ -771,7 +880,7 @@ public class TestAdditionalFieldServiceImpl implements TestAdditionalFieldServic
 
     private void saveOptionsForDefinition(Integer definitionId, List<TestAdditionalFieldOptionPayload> options,
             FieldType fieldType, String currentUserId) {
-        if (!isOptionFieldType(fieldType) || options == null || options.isEmpty()) {
+        if (!isStaticOptionFieldType(fieldType) || options == null || options.isEmpty()) {
             return;
         }
 
@@ -890,6 +999,7 @@ public class TestAdditionalFieldServiceImpl implements TestAdditionalFieldServic
             return trimmedValue.toLowerCase();
         case SELECT:
         case RADIO:
+        case SYSTEM_USER_BIOLOGIST_SELECT:
             validateSingleOption(fieldDefinition, trimmedValue);
             return trimmedValue;
         case MULTISELECT:

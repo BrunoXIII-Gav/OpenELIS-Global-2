@@ -38,14 +38,19 @@
         <property name="isEmployee" type="java.lang.String">
             <column name="IS_EMPLOYEE" length="1" not-null="true" />
         </property>
-        <property name="linkedProviderPersonId" type="java.lang.String">
-            <column name="LINKED_PROVIDER_PERSON_ID" length="20" />
+        <property name="linkedProviderPersonId"
+            type="org.openelisglobal.hibernate.resources.usertype.LIMSStringNumberUserType">
+            <column name="LINKED_PROVIDER_PERSON_ID" precision="10"
+                scale="0" />
         </property>
         <property name="signatureImageData" type="java.lang.String">
             <column name="SIGNATURE_IMAGE_DATA" />
         </property>
         <property name="signatureImageContentType" type="java.lang.String">
             <column name="SIGNATURE_IMAGE_CONTENT_TYPE" length="64" />
+        </property>
+        <property name="professionalProfileCode" type="java.lang.String">
+            <column name="PROFESSIONAL_PROFILE_CODE" length="64" />
         </property>
     </class>
     <!-- <query name="systemuser.getNext"> -->

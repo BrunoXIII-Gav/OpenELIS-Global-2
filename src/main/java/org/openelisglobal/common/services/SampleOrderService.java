@@ -107,7 +107,7 @@ public class SampleOrderService {
         orderItems.setReceivedTime(DateUtil.convertTimestampToStringHourTime(DateUtil.getNowAsTimestamp()));
 
         orderItems.setProvidersList(
-                DisplayListService.getInstance().getFreshList(DisplayListService.ListType.PRACTITIONER_PERSONS));
+                DisplayListService.getInstance().getFreshList(DisplayListService.ListType.ORDER_PROVIDER_PERSONS));
 
         orderItems.setPriorityList(
                 DisplayListService.getInstance().getFreshList(DisplayListService.ListType.ORDER_PRIORITY));

@@ -1288,6 +1288,7 @@ export const StepThreeTestResultTypeAndLoinc = ({
     "DATETIME",
     "BOOLEAN",
     "SELECT",
+    "SYSTEM_USER_BIOLOGIST_SELECT",
     "MULTISELECT",
     "RADIO",
     "DOCUMENT",
