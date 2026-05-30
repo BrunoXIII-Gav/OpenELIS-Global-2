@@ -3,6 +3,8 @@ package org.openelisglobal.reports.action.implementation;
 import java.io.ByteArrayInputStream;
 import java.nio.charset.StandardCharsets;
 import java.text.Normalizer;
+import java.text.SimpleDateFormat;
+import java.sql.Timestamp;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Base64;
@@ -106,6 +108,7 @@ public class PatientDmpkReport extends PatientCILNSPClinical_vreduit {
         }
         scopedReportItems = null;
         scopedReportItems = getScopedReportItems();
+        List<Analysis> analyses = getScopedDmpkAnalyses();
 
         ClinicalPatientData first = scopedReportItems.isEmpty() ? null : scopedReportItems.get(0);
         JSONObject config = parseConfig(form);
@@ -139,10 +142,10 @@ public class PatientDmpkReport extends PatientCILNSPClinical_vreduit {
         fixedFieldValues.put("hc", first == null ? "" : StringUtils.defaultString(first.getSubjectNumber()));
         fixedFieldValues.put("cug", first == null ? "" : StringUtils.defaultString(first.getSampleCug()));
         fixedFieldValues.put("gender", first == null ? "" : StringUtils.defaultString(first.getGender()));
-        fixedFieldValues.put("birthDate", first == null ? "" : StringUtils.defaultString(first.getDob()));
+        fixedFieldValues.put("birthDate", first == null ? "" : formatDateStringForReport(first.getDob()));
         fixedFieldValues.put("contact", first == null ? "" : StringUtils.defaultString(first.getPatientSiteNumber()));
         fixedFieldValues.put("requestingPhysician",
-                first == null ? "" : StringUtils.defaultString(first.getPrescriber(), first.getContactInfo()));
+            first == null ? "" : StringUtils.defaultIfBlank(first.getPrescriber(), first.getContactInfo()));
         fixedFieldValues.put("requesterCmp", first == null ? "" : StringUtils.defaultString(first.getRequesterCmp()));
         fixedFieldValues.put("requesterRne", first == null ? "" : StringUtils.defaultString(first.getRequesterRne()));
         fixedFieldValues.put("requesterSpecialty",
@@ -150,8 +153,7 @@ public class PatientDmpkReport extends PatientCILNSPClinical_vreduit {
         String referenceCenter = resolveReferenceCenter(first);
         fixedFieldValues.put("referenceCenter",
                 StringUtils.isBlank(referenceCenter) ? DEFAULT_NOT_REGISTERED : referenceCenter);
-        fixedFieldValues.put("collectionDate",
-                first == null ? "" : StringUtils.defaultString(first.getCollectionDateTime()));
+        fixedFieldValues.put("collectionDate", resolveCollectionDateDisplay(analyses, first));
         fixedFieldValues.put("sampleStatus", resolveConstant(config, "sampleStatus", "ACEPTADA"));
         fixedFieldValues.put("sampleSource", first == null ? "" : StringUtils.defaultString(first.getSampleType()));
         fixedFieldValues.put("allele1", allele1);
@@ -201,10 +203,10 @@ public class PatientDmpkReport extends PatientCILNSPClinical_vreduit {
         reportParameters.put("dmpkInterpretationText",
                 resolveConstant(config, "interpretationText", DEFAULT_INTERPRETATION_TEXT));
         reportParameters.put("dmpkConclusionText", conclusionText);
-        reportParameters.put("dmpkDeliveryDate",
-                DateUtil.convertSqlDateToStringDate(new java.sql.Date(System.currentTimeMillis())));
+        reportParameters.put("dmpkDeliveryDate", resolveDeliveryDate(analyses));
 
-        String analyzedByComputed = resolveAnalyzedByUsers();
+        String analyzedByConfigured = resolveConfiguredAnalyzedByUsers(config, analyses);
+        String analyzedByComputed = StringUtils.defaultIfBlank(analyzedByConfigured, resolveAnalyzedByUsers(analyses));
         reportParameters.put("dmpkAnalyzedBy",
                 StringUtils.defaultIfBlank(analyzedByComputed, resolveConstant(config, "analyzedBy", "")));
 
@@ -269,14 +271,17 @@ public class PatientDmpkReport extends PatientCILNSPClinical_vreduit {
             }
             String resolvedValue = resolveSourceValue(sourceKey, first, fixedFieldValues);
             if (fixedFieldValues.containsKey(normalizedKey)) {
+                if ("collectionDate".equalsIgnoreCase(normalizedKey)) {
+                    continue;
+                }
                 fixedFieldValues.put(normalizedKey, StringUtils.defaultString(resolvedValue));
                 if (StringUtils.isNotBlank(field.label) && fixedFieldLabels.containsKey(normalizedKey)) {
                     fixedFieldLabels.put(normalizedKey, field.label);
                 }
                 continue;
             }
-            String line = StringUtils.defaultString(field.label, field.key) + ": "
-                    + StringUtils.defaultString(resolvedValue, DEFAULT_NOT_REGISTERED);
+                String line = StringUtils.defaultIfBlank(field.label, field.key) + ": "
+                    + StringUtils.defaultIfBlank(resolvedValue, DEFAULT_NOT_REGISTERED);
             sectionLines.computeIfAbsent(field.section, key -> new ArrayList<>()).add(line);
         }
 
@@ -371,7 +376,7 @@ public class PatientDmpkReport extends PatientCILNSPClinical_vreduit {
             return first == null ? "" : StringUtils.defaultString(first.getPatientSiteNumber());
         }
         if ("prescriber".equalsIgnoreCase(normalized)) {
-            return first == null ? "" : StringUtils.defaultString(first.getPrescriber(), first.getContactInfo());
+            return first == null ? "" : StringUtils.defaultIfBlank(first.getPrescriber(), first.getContactInfo());
         }
         if ("requesterFirstName".equalsIgnoreCase(normalized)) {
             return first == null ? "" : StringUtils.defaultString(first.getRequesterFirstName());
@@ -510,12 +515,12 @@ public class PatientDmpkReport extends PatientCILNSPClinical_vreduit {
             return "";
         }
         if (StringUtils.isNotBlank(first.getOrderFinishDate())) {
-            return first.getOrderFinishDate();
+            return formatDateStringForReport(first.getOrderFinishDate());
         }
         if (StringUtils.isNotBlank(first.getTestDate())) {
-            return first.getTestDate();
+            return formatDateStringForReport(first.getTestDate());
         }
-        return DateUtil.convertSqlDateToStringDate(new java.sql.Date(System.currentTimeMillis()));
+        return formatSqlDateForReport(new java.sql.Date(System.currentTimeMillis()));
     }
 
     private String resolveConstant(JSONObject config, String key, String fallback) {
@@ -620,22 +625,30 @@ public class PatientDmpkReport extends PatientCILNSPClinical_vreduit {
         return normalized.contains("dmpk") || normalized.contains("quinasa") || normalized.contains("dm1");
     }
 
-    private String resolveAnalyzedByUsers() {
-        List<Analysis> analyses = getScopedDmpkAnalyses();
-        if (analyses.isEmpty()) {
+    private String resolveAnalyzedByUsers(List<Analysis> analyses) {
+        if (analyses == null || analyses.isEmpty()) {
             return "";
         }
 
-        Set<String> uniqueAnalyzedBy = new LinkedHashSet<>();
-        for (Analysis analysis : analyses) {
-            Set<Integer> preliminaryFieldDefIds = getBlockFieldDefinitionIds(analysis, true);
-            Set<Integer> allBlockFieldDefIds = getBlockFieldDefinitionIds(analysis, false);
+        final int MAX_ANALYSTS = 2;
 
-            Set<Integer> targetFieldDefIds = preliminaryFieldDefIds.isEmpty() ? allBlockFieldDefIds
-                    : preliminaryFieldDefIds;
-            if (targetFieldDefIds.isEmpty()) {
+        // Iterate analyses from newest to oldest.
+        for (int i = analyses.size() - 1; i >= 0; i--) {
+            Analysis analysis = analyses.get(i);
+            if (analysis == null || analysis.getTest() == null || StringUtils.isBlank(analysis.getTest().getId())) {
                 continue;
             }
+
+            List<TestAdditionalFieldPayload> fields = testAdditionalFieldService.getFieldsForTest(analysis.getTest().getId(),
+                    false);
+            Set<Integer> allBlockFieldDefIds = getBlockFieldDefinitionIdsFromPayload(fields, false);
+            if (allBlockFieldDefIds.isEmpty()) {
+                continue;
+            }
+            Set<Integer> preliminaryFieldDefIds = getBlockFieldDefinitionIdsFromPayload(fields, true);
+            Set<Integer> officialFieldDefIds = new LinkedHashSet<>(allBlockFieldDefIds);
+            officialFieldDefIds.removeAll(preliminaryFieldDefIds);
+            Map<String, Set<Integer>> biologoBlockFieldIds = getBiologistBlockFieldIds(fields);
 
             Integer analysisId = parseInteger(analysis.getId());
             if (analysisId == null) {
@@ -643,22 +656,551 @@ public class PatientDmpkReport extends PatientCILNSPClinical_vreduit {
             }
 
             List<AnalysisAdditionalFieldValue> values = analysisAdditionalFieldValueDAO
-                    .findByAnalysisIdAndFieldDefinitionIds(analysisId, new ArrayList<>(targetFieldDefIds));
-            for (AnalysisAdditionalFieldValue value : values) {
+                    .findByAnalysisIdAndFieldDefinitionIds(analysisId, new ArrayList<>(allBlockFieldDefIds));
+            if (values == null || values.isEmpty()) {
+                continue;
+            }
+
+            List<String> candidateUserIds = new ArrayList<>();
+            String preliminaryUserId = resolveLatestContributorByScope(values, preliminaryFieldDefIds);
+            String officialUserId = resolveLatestContributorByScope(values, officialFieldDefIds);
+            if (StringUtils.isNotBlank(preliminaryUserId)) {
+                candidateUserIds.add(preliminaryUserId);
+            }
+            if (StringUtils.isNotBlank(officialUserId)) {
+                candidateUserIds.add(officialUserId);
+            }
+
+            for (Set<Integer> blockIds : biologoBlockFieldIds.values()) {
+                String blockUserId = resolveLatestContributorByScope(values, blockIds);
+                if (StringUtils.isNotBlank(blockUserId)) {
+                    candidateUserIds.add(blockUserId);
+                }
+            }
+
+            // Fallback: take latest contributors from additional fields.
+            for (int j = values.size() - 1; j >= 0 && candidateUserIds.size() < MAX_ANALYSTS * 3; j--) {
+                AnalysisAdditionalFieldValue value = values.get(j);
                 if (value == null || StringUtils.isBlank(StringUtils.trimToNull(value.getFieldValue()))) {
                     continue;
                 }
-                String displayName = getUserDisplayName(value.getSysUserId());
-                if (StringUtils.isNotBlank(displayName)) {
-                    uniqueAnalyzedBy.add(displayName);
+                if (StringUtils.isNotBlank(value.getSysUserId())) {
+                    candidateUserIds.add(value.getSysUserId());
                 }
+            }
+
+            LinkedHashSet<String> uniqueUserIds = new LinkedHashSet<>();
+            for (String userId : candidateUserIds) {
+                if (StringUtils.isNotBlank(userId)) {
+                    uniqueUserIds.add(userId);
+                }
+            }
+
+            List<String> displayUsers = new ArrayList<>();
+            for (String userId : uniqueUserIds) {
+                String display = formatAnalyzedByUser(userId);
+                if (StringUtils.isNotBlank(display)) {
+                    displayUsers.add(display);
+                    if (displayUsers.size() >= MAX_ANALYSTS) {
+                        break;
+                    }
+                }
+            }
+
+            if (!displayUsers.isEmpty()) {
+                return String.join("\n\n", displayUsers);
             }
         }
 
-        return String.join(", ", uniqueAnalyzedBy);
+        return "";
+    }
+
+    private String resolveConfiguredAnalyzedByUsers(JSONObject config, List<Analysis> analyses) {
+        if (analyses == null || analyses.isEmpty()) {
+            return "";
+        }
+
+        // Optional explicit mapping via Validation Template slot mapping:
+        // analyzedBy1 -> additional field key for first biologist selector
+        // analyzedBy2 -> additional field key for second biologist selector
+        List<AdditionalFieldSelection> configuredSelections = Arrays.asList(
+                resolveConfiguredAdditionalFieldSelection(config, "analyzedBy1",
+                        Arrays.asList("analyzedBy1", "analyzed_by_1", "analizado_por_1", "biologo_1")),
+                resolveConfiguredAdditionalFieldSelection(config, "analyzedBy2",
+                        Arrays.asList("analyzedBy2", "analyzed_by_2", "analizado_por_2", "biologo_2")));
+
+        Map<String, TestAdditionalFieldPayload> fieldDefinitionsByKey = getAdditionalFieldDefinitionsByKey(analyses);
+        LinkedHashSet<String> resolvedUserIds = new LinkedHashSet<>();
+
+        for (AdditionalFieldSelection selection : configuredSelections) {
+            if (selection == null || StringUtils.isBlank(selection.value)) {
+                continue;
+            }
+            String selectedFieldKey = stripTestAdditionalPrefix(selection.sourceKey);
+            TestAdditionalFieldPayload fieldDefinition = fieldDefinitionsByKey.get(selectedFieldKey);
+            List<String> userIds = resolveBiologistUserIdsFromConfiguredValue(selection.value, fieldDefinition);
+            resolvedUserIds.addAll(userIds);
+            if (resolvedUserIds.size() >= 2) {
+                break;
+            }
+        }
+
+        if (resolvedUserIds.isEmpty()) {
+            return "";
+        }
+
+        List<String> rendered = new ArrayList<>();
+        for (String userId : resolvedUserIds) {
+            String formatted = formatAnalyzedByUser(userId);
+            if (StringUtils.isNotBlank(formatted)) {
+                rendered.add(formatted);
+            }
+            if (rendered.size() >= 2) {
+                break;
+            }
+        }
+        return rendered.isEmpty() ? "" : String.join("\n\n", rendered);
+    }
+
+    private AdditionalFieldSelection resolveConfiguredAdditionalFieldSelection(JSONObject config, String slotName,
+            List<String> defaultKeys) {
+        List<String> mappedKeys = new ArrayList<>(defaultKeys);
+        mappedKeys.addAll(getConfiguredKeys(config, slotName));
+
+        List<String> candidateKeys = mappedKeys.stream().filter(StringUtils::isNotBlank).map(String::trim).distinct()
+                .collect(Collectors.toList());
+        if (candidateKeys.isEmpty()) {
+            return null;
+        }
+
+        for (ClinicalPatientData data : getScopedReportItems()) {
+            Map<String, String> additionalValues = data.getAdditionalFieldValues();
+            if (additionalValues == null || additionalValues.isEmpty()) {
+                continue;
+            }
+            for (String candidateKey : candidateKeys) {
+                for (String lookupKey : expandAdditionalFieldLookupKeys(candidateKey)) {
+                    String value = StringUtils.trimToNull(additionalValues.get(lookupKey));
+                    if (value != null) {
+                        return new AdditionalFieldSelection(lookupKey, value);
+                    }
+                }
+            }
+        }
+        return null;
+    }
+
+    private List<String> expandAdditionalFieldLookupKeys(String baseKey) {
+        if (StringUtils.isBlank(baseKey)) {
+            return Collections.emptyList();
+        }
+        String trimmed = baseKey.trim();
+        LinkedHashSet<String> lookupKeys = new LinkedHashSet<>();
+        lookupKeys.add(trimmed);
+
+        if (trimmed.startsWith("testAdditional.")) {
+            String rawKey = trimmed.substring("testAdditional.".length());
+            if (StringUtils.isNotBlank(rawKey)) {
+                lookupKeys.add(rawKey);
+                lookupKeys.add("additional." + rawKey);
+            }
+            return new ArrayList<>(lookupKeys);
+        }
+
+        if (trimmed.startsWith("additional.")) {
+            String rawKey = trimmed.substring("additional.".length());
+            if (StringUtils.isNotBlank(rawKey)) {
+                lookupKeys.add(rawKey);
+                lookupKeys.add("testAdditional." + rawKey);
+            }
+            return new ArrayList<>(lookupKeys);
+        }
+
+        if (trimmed.startsWith("orderAdditional.") || trimmed.startsWith("sampleAdditional.")) {
+            String rawKey = trimmed.substring(trimmed.indexOf('.') + 1);
+            if (StringUtils.isNotBlank(rawKey)) {
+                lookupKeys.add(rawKey);
+            }
+            return new ArrayList<>(lookupKeys);
+        }
+
+        lookupKeys.add("testAdditional." + trimmed);
+        lookupKeys.add("additional." + trimmed);
+        return new ArrayList<>(lookupKeys);
+    }
+
+    private String stripTestAdditionalPrefix(String key) {
+        if (StringUtils.isBlank(key)) {
+            return "";
+        }
+        if (key.startsWith("testAdditional.")) {
+            return key.substring("testAdditional.".length());
+        }
+        return key;
+    }
+
+    private Map<String, TestAdditionalFieldPayload> getAdditionalFieldDefinitionsByKey(List<Analysis> analyses) {
+        if (analyses == null || analyses.isEmpty()) {
+            return Collections.emptyMap();
+        }
+        Map<String, TestAdditionalFieldPayload> definitionsByKey = new LinkedHashMap<>();
+        for (Analysis analysis : analyses) {
+            if (analysis == null || analysis.getTest() == null || StringUtils.isBlank(analysis.getTest().getId())) {
+                continue;
+            }
+            List<TestAdditionalFieldPayload> testFields = testAdditionalFieldService
+                    .getFieldsForTest(analysis.getTest().getId(), false);
+            if (testFields == null || testFields.isEmpty()) {
+                continue;
+            }
+            for (TestAdditionalFieldPayload payload : testFields) {
+                if (payload == null || StringUtils.isBlank(payload.getFieldKey())) {
+                    continue;
+                }
+                String fieldKey = payload.getFieldKey().trim();
+                definitionsByKey.putIfAbsent(fieldKey, payload);
+            }
+        }
+        return definitionsByKey;
+    }
+
+    private List<String> resolveBiologistUserIdsFromConfiguredValue(String rawValue,
+            TestAdditionalFieldPayload fieldDefinition) {
+        if (StringUtils.isBlank(rawValue)) {
+            return Collections.emptyList();
+        }
+
+        LinkedHashSet<String> userIds = new LinkedHashSet<>();
+        for (String token : rawValue.split(",")) {
+            String trimmedToken = StringUtils.trimToNull(token);
+            if (trimmedToken == null) {
+                continue;
+            }
+
+            List<String> candidateTokens = new ArrayList<>();
+            candidateTokens.add(trimmedToken);
+            candidateTokens.addAll(resolveOptionLabelsForSelectedToken(fieldDefinition, trimmedToken));
+            for (String candidate : candidateTokens) {
+                String resolved = resolveBiologistUserId(candidate);
+                if (StringUtils.isNotBlank(resolved)) {
+                    userIds.add(resolved);
+                    break;
+                }
+            }
+            if (userIds.size() >= 2) {
+                break;
+            }
+        }
+        return new ArrayList<>(userIds);
+    }
+
+    private List<String> resolveOptionLabelsForSelectedToken(TestAdditionalFieldPayload fieldDefinition, String token) {
+        if (fieldDefinition == null || fieldDefinition.getOptions() == null || fieldDefinition.getOptions().isEmpty()
+                || StringUtils.isBlank(token)) {
+            return Collections.emptyList();
+        }
+        String normalizedToken = normalizeAliasToken(token);
+        List<String> labels = new ArrayList<>();
+        fieldDefinition.getOptions().forEach(option -> {
+            if (option == null || StringUtils.isBlank(option.getOptionKey()) || StringUtils.isBlank(option.getOptionLabel())) {
+                return;
+            }
+            if (normalizeAliasToken(option.getOptionKey()).equals(normalizedToken)) {
+                labels.add(option.getOptionLabel());
+            }
+        });
+        return labels;
+    }
+
+    private String resolveBiologistUserId(String rawSelector) {
+        String selector = StringUtils.trimToNull(rawSelector);
+        if (selector == null) {
+            return null;
+        }
+
+        String directUserId = tryResolveAsUserId(selector);
+        if (StringUtils.isNotBlank(directUserId) && isBiologistUser(directUserId)) {
+            return directUserId;
+        }
+
+        String normalizedSelector = normalizeAliasToken(selector);
+        if (StringUtils.isBlank(normalizedSelector)) {
+            return null;
+        }
+
+        List<SystemUser> users = systemUserService.getAllSystemUsers();
+        if (users == null || users.isEmpty()) {
+            return null;
+        }
+
+        for (SystemUser user : users) {
+            if (user == null || StringUtils.isBlank(user.getId()) || !isBiologistUser(user.getId())) {
+                continue;
+            }
+            if (matchesBiologistSelector(user, normalizedSelector)) {
+                return user.getId();
+            }
+        }
+        return null;
+    }
+
+    private String tryResolveAsUserId(String selector) {
+        if (!StringUtils.isNumeric(selector)) {
+            return null;
+        }
+        SystemUser user = systemUserService.getUserById(selector);
+        return user == null ? null : user.getId();
+    }
+
+    private boolean isBiologistUser(String userId) {
+        if (StringUtils.isBlank(userId)) {
+            return false;
+        }
+        SystemUser user = systemUserService.getUserById(userId);
+        if (user == null) {
+            return false;
+        }
+        Provider provider = resolveLinkedProvider(user);
+        return provider != null && "BIOLOGIST".equals(normalizeProfessionalProfileCode(provider.getProfessionalProfileCode()));
+    }
+
+    private boolean matchesBiologistSelector(SystemUser user, String normalizedSelector) {
+        if (user == null || StringUtils.isBlank(user.getId())) {
+            return false;
+        }
+        Provider provider = resolveLinkedProvider(user);
+        if (provider == null || !"BIOLOGIST".equals(normalizeProfessionalProfileCode(provider.getProfessionalProfileCode()))) {
+            return false;
+        }
+
+        Set<String> candidates = new LinkedHashSet<>();
+        addCandidateAlias(candidates, user.getId());
+        addCandidateAlias(candidates, user.getLoginName());
+        addCandidateAlias(candidates, user.getInitials());
+        addCandidateAlias(candidates, getUserDisplayName(user.getId()));
+        addCandidateAlias(candidates, user.getNameForDisplay());
+        addCandidateAlias(candidates, provider.getProfessionalInitials());
+        addCandidateAlias(candidates, provider.getDni());
+        addCandidateAlias(candidates, provider.getCbpCode());
+        addCandidateAlias(candidates, provider.getNpi());
+        if (provider.getPerson() != null) {
+            addCandidateAlias(candidates, provider.getPerson().getFirstName());
+            addCandidateAlias(candidates, provider.getPerson().getLastName());
+            addCandidateAlias(candidates, provider.getPerson().getFirstName() + " " + provider.getPerson().getLastName());
+        }
+
+        for (String candidate : candidates) {
+            String normalizedCandidate = normalizeAliasToken(candidate);
+            if (StringUtils.isBlank(normalizedCandidate)) {
+                continue;
+            }
+            if (normalizedCandidate.equals(normalizedSelector) || normalizedSelector.contains(normalizedCandidate)
+                    || normalizedCandidate.contains(normalizedSelector)) {
+                return true;
+            }
+        }
+        return false;
+    }
+
+    private void addCandidateAlias(Set<String> aliases, String value) {
+        String safeValue = StringUtils.trimToNull(value);
+        if (safeValue != null) {
+            aliases.add(safeValue);
+        }
+    }
+
+    private Set<Integer> getBlockFieldDefinitionIdsFromPayload(List<TestAdditionalFieldPayload> fields, boolean preliminaryOnly) {
+        if (fields == null || fields.isEmpty()) {
+            return Collections.emptySet();
+        }
+
+        Set<Integer> fieldIds = new LinkedHashSet<>();
+        for (TestAdditionalFieldPayload field : fields) {
+            if (field == null || field.getId() == null) {
+                continue;
+            }
+            String entryScope = StringUtils.defaultString(field.getEntryScope()).trim().toUpperCase(Locale.ROOT);
+            boolean hasBlockMeta = StringUtils.isNotBlank(field.getBlockName()) || StringUtils.isNotBlank(entryScope);
+            if (!hasBlockMeta) {
+                continue;
+            }
+            if (preliminaryOnly && !ENTRY_SCOPE_PRELIMINARY.equals(entryScope)) {
+                continue;
+            }
+            fieldIds.add(field.getId());
+        }
+        return fieldIds;
+    }
+
+    private Map<String, Set<Integer>> getBiologistBlockFieldIds(List<TestAdditionalFieldPayload> fields) {
+        if (fields == null || fields.isEmpty()) {
+            return Collections.emptyMap();
+        }
+
+        Map<String, Set<Integer>> byBlock = new LinkedHashMap<>();
+        for (TestAdditionalFieldPayload field : fields) {
+            if (field == null || field.getId() == null || StringUtils.isBlank(field.getBlockName())) {
+                continue;
+            }
+            String normalizedBlockName = normalizeAliasToken(field.getBlockName());
+            if (!normalizedBlockName.contains("biolog")) {
+                continue;
+            }
+            byBlock.computeIfAbsent(field.getBlockName(), key -> new LinkedHashSet<>()).add(field.getId());
+        }
+        return byBlock;
+    }
+
+    private String resolveLatestContributorByScope(List<AnalysisAdditionalFieldValue> values, Set<Integer> scopeFieldDefIds) {
+        if (values == null || values.isEmpty() || scopeFieldDefIds == null || scopeFieldDefIds.isEmpty()) {
+            return null;
+        }
+        for (int i = values.size() - 1; i >= 0; i--) {
+            AnalysisAdditionalFieldValue value = values.get(i);
+            if (value == null || value.getFieldDefinitionId() == null) {
+                continue;
+            }
+            if (!scopeFieldDefIds.contains(value.getFieldDefinitionId())) {
+                continue;
+            }
+            if (StringUtils.isBlank(StringUtils.trimToNull(value.getFieldValue()))) {
+                continue;
+            }
+            if (StringUtils.isNotBlank(value.getSysUserId())) {
+                return value.getSysUserId();
+            }
+        }
+        return null;
+    }
+
+    private String resolveDeliveryDate(List<Analysis> analyses) {
+        if (analyses == null || analyses.isEmpty()) {
+            return "";
+        }
+        return analyses.stream().map(Analysis::getValidationDate).filter(java.util.Objects::nonNull)
+                .max(java.util.Comparator.naturalOrder()).map(this::formatSqlDateForReport).orElse("");
+    }
+
+    private String resolveCollectionDateDisplay(List<Analysis> analyses, ClinicalPatientData first) {
+        if (analyses != null) {
+            for (Analysis analysis : analyses) {
+                if (analysis == null || analysis.getSampleItem() == null
+                        || analysis.getSampleItem().getCollectionDate() == null) {
+                    continue;
+                }
+                return formatTimestampForReport(analysis.getSampleItem().getCollectionDate());
+            }
+        }
+        if (first == null) {
+            return "";
+        }
+        String collectionDateTime = StringUtils.trimToEmpty(first.getCollectionDateTime());
+        if (StringUtils.isBlank(collectionDateTime)) {
+            return "";
+        }
+        return collectionDateTime;
+    }
+
+    private String formatSqlDateForReport(java.sql.Date date) {
+        if (date == null) {
+            return "";
+        }
+        try {
+            return new SimpleDateFormat("dd/MM/yyyy").format(date);
+        } catch (RuntimeException e) {
+            return DateUtil.convertSqlDateToStringDate(date);
+        }
+    }
+
+    private String formatTimestampForReport(Timestamp timestamp) {
+        if (timestamp == null) {
+            return "";
+        }
+        try {
+            return new SimpleDateFormat("dd/MM/yyyy").format(timestamp);
+        } catch (RuntimeException e) {
+            return DateUtil.convertTimestampToStringDate(timestamp);
+        }
+    }
+
+    private String formatDateStringForReport(String dateStr) {
+        if (StringUtils.isBlank(dateStr)) {
+            return "";
+        }
+        try {
+            return DateUtil.formatStringDate(dateStr, "dd/MM/yyyy");
+        } catch (RuntimeException e) {
+            return dateStr;
+        }
+    }
+
+    private String normalizeProfessionalProfileCode(String rawValue) {
+        String normalized = StringUtils.upperCase(StringUtils.trimToEmpty(rawValue));
+        if (StringUtils.isBlank(normalized)) {
+            return "";
+        }
+        if ("BIOLOGO".equals(normalized) || "BIOLOGISTA".equals(normalized)) {
+            return "BIOLOGIST";
+        }
+        return normalized;
+    }
+
+    private String formatAnalyzedByUser(String userId) {
+        if (StringUtils.isBlank(userId)) {
+            return "";
+        }
+        SystemUser user = systemUserService.getUserById(userId);
+        if (user == null) {
+            return "";
+        }
+
+        String displayName = getUserDisplayName(userId);
+        Provider linkedProvider = resolveLinkedProvider(user);
+        if (linkedProvider == null) {
+            return displayName;
+        }
+
+        String profileCode = normalizeProfessionalProfileCode(linkedProvider.getProfessionalProfileCode());
+        if (!"BIOLOGIST".equals(profileCode)) {
+            return displayName;
+        }
+
+        String cbpCode = StringUtils.defaultIfBlank(linkedProvider.getCbpCode(), linkedProvider.getNpi());
+        List<String> lines = new ArrayList<>();
+        if (StringUtils.isNotBlank(displayName)) {
+            lines.add(displayName);
+        }
+
+        StringBuilder secondLine = new StringBuilder();
+        if (StringUtils.isNotBlank(cbpCode)) {
+            secondLine.append("CVP: ").append(cbpCode);
+        }
+        if (StringUtils.isNotBlank(secondLine)) {
+            secondLine.append(" - ");
+        }
+        secondLine.append("BIOLOGISTA");
+        lines.add(secondLine.toString());
+
+        return String.join("\n", lines);
+    }
+
+    private Provider resolveLinkedProvider(SystemUser user) {
+        if (user == null || StringUtils.isBlank(user.getLinkedProviderPersonId())) {
+            return null;
+        }
+        Person linkedPerson = personService.getPersonById(user.getLinkedProviderPersonId());
+        if (linkedPerson == null) {
+            return null;
+        }
+        return providerService.getProviderByPerson(linkedPerson);
     }
 
     private InterpretedByInfo resolveInterpretedByInfo() {
+        // For validated-preview flow, show the currently logged-in validator.
+        if (previewValidated && StringUtils.isNotBlank(systemUserId)) {
+            return buildInterpretedByInfo(systemUserId);
+        }
+
         List<Analysis> analyses = getScopedDmpkAnalyses();
         if (analyses.isEmpty()) {
             return InterpretedByInfo.empty();
@@ -1008,6 +1550,16 @@ public class PatientDmpkReport extends PatientCILNSPClinical_vreduit {
 
         private static InterpretedByInfo empty() {
             return new InterpretedByInfo("", "", null);
+        }
+    }
+
+    private static class AdditionalFieldSelection {
+        private final String sourceKey;
+        private final String value;
+
+        private AdditionalFieldSelection(String sourceKey, String value) {
+            this.sourceKey = StringUtils.defaultString(sourceKey);
+            this.value = StringUtils.defaultString(value);
         }
     }
 }
