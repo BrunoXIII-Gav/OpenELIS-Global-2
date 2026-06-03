@@ -753,27 +753,11 @@ public class TestAdditionalFieldServiceImpl implements TestAdditionalFieldServic
                 continue;
             }
 
-            String displayName = StringUtils.normalizeSpace(
-                    StringUtils.defaultString(user.getFirstName()) + " " + StringUtils.defaultString(user.getLastName()));
-            if (StringUtils.isBlank(displayName)) {
-                displayName = StringUtils.defaultIfBlank(user.getNameForDisplay(), user.getLoginName());
-            }
             String initials = StringUtils.defaultIfBlank(linkedProvider.getProfessionalInitials(), user.getInitials());
-            String cbp = StringUtils.defaultIfBlank(linkedProvider.getCbpCode(), linkedProvider.getNpi());
-
-            StringBuilder label = new StringBuilder();
-            if (StringUtils.isNotBlank(initials)) {
-                label.append(initials).append(" - ");
-            }
-            label.append(displayName);
-            if (StringUtils.isNotBlank(cbp)) {
-                label.append(" - CBP ").append(cbp);
-            }
-            label.append(" - BIOLOGISTA");
 
             TestAdditionalFieldOptionPayload optionPayload = new TestAdditionalFieldOptionPayload();
             optionPayload.setOptionKey(user.getId());
-            optionPayload.setOptionLabel(label.toString());
+            optionPayload.setOptionLabel(StringUtils.defaultIfBlank(initials, user.getLoginName()));
             optionPayload.setSortOrder(order++);
             optionPayload.setActive(true);
             options.add(optionPayload);

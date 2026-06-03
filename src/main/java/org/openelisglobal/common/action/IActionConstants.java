@@ -255,6 +255,20 @@ public interface IActionConstants {
 
     String RESULTS_SESSION_CACHE = "ResultsSessionCache";
     String RESULTS_PAGE_MAPPING_SESSION_CACHE = "ResultsPageMappingSessionCache";
+    String WORKPLAN_SESSION_CACHE = "WorkplanSessionCache";
+    String WORKPLAN_PAGE_MAPPING_SESSION_CACHE = "WorkplanPageMappingSessionCache";
+    String ANALYZER_RESULTS_SESSION_CACHE = "AnalyzerResultsSessionCache";
+    String ANALYZER_RESULTS_PAGE_MAPPING_SESSION_CACHE = "AnalyzerResultsPageMappingSessionCache";
+    String ELECTRONIC_ORDER_SESSION_CACHE = "ElectronicOrderSessionCache";
+    String ELECTRONIC_ORDER_PAGE_MAPPING_SESSION_CACHE = "ElectronicOrderPageMappingSessionCache";
+    String RESULT_VALIDATION_SESSION_CACHE = "ResultValidationSessionCache";
+    String RESULT_VALIDATION_PAGE_MAPPING_SESSION_CACHE = "ResultValidationPageMappingSessionCache";
+    String ORDER_PROGRAMS_SESSION_CACHE = "OrderProgramsSessionCache";
+    String ORDER_PROGRAMS_PAGE_MAPPING_SESSION_CACHE = "OrderProgramsPageMappingSessionCache";
+    String PATIENT_DASHBOARD_SESSION_CACHE = "PatientDashboardSessionCache";
+    String PATIENT_DASHBOARD_PAGE_MAPPING_SESSION_CACHE = "PatientDashboardPageMappingSessionCache";
+    String PATIENT_SEARCH_RESULTS_SESSION_CACHE = "PatientSearchResultsSessionCache";
+    String PATIENT_SEARCH_RESULTS_PAGE_MAPPING_SESSION_CACHE = "PatientSearchResultsPageMappingSessionCache";
 
     String DISPLAY_LIST_SESSION_CACHE = "DisplayListSessionCache";
     String DISPLAY_LIST_MAPPING_SESSION_CACHE = "DisplayListPageMappingSessionCache";

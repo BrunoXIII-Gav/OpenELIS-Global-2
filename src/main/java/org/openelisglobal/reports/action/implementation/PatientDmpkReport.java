@@ -1173,7 +1173,7 @@ public class PatientDmpkReport extends PatientCILNSPClinical_vreduit {
 
         StringBuilder secondLine = new StringBuilder();
         if (StringUtils.isNotBlank(cbpCode)) {
-            secondLine.append("CVP: ").append(cbpCode);
+            secondLine.append("CBP: ").append(cbpCode);
         }
         if (StringUtils.isNotBlank(secondLine)) {
             secondLine.append(" - ");
