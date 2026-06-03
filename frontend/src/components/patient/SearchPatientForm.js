@@ -357,8 +357,8 @@ function SearchPatientForm(props) {
                         id: "input.placeholder.prevLabNumber",
                       })}
                       labelText={intl.formatMessage({
-                        id: "patient.prev.lab.no",
-                        defaultMessage: "Previous Lab Number",
+                        id: "order.label.number",
+                        defaultMessage: "Order Number",
                       })}
                       id={field.name}
                       value={values[field.name]}
@@ -565,7 +565,12 @@ function SearchPatientForm(props) {
         isSortable
       >
         {({ rows, headers, getHeaderProps, getTableProps }) => (
-          <TableContainer title="Patient Results">
+          <TableContainer
+            title={intl.formatMessage({
+              id: "patient.merge.patientResults",
+              defaultMessage: "Patient Results",
+            })}
+          >
             <Table {...getTableProps()}>
               <TableHead>
                 <TableRow>
