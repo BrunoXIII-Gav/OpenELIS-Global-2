@@ -3,6 +3,7 @@ package org.openelisglobal.test.service;
 import jakarta.annotation.PostConstruct;
 import jakarta.servlet.http.HttpServletRequest;
 import java.util.ArrayList;
+import java.util.Collections;
 import java.util.HashMap;
 import java.util.Iterator;
 import java.util.List;
@@ -61,7 +62,7 @@ public class TestServiceImpl extends AuditableBaseObjectServiceImpl<Test, String
     private static String VARIABLE_TYPE_OF_SAMPLE_ID;
     // private static String LANGUAGE_LOCALE = ConfigurationProperties.getInstance()
     // .getPropertyValue(ConfigurationProperties.Property.DEFAULT_LANG_LOCALE);
-    private static Map<Entity, Map<String, String>> entityToMap;
+    private static volatile Map<Entity, Map<String, String>> entityToMap;
 
     protected static TestDAO baseObjectDAO = SpringContext.getBean(TestDAO.class);
 
@@ -88,15 +89,16 @@ public class TestServiceImpl extends AuditableBaseObjectServiceImpl<Test, String
         VARIABLE_TYPE_OF_SAMPLE_ID = variableTypeOfSample == null ? "-1" : variableTypeOfSample.getId();
 
         if (entityToMap == null) {
-            createEntityMap();
+            entityToMap = createEntityMapSnapshot();
         }
     }
 
-    private synchronized void createEntityMap() {
-        entityToMap = new HashMap<>();
-        entityToMap.put(Entity.TEST_NAME, createTestIdToNameMap());
-        entityToMap.put(Entity.TEST_AUGMENTED_NAME, createTestIdToAugmentedNameMap());
-        entityToMap.put(Entity.TEST_REPORTING_NAME, createTestIdToReportingNameMap());
+    private Map<Entity, Map<String, String>> createEntityMapSnapshot() {
+        Map<Entity, Map<String, String>> updatedEntityMap = new HashMap<>();
+        updatedEntityMap.put(Entity.TEST_NAME, createTestIdToNameMap());
+        updatedEntityMap.put(Entity.TEST_AUGMENTED_NAME, createTestIdToAugmentedNameMap());
+        updatedEntityMap.put(Entity.TEST_REPORTING_NAME, createTestIdToReportingNameMap());
+        return updatedEntityMap;
     }
 
     public TestServiceImpl() {
@@ -120,10 +122,8 @@ public class TestServiceImpl extends AuditableBaseObjectServiceImpl<Test, String
     }
 
     @Override
-    public void refreshTestNames() {
-        entityToMap.put(Entity.TEST_NAME, createTestIdToNameMap());
-        entityToMap.put(Entity.TEST_AUGMENTED_NAME, createTestIdToAugmentedNameMap());
-        entityToMap.put(Entity.TEST_REPORTING_NAME, createTestIdToReportingNameMap());
+    public synchronized void refreshTestNames() {
+        entityToMap = createEntityMapSnapshot();
     }
 
     @Override
@@ -239,6 +239,10 @@ public class TestServiceImpl extends AuditableBaseObjectServiceImpl<Test, String
     }
 
     public static Map<String, String> getMap(Entity entiy) {
+        ensureEntityMapInitialized();
+        if (entityToMap == null || entityToMap.get(entiy) == null) {
+            return Collections.emptyMap();
+        }
         return entityToMap.get(entiy);
     }
 
@@ -277,6 +281,10 @@ public class TestServiceImpl extends AuditableBaseObjectServiceImpl<Test, String
     }
 
     public static String getUserLocalizedTestName(String testId) {
+        ensureEntityMapInitialized();
+        if (entityToMap == null || entityToMap.get(Entity.TEST_NAME) == null) {
+            return "";
+        }
         String name = entityToMap.get(Entity.TEST_NAME).get(testId);
         return name == null ? "" : name;
     }

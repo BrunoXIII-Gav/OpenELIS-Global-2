@@ -30,7 +30,9 @@ import org.openelisglobal.resultvalidation.form.ValidationPagingForm;
 import org.openelisglobal.spring.util.SpringContext;
 
 public class ResultValidationPaging {
-    private PagingUtility<List<AnalysisItem>> paging = new PagingUtility<>();
+    private PagingUtility<List<AnalysisItem>> paging = new PagingUtility<>(
+            IActionConstants.RESULT_VALIDATION_SESSION_CACHE,
+            IActionConstants.RESULT_VALIDATION_PAGE_MAPPING_SESSION_CACHE);
     private static AnalysisItemPageHelper pagingHelper = new AnalysisItemPageHelper();
 
     public void setDatabaseResults(HttpServletRequest request, ValidationPagingForm form,

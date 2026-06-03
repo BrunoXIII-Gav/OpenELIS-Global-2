@@ -13,7 +13,9 @@ import org.openelisglobal.spring.util.SpringContext;
 
 public class PatientSearchResultsPaging {
 
-    private final PagingUtility<List<PatientSearchResults>> paging = new PagingUtility<>();
+    private final PagingUtility<List<PatientSearchResults>> paging = new PagingUtility<>(
+            IActionConstants.PATIENT_SEARCH_RESULTS_SESSION_CACHE,
+            IActionConstants.PATIENT_SEARCH_RESULTS_PAGE_MAPPING_SESSION_CACHE);
 
     private static final PatientSearchResultsPageHelper pagingHelper = new PatientSearchResultsPageHelper();
 

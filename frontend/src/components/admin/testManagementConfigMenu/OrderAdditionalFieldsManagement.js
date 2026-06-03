@@ -102,6 +102,7 @@ const defaultNewField = {
   documentAccept: "application/pdf",
   documentMaxSizeMb: "5",
   showInSampleReception: false,
+  storageAssignmentRequired: false,
 };
 
 const OrderAdditionalFieldsManagement = () => {
@@ -318,6 +319,9 @@ const OrderAdditionalFieldsManagement = () => {
         sampleReceptionMetadata.showInSampleReception ??
           metadata?.showInSampleReception,
       ),
+      storageAssignmentRequired: Boolean(
+        metadata?.storage?.requireCheckedForStorageAssignment,
+      ),
     };
   };
 
@@ -446,6 +450,16 @@ const OrderAdditionalFieldsManagement = () => {
       metadata.sampleReception = {
         ...(metadata.sampleReception || {}),
         showInSampleReception: true,
+      };
+    }
+
+    if (
+      String(formValue.fieldType || "").toUpperCase() === "BOOLEAN" &&
+      formValue.storageAssignmentRequired
+    ) {
+      metadata.storage = {
+        ...(metadata.storage || {}),
+        requireCheckedForStorageAssignment: true,
       };
     }
 
@@ -1040,6 +1054,10 @@ const OrderAdditionalFieldsManagement = () => {
                     setNewField((previous) => ({
                       ...previous,
                       fieldType: event.target.value,
+                      storageAssignmentRequired:
+                        event.target.value === "BOOLEAN"
+                          ? previous.storageAssignmentRequired
+                          : false,
                     }))
                   }
                 >
@@ -1165,6 +1183,23 @@ const OrderAdditionalFieldsManagement = () => {
                   }
                 />
               </Column>
+              {newField.fieldType === "BOOLEAN" ? (
+                <Column lg={8} md={4} sm={4}>
+                  <Checkbox
+                    id="order-additional-storage-assignment-required"
+                    labelText={intl.formatMessage({
+                      id: "order.additional.fields.storageAssignmentRequired",
+                    })}
+                    checked={newField.storageAssignmentRequired}
+                    onChange={(_event, { checked }) =>
+                      setNewField((previous) => ({
+                        ...previous,
+                        storageAssignmentRequired: checked,
+                      }))
+                    }
+                  />
+                </Column>
+              ) : null}
             </Grid>
 
             {(newField.fieldType === "SELECT" ||

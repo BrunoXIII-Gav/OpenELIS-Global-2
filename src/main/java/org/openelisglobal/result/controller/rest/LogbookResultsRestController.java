@@ -145,7 +145,7 @@ public class LogbookResultsRestController extends LogbookResultsBaseController {
             "testResult*.qualifiedResultValue", "testResult*.qualifiedResultValue", "testResult*.shadowReferredOut",
             "testResult*.referredOut", "testResult*.referralReasonId", "testResult*.technician",
             "testResult*.shadowRejected", "testResult*.rejected", "testResult*.rejectReasonId", "testResult*.note",
-            "testResult*.sampleUsageQuantity",
+            "testResult*.sampleUsageQuantity", "testResult*.parentSampleUsageQuantity",
             "paging.currentPage", "testResult*.resultFile", "testResult*.resultFile.fileName",
             "testResult*.resultFile.fileType", "testResult*.resultFile.base64Content", "testResult*.refer",
             "testResult*.referralItem.referralReasonId", "testResult*.referralItem.referredInstituteId",
@@ -658,10 +658,19 @@ public class LogbookResultsRestController extends LogbookResultsBaseController {
     private void createResultsFromItems(ResultsUpdateDataSet actionDataSet, boolean supportReferrals,
             boolean alwaysValidate, boolean useTechnicianName, String statusRuleSet) {
         Map<String, SampleItem> sampleItemsBeingUpdated = new HashMap<>();
+        Map<String, Analysis> analysisById = new HashMap<>();
+
+        for (TestResultItem testResultItem : actionDataSet.getModifiedItems()) {
+            Analysis analysis = analysisService.get(testResultItem.getAnalysisId());
+            applyDirectParentSampleUsage(testResultItem, analysis, actionDataSet, sampleItemsBeingUpdated);
+            if (analysis != null && !GenericValidator.isBlankOrNull(analysis.getId())) {
+                analysisById.put(analysis.getId(), analysis);
+            }
+        }
 
         for (TestResultItem testResultItem : actionDataSet.getModifiedItems()) {
 
-            Analysis analysis = analysisService.get(testResultItem.getAnalysisId());
+            Analysis analysis = analysisById.computeIfAbsent(testResultItem.getAnalysisId(), analysisService::get);
             applyParentChildDependencyAndUsage(testResultItem, analysis, actionDataSet, sampleItemsBeingUpdated);
             analysis.setStatusId(getStatusForTestResult(testResultItem, alwaysValidate));
             analysis.setSysUserId(getSysUserId(request));
@@ -775,6 +784,44 @@ public class LogbookResultsRestController extends LogbookResultsBaseController {
         analysis.setSampleUsedQuantity(usageQuantity);
     }
 
+    private void applyDirectParentSampleUsage(TestResultItem testResultItem, Analysis analysis,
+            ResultsUpdateDataSet actionDataSet, Map<String, SampleItem> sampleItemsBeingUpdated) {
+        if (testResultItem == null || analysis == null || analysis.getTest() == null || analysis.getSampleItem() == null) {
+            return;
+        }
+
+        boolean directSampleUsageEnabled = Boolean.TRUE.equals(analysis.getTest().getDirectSampleUsageEnabled());
+        if (testResultItem.isDependentChild()
+                || (!directSampleUsageEnabled && !hasActiveChildDependencies(analysis.getTest().getId()))) {
+            return;
+        }
+
+        if (analysis.getSampleUsedQuantity() != null) {
+            if (!GenericValidator.isBlankOrNull(testResultItem.getParentSampleUsageQuantity())) {
+                BigDecimal attemptedUsage = parseAndValidateUsageQuantity(testResultItem.getParentSampleUsageQuantity());
+                if (analysis.getSampleUsedQuantity().compareTo(attemptedUsage) != 0) {
+                    throw new IllegalArgumentException(
+                            "Parent sample usage quantity cannot be changed after first save");
+                }
+            }
+            return;
+        }
+
+        boolean requiresUsage = hasEnteredResult(testResultItem) || ResultUtil.isReferred(testResultItem)
+                || ResultUtil.isRejected(testResultItem) || ResultUtil.isForcedToAcceptance(testResultItem);
+        if (!requiresUsage) {
+            return;
+        }
+
+        if (GenericValidator.isBlankOrNull(testResultItem.getParentSampleUsageQuantity())) {
+            throw new IllegalArgumentException("Sample usage quantity is required for tests that consume sample directly");
+        }
+
+        BigDecimal usageQuantity = parseAndValidateUsageQuantity(testResultItem.getParentSampleUsageQuantity());
+        applySampleItemBasedUsage(analysis, actionDataSet, sampleItemsBeingUpdated, usageQuantity);
+        analysis.setSampleUsedQuantity(usageQuantity);
+    }
+
     private boolean hasEnteredResult(TestResultItem testResultItem) {
         String value = testResultItem.getShadowResultValue();
         if (TypeOfTestResultServiceImpl.ResultType.isMultiSelectVariant(testResultItem.getResultType())) {
@@ -817,6 +864,16 @@ public class LogbookResultsRestController extends LogbookResultsBaseController {
             return TestParentChildDependency.SAMPLE_USAGE_SOURCE_SAMPLE_ITEM_REMAINING;
         }
         return sampleUsageSource.trim().toUpperCase();
+    }
+
+    private boolean hasActiveChildDependencies(String parentTestId) {
+        if (GenericValidator.isBlankOrNull(parentTestId)) {
+            return false;
+        }
+
+        List<TestParentChildDependency> dependencies = testParentChildDependencyService.getByParentTestId(parentTestId);
+        return dependencies != null
+                && dependencies.stream().anyMatch(dependency -> dependency != null && Boolean.TRUE.equals(dependency.getActive()));
     }
 
     private void applySampleItemBasedUsage(Analysis analysis, ResultsUpdateDataSet actionDataSet,

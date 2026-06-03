@@ -17,7 +17,9 @@ import org.openelisglobal.spring.util.SpringContext;
 
 public class OrderProgramsDashboardPaging {
 
-    private final PagingUtility<List<OrderPrograms>> paging = new PagingUtility<>();
+    private final PagingUtility<List<OrderPrograms>> paging = new PagingUtility<>(
+            IActionConstants.ORDER_PROGRAMS_SESSION_CACHE,
+            IActionConstants.ORDER_PROGRAMS_PAGE_MAPPING_SESSION_CACHE);
 
     private static final OrderProgramsDashboardPageHelper pagingHelper = new OrderProgramsDashboardPageHelper();
 

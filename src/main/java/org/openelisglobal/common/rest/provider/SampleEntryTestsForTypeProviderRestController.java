@@ -42,8 +42,6 @@ import org.springframework.web.bind.annotation.ResponseBody;
 @RequestMapping(value = "/rest/")
 public class SampleEntryTestsForTypeProviderRestController extends BaseRestController {
 
-    private static String USER_TEST_SECTION_ID;
-
     private PanelService panelService = SpringContext.getBean(PanelService.class);
 
     private TestSectionService testSectionService = SpringContext.getBean(TestSectionService.class);
@@ -61,21 +59,6 @@ public class SampleEntryTestsForTypeProviderRestController extends BaseRestContr
     private SampleTypeAdditionalFieldService sampleTypeAdditionalFieldService = SpringContext
             .getBean(SampleTypeAdditionalFieldService.class);
 
-    ArrayList<PanelTestMap> panelsMapList = new ArrayList<>();
-
-    ArrayList<TestMap> testsMapList = new ArrayList<>();
-
-    SampleEntryTests sampleEntryTests;
-
-    private void initializeGlobalVariables() {
-        USER_TEST_SECTION_ID = testSectionService.getTestSectionByName("user").getId();
-        sampleEntryTests = new SampleEntryTests();
-    }
-
-    public SampleEntryTestsForTypeProviderRestController() {
-        initializeGlobalVariables();
-    }
-
     @GetMapping(value = "sample-type-tests", produces = MediaType.APPLICATION_JSON_VALUE)
     @ResponseBody
     public SampleEntryTests processRequest(HttpServletRequest request, HttpServletResponse response)
@@ -92,9 +75,7 @@ public class SampleEntryTestsForTypeProviderRestController extends BaseRestContr
             testSections.forEach(test -> testUnitIds.add(test.getId()));
         }
 
-        createSearchResultXML(sampleType, testUnitIds);
-
-        return sampleEntryTests;
+        return createSearchResult(sampleType, testUnitIds);
     }
 
     @GetMapping(value = "user-sample-types", produces = MediaType.APPLICATION_JSON_VALUE)
@@ -112,7 +93,9 @@ public class SampleEntryTestsForTypeProviderRestController extends BaseRestContr
         return userService.getUserPrograms(getSysUserId(request), Constants.ROLE_RECEPTION);
     }
 
-    private void createSearchResultXML(String sampleType, List<String> testUnitIds) {
+    private SampleEntryTests createSearchResult(String sampleType, List<String> testUnitIds) {
+        SampleEntryTests sampleEntryTests = new SampleEntryTests();
+        String userTestSectionId = testSectionService.getTestSectionByName("user").getId();
 
         List<Test> tests = typeOfSampleService.getActiveTestsBySampleTypeIdAndTestUnit(sampleType, true, testUnitIds);
 
@@ -146,32 +129,34 @@ public class SampleEntryTestsForTypeProviderRestController extends BaseRestContr
         });
 
         sampleEntryTests.setSampleTypeId(StringUtil.snipToMaxIdLength(sampleType));
-        addTests(tests);
+        addTests(sampleEntryTests, tests, userTestSectionId);
 
         List<TypeOfSamplePanel> panelList = getPanelList(sampleType);
         List<PanelTestMap> panelMap = linkTestsToPanels(panelList, tests);
 
-        addPanels(panelMap);
+        addPanels(sampleEntryTests, panelMap);
         if (GenericValidator.isBlankOrNull(sampleType)) {
             sampleEntryTests.setAdditionalFields(new ArrayList<>());
         } else {
             sampleEntryTests
                     .setAdditionalFields(sampleTypeAdditionalFieldService.getFieldsForSampleType(sampleType, false));
         }
+
+        return sampleEntryTests;
     }
 
-    private void addTests(List<Test> tests) {
-        testsMapList.clear();
+    private void addTests(SampleEntryTests sampleEntryTests, List<Test> tests, String userTestSectionId) {
+        ArrayList<TestMap> testsMapList = new ArrayList<>();
         for (Test test : tests) {
             testsMapList.add(new TestMap(test.getId(), TestServiceImpl.getUserLocalizedTestName(test),
-                    USER_TEST_SECTION_ID.equals(test.getTestSection().getId())));
+                    userTestSectionId.equals(test.getTestSection().getId())));
         }
         sampleEntryTests.setTests(testsMapList);
     }
 
-    private void addPanels(List<PanelTestMap> panelMap) {
+    private void addPanels(SampleEntryTests sampleEntryTests, List<PanelTestMap> panelMap) {
         panelMap = sortPanels(panelMap);
-        panelsMapList.clear();
+        ArrayList<PanelTestMap> panelsMapList = new ArrayList<>();
         for (PanelTestMap testMap : panelMap) {
             panelsMapList.add(new PanelTestMap(testMap.getId(), testMap.getPanelOrder(), testMap.getName(),
                     testMap.getTestIds()));

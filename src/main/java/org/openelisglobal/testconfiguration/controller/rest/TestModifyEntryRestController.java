@@ -51,6 +51,7 @@ import org.openelisglobal.testconfiguration.controller.TestModifyEntryController
 import org.openelisglobal.testconfiguration.form.TestModifyEntryForm;
 import org.openelisglobal.testconfiguration.service.TestModifyService;
 import org.openelisglobal.testconfiguration.validator.TestModifyEntryFormValidator;
+import org.openelisglobal.testdependency.service.TestParentChildDependencyService;
 import org.openelisglobal.testresult.service.TestResultService;
 import org.openelisglobal.testresult.valueholder.TestResult;
 import org.openelisglobal.typeofsample.service.TypeOfSampleService;
@@ -94,6 +95,8 @@ public class TestModifyEntryRestController extends BaseController {
     private TestService testService;
     @Autowired
     private TestResultService testResultService;
+    @Autowired
+    private TestParentChildDependencyService testParentChildDependencyService;
     @Autowired
     private ResultLimitService resultLimitService;
     @Autowired
@@ -199,6 +202,9 @@ public class TestModifyEntryRestController extends BaseController {
             bean.setAntimicrobialResistance(antimicrobialResistance != null ? antimicrobialResistance : false);
             bean.setLoinc(test.getLoinc());
             bean.setResultName(test.getStoredName());
+            bean.setResultDisplayConfigJson(test.getResultDisplayConfigJson());
+            bean.setDirectSampleUsageEnabled(Boolean.TRUE.equals(test.getDirectSampleUsageEnabled()));
+            bean.setActiveChildDependency(testParentChildDependencyService.getActiveByChildTestId(test.getId()) != null);
             bean.setActive(test.isActive() ? "Active" : "Not active");
             bean.setUom(testService.getUOM(test, false));
             // Include inactive fields so Test Modify UI can display and reactivate
@@ -643,6 +649,7 @@ public class TestModifyEntryRestController extends BaseController {
             test.setLocalCode(testAddParams.testNameEnglish);
             test.setIsActive(testAddParams.active);
             test.setOrderable("Y".equals(testAddParams.orderable));
+            test.setDirectSampleUsageEnabled("Y".equals(testAddParams.directSampleUsageEnabled));
             test.setNotifyResults("Y".equals(testAddParams.notifyResults));
             test.setInLabOnly("Y".equals(testAddParams.inLabOnly));
             test.setAntimicrobialResistance("Y".equals(testAddParams.antimicrobialResistance));
@@ -748,11 +755,13 @@ public class TestModifyEntryRestController extends BaseController {
             testAddParams.uomId = asString(obj.get("uom"));
             testAddParams.loinc = asString(obj.get("loinc"));
             testAddParams.resultName = asString(obj.get("resultName"));
+            testAddParams.resultDisplayConfigJson = asString(obj.get("resultDisplayConfigJson"));
             testAddParams.resultTypeId = asString(obj.get("resultType"));
             extractSampleTypes(obj, parser, testAddParams);
             extractAdditionalFields(obj, testAddParams);
             testAddParams.active = asString(obj.get("active"));
             testAddParams.orderable = asString(obj.get("orderable"));
+            testAddParams.directSampleUsageEnabled = asString(obj.get("directSampleUsageEnabled"));
             testAddParams.notifyResults = asString(obj.get("notifyResults"));
             testAddParams.inLabOnly = asString(obj.get("inLabOnly"));
             testAddParams.antimicrobialResistance = asString(obj.get("antimicrobialResistance"));

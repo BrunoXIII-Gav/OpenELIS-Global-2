@@ -32,7 +32,9 @@ import org.openelisglobal.spring.util.SpringContext;
 
 public class AnalyzerResultsPaging {
 
-    private PagingUtility<List<AnalyzerResultItem>> paging = new PagingUtility<>();
+    private PagingUtility<List<AnalyzerResultItem>> paging = new PagingUtility<>(
+            IActionConstants.ANALYZER_RESULTS_SESSION_CACHE,
+            IActionConstants.ANALYZER_RESULTS_PAGE_MAPPING_SESSION_CACHE);
     private static TestItemPageHelper pagingHelper = new TestItemPageHelper();
 
     public void setDatabaseResults(HttpServletRequest request, AnalyzerResultsForm form, List<AnalyzerResultItem> tests)

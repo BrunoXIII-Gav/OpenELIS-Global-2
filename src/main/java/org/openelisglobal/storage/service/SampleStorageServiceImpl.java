@@ -9,6 +9,7 @@ import org.hibernate.StaleObjectStateException;
 import org.openelisglobal.common.exception.LIMSRuntimeException;
 import org.openelisglobal.common.services.IStatusService;
 import org.openelisglobal.common.util.ControllerUtills;
+import org.openelisglobal.orderadditionalfield.service.OrderAdditionalFieldService;
 import org.openelisglobal.sample.service.SampleService;
 import org.openelisglobal.sample.valueholder.Sample;
 import org.openelisglobal.sampleitem.dao.SampleItemDAO;
@@ -62,6 +63,9 @@ public class SampleStorageServiceImpl implements SampleStorageService {
 
     @Autowired
     private SystemUserService systemUserService;
+
+    @Autowired
+    private OrderAdditionalFieldService orderAdditionalFieldService;
 
     private Integer resolveCurrentUserIdOrDefault() {
         try {
@@ -612,15 +616,21 @@ public class SampleStorageServiceImpl implements SampleStorageService {
                 throw new LIMSRuntimeException("Location type is required");
             }
 
+            // Resolve SampleItem: accept either SampleItem ID or accession number
+            SampleItem sampleItem = resolveSampleItem(sampleItemId);
+            if (sampleItem.getSample() != null && sampleItem.getSample().getId() != null) {
+                orderAdditionalFieldService.getStorageAssignmentBlockReason(sampleItem.getSample().getId())
+                        .ifPresent(message -> {
+                            throw new LIMSRuntimeException(message);
+                        });
+            }
+
             // Validate locationType is valid enum
             if (!locationType.equals("device") && !locationType.equals("shelf") && !locationType.equals("rack")
                     && !locationType.equals("box")) {
                 throw new LIMSRuntimeException("Invalid location type: " + locationType
                         + ". Must be one of: 'device', 'shelf', 'rack', 'box'");
             }
-
-            // Resolve SampleItem: accept either SampleItem ID or accession number
-            SampleItem sampleItem = resolveSampleItem(sampleItemId);
 
             // Prevent duplicate assignments of the same SampleItem (must move first)
             SampleStorageAssignment existingAssignmentForSample = sampleStorageAssignmentDAO

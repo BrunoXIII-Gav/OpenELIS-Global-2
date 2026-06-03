@@ -98,6 +98,9 @@ const SampleType = (props) => {
   const [panelSearchTerm, setPanelSearchTerm] = useState("");
   const [searchBoxPanels, setSearchBoxPanels] = useState([]);
   const [uomList, setUomList] = useState([]);
+  const [uomAssignmentsBySampleType, setUomAssignmentsBySampleType] = useState(
+    {},
+  );
   const [sampleXml, setSampleXml] = useState(() => {
     if (sample?.sampleXML != null) {
       return {
@@ -827,7 +830,36 @@ const SampleType = (props) => {
 
   useEffect(() => {
     getFromOpenElisServer(`/rest/displayList/UNIT_OF_MEASURE`, fetchUomCreate);
+    getFromOpenElisServer("/rest/sample-type-uoms/assignments", (res) => {
+      if (componentMounted.current) {
+        setUomAssignmentsBySampleType(res || {});
+      }
+    });
   }, []);
+
+  const availableUomsForSampleType = (() => {
+    const sampleTypeId = String(selectedSampleType.id || "");
+    const assignedIds = uomAssignmentsBySampleType[sampleTypeId] || [];
+    if (!sampleTypeId || assignedIds.length === 0) {
+      return uomList;
+    }
+    return uomList.filter((uom) => assignedIds.includes(String(uom.id)));
+  })();
+
+  useEffect(() => {
+    if (!sampleXml.uom) {
+      return;
+    }
+    const currentUomStillAllowed = availableUomsForSampleType.some(
+      (uom) => String(uom.id) === String(sampleXml.uom),
+    );
+    if (!currentUomStillAllowed) {
+      setSampleXml((previous) => ({
+        ...previous,
+        uom: "",
+      }));
+    }
+  }, [availableUomsForSampleType, sampleXml.uom]);
 
   const fetchUomCreate = (res) => {
     if (componentMounted.current) {
@@ -1088,7 +1120,7 @@ const SampleType = (props) => {
             <CustomSelect
               id={"uomId_" + index}
               labelText={intl.formatMessage({ id: "sample.uom.label" })}
-              options={uomList}
+              options={availableUomsForSampleType}
               disabled={false}
               value={sampleXml.uom}
               onChange={(value) => handleUom(value)}

@@ -157,6 +157,9 @@ public class PatientManagementUpdate extends ControllerUtills implements IPatien
         persistIdentityType(patientInfo.getHealthDistrict(), "HEALTH DISTRICT");
         persistIdentityType(patientInfo.getHealthRegion(), "HEALTH REGION");
         persistIdentityType(patientInfo.getOtherNationality(), "OTHER NATIONALITY");
+        persistIdentityType(patientInfo.getDni(), "DNI");
+        persistIdentityType(patientInfo.getPassportNumber(), "PASSPORT");
+        persistIdentityType(patientInfo.getForeignId(), "FOREIGN_ID");
         persistIdentityType(patientInfo.getGuid(), "GUID");
 
         // Persist dynamic address hierarchy values (addressHierarchy_0,

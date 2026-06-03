@@ -35,8 +35,9 @@ import org.openelisglobal.spring.util.SpringContext;
  */
 public class PatientDashBoardPaging {
 
-    private final PagingUtility<List<OrderDisplayBean>> paging = new PagingUtility<>(); // Adjust type based on your
-                                                                                        // data
+    private final PagingUtility<List<OrderDisplayBean>> paging = new PagingUtility<>(
+            IActionConstants.PATIENT_DASHBOARD_SESSION_CACHE,
+            IActionConstants.PATIENT_DASHBOARD_PAGE_MAPPING_SESSION_CACHE);
     private static final PatientDashboardPageHelper pagingHelper = new PatientDashboardPageHelper(); // Implement helper
                                                                                                      // class
 

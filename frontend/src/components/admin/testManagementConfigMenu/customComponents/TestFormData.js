@@ -8,9 +8,16 @@ export const TestFormData = {
   uom: "",
   loinc: "",
   resultName: "",
+  resultEntryScope: "OFFICIAL",
+  resultBlockName: "Official",
+  resultBlockSortOrder: "1",
+  resultFieldSortOrder: "1",
+  resultDisplayConfigJson: "",
   resultType: "",
   additionalFields: [],
   orderable: "Y",
+  directSampleUsageEnabled: "N",
+  activeChildDependency: false,
   notifyResults: "N",
   inLabOnly: "N",
   antimicrobialResistance: "N",
@@ -51,6 +58,8 @@ const parseResultFieldMetadata = (metadataJson) => {
     blockName: DEFAULT_OFFICIAL_BLOCK,
     entryScope: ENTRY_SCOPE_OFFICIAL,
     includeInValidation: true,
+    blockSortOrder: 1,
+    fieldSortOrder: 1,
   };
   if (!metadataJson || typeof metadataJson !== "string") {
     return defaults;
@@ -73,7 +82,21 @@ const parseResultFieldMetadata = (metadataJson) => {
         : scope === ENTRY_SCOPE_PRELIMINARY
           ? false
           : true;
-    return { blockName, entryScope: scope, includeInValidation };
+    const blockSortOrder = Number.parseInt(parsed?.blockSortOrder, 10);
+    const fieldSortOrder = Number.parseInt(parsed?.fieldSortOrder, 10);
+    return {
+      blockName,
+      entryScope: scope,
+      includeInValidation,
+      blockSortOrder:
+        Number.isFinite(blockSortOrder) && blockSortOrder > 0
+          ? blockSortOrder
+          : 1,
+      fieldSortOrder:
+        Number.isFinite(fieldSortOrder) && fieldSortOrder > 0
+          ? fieldSortOrder
+          : 1,
+    };
   } catch (e) {
     return defaults;
   }
@@ -130,6 +153,8 @@ const extractRange = (rangeStr) => {
 };
 
 export const mapTestCatBeanToFormData = (test) => {
+  const blockSortOrderByKey = new Map();
+  let nextBlockSortOrder = 1;
   const mappedDictionary = Array.isArray(test.dictionaryIds)
     ? test.dictionaryIds
         .map((rawId, index) => {
@@ -150,6 +175,10 @@ export const mapTestCatBeanToFormData = (test) => {
         .filter(Boolean)
     : [];
 
+  const resultDisplayMetadata = parseResultFieldMetadata(
+    test.resultDisplayConfigJson,
+  );
+
   return {
     testId: test.id,
     testNameEnglish: test.localization?.english || "",
@@ -167,43 +196,84 @@ export const mapTestCatBeanToFormData = (test) => {
     uom: test.uom || "",
     loinc: test.loinc || "",
     resultName: test.resultName || "",
+    resultEntryScope: resultDisplayMetadata.entryScope,
+    resultBlockName: resultDisplayMetadata.blockName,
+    resultBlockSortOrder: String(resultDisplayMetadata.blockSortOrder || 1),
+    resultFieldSortOrder: String(resultDisplayMetadata.fieldSortOrder || 1),
+    resultDisplayConfigJson: test.resultDisplayConfigJson || "",
     resultType: test.resultType || "",
     additionalFields: Array.isArray(test.additionalFields)
       ? test.additionalFields
           .filter((field) => field?.displayName && field?.fieldType)
-          .map((field, index) => ({
-            id: field.id ?? undefined,
-            fieldKey: field.fieldKey || "",
-            displayName: field.displayName || "",
-            fieldType: field.fieldType || "TEXT",
-            required: !!field.required,
-            active: field.active !== false,
-            sortOrder:
-              typeof field.sortOrder === "number" ? field.sortOrder : index + 1,
-            defaultValue: field.defaultValue || "",
-            maxLength:
-              field.maxLength === null || field.maxLength === undefined
-                ? ""
-                : String(field.maxLength),
-            metadataJson: field.metadataJson || "",
-            ...parseResultFieldMetadata(field.metadataJson),
-            options: Array.isArray(field.options)
-              ? field.options
-                  .filter((option) => option?.optionLabel)
-                  .map((option, optionIndex) => ({
-                    id: option.id ?? undefined,
-                    optionKey: option.optionKey || "",
-                    optionLabel: option.optionLabel || "",
-                    sortOrder:
-                      typeof option.sortOrder === "number"
-                        ? option.sortOrder
-                        : optionIndex + 1,
-                    active: option.active !== false,
-                  }))
-              : [],
-          }))
+          .map((field, index) => {
+            const parsedMetadata = parseResultFieldMetadata(field.metadataJson);
+            let rawMetadata = {};
+            if (field.metadataJson && typeof field.metadataJson === "string") {
+              try {
+                rawMetadata = JSON.parse(field.metadataJson) || {};
+              } catch (e) {
+                rawMetadata = {};
+              }
+            }
+            const blockKey = String(parsedMetadata.blockName || "").trim();
+            const explicitBlockSortOrder = Number.parseInt(
+              rawMetadata?.blockSortOrder,
+              10,
+            );
+            if (!blockSortOrderByKey.has(blockKey)) {
+              blockSortOrderByKey.set(
+                blockKey,
+                Number.isFinite(explicitBlockSortOrder) &&
+                  explicitBlockSortOrder > 0
+                  ? explicitBlockSortOrder
+                  : nextBlockSortOrder,
+              );
+              nextBlockSortOrder += 1;
+            }
+            const fallbackFieldSortOrder =
+              typeof field.sortOrder === "number" ? field.sortOrder : index + 1;
+            return {
+              id: field.id ?? undefined,
+              fieldKey: field.fieldKey || "",
+              displayName: field.displayName || "",
+              fieldType: field.fieldType || "TEXT",
+              required: !!field.required,
+              active: field.active !== false,
+              sortOrder: fallbackFieldSortOrder,
+              fieldSortOrder:
+                parsedMetadata.fieldSortOrder || fallbackFieldSortOrder,
+              blockSortOrder: blockSortOrderByKey.get(blockKey) || 1,
+              defaultValue: field.defaultValue || "",
+              maxLength:
+                field.maxLength === null || field.maxLength === undefined
+                  ? ""
+                  : String(field.maxLength),
+              metadataJson: field.metadataJson || "",
+              ...parsedMetadata,
+              options: Array.isArray(field.options)
+                ? field.options
+                    .filter((option) => option?.optionLabel)
+                    .map((option, optionIndex) => ({
+                      id: option.id ?? undefined,
+                      optionKey: option.optionKey || "",
+                      optionLabel: option.optionLabel || "",
+                      sortOrder:
+                        typeof option.sortOrder === "number"
+                          ? option.sortOrder
+                          : optionIndex + 1,
+                      active: option.active !== false,
+                    }))
+                : [],
+            };
+          })
       : [],
     orderable: test.orderable === "Orderable" ? "Y" : "N",
+    directSampleUsageEnabled: test.activeChildDependency
+      ? "N"
+      : test.directSampleUsageEnabled
+        ? "Y"
+        : "N",
+    activeChildDependency: !!test.activeChildDependency,
     notifyResults: test.notifyResults ? "Y" : "N",
     inLabOnly: test.inLabOnly ? "Y" : "N",
     antimicrobialResistance: test.antimicrobialResistance ? "Y" : "N",

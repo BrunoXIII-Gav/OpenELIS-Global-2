@@ -56,4 +56,7 @@
   <include relativeToChangelogFile="true" file="044-enforce-user-provider-link-integrity.xml"/>
   <include relativeToChangelogFile="true" file="045-add-parent-child-sample-usage-source.xml"/>
   <include relativeToChangelogFile="true" file="046-add-analysis-validation-date.xml"/>
+  <include relativeToChangelogFile="true" file="047-add-test-result-display-config.xml"/>
+  <include relativeToChangelogFile="true" file="048-add-test-direct-sample-usage-flag.xml"/>
+  <include relativeToChangelogFile="true" file="049-create-sample-type-uom-assignment.xml"/>
 </databaseChangeLog>

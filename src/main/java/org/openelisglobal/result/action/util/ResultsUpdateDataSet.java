@@ -139,7 +139,15 @@ public class ResultsUpdateDataSet implements IResultSaveService {
 
     private boolean isUpdated(TestResultItem item) {
         return item.getIsModified() && (ResultUtil.areResults(item) || ResultUtil.areNotes(item)
-                || ResultUtil.isReferred(item) || ResultUtil.isForcedToAcceptance(item) || ResultUtil.isRejected(item));
+                || ResultUtil.isReferred(item) || ResultUtil.isForcedToAcceptance(item) || ResultUtil.isRejected(item)
+                || hasSampleUsageUpdate(item));
+    }
+
+    private boolean hasSampleUsageUpdate(TestResultItem item) {
+        return item != null
+                && ((!org.apache.commons.validator.GenericValidator.isBlankOrNull(item.getSampleUsageQuantity()))
+                        || (!org.apache.commons.validator.GenericValidator
+                                .isBlankOrNull(item.getParentSampleUsageQuantity())));
     }
 
     public void setPreviousAnalysis(Analysis previousAnalysis) {

@@ -1341,7 +1341,14 @@ export const StepThreeTestResultTypeAndLoinc = ({
   const resolveDefaultBlockName = (scope) =>
     scope === "PRELIMINARY" ? defaultPreliminaryBlock : defaultOfficialBlock;
 
-  const resolveFieldMetadata = (field = {}) => {
+  const parsePositiveSortOrder = (value, fallbackValue) => {
+    const parsedValue = Number.parseInt(value, 10);
+    return Number.isFinite(parsedValue) && parsedValue > 0
+      ? parsedValue
+      : fallbackValue;
+  };
+
+  const resolveFieldMetadata = (field = {}, fallbackOrders = {}) => {
     const parsedMetadata = parseFieldMetadata(field.metadataJson);
     const entryScope = sanitizeEntryScope(
       field.entryScope || parsedMetadata.entryScope,
@@ -1360,8 +1367,25 @@ export const StepThreeTestResultTypeAndLoinc = ({
         : entryScope === "PRELIMINARY"
           ? false
           : true;
+    const blockSortOrder = parsePositiveSortOrder(
+      field.blockSortOrder ?? parsedMetadata.blockSortOrder,
+      fallbackOrders.blockSortOrder || 1,
+    );
+    const fieldSortOrder = parsePositiveSortOrder(
+      field.fieldSortOrder ??
+        field.sortOrder ??
+        parsedMetadata.fieldSortOrder ??
+        parsedMetadata.sortOrder,
+      fallbackOrders.fieldSortOrder || 1,
+    );
 
-    return { blockName, entryScope, includeInValidation };
+    return {
+      blockName,
+      entryScope,
+      includeInValidation,
+      blockSortOrder,
+      fieldSortOrder,
+    };
   };
 
   const parseCsvValues = (value) => {
@@ -1407,6 +1431,8 @@ export const StepThreeTestResultTypeAndLoinc = ({
       resultBlock: resolved.blockName,
       entryScope: resolved.entryScope,
       includeInValidation: resolved.includeInValidation,
+      blockSortOrder: resolved.blockSortOrder,
+      fieldSortOrder: resolved.fieldSortOrder,
     };
 
     if (String(field.fieldType || "").toUpperCase() === "DOCUMENT") {
@@ -1433,14 +1459,89 @@ export const StepThreeTestResultTypeAndLoinc = ({
     });
   };
 
-  const normalizeAdditionalFieldsForSubmit = (fields) => {
+  const buildResultDisplayConfigJson = (values = {}) => {
+    const entryScope = sanitizeEntryScope(values.resultEntryScope);
+    const blockName =
+      typeof values.resultBlockName === "string" &&
+      values.resultBlockName.trim().length > 0
+        ? values.resultBlockName.trim()
+        : resolveDefaultBlockName(entryScope);
+    return JSON.stringify({
+      resultBlock: blockName,
+      entryScope,
+      blockSortOrder: parsePositiveSortOrder(values.resultBlockSortOrder, 1),
+      fieldSortOrder: parsePositiveSortOrder(values.resultFieldSortOrder, 1),
+    });
+  };
+
+  const normalizeAdditionalFieldsForDisplay = (fields) => {
     const source = Array.isArray(fields) ? fields : [];
+    const blockSortOrderByKey = new Map();
+    let nextBlockSortOrder = 1;
     return source.map((field, index) => {
-      const resolved = resolveFieldMetadata(field);
+      const parsedMetadata = parseFieldMetadata(field.metadataJson);
+      const explicitBlockSortOrder = parsePositiveSortOrder(
+        parsedMetadata.blockSortOrder,
+        0,
+      );
+      const initialResolved = resolveFieldMetadata(field, {
+        fieldSortOrder: index + 1,
+      });
+      const blockKey = String(initialResolved.blockName || "").trim();
+      if (!blockSortOrderByKey.has(blockKey)) {
+        blockSortOrderByKey.set(
+          blockKey,
+          explicitBlockSortOrder || nextBlockSortOrder,
+        );
+        nextBlockSortOrder += 1;
+      }
+      const resolved = resolveFieldMetadata(field, {
+        blockSortOrder: blockSortOrderByKey.get(blockKey),
+        fieldSortOrder: index + 1,
+      });
+      const documentSettings = resolveDocumentSettings(field);
       return {
         ...field,
-        sortOrder:
-          typeof field?.sortOrder === "number" ? field.sortOrder : index + 1,
+        ...resolved,
+        ...documentSettings,
+      };
+    });
+  };
+
+  const sortAdditionalFieldEntries = (entries) =>
+    [...entries].sort((left, right) => {
+      const leftField = left?.field || {};
+      const rightField = right?.field || {};
+      if (leftField.blockSortOrder !== rightField.blockSortOrder) {
+        return leftField.blockSortOrder - rightField.blockSortOrder;
+      }
+      const blockNameComparison = String(
+        leftField.blockName || "",
+      ).localeCompare(String(rightField.blockName || ""));
+      if (blockNameComparison !== 0) {
+        return blockNameComparison;
+      }
+      if (leftField.fieldSortOrder !== rightField.fieldSortOrder) {
+        return leftField.fieldSortOrder - rightField.fieldSortOrder;
+      }
+      return (leftField.sortOrder || 0) - (rightField.sortOrder || 0);
+    });
+
+  const normalizeAdditionalFieldsForSubmit = (fields) => {
+    const source = normalizeAdditionalFieldsForDisplay(fields);
+    const sortedSource = sortAdditionalFieldEntries(
+      source.map((field, index) => ({ field, fieldIndex: index })),
+    ).map(({ field }) => field);
+    return sortedSource.map((field, index) => {
+      const resolved = resolveFieldMetadata(field, {
+        blockSortOrder: field.blockSortOrder || 1,
+        fieldSortOrder: field.fieldSortOrder || index + 1,
+      });
+      return {
+        ...field,
+        sortOrder: index + 1,
+        fieldSortOrder: resolved.fieldSortOrder,
+        blockSortOrder: resolved.blockSortOrder,
         blockName: resolved.blockName,
         entryScope: resolved.entryScope,
         includeInValidation: resolved.includeInValidation,
@@ -1453,6 +1554,7 @@ export const StepThreeTestResultTypeAndLoinc = ({
     handleNextStep(
       {
         ...values,
+        resultDisplayConfigJson: buildResultDisplayConfigJson(values),
         additionalFields: normalizeAdditionalFieldsForSubmit(
           values.additionalFields,
         ),
@@ -1527,6 +1629,10 @@ export const StepThreeTestResultTypeAndLoinc = ({
           // ),
           // .required("Loinc is required"),
           orderable: Yup.string().oneOf(["Y", "N"], "Orderable must be Y or N"),
+          directSampleUsageEnabled: Yup.string().oneOf(
+            ["Y", "N"],
+            "Direct sample usage must be Y or N",
+          ),
           notifyResults: Yup.string().oneOf(
             ["Y", "N"],
             "Notify Results must be Y or N",
@@ -1588,6 +1694,12 @@ export const StepThreeTestResultTypeAndLoinc = ({
           const handleOrderable = (e) => {
             setFieldValue("orderable", e.target.checked ? "Y" : "N");
           };
+          const handleDirectSampleUsage = (e) => {
+            setFieldValue(
+              "directSampleUsageEnabled",
+              e.target.checked ? "Y" : "N",
+            );
+          };
           const handleNotifyPatientofResults = (e) => {
             setFieldValue("notifyResults", e.target.checked ? "Y" : "N");
           };
@@ -1595,22 +1707,13 @@ export const StepThreeTestResultTypeAndLoinc = ({
             setFieldValue("inLabOnly", e.target.checked ? "Y" : "N");
           };
 
-          const normalizedAdditionalFields = Array.isArray(
-            values.additionalFields,
-          )
-            ? values.additionalFields.map((field) => {
-                const resolved = resolveFieldMetadata(field);
-                const documentSettings = resolveDocumentSettings(field);
-                return {
-                  ...field,
-                  ...resolved,
-                  ...documentSettings,
-                };
-              })
-            : [];
-          const activeAdditionalFields = normalizedAdditionalFields
-            .map((field, index) => ({ field, fieldIndex: index }))
-            .filter(({ field }) => field?.active !== false);
+          const normalizedAdditionalFields =
+            normalizeAdditionalFieldsForDisplay(values.additionalFields);
+          const activeAdditionalFields = sortAdditionalFieldEntries(
+            normalizedAdditionalFields
+              .map((field, index) => ({ field, fieldIndex: index }))
+              .filter(({ field }) => field?.active !== false),
+          );
           const inactiveAdditionalFields = normalizedAdditionalFields
             .map((field, index) => ({ field, fieldIndex: index }))
             .filter(({ field }) => field?.active === false);
@@ -1625,12 +1728,16 @@ export const StepThreeTestResultTypeAndLoinc = ({
                 required: false,
                 active: true,
                 sortOrder: normalizedAdditionalFields.length + 1,
+                fieldSortOrder: normalizedAdditionalFields.length + 1,
+                blockSortOrder: 1,
                 defaultValue: "",
                 maxLength: "",
                 metadataJson: JSON.stringify({
                   resultBlock: defaultOfficialBlock,
                   entryScope: "OFFICIAL",
                   includeInValidation: true,
+                  blockSortOrder: 1,
+                  fieldSortOrder: normalizedAdditionalFields.length + 1,
                 }),
                 blockName: defaultOfficialBlock,
                 entryScope: "OFFICIAL",
@@ -1713,6 +1820,49 @@ export const StepThreeTestResultTypeAndLoinc = ({
             target.blockName = resolved.blockName;
             target.entryScope = resolved.entryScope;
             target.includeInValidation = resolved.includeInValidation;
+            target.blockSortOrder = resolved.blockSortOrder;
+            target.fieldSortOrder = resolved.fieldSortOrder;
+            if (key === "blockSortOrder") {
+              const siblingBlockKey = String(target.blockName || "").trim();
+              nextFields.forEach((field, index) => {
+                if (index === fieldIndex) {
+                  return;
+                }
+                const siblingResolved = resolveFieldMetadata(field);
+                const currentBlockKey = String(
+                  siblingResolved.blockName || "",
+                ).trim();
+                if (currentBlockKey !== siblingBlockKey) {
+                  return;
+                }
+                nextFields[index] = {
+                  ...field,
+                  blockSortOrder: resolved.blockSortOrder,
+                  metadataJson: buildFieldMetadataJson({
+                    ...field,
+                    ...siblingResolved,
+                    blockSortOrder: resolved.blockSortOrder,
+                  }),
+                };
+              });
+            }
+            if (key === "blockName" || key === "entryScope") {
+              const siblingBlockKey = String(target.blockName || "").trim();
+              const matchingField = nextFields.find((field, index) => {
+                if (index === fieldIndex) {
+                  return false;
+                }
+                const siblingResolved = resolveFieldMetadata(field);
+                return (
+                  String(siblingResolved.blockName || "").trim() ===
+                  siblingBlockKey
+                );
+              });
+              if (matchingField) {
+                target.blockSortOrder =
+                  resolveFieldMetadata(matchingField).blockSortOrder;
+              }
+            }
             target.metadataJson = buildFieldMetadataJson(target);
             nextFields[fieldIndex] = target;
             setFieldValue("additionalFields", nextFields);
@@ -1833,6 +1983,73 @@ export const StepThreeTestResultTypeAndLoinc = ({
                       invalid={touched.resultName && !!errors.resultName}
                       invalidText={touched.resultName && errors.resultName}
                     />
+                    <Grid condensed fullWidth style={{ marginTop: "0.75rem" }}>
+                      <Column lg={4} md={4} sm={4}>
+                        <TextInput
+                          id="result-block-name"
+                          name="resultBlockName"
+                          labelText={intl.formatMessage({
+                            id: "test.additionalFields.blockName",
+                            defaultMessage: "Block",
+                          })}
+                          value={values.resultBlockName || ""}
+                          onChange={handleChange}
+                        />
+                      </Column>
+                      <Column lg={4} md={4} sm={4}>
+                        <Select
+                          id="result-entry-scope"
+                          name="resultEntryScope"
+                          labelText={intl.formatMessage({
+                            id: "test.additionalFields.entryScope",
+                            defaultMessage: "Entry Scope",
+                          })}
+                          value={values.resultEntryScope || "OFFICIAL"}
+                          onChange={handleChange}
+                        >
+                          {entryScopeOptions.map((scopeOption) => (
+                            <SelectItem
+                              key={`result-scope-${scopeOption}`}
+                              value={scopeOption}
+                              text={intl.formatMessage({
+                                id:
+                                  scopeOption === "OFFICIAL"
+                                    ? "test.additionalFields.entryScope.official"
+                                    : "test.additionalFields.entryScope.preliminary",
+                              })}
+                            />
+                          ))}
+                        </Select>
+                      </Column>
+                      <Column lg={4} md={4} sm={4}>
+                        <TextInput
+                          id="result-block-sort-order"
+                          name="resultBlockSortOrder"
+                          type="number"
+                          min="1"
+                          labelText={intl.formatMessage({
+                            id: "test.additionalFields.blockSortOrder",
+                            defaultMessage: "Block Order",
+                          })}
+                          value={values.resultBlockSortOrder || "1"}
+                          onChange={handleChange}
+                        />
+                      </Column>
+                      <Column lg={4} md={4} sm={4}>
+                        <TextInput
+                          id="result-field-sort-order"
+                          name="resultFieldSortOrder"
+                          type="number"
+                          min="1"
+                          labelText={intl.formatMessage({
+                            id: "test.additionalFields.fieldSortOrder",
+                            defaultMessage: "Field Order",
+                          })}
+                          value={values.resultFieldSortOrder || "1"}
+                          onChange={handleChange}
+                        />
+                      </Column>
+                    </Grid>
                   </div>
                   <br />
                   <div>
@@ -1971,6 +2188,46 @@ export const StepThreeTestResultTypeAndLoinc = ({
                                   />
                                 ))}
                               </Select>
+                            </Column>
+                            <Column lg={2} md={2} sm={2}>
+                              <TextInput
+                                id={`additional-field-block-order-${fieldIndex}`}
+                                labelText={intl.formatMessage({
+                                  id: "test.additionalFields.blockSortOrder",
+                                  defaultMessage: "Block Order",
+                                })}
+                                type="number"
+                                min="1"
+                                value={field?.blockSortOrder || 1}
+                                readOnly={!isEditable}
+                                onChange={(event) =>
+                                  handleAdditionalFieldChange(
+                                    fieldIndex,
+                                    "blockSortOrder",
+                                    event.target.value,
+                                  )
+                                }
+                              />
+                            </Column>
+                            <Column lg={2} md={2} sm={2}>
+                              <TextInput
+                                id={`additional-field-field-order-${fieldIndex}`}
+                                labelText={intl.formatMessage({
+                                  id: "test.additionalFields.fieldSortOrder",
+                                  defaultMessage: "Field Order",
+                                })}
+                                type="number"
+                                min="1"
+                                value={field?.fieldSortOrder || 1}
+                                readOnly={!isEditable}
+                                onChange={(event) =>
+                                  handleAdditionalFieldChange(
+                                    fieldIndex,
+                                    "fieldSortOrder",
+                                    event.target.value,
+                                  )
+                                }
+                              />
                             </Column>
                             <Column lg={2} md={2} sm={2}>
                               <TextInput
@@ -2342,6 +2599,26 @@ export const StepThreeTestResultTypeAndLoinc = ({
                       onChange={handleOrderable}
                       checked={values?.orderable === "Y"}
                     />
+                    <Checkbox
+                      labelText={
+                        <FormattedMessage id="test.directSampleUsage" />
+                      }
+                      id="direct-sample-usage-enabled"
+                      name="directSampleUsageEnabled"
+                      onChange={handleDirectSampleUsage}
+                      checked={values?.directSampleUsageEnabled === "Y"}
+                      disabled={values?.activeChildDependency === true}
+                    />
+                    {values?.activeChildDependency === true && (
+                      <p
+                        style={{
+                          marginTop: "0.25rem",
+                          marginBottom: "0.5rem",
+                        }}
+                      >
+                        <FormattedMessage id="test.directSampleUsage.disabledForChild" />
+                      </p>
+                    )}
                     <Checkbox
                       labelText={<FormattedMessage id="test.notifyResults" />}
                       id="notify-patient-of-results"
@@ -4552,6 +4829,11 @@ export const StepSevenFinalDisplayAndSaveConfirmation = ({
                       <FormattedMessage id="label.orderable" />
                       {" : "}
                       {values?.orderable}
+                      <br />
+                      <br />
+                      <FormattedMessage id="test.directSampleUsage" />
+                      {" : "}
+                      {values?.directSampleUsageEnabled}
                       <br />
                       <br />
                       <FormattedMessage id="test.notifyResults" />

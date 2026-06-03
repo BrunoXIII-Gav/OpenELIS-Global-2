@@ -487,7 +487,6 @@ public class AccessionValidationRestController extends BaseResultValidationContr
                 .getStatusID(AnalysisStatus.BiologistRejected);
         String currentUserId = getSysUserId(request);
         boolean medicalValidator = isMedicalValidator(currentUserId);
-        boolean biologistValidator = isBiologistValidator(currentUserId);
         boolean medicalPreviewConfirmed = form != null && form.isMedicalValidationConfirmed();
 
         for (AnalysisItem analysisItem : analysisItems) {
@@ -499,11 +498,6 @@ public class AccessionValidationRestController extends BaseResultValidationContr
                 if (!analysisIdList.contains(analysis.getId())) {
 
                     if (analysisItem.getIsAccepted()) {
-                        if (biologistValidator && !analysisItem.isApprovedByCurrentUser()) {
-                            analysisValidationApprovalService.registerApprovalAndGetCount(analysis.getId(),
-                                    currentUserId);
-                        }
-
                         if (!technicalAcceptanceStatus.equals(analysis.getStatusId())
                                 && !finalizedStatus.equals(analysis.getStatusId())) {
                             analysis.setStatusId(technicalAcceptanceStatus);
@@ -513,6 +507,9 @@ public class AccessionValidationRestController extends BaseResultValidationContr
 
                         if (medicalValidator && medicalPreviewConfirmed
                                 && !finalizedStatus.equals(analysis.getStatusId())) {
+                            analysisValidationApprovalService.clearApprovals(analysis.getId());
+                            analysisValidationApprovalService.registerApprovalAndGetCount(analysis.getId(),
+                                    currentUserId);
                             analysis.setStatusId(finalizedStatus);
                             if (!analysisIdList.contains(analysis.getId())) {
                                 analysisIdList.add(analysis.getId());

@@ -1,47 +1,16 @@
-import React, { useContext, useState, useEffect, useRef } from "react";
+import React, { useContext } from "react";
 import {
-  Form,
   Heading,
-  Button,
-  Loading,
   Grid,
   Column,
   Section,
-  DataTable,
-  Table,
-  TableHead,
-  TableRow,
-  TableBody,
-  TableHeader,
-  TableCell,
-  TableSelectRow,
-  TableSelectAll,
-  TableContainer,
-  Pagination,
-  Search,
-  Select,
-  SelectItem,
-  Stack,
   UnorderedList,
-  ListItem,
   ClickableTile,
 } from "@carbon/react";
-import {
-  getFromOpenElisServer,
-  postToOpenElisServer,
-  postToOpenElisServerFormData,
-  postToOpenElisServerFullResponse,
-  postToOpenElisServerJsonResponse,
-} from "../../utils/Utils.js";
 import { NotificationContext } from "../../layout/Layout.js";
-import {
-  AlertDialog,
-  NotificationKinds,
-} from "../../common/CustomNotification.js";
-import { FormattedMessage, injectIntl, useIntl } from "react-intl";
+import { AlertDialog } from "../../common/CustomNotification.js";
+import { FormattedMessage, injectIntl } from "react-intl";
 import PageBreadCrumb from "../../common/PageBreadCrumb.js";
-import CustomCheckBox from "../../common/CustomCheckBox.js";
-import ActionPaginationButtonType from "../../common/ActionPaginationButtonType.js";
 
 let breadcrumbs = [
   { label: "home.label", link: "/" },
@@ -57,12 +26,7 @@ let breadcrumbs = [
 ];
 
 function UomManagement() {
-  const { notificationVisible, setNotificationVisible, addNotification } =
-    useContext(NotificationContext);
-
-  const intl = useIntl();
-
-  const componentMounted = useRef(false);
+  const { notificationVisible } = useContext(NotificationContext);
 
   return (
     <>
@@ -87,6 +51,13 @@ function UomManagement() {
               <UnorderedList>
                 <ClickableTile href="/MasterListsPage/UomCreate" id="UomCreate">
                   <FormattedMessage id="configuration.uom.create" />
+                </ClickableTile>
+                <br />
+                <ClickableTile
+                  href="/MasterListsPage/SampleTypeUomAssign"
+                  id="SampleTypeUomAssign"
+                >
+                  <FormattedMessage id="configuration.uom.assign" />
                 </ClickableTile>
               </UnorderedList>
             </Column>

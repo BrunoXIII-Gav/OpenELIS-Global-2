@@ -141,6 +141,13 @@ public class TestParentChildDependencyRestController extends BaseRestController 
             dependencyService.update(dependency);
         }
 
+        if (Boolean.TRUE.equals(dependency.getActive())
+                && Boolean.TRUE.equals(childTest.getDirectSampleUsageEnabled())) {
+            childTest.setDirectSampleUsageEnabled(Boolean.FALSE);
+            childTest.setSysUserId(getSysUserId(request));
+            testService.update(childTest);
+        }
+
         return ResponseEntity.status(HttpStatus.OK).body(toForm(dependency));
     }
 

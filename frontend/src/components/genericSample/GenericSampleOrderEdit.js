@@ -102,6 +102,9 @@ export default function GenericSampleOrderEdit({
   // Dropdown lists
   const [sampleTypes, setSampleTypes] = useState([]);
   const [uoms, setUoms] = useState([]);
+  const [uomAssignmentsBySampleType, setUomAssignmentsBySampleType] = useState(
+    {},
+  );
   const [saving, setSaving] = useState(false);
   const [notification, setNotification] = useState(null);
 
@@ -125,6 +128,9 @@ export default function GenericSampleOrderEdit({
     if (showUom) {
       getFromOpenElisServer("/rest/UomCreate", (res) => {
         setUoms(Array.isArray(res?.existingUomList) ? res.existingUomList : []);
+      });
+      getFromOpenElisServer("/rest/sample-type-uoms/assignments", (res) => {
+        setUomAssignmentsBySampleType(res || {});
       });
     }
     if (showNotebookSelection) {
@@ -239,6 +245,27 @@ export default function GenericSampleOrderEdit({
       },
     );
   };
+
+  const availableUoms = (() => {
+    const sampleTypeId = String(defaultForm.sampleTypeId || "");
+    const assignedIds = uomAssignmentsBySampleType[sampleTypeId] || [];
+    if (!sampleTypeId || assignedIds.length === 0) {
+      return uoms;
+    }
+    return uoms.filter((uom) => assignedIds.includes(String(uom.id)));
+  })();
+  const availableUomsWithCurrent =
+    defaultForm.sampleUnitOfMeasure &&
+    !availableUoms.some(
+      (uom) => String(uom.id) === String(defaultForm.sampleUnitOfMeasure),
+    )
+      ? [
+          ...availableUoms,
+          ...uoms.filter(
+            (uom) => String(uom.id) === String(defaultForm.sampleUnitOfMeasure),
+          ),
+        ]
+      : availableUoms;
 
   const updateDefaultField = (key, value) => {
     setDefaultForm((prev) => ({ ...prev, [key]: value }));
@@ -463,8 +490,8 @@ export default function GenericSampleOrderEdit({
                   name="labNo"
                   labelText={
                     <FormattedMessage
-                      id="sample.label.labnumber"
-                      defaultMessage="Lab Number"
+                      id="order.label.number"
+                      defaultMessage="Order Number"
                     />
                   }
                   value={defaultForm.labNo}
@@ -528,7 +555,10 @@ export default function GenericSampleOrderEdit({
                       onChange={(v) =>
                         updateDefaultField("sampleUnitOfMeasure", v)
                       }
-                      options={uoms.map((u) => ({ id: u.id, value: u.value }))}
+                      options={availableUomsWithCurrent.map((u) => ({
+                        id: u.id,
+                        value: u.value,
+                      }))}
                       placeholder="Select units"
                     />
                   </Column>

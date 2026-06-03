@@ -487,6 +487,7 @@ public class ResultsValidationRetroCIUtility {
         testItem.setSequenceNumber(sequenceNumber);
         testItem.setTestName(displayTestName);
         testItem.setResultName(test.getStoredName());
+        testItem.setResultDisplayConfigJson(test.getResultDisplayConfigJson());
         testItem.setTestId(test.getId());
         testItem.setAnalysisMethod(analysis.getAnalysisType());
         testItem.setResult(result);
@@ -831,6 +832,7 @@ public class ResultsValidationRetroCIUtility {
         analysisResultItem.setAccessionNumber(testResultItem.getAccessionNumber());
         analysisResultItem.setTestName(testName);
         analysisResultItem.setResultName(testResultItem.getResultName());
+        analysisResultItem.setResultDisplayConfigJson(testResultItem.getResultDisplayConfigJson());
         analysisResultItem.setUnits(testUnits);
         if (!(testResultItem.getAnalysis() == null)) {
             analysisResultItem.setAnalysisId(testResultItem.getAnalysis().getId());

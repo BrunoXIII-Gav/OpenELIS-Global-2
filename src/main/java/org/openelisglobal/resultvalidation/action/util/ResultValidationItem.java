@@ -50,6 +50,7 @@ public class ResultValidationItem implements ResultItem, Serializable {
     private String analysisMethod;
     private String testName;
     private String resultName;
+    private String resultDisplayConfigJson;
     private String testId;
 
     private String resultValue;
@@ -201,6 +202,14 @@ public class ResultValidationItem implements ResultItem, Serializable {
 
     public void setResultName(String resultName) {
         this.resultName = resultName;
+    }
+
+    public String getResultDisplayConfigJson() {
+        return resultDisplayConfigJson;
+    }
+
+    public void setResultDisplayConfigJson(String resultDisplayConfigJson) {
+        this.resultDisplayConfigJson = resultDisplayConfigJson;
     }
 
     public String getResultValue() {

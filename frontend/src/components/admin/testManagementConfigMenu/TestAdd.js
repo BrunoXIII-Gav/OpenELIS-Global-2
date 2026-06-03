@@ -176,6 +176,11 @@ function TestAdd() {
       field: intl.formatMessage({ id: "test.field.orderable" }),
       description: <FormattedMessage id="test.description.orderable" />,
     },
+    {
+      id: "directSampleUsageEnabled",
+      field: intl.formatMessage({ id: "test.field.directSampleUsage" }),
+      description: <FormattedMessage id="test.description.directSampleUsage" />,
+    },
   ];
 
   if (isLoading) {

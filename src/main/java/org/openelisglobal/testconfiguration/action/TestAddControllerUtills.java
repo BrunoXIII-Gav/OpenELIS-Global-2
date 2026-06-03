@@ -104,9 +104,13 @@ public class TestAddControllerUtills {
             // TODO remove test name if possible. Tests should be identified by LOINC and
             // use a localization
             test.setName(testAddParams.testNameEnglish);
+            test.setStoredName(GenericValidator.isBlankOrNull(testAddParams.resultName) ? testAddParams.testNameEnglish
+                    : testAddParams.resultName);
+            test.setResultDisplayConfigJson(testAddParams.resultDisplayConfigJson);
             test.setLocalCode(testAddParams.testNameEnglish);
             test.setIsActive(testAddParams.active);
             test.setOrderable("Y".equals(testAddParams.orderable));
+            test.setDirectSampleUsageEnabled("Y".equals(testAddParams.directSampleUsageEnabled));
             test.setNotifyResults("Y".equals(testAddParams.notifyResults));
             test.setInLabOnly("Y".equals(testAddParams.inLabOnly));
             test.setAntimicrobialResistance("Y".equals(testAddParams.antimicrobialResistance));
@@ -238,11 +242,14 @@ public class TestAddControllerUtills {
             extractPanels(obj, parser, testAddParams);
             testAddParams.uomId = (String) obj.get("uom");
             testAddParams.loinc = (String) obj.get("loinc");
+            testAddParams.resultName = asString(obj.get("resultName"));
+            testAddParams.resultDisplayConfigJson = asString(obj.get("resultDisplayConfigJson"));
             testAddParams.resultTypeId = (String) obj.get("resultType");
             extractSampleTypes(obj, parser, testAddParams);
             extractAdditionalFields(obj, testAddParams);
             testAddParams.active = (String) obj.get("active");
             testAddParams.orderable = (String) obj.get("orderable");
+            testAddParams.directSampleUsageEnabled = asString(obj.get("directSampleUsageEnabled"));
             testAddParams.notifyResults = (String) obj.get("notifyResults");
             testAddParams.inLabOnly = (String) obj.get("inLabOnly");
             testAddParams.antimicrobialResistance = (String) obj.get("antimicrobialResistance");
@@ -435,10 +442,13 @@ public class TestAddControllerUtills {
         ArrayList<String> panelList = new ArrayList<>();
         String uomId;
         public String loinc;
+        String resultName;
+        String resultDisplayConfigJson;
         String resultTypeId;
         ArrayList<SampleTypeListAndTestOrder> sampleList = new ArrayList<>();
         String active;
         String orderable;
+        String directSampleUsageEnabled;
         String notifyResults;
         String inLabOnly;
         String antimicrobialResistance;

@@ -81,6 +81,7 @@ import SampleTypeOrder from "./testManagementConfigMenu/SampleTypeOrder.js";
 import SampleTypeCreate from "./testManagementConfigMenu/SampleTypeCreate.js";
 import SampleTypeTestAssign from "./testManagementConfigMenu/SampleTypeTestAssign.js";
 import SampleTypeAdditionalFields from "./testManagementConfigMenu/SampleTypeAdditionalFields.js";
+import SampleTypeUomAssign from "./testManagementConfigMenu/SampleTypeUomAssign.js";
 import UomManagement from "./testManagementConfigMenu/UomManagement.js";
 import UomCreate from "./testManagementConfigMenu/UomCreate.js";
 import PanelManagement from "./testManagementConfigMenu/PanelManagement.js";
@@ -552,6 +553,10 @@ function Admin() {
         <Route
           path={`${path}/SampleTypeAdditionalFields`}
           component={SampleTypeAdditionalFields}
+        />
+        <Route
+          path={`${path}/SampleTypeUomAssign`}
+          component={SampleTypeUomAssign}
         />
         <Route path={`${path}/UomManagement`} component={UomManagement} />
         <Route path={`${path}/UomCreate`} component={UomCreate} />

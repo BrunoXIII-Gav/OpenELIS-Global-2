@@ -29,7 +29,8 @@ import org.openelisglobal.test.beanItems.TestResultItem;
 import org.openelisglobal.workplan.form.WorkplanForm;
 
 public class WorkplanPaging {
-    private PagingUtility<List<TestResultItem>> paging = new PagingUtility<>();
+    private PagingUtility<List<TestResultItem>> paging = new PagingUtility<>(
+            IActionConstants.WORKPLAN_SESSION_CACHE, IActionConstants.WORKPLAN_PAGE_MAPPING_SESSION_CACHE);
 
     private static TestItemPageHelper pagingHelper = new TestItemPageHelper();
 

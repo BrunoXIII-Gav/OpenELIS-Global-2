@@ -34,7 +34,9 @@ import org.openelisglobal.spring.util.SpringContext;
  */
 public class ElectronicOrderPaging {
 
-    private final PagingUtility<List<ElectronicOrderDisplayItem>> paging = new PagingUtility<>(); // Adjust type based
+    private final PagingUtility<List<ElectronicOrderDisplayItem>> paging = new PagingUtility<>(
+            IActionConstants.ELECTRONIC_ORDER_SESSION_CACHE,
+            IActionConstants.ELECTRONIC_ORDER_PAGE_MAPPING_SESSION_CACHE); // Adjust type based
                                                                                                   // on your
     // data
     private static final ElectronicOrderPageHelper pagingHelper = new ElectronicOrderPageHelper(); // Implement helper

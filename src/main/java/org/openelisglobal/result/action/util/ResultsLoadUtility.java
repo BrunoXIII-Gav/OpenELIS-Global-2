@@ -192,6 +192,7 @@ public class ResultsLoadUtility {
     private final Map<String, List<IdValuePair>> methodOptionsByTestIdCache = new HashMap<>();
     private final Map<String, String> methodLabelByIdCache = new HashMap<>();
     private final Map<String, TestParentChildDependency> dependencyByChildTestId = new HashMap<>();
+    private final Map<String, Boolean> activeDependencyParentByTestId = new HashMap<>();
     private final Map<String, Analysis> parentAnalysisBySampleAndTest = new HashMap<>();
     private final Map<String, List<Analysis>> analysesBySampleItemIdCache = new HashMap<>();
     private final Map<String, BigDecimal> parentFieldNumericValueCache = new HashMap<>();
@@ -510,6 +511,7 @@ public class ResultsLoadUtility {
                     techSignatureId, initialConditions, SpringContext.getBean(TypeOfSampleService.class)
                             .getTypeOfSampleNameForId(sampleItem.getTypeOfSampleId()));
             applyDependencyContextToResultItem(resultItem, dependencyContext, analysis);
+            applyParentSampleUsageContextToResultItem(resultItem, analysis);
             resultItem.setNationalId(nationalId);
             testResultList.add(resultItem);
 
@@ -779,6 +781,7 @@ public class ResultsLoadUtility {
         testItem.setReceivedDate(receivedDate);
         testItem.setTestName(displayTestName);
         testItem.setResultName(test.getStoredName());
+        testItem.setResultDisplayConfigJson(test.getResultDisplayConfigJson());
         testItem.setTestId(test.getId());
         setResultLimitDependencies(resultLimit, testItem, testResults);
         testItem.setPatientName(patientName);
@@ -867,6 +870,7 @@ public class ResultsLoadUtility {
 
     private void clearDependencyCaches() {
         dependencyByChildTestId.clear();
+        activeDependencyParentByTestId.clear();
         parentAnalysisBySampleAndTest.clear();
         analysesBySampleItemIdCache.clear();
         parentFieldNumericValueCache.clear();
@@ -957,6 +961,50 @@ public class ResultsLoadUtility {
         } else {
             resultItem.setSampleUsageLocked(false);
         }
+    }
+
+    private void applyParentSampleUsageContextToResultItem(TestResultItem resultItem, Analysis analysis) {
+        if (resultItem == null || analysis == null || analysis.getTest() == null || analysis.getSampleItem() == null) {
+            return;
+        }
+
+        if (resultItem.isDependentChild()) {
+            return;
+        }
+
+        boolean directSampleUsageEnabled = Boolean.TRUE.equals(analysis.getTest().getDirectSampleUsageEnabled());
+        if (!directSampleUsageEnabled && !hasActiveChildDependencies(analysis.getTest().getId())) {
+            return;
+        }
+
+        resultItem.setParentSampleUsageEnabled(true);
+        BigDecimal remaining = analysis.getSampleItem().getEffectiveRemainingQuantity();
+        if (remaining != null) {
+            resultItem.setParentSampleRemainingQuantity(remaining.toPlainString());
+        }
+
+        if (analysis.getSampleUsedQuantity() != null) {
+            resultItem.setParentSampleUsageQuantity(analysis.getSampleUsedQuantity().toPlainString());
+            resultItem.setParentSampleUsageLocked(true);
+        } else {
+            resultItem.setParentSampleUsageLocked(false);
+        }
+    }
+
+    private boolean hasActiveChildDependencies(String parentTestId) {
+        if (GenericValidator.isBlankOrNull(parentTestId)) {
+            return false;
+        }
+
+        if (activeDependencyParentByTestId.containsKey(parentTestId)) {
+            return Boolean.TRUE.equals(activeDependencyParentByTestId.get(parentTestId));
+        }
+
+        List<TestParentChildDependency> dependencies = testParentChildDependencyService.getByParentTestId(parentTestId);
+        boolean hasActiveDependencies = dependencies != null
+                && dependencies.stream().anyMatch(dependency -> dependency != null && Boolean.TRUE.equals(dependency.getActive()));
+        activeDependencyParentByTestId.put(parentTestId, hasActiveDependencies);
+        return hasActiveDependencies;
     }
 
     private static class DependencyContext {
