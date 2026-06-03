@@ -504,6 +504,38 @@ public class OrderAdditionalFieldServiceImpl implements OrderAdditionalFieldServ
 
     @Override
     @Transactional(readOnly = true)
+    public Optional<String> getStorageAssignmentBlockReason(String sampleId) {
+        if (StringUtils.isBlank(sampleId)) {
+            return Optional.empty();
+        }
+
+        List<OrderAdditionalFieldPayload> gatedBooleanFields = getFields(false).stream().filter(field -> field != null)
+                .filter(field -> parseFieldType(field.getFieldType()) == FieldType.BOOLEAN)
+                .filter(field -> parseFieldMetadata(field.getMetadataJson()).requiresCheckedForStorageAssignment)
+                .collect(Collectors.toList());
+
+        if (gatedBooleanFields.isEmpty()) {
+            return Optional.empty();
+        }
+
+        Map<String, String> valuesByKey = getSampleValues(sampleId, gatedBooleanFields);
+        boolean allowed = gatedBooleanFields.stream().map(OrderAdditionalFieldPayload::getFieldKey)
+                .map(valuesByKey::get).anyMatch(this::isTruthyValue);
+
+        if (allowed) {
+            return Optional.empty();
+        }
+
+        String configuredFieldNames = gatedBooleanFields.stream()
+                .map(field -> StringUtils.defaultIfBlank(field.getDisplayName(), field.getFieldKey()))
+                .collect(Collectors.joining(", "));
+        return Optional.of(String.format(
+                "Storage assignment is blocked for this order. Enable at least one of these order fields first: %s",
+                configuredFieldNames));
+    }
+
+    @Override
+    @Transactional(readOnly = true)
     public List<OrderFixedFieldConfigPayload> getFixedFieldConfigs() {
         List<OrderFixedFieldConfig> configured = fixedFieldConfigDAO.findAllOrdered();
         Map<String, OrderFixedFieldConfig> byKey = configured.stream()
@@ -938,10 +970,20 @@ public class OrderAdditionalFieldServiceImpl implements OrderAdditionalFieldServ
             }
             Integer maxSizeMb = documentNode.path("maxSizeMb").isNumber() ? documentNode.path("maxSizeMb").asInt()
                     : null;
-            return new FieldMetadata(logic, visibleWhen, requiredWhen, acceptedMimeTypes, maxSizeMb);
+            JsonNode storageNode = root.path("storage");
+            boolean requiresCheckedForStorageAssignment = storageNode.path("requireCheckedForStorageAssignment")
+                    .asBoolean(false);
+            return new FieldMetadata(logic, visibleWhen, requiredWhen, acceptedMimeTypes, maxSizeMb,
+                    requiresCheckedForStorageAssignment);
         } catch (Exception e) {
             throw new IllegalArgumentException("Invalid metadataJson");
         }
+    }
+
+    private boolean isTruthyValue(String value) {
+        String normalized = StringUtils.trimToEmpty(value);
+        return "true".equalsIgnoreCase(normalized) || "yes".equalsIgnoreCase(normalized)
+                || "1".equalsIgnoreCase(normalized);
     }
 
     private Map<String, String> buildEvaluationContext(List<OrderAdditionalFieldPayload> activeFields,
@@ -1218,18 +1260,20 @@ public class OrderAdditionalFieldServiceImpl implements OrderAdditionalFieldServ
         private final ArrayNode requiredWhen;
         private final List<String> allowedMimeTypes;
         private final Integer maxSizeMb;
+        private final boolean requiresCheckedForStorageAssignment;
 
         private FieldMetadata(String logic, ArrayNode visibleWhen, ArrayNode requiredWhen,
-                List<String> allowedMimeTypes, Integer maxSizeMb) {
+                List<String> allowedMimeTypes, Integer maxSizeMb, boolean requiresCheckedForStorageAssignment) {
             this.logic = logic;
             this.visibleWhen = visibleWhen;
             this.requiredWhen = requiredWhen;
             this.allowedMimeTypes = allowedMimeTypes;
             this.maxSizeMb = maxSizeMb;
+            this.requiresCheckedForStorageAssignment = requiresCheckedForStorageAssignment;
         }
 
         private static FieldMetadata empty() {
-            return new FieldMetadata(DEFAULT_RULE_LOGIC, null, null, Collections.emptyList(), null);
+            return new FieldMetadata(DEFAULT_RULE_LOGIC, null, null, Collections.emptyList(), null, false);
         }
     }
 

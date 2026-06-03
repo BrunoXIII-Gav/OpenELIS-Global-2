@@ -841,15 +841,19 @@ const resolveCustomFieldDisplayValue = (field, valuesByKey, filesByKey) => {
     );
   }
 
-  const rawValue = valuesByKey?.[fieldKey];
-  if (rawValue === undefined || rawValue === null || rawValue === "") {
-    return "";
-  }
-
   if (fieldType === "BOOLEAN") {
+    const rawValue = valuesByKey?.[fieldKey];
+    if (rawValue === undefined || rawValue === null || rawValue === "") {
+      return "false";
+    }
     return rawValue === true || String(rawValue).toLowerCase() === "true"
       ? "true"
       : "false";
+  }
+
+  const rawValue = valuesByKey?.[fieldKey];
+  if (rawValue === undefined || rawValue === null || rawValue === "") {
+    return "";
   }
 
   const options = Array.isArray(field?.options) ? field.options : [];

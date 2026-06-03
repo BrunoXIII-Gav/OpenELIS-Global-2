@@ -42,6 +42,8 @@ public interface OrderAdditionalFieldService {
 
     Optional<Integer> findSampleIdBySearchableFieldValue(String searchValue);
 
+    Optional<String> getStorageAssignmentBlockReason(String sampleId);
+
     List<OrderFixedFieldConfigPayload> getFixedFieldConfigs();
 
     void upsertFixedFieldConfigs(List<OrderFixedFieldConfigPayload> payloads, String currentUserId);
