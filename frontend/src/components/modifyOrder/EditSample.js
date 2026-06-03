@@ -47,6 +47,9 @@ const EditSample = (props) => {
 
   const [rejectSampleReasons, setRejectSampleReasons] = useState([]);
   const [uomList, setUomList] = useState([]);
+  const [uomAssignmentsBySampleType, setUomAssignmentsBySampleType] = useState(
+    {},
+  );
   const isFrenchLocale =
     configurationProperties?.DEFAULT_DATE_LOCALE === "fr-FR";
 
@@ -95,6 +98,7 @@ const EditSample = (props) => {
       id: buildRowId(test),
       accessionNumber: test.accessionNumber || "",
       sampleType: test.sampleType || "",
+      sampleTypeId: test.sampleTypeId || "",
       cugCode: test.cugCode || "",
       collectionDate: normalizeCollectionDate(test.collectionDate),
       collectionTime: normalizeCollectionTime(test.collectionTime),
@@ -546,6 +550,16 @@ const EditSample = (props) => {
     }
   };
 
+  const getAvailableUomsForSampleType = (sampleTypeId) => {
+    const normalizedSampleTypeId = String(sampleTypeId || "");
+    const assignedIds =
+      uomAssignmentsBySampleType[normalizedSampleTypeId] || [];
+    if (!normalizedSampleTypeId || assignedIds.length === 0) {
+      return uomList;
+    }
+    return uomList.filter((uom) => assignedIds.includes(String(uom.id)));
+  };
+
   const handleRemoveSample = (e, sample) => {
     e.preventDefault();
     let filtered = samples.filter(function (element) {
@@ -561,6 +575,11 @@ const EditSample = (props) => {
       fetchRejectSampleReasons,
     );
     getFromOpenElisServer("/rest/displayList/UNIT_OF_MEASURE", fetchUoms);
+    getFromOpenElisServer("/rest/sample-type-uoms/assignments", (res) => {
+      if (componentMounted.current) {
+        setUomAssignmentsBySampleType(res || {});
+      }
+    });
     window.scrollTo(0, 0);
     return () => {
       componentMounted.current = false;
@@ -645,6 +664,18 @@ const EditSample = (props) => {
         </TableCell>
       );
     } else if (cell.info.header === "unitOfMeasureId") {
+      const sampleTypeId = row.cells.find(
+        (entry) => entry.info.header === "sampleTypeId",
+      )?.value;
+      const availableUoms = getAvailableUomsForSampleType(sampleTypeId);
+      const availableUomsWithCurrent =
+        cell.value &&
+        !availableUoms.some((uom) => String(uom.id) === String(cell.value))
+          ? [
+              ...availableUoms,
+              ...uomList.filter((uom) => String(uom.id) === String(cell.value)),
+            ]
+          : availableUoms;
       return (
         <TableCell key={cell.id}>
           {accession !== "" ? (
@@ -661,7 +692,7 @@ const EditSample = (props) => {
               }
             >
               <SelectItem value="" text="Select units" />
-              {uomList.map((uom) => (
+              {availableUomsWithCurrent.map((uom) => (
                 <SelectItem key={uom.id} value={uom.id} text={uom.value} />
               ))}
             </Select>

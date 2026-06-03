@@ -110,6 +110,9 @@ export default function GenericSampleOrder({
   // Dropdown lists
   const [sampleTypes, setSampleTypes] = useState([]);
   const [uoms, setUoms] = useState([]);
+  const [uomAssignmentsBySampleType, setUomAssignmentsBySampleType] = useState(
+    {},
+  );
   const [labNoLoading, setLabNoLoading] = useState(false);
 
   // Success state
@@ -134,6 +137,9 @@ export default function GenericSampleOrder({
     if (showUom) {
       getFromOpenElisServer("/rest/UomCreate", (res) => {
         setUoms(Array.isArray(res?.existingUomList) ? res.existingUomList : []);
+      });
+      getFromOpenElisServer("/rest/sample-type-uoms/assignments", (res) => {
+        setUomAssignmentsBySampleType(res || {});
       });
     }
     if (showNotebookSelection) {
@@ -210,6 +216,27 @@ export default function GenericSampleOrder({
   const updateDefaultField = (key, value) => {
     setDefaultForm((prev) => ({ ...prev, [key]: value }));
   };
+
+  const availableUoms = (() => {
+    const sampleTypeId = String(defaultForm.sampleTypeId || "");
+    const assignedIds = uomAssignmentsBySampleType[sampleTypeId] || [];
+    if (!sampleTypeId || assignedIds.length === 0) {
+      return uoms;
+    }
+    return uoms.filter((uom) => assignedIds.includes(String(uom.id)));
+  })();
+
+  useEffect(() => {
+    if (!defaultForm.sampleUnitOfMeasure) {
+      return;
+    }
+    const currentUomStillAllowed = availableUoms.some(
+      (uom) => String(uom.id) === String(defaultForm.sampleUnitOfMeasure),
+    );
+    if (!currentUomStillAllowed) {
+      setDefaultForm((prev) => ({ ...prev, sampleUnitOfMeasure: "" }));
+    }
+  }, [availableUoms, defaultForm.sampleUnitOfMeasure]);
 
   const handleAnswerChange = (e) => {
     const { id, value } = e.target;
@@ -584,8 +611,8 @@ export default function GenericSampleOrder({
                 labelText={
                   <>
                     <FormattedMessage
-                      id="sample.label.labnumber"
-                      defaultMessage="Lab Number"
+                      id="order.label.number"
+                      defaultMessage="Order Number"
                     />
                     {labNoRequired && <span style={{ color: "red" }}> *</span>}
                   </>
@@ -675,7 +702,10 @@ export default function GenericSampleOrder({
                     onChange={(v) =>
                       updateDefaultField("sampleUnitOfMeasure", v)
                     }
-                    options={uoms.map((u) => ({ id: u.id, value: u.value }))}
+                    options={availableUoms.map((u) => ({
+                      id: u.id,
+                      value: u.value,
+                    }))}
                     placeholder="Select units"
                   />
                 </Column>

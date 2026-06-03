@@ -123,6 +123,9 @@ function SampleResultsTable({
   const [currentTestsPageSizeBySampleId, setCurrentTestsPageSizeBySampleId] =
     useState({});
   const [uomList, setUomList] = useState([]);
+  const [uomAssignmentsBySampleType, setUomAssignmentsBySampleType] = useState(
+    {},
+  );
   const [collectorUsers, setCollectorUsers] = useState([]);
   const [additionalFieldValuesBySampleId, setAdditionalFieldValuesBySampleId] =
     useState({});
@@ -241,6 +244,19 @@ function SampleResultsTable({
     return field?.displayName || field?.fieldKey || "";
   };
 
+  const getAvailableUomsForSampleType = useCallback(
+    (sampleTypeId) => {
+      const normalizedSampleTypeId = String(sampleTypeId || "");
+      const assignedIds =
+        uomAssignmentsBySampleType[normalizedSampleTypeId] || [];
+      if (!normalizedSampleTypeId || assignedIds.length === 0) {
+        return uomList;
+      }
+      return uomList.filter((uom) => assignedIds.includes(String(uom.id)));
+    },
+    [uomAssignmentsBySampleType, uomList],
+  );
+
   useEffect(() => {
     componentMounted.current = true;
     const fetchUoms = (res) => {
@@ -254,6 +270,10 @@ function SampleResultsTable({
       );
     };
     getFromOpenElisServer("/rest/displayList/UNIT_OF_MEASURE", fetchUoms);
+    getFromOpenElisServer("/rest/sample-type-uoms/assignments", (res) => {
+      if (!componentMounted.current) return;
+      setUomAssignmentsBySampleType(res || {});
+    });
 
     const fetchCollectorUsers = (profileCode) => {
       const normalizedCode = normalizeProfileCode(profileCode);
@@ -1188,6 +1208,19 @@ function SampleResultsTable({
               sampleDetails.collectionTime !== undefined
                 ? sampleDetails.collectionTime
                 : originalRow.collectionTimeRaw || "";
+            const availableUoms = getAvailableUomsForSampleType(
+              originalRow.sampleTypeId,
+            );
+            const availableUomsWithCurrent =
+              sampleUom &&
+              !availableUoms.some((uom) => String(uom.id) === String(sampleUom))
+                ? [
+                    ...availableUoms,
+                    ...uomList.filter(
+                      (uom) => String(uom.id) === String(sampleUom),
+                    ),
+                  ]
+                : availableUoms;
 
             if (isNarrowViewport) {
               return (
@@ -1230,7 +1263,7 @@ function SampleResultsTable({
                       }
                     >
                       <SelectItem value="" text="Select units" />
-                      {uomList.map((uom) => (
+                      {availableUomsWithCurrent.map((uom) => (
                         <SelectItem
                           key={uom.id}
                           value={String(uom.id)}
@@ -1521,13 +1554,15 @@ function SampleResultsTable({
                                                   value=""
                                                   text="Select units"
                                                 />
-                                                {uomList.map((uom) => (
-                                                  <SelectItem
-                                                    key={uom.id}
-                                                    value={String(uom.id)}
-                                                    text={uom.value}
-                                                  />
-                                                ))}
+                                                {availableUomsWithCurrent.map(
+                                                  (uom) => (
+                                                    <SelectItem
+                                                      key={uom.id}
+                                                      value={String(uom.id)}
+                                                      text={uom.value}
+                                                    />
+                                                  ),
+                                                )}
                                               </Select>
                                             </TableCell>
                                           );

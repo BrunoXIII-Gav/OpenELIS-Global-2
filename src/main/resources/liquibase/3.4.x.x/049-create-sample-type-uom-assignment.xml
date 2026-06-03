@@ -1,0 +1,45 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<databaseChangeLog
+  xmlns="http://www.liquibase.org/xml/ns/dbchangelog"
+  xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+  xsi:schemaLocation="http://www.liquibase.org/xml/ns/dbchangelog
+         http://www.liquibase.org/xml/ns/dbchangelog/dbchangelog-3.8.xsd">
+
+  <changeSet id="049-create-sampletype-unit-of-measure" author="openai">
+    <createSequence sequenceName="sampletype_uom_seq" startValue="1"/>
+
+    <createTable tableName="sampletype_unit_of_measure">
+      <column name="id" type="BIGINT">
+        <constraints nullable="false" primaryKey="true" primaryKeyName="pk_sampletype_unit_of_measure"/>
+      </column>
+      <column name="sample_type_id" type="BIGINT">
+        <constraints nullable="false"/>
+      </column>
+      <column name="unit_of_measure_id" type="BIGINT">
+        <constraints nullable="false"/>
+      </column>
+      <column name="lastupdated" type="timestamp" defaultValueComputed="CURRENT_TIMESTAMP">
+        <constraints nullable="false"/>
+      </column>
+      <column name="sys_user_id" type="NUMERIC(10,0)">
+        <constraints nullable="false"/>
+      </column>
+    </createTable>
+
+    <addForeignKeyConstraint constraintName="fk_sampletype_uom_sampletype"
+      baseTableName="sampletype_unit_of_measure" baseColumnNames="sample_type_id"
+      referencedTableName="type_of_sample" referencedColumnNames="id"/>
+
+    <addForeignKeyConstraint constraintName="fk_sampletype_uom_uom"
+      baseTableName="sampletype_unit_of_measure" baseColumnNames="unit_of_measure_id"
+      referencedTableName="unit_of_measure" referencedColumnNames="id"/>
+
+    <addUniqueConstraint tableName="sampletype_unit_of_measure"
+      columnNames="sample_type_id,unit_of_measure_id"
+      constraintName="uq_sampletype_unit_of_measure"/>
+
+    <createIndex tableName="sampletype_unit_of_measure" indexName="idx_sampletype_uom_sampletype">
+      <column name="sample_type_id"/>
+    </createIndex>
+  </changeSet>
+</databaseChangeLog>
