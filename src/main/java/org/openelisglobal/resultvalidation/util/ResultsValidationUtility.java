@@ -444,6 +444,7 @@ public class ResultsValidationUtility {
         testItem.setSequenceNumber(sequenceNumber);
         testItem.setTestName(displayTestName);
         testItem.setResultName(test.getStoredName());
+        testItem.setResultDisplayConfigJson(test.getResultDisplayConfigJson());
         testItem.setTestId(test.getId());
         setResultLimitDependencies(resultLimit, testItem, testResults);
         testItem.setAnalysisMethod(analysis.getAnalysisType());
@@ -666,6 +667,7 @@ public class ResultsValidationUtility {
         analysisResultItem.setPatientName(testResultItem.getPatientName());
         analysisResultItem.setTestName(testName);
         analysisResultItem.setResultName(testResultItem.getResultName());
+        analysisResultItem.setResultDisplayConfigJson(testResultItem.getResultDisplayConfigJson());
         analysisResultItem.setUnits(testUnits);
         analysisResultItem.setAnalysisId(testResultItem.getAnalysis().getId());
         analysisResultItem.setStatusId(testResultItem.getAnalysis().getStatusId());

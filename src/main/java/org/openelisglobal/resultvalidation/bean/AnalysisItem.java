@@ -210,6 +210,8 @@ public class AnalysisItem implements Serializable {
 
     private ResultFileForm resultFile;
 
+    private String resultDisplayConfigJson;
+
     public String getRejectReasonId() {
         return rejectReasonId;
     }
@@ -243,6 +245,14 @@ public class AnalysisItem implements Serializable {
 
     public void setResultName(String resultName) {
         this.resultName = resultName;
+    }
+
+    public String getResultDisplayConfigJson() {
+        return resultDisplayConfigJson;
+    }
+
+    public void setResultDisplayConfigJson(String resultDisplayConfigJson) {
+        this.resultDisplayConfigJson = resultDisplayConfigJson;
     }
 
     public void setUnits(String units) {

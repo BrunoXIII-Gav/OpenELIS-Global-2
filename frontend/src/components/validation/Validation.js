@@ -126,9 +126,6 @@ const Validation = (props) => {
   const currentUserIsMedicalValidator = Boolean(
     props?.results?.currentUserIsMedicalValidator,
   );
-  const currentUserIsBiologistValidator = Boolean(
-    props?.results?.currentUserIsBiologistValidator,
-  );
   const accessionNumberFromUrl = useMemo(() => {
     const urlAccessionValue = new URLSearchParams(window.location.search).get(
       "accessionNumber",
@@ -472,6 +469,17 @@ const Validation = (props) => {
 
   const handleSave = (values) => {
     if (validationLocked) {
+      if (!currentUserIsMedicalValidator) {
+        addNotification({
+          kind: NotificationKinds.warning,
+          title: intl.formatMessage({ id: "notification.title" }),
+          message: intl.formatMessage({
+            id: "validation.medical.only",
+            defaultMessage: "Only medical validators can validate results.",
+          }),
+        });
+        setNotificationVisible(true);
+      }
       return;
     }
     if (isSubmitting) {
@@ -646,16 +654,11 @@ const Validation = (props) => {
           : [];
       setSavedAnalysisIds(successfulSavedIds);
       const savedIdSet = new Set(successfulSavedIds);
-      if (savedIdSet.size > 0 || currentUserIsBiologistValidator) {
+      if (savedIdSet.size > 0) {
         liveResultList.forEach((row) => {
-          const shouldLockBiologistRow =
-            currentUserIsBiologistValidator &&
-            row?.analysisId &&
-            row?.isAccepted &&
-            !row?.readOnly;
           const shouldLockMedicalRow =
             savedIdSet.has(row?.analysisId) && !row?.readOnly;
-          if (shouldLockBiologistRow || shouldLockMedicalRow) {
+          if (shouldLockMedicalRow) {
             row.approvedByCurrentUser = true;
             row.isAccepted = true;
           }
@@ -874,8 +877,8 @@ const Validation = (props) => {
           <Column lg={16} md={8} sm={4}>
             <h5 style={{ marginBottom: "0.5rem" }}>
               {intl.formatMessage({
-                id: "validation.expand.additionalFields.title",
-                defaultMessage: "Additional Fields",
+                id: "validation.expand.results.title",
+                defaultMessage: "Results",
               })}
             </h5>
           </Column>
@@ -1171,7 +1174,7 @@ const Validation = (props) => {
   const hasLiveResults = pendingLiveResults.length > 0;
   const hasValidatedRows = liveResultList.some((row) => row?.readOnly);
   const displayResultList = liveResultList;
-  const validationLocked = !hasLiveResults;
+  const validationLocked = !hasLiveResults || !currentUserIsMedicalValidator;
   const acceptedAnalysisCount = getAcceptedAnalysisIds().length;
   const acceptedRowsMissingValidationDate = liveResultList.filter(
     (row) =>
@@ -1428,7 +1431,7 @@ const Validation = (props) => {
           defaultMessage: "Open Preview",
         })}
         secondaryButtonText={intl.formatMessage({
-          id: "validation.preview.selection.secondary",
+          id: "label.button.cancel",
           defaultMessage: "Cancel",
         })}
         onRequestClose={() => setPreviewSelectionModalOpen(false)}
@@ -1514,7 +1517,7 @@ const Validation = (props) => {
           defaultMessage: "Download",
         })}
         secondaryButtonText={intl.formatMessage({
-          id: "validation.download.modal.secondary",
+          id: "label.button.cancel",
           defaultMessage: "Cancel",
         })}
         onRequestClose={() => setDownloadModalOpen(false)}

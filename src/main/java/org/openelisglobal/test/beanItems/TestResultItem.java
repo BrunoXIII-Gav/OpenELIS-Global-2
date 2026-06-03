@@ -105,6 +105,8 @@ public class TestResultItem implements ResultItem, Serializable {
     @SafeHtml(level = SafeHtml.SafeListLevel.NONE, groups = { WorkplanForm.PrintWorkplan.class })
     private String resultName;
 
+    private String resultDisplayConfigJson;
+
     @Pattern(regexp = ValidationHelper.ID_REGEX, groups = { LogbookResultsForm.LogbookResults.class })
     private String testId;
 
@@ -220,6 +222,10 @@ public class TestResultItem implements ResultItem, Serializable {
     private String sampleRemainingQuantity;
     private String sampleUsageQuantity;
     private boolean sampleUsageLocked = false;
+    private boolean parentSampleUsageEnabled = false;
+    private String parentSampleRemainingQuantity;
+    private String parentSampleUsageQuantity;
+    private boolean parentSampleUsageLocked = false;
     private boolean failedValidation = false;
     private boolean nonconforming = false;
     private String testSortOrder = null;
@@ -579,6 +585,14 @@ public class TestResultItem implements ResultItem, Serializable {
         this.resultName = resultName;
     }
 
+    public String getResultDisplayConfigJson() {
+        return resultDisplayConfigJson;
+    }
+
+    public void setResultDisplayConfigJson(String resultDisplayConfigJson) {
+        this.resultDisplayConfigJson = resultDisplayConfigJson;
+    }
+
     public String getTestId() {
         return testId;
     }
@@ -901,6 +915,38 @@ public class TestResultItem implements ResultItem, Serializable {
 
     public void setSampleUsageLocked(boolean sampleUsageLocked) {
         this.sampleUsageLocked = sampleUsageLocked;
+    }
+
+    public boolean isParentSampleUsageEnabled() {
+        return parentSampleUsageEnabled;
+    }
+
+    public void setParentSampleUsageEnabled(boolean parentSampleUsageEnabled) {
+        this.parentSampleUsageEnabled = parentSampleUsageEnabled;
+    }
+
+    public String getParentSampleRemainingQuantity() {
+        return parentSampleRemainingQuantity;
+    }
+
+    public void setParentSampleRemainingQuantity(String parentSampleRemainingQuantity) {
+        this.parentSampleRemainingQuantity = parentSampleRemainingQuantity;
+    }
+
+    public String getParentSampleUsageQuantity() {
+        return parentSampleUsageQuantity;
+    }
+
+    public void setParentSampleUsageQuantity(String parentSampleUsageQuantity) {
+        this.parentSampleUsageQuantity = parentSampleUsageQuantity;
+    }
+
+    public boolean isParentSampleUsageLocked() {
+        return parentSampleUsageLocked;
+    }
+
+    public void setParentSampleUsageLocked(boolean parentSampleUsageLocked) {
+        this.parentSampleUsageLocked = parentSampleUsageLocked;
     }
 
     public void setFailedValidation(boolean failedValidation) {

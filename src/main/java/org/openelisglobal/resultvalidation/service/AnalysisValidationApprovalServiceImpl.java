@@ -73,7 +73,7 @@ public class AnalysisValidationApprovalServiceImpl implements AnalysisValidation
             if (analysisId == null || analysisId.trim().isEmpty()) {
                 continue;
             }
-            int count = counts.getOrDefault(analysisId, 0);
+            int count = Math.min(counts.getOrDefault(analysisId, 0), required);
             boolean isApprovedByUser = approvedByUser.contains(analysisId);
             result.put(analysisId, new ApprovalState(count, required, isApprovedByUser));
         }
