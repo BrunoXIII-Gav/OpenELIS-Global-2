@@ -202,7 +202,6 @@ const AdditionalFieldEditor = ({
           onChange={(event) => {
             const nextValue = event.target.value;
             setDraftValue(nextValue);
-            commitValue(nextValue);
           }}
           onBlur={() => commitValue()}
         />
@@ -217,7 +216,6 @@ const AdditionalFieldEditor = ({
           onChange={(event) => {
             const nextValue = event.target.value;
             setDraftValue(nextValue);
-            commitValue(nextValue);
           }}
           onBlur={() => commitValue()}
         />
@@ -232,7 +230,6 @@ const AdditionalFieldEditor = ({
           onChange={(event) => {
             const nextValue = event.target.value;
             setDraftValue(nextValue);
-            commitValue(nextValue);
           }}
           onBlur={() => commitValue()}
         />
@@ -247,7 +244,6 @@ const AdditionalFieldEditor = ({
           onChange={(event) => {
             const nextValue = event.target.value;
             setDraftValue(nextValue);
-            commitValue(nextValue);
           }}
           onBlur={() => commitValue()}
         />
@@ -262,7 +258,6 @@ const AdditionalFieldEditor = ({
           onChange={(event) => {
             const nextValue = event.target.value;
             setDraftValue(nextValue);
-            commitValue(nextValue);
           }}
           onBlur={() => commitValue()}
         />
@@ -379,7 +374,6 @@ const AdditionalFieldEditor = ({
           onChange={(event) => {
             const nextValue = event.target.value;
             setDraftValue(nextValue);
-            commitValue(nextValue);
           }}
           onBlur={() => commitValue()}
         />
@@ -387,10 +381,72 @@ const AdditionalFieldEditor = ({
   }
 };
 
+const InlineResultEditor = ({
+  inputId,
+  fieldName,
+  fieldType,
+  value,
+  style,
+  onCommit,
+  onPostCommit,
+}) => {
+  const [draftValue, setDraftValue] = useState(value || "");
+
+  useEffect(() => {
+    setDraftValue(value || "");
+  }, [value, inputId, fieldType]);
+
+  const commitValue = (nextValue = draftValue) => {
+    const normalizedValue = nextValue == null ? "" : nextValue;
+    onCommit(normalizedValue);
+    if (onPostCommit) {
+      onPostCommit(normalizedValue);
+    }
+  };
+
+  if (fieldType === "N") {
+    return (
+      <TextInput
+        id={inputId}
+        name={fieldName}
+        labelText=""
+        type="number"
+        value={draftValue}
+        style={style}
+        onChange={(event) => {
+          setDraftValue(event.target.value);
+        }}
+        onBlur={() => commitValue()}
+      />
+    );
+  }
+
+  return (
+    <TextArea
+      id={inputId}
+      name={fieldName}
+      rows={1}
+      labelText=""
+      value={draftValue}
+      onChange={(event) => {
+        setDraftValue(event.target.value);
+      }}
+      onBlur={() => commitValue()}
+    />
+  );
+};
+
 const normalizeResultEntryScope = (scopeValue) =>
   String(scopeValue || "").toUpperCase() === "PRELIMINARY"
     ? "PRELIMINARY"
     : "OFFICIAL";
+
+const parsePositiveSortOrder = (value, fallbackValue) => {
+  const parsedValue = Number.parseInt(value, 10);
+  return Number.isFinite(parsedValue) && parsedValue > 0
+    ? parsedValue
+    : fallbackValue;
+};
 
 const getFieldBlockAndScope = (fieldDefinition) => {
   const metadata = parseAdditionalFieldMetadata(fieldDefinition);
@@ -405,7 +461,47 @@ const getFieldBlockAndScope = (fieldDefinition) => {
     typeof blockNameRaw === "string" && blockNameRaw.trim().length > 0
       ? blockNameRaw.trim()
       : fallbackBlock;
-  return { blockName, entryScope };
+  return {
+    blockName,
+    entryScope,
+    blockSortOrder: parsePositiveSortOrder(
+      fieldDefinition?.blockSortOrder ?? metadata.blockSortOrder,
+      0,
+    ),
+    fieldSortOrder: parsePositiveSortOrder(
+      fieldDefinition?.fieldSortOrder ??
+        fieldDefinition?.sortOrder ??
+        metadata.fieldSortOrder,
+      1,
+    ),
+  };
+};
+
+const getPrimaryResultLayout = (data, intl) => {
+  const metadata = parseAdditionalFieldMetadata({
+    metadataJson: data?.resultDisplayConfigJson,
+  });
+  const entryScope = normalizeResultEntryScope(metadata.entryScope);
+  const fallbackBlock =
+    entryScope === "PRELIMINARY"
+      ? intl.formatMessage({
+          id: "results.block.preliminary",
+          defaultMessage: "Preliminary",
+        })
+      : intl.formatMessage({
+          id: "results.block.official",
+          defaultMessage: "Official",
+        });
+  const blockName =
+    typeof metadata.resultBlock === "string" && metadata.resultBlock.trim()
+      ? metadata.resultBlock.trim()
+      : fallbackBlock;
+  return {
+    blockName,
+    entryScope,
+    blockSortOrder: parsePositiveSortOrder(metadata.blockSortOrder, 1),
+    fieldSortOrder: parsePositiveSortOrder(metadata.fieldSortOrder, 1),
+  };
 };
 
 function ResultSearchPage() {
@@ -1336,10 +1432,21 @@ export function SearchResults(props) {
       width: "12rem",
     },
     {
+      id: "parentSampleUsage",
+      name: intl.formatMessage({
+        id: "result.entry.parentSampleUsage",
+        defaultMessage: "Cantidad muestra usada",
+      }),
+      cell: (row, index, column, id) => {
+        return renderCell(row, index, column, id);
+      },
+      width: "12rem",
+    },
+    {
       id: "sampleUsage",
       name: intl.formatMessage({
         id: "result.entry.sampleUsage",
-        defaultMessage: "Cantidad usada",
+        defaultMessage: "Cantidad usada de la extracción",
       }),
       cell: (row, index, column, id) => {
         return renderCell(row, index, column, id);
@@ -1578,16 +1685,42 @@ export function SearchResults(props) {
 
           case "N":
             return (
-              <TextInput
-                id={"ResultValue" + row.id}
-                name={"testResult[" + row.id + "].resultValue"}
-                labelText=""
-                type="number"
+              <InlineResultEditor
+                inputId={"ResultValue" + row.id}
+                fieldName={"testResult[" + row.id + "].resultValue"}
+                fieldType={row.resultType}
                 value={row.resultValue}
                 style={validationState[row.id]?.style}
-                onBlur={() => {
+                onCommit={(nextValue) =>
+                  commitRowFieldValue(
+                    row.id,
+                    "testResult[" + row.id + "].resultValue",
+                    nextValue,
+                  )
+                }
+                onPostCommit={(nextValue) => {
+                  const validation = validateNumericResults(nextValue, row);
+                  setValidationState((previousState) => ({
+                    ...previousState,
+                    [row.id]: {
+                      ...validation,
+                      style: {
+                        ...validation?.style,
+                        borderColor: validation.isCritical
+                          ? "orange"
+                          : validation.isInvalid
+                            ? "red"
+                            : "",
+                        background: validation.outsideValid
+                          ? "#ffa0a0"
+                          : validation.outsideNormal
+                            ? "#ffffa0"
+                            : "var(--cds-field)",
+                      },
+                    },
+                  }));
                   if (
-                    validationState[row.id]?.isInvalid &&
+                    validation.isInvalid &&
                     configurationProperties.ALERT_FOR_INVALID_RESULTS
                   ) {
                     addNotification({
@@ -1599,28 +1732,7 @@ export function SearchResults(props) {
                         " " +
                         row.testName +
                         " : " +
-                        row.resultValue,
-                      kind: NotificationKinds.error,
-                    });
-                    setNotificationVisible(true);
-                  }
-                }}
-                onChange={(e) => {
-                  handleChange(e, row.id);
-                  if (
-                    validationState[row.id]?.isInvalid &&
-                    configurationProperties.ALERT_FOR_INVALID_RESULTS
-                  ) {
-                    addNotification({
-                      title: intl.formatMessage({ id: "notification.title" }),
-                      message:
-                        intl.formatMessage({
-                          id: "result.outOfValidRange.msg",
-                        }) +
-                        " " +
-                        row.testName +
-                        " : " +
-                        row.resultValue,
+                        nextValue,
                       kind: NotificationKinds.error,
                     });
                     setNotificationVisible(true);
@@ -1631,25 +1743,35 @@ export function SearchResults(props) {
 
           case "R":
             return (
-              <TextArea
-                id={"ResultValue" + row.id}
-                name={"testResult[" + row.id + "].resultValue"}
-                rows={1}
-                labelText=""
-                onChange={(e) => handleChange(e, row.id)}
+              <InlineResultEditor
+                inputId={"ResultValue" + row.id}
+                fieldName={"testResult[" + row.id + "].resultValue"}
+                fieldType={row.resultType}
                 value={row.resultValue}
+                onCommit={(nextValue) =>
+                  commitRowFieldValue(
+                    row.id,
+                    "testResult[" + row.id + "].resultValue",
+                    nextValue,
+                  )
+                }
               />
             );
 
           case "A":
             return (
-              <TextArea
-                id={"ResultValue" + row.id}
-                name={"testResult[" + row.id + "].resultValue"}
-                rows={1}
-                labelText=""
-                onChange={(e) => handleChange(e, row.id)}
+              <InlineResultEditor
+                inputId={"ResultValue" + row.id}
+                fieldName={"testResult[" + row.id + "].resultValue"}
+                fieldType={row.resultType}
                 value={row.resultValue}
+                onCommit={(nextValue) =>
+                  commitRowFieldValue(
+                    row.id,
+                    "testResult[" + row.id + "].resultValue",
+                    nextValue,
+                  )
+                }
               />
             );
 
@@ -1700,6 +1822,35 @@ export function SearchResults(props) {
               min="0"
               value={row.sampleUsageQuantity || ""}
               disabled={row.sampleUsageLocked === true}
+              onChange={(e) => handleChange(e, row.id)}
+            />
+          </Stack>
+        );
+      case "parentSampleUsage":
+        if (!row.parentSampleUsageEnabled || row.dependentChild) {
+          return <></>;
+        }
+
+        return (
+          <Stack gap={2}>
+            <small>
+              {intl.formatMessage(
+                {
+                  id: "result.entry.remainingQuantity",
+                  defaultMessage: "Restantes: {quantity}",
+                },
+                { quantity: row.parentSampleRemainingQuantity || "-" },
+              )}
+            </small>
+            <TextInput
+              id={"parentSampleUsageQuantity" + row.id}
+              name={"testResult[" + row.id + "].parentSampleUsageQuantity"}
+              labelText=""
+              type="number"
+              step="0.001"
+              min="0"
+              value={row.parentSampleUsageQuantity || ""}
+              disabled={row.parentSampleUsageLocked === true}
               onChange={(e) => handleChange(e, row.id)}
             />
           </Stack>
@@ -2086,7 +2237,9 @@ export function SearchResults(props) {
         {true && (
           <Grid style={{ marginTop: "1rem" }}>
             <Column lg={16}>
-              <h5 style={{ marginBottom: "0.75rem" }}>Results</h5>
+              <h5 style={{ marginBottom: "0.75rem" }}>
+                <FormattedMessage id="result.entry.results.title" />
+              </h5>
             </Column>
             {(() => {
               const activeAdditionalFields = Array.isArray(
@@ -2096,18 +2249,78 @@ export function SearchResults(props) {
                     (fieldDefinition) => fieldDefinition?.active !== false,
                   )
                 : [];
+              const primaryLayout = getPrimaryResultLayout(data, intl);
               const groupedBlocks = [];
               const groupedByName = new Map();
+              const blockSortOrderByKey = new Map();
+              let nextBlockSortOrder = 1;
+              const resolvedAdditionalFields = activeAdditionalFields.map(
+                (fieldDefinition) => {
+                  const layout = getFieldBlockAndScope(fieldDefinition);
+                  const blockKey = String(layout.blockName || "").trim();
+                  if (!blockSortOrderByKey.has(blockKey)) {
+                    blockSortOrderByKey.set(
+                      blockKey,
+                      layout.blockSortOrder || nextBlockSortOrder,
+                    );
+                    nextBlockSortOrder += 1;
+                  }
+                  return {
+                    fieldDefinition,
+                    layout: {
+                      ...layout,
+                      blockSortOrder: blockSortOrderByKey.get(blockKey),
+                    },
+                  };
+                },
+              );
+              const sortedAdditionalFields = [...resolvedAdditionalFields].sort(
+                (leftField, rightField) => {
+                  const leftLayout = leftField.layout;
+                  const rightLayout = rightField.layout;
+                  if (
+                    leftLayout.blockSortOrder !== rightLayout.blockSortOrder
+                  ) {
+                    return (
+                      leftLayout.blockSortOrder - rightLayout.blockSortOrder
+                    );
+                  }
+                  const blockNameComparison =
+                    leftLayout.blockName.localeCompare(rightLayout.blockName);
+                  if (blockNameComparison !== 0) {
+                    return blockNameComparison;
+                  }
+                  if (
+                    leftLayout.fieldSortOrder !== rightLayout.fieldSortOrder
+                  ) {
+                    return (
+                      leftLayout.fieldSortOrder - rightLayout.fieldSortOrder
+                    );
+                  }
+                  return (
+                    (leftField?.fieldDefinition?.sortOrder || 0) -
+                    (rightField?.fieldDefinition?.sortOrder || 0)
+                  );
+                },
+              );
 
-              activeAdditionalFields.forEach((fieldDefinition) => {
-                const { blockName, entryScope } =
-                  getFieldBlockAndScope(fieldDefinition);
-                if (!groupedByName.has(blockName)) {
-                  const group = { blockName, entryScope, fields: [] };
-                  groupedByName.set(blockName, group);
+              sortedAdditionalFields.forEach(({ fieldDefinition, layout }) => {
+                const { blockName, blockSortOrder, fieldSortOrder } = layout;
+                const blockKey = String(blockName || "").trim();
+                if (!groupedByName.has(blockKey)) {
+                  const group = {
+                    blockName,
+                    blockSortOrder,
+                    items: [],
+                  };
+                  groupedByName.set(blockKey, group);
                   groupedBlocks.push(group);
                 }
-                groupedByName.get(blockName).fields.push(fieldDefinition);
+                groupedByName.get(blockKey).items.push({
+                  type: "additional",
+                  fieldDefinition,
+                  fieldSortOrder,
+                });
               });
 
               const officialBlockName = intl.formatMessage({
@@ -2119,66 +2332,107 @@ export function SearchResults(props) {
                 data.resultName.trim().length > 0
                   ? data.resultName.trim()
                   : intl.formatMessage({ id: "column.name.result" });
-              let primaryRendered = false;
-              const hasOfficialScopeBlock = groupedBlocks.some(
-                (block) =>
-                  normalizeResultEntryScope(block.entryScope) === "OFFICIAL",
-              );
-
-              if (!hasOfficialScopeBlock) {
-                groupedBlocks.unshift({
-                  blockName: officialBlockName,
-                  entryScope: "OFFICIAL",
-                  fields: [],
-                });
+              const primaryBlockName =
+                primaryLayout.blockName || officialBlockName;
+              const primaryBlockKey = String(primaryBlockName || "").trim();
+              if (!groupedByName.has(primaryBlockKey)) {
+                const group = {
+                  blockName: primaryBlockName,
+                  blockSortOrder: primaryLayout.blockSortOrder,
+                  items: [],
+                };
+                groupedByName.set(primaryBlockKey, group);
+                groupedBlocks.push(group);
               }
-
-              return groupedBlocks.map((block, blockIndex) => {
-                const shouldRenderPrimary =
-                  !primaryRendered &&
-                  normalizeResultEntryScope(block.entryScope) === "OFFICIAL";
-                if (shouldRenderPrimary) {
-                  primaryRendered = true;
-                }
-                const blockTitle = block.blockName || officialBlockName;
-                return (
-                  <React.Fragment
-                    key={`result-block-${data.id}-${blockIndex}-${blockTitle}`}
-                  >
-                    <Column lg={16} md={8} sm={4}>
-                      <h6
-                        style={{ marginBottom: "0.5rem", marginTop: "0.25rem" }}
-                      >
-                        {blockTitle}
-                      </h6>
-                    </Column>
-                    {shouldRenderPrimary && (
-                      <Column lg={4} md={4} sm={4}>
-                        <Field name={"testResult[" + data.id + "].resultValue"}>
-                          {() => (
-                            <>
-                              <p style={{ marginBottom: "0.5rem" }}>
-                                {primaryResultLabel}
-                              </p>
-                              {renderCell(data, 0, { id: "result" }, data.id)}
-                            </>
-                          )}
-                        </Field>
-                      </Column>
-                    )}
-                    {block.fields.map((fieldDefinition, fieldIndex) => (
-                      <Column
-                        lg={4}
-                        md={4}
-                        sm={4}
-                        key={`additional-field-render-${data.id}-${fieldDefinition.fieldKey || fieldIndex}`}
-                      >
-                        {renderAdditionalFieldInput(data, fieldDefinition)}
-                      </Column>
-                    ))}
-                  </React.Fragment>
-                );
+              groupedByName.get(primaryBlockKey).items.push({
+                type: "primary",
+                fieldSortOrder: primaryLayout.fieldSortOrder,
               });
+
+              return groupedBlocks
+                .sort((leftBlock, rightBlock) => {
+                  if (leftBlock.blockSortOrder !== rightBlock.blockSortOrder) {
+                    return leftBlock.blockSortOrder - rightBlock.blockSortOrder;
+                  }
+                  return leftBlock.blockName.localeCompare(
+                    rightBlock.blockName,
+                  );
+                })
+                .map((block, blockIndex) => {
+                  const sortedItems = [...(block.items || [])].sort(
+                    (leftItem, rightItem) => {
+                      if (
+                        leftItem.fieldSortOrder !== rightItem.fieldSortOrder
+                      ) {
+                        return (
+                          leftItem.fieldSortOrder - rightItem.fieldSortOrder
+                        );
+                      }
+                      if (leftItem.type !== rightItem.type) {
+                        return leftItem.type === "primary" ? -1 : 1;
+                      }
+                      return 0;
+                    },
+                  );
+                  const blockTitle = block.blockName || officialBlockName;
+                  return (
+                    <React.Fragment
+                      key={`result-block-${data.id}-${blockIndex}-${blockTitle}`}
+                    >
+                      <Column lg={16} md={8} sm={4}>
+                        <h6
+                          style={{
+                            marginBottom: "0.5rem",
+                            marginTop: "0.25rem",
+                          }}
+                        >
+                          {blockTitle}
+                        </h6>
+                      </Column>
+                      {sortedItems.map((item, fieldIndex) => {
+                        if (item.type === "primary") {
+                          return (
+                            <Column
+                              lg={4}
+                              md={4}
+                              sm={4}
+                              key={`primary-result-render-${data.id}-${blockIndex}-${fieldIndex}`}
+                            >
+                              <Field
+                                name={"testResult[" + data.id + "].resultValue"}
+                              >
+                                {() => (
+                                  <>
+                                    <p style={{ marginBottom: "0.5rem" }}>
+                                      {primaryResultLabel}
+                                    </p>
+                                    {renderCell(
+                                      data,
+                                      0,
+                                      { id: "result" },
+                                      data.id,
+                                    )}
+                                  </>
+                                )}
+                              </Field>
+                            </Column>
+                          );
+                        }
+                        const fieldDefinition = item.fieldDefinition;
+                        return (
+                          <Column
+                            lg={4}
+                            md={4}
+                            sm={4}
+                            key={`additional-field-render-${data.id}-${fieldDefinition.fieldKey || fieldIndex}`}
+                          >
+                            {renderAdditionalFieldInput(data, fieldDefinition)}
+                          </Column>
+                        );
+                      })}
+                    </React.Fragment>
+                  );
+                });
             })()}
           </Grid>
         )}
@@ -2221,6 +2475,17 @@ export function SearchResults(props) {
     console.debug("validateResults:" + e.target.value);
     // e.target.value;
     handleChange(e, rowId);
+  };
+
+  const commitRowFieldValue = (rowId, fieldName, nextValue) => {
+    const form = { ...props.results };
+    const jp = require("jsonpath");
+    jp.value(form, fieldName, nextValue);
+    if (fieldName === "testResult[" + rowId + "].resultValue") {
+      jp.value(form, "testResult[" + rowId + "].shadowResultValue", nextValue);
+    }
+    jp.value(form, "testResult[" + rowId + "].isModified", "true");
+    props.setResultForm(form);
   };
 
   const validateNumericResults = (value, row) => {
@@ -2479,6 +2744,42 @@ export function SearchResults(props) {
       return Number.isNaN(parsed) || parsed <= 0;
     });
 
+    const parentMissingUsage = props.results.testResult.find((item) => {
+      if (
+        !item.parentSampleUsageEnabled ||
+        item.dependentChild === true ||
+        item.parentSampleUsageLocked === true
+      ) {
+        return false;
+      }
+
+      const hasResult =
+        (item.resultType === "M" || item.resultType === "C"
+          ? item.multiSelectResultValues &&
+            item.multiSelectResultValues !== "{}"
+          : item.shadowResultValue &&
+            !(item.resultType === "D" && item.shadowResultValue === "0")) ||
+        (item.resultType !== "M" &&
+          item.resultType !== "C" &&
+          item.resultValue &&
+          !(item.resultType === "D" && item.resultValue === "0")) ||
+        item.refer === true ||
+        item.refer === "true" ||
+        item.shadowRejected === true ||
+        item.shadowRejected === "true";
+
+      if (!hasResult) {
+        return false;
+      }
+
+      if (!item.parentSampleUsageQuantity) {
+        return true;
+      }
+
+      const parsed = Number(item.parentSampleUsageQuantity);
+      return Number.isNaN(parsed) || parsed <= 0;
+    });
+
     const dependentChildMissingRemaining = props.results.testResult.find(
       (item) => {
         if (!item.dependentChild || item.sampleUsageLocked === true) {
@@ -2524,6 +2825,19 @@ export function SearchResults(props) {
           id: "result.entry.sampleUsage.remaining.missing",
           defaultMessage:
             "Dependent child tests require a valid remaining quantity from the configured parent source.",
+        }),
+        kind: NotificationKinds.error,
+      });
+      setNotificationVisible(true);
+      return;
+    }
+
+    if (parentMissingUsage) {
+      addNotification({
+        title: intl.formatMessage({ id: "notification.title" }),
+        message: intl.formatMessage({
+          id: "result.entry.parentSampleUsage.required",
+          defaultMessage: "Parent tests require a valid sample usage quantity.",
         }),
         kind: NotificationKinds.error,
       });

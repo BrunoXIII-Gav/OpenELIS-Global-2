@@ -120,6 +120,10 @@
             column="notify_results" />
         <property name="guid" type="java.lang.String" column="guid" />
         <property name="storedName" type="java.lang.String" column="name" />
+        <property name="resultDisplayConfigJson" type="java.lang.String"
+            column="result_display_config_json" />
+        <property name="directSampleUsageEnabled" type="java.lang.Boolean"
+            column="direct_sample_usage_enabled" />
         <many-to-one name="defaultTestResult"
             class="org.openelisglobal.testresult.valueholder.TestResult"
             fetch="select" lazy="false">

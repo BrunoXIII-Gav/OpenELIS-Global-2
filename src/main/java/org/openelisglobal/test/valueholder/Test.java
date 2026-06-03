@@ -121,6 +121,10 @@ public class Test extends EnumValueItemImpl {
 
     private Boolean antimicrobialResistance;
 
+    private String resultDisplayConfigJson;
+
+    private Boolean directSampleUsageEnabled;
+
     @Override
     public String getSortOrder() {
         return sortOrder;
@@ -502,6 +506,22 @@ public class Test extends EnumValueItemImpl {
 
     public void setStoredName(String storedName) {
         super.setName(storedName);
+    }
+
+    public String getResultDisplayConfigJson() {
+        return resultDisplayConfigJson;
+    }
+
+    public void setResultDisplayConfigJson(String resultDisplayConfigJson) {
+        this.resultDisplayConfigJson = resultDisplayConfigJson;
+    }
+
+    public Boolean getDirectSampleUsageEnabled() {
+        return directSampleUsageEnabled;
+    }
+
+    public void setDirectSampleUsageEnabled(Boolean directSampleUsageEnabled) {
+        this.directSampleUsageEnabled = directSampleUsageEnabled;
     }
 
     public TestResult getDefaultTestResult() {

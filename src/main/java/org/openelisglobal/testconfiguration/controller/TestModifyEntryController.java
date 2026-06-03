@@ -42,6 +42,7 @@ import org.openelisglobal.testconfiguration.beans.TestCatalogBean;
 import org.openelisglobal.testconfiguration.form.TestModifyEntryForm;
 import org.openelisglobal.testconfiguration.service.TestModifyService;
 import org.openelisglobal.testconfiguration.validator.TestModifyEntryFormValidator;
+import org.openelisglobal.testdependency.service.TestParentChildDependencyService;
 import org.openelisglobal.testresult.service.TestResultService;
 import org.openelisglobal.testresult.valueholder.TestResult;
 import org.openelisglobal.typeofsample.service.TypeOfSampleService;
@@ -78,6 +79,8 @@ public class TestModifyEntryController extends BaseController {
     private TestService testService;
     @Autowired
     private TestResultService testResultService;
+    @Autowired
+    private TestParentChildDependencyService testParentChildDependencyService;
     @Autowired
     private UnitOfMeasureService unitOfMeasureService;
     @Autowired
@@ -159,6 +162,8 @@ public class TestModifyEntryController extends BaseController {
             Boolean antimicrobialResistance = test.getAntimicrobialResistance();
             bean.setAntimicrobialResistance(antimicrobialResistance != null ? antimicrobialResistance : false);
             bean.setLoinc(test.getLoinc());
+            bean.setDirectSampleUsageEnabled(Boolean.TRUE.equals(test.getDirectSampleUsageEnabled()));
+            bean.setActiveChildDependency(testParentChildDependencyService.getActiveByChildTestId(test.getId()) != null);
             bean.setActive(test.isActive() ? "Active" : "Not active");
             bean.setUom(testService.getUOM(test, false));
             if (TypeOfTestResultServiceImpl.ResultType.NUMERIC.matches(resultType)
@@ -586,6 +591,7 @@ public class TestModifyEntryController extends BaseController {
             test.setLocalCode(testAddParams.testNameEnglish);
             test.setIsActive(testAddParams.active);
             test.setOrderable("Y".equals(testAddParams.orderable));
+            test.setDirectSampleUsageEnabled("Y".equals(testAddParams.directSampleUsageEnabled));
             test.setNotifyResults("Y".equals(testAddParams.notifyResults));
             test.setInLabOnly("Y".equals(testAddParams.inLabOnly));
             test.setAntimicrobialResistance("Y".equals(testAddParams.antimicrobialResistance));
@@ -691,6 +697,7 @@ public class TestModifyEntryController extends BaseController {
             extractSampleTypes(obj, parser, testAddParams);
             testAddParams.active = (String) obj.get("active");
             testAddParams.orderable = (String) obj.get("orderable");
+            testAddParams.directSampleUsageEnabled = (String) obj.get("directSampleUsageEnabled");
             testAddParams.notifyResults = (String) obj.get("notifyResults");
             testAddParams.inLabOnly = (String) obj.get("inLabOnly");
             testAddParams.antimicrobialResistance = (String) obj.get("antimicrobialResistance");
@@ -819,10 +826,12 @@ public class TestModifyEntryController extends BaseController {
         public String uomId;
         public String loinc;
         public String resultName;
+        public String resultDisplayConfigJson;
         public String resultTypeId;
         public ArrayList<SampleTypeListAndTestOrder> sampleList = new ArrayList<>();
         public String active;
         public String orderable;
+        public String directSampleUsageEnabled;
         public String notifyResults;
         public String inLabOnly;
         public String antimicrobialResistance;

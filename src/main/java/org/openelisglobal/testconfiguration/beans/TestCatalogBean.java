@@ -50,6 +50,9 @@ public class TestCatalogBean {
     private boolean inLabOnly;
     private boolean antimicrobialResistance;
     private List<TestAdditionalFieldPayload> additionalFields;
+    private String resultDisplayConfigJson;
+    private boolean directSampleUsageEnabled;
+    private boolean activeChildDependency;
 
     public String getId() {
         return id;
@@ -177,6 +180,30 @@ public class TestCatalogBean {
 
     public void setResultName(String resultName) {
         this.resultName = resultName;
+    }
+
+    public String getResultDisplayConfigJson() {
+        return resultDisplayConfigJson;
+    }
+
+    public void setResultDisplayConfigJson(String resultDisplayConfigJson) {
+        this.resultDisplayConfigJson = resultDisplayConfigJson;
+    }
+
+    public boolean isDirectSampleUsageEnabled() {
+        return directSampleUsageEnabled;
+    }
+
+    public void setDirectSampleUsageEnabled(boolean directSampleUsageEnabled) {
+        this.directSampleUsageEnabled = directSampleUsageEnabled;
+    }
+
+    public boolean isActiveChildDependency() {
+        return activeChildDependency;
+    }
+
+    public void setActiveChildDependency(boolean activeChildDependency) {
+        this.activeChildDependency = activeChildDependency;
     }
 
     public String getSignificantDigits() {

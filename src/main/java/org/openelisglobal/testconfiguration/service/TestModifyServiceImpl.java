@@ -19,6 +19,7 @@ import org.openelisglobal.test.valueholder.TestSection;
 import org.openelisglobal.testadditionalfield.service.TestAdditionalFieldService;
 import org.openelisglobal.testconfiguration.controller.TestModifyEntryController.TestAddParams;
 import org.openelisglobal.testconfiguration.controller.TestModifyEntryController.TestSet;
+import org.openelisglobal.testdependency.service.TestParentChildDependencyService;
 import org.openelisglobal.testresult.service.TestResultService;
 import org.openelisglobal.testresult.valueholder.TestResult;
 import org.openelisglobal.typeofsample.service.TypeOfSamplePanelService;
@@ -59,6 +60,8 @@ public class TestModifyServiceImpl implements TestModifyService {
     private TestSectionService testSectionService;
     @Autowired
     private TestAdditionalFieldService testAdditionalFieldService;
+    @Autowired
+    private TestParentChildDependencyService testParentChildDependencyService;
 
     @Override
     @Transactional
@@ -115,10 +118,11 @@ public class TestModifyServiceImpl implements TestModifyService {
             }
 
             updateTestNames(testAddParams.testId, nameLocalization, reportingNameLocalization, currentUserId);
-            updateTestEntities(testAddParams.testId, testAddParams.loinc, testAddParams.resultName, currentUserId,
-                    testAddParams.uomId, testAddParams.testSectionId, set.test.isNotifyResults(),
-                    set.test.isInLabOnly(), set.test.getAntimicrobialResistance(), set.test.getIsActive(),
-                    set.test.getOrderable());
+            updateTestEntities(testAddParams.testId, testAddParams.loinc, testAddParams.resultName,
+                    testAddParams.resultDisplayConfigJson, currentUserId, testAddParams.uomId,
+                    testAddParams.testSectionId, set.test.isNotifyResults(), set.test.isInLabOnly(),
+                    set.test.getAntimicrobialResistance(), set.test.getIsActive(), set.test.getOrderable(),
+                    set.test.getDirectSampleUsageEnabled());
 
             set.sampleTypeTest.setSysUserId(currentUserId);
             set.sampleTypeTest.setTestId(set.test.getId());
@@ -188,9 +192,9 @@ public class TestModifyServiceImpl implements TestModifyService {
         }
     }
 
-    private void updateTestEntities(String testId, String loinc, String resultName, String userId, String uomId,
-            String testSectionId, boolean notifyResults, boolean inLabOnly, boolean antimicrobialResistance,
-            String isActive, Boolean orderable) {
+    private void updateTestEntities(String testId, String loinc, String resultName, String resultDisplayConfigJson,
+            String userId, String uomId, String testSectionId, boolean notifyResults, boolean inLabOnly,
+            boolean antimicrobialResistance, String isActive, Boolean orderable, Boolean directSampleUsageEnabled) {
         Test test = testService.get(testId);
 
         if (test != null) {
@@ -199,6 +203,7 @@ public class TestModifyServiceImpl implements TestModifyService {
             if (!GenericValidator.isBlankOrNull(resultName)) {
                 test.setStoredName(resultName);
             }
+            test.setResultDisplayConfigJson(resultDisplayConfigJson);
             if ("0".equals(uomId)) {
                 test.setUnitOfMeasure(null);
             } else if (!GenericValidator.isBlankOrNull(uomId)) {
@@ -215,6 +220,8 @@ public class TestModifyServiceImpl implements TestModifyService {
             }
             test.setIsActive(isActive);
             test.setOrderable(orderable);
+            boolean isActiveChildDependency = testParentChildDependencyService.getActiveByChildTestId(testId) != null;
+            test.setDirectSampleUsageEnabled(isActiveChildDependency ? Boolean.FALSE : directSampleUsageEnabled);
             testService.update(test);
         }
     }

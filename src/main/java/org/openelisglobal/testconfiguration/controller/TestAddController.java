@@ -229,6 +229,7 @@ public class TestAddController extends BaseController {
             test.setLocalCode(testAddParams.testNameEnglish);
             test.setIsActive(testAddParams.active);
             test.setOrderable("Y".equals(testAddParams.orderable));
+            test.setDirectSampleUsageEnabled("Y".equals(testAddParams.directSampleUsageEnabled));
             test.setNotifyResults("Y".equals(testAddParams.notifyResults));
             test.setInLabOnly("Y".equals(testAddParams.inLabOnly));
             test.setAntimicrobialResistance("Y".equals(testAddParams.antimicrobialResistance));
@@ -364,6 +365,7 @@ public class TestAddController extends BaseController {
             extractSampleTypes(obj, parser, testAddParams);
             testAddParams.active = (String) obj.get("active");
             testAddParams.orderable = (String) obj.get("orderable");
+            testAddParams.directSampleUsageEnabled = (String) obj.get("directSampleUsageEnabled");
             testAddParams.notifyResults = (String) obj.get("notifyResults");
             testAddParams.inLabOnly = (String) obj.get("inLabOnly");
             testAddParams.antimicrobialResistance = (String) obj.get("antimicrobialResistance");
@@ -566,6 +568,7 @@ public class TestAddController extends BaseController {
         ArrayList<SampleTypeListAndTestOrder> sampleList = new ArrayList<>();
         String active;
         String orderable;
+        String directSampleUsageEnabled;
         String notifyResults;
         String inLabOnly;
         String antimicrobialResistance;
