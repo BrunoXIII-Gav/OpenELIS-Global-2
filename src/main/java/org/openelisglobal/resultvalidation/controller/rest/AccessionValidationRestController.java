@@ -355,10 +355,10 @@ public class AccessionValidationRestController extends BaseResultValidationContr
 
         request.getSession().setAttribute(SAVE_DISABLED, "true");
 
-        List<Result> checkPagedResults = (List<Result>) request.getSession()
-                .getAttribute(IActionConstants.RESULTS_SESSION_CACHE);
-        List<Result> checkResults = (List<Result>) checkPagedResults.get(0);
-        if (checkResults.size() == 0) {
+        List<List<AnalysisItem>> checkPagedResults = (List<List<AnalysisItem>>) request.getSession()
+                .getAttribute(IActionConstants.RESULT_VALIDATION_SESSION_CACHE);
+        if (checkPagedResults == null || checkPagedResults.isEmpty() || checkPagedResults.get(0) == null
+                || checkPagedResults.get(0).isEmpty()) {
             LogEvent.logDebug(this.getClass().getSimpleName(), "ResultValidation()", "Attempted save of stale page.");
             return form;
         }
