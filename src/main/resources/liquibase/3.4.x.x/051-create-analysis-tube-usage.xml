@@ -1,0 +1,194 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<databaseChangeLog
+  xmlns="http://www.liquibase.org/xml/ns/dbchangelog"
+  xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+  xsi:schemaLocation="http://www.liquibase.org/xml/ns/dbchangelog
+                      http://www.liquibase.org/xml/ns/dbchangelog/dbchangelog-4.8.xsd">
+
+  <changeSet id="051-1-create-analysis-tube-usage-seq" author="OpenAI">
+    <preConditions onFail="MARK_RAN">
+      <not>
+        <sequenceExists schemaName="clinlims" sequenceName="analysis_tube_usage_seq"/>
+      </not>
+    </preConditions>
+
+    <createSequence schemaName="clinlims" sequenceName="analysis_tube_usage_seq" startValue="1"/>
+
+    <rollback>
+      <dropSequence schemaName="clinlims" sequenceName="analysis_tube_usage_seq"/>
+    </rollback>
+  </changeSet>
+
+  <changeSet id="051-2-create-analysis-tube-usage-table" author="OpenAI">
+    <preConditions onFail="MARK_RAN">
+      <not>
+        <tableExists schemaName="clinlims" tableName="analysis_tube_usage"/>
+      </not>
+    </preConditions>
+
+    <createTable schemaName="clinlims" tableName="analysis_tube_usage">
+      <column name="id" type="BIGINT">
+        <constraints nullable="false" primaryKey="true" primaryKeyName="pk_analysis_tube_usage"/>
+      </column>
+      <column name="analysis_id" type="NUMERIC(10,0)">
+        <constraints nullable="false"/>
+      </column>
+      <column name="parent_analysis_id" type="NUMERIC(10,0)">
+        <constraints nullable="false"/>
+      </column>
+      <column name="child_block_name" type="VARCHAR(150)">
+        <constraints nullable="false"/>
+      </column>
+      <column name="parent_tube_block_name" type="VARCHAR(150)">
+        <constraints nullable="false"/>
+      </column>
+      <column name="used_quantity" type="NUMERIC(18,3)">
+        <constraints nullable="false"/>
+      </column>
+      <column name="performed_by_user" type="NUMERIC(10,0)">
+        <constraints nullable="false"/>
+      </column>
+      <column name="sys_user_id" type="VARCHAR(40)">
+        <constraints nullable="false"/>
+      </column>
+      <column name="last_updated" type="TIMESTAMP"/>
+    </createTable>
+
+    <rollback>
+      <dropTable schemaName="clinlims" tableName="analysis_tube_usage"/>
+    </rollback>
+  </changeSet>
+
+  <changeSet id="051-2b-fix-analysis-tube-usage-analysis-id-type" author="OpenAI">
+    <preConditions onFail="MARK_RAN">
+      <tableExists schemaName="clinlims" tableName="analysis_tube_usage"/>
+      <sqlCheck expectedResult="1">
+        SELECT CASE WHEN EXISTS (
+          SELECT 1
+          FROM information_schema.columns
+          WHERE table_schema = 'clinlims'
+            AND table_name = 'analysis_tube_usage'
+            AND column_name = 'analysis_id'
+            AND data_type &lt;&gt; 'numeric'
+        ) THEN 1 ELSE 0 END
+      </sqlCheck>
+    </preConditions>
+
+    <modifyDataType schemaName="clinlims" tableName="analysis_tube_usage"
+      columnName="analysis_id" newDataType="NUMERIC(10,0)"/>
+  </changeSet>
+
+  <changeSet id="051-2c-fix-analysis-tube-usage-parent-analysis-id-type" author="OpenAI">
+    <preConditions onFail="MARK_RAN">
+      <tableExists schemaName="clinlims" tableName="analysis_tube_usage"/>
+      <sqlCheck expectedResult="1">
+        SELECT CASE WHEN EXISTS (
+          SELECT 1
+          FROM information_schema.columns
+          WHERE table_schema = 'clinlims'
+            AND table_name = 'analysis_tube_usage'
+            AND column_name = 'parent_analysis_id'
+            AND data_type &lt;&gt; 'numeric'
+        ) THEN 1 ELSE 0 END
+      </sqlCheck>
+    </preConditions>
+
+    <modifyDataType schemaName="clinlims" tableName="analysis_tube_usage"
+      columnName="parent_analysis_id" newDataType="NUMERIC(10,0)"/>
+  </changeSet>
+
+  <changeSet id="051-3-add-analysis-tube-usage-unique" author="OpenAI">
+    <preConditions onFail="MARK_RAN">
+      <tableExists schemaName="clinlims" tableName="analysis_tube_usage"/>
+      <sqlCheck expectedResult="0">
+        SELECT COUNT(*)
+        FROM information_schema.table_constraints
+        WHERE table_schema = 'clinlims'
+          AND table_name = 'analysis_tube_usage'
+          AND constraint_name = 'uq_analysis_tube_usage_analysis_block'
+          AND constraint_type = 'UNIQUE'
+      </sqlCheck>
+    </preConditions>
+
+    <addUniqueConstraint schemaName="clinlims" tableName="analysis_tube_usage"
+      columnNames="analysis_id, child_block_name" constraintName="uq_analysis_tube_usage_analysis_block"/>
+
+    <rollback>
+      <dropUniqueConstraint schemaName="clinlims" tableName="analysis_tube_usage"
+        constraintName="uq_analysis_tube_usage_analysis_block"/>
+    </rollback>
+  </changeSet>
+
+  <changeSet id="051-4-add-analysis-tube-usage-analysis-fk" author="OpenAI">
+    <preConditions onFail="MARK_RAN">
+      <tableExists schemaName="clinlims" tableName="analysis_tube_usage"/>
+      <not>
+        <foreignKeyConstraintExists foreignKeyName="fk_analysis_tube_usage_analysis"/>
+      </not>
+    </preConditions>
+
+    <addForeignKeyConstraint baseTableSchemaName="clinlims" baseTableName="analysis_tube_usage"
+      baseColumnNames="analysis_id" referencedTableSchemaName="clinlims" referencedTableName="analysis"
+      referencedColumnNames="id" constraintName="fk_analysis_tube_usage_analysis"/>
+
+    <rollback>
+      <dropForeignKeyConstraint baseTableSchemaName="clinlims" baseTableName="analysis_tube_usage"
+        constraintName="fk_analysis_tube_usage_analysis"/>
+    </rollback>
+  </changeSet>
+
+  <changeSet id="051-5-add-analysis-tube-usage-parent-fk" author="OpenAI">
+    <preConditions onFail="MARK_RAN">
+      <tableExists schemaName="clinlims" tableName="analysis_tube_usage"/>
+      <not>
+        <foreignKeyConstraintExists foreignKeyName="fk_analysis_tube_usage_parent_analysis"/>
+      </not>
+    </preConditions>
+
+    <addForeignKeyConstraint baseTableSchemaName="clinlims" baseTableName="analysis_tube_usage"
+      baseColumnNames="parent_analysis_id" referencedTableSchemaName="clinlims" referencedTableName="analysis"
+      referencedColumnNames="id" constraintName="fk_analysis_tube_usage_parent_analysis"/>
+
+    <rollback>
+      <dropForeignKeyConstraint baseTableSchemaName="clinlims" baseTableName="analysis_tube_usage"
+        constraintName="fk_analysis_tube_usage_parent_analysis"/>
+    </rollback>
+  </changeSet>
+
+  <changeSet id="051-6-add-analysis-tube-usage-analysis-index" author="OpenAI">
+    <preConditions onFail="MARK_RAN">
+      <tableExists schemaName="clinlims" tableName="analysis_tube_usage"/>
+      <not>
+        <indexExists schemaName="clinlims" tableName="analysis_tube_usage"
+          indexName="idx_analysis_tube_usage_analysis"/>
+      </not>
+    </preConditions>
+
+    <createIndex schemaName="clinlims" tableName="analysis_tube_usage" indexName="idx_analysis_tube_usage_analysis">
+      <column name="analysis_id"/>
+    </createIndex>
+
+    <rollback>
+      <dropIndex schemaName="clinlims" tableName="analysis_tube_usage" indexName="idx_analysis_tube_usage_analysis"/>
+    </rollback>
+  </changeSet>
+
+  <changeSet id="051-7-add-analysis-tube-usage-parent-index" author="OpenAI">
+    <preConditions onFail="MARK_RAN">
+      <tableExists schemaName="clinlims" tableName="analysis_tube_usage"/>
+      <not>
+        <indexExists schemaName="clinlims" tableName="analysis_tube_usage"
+          indexName="idx_analysis_tube_usage_parent"/>
+      </not>
+    </preConditions>
+
+    <createIndex schemaName="clinlims" tableName="analysis_tube_usage" indexName="idx_analysis_tube_usage_parent">
+      <column name="parent_analysis_id"/>
+      <column name="parent_tube_block_name"/>
+    </createIndex>
+
+    <rollback>
+      <dropIndex schemaName="clinlims" tableName="analysis_tube_usage" indexName="idx_analysis_tube_usage_parent"/>
+    </rollback>
+  </changeSet>
+</databaseChangeLog>

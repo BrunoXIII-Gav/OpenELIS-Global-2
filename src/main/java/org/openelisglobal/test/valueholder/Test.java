@@ -125,6 +125,8 @@ public class Test extends EnumValueItemImpl {
 
     private Boolean directSampleUsageEnabled;
 
+    private Boolean skipValidationWhenParentComplete;
+
     @Override
     public String getSortOrder() {
         return sortOrder;
@@ -522,6 +524,14 @@ public class Test extends EnumValueItemImpl {
 
     public void setDirectSampleUsageEnabled(Boolean directSampleUsageEnabled) {
         this.directSampleUsageEnabled = directSampleUsageEnabled;
+    }
+
+    public Boolean getSkipValidationWhenParentComplete() {
+        return skipValidationWhenParentComplete;
+    }
+
+    public void setSkipValidationWhenParentComplete(Boolean skipValidationWhenParentComplete) {
+        this.skipValidationWhenParentComplete = skipValidationWhenParentComplete;
     }
 
     public TestResult getDefaultTestResult() {

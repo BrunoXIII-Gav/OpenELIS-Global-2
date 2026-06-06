@@ -65,6 +65,10 @@ public class TestModifyEntryFormValidator implements Validator {
                 ValidationHelper.validateYNField(StringUtil.nullSafeToString(newTest.get("directSampleUsageEnabled")),
                         "JsonWad", "directSampleUsageEnabled", errors);
 
+                ValidationHelper.validateYNField(
+                        StringUtil.nullSafeToString(newTest.get("skipValidationWhenParentComplete")), "JsonWad",
+                        "skipValidationWhenParentComplete", errors);
+
                 ValidationHelper.validateYNField(StringUtil.nullSafeToString(newTest.get("active")), "JsonWad",
                         "active", errors);
 

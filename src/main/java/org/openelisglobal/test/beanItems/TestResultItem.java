@@ -226,6 +226,12 @@ public class TestResultItem implements ResultItem, Serializable {
     private String parentSampleRemainingQuantity;
     private String parentSampleUsageQuantity;
     private boolean parentSampleUsageLocked = false;
+    private boolean parentTubeSelectionEnabled = false;
+    private String parentUsageBlockName;
+    private Map<String, String> parentTubeOptions = new HashMap<>();
+    private Map<String, String> parentTubeRemainingQuantities = new HashMap<>();
+    private boolean blockTubeUsageEnabled = false;
+    private List<BlockSampleUsageItem> blockSampleUsages = new ArrayList<>();
     private boolean failedValidation = false;
     private boolean nonconforming = false;
     private String testSortOrder = null;
@@ -947,6 +953,55 @@ public class TestResultItem implements ResultItem, Serializable {
 
     public void setParentSampleUsageLocked(boolean parentSampleUsageLocked) {
         this.parentSampleUsageLocked = parentSampleUsageLocked;
+    }
+
+    public boolean isParentTubeSelectionEnabled() {
+        return parentTubeSelectionEnabled;
+    }
+
+    public void setParentTubeSelectionEnabled(boolean parentTubeSelectionEnabled) {
+        this.parentTubeSelectionEnabled = parentTubeSelectionEnabled;
+    }
+
+    public String getParentUsageBlockName() {
+        return parentUsageBlockName;
+    }
+
+    public void setParentUsageBlockName(String parentUsageBlockName) {
+        this.parentUsageBlockName = parentUsageBlockName;
+    }
+
+    public Map<String, String> getParentTubeOptions() {
+        return parentTubeOptions;
+    }
+
+    public void setParentTubeOptions(Map<String, String> parentTubeOptions) {
+        this.parentTubeOptions = parentTubeOptions == null ? new HashMap<>() : parentTubeOptions;
+    }
+
+    public Map<String, String> getParentTubeRemainingQuantities() {
+        return parentTubeRemainingQuantities;
+    }
+
+    public void setParentTubeRemainingQuantities(Map<String, String> parentTubeRemainingQuantities) {
+        this.parentTubeRemainingQuantities = parentTubeRemainingQuantities == null ? new HashMap<>()
+                : parentTubeRemainingQuantities;
+    }
+
+    public boolean isBlockTubeUsageEnabled() {
+        return blockTubeUsageEnabled;
+    }
+
+    public void setBlockTubeUsageEnabled(boolean blockTubeUsageEnabled) {
+        this.blockTubeUsageEnabled = blockTubeUsageEnabled;
+    }
+
+    public List<BlockSampleUsageItem> getBlockSampleUsages() {
+        return blockSampleUsages;
+    }
+
+    public void setBlockSampleUsages(List<BlockSampleUsageItem> blockSampleUsages) {
+        this.blockSampleUsages = blockSampleUsages == null ? new ArrayList<>() : blockSampleUsages;
     }
 
     public void setFailedValidation(boolean failedValidation) {

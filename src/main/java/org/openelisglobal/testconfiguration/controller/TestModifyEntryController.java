@@ -164,6 +164,10 @@ public class TestModifyEntryController extends BaseController {
             bean.setLoinc(test.getLoinc());
             bean.setDirectSampleUsageEnabled(Boolean.TRUE.equals(test.getDirectSampleUsageEnabled()));
             bean.setActiveChildDependency(testParentChildDependencyService.getActiveByChildTestId(test.getId()) != null);
+            bean.setActiveParentDependency(testParentChildDependencyService.getByParentTestId(test.getId()).stream()
+                    .anyMatch(dependency -> Boolean.TRUE.equals(dependency.getActive())));
+            bean.setSkipValidationWhenParentComplete(
+                    Boolean.TRUE.equals(test.getSkipValidationWhenParentComplete()));
             bean.setActive(test.isActive() ? "Active" : "Not active");
             bean.setUom(testService.getUOM(test, false));
             if (TypeOfTestResultServiceImpl.ResultType.NUMERIC.matches(resultType)
@@ -592,6 +596,7 @@ public class TestModifyEntryController extends BaseController {
             test.setIsActive(testAddParams.active);
             test.setOrderable("Y".equals(testAddParams.orderable));
             test.setDirectSampleUsageEnabled("Y".equals(testAddParams.directSampleUsageEnabled));
+            test.setSkipValidationWhenParentComplete("Y".equals(testAddParams.skipValidationWhenParentComplete));
             test.setNotifyResults("Y".equals(testAddParams.notifyResults));
             test.setInLabOnly("Y".equals(testAddParams.inLabOnly));
             test.setAntimicrobialResistance("Y".equals(testAddParams.antimicrobialResistance));
@@ -698,6 +703,7 @@ public class TestModifyEntryController extends BaseController {
             testAddParams.active = (String) obj.get("active");
             testAddParams.orderable = (String) obj.get("orderable");
             testAddParams.directSampleUsageEnabled = (String) obj.get("directSampleUsageEnabled");
+            testAddParams.skipValidationWhenParentComplete = (String) obj.get("skipValidationWhenParentComplete");
             testAddParams.notifyResults = (String) obj.get("notifyResults");
             testAddParams.inLabOnly = (String) obj.get("inLabOnly");
             testAddParams.antimicrobialResistance = (String) obj.get("antimicrobialResistance");
@@ -832,6 +838,7 @@ public class TestModifyEntryController extends BaseController {
         public String active;
         public String orderable;
         public String directSampleUsageEnabled;
+        public String skipValidationWhenParentComplete;
         public String notifyResults;
         public String inLabOnly;
         public String antimicrobialResistance;

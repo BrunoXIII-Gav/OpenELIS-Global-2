@@ -504,6 +504,189 @@ const getPrimaryResultLayout = (data, intl) => {
   };
 };
 
+const isTubeSelectorFieldDefinition = (fieldDefinition) =>
+  parseAdditionalFieldMetadata(fieldDefinition)?.tubeSelector?.enabled === true;
+
+const getTubeActivationCount = (fieldDefinition) => {
+  const activationCount =
+    parseAdditionalFieldMetadata(fieldDefinition)?.tubeBlock?.activationCount;
+  const parsedValue = Number.parseInt(activationCount, 10);
+  return Number.isFinite(parsedValue) && parsedValue > 0 ? parsedValue : 0;
+};
+
+const getVisibleAdditionalFields = (data, fieldDefinitions) => {
+  const definitions = Array.isArray(fieldDefinitions) ? fieldDefinitions : [];
+  const primaryMetadata = parseAdditionalFieldMetadata({
+    metadataJson: data?.resultDisplayConfigJson,
+  });
+  const selectorField = definitions.find(isTubeSelectorFieldDefinition);
+  const selectorRawValue = primaryMetadata?.tubeSelector?.enabled
+    ? data?.resultValue
+    : selectorField?.fieldKey
+      ? data?.additionalFieldValues?.[selectorField.fieldKey]
+      : null;
+  if (
+    !primaryMetadata?.tubeSelector?.enabled &&
+    !selectorField?.fieldKey
+  ) {
+    return definitions;
+  }
+
+  const selectedTubeCount = Number.parseInt(selectorRawValue, 10);
+  if (!Number.isFinite(selectedTubeCount) || selectedTubeCount <= 0) {
+    return definitions.filter(
+      (fieldDefinition) => getTubeActivationCount(fieldDefinition) <= 0,
+    );
+  }
+
+  return definitions.filter((fieldDefinition) => {
+    const activationCount = getTubeActivationCount(fieldDefinition);
+    return activationCount <= 0 || activationCount <= selectedTubeCount;
+  });
+};
+
+const isPrimaryResultVisible = (data) => {
+  const metadata = parseAdditionalFieldMetadata({
+    metadataJson: data?.resultDisplayConfigJson,
+  });
+  const activationCount = Number.parseInt(
+    metadata?.tubeBlock?.activationCount,
+    10,
+  );
+  if (!Number.isFinite(activationCount) || activationCount <= 0) {
+    return true;
+  }
+
+  let selectorRawValue = null;
+  if (metadata?.tubeSelector?.enabled) {
+    selectorRawValue = data?.resultValue;
+  } else {
+    const activeAdditionalFields = Array.isArray(data?.additionalFieldDefinitions)
+      ? data.additionalFieldDefinitions.filter(
+          (fieldDefinition) => fieldDefinition?.active !== false,
+        )
+      : [];
+    const selectorField = activeAdditionalFields.find(isTubeSelectorFieldDefinition);
+    if (selectorField?.fieldKey) {
+      selectorRawValue = data?.additionalFieldValues?.[selectorField.fieldKey];
+    }
+  }
+
+  const selectedTubeCount = Number.parseInt(selectorRawValue, 10);
+  return Number.isFinite(selectedTubeCount) && selectedTubeCount >= activationCount;
+};
+
+const isChildTubeUsageBlockEnabled = (fieldDefinition) =>
+  parseAdditionalFieldMetadata(fieldDefinition)?.tubeUsage?.childBlockEnabled ===
+  true;
+
+const isPrimaryChildTubeUsageBlockEnabled = (data) =>
+  parseAdditionalFieldMetadata({
+    metadataJson: data?.resultDisplayConfigJson,
+  })?.tubeUsage?.childBlockEnabled === true;
+
+const normalizeBlockIdentifier = (value) =>
+  String(value == null ? "" : value)
+    .trim()
+    .toUpperCase();
+
+const getEnteredChildTubeUsageBlocks = (data, intl) => {
+  const activeAdditionalFields = Array.isArray(data?.additionalFieldDefinitions)
+    ? data.additionalFieldDefinitions.filter(
+        (fieldDefinition) => fieldDefinition?.active !== false,
+      )
+    : [];
+  const visibleAdditionalFields = getVisibleAdditionalFields(
+    data,
+    activeAdditionalFields,
+  );
+  const enteredBlocks = new Set();
+
+  visibleAdditionalFields.forEach((fieldDefinition) => {
+    if (!isChildTubeUsageBlockEnabled(fieldDefinition)) {
+      return;
+    }
+    const { blockName } = getFieldBlockAndScope(fieldDefinition);
+    const value = data?.additionalFieldValues?.[fieldDefinition?.fieldKey];
+    if (value != null && `${value}`.trim() !== "") {
+      enteredBlocks.add(normalizeBlockIdentifier(blockName));
+    }
+  });
+
+  if (isPrimaryChildTubeUsageBlockEnabled(data)) {
+    const primaryLayout = getPrimaryResultLayout(data, intl);
+    const primaryBlockName = String(primaryLayout?.blockName || "").trim();
+    const primaryValue = data?.resultValue;
+    if (
+      primaryBlockName &&
+      primaryValue != null &&
+      `${primaryValue}`.trim() !== ""
+    ) {
+      enteredBlocks.add(normalizeBlockIdentifier(primaryBlockName));
+    }
+  }
+
+  return Array.from(enteredBlocks);
+};
+
+const getConfiguredChildTubeUsageBlocks = (data, intl) => {
+  const configuredBlocks = new Set();
+  const activeAdditionalFields = Array.isArray(data?.additionalFieldDefinitions)
+    ? data.additionalFieldDefinitions.filter(
+        (fieldDefinition) => fieldDefinition?.active !== false,
+      )
+    : [];
+  const visibleAdditionalFields = getVisibleAdditionalFields(
+    data,
+    activeAdditionalFields,
+  );
+
+  visibleAdditionalFields.forEach((fieldDefinition) => {
+    if (!isChildTubeUsageBlockEnabled(fieldDefinition)) {
+      return;
+    }
+    const { blockName } = getFieldBlockAndScope(fieldDefinition);
+    if (blockName) {
+      configuredBlocks.add(normalizeBlockIdentifier(blockName));
+    }
+  });
+
+  if (isPrimaryChildTubeUsageBlockEnabled(data)) {
+    const primaryLayout = getPrimaryResultLayout(data, intl);
+    if (primaryLayout?.blockName) {
+      configuredBlocks.add(normalizeBlockIdentifier(primaryLayout.blockName));
+    }
+  }
+
+  return Array.from(configuredBlocks);
+};
+
+const getTubeUsageTotalRemaining = (row) => {
+  const remainingByTube = row?.parentTubeRemainingQuantities || {};
+  const totalBaseRemaining = Object.values(remainingByTube).reduce(
+    (sum, rawValue) => {
+      const parsed = Number(rawValue);
+      return Number.isFinite(parsed) ? sum + parsed : sum;
+    },
+    0,
+  );
+
+  if (totalBaseRemaining <= 0) {
+    return "";
+  }
+
+  const totalUsed = Array.isArray(row?.blockSampleUsages)
+    ? row.blockSampleUsages.reduce((sum, usage) => {
+        const parsedUsage = Number(usage?.usedQuantity);
+        return Number.isFinite(parsedUsage) && parsedUsage > 0
+          ? sum + parsedUsage
+          : sum;
+      }, 0)
+    : Number(row?.sampleUsageQuantity) || 0;
+
+  return Math.max(0, totalBaseRemaining - totalUsed).toFixed(3);
+};
+
 function ResultSearchPage() {
   const [originalResultForm, setOriginalResultForm] = useState({
     testResult: [],
@@ -567,11 +750,9 @@ export function SearchResultForm(props) {
   const componentMounted = useRef(false);
 
   const setResultsWithId = (results) => {
-    if (results.testResult) {
+    if (results?.testResult) {
       var i = 0;
-      if (results.testResult) {
-        results.testResult.forEach((item) => (item.id = "" + i++));
-      }
+      results.testResult.forEach((item) => (item.id = "" + i++));
       props.setResults?.(results);
       setLoading(false);
       if (results.paging) {
@@ -1802,8 +1983,63 @@ export function SearchResults(props) {
           return <></>;
         }
 
+        if (row.blockTubeUsageEnabled === true) {
+          return (
+            <Stack gap={2}>
+              <small>
+                {intl.formatMessage(
+                  {
+                    id: "result.entry.remainingQuantity",
+                    defaultMessage: "Restantes: {quantity}",
+                  },
+                  { quantity: row.sampleRemainingQuantity || "-" },
+                )}
+              </small>
+              <TextInput
+                id={"sampleUsageQuantity" + row.id}
+                name={"testResult[" + row.id + "].sampleUsageQuantity"}
+                labelText={intl.formatMessage({
+                  id: "result.entry.totalUsage.label",
+                  defaultMessage: "Cantidad total usada",
+                })}
+                type="number"
+                step="0.001"
+                min="0"
+                value={row.sampleUsageQuantity || ""}
+                disabled
+              />
+            </Stack>
+          );
+        }
+
         return (
           <Stack gap={2}>
+            {row.parentTubeSelectionEnabled === true && (
+              <Select
+                id={"parentUsageBlockName" + row.id}
+                name={"testResult[" + row.id + "].parentUsageBlockName"}
+                labelText={intl.formatMessage({
+                  id: "result.entry.parentTube.label",
+                  defaultMessage: "Tube",
+                })}
+                value={row.parentUsageBlockName || ""}
+                disabled={row.sampleUsageLocked === true}
+                onChange={(event) =>
+                  handleParentTubeSelectionChange(row.id, event.target.value)
+                }
+              >
+                <SelectItem text="" value="" />
+                {Object.entries(row.parentTubeOptions || {}).map(
+                  ([blockName, label]) => (
+                    <SelectItem
+                      key={`parent-tube-option-${row.id}-${blockName}`}
+                      value={blockName}
+                      text={label}
+                    />
+                  ),
+                )}
+              </Select>
+            )}
             <small>
               {intl.formatMessage(
                 {
@@ -2020,9 +2256,267 @@ export function SearchResults(props) {
 
     row.additionalFieldValues = additionalFieldValues;
     row.additionalFieldShadowValues = { ...additionalFieldValues };
+    if (fieldType === "NUMBER") {
+      const fieldDefinitions = Array.isArray(row.additionalFieldDefinitions)
+        ? row.additionalFieldDefinitions
+        : [];
+      const changedDefinition = fieldDefinitions.find(
+        (definition) => definition?.fieldKey === fieldKey,
+      );
+      if (isTubeSelectorFieldDefinition(changedDefinition)) {
+        const selectedTubeCount = Number.parseInt(nextValue, 10);
+        fieldDefinitions.forEach((definition) => {
+          const activationCount = getTubeActivationCount(definition);
+          if (
+            activationCount > 0 &&
+            (!Number.isFinite(selectedTubeCount) ||
+              selectedTubeCount <= 0 ||
+              activationCount > selectedTubeCount)
+          ) {
+            delete additionalFieldValues[definition.fieldKey];
+          }
+        });
+        row.additionalFieldValues = additionalFieldValues;
+        row.additionalFieldShadowValues = { ...additionalFieldValues };
+      }
+    }
     row.isModified = "true";
     form.testResult[rowId] = row;
     props.setResultForm(form);
+  };
+
+  const handleParentTubeSelectionChange = (rowId, nextBlockName) => {
+    const form = {
+      ...props.results,
+      testResult: [...props.results.testResult],
+    };
+    const row = { ...(form.testResult[rowId] || {}) };
+    row.parentUsageBlockName = nextBlockName || "";
+    const remainingByBlock = row.parentTubeRemainingQuantities || {};
+    row.sampleRemainingQuantity =
+      nextBlockName &&
+      Object.prototype.hasOwnProperty.call(remainingByBlock, nextBlockName)
+        ? remainingByBlock[nextBlockName]
+        : getTubeUsageTotalRemaining(row);
+    row.isModified = "true";
+    form.testResult[rowId] = row;
+    props.setResultForm(form);
+  };
+
+  const recalculateBlockTubeUsageState = (row) => {
+    const blockSampleUsages = Array.isArray(row?.blockSampleUsages)
+      ? row.blockSampleUsages.map((blockUsage) => ({ ...blockUsage }))
+      : [];
+    const remainingByTube = row?.parentTubeRemainingQuantities || {};
+
+    const totalBaseRemaining = Object.values(remainingByTube).reduce(
+      (sum, rawValue) => {
+        const parsed = Number(rawValue);
+        return Number.isFinite(parsed) ? sum + parsed : sum;
+      },
+      0,
+    );
+
+    const usedByTube = {};
+    let totalUsed = 0;
+    blockSampleUsages.forEach((blockUsage) => {
+      const selectedTube = String(blockUsage?.parentTubeBlockName || "").trim();
+      const parsedUsage = Number(blockUsage?.usedQuantity);
+      if (!selectedTube || !Number.isFinite(parsedUsage) || parsedUsage <= 0) {
+        return;
+      }
+      usedByTube[selectedTube] = (usedByTube[selectedTube] || 0) + parsedUsage;
+      totalUsed += parsedUsage;
+    });
+
+    blockSampleUsages.forEach((blockUsage) => {
+      const selectedTube = String(blockUsage?.parentTubeBlockName || "").trim();
+      if (!selectedTube) {
+        blockUsage.remainingQuantity = "";
+        return;
+      }
+      const baseRemaining = Number(remainingByTube[selectedTube]);
+      if (!Number.isFinite(baseRemaining)) {
+        blockUsage.remainingQuantity = "";
+        return;
+      }
+      const ownUsage = Number(blockUsage?.usedQuantity);
+      const otherUsage = (usedByTube[selectedTube] || 0) -
+        (Number.isFinite(ownUsage) && ownUsage > 0 ? ownUsage : 0);
+      const effectiveRemaining = Math.max(0, baseRemaining - otherUsage);
+      blockUsage.remainingQuantity = effectiveRemaining.toFixed(3);
+    });
+
+    row.blockSampleUsages = blockSampleUsages;
+    row.sampleUsageQuantity =
+      totalUsed > 0 ? totalUsed.toFixed(3).replace(/\.?0+$/, "") : "";
+    const effectiveTotalRemaining = Math.max(0, totalBaseRemaining - totalUsed);
+    row.sampleRemainingQuantity =
+      totalBaseRemaining > 0 ? effectiveTotalRemaining.toFixed(3) : "";
+    return row;
+  };
+
+  const updateBlockTubeUsageRow = (rowId, updater) => {
+    const form = {
+      ...props.results,
+      testResult: [...props.results.testResult],
+    };
+    const row = { ...(form.testResult[rowId] || {}) };
+    row.blockSampleUsages = Array.isArray(row.blockSampleUsages)
+      ? row.blockSampleUsages.map((blockUsage) => ({ ...blockUsage }))
+      : [];
+    updater(row);
+    recalculateBlockTubeUsageState(row);
+    row.isModified = "true";
+    form.testResult[rowId] = row;
+    props.setResultForm(form);
+  };
+
+  const handleBlockTubeSelectionChange = (
+    rowId,
+    childBlockName,
+    nextTubeBlockName,
+  ) => {
+    updateBlockTubeUsageRow(rowId, (row) => {
+      const nextUsages = Array.isArray(row.blockSampleUsages)
+        ? [...row.blockSampleUsages]
+        : [];
+      const existingIndex = nextUsages.findIndex(
+        (blockUsage) => blockUsage?.childBlockName === childBlockName,
+      );
+      const existing =
+        existingIndex >= 0
+          ? { ...nextUsages[existingIndex] }
+          : { childBlockName, usedQuantity: "", remainingQuantity: "" };
+      existing.parentTubeBlockName = nextTubeBlockName || "";
+      if (existingIndex >= 0) {
+        nextUsages[existingIndex] = existing;
+      } else {
+        nextUsages.push(existing);
+      }
+      row.blockSampleUsages = nextUsages;
+    });
+  };
+
+  const handleBlockTubeUsageQuantityChange = (
+    rowId,
+    childBlockName,
+    nextValue,
+  ) => {
+    updateBlockTubeUsageRow(rowId, (row) => {
+      const nextUsages = Array.isArray(row.blockSampleUsages)
+        ? [...row.blockSampleUsages]
+        : [];
+      const existingIndex = nextUsages.findIndex(
+        (blockUsage) => blockUsage?.childBlockName === childBlockName,
+      );
+      const existing =
+        existingIndex >= 0
+          ? { ...nextUsages[existingIndex] }
+          : {
+              childBlockName,
+              parentTubeBlockName: "",
+              remainingQuantity: "",
+            };
+      existing.usedQuantity = nextValue == null ? "" : `${nextValue}`;
+      if (existingIndex >= 0) {
+        nextUsages[existingIndex] = existing;
+      } else {
+        nextUsages.push(existing);
+      }
+      row.blockSampleUsages = nextUsages;
+    });
+  };
+
+  const renderBlockTubeUsageControl = (data, blockTitle) => {
+    if (!data?.blockTubeUsageEnabled) {
+      return null;
+    }
+    const configuredBlocks = getConfiguredChildTubeUsageBlocks(data, intl);
+    if (!configuredBlocks.includes(normalizeBlockIdentifier(blockTitle))) {
+      return null;
+    }
+    const blockUsage = Array.isArray(data.blockSampleUsages)
+      ? data.blockSampleUsages.find(
+          (usage) =>
+            normalizeBlockIdentifier(usage?.childBlockName) ===
+            normalizeBlockIdentifier(blockTitle),
+        )
+      : null;
+    const resolvedBlockUsage = blockUsage || {
+      childBlockName: blockTitle,
+      parentTubeBlockName: "",
+      usedQuantity: "",
+      remainingQuantity: "",
+      locked: false,
+    };
+
+    return (
+      <Column
+        lg={4}
+        md={4}
+        sm={4}
+        key={`tube-usage-${data.id}-${blockTitle}`}
+      >
+        <Stack gap={2}>
+          <Select
+            id={`block-parent-tube-${data.id}-${blockTitle}`}
+            labelText={intl.formatMessage({
+              id: "result.entry.parentTube.label",
+              defaultMessage: "Tube",
+            })}
+            value={resolvedBlockUsage.parentTubeBlockName || ""}
+            disabled={resolvedBlockUsage.locked === true}
+            onChange={(event) =>
+              handleBlockTubeSelectionChange(
+                data.id,
+                blockTitle,
+                event.target.value,
+              )
+            }
+          >
+            <SelectItem text="" value="" />
+            {Object.entries(data.parentTubeOptions || {}).map(
+              ([blockName, label]) => (
+                <SelectItem
+                  key={`block-parent-tube-option-${data.id}-${blockTitle}-${blockName}`}
+                  value={blockName}
+                  text={label}
+                />
+              ),
+            )}
+          </Select>
+          <small>
+            {intl.formatMessage(
+              {
+                id: "result.entry.remainingQuantity",
+                defaultMessage: "Restantes: {quantity}",
+              },
+              { quantity: resolvedBlockUsage.remainingQuantity || "-" },
+            )}
+          </small>
+          <TextInput
+            id={`block-sample-usage-${data.id}-${blockTitle}`}
+            labelText={intl.formatMessage({
+              id: "result.entry.sampleUsage.label",
+              defaultMessage: "Cantidad usada",
+            })}
+            type="number"
+            step="0.001"
+            min="0"
+            value={resolvedBlockUsage.usedQuantity || ""}
+            disabled={resolvedBlockUsage.locked === true}
+            onChange={(event) =>
+              handleBlockTubeUsageQuantityChange(
+                data.id,
+                blockTitle,
+                event.target.value,
+              )
+            }
+          />
+        </Stack>
+      </Column>
+    );
   };
 
   const renderAdditionalFieldInput = (data, fieldDefinition) => {
@@ -2249,12 +2743,17 @@ export function SearchResults(props) {
                     (fieldDefinition) => fieldDefinition?.active !== false,
                   )
                 : [];
+              const visibleAdditionalFields = getVisibleAdditionalFields(
+                data,
+                activeAdditionalFields,
+              );
+              const primaryResultVisible = isPrimaryResultVisible(data);
               const primaryLayout = getPrimaryResultLayout(data, intl);
               const groupedBlocks = [];
               const groupedByName = new Map();
               const blockSortOrderByKey = new Map();
               let nextBlockSortOrder = 1;
-              const resolvedAdditionalFields = activeAdditionalFields.map(
+              const resolvedAdditionalFields = visibleAdditionalFields.map(
                 (fieldDefinition) => {
                   const layout = getFieldBlockAndScope(fieldDefinition);
                   const blockKey = String(layout.blockName || "").trim();
@@ -2335,7 +2834,7 @@ export function SearchResults(props) {
               const primaryBlockName =
                 primaryLayout.blockName || officialBlockName;
               const primaryBlockKey = String(primaryBlockName || "").trim();
-              if (!groupedByName.has(primaryBlockKey)) {
+              if (primaryResultVisible && !groupedByName.has(primaryBlockKey)) {
                 const group = {
                   blockName: primaryBlockName,
                   blockSortOrder: primaryLayout.blockSortOrder,
@@ -2344,10 +2843,12 @@ export function SearchResults(props) {
                 groupedByName.set(primaryBlockKey, group);
                 groupedBlocks.push(group);
               }
-              groupedByName.get(primaryBlockKey).items.push({
-                type: "primary",
-                fieldSortOrder: primaryLayout.fieldSortOrder,
-              });
+              if (primaryResultVisible) {
+                groupedByName.get(primaryBlockKey).items.push({
+                  type: "primary",
+                  fieldSortOrder: primaryLayout.fieldSortOrder,
+                });
+              }
 
               return groupedBlocks
                 .sort((leftBlock, rightBlock) => {
@@ -2389,6 +2890,7 @@ export function SearchResults(props) {
                           {blockTitle}
                         </h6>
                       </Column>
+                      {renderBlockTubeUsageControl(data, blockTitle)}
                       {sortedItems.map((item, fieldIndex) => {
                         if (item.type === "primary") {
                           return (
@@ -2713,7 +3215,11 @@ export function SearchResults(props) {
     }
 
     const dependentChildMissingUsage = props.results.testResult.find((item) => {
-      if (!item.dependentChild || item.sampleUsageLocked === true) {
+      if (
+        !item.dependentChild ||
+        item.sampleUsageLocked === true ||
+        item.blockTubeUsageEnabled === true
+      ) {
         return false;
       }
 
@@ -2743,6 +3249,40 @@ export function SearchResults(props) {
       const parsed = Number(item.sampleUsageQuantity);
       return Number.isNaN(parsed) || parsed <= 0;
     });
+
+    const dependentChildMissingTubeSelection = props.results.testResult.find(
+      (item) => {
+        if (
+          !item.dependentChild ||
+          item.sampleUsageLocked === true ||
+          item.blockTubeUsageEnabled === true ||
+          item.parentTubeSelectionEnabled !== true
+        ) {
+          return false;
+        }
+
+        const hasResult =
+          (item.resultType === "M" || item.resultType === "C"
+            ? item.multiSelectResultValues &&
+              item.multiSelectResultValues !== "{}"
+            : item.shadowResultValue &&
+              !(item.resultType === "D" && item.shadowResultValue === "0")) ||
+          (item.resultType !== "M" &&
+            item.resultType !== "C" &&
+            item.resultValue &&
+            !(item.resultType === "D" && item.resultValue === "0")) ||
+          item.refer === true ||
+          item.refer === "true" ||
+          item.shadowRejected === true ||
+          item.shadowRejected === "true";
+
+        if (!hasResult) {
+          return false;
+        }
+
+        return !item.parentUsageBlockName;
+      },
+    );
 
     const parentMissingUsage = props.results.testResult.find((item) => {
       if (
@@ -2782,7 +3322,11 @@ export function SearchResults(props) {
 
     const dependentChildMissingRemaining = props.results.testResult.find(
       (item) => {
-        if (!item.dependentChild || item.sampleUsageLocked === true) {
+        if (
+          !item.dependentChild ||
+          item.sampleUsageLocked === true ||
+          item.blockTubeUsageEnabled === true
+        ) {
           return false;
         }
 
@@ -2817,6 +3361,78 @@ export function SearchResults(props) {
         return Number.isNaN(remaining);
       },
     );
+
+    const dependentChildBlockUsageError = props.results.testResult.find((item) => {
+      if (
+        !item.dependentChild ||
+        item.sampleUsageLocked === true ||
+        item.blockTubeUsageEnabled !== true
+      ) {
+        return false;
+      }
+
+      const enteredBlocks = getEnteredChildTubeUsageBlocks(item, intl);
+      if (enteredBlocks.length === 0) {
+        return false;
+      }
+
+      const usagesByBlock = Array.isArray(item.blockSampleUsages)
+        ? item.blockSampleUsages.reduce((acc, usage) => {
+            if (usage?.childBlockName) {
+              acc[normalizeBlockIdentifier(usage.childBlockName)] = usage;
+            }
+            return acc;
+          }, {})
+        : {};
+
+      return enteredBlocks.some((blockName) => {
+        const usage = usagesByBlock[blockName];
+        if (!usage) {
+          return true;
+        }
+        if (usage.locked === true) {
+          return false;
+        }
+        const selectedTube = String(usage.parentTubeBlockName || "").trim();
+        const parsedUsage = Number(usage.usedQuantity);
+        const parsedRemaining = Number(usage.remainingQuantity);
+        return (
+          !selectedTube ||
+          !Number.isFinite(parsedUsage) ||
+          parsedUsage <= 0 ||
+          !Number.isFinite(parsedRemaining) ||
+          parsedUsage > parsedRemaining
+        );
+      });
+    });
+
+    if (dependentChildMissingTubeSelection) {
+      addNotification({
+        title: intl.formatMessage({ id: "notification.title" }),
+        message: intl.formatMessage({
+          id: "result.entry.parentTube.required",
+          defaultMessage:
+            "Dependent child tests require selecting a parent tube before saving.",
+        }),
+        kind: NotificationKinds.error,
+      });
+      setNotificationVisible(true);
+      return;
+    }
+
+    if (dependentChildBlockUsageError) {
+      addNotification({
+        title: intl.formatMessage({ id: "notification.title" }),
+        message: intl.formatMessage({
+          id: "result.entry.blockTubeUsage.required",
+          defaultMessage:
+            "Each child block with entered results requires a tube selection and a valid usage quantity.",
+        }),
+        kind: NotificationKinds.error,
+      });
+      setNotificationVisible(true);
+      return;
+    }
 
     if (dependentChildMissingRemaining) {
       addNotification({

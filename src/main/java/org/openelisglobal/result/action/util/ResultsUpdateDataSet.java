@@ -147,7 +147,9 @@ public class ResultsUpdateDataSet implements IResultSaveService {
         return item != null
                 && ((!org.apache.commons.validator.GenericValidator.isBlankOrNull(item.getSampleUsageQuantity()))
                         || (!org.apache.commons.validator.GenericValidator
-                                .isBlankOrNull(item.getParentSampleUsageQuantity())));
+                                .isBlankOrNull(item.getParentSampleUsageQuantity()))
+                        || (!org.apache.commons.validator.GenericValidator
+                                .isBlankOrNull(item.getParentUsageBlockName())));
     }
 
     public void setPreviousAnalysis(Analysis previousAnalysis) {

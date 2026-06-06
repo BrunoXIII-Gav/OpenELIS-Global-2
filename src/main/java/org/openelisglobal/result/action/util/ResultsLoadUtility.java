@@ -15,6 +15,8 @@
  */
 package org.openelisglobal.result.action.util;
 
+import com.fasterxml.jackson.databind.JsonNode;
+import com.fasterxml.jackson.databind.ObjectMapper;
 import jakarta.annotation.PostConstruct;
 import java.math.BigDecimal;
 import java.util.ArrayList;
@@ -22,13 +24,17 @@ import java.util.Collections;
 import java.util.Comparator;
 import java.util.HashMap;
 import java.util.HashSet;
+import java.util.LinkedHashMap;
+import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Random;
 import java.util.Set;
 import org.apache.commons.validator.GenericValidator;
 import org.openelisglobal.analysis.service.AnalysisService;
+import org.openelisglobal.analysis.service.AnalysisTubeUsageService;
 import org.openelisglobal.analysis.valueholder.Analysis;
+import org.openelisglobal.analysis.valueholder.AnalysisTubeUsage;
 import org.openelisglobal.analysis.valueholder.ResultFile;
 import org.openelisglobal.analyte.service.AnalyteService;
 import org.openelisglobal.analyte.valueholder.Analyte;
@@ -86,6 +92,7 @@ import org.openelisglobal.spring.util.SpringContext;
 import org.openelisglobal.statusofsample.util.StatusRules;
 import org.openelisglobal.systemuser.service.SystemUserService;
 import org.openelisglobal.systemuser.valueholder.SystemUser;
+import org.openelisglobal.test.beanItems.BlockSampleUsageItem;
 import org.openelisglobal.test.beanItems.TestResultItem;
 import org.openelisglobal.test.beanItems.TestResultItem.ResultDisplayType;
 import org.openelisglobal.test.service.TbMethodTestService;
@@ -109,6 +116,7 @@ import org.springframework.stereotype.Service;
 @Service
 @Scope("prototype")
 public class ResultsLoadUtility {
+    private static final ObjectMapper OBJECT_MAPPER = new ObjectMapper();
 
     private static final boolean SORT_FORWARD = true;
 
@@ -170,6 +178,8 @@ public class ResultsLoadUtility {
     private TbMethodTestService tbMethodTestService;
     @Autowired
     private MethodService methodService;
+    @Autowired
+    private AnalysisTubeUsageService analysisTubeUsageService;
 
     private final StatusRules statusRules = new StatusRules();
 
@@ -196,6 +206,9 @@ public class ResultsLoadUtility {
     private final Map<String, Analysis> parentAnalysisBySampleAndTest = new HashMap<>();
     private final Map<String, List<Analysis>> analysesBySampleItemIdCache = new HashMap<>();
     private final Map<String, BigDecimal> parentFieldNumericValueCache = new HashMap<>();
+    private final Map<String, Map<String, TubeBlockContext>> parentTubeContextCache = new HashMap<>();
+    private final Map<String, List<AnalysisTubeUsage>> tubeUsageByAnalysisIdCache = new HashMap<>();
+    private final Map<String, List<AnalysisTubeUsage>> tubeUsageByParentAnalysisIdCache = new HashMap<>();
 
     @PostConstruct
     public void initializeGlobalVariables() {
@@ -874,6 +887,9 @@ public class ResultsLoadUtility {
         parentAnalysisBySampleAndTest.clear();
         analysesBySampleItemIdCache.clear();
         parentFieldNumericValueCache.clear();
+        parentTubeContextCache.clear();
+        tubeUsageByAnalysisIdCache.clear();
+        tubeUsageByParentAnalysisIdCache.clear();
     }
 
     private DependencyContext resolveDependencyContext(Analysis analysis) {
@@ -915,10 +931,32 @@ public class ResultsLoadUtility {
         context.parentResultFieldKey = dependency.getParentResultFieldKey();
 
         if (TestParentChildDependency.SAMPLE_USAGE_SOURCE_PARENT_TEST_FIELD.equals(context.sampleUsageSource)) {
-            context.sampleUsageFromParentField = true;
-            BigDecimal parentBasedRemaining = calculateRemainingFromParentField(analysis, context);
-            if (parentBasedRemaining != null) {
-                context.sampleRemainingQuantity = parentBasedRemaining.toPlainString();
+            Map<String, TubeBlockContext> tubeContexts = resolveTubeBlockContexts(parentAnalysis, context.parentTestId);
+            if (!tubeContexts.isEmpty()) {
+                context.sampleUsageFromParentField = true;
+                context.tubeBasedUsage = true;
+                context.tubeBlocks = tubeContexts;
+                context.selectedTubeBlockName = analysis.getParentUsageBlockName();
+                BigDecimal totalRemaining = calculateTotalRemainingFromTubeBlocks(analysis, context);
+                if (totalRemaining != null) {
+                    context.sampleRemainingQuantity = totalRemaining.toPlainString();
+                }
+                if (!GenericValidator.isBlankOrNull(context.selectedTubeBlockName)) {
+                    TubeBlockContext selectedContext = tubeContexts.get(context.selectedTubeBlockName);
+                    if (selectedContext != null) {
+                        BigDecimal parentBasedRemaining = calculateRemainingFromTubeBlock(analysis, context,
+                                context.selectedTubeBlockName);
+                        if (parentBasedRemaining != null) {
+                            context.sampleRemainingQuantity = parentBasedRemaining.toPlainString();
+                        }
+                    }
+                }
+            } else {
+                context.sampleUsageFromParentField = true;
+                BigDecimal parentBasedRemaining = calculateRemainingFromParentField(analysis, context);
+                if (parentBasedRemaining != null) {
+                    context.sampleRemainingQuantity = parentBasedRemaining.toPlainString();
+                }
             }
         }
         return context;
@@ -945,6 +983,64 @@ public class ResultsLoadUtility {
         resultItem.setDependencyParentTestName(context.parentTestName);
         resultItem.setDependencyParentAnalysisId(context.parentAnalysis != null ? context.parentAnalysis.getId() : null);
         resultItem.setDependencyParentCompleted(context.parentCompleted);
+        if (context.tubeBasedUsage) {
+            Map<String, String> optionLabels = new LinkedHashMap<>();
+            Map<String, String> remainingByBlock = new LinkedHashMap<>();
+            for (Map.Entry<String, TubeBlockContext> entry : context.tubeBlocks.entrySet()) {
+                String blockName = entry.getKey();
+                TubeBlockContext tubeContext = entry.getValue();
+                optionLabels.put(blockName, tubeContext.label);
+                BigDecimal remaining = calculateRemainingFromTubeBlock(analysis, context, blockName);
+                if (remaining != null) {
+                    remainingByBlock.put(blockName, remaining.toPlainString());
+                }
+            }
+            resultItem.setParentTubeOptions(optionLabels);
+            resultItem.setParentTubeRemainingQuantities(remainingByBlock);
+
+            List<String> childBlocks = resolveChildTubeUsageBlocks(resultItem);
+            if (!childBlocks.isEmpty()) {
+                resultItem.setBlockTubeUsageEnabled(true);
+                resultItem.setParentTubeSelectionEnabled(false);
+                resultItem.setParentUsageBlockName(null);
+                Map<String, AnalysisTubeUsage> persistedByBlock = getPersistedTubeUsageByBlock(analysis.getId());
+                List<BlockSampleUsageItem> blockUsages = new ArrayList<>();
+                BigDecimal totalUsed = BigDecimal.ZERO;
+                for (String childBlockName : childBlocks) {
+                    AnalysisTubeUsage persistedUsage = persistedByBlock.get(childBlockName);
+                    BlockSampleUsageItem blockUsage = new BlockSampleUsageItem();
+                    blockUsage.setChildBlockName(childBlockName);
+                    if (persistedUsage != null) {
+                        blockUsage.setParentTubeBlockName(persistedUsage.getParentTubeBlockName());
+                        blockUsage.setUsedQuantity(persistedUsage.getUsedQuantity() == null ? ""
+                                : persistedUsage.getUsedQuantity().toPlainString());
+                        blockUsage.setLocked(true);
+                        totalUsed = totalUsed.add(persistedUsage.getUsedQuantity() == null ? BigDecimal.ZERO
+                                : persistedUsage.getUsedQuantity());
+                    } else {
+                        blockUsage.setLocked(false);
+                    }
+                    BigDecimal blockRemaining = GenericValidator.isBlankOrNull(blockUsage.getParentTubeBlockName()) ? null
+                            : calculateRemainingFromTubeBlock(analysis, context, blockUsage.getParentTubeBlockName());
+                    if (blockRemaining != null) {
+                        blockUsage.setRemainingQuantity(blockRemaining.toPlainString());
+                    }
+                    blockUsages.add(blockUsage);
+                }
+                resultItem.setBlockSampleUsages(blockUsages);
+                resultItem.setSampleUsageLocked(false);
+                resultItem.setSampleRemainingQuantity(context.sampleRemainingQuantity);
+                if (!blockUsages.isEmpty()) {
+                    resultItem.setSampleUsageQuantity(totalUsed.compareTo(BigDecimal.ZERO) > 0
+                            ? totalUsed.toPlainString()
+                            : resultItem.getSampleUsageQuantity());
+                    return;
+                }
+            }
+
+            resultItem.setParentTubeSelectionEnabled(true);
+            resultItem.setParentUsageBlockName(context.selectedTubeBlockName);
+        }
 
         if (context.sampleUsageFromParentField) {
             resultItem.setSampleRemainingQuantity(context.sampleRemainingQuantity);
@@ -1017,6 +1113,31 @@ public class ResultsLoadUtility {
         private String parentResultFieldKey;
         private String sampleRemainingQuantity;
         private boolean sampleUsageFromParentField = false;
+        private boolean tubeBasedUsage = false;
+        private String selectedTubeBlockName;
+        private Map<String, TubeBlockContext> tubeBlocks = new LinkedHashMap<>();
+    }
+
+    private static class TubeBlockContext {
+        private String blockName;
+        private String label;
+        private String quantityFieldKey;
+        private BigDecimal totalAvailable;
+    }
+
+    private BigDecimal calculateTotalRemainingFromTubeBlocks(Analysis childAnalysis, DependencyContext context) {
+        if (context == null || context.tubeBlocks == null || context.tubeBlocks.isEmpty()) {
+            return null;
+        }
+
+        BigDecimal totalRemaining = BigDecimal.ZERO;
+        for (String blockName : context.tubeBlocks.keySet()) {
+            BigDecimal remaining = calculateRemainingFromTubeBlock(childAnalysis, context, blockName);
+            if (remaining != null) {
+                totalRemaining = totalRemaining.add(remaining);
+            }
+        }
+        return totalRemaining;
     }
 
     private BigDecimal calculateRemainingFromParentField(Analysis childAnalysis, DependencyContext context) {
@@ -1040,6 +1161,26 @@ public class ResultsLoadUtility {
         return remaining;
     }
 
+    private BigDecimal calculateRemainingFromTubeBlock(Analysis childAnalysis, DependencyContext context, String blockName) {
+        if (childAnalysis == null || context == null || context.parentAnalysis == null || GenericValidator.isBlankOrNull(blockName)
+                || context.tubeBlocks == null || context.tubeBlocks.isEmpty()) {
+            return null;
+        }
+
+        TubeBlockContext tubeContext = context.tubeBlocks.get(blockName);
+        if (tubeContext == null || tubeContext.totalAvailable == null) {
+            return null;
+        }
+
+        BigDecimal alreadyConsumed = getConsumedUsageForParentAnalysis(childAnalysis.getSampleItem().getId(),
+                context.parentAnalysis.getId(), blockName);
+        BigDecimal remaining = tubeContext.totalAvailable.subtract(alreadyConsumed);
+        if (remaining.compareTo(BigDecimal.ZERO) < 0) {
+            return BigDecimal.ZERO;
+        }
+        return remaining;
+    }
+
     private BigDecimal resolveParentFieldNumericValue(Analysis parentAnalysis, String parentTestId, String fieldKey) {
         String cacheKey = parentAnalysis.getId() + ":" + fieldKey;
         if (parentFieldNumericValueCache.containsKey(cacheKey)) {
@@ -1055,9 +1196,107 @@ public class ResultsLoadUtility {
         return numericValue;
     }
 
+    private Map<String, TubeBlockContext> resolveTubeBlockContexts(Analysis parentAnalysis, String parentTestId) {
+        if (parentAnalysis == null || GenericValidator.isBlankOrNull(parentTestId)) {
+            return Collections.emptyMap();
+        }
+
+        String cacheKey = parentAnalysis.getId();
+        if (parentTubeContextCache.containsKey(cacheKey)) {
+            return parentTubeContextCache.get(cacheKey);
+        }
+
+        List<TestAdditionalFieldPayload> parentFieldDefinitions = getAdditionalFieldsForTest(parentTestId);
+        if (parentFieldDefinitions.isEmpty()) {
+            parentTubeContextCache.put(cacheKey, Collections.emptyMap());
+            return Collections.emptyMap();
+        }
+
+        JsonNode primaryMetadata = readMetadataNode(parentAnalysis.getTest().getResultDisplayConfigJson());
+        boolean primarySelectorEnabled = primaryMetadata.path("tubeSelector").path("enabled").asBoolean(false);
+        String selectorFieldKey = null;
+        for (TestAdditionalFieldPayload fieldDefinition : parentFieldDefinitions) {
+            if (isTubeSelectorField(fieldDefinition)) {
+                selectorFieldKey = fieldDefinition.getFieldKey();
+                break;
+            }
+        }
+
+        if (!primarySelectorEnabled && GenericValidator.isBlankOrNull(selectorFieldKey)) {
+            parentTubeContextCache.put(cacheKey, Collections.emptyMap());
+            return Collections.emptyMap();
+        }
+
+        Map<String, String> parentValues = testAdditionalFieldService.getAnalysisValuesForFields(parentAnalysis.getId(),
+                parentFieldDefinitions);
+        BigDecimal selectedTubeCount = primarySelectorEnabled
+                ? parsePositiveBigDecimal(resolvePrimaryResultNumericValue(parentAnalysis))
+                : parsePositiveBigDecimal(parentValues == null ? null : parentValues.get(selectorFieldKey));
+        if (selectedTubeCount == null) {
+            parentTubeContextCache.put(cacheKey, Collections.emptyMap());
+            return Collections.emptyMap();
+        }
+
+        Map<String, TubeBlockContext> tubeContexts = new LinkedHashMap<>();
+        int selectedCount = selectedTubeCount.intValue();
+        if (primaryMetadata.path("tubeQuantitySource").asBoolean(false)) {
+            int primaryActivationCount = getTubeActivationCount(primaryMetadata);
+            if (primaryActivationCount <= 0 || selectedCount >= primaryActivationCount) {
+                TubeBlockContext primaryTubeContext = new TubeBlockContext();
+                primaryTubeContext.blockName = getPrimaryResultBlockName(parentAnalysis);
+                primaryTubeContext.label = primaryTubeContext.blockName;
+                primaryTubeContext.quantityFieldKey = "__PRIMARY_RESULT__";
+                primaryTubeContext.totalAvailable = parsePositiveBigDecimal(resolvePrimaryResultNumericValue(parentAnalysis));
+                tubeContexts.put(primaryTubeContext.blockName, primaryTubeContext);
+            }
+        }
+        for (TestAdditionalFieldPayload fieldDefinition : parentFieldDefinitions) {
+            if (!isTubeQuantitySourceField(fieldDefinition)) {
+                continue;
+            }
+            int activationCount = getTubeActivationCount(fieldDefinition);
+            if (activationCount > 0 && selectedCount < activationCount) {
+                continue;
+            }
+
+            FieldBlockContext blockContext = getFieldBlockContext(fieldDefinition);
+            BigDecimal totalAvailable = parsePositiveBigDecimal(parentValues == null ? null
+                    : parentValues.get(fieldDefinition.getFieldKey()));
+            TubeBlockContext tubeContext = new TubeBlockContext();
+            tubeContext.blockName = blockContext.blockName;
+            tubeContext.label = blockContext.blockName;
+            tubeContext.quantityFieldKey = fieldDefinition.getFieldKey();
+            tubeContext.totalAvailable = totalAvailable;
+            tubeContexts.put(blockContext.blockName, tubeContext);
+        }
+
+        parentTubeContextCache.put(cacheKey, tubeContexts);
+        return tubeContexts;
+    }
+
+    private String resolvePrimaryResultNumericValue(Analysis analysis) {
+        if (analysis == null) {
+            return null;
+        }
+        List<Result> results = resultService.getResultsByAnalysis(analysis);
+        if (results == null || results.isEmpty()) {
+            return null;
+        }
+        return getFormattedResultValue(results.get(0));
+    }
+
     private BigDecimal getConsumedUsageForParentAnalysis(String sampleItemId, String parentAnalysisId) {
+        return getConsumedUsageForParentAnalysis(sampleItemId, parentAnalysisId, null);
+    }
+
+    private BigDecimal getConsumedUsageForParentAnalysis(String sampleItemId, String parentAnalysisId, String blockName) {
         if (GenericValidator.isBlankOrNull(sampleItemId) || GenericValidator.isBlankOrNull(parentAnalysisId)) {
             return BigDecimal.ZERO;
+        }
+
+        BigDecimal persistedTubeUsage = getPersistedConsumedUsageForParentAnalysis(parentAnalysisId, blockName);
+        if (persistedTubeUsage.compareTo(BigDecimal.ZERO) > 0) {
+            return persistedTubeUsage;
         }
 
         List<Analysis> analyses = analysesBySampleItemIdCache.computeIfAbsent(sampleItemId, ignored -> {
@@ -1074,10 +1313,91 @@ public class ResultsLoadUtility {
                 continue;
             }
             if (parentAnalysisId.equals(analysis.getParentAnalysis().getId())) {
+                if (!GenericValidator.isBlankOrNull(blockName)
+                        && !blockName.equals(String.valueOf(analysis.getParentUsageBlockName()))) {
+                    continue;
+                }
                 consumed = consumed.add(analysis.getSampleUsedQuantity());
             }
         }
         return consumed;
+    }
+
+    private BigDecimal getPersistedConsumedUsageForParentAnalysis(String parentAnalysisId, String blockName) {
+        if (GenericValidator.isBlankOrNull(parentAnalysisId)) {
+            return BigDecimal.ZERO;
+        }
+
+        List<AnalysisTubeUsage> usages = tubeUsageByParentAnalysisIdCache.computeIfAbsent(parentAnalysisId,
+                analysisTubeUsageService::getByParentAnalysisId);
+        BigDecimal consumed = BigDecimal.ZERO;
+        for (AnalysisTubeUsage usage : usages) {
+            if (usage == null || usage.getUsedQuantity() == null) {
+                continue;
+            }
+            if (!GenericValidator.isBlankOrNull(blockName)
+                    && !blockName.equals(normalizeBlockName(usage.getParentTubeBlockName()))) {
+                continue;
+            }
+            consumed = consumed.add(usage.getUsedQuantity());
+        }
+        return consumed;
+    }
+
+    private Map<String, AnalysisTubeUsage> getPersistedTubeUsageByBlock(String analysisId) {
+        List<AnalysisTubeUsage> usages = tubeUsageByAnalysisIdCache.computeIfAbsent(analysisId,
+                analysisTubeUsageService::getByAnalysisId);
+        Map<String, AnalysisTubeUsage> byBlock = new LinkedHashMap<>();
+        for (AnalysisTubeUsage usage : usages) {
+            if (usage == null || GenericValidator.isBlankOrNull(usage.getChildBlockName())) {
+                continue;
+            }
+            byBlock.put(normalizeBlockName(usage.getChildBlockName()), usage);
+        }
+        return byBlock;
+    }
+
+    private List<String> resolveChildTubeUsageBlocks(TestResultItem resultItem) {
+        Set<String> blockNames = new LinkedHashSet<>();
+        if (resultItem == null) {
+            return Collections.emptyList();
+        }
+
+        JsonNode primaryMetadata = readMetadataNode(resultItem.getResultDisplayConfigJson());
+        if (isChildTubeUsageBlockEnabled(primaryMetadata)) {
+            String primaryBlockName = normalizeBlockName(primaryMetadata.path("resultBlock").asText(null));
+            if (!GenericValidator.isBlankOrNull(primaryBlockName)) {
+                blockNames.add(primaryBlockName);
+            }
+        }
+
+        if (resultItem.getAdditionalFieldDefinitions() == null) {
+            return new ArrayList<>(blockNames);
+        }
+
+        for (TestAdditionalFieldPayload fieldDefinition : resultItem.getAdditionalFieldDefinitions()) {
+            if (fieldDefinition == null || fieldDefinition.getActive() == Boolean.FALSE
+                    || !isChildTubeUsageBlockEnabled(fieldDefinition)) {
+                continue;
+            }
+            FieldBlockContext context = getFieldBlockContext(fieldDefinition);
+            if (!GenericValidator.isBlankOrNull(context.blockName)) {
+                blockNames.add(normalizeBlockName(context.blockName));
+            }
+        }
+        return new ArrayList<>(blockNames);
+    }
+
+    private boolean isChildTubeUsageBlockEnabled(TestAdditionalFieldPayload fieldDefinition) {
+        return readMetadataNode(fieldDefinition).path("tubeUsage").path("childBlockEnabled").asBoolean(false);
+    }
+
+    private boolean isChildTubeUsageBlockEnabled(JsonNode metadataNode) {
+        return metadataNode.path("tubeUsage").path("childBlockEnabled").asBoolean(false);
+    }
+
+    private String normalizeBlockName(String blockName) {
+        return GenericValidator.isBlankOrNull(blockName) ? null : blockName.trim();
     }
 
     private BigDecimal parsePositiveBigDecimal(String value) {
@@ -1093,6 +1413,93 @@ public class ResultsLoadUtility {
         } catch (NumberFormatException e) {
             return null;
         }
+    }
+
+    private JsonNode readMetadataNode(TestAdditionalFieldPayload fieldDefinition) {
+        if (fieldDefinition == null || GenericValidator.isBlankOrNull(fieldDefinition.getMetadataJson())) {
+            return OBJECT_MAPPER.createObjectNode();
+        }
+        try {
+            JsonNode root = OBJECT_MAPPER.readTree(fieldDefinition.getMetadataJson());
+            return root != null && root.isObject() ? root : OBJECT_MAPPER.createObjectNode();
+        } catch (Exception e) {
+            return OBJECT_MAPPER.createObjectNode();
+        }
+    }
+
+    private boolean isTubeSelectorField(TestAdditionalFieldPayload fieldDefinition) {
+        return readMetadataNode(fieldDefinition).path("tubeSelector").path("enabled").asBoolean(false);
+    }
+
+    private boolean isTubeQuantitySourceField(TestAdditionalFieldPayload fieldDefinition) {
+        return readMetadataNode(fieldDefinition).path("tubeQuantitySource").asBoolean(false);
+    }
+
+    private int getTubeActivationCount(TestAdditionalFieldPayload fieldDefinition) {
+        JsonNode tubeBlockNode = readMetadataNode(fieldDefinition).path("tubeBlock");
+        return tubeBlockNode.path("activationCount").isInt() ? tubeBlockNode.path("activationCount").asInt() : 0;
+    }
+
+    private int getTubeActivationCount(JsonNode metadataNode) {
+        JsonNode activationNode = metadataNode.path("tubeBlock").path("activationCount");
+        if (activationNode.isInt()) {
+            return activationNode.asInt();
+        }
+        if (activationNode.isTextual()) {
+            try {
+                return Integer.parseInt(activationNode.asText().trim());
+            } catch (NumberFormatException e) {
+                return 0;
+            }
+        }
+        return 0;
+    }
+
+    private String getPrimaryResultBlockName(Analysis analysis) {
+        JsonNode metadata = readMetadataNode(analysis.getTest().getResultDisplayConfigJson());
+        String entryScope = metadata.path("entryScope").asText("OFFICIAL").trim().toUpperCase();
+        String fallbackBlock = "PRELIMINARY".equals(entryScope) ? "Preliminary" : "Official";
+        String blockName = metadata.path("resultBlock").asText("");
+        if (GenericValidator.isBlankOrNull(blockName)) {
+            blockName = fallbackBlock;
+        }
+        return blockName;
+    }
+
+    private JsonNode readMetadataNode(String metadataJson) {
+        if (GenericValidator.isBlankOrNull(metadataJson)) {
+            return OBJECT_MAPPER.createObjectNode();
+        }
+        try {
+            JsonNode root = OBJECT_MAPPER.readTree(metadataJson);
+            return root != null && root.isObject() ? root : OBJECT_MAPPER.createObjectNode();
+        } catch (Exception e) {
+            return OBJECT_MAPPER.createObjectNode();
+        }
+    }
+
+    private FieldBlockContext getFieldBlockContext(TestAdditionalFieldPayload fieldDefinition) {
+        JsonNode metadataNode = readMetadataNode(fieldDefinition);
+        String entryScope = String.valueOf(fieldDefinition.getEntryScope() != null ? fieldDefinition.getEntryScope()
+                : metadataNode.path("entryScope").asText("OFFICIAL")).toUpperCase();
+        String fallbackBlock = "PRELIMINARY".equals(entryScope) ? "Preliminary" : "Official";
+        String blockName = fieldDefinition.getBlockName();
+        if (GenericValidator.isBlankOrNull(blockName)) {
+            blockName = metadataNode.path("resultBlock").asText("");
+        }
+        if (GenericValidator.isBlankOrNull(blockName)) {
+            blockName = metadataNode.path("blockName").asText("");
+        }
+        if (GenericValidator.isBlankOrNull(blockName)) {
+            blockName = fallbackBlock;
+        }
+        FieldBlockContext context = new FieldBlockContext();
+        context.blockName = blockName;
+        return context;
+    }
+
+    private static class FieldBlockContext {
+        private String blockName;
     }
 
     private void setResultLimitDependencies(ResultLimit resultLimit, TestResultItem testItem,

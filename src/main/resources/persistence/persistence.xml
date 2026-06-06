@@ -98,6 +98,7 @@
         <class>org.openelisglobal.orderadditionalfield.valueholder.SampleOrderAdditionalFieldValue</class>
         <class>org.openelisglobal.orderadditionalfield.valueholder.SampleOrderAdditionalFieldFile</class>
         <class>org.openelisglobal.orderadditionalfield.valueholder.OrderFixedFieldConfig</class>
+        <class>org.openelisglobal.analysis.valueholder.AnalysisTubeUsage</class>
 
         <properties>
             <property name="hibernate.cfg_xml_file"

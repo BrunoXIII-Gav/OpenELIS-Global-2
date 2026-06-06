@@ -230,6 +230,7 @@ public class TestAddController extends BaseController {
             test.setIsActive(testAddParams.active);
             test.setOrderable("Y".equals(testAddParams.orderable));
             test.setDirectSampleUsageEnabled("Y".equals(testAddParams.directSampleUsageEnabled));
+            test.setSkipValidationWhenParentComplete(Boolean.FALSE);
             test.setNotifyResults("Y".equals(testAddParams.notifyResults));
             test.setInLabOnly("Y".equals(testAddParams.inLabOnly));
             test.setAntimicrobialResistance("Y".equals(testAddParams.antimicrobialResistance));
@@ -366,6 +367,7 @@ public class TestAddController extends BaseController {
             testAddParams.active = (String) obj.get("active");
             testAddParams.orderable = (String) obj.get("orderable");
             testAddParams.directSampleUsageEnabled = (String) obj.get("directSampleUsageEnabled");
+            testAddParams.skipValidationWhenParentComplete = (String) obj.get("skipValidationWhenParentComplete");
             testAddParams.notifyResults = (String) obj.get("notifyResults");
             testAddParams.inLabOnly = (String) obj.get("inLabOnly");
             testAddParams.antimicrobialResistance = (String) obj.get("antimicrobialResistance");
@@ -569,6 +571,7 @@ public class TestAddController extends BaseController {
         String active;
         String orderable;
         String directSampleUsageEnabled;
+        String skipValidationWhenParentComplete;
         String notifyResults;
         String inLabOnly;
         String antimicrobialResistance;
