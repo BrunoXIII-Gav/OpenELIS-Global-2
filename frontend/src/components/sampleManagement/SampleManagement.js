@@ -1,4 +1,4 @@
-import React, { useState, useMemo } from "react";
+import React, { useState } from "react";
 import {
   Grid,
   Column,
@@ -6,9 +6,7 @@ import {
   Heading,
   InlineNotification,
   Button,
-  Tag,
 } from "@carbon/react";
-import { Add, Chemistry, CheckboxChecked } from "@carbon/icons-react";
 import { FormattedMessage, useIntl } from "react-intl";
 import PageBreadCrumb from "../common/PageBreadCrumb";
 import SampleSearch from "./SampleSearch";
@@ -62,59 +60,6 @@ export default function SampleManagement() {
           (item) => item.id === selectedSampleIds[0],
         )
       : null;
-
-  // Compute aliquot-related statistics for bulk operations
-  const aliquotStats = useMemo(() => {
-    if (!searchResponse?.sampleItems) {
-      return { aliquots: [], parents: [], aliquotCount: 0, parentCount: 0 };
-    }
-
-    const aliquots = searchResponse.sampleItems.filter(
-      (item) => item.isAliquot,
-    );
-    const parents = searchResponse.sampleItems.filter(
-      (item) => !item.isAliquot,
-    );
-
-    const selectedAliquots = selectedSampleIds.filter((id) =>
-      aliquots.some((a) => a.id === id),
-    );
-    const selectedParents = selectedSampleIds.filter((id) =>
-      parents.some((p) => p.id === id),
-    );
-
-    return {
-      aliquots,
-      parents,
-      aliquotCount: aliquots.length,
-      parentCount: parents.length,
-      selectedAliquotCount: selectedAliquots.length,
-      selectedParentCount: selectedParents.length,
-    };
-  }, [searchResponse?.sampleItems, selectedSampleIds]);
-
-  /**
-   * Select all aliquots in the search results.
-   */
-  const handleSelectAllAliquots = () => {
-    const aliquotIds = aliquotStats.aliquots.map((a) => a.id);
-    setSelectedSampleIds(aliquotIds);
-  };
-
-  /**
-   * Select all parent samples (non-aliquots) in the search results.
-   */
-  const handleSelectAllParents = () => {
-    const parentIds = aliquotStats.parents.map((p) => p.id);
-    setSelectedSampleIds(parentIds);
-  };
-
-  /**
-   * Clear all selections.
-   */
-  const handleClearSelection = () => {
-    setSelectedSampleIds([]);
-  };
 
   /**
    * Handle search results callback from SampleSearch component.
@@ -175,13 +120,6 @@ export default function SampleManagement() {
   };
 
   /**
-   * Open aliquot modal for the selected sample.
-   */
-  const handleOpenAliquotModal = () => {
-    setIsAliquotModalOpen(true);
-  };
-
-  /**
    * Close aliquot modal.
    */
   const handleCloseAliquotModal = () => {
@@ -224,13 +162,6 @@ export default function SampleManagement() {
         kind: "success",
       });
     }
-  };
-
-  /**
-   * Open add tests modal.
-   */
-  const handleOpenAddTestsModal = () => {
-    setIsAddTestsModalOpen(true);
   };
 
   /**
@@ -460,134 +391,6 @@ export default function SampleManagement() {
           </Column>
         </Grid>
 
-        {/* Search Results Metadata */}
-        {searchResponse &&
-          searchResponse.sampleItems &&
-          searchResponse.sampleItems.length > 0 && (
-            <Grid fullWidth={true}>
-              <Column lg={16} md={8} sm={4}>
-                <div
-                  style={{
-                    marginTop: "1rem",
-                    marginBottom: "1rem",
-                    padding: "0.75rem",
-                    backgroundColor: "#f4f4f4",
-                    borderRadius: "4px",
-                  }}
-                >
-                  <div
-                    style={{
-                      display: "flex",
-                      justifyContent: "space-between",
-                      alignItems: "center",
-                      flexWrap: "wrap",
-                      gap: "0.5rem",
-                    }}
-                  >
-                    {/* Left side: Summary info */}
-                    <div
-                      style={{
-                        display: "flex",
-                        gap: "1.5rem",
-                        flexWrap: "wrap",
-                      }}
-                    >
-                      <span>
-                        <strong>
-                          <FormattedMessage id="sample.management.results.accessionNumber" />
-                          :
-                        </strong>{" "}
-                        {searchResponse.accessionNumber}
-                      </span>
-                      <span>
-                        <strong>
-                          <FormattedMessage id="sample.management.results.totalCount" />
-                          :
-                        </strong>{" "}
-                        {searchResponse.totalCount}{" "}
-                        {searchResponse.totalCount === 1 ? (
-                          <FormattedMessage id="sample.management.results.item" />
-                        ) : (
-                          <FormattedMessage id="sample.management.results.items" />
-                        )}
-                      </span>
-                      {aliquotStats.aliquotCount > 0 && (
-                        <span>
-                          <Tag type="blue" size="sm">
-                            {aliquotStats.aliquotCount}{" "}
-                            <FormattedMessage id="sample.management.results.aliquots" />
-                          </Tag>
-                        </span>
-                      )}
-                      {selectedSampleIds.length > 0 && (
-                        <span>
-                          <strong>
-                            <FormattedMessage id="sample.management.results.selected" />
-                            :
-                          </strong>{" "}
-                          {selectedSampleIds.length}
-                          {aliquotStats.selectedAliquotCount > 0 && (
-                            <span
-                              style={{
-                                marginLeft: "0.25rem",
-                                color: "#0f62fe",
-                              }}
-                            >
-                              ({aliquotStats.selectedAliquotCount}{" "}
-                              <FormattedMessage id="sample.management.results.aliquotsSelected" />
-                              )
-                            </span>
-                          )}
-                        </span>
-                      )}
-                    </div>
-
-                    {/* Right side: Quick selection buttons */}
-                    <div style={{ display: "flex", gap: "0.5rem" }}>
-                      {aliquotStats.aliquotCount > 0 && (
-                        <Button
-                          kind="ghost"
-                          size="sm"
-                          renderIcon={CheckboxChecked}
-                          onClick={handleSelectAllAliquots}
-                          disabled={
-                            aliquotStats.selectedAliquotCount ===
-                            aliquotStats.aliquotCount
-                          }
-                        >
-                          <FormattedMessage id="sample.management.action.selectAllAliquots" />
-                        </Button>
-                      )}
-                      {aliquotStats.parentCount > 0 &&
-                        aliquotStats.aliquotCount > 0 && (
-                          <Button
-                            kind="ghost"
-                            size="sm"
-                            onClick={handleSelectAllParents}
-                            disabled={
-                              aliquotStats.selectedParentCount ===
-                              aliquotStats.parentCount
-                            }
-                          >
-                            <FormattedMessage id="sample.management.action.selectAllParents" />
-                          </Button>
-                        )}
-                      {selectedSampleIds.length > 0 && (
-                        <Button
-                          kind="ghost"
-                          size="sm"
-                          onClick={handleClearSelection}
-                        >
-                          <FormattedMessage id="sample.management.action.clearSelection" />
-                        </Button>
-                      )}
-                    </div>
-                  </div>
-                </div>
-              </Column>
-            </Grid>
-          )}
-
         {/* Empty State (when search has been performed but no results) */}
         {searchResponse &&
           searchResponse.sampleItems &&
@@ -624,33 +427,6 @@ export default function SampleManagement() {
                     gap: "1rem",
                   }}
                 >
-                  {/* Create Aliquot Button (only when single sample selected) */}
-                  {selectedSampleIds.length === 1 && selectedSample && (
-                    <Button
-                      kind="primary"
-                      renderIcon={Add}
-                      onClick={handleOpenAliquotModal}
-                      disabled={!selectedSample.hasRemainingQuantity}
-                    >
-                      <FormattedMessage
-                        id="sample.management.action.createAliquot"
-                        defaultMessage="Create Aliquot"
-                      />
-                    </Button>
-                  )}
-
-                  {/* Add Tests Button (available when any samples are selected) */}
-                  <Button
-                    kind="secondary"
-                    renderIcon={Chemistry}
-                    onClick={handleOpenAddTestsModal}
-                  >
-                    <FormattedMessage
-                      id="sample.management.addTests.button"
-                      defaultMessage="Add Tests"
-                    />
-                  </Button>
-
                   {/* Toggle Current Tests Section */}
                   <Button kind="tertiary" onClick={handleToggleCurrentTests}>
                     <FormattedMessage

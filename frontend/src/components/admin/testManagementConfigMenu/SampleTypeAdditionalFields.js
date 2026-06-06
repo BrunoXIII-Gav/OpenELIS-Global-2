@@ -60,6 +60,7 @@ const initialFormState = {
   displayName: "",
   fieldType: "TEXT",
   required: false,
+  sortOrder: "",
   defaultValue: "",
   maxLength: "",
   optionLines: "",
@@ -160,6 +161,10 @@ const SampleTypeAdditionalFields = () => {
       displayName: field.displayName || "",
       fieldType: field.fieldType || "TEXT",
       required: !!field.required,
+      sortOrder:
+        field.sortOrder !== null && field.sortOrder !== undefined
+          ? String(field.sortOrder)
+          : "",
       defaultValue: field.defaultValue || "",
       maxLength:
         field.maxLength !== null && field.maxLength !== undefined
@@ -218,6 +223,10 @@ const SampleTypeAdditionalFields = () => {
       fieldType: formState.fieldType,
       required: formState.required,
       active: sourceField ? sourceField.active : true,
+      sortOrder:
+        formState.sortOrder && formState.sortOrder !== ""
+          ? Number(formState.sortOrder)
+          : null,
       defaultValue: formState.defaultValue,
       maxLength:
         formState.maxLength && formState.maxLength !== ""
@@ -550,6 +559,23 @@ const SampleTypeAdditionalFields = () => {
                   <Grid fullWidth>
                     <Column lg={4} md={4} sm={4}>
                       <TextInput
+                        id="sampleAdditionalFieldSortOrder"
+                        type="number"
+                        min="0"
+                        labelText={intl.formatMessage({
+                          id: "order.additional.fields.sortOrder",
+                        })}
+                        value={formState.sortOrder}
+                        onChange={(event) =>
+                          setFormState((previous) => ({
+                            ...previous,
+                            sortOrder: event.target.value,
+                          }))
+                        }
+                      />
+                    </Column>
+                    <Column lg={4} md={4} sm={4}>
+                      <TextInput
                         id="sampleAdditionalFieldDefaultValue"
                         labelText={intl.formatMessage({
                           id: "sample.additional.fields.default.value",
@@ -650,6 +676,9 @@ const SampleTypeAdditionalFields = () => {
                           <FormattedMessage id="sample.additional.fields.required" />
                         </TableHeader>
                         <TableHeader>
+                          <FormattedMessage id="order.additional.fields.sortOrder" />
+                        </TableHeader>
+                        <TableHeader>
                           <FormattedMessage id="label.status" />
                         </TableHeader>
                         <TableHeader>
@@ -663,7 +692,7 @@ const SampleTypeAdditionalFields = () => {
                     <TableBody>
                       {fields.length === 0 ? (
                         <TableRow>
-                          <TableCell colSpan={7}>
+                          <TableCell colSpan={8}>
                             <FormattedMessage id="sample.additional.fields.list.empty" />
                           </TableCell>
                         </TableRow>
@@ -680,6 +709,7 @@ const SampleTypeAdditionalFields = () => {
                                 <FormattedMessage id="label.no" />
                               )}
                             </TableCell>
+                            <TableCell>{field.sortOrder ?? 0}</TableCell>
                             <TableCell>
                               <Tag type={field.active ? "green" : "gray"}>
                                 {field.active
