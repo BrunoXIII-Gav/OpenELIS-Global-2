@@ -1568,6 +1568,9 @@ export const StepThreeTestResultTypeAndLoinc = ({
       blockSortOrder: parsePositiveSortOrder(values.resultBlockSortOrder, 1),
       fieldSortOrder: parsePositiveSortOrder(values.resultFieldSortOrder, 1),
     };
+    if (values.resultActive === false) {
+      metadata.active = false;
+    }
     if (values.resultTubeSelectorEnabled === true) {
       metadata.tubeSelector = {
         enabled: true,
@@ -2311,6 +2314,19 @@ export const StepThreeTestResultTypeAndLoinc = ({
                       invalid={touched.resultName && !!errors.resultName}
                       invalidText={touched.resultName && errors.resultName}
                     />
+                    <div style={{ marginTop: "0.75rem" }}>
+                      <Checkbox
+                        id="result-active"
+                        labelText={intl.formatMessage({
+                          id: "label.active",
+                          defaultMessage: "Active",
+                        })}
+                        checked={values.resultActive !== false}
+                        onChange={(event) =>
+                          setFieldValue("resultActive", event.target.checked)
+                        }
+                      />
+                    </div>
                     <Grid condensed fullWidth style={{ marginTop: "0.75rem" }}>
                       <Column lg={4} md={4} sm={4}>
                         <TextInput

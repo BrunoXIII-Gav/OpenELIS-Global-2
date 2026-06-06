@@ -504,6 +504,11 @@ const getPrimaryResultLayout = (data, intl) => {
   };
 };
 
+const isPrimaryResultActive = (data) =>
+  parseAdditionalFieldMetadata({
+    metadataJson: data?.resultDisplayConfigJson,
+  })?.active !== false;
+
 const isTubeSelectorFieldDefinition = (fieldDefinition) =>
   parseAdditionalFieldMetadata(fieldDefinition)?.tubeSelector?.enabled === true;
 
@@ -546,6 +551,9 @@ const getVisibleAdditionalFields = (data, fieldDefinitions) => {
 };
 
 const isPrimaryResultVisible = (data) => {
+  if (!isPrimaryResultActive(data)) {
+    return false;
+  }
   const metadata = parseAdditionalFieldMetadata({
     metadataJson: data?.resultDisplayConfigJson,
   });
@@ -618,6 +626,7 @@ const getEnteredChildTubeUsageBlocks = (data, intl) => {
     const primaryBlockName = String(primaryLayout?.blockName || "").trim();
     const primaryValue = data?.resultValue;
     if (
+      isPrimaryResultActive(data) &&
       primaryBlockName &&
       primaryValue != null &&
       `${primaryValue}`.trim() !== ""
@@ -653,7 +662,7 @@ const getConfiguredChildTubeUsageBlocks = (data, intl) => {
 
   if (isPrimaryChildTubeUsageBlockEnabled(data)) {
     const primaryLayout = getPrimaryResultLayout(data, intl);
-    if (primaryLayout?.blockName) {
+    if (isPrimaryResultActive(data) && primaryLayout?.blockName) {
       configuredBlocks.add(normalizeBlockIdentifier(primaryLayout.blockName));
     }
   }
@@ -1517,6 +1526,8 @@ export function SearchResults(props) {
 
   const isResultsReferralEnabled =
     configurationProperties.RESULTS_REFERRAL_ENABLED === "true";
+  const showResultLevelFileUpload =
+    configurationProperties.ENABLE_RESULT_LEVEL_FILE_UPLOAD !== "false";
   const showStorageLocationOnResultEntry =
     configurationProperties.showStorageLocationOnResultEntry !== "false";
   const hasReferralSelectionData =
@@ -2600,28 +2611,30 @@ export function SearchResults(props) {
               </Select>
             </Column>
           )}
-          <Column lg={2}>
-            <CompactFileInput
-              data={data}
-              results={props.results}
-              setResultForm={props.setResultForm}
-            />
+          {showResultLevelFileUpload && (
+            <Column lg={2}>
+              <CompactFileInput
+                data={data}
+                results={props.results}
+                setResultForm={props.setResultForm}
+              />
 
-            {data.resultFile && data.resultFile.fileName && (
-              <Link
-                onClick={() =>
-                  downloadFile(
-                    data.resultFile.fileName,
-                    data.resultFile.content,
-                    data.resultFile.fileType,
-                  )
-                }
-                style={{ fontSize: "12px" }}
-              >
-                {data.resultFile.fileName}
-              </Link>
-            )}
-          </Column>
+              {data.resultFile && data.resultFile.fileName && (
+                <Link
+                  onClick={() =>
+                    downloadFile(
+                      data.resultFile.fileName,
+                      data.resultFile.content,
+                      data.resultFile.fileType,
+                    )
+                  }
+                  style={{ fontSize: "12px" }}
+                >
+                  {data.resultFile.fileName}
+                </Link>
+              )}
+            </Column>
+          )}
           {showReferralControls && (
             <>
               <Column lg={2}>
@@ -2730,11 +2743,6 @@ export function SearchResults(props) {
         </Grid>
         {true && (
           <Grid style={{ marginTop: "1rem" }}>
-            <Column lg={16}>
-              <h5 style={{ marginBottom: "0.75rem" }}>
-                <FormattedMessage id="result.entry.results.title" />
-              </h5>
-            </Column>
             {(() => {
               const activeAdditionalFields = Array.isArray(
                 data.additionalFieldDefinitions,
