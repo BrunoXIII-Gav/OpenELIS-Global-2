@@ -8,6 +8,7 @@ export const TestFormData = {
   uom: "",
   loinc: "",
   resultName: "",
+  resultActive: true,
   resultEntryScope: "OFFICIAL",
   resultBlockName: "Official",
   resultBlockSortOrder: "1",
@@ -66,6 +67,7 @@ const parseResultFieldMetadata = (metadataJson) => {
     blockName: DEFAULT_OFFICIAL_BLOCK,
     entryScope: ENTRY_SCOPE_OFFICIAL,
     includeInValidation: true,
+    active: true,
     blockSortOrder: 1,
     fieldSortOrder: 1,
     tubeSelectorEnabled: false,
@@ -124,6 +126,7 @@ const parseResultFieldMetadata = (metadataJson) => {
         Number.isFinite(fieldSortOrder) && fieldSortOrder > 0
           ? fieldSortOrder
           : 1,
+      active: parsed?.active !== false,
       tubeSelectorEnabled: tubeSelectorNode?.enabled === true,
       tubeSelectorMin:
         Number.isFinite(tubeSelectorMin) && tubeSelectorMin > 0
@@ -239,6 +242,7 @@ export const mapTestCatBeanToFormData = (test) => {
     uom: test.uom || "",
     loinc: test.loinc || "",
     resultName: test.resultName || "",
+    resultActive: resultDisplayMetadata.active !== false,
     resultEntryScope: resultDisplayMetadata.entryScope,
     resultBlockName: resultDisplayMetadata.blockName,
     resultBlockSortOrder: String(resultDisplayMetadata.blockSortOrder || 1),

@@ -62,4 +62,5 @@
   <include relativeToChangelogFile="true" file="050-add-analysis-parent-usage-block-name.xml"/>
   <include relativeToChangelogFile="true" file="051-create-analysis-tube-usage.xml"/>
   <include relativeToChangelogFile="true" file="052-add-test-parent-validation-skip-flag.xml"/>
+  <include relativeToChangelogFile="true" file="053-add-result-level-file-upload-config.xml"/>
 </databaseChangeLog>

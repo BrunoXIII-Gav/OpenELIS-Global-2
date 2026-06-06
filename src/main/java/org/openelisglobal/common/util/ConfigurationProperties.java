@@ -210,6 +210,9 @@ public abstract class ConfigurationProperties {
                                                                                                  // ID optional fields
         SHOW_ORDER_PROGRAM_ON_ORDER_ENTRY("showOrderProgramOnOrderEntry", "text"), // If true show Program step in
                                                                                      // order entry workflow
+        ENABLE_RESULT_LEVEL_FILE_UPLOAD("enableResultLevelFileUpload", "text"), // If true show test-level result
+                                                                                 // file upload in results and
+                                                                                 // validation
         SHOW_PATIENT_NATIONAL_ID_FIELD("showPatNationalIdField", "text"), // If true show national ID field in patient
                                                                            // forms
         QA_SAMPLE_ID_REQUIRED("sample id required", "text"), // True if sample id required from referring lab

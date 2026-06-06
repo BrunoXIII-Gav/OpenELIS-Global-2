@@ -304,6 +304,7 @@ public class DefaultConfigurationProperties extends ConfigurationProperties {
         properties.setPropertyValue(Property.SHOW_PATIENT_ADDITIONAL_INFO_ON_ORDER_ENTRY, "true");
         properties.setPropertyValue(Property.SHOW_PATIENT_OPTIONAL_IDENTIFIERS_ON_ORDER_ENTRY, "true");
         properties.setPropertyValue(Property.SHOW_ORDER_PROGRAM_ON_ORDER_ENTRY, "true");
+        properties.setPropertyValue(Property.ENABLE_RESULT_LEVEL_FILE_UPLOAD, "true");
         properties.setPropertyValue(Property.SHOW_PATIENT_NATIONAL_ID_FIELD, "true");
 
         properties.setPropertyValue(Property.QA_SAMPLE_ID_REQUIRED, "false");

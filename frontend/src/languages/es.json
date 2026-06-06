@@ -941,7 +941,7 @@
   "dashboard.avg.turn.around.result.validation": "Tiempo promedio de resultado a validación",
   "dashboard.complete.orders.label": "Órdenes completadas",
   "dashboard.in.progress.label": "Ordenes en Progreso",
-  "dashboard.in.progress.subtitle.label": "Esperando entrada de datos de muestra",
+  "dashboard.in.progress.subtitle.label": "Total de ordenes en progreso",
   "dashboard.orders.subtitle.label": "Total de órdenes completadas",
   "dashboard.partially.completed..subtitle.label": "Total de órdenes completadas",
   "dashboard.partially.completed.label": "Completadas parcialmente",

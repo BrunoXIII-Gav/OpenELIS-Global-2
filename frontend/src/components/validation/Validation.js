@@ -57,6 +57,13 @@ const getFieldBlockAndScope = (fieldDefinition) => {
   return { blockName, entryScope };
 };
 
+const isPrimaryResultActive = (data) => {
+  const metadata = parseAdditionalFieldMetadata({
+    metadataJson: data?.resultDisplayConfigJson,
+  });
+  return metadata?.active !== false;
+};
+
 const parseDocumentFieldValue = (rawValue) => {
   if (!rawValue || typeof rawValue !== "string") {
     return null;
@@ -123,6 +130,8 @@ const Validation = (props) => {
 
   const validationReportName =
     configurationProperties?.validationReportName || DEFAULT_VALIDATION_REPORT;
+  const showResultLevelFileUpload =
+    configurationProperties?.ENABLE_RESULT_LEVEL_FILE_UPLOAD !== "false";
   const currentUserIsMedicalValidator = Boolean(
     props?.results?.currentUserIsMedicalValidator,
   );
@@ -150,6 +159,7 @@ const Validation = (props) => {
       setSavedAnalysisIds([]);
     }
   };
+
 
   const getAcceptedAnalysisIds = () => {
     const acceptedRows =
@@ -831,6 +841,7 @@ const Validation = (props) => {
   };
 
   const renderExpandedRow = ({ data }) => {
+    const primaryResultActive = isPrimaryResultActive(data);
     const primaryResultLabel =
       typeof data?.resultName === "string" && data.resultName.trim().length > 0
         ? data.resultName.trim()
@@ -886,6 +897,7 @@ const Validation = (props) => {
             let primaryRendered = false;
             return groupedBlocks.map((block, blockIndex) => {
               const shouldRenderPrimary =
+                primaryResultActive &&
                 !primaryRendered &&
                 normalizeResultEntryScope(block.entryScope) === "OFFICIAL";
               if (shouldRenderPrimary) {
@@ -971,31 +983,33 @@ const Validation = (props) => {
           })()}
         </Grid>
 
-        <Grid style={{ marginTop: "0.75rem" }}>
-          <Column lg={16} md={8} sm={4}>
-            <h5 style={{ marginBottom: "0.5rem" }}>
-              {intl.formatMessage({
-                id: "validation.expand.file.title",
-                defaultMessage: "Attached File",
-              })}
-            </h5>
-            {attachedFile?.fileName ? (
-              <Link
-                onClick={() => openResultAttachment(attachedFile)}
-                style={{ cursor: "pointer" }}
-              >
-                {attachedFile.fileName}
-              </Link>
-            ) : (
-              <p style={{ margin: 0 }}>
+        {showResultLevelFileUpload && (
+          <Grid style={{ marginTop: "0.75rem" }}>
+            <Column lg={16} md={8} sm={4}>
+              <h5 style={{ marginBottom: "0.5rem" }}>
                 {intl.formatMessage({
-                  id: "validation.expand.file.empty",
-                  defaultMessage: "No file attached.",
+                  id: "validation.expand.file.title",
+                  defaultMessage: "Attached File",
                 })}
-              </p>
-            )}
-          </Column>
-        </Grid>
+              </h5>
+              {attachedFile?.fileName ? (
+                <Link
+                  onClick={() => openResultAttachment(attachedFile)}
+                  style={{ cursor: "pointer" }}
+                >
+                  {attachedFile.fileName}
+                </Link>
+              ) : (
+                <p style={{ margin: 0 }}>
+                  {intl.formatMessage({
+                    id: "validation.expand.file.empty",
+                    defaultMessage: "No file attached.",
+                  })}
+                </p>
+              )}
+            </Column>
+          </Grid>
+        )}
       </div>
     );
   };

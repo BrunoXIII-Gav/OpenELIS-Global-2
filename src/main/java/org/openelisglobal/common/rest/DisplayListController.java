@@ -399,6 +399,8 @@ public class DisplayListController extends BaseRestController {
                 .getInstance().getPropertyValue(Property.SHOW_PATIENT_OPTIONAL_IDENTIFIERS_ON_ORDER_ENTRY));
         configs.put(Property.SHOW_ORDER_PROGRAM_ON_ORDER_ENTRY.toString(),
                 ConfigurationProperties.getInstance().getPropertyValue(Property.SHOW_ORDER_PROGRAM_ON_ORDER_ENTRY));
+        configs.put(Property.ENABLE_RESULT_LEVEL_FILE_UPLOAD.toString(),
+                ConfigurationProperties.getInstance().getPropertyValue(Property.ENABLE_RESULT_LEVEL_FILE_UPLOAD));
         configs.put(Property.SHOW_PATIENT_NATIONAL_ID_FIELD.toString(),
                 ConfigurationProperties.getInstance().getPropertyValue(Property.SHOW_PATIENT_NATIONAL_ID_FIELD));
         configs.put(Property.UseExternalPatientInfo.toString(),
