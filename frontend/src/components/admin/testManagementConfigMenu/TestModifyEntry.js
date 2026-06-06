@@ -307,6 +307,15 @@ function TestModifyEntry() {
       field: intl.formatMessage({ id: "test.field.directSampleUsage" }),
       description: <FormattedMessage id="test.description.directSampleUsage" />,
     },
+    {
+      id: "skipValidationWhenParentComplete",
+      field: intl.formatMessage({
+        id: "test.field.skipValidationWhenParentComplete",
+      }),
+      description: (
+        <FormattedMessage id="test.description.skipValidationWhenParentComplete" />
+      ),
+    },
   ];
 
   return (

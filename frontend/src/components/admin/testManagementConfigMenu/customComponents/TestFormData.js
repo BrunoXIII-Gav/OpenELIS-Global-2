@@ -12,12 +12,20 @@ export const TestFormData = {
   resultBlockName: "Official",
   resultBlockSortOrder: "1",
   resultFieldSortOrder: "1",
+  resultTubeSelectorEnabled: false,
+  resultTubeSelectorMin: "1",
+  resultTubeSelectorMax: "2",
+  resultTubeActivationCount: "",
+  resultTubeQuantitySource: false,
+  resultChildTubeUsageBlockEnabled: false,
   resultDisplayConfigJson: "",
   resultType: "",
   additionalFields: [],
   orderable: "Y",
   directSampleUsageEnabled: "N",
   activeChildDependency: false,
+  activeParentDependency: false,
+  skipValidationWhenParentComplete: "N",
   notifyResults: "N",
   inLabOnly: "N",
   antimicrobialResistance: "N",
@@ -60,6 +68,12 @@ const parseResultFieldMetadata = (metadataJson) => {
     includeInValidation: true,
     blockSortOrder: 1,
     fieldSortOrder: 1,
+    tubeSelectorEnabled: false,
+    tubeSelectorMin: "1",
+    tubeSelectorMax: "2",
+    tubeActivationCount: "",
+    tubeQuantitySource: false,
+    childTubeUsageBlockEnabled: false,
   };
   if (!metadataJson || typeof metadataJson !== "string") {
     return defaults;
@@ -84,6 +98,20 @@ const parseResultFieldMetadata = (metadataJson) => {
           : true;
     const blockSortOrder = Number.parseInt(parsed?.blockSortOrder, 10);
     const fieldSortOrder = Number.parseInt(parsed?.fieldSortOrder, 10);
+    const tubeSelectorNode =
+      parsed?.tubeSelector && typeof parsed.tubeSelector === "object"
+        ? parsed.tubeSelector
+        : {};
+    const tubeBlockNode =
+      parsed?.tubeBlock && typeof parsed.tubeBlock === "object"
+        ? parsed.tubeBlock
+        : {};
+    const tubeSelectorMin = Number.parseInt(tubeSelectorNode?.min, 10);
+    const tubeSelectorMax = Number.parseInt(tubeSelectorNode?.max, 10);
+    const tubeActivationCount = Number.parseInt(
+      tubeBlockNode?.activationCount,
+      10,
+    );
     return {
       blockName,
       entryScope: scope,
@@ -96,6 +124,21 @@ const parseResultFieldMetadata = (metadataJson) => {
         Number.isFinite(fieldSortOrder) && fieldSortOrder > 0
           ? fieldSortOrder
           : 1,
+      tubeSelectorEnabled: tubeSelectorNode?.enabled === true,
+      tubeSelectorMin:
+        Number.isFinite(tubeSelectorMin) && tubeSelectorMin > 0
+          ? String(tubeSelectorMin)
+          : "1",
+      tubeSelectorMax:
+        Number.isFinite(tubeSelectorMax) && tubeSelectorMax > 0
+          ? String(tubeSelectorMax)
+          : "2",
+      tubeActivationCount:
+        Number.isFinite(tubeActivationCount) && tubeActivationCount > 0
+          ? String(tubeActivationCount)
+          : "",
+      tubeQuantitySource: parsed?.tubeQuantitySource === true,
+      childTubeUsageBlockEnabled: parsed?.tubeUsage?.childBlockEnabled === true,
     };
   } catch (e) {
     return defaults;
@@ -200,6 +243,13 @@ export const mapTestCatBeanToFormData = (test) => {
     resultBlockName: resultDisplayMetadata.blockName,
     resultBlockSortOrder: String(resultDisplayMetadata.blockSortOrder || 1),
     resultFieldSortOrder: String(resultDisplayMetadata.fieldSortOrder || 1),
+    resultTubeSelectorEnabled: resultDisplayMetadata.tubeSelectorEnabled,
+    resultTubeSelectorMin: resultDisplayMetadata.tubeSelectorMin,
+    resultTubeSelectorMax: resultDisplayMetadata.tubeSelectorMax,
+    resultTubeActivationCount: resultDisplayMetadata.tubeActivationCount,
+    resultTubeQuantitySource: resultDisplayMetadata.tubeQuantitySource,
+    resultChildTubeUsageBlockEnabled:
+      resultDisplayMetadata.childTubeUsageBlockEnabled,
     resultDisplayConfigJson: test.resultDisplayConfigJson || "",
     resultType: test.resultType || "",
     additionalFields: Array.isArray(test.additionalFields)
@@ -274,6 +324,12 @@ export const mapTestCatBeanToFormData = (test) => {
         ? "Y"
         : "N",
     activeChildDependency: !!test.activeChildDependency,
+    activeParentDependency: !!test.activeParentDependency,
+    skipValidationWhenParentComplete: test.activeParentDependency
+      ? test.skipValidationWhenParentComplete
+        ? "Y"
+        : "N"
+      : "N",
     notifyResults: test.notifyResults ? "Y" : "N",
     inLabOnly: test.inLabOnly ? "Y" : "N",
     antimicrobialResistance: test.antimicrobialResistance ? "Y" : "N",

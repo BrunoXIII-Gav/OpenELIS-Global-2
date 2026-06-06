@@ -53,6 +53,8 @@ public class TestCatalogBean {
     private String resultDisplayConfigJson;
     private boolean directSampleUsageEnabled;
     private boolean activeChildDependency;
+    private boolean activeParentDependency;
+    private boolean skipValidationWhenParentComplete;
 
     public String getId() {
         return id;
@@ -204,6 +206,22 @@ public class TestCatalogBean {
 
     public void setActiveChildDependency(boolean activeChildDependency) {
         this.activeChildDependency = activeChildDependency;
+    }
+
+    public boolean isActiveParentDependency() {
+        return activeParentDependency;
+    }
+
+    public void setActiveParentDependency(boolean activeParentDependency) {
+        this.activeParentDependency = activeParentDependency;
+    }
+
+    public boolean isSkipValidationWhenParentComplete() {
+        return skipValidationWhenParentComplete;
+    }
+
+    public void setSkipValidationWhenParentComplete(boolean skipValidationWhenParentComplete) {
+        this.skipValidationWhenParentComplete = skipValidationWhenParentComplete;
     }
 
     public String getSignificantDigits() {

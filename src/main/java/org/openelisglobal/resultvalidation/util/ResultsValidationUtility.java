@@ -26,6 +26,7 @@ import java.util.Locale;
 import java.util.Map;
 import java.util.Set;
 import java.util.stream.Collectors;
+import org.apache.commons.lang3.StringUtils;
 import org.apache.commons.validator.GenericValidator;
 import org.openelisglobal.analysis.service.AnalysisService;
 import org.openelisglobal.analysis.valueholder.Analysis;
@@ -817,6 +818,7 @@ public class ResultsValidationUtility {
 
         List<Analysis> analysisList = analysisService.getAnalysesBySampleIdAndStatusId(sample.getId(),
                 displayStatusIds);
+        analysisList = analysisList.stream().filter(this::shouldDisplayInValidationView).collect(Collectors.toList());
         List<ResultValidationItem> testList = getGroupedTestsForAnalysisList(analysisList,
                 !StatusRules.useRecordStatusForValidation());
         resultList = testResultListToAnalysisItemList(testList);
@@ -841,6 +843,19 @@ public class ResultsValidationUtility {
         }
 
         return resultList;
+    }
+
+    private boolean shouldDisplayInValidationView(Analysis analysis) {
+        if (analysis == null || analysis.getTest() == null || StringUtils.isBlank(analysis.getStatusId())) {
+            return false;
+        }
+
+        String finalizedStatusId = SpringContext.getBean(IStatusService.class).getStatusID(AnalysisStatus.Finalized);
+        if (!finalizedStatusId.equals(analysis.getStatusId())) {
+            return true;
+        }
+
+        return !Boolean.TRUE.equals(analysis.getTest().getSkipValidationWhenParentComplete());
     }
 
     public List<ResultValidationItem> getGroupedTestsForSample(Sample sample) {

@@ -66,6 +66,9 @@ public class TestAdditionalFieldServiceImpl implements TestAdditionalFieldServic
     private static final String META_RESULT_BLOCK = "resultBlock";
     private static final String META_ENTRY_SCOPE = "entryScope";
     private static final String META_INCLUDE_IN_VALIDATION = "includeInValidation";
+    private static final String META_TUBE_SELECTOR = "tubeSelector";
+    private static final String META_TUBE_BLOCK = "tubeBlock";
+    private static final String META_TUBE_QUANTITY_SOURCE = "tubeQuantitySource";
     private static final int DEFAULT_DOCUMENT_MAX_SIZE_MB = 10;
     private static final String DEFAULT_DOCUMENT_MIME_TYPE = "application/pdf";
 
@@ -358,8 +361,9 @@ public class TestAdditionalFieldServiceImpl implements TestAdditionalFieldServic
                 normalizedValue = normalizeAndValidateValue(fieldDefinition, fieldDefinition.getDefaultValue());
             }
 
+            boolean fieldVisible = isFieldVisible(fieldDefinition, fieldDefinitions, fieldValues);
             if (normalizedValue == null) {
-                if (enforceRequired && Boolean.TRUE.equals(fieldDefinition.getRequired())) {
+                if (fieldVisible && enforceRequired && Boolean.TRUE.equals(fieldDefinition.getRequired())) {
                     throw new LIMSRuntimeException("Additional field is required: "
                             + StringUtils.defaultString(fieldDefinition.getDisplayName()));
                 }
@@ -1092,10 +1096,91 @@ public class TestAdditionalFieldServiceImpl implements TestAdditionalFieldServic
     }
 
     private void validateNumber(TestAdditionalFieldPayload fieldDefinition, String value) {
+        BigDecimal parsedValue;
         try {
-            new BigDecimal(value);
+            parsedValue = new BigDecimal(value);
         } catch (NumberFormatException e) {
             throw new LIMSRuntimeException("Invalid number for field: " + fieldDefinition.getDisplayName());
+        }
+
+        JsonNode selectorNode = readMetadataNode(fieldDefinition.getMetadataJson()).path(META_TUBE_SELECTOR);
+        if (selectorNode.path("enabled").asBoolean(false)) {
+            int minValue = selectorNode.path("min").isInt() ? selectorNode.path("min").asInt() : 1;
+            int maxValue = selectorNode.path("max").isInt() ? selectorNode.path("max").asInt() : 2;
+            if (parsedValue.scale() > 0 && parsedValue.stripTrailingZeros().scale() > 0) {
+                throw new LIMSRuntimeException("Tube selector must be a whole number for field: "
+                        + fieldDefinition.getDisplayName());
+            }
+            int intValue = parsedValue.intValue();
+            if (intValue < minValue || intValue > maxValue) {
+                throw new LIMSRuntimeException("Tube selector is outside allowed range for field: "
+                        + fieldDefinition.getDisplayName());
+            }
+        }
+    }
+
+    private boolean isFieldVisible(TestAdditionalFieldPayload fieldDefinition, List<TestAdditionalFieldPayload> allFields,
+            Map<String, String> currentValues) {
+        if (fieldDefinition == null) {
+            return false;
+        }
+
+        JsonNode metadataNode = readMetadataNode(fieldDefinition.getMetadataJson());
+        JsonNode tubeBlockNode = metadataNode.path(META_TUBE_BLOCK);
+        if (!tubeBlockNode.isObject() || !tubeBlockNode.path("enabled").asBoolean(false)) {
+            return true;
+        }
+
+        Integer activationCount = tubeBlockNode.path("activationCount").isInt() ? tubeBlockNode.path("activationCount").asInt()
+                : null;
+        if (activationCount == null || activationCount.intValue() <= 0) {
+            return true;
+        }
+
+        String selectorFieldKey = findTubeSelectorFieldKey(allFields);
+        if (StringUtils.isBlank(selectorFieldKey)) {
+            return true;
+        }
+
+        String rawSelectorValue = currentValues == null ? null : currentValues.get(selectorFieldKey);
+        if (StringUtils.isBlank(rawSelectorValue)) {
+            return false;
+        }
+
+        try {
+            BigDecimal selectorValue = new BigDecimal(rawSelectorValue.trim());
+            return selectorValue.intValue() >= activationCount.intValue();
+        } catch (NumberFormatException e) {
+            return false;
+        }
+    }
+
+    private String findTubeSelectorFieldKey(List<TestAdditionalFieldPayload> allFields) {
+        if (allFields == null) {
+            return null;
+        }
+
+        for (TestAdditionalFieldPayload field : allFields) {
+            if (field == null || StringUtils.isBlank(field.getFieldKey())) {
+                continue;
+            }
+            JsonNode metadataNode = readMetadataNode(field.getMetadataJson());
+            if (metadataNode.path(META_TUBE_SELECTOR).path("enabled").asBoolean(false)) {
+                return field.getFieldKey();
+            }
+        }
+        return null;
+    }
+
+    private JsonNode readMetadataNode(String metadataJson) {
+        if (StringUtils.isBlank(metadataJson)) {
+            return OBJECT_MAPPER.createObjectNode();
+        }
+        try {
+            JsonNode root = OBJECT_MAPPER.readTree(metadataJson);
+            return root != null && root.isObject() ? root : OBJECT_MAPPER.createObjectNode();
+        } catch (Exception e) {
+            return OBJECT_MAPPER.createObjectNode();
         }
     }
 

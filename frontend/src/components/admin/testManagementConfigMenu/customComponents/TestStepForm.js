@@ -1279,6 +1279,8 @@ export const StepThreeTestResultTypeAndLoinc = ({
   setSelectedResultTypeList,
 }) => {
   const intl = useIntl();
+  const { setNotificationVisible, addNotification } =
+    useContext(NotificationContext);
   const additionalFieldTypeOptions = [
     "TEXT",
     "TEXTAREA",
@@ -1341,6 +1343,13 @@ export const StepThreeTestResultTypeAndLoinc = ({
   const resolveDefaultBlockName = (scope) =>
     scope === "PRELIMINARY" ? defaultPreliminaryBlock : defaultOfficialBlock;
 
+  const resolveResultTypeCode = (resultTypeId) => {
+    const match = resultTypeCodes.find(
+      (item) => String(item.id) === String(resultTypeId || ""),
+    );
+    return String(match?.value || "");
+  };
+
   const parsePositiveSortOrder = (value, fallbackValue) => {
     const parsedValue = Number.parseInt(value, 10);
     return Number.isFinite(parsedValue) && parsedValue > 0
@@ -1378,6 +1387,27 @@ export const StepThreeTestResultTypeAndLoinc = ({
         parsedMetadata.sortOrder,
       fallbackOrders.fieldSortOrder || 1,
     );
+    const tubeSelectorMetadata =
+      parsedMetadata?.tubeSelector &&
+      typeof parsedMetadata.tubeSelector === "object"
+        ? parsedMetadata.tubeSelector
+        : {};
+    const tubeBlockMetadata =
+      parsedMetadata?.tubeBlock && typeof parsedMetadata.tubeBlock === "object"
+        ? parsedMetadata.tubeBlock
+        : {};
+    const tubeSelectorMin = Number.parseInt(
+      field.tubeSelectorMin ?? tubeSelectorMetadata.min,
+      10,
+    );
+    const tubeSelectorMax = Number.parseInt(
+      field.tubeSelectorMax ?? tubeSelectorMetadata.max,
+      10,
+    );
+    const tubeActivationCount = Number.parseInt(
+      field.tubeActivationCount ?? tubeBlockMetadata.activationCount,
+      10,
+    );
 
     return {
       blockName,
@@ -1385,6 +1415,27 @@ export const StepThreeTestResultTypeAndLoinc = ({
       includeInValidation,
       blockSortOrder,
       fieldSortOrder,
+      tubeSelectorEnabled:
+        field.tubeSelectorEnabled === true ||
+        parsedMetadata?.tubeSelector?.enabled === true,
+      tubeSelectorMin:
+        Number.isFinite(tubeSelectorMin) && tubeSelectorMin > 0
+          ? String(tubeSelectorMin)
+          : "1",
+      tubeSelectorMax:
+        Number.isFinite(tubeSelectorMax) && tubeSelectorMax > 0
+          ? String(tubeSelectorMax)
+          : "2",
+      tubeActivationCount:
+        Number.isFinite(tubeActivationCount) && tubeActivationCount > 0
+          ? String(tubeActivationCount)
+          : "",
+      tubeQuantitySource:
+        field.tubeQuantitySource === true ||
+        parsedMetadata?.tubeQuantitySource === true,
+      childTubeUsageBlockEnabled:
+        field.childTubeUsageBlockEnabled === true ||
+        parsedMetadata?.tubeUsage?.childBlockEnabled === true,
     };
   };
 
@@ -1454,6 +1505,51 @@ export const StepThreeTestResultTypeAndLoinc = ({
       delete metadata.document;
     }
 
+    if (
+      String(field.fieldType || "").toUpperCase() === "NUMBER" &&
+      resolved.tubeSelectorEnabled
+    ) {
+      metadata.tubeSelector = {
+        enabled: true,
+        min: parsePositiveSortOrder(resolved.tubeSelectorMin, 1),
+        max: parsePositiveSortOrder(resolved.tubeSelectorMax, 2),
+      };
+    } else if (metadata.tubeSelector) {
+      delete metadata.tubeSelector;
+    }
+
+    if (String(field.tubeActivationCount || "").trim()) {
+      metadata.tubeBlock = {
+        enabled: true,
+        activationCount: parsePositiveSortOrder(
+          resolved.tubeActivationCount,
+          1,
+        ),
+      };
+    } else if (metadata.tubeBlock) {
+      delete metadata.tubeBlock;
+    }
+
+    if (
+      String(field.fieldType || "").toUpperCase() === "NUMBER" &&
+      resolved.tubeQuantitySource
+    ) {
+      metadata.tubeQuantitySource = true;
+    } else if (metadata.tubeQuantitySource) {
+      delete metadata.tubeQuantitySource;
+    }
+
+    if (resolved.childTubeUsageBlockEnabled === true) {
+      metadata.tubeUsage = {
+        ...(metadata.tubeUsage && typeof metadata.tubeUsage === "object"
+          ? metadata.tubeUsage
+          : {}),
+        childBlockEnabled: true,
+      };
+    } else if (metadata.tubeUsage) {
+      delete metadata.tubeUsage;
+    }
+
     return JSON.stringify({
       ...metadata,
     });
@@ -1466,12 +1562,76 @@ export const StepThreeTestResultTypeAndLoinc = ({
       values.resultBlockName.trim().length > 0
         ? values.resultBlockName.trim()
         : resolveDefaultBlockName(entryScope);
-    return JSON.stringify({
+    const metadata = {
       resultBlock: blockName,
       entryScope,
       blockSortOrder: parsePositiveSortOrder(values.resultBlockSortOrder, 1),
       fieldSortOrder: parsePositiveSortOrder(values.resultFieldSortOrder, 1),
-    });
+    };
+    if (values.resultTubeSelectorEnabled === true) {
+      metadata.tubeSelector = {
+        enabled: true,
+        min: parsePositiveSortOrder(values.resultTubeSelectorMin, 1),
+        max: parsePositiveSortOrder(values.resultTubeSelectorMax, 2),
+      };
+    }
+    if (String(values.resultTubeActivationCount || "").trim()) {
+      metadata.tubeBlock = {
+        enabled: true,
+        activationCount: parsePositiveSortOrder(
+          values.resultTubeActivationCount,
+          1,
+        ),
+      };
+    }
+    if (
+      resolveResultTypeCode(values.resultType) === "N" &&
+      values.resultTubeQuantitySource === true
+    ) {
+      metadata.tubeQuantitySource = true;
+    }
+    if (values.resultChildTubeUsageBlockEnabled === true) {
+      metadata.tubeUsage = {
+        ...(metadata.tubeUsage && typeof metadata.tubeUsage === "object"
+          ? metadata.tubeUsage
+          : {}),
+        childBlockEnabled: true,
+      };
+    }
+    return JSON.stringify(metadata);
+  };
+
+  const buildTouchedShape = (value) => {
+    if (Array.isArray(value)) {
+      return value.map((entry) => buildTouchedShape(entry));
+    }
+    if (value && typeof value === "object") {
+      return Object.keys(value).reduce((accumulator, key) => {
+        accumulator[key] = buildTouchedShape(value[key]);
+        return accumulator;
+      }, {});
+    }
+    return true;
+  };
+
+  const collectErrorMessages = (errorValue, bucket = []) => {
+    if (!errorValue) {
+      return bucket;
+    }
+    if (typeof errorValue === "string") {
+      bucket.push(errorValue);
+      return bucket;
+    }
+    if (Array.isArray(errorValue)) {
+      errorValue.forEach((entry) => collectErrorMessages(entry, bucket));
+      return bucket;
+    }
+    if (typeof errorValue === "object") {
+      Object.values(errorValue).forEach((entry) =>
+        collectErrorMessages(entry, bucket),
+      );
+    }
+    return bucket;
   };
 
   const normalizeAdditionalFieldsForDisplay = (fields) => {
@@ -1622,6 +1782,79 @@ export const StepThreeTestResultTypeAndLoinc = ({
                 }
                 return true;
               },
+            )
+            .test(
+              "single-tube-selector",
+              "Only one tube selector field can be configured per test",
+              function (fields) {
+                const parentValues = this.parent || {};
+                const enabledSelectors = fields.filter(
+                  (field) =>
+                    field?.active !== false &&
+                    String(field?.fieldType || "").toUpperCase() === "NUMBER" &&
+                    field?.tubeSelectorEnabled === true,
+                );
+                const selectorCount =
+                  enabledSelectors.length +
+                  (parentValues?.resultTubeSelectorEnabled === true ? 1 : 0);
+                if (selectorCount > 1) {
+                  return this.createError({
+                    path: "resultTubeSelectorEnabled",
+                    message:
+                      "Only one tube selector field can be configured per test",
+                  });
+                }
+                return true;
+              },
+            )
+            .test(
+              "single-tube-quantity-source-per-block",
+              "Only one tube quantity source field is allowed per block",
+              function (fields) {
+                const sourceCountByBlock = new Map();
+                const parentValues = this.parent || {};
+                const resultTypeCode = resolveResultTypeCode(
+                  parentValues?.resultType,
+                );
+                if (
+                  resultTypeCode === "N" &&
+                  parentValues?.resultTubeQuantitySource === true
+                ) {
+                  const resultBlockKey = String(
+                    parentValues?.resultBlockName || "",
+                  ).trim();
+                  if (resultBlockKey) {
+                    sourceCountByBlock.set(resultBlockKey, 1);
+                  }
+                }
+                if (!Array.isArray(fields)) {
+                  return true;
+                }
+                for (let i = 0; i < fields.length; i++) {
+                  const field = fields[i];
+                  if (
+                    field?.active === false ||
+                    field?.tubeQuantitySource !== true ||
+                    String(field?.fieldType || "").toUpperCase() !== "NUMBER"
+                  ) {
+                    continue;
+                  }
+                  const blockKey = String(field?.blockName || "").trim();
+                  if (!blockKey) {
+                    continue;
+                  }
+                  const nextCount = (sourceCountByBlock.get(blockKey) || 0) + 1;
+                  sourceCountByBlock.set(blockKey, nextCount);
+                  if (nextCount > 1) {
+                    return this.createError({
+                      path: `additionalFields[${i}].tubeQuantitySource`,
+                      message:
+                        "Only one tube quantity source field is allowed per block",
+                    });
+                  }
+                }
+                return true;
+              },
             ),
           // loinc: Yup.string().matches(
           //   /^(?!-)(?:\d+-)*\d+$/,
@@ -1632,6 +1865,10 @@ export const StepThreeTestResultTypeAndLoinc = ({
           directSampleUsageEnabled: Yup.string().oneOf(
             ["Y", "N"],
             "Direct sample usage must be Y or N",
+          ),
+          skipValidationWhenParentComplete: Yup.string().oneOf(
+            ["Y", "N"],
+            "Skip validation when parent complete must be Y or N",
           ),
           notifyResults: Yup.string().oneOf(
             ["Y", "N"],
@@ -1662,7 +1899,31 @@ export const StepThreeTestResultTypeAndLoinc = ({
           touched,
           errors,
           setFieldValue,
+          validateForm,
+          setTouched,
+          submitForm,
         }) => {
+          const triggerValidationFeedback = async () => {
+            const validationErrors = await validateForm();
+            if (Object.keys(validationErrors || {}).length === 0) {
+              submitForm();
+              return;
+            }
+            setTouched(buildTouchedShape(values), true);
+            const firstError = collectErrorMessages(validationErrors)[0];
+            addNotification({
+              title: intl.formatMessage({ id: "notification.title" }),
+              message:
+                firstError ||
+                intl.formatMessage({
+                  id: "validation.field.required",
+                  defaultMessage: "This field is required",
+                }),
+              kind: NotificationKinds.error,
+            });
+            setNotificationVisible(true);
+          };
+
           const handelResultType = (e) => {
             const selectedId = e.target.value;
             const idToCode = Object.fromEntries(
@@ -1697,6 +1958,12 @@ export const StepThreeTestResultTypeAndLoinc = ({
           const handleDirectSampleUsage = (e) => {
             setFieldValue(
               "directSampleUsageEnabled",
+              e.target.checked ? "Y" : "N",
+            );
+          };
+          const handleSkipValidationWhenParentComplete = (e) => {
+            setFieldValue(
+              "skipValidationWhenParentComplete",
               e.target.checked ? "Y" : "N",
             );
           };
@@ -1744,6 +2011,12 @@ export const StepThreeTestResultTypeAndLoinc = ({
                 includeInValidation: true,
                 documentAccept: "",
                 documentMaxSizeMb: "",
+                tubeSelectorEnabled: false,
+                tubeSelectorMin: "1",
+                tubeSelectorMax: "2",
+                tubeActivationCount: "",
+                tubeQuantitySource: false,
+                childTubeUsageBlockEnabled: false,
                 options: [],
               },
             ];
@@ -1811,6 +2084,13 @@ export const StepThreeTestResultTypeAndLoinc = ({
             }
             if (
               key === "fieldType" &&
+              String(newValue || "").toUpperCase() !== "NUMBER"
+            ) {
+              target.tubeSelectorEnabled = false;
+              target.tubeQuantitySource = false;
+            }
+            if (
+              key === "fieldType" &&
               String(newValue || "").toUpperCase() !== "DOCUMENT"
             ) {
               target.documentAccept = "";
@@ -1842,6 +2122,54 @@ export const StepThreeTestResultTypeAndLoinc = ({
                     ...field,
                     ...siblingResolved,
                     blockSortOrder: resolved.blockSortOrder,
+                  }),
+                };
+              });
+            }
+            if (key === "tubeActivationCount") {
+              const siblingBlockKey = String(target.blockName || "").trim();
+              nextFields.forEach((field, index) => {
+                if (index === fieldIndex) {
+                  return;
+                }
+                const siblingResolved = resolveFieldMetadata(field);
+                const currentBlockKey = String(
+                  siblingResolved.blockName || "",
+                ).trim();
+                if (currentBlockKey !== siblingBlockKey) {
+                  return;
+                }
+                nextFields[index] = {
+                  ...field,
+                  tubeActivationCount: String(newValue || "").trim(),
+                  metadataJson: buildFieldMetadataJson({
+                    ...field,
+                    ...siblingResolved,
+                    tubeActivationCount: String(newValue || "").trim(),
+                  }),
+                };
+              });
+            }
+            if (key === "childTubeUsageBlockEnabled") {
+              const siblingBlockKey = String(target.blockName || "").trim();
+              nextFields.forEach((field, index) => {
+                if (index === fieldIndex) {
+                  return;
+                }
+                const siblingResolved = resolveFieldMetadata(field);
+                const currentBlockKey = String(
+                  siblingResolved.blockName || "",
+                ).trim();
+                if (currentBlockKey !== siblingBlockKey) {
+                  return;
+                }
+                nextFields[index] = {
+                  ...field,
+                  childTubeUsageBlockEnabled: newValue === true,
+                  metadataJson: buildFieldMetadataJson({
+                    ...field,
+                    ...siblingResolved,
+                    childTubeUsageBlockEnabled: newValue === true,
                   }),
                 };
               });
@@ -2049,7 +2377,111 @@ export const StepThreeTestResultTypeAndLoinc = ({
                           onChange={handleChange}
                         />
                       </Column>
+                      <Column lg={4} md={4} sm={4}>
+                        <TextInput
+                          id="result-tube-activation-count"
+                          name="resultTubeActivationCount"
+                          type="number"
+                          min="1"
+                          labelText={intl.formatMessage({
+                            id: "test.additionalFields.tubeActivationCount",
+                          })}
+                          value={values.resultTubeActivationCount || ""}
+                          onChange={handleChange}
+                        />
+                      </Column>
                     </Grid>
+                    {resolveResultTypeCode(values.resultType) === "N" && (
+                      <>
+                        <div
+                          style={{
+                            display: "flex",
+                            gap: "1rem",
+                            alignItems: "center",
+                            marginTop: "0.75rem",
+                            flexWrap: "wrap",
+                          }}
+                        >
+                          <Checkbox
+                            id="result-tube-selector-enabled"
+                            labelText={intl.formatMessage({
+                              id: "test.additionalFields.tubeSelector",
+                            })}
+                            checked={values.resultTubeSelectorEnabled === true}
+                            onChange={(event) =>
+                              setFieldValue(
+                                "resultTubeSelectorEnabled",
+                                event.target.checked,
+                              )
+                            }
+                          />
+                          <Checkbox
+                            id="result-tube-quantity-source"
+                            labelText={intl.formatMessage({
+                              id: "test.additionalFields.tubeQuantitySource",
+                            })}
+                            checked={values.resultTubeQuantitySource === true}
+                            onChange={(event) =>
+                              setFieldValue(
+                                "resultTubeQuantitySource",
+                                event.target.checked,
+                              )
+                            }
+                          />
+                          <Checkbox
+                            id="result-child-tube-usage-block-enabled"
+                            labelText={intl.formatMessage({
+                              id: "test.additionalFields.childTubeUsageBlock",
+                              defaultMessage:
+                                "Participates in child tube usage",
+                            })}
+                            checked={
+                              values.resultChildTubeUsageBlockEnabled === true
+                            }
+                            onChange={(event) =>
+                              setFieldValue(
+                                "resultChildTubeUsageBlockEnabled",
+                                event.target.checked,
+                              )
+                            }
+                          />
+                        </div>
+                        {values.resultTubeSelectorEnabled === true && (
+                          <Grid
+                            condensed
+                            fullWidth
+                            style={{ marginTop: "0.75rem" }}
+                          >
+                            <Column lg={4} md={4} sm={4}>
+                              <TextInput
+                                id="result-tube-selector-min"
+                                name="resultTubeSelectorMin"
+                                type="number"
+                                min="1"
+                                labelText={intl.formatMessage({
+                                  id: "test.additionalFields.tubeSelectorMin",
+                                })}
+                                value={values.resultTubeSelectorMin || "1"}
+                                onChange={handleChange}
+                              />
+                            </Column>
+                            <Column lg={4} md={4} sm={4}>
+                              <TextInput
+                                id="result-tube-selector-max"
+                                name="resultTubeSelectorMax"
+                                type="number"
+                                min="1"
+                                labelText={intl.formatMessage({
+                                  id: "test.additionalFields.tubeSelectorMax",
+                                })}
+                                value={values.resultTubeSelectorMax || "2"}
+                                onChange={handleChange}
+                              />
+                            </Column>
+                          </Grid>
+                        )}
+                      </>
+                    )}
                   </div>
                   <br />
                   <div>
@@ -2276,6 +2708,26 @@ export const StepThreeTestResultTypeAndLoinc = ({
                                 }
                               />
                             </Column>
+                            <Column lg={3} md={4} sm={4}>
+                              <TextInput
+                                id={`additional-field-tube-activation-${fieldIndex}`}
+                                labelText={intl.formatMessage({
+                                  id: "test.additionalFields.tubeActivationCount",
+                                  defaultMessage: "Tube activation count",
+                                })}
+                                type="number"
+                                min="1"
+                                value={field?.tubeActivationCount || ""}
+                                readOnly={!isEditable}
+                                onChange={(event) =>
+                                  handleAdditionalFieldChange(
+                                    fieldIndex,
+                                    "tubeActivationCount",
+                                    event.target.value,
+                                  )
+                                }
+                              />
+                            </Column>
                             {fieldType === "DOCUMENT" && (
                               <>
                                 <Column lg={8} md={4} sm={4}>
@@ -2369,6 +2821,66 @@ export const StepThreeTestResultTypeAndLoinc = ({
                                     )
                                   }
                                 />
+                                {String(fieldType || "").toUpperCase() ===
+                                  "NUMBER" && (
+                                  <>
+                                    <Checkbox
+                                      id={`additional-field-tube-selector-${fieldIndex}`}
+                                      labelText={intl.formatMessage({
+                                        id: "test.additionalFields.tubeSelector",
+                                        defaultMessage: "Tube selector",
+                                      })}
+                                      checked={
+                                        field?.tubeSelectorEnabled === true
+                                      }
+                                      disabled={!isEditable}
+                                      onChange={(event) =>
+                                        handleAdditionalFieldChange(
+                                          fieldIndex,
+                                          "tubeSelectorEnabled",
+                                          event.target.checked,
+                                        )
+                                      }
+                                    />
+                                    <Checkbox
+                                      id={`additional-field-tube-source-${fieldIndex}`}
+                                      labelText={intl.formatMessage({
+                                        id: "test.additionalFields.tubeQuantitySource",
+                                        defaultMessage: "Tube quantity source",
+                                      })}
+                                      checked={
+                                        field?.tubeQuantitySource === true
+                                      }
+                                      disabled={!isEditable}
+                                      onChange={(event) =>
+                                        handleAdditionalFieldChange(
+                                          fieldIndex,
+                                          "tubeQuantitySource",
+                                          event.target.checked,
+                                        )
+                                      }
+                                    />
+                                  </>
+                                )}
+                                <Checkbox
+                                  id={`additional-field-child-tube-usage-block-${fieldIndex}`}
+                                  labelText={intl.formatMessage({
+                                    id: "test.additionalFields.childTubeUsageBlock",
+                                    defaultMessage:
+                                      "Participates in child tube usage",
+                                  })}
+                                  checked={
+                                    field?.childTubeUsageBlockEnabled === true
+                                  }
+                                  disabled={!isEditable}
+                                  onChange={(event) =>
+                                    handleAdditionalFieldChange(
+                                      fieldIndex,
+                                      "childTubeUsageBlockEnabled",
+                                      event.target.checked,
+                                    )
+                                  }
+                                />
                                 <Button
                                   kind="tertiary"
                                   size="sm"
@@ -2404,6 +2916,52 @@ export const StepThreeTestResultTypeAndLoinc = ({
                                 </Button>
                               </div>
                             </Column>
+                            {String(fieldType || "").toUpperCase() ===
+                              "NUMBER" &&
+                              field?.tubeSelectorEnabled === true && (
+                                <>
+                                  <Column lg={3} md={4} sm={4}>
+                                    <TextInput
+                                      id={`additional-field-tube-selector-min-${fieldIndex}`}
+                                      labelText={intl.formatMessage({
+                                        id: "test.additionalFields.tubeSelectorMin",
+                                        defaultMessage: "Tube min",
+                                      })}
+                                      type="number"
+                                      min="1"
+                                      value={field?.tubeSelectorMin || "1"}
+                                      readOnly={!isEditable}
+                                      onChange={(event) =>
+                                        handleAdditionalFieldChange(
+                                          fieldIndex,
+                                          "tubeSelectorMin",
+                                          event.target.value,
+                                        )
+                                      }
+                                    />
+                                  </Column>
+                                  <Column lg={3} md={4} sm={4}>
+                                    <TextInput
+                                      id={`additional-field-tube-selector-max-${fieldIndex}`}
+                                      labelText={intl.formatMessage({
+                                        id: "test.additionalFields.tubeSelectorMax",
+                                        defaultMessage: "Tube max",
+                                      })}
+                                      type="number"
+                                      min="1"
+                                      value={field?.tubeSelectorMax || "2"}
+                                      readOnly={!isEditable}
+                                      onChange={(event) =>
+                                        handleAdditionalFieldChange(
+                                          fieldIndex,
+                                          "tubeSelectorMax",
+                                          event.target.value,
+                                        )
+                                      }
+                                    />
+                                  </Column>
+                                </>
+                              )}
                             {supportsOptions && (
                               <Column lg={16} md={8} sm={4}>
                                 <div style={{ marginTop: "0.75rem" }}>
@@ -2620,6 +3178,26 @@ export const StepThreeTestResultTypeAndLoinc = ({
                       </p>
                     )}
                     <Checkbox
+                      labelText={
+                        <FormattedMessage id="test.skipValidationWhenParentComplete" />
+                      }
+                      id="skip-validation-when-parent-complete"
+                      name="skipValidationWhenParentComplete"
+                      onChange={handleSkipValidationWhenParentComplete}
+                      checked={values?.skipValidationWhenParentComplete === "Y"}
+                      disabled={values?.activeParentDependency !== true}
+                    />
+                    {values?.activeParentDependency !== true && (
+                      <p
+                        style={{
+                          marginTop: "0.25rem",
+                          marginBottom: "0.5rem",
+                        }}
+                      >
+                        <FormattedMessage id="test.skipValidationWhenParentComplete.disabledForNonParent" />
+                      </p>
+                    )}
+                    <Checkbox
                       labelText={<FormattedMessage id="test.notifyResults" />}
                       id="notify-patient-of-results"
                       name="notifyResults"
@@ -2639,7 +3217,7 @@ export const StepThreeTestResultTypeAndLoinc = ({
               <br />
               <Grid fullWidth={true}>
                 <Column lg={16} md={8} sm={4}>
-                  <Button type="submit">
+                  <Button type="button" onClick={triggerValidationFeedback}>
                     <FormattedMessage id="next.action.button" />
                   </Button>{" "}
                   <Button
@@ -4834,6 +5412,11 @@ export const StepSevenFinalDisplayAndSaveConfirmation = ({
                       <FormattedMessage id="test.directSampleUsage" />
                       {" : "}
                       {values?.directSampleUsageEnabled}
+                      <br />
+                      <br />
+                      <FormattedMessage id="test.skipValidationWhenParentComplete" />
+                      {" : "}
+                      {values?.skipValidationWhenParentComplete}
                       <br />
                       <br />
                       <FormattedMessage id="test.notifyResults" />

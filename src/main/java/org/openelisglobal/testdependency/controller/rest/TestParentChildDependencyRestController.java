@@ -1,5 +1,7 @@
 package org.openelisglobal.testdependency.controller.rest;
 
+import com.fasterxml.jackson.databind.JsonNode;
+import com.fasterxml.jackson.databind.ObjectMapper;
 import jakarta.servlet.http.HttpServletRequest;
 import java.util.List;
 import java.util.Locale;
@@ -33,6 +35,8 @@ import org.springframework.web.bind.annotation.RestController;
 @RequestMapping("/rest/test-parent-child-dependencies")
 @Validated
 public class TestParentChildDependencyRestController extends BaseRestController {
+
+    private static final ObjectMapper OBJECT_MAPPER = new ObjectMapper();
 
     @Autowired
     private TestParentChildDependencyService dependencyService;
@@ -68,9 +72,9 @@ public class TestParentChildDependencyRestController extends BaseRestController 
         return ResponseEntity.ok(forms);
     }
 
-    @GetMapping(value = "/parent-test-fields", produces = MediaType.APPLICATION_JSON_VALUE)
+    @GetMapping(value = "/parent-test-field-config", produces = MediaType.APPLICATION_JSON_VALUE)
     @ResponseBody
-    public ResponseEntity<List<ParentFieldOption>> getParentTestFields(@RequestParam String parentTestId) {
+    public ResponseEntity<ParentFieldConfigResponse> getParentTestFieldConfig(@RequestParam String parentTestId) {
         if (GenericValidator.isBlankOrNull(parentTestId)) {
             throw new IllegalArgumentException("parentTestId is required");
         }
@@ -83,7 +87,10 @@ public class TestParentChildDependencyRestController extends BaseRestController 
             return option;
         }).collect(Collectors.toList());
 
-        return ResponseEntity.ok(options);
+        ParentFieldConfigResponse response = new ParentFieldConfigResponse();
+        response.setOptions(options);
+        response.setTubeBasedParent(isTubeBasedParentUsageTest(parentTestId));
+        return ResponseEntity.ok(response);
     }
 
     @PostMapping(consumes = MediaType.APPLICATION_JSON_VALUE, produces = MediaType.APPLICATION_JSON_VALUE)
@@ -127,9 +134,13 @@ public class TestParentChildDependencyRestController extends BaseRestController 
         String normalizedSampleUsageSource = normalizeSampleUsageSource(form.getSampleUsageSource());
         dependency.setSampleUsageSource(normalizedSampleUsageSource);
         if (TestParentChildDependency.SAMPLE_USAGE_SOURCE_PARENT_TEST_FIELD.equals(normalizedSampleUsageSource)) {
-            String parentResultFieldKey = normalizeParentFieldKey(form.getParentResultFieldKey());
-            validateParentFieldSelection(parentTestId, parentResultFieldKey);
-            dependency.setParentResultFieldKey(parentResultFieldKey);
+            if (isTubeBasedParentUsageTest(parentTestId)) {
+                dependency.setParentResultFieldKey(null);
+            } else {
+                String parentResultFieldKey = normalizeParentFieldKey(form.getParentResultFieldKey());
+                validateParentFieldSelection(parentTestId, parentResultFieldKey);
+                dependency.setParentResultFieldKey(parentResultFieldKey);
+            }
         } else {
             dependency.setParentResultFieldKey(null);
         }
@@ -227,6 +238,61 @@ public class TestParentChildDependencyRestController extends BaseRestController 
             return false;
         }
         return "NUMBER".equalsIgnoreCase(field.getFieldType());
+    }
+
+    private boolean isTubeBasedParentUsageTest(String parentTestId) {
+        if (GenericValidator.isBlankOrNull(parentTestId)) {
+            return false;
+        }
+
+        Test parentTest = testService.get(parentTestId);
+        if (parentTest == null) {
+            return false;
+        }
+
+        JsonNode primaryMetadata = readMetadataNode(parentTest.getResultDisplayConfigJson());
+        if (primaryMetadata.path("tubeSelector").path("enabled").asBoolean(false)
+                || primaryMetadata.path("tubeQuantitySource").asBoolean(false)) {
+            return true;
+        }
+
+        List<TestAdditionalFieldPayload> fields = testAdditionalFieldService.getFieldsForTest(parentTestId, false);
+        return fields.stream().filter(field -> field != null && !Boolean.FALSE.equals(field.getActive()))
+                .map(field -> readMetadataNode(field.getMetadataJson()))
+                .anyMatch(metadata -> metadata.path("tubeSelector").path("enabled").asBoolean(false)
+                        || metadata.path("tubeQuantitySource").asBoolean(false));
+    }
+
+    private JsonNode readMetadataNode(String metadataJson) {
+        if (GenericValidator.isBlankOrNull(metadataJson)) {
+            return OBJECT_MAPPER.createObjectNode();
+        }
+        try {
+            return OBJECT_MAPPER.readTree(metadataJson);
+        } catch (Exception e) {
+            return OBJECT_MAPPER.createObjectNode();
+        }
+    }
+
+    public static class ParentFieldConfigResponse {
+        private List<ParentFieldOption> options;
+        private boolean tubeBasedParent;
+
+        public List<ParentFieldOption> getOptions() {
+            return options;
+        }
+
+        public void setOptions(List<ParentFieldOption> options) {
+            this.options = options;
+        }
+
+        public boolean isTubeBasedParent() {
+            return tubeBasedParent;
+        }
+
+        public void setTubeBasedParent(boolean tubeBasedParent) {
+            this.tubeBasedParent = tubeBasedParent;
+        }
     }
 
     public static class ParentFieldOption {

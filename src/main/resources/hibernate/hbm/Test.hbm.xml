@@ -124,6 +124,8 @@
             column="result_display_config_json" />
         <property name="directSampleUsageEnabled" type="java.lang.Boolean"
             column="direct_sample_usage_enabled" />
+        <property name="skipValidationWhenParentComplete" type="java.lang.Boolean"
+            column="skip_validation_when_parent_complete" />
         <many-to-one name="defaultTestResult"
             class="org.openelisglobal.testresult.valueholder.TestResult"
             fetch="select" lazy="false">

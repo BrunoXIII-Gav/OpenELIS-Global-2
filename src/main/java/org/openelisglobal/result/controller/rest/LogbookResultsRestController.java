@@ -1,6 +1,8 @@
 
 package org.openelisglobal.result.controller.rest;
 
+import com.fasterxml.jackson.databind.JsonNode;
+import com.fasterxml.jackson.databind.ObjectMapper;
 import jakarta.servlet.http.HttpServletRequest;
 import java.math.BigDecimal;
 import java.math.RoundingMode;
@@ -9,8 +11,10 @@ import java.sql.Timestamp;
 import java.time.OffsetDateTime;
 import java.util.ArrayList;
 import java.util.Calendar;
+import java.util.Collections;
 import java.util.Date;
 import java.util.HashMap;
+import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.UUID;
@@ -23,6 +27,7 @@ import org.json.simple.JSONObject;
 import org.json.simple.parser.JSONParser;
 import org.json.simple.parser.ParseException;
 import org.openelisglobal.analysis.service.AnalysisService;
+import org.openelisglobal.analysis.service.AnalysisTubeUsageService;
 import org.openelisglobal.analysis.valueholder.Analysis;
 import org.openelisglobal.analysis.valueholder.ResultFile;
 import org.openelisglobal.common.action.IActionConstants;
@@ -78,6 +83,7 @@ import org.openelisglobal.result.form.LogbookResultsForm;
 import org.openelisglobal.result.form.LogbookResultsForm.LogbookResults;
 import org.openelisglobal.result.form.StatusResultsForm;
 import org.openelisglobal.result.service.LogbookResultsPersistService;
+import org.openelisglobal.result.service.ResultService;
 import org.openelisglobal.result.service.ResultInventoryService;
 import org.openelisglobal.result.service.ResultSignatureService;
 import org.openelisglobal.result.valueholder.Result;
@@ -97,10 +103,13 @@ import org.openelisglobal.spring.util.SpringContext;
 import org.openelisglobal.statusofsample.util.StatusRules;
 import org.openelisglobal.systemuser.service.SystemUserService;
 import org.openelisglobal.systemuser.service.UserService;
+import org.openelisglobal.test.beanItems.BlockSampleUsageItem;
 import org.openelisglobal.test.beanItems.TestResultItem;
 import org.openelisglobal.testadditionalfield.bean.TestAdditionalFieldPayload;
 import org.openelisglobal.testadditionalfield.service.TestAdditionalFieldService;
+import org.openelisglobal.test.service.TestService;
 import org.openelisglobal.test.service.TestSectionService;
+import org.openelisglobal.test.valueholder.Test;
 import org.openelisglobal.test.valueholder.TestSection;
 import org.openelisglobal.testdependency.service.TestParentChildDependencyService;
 import org.openelisglobal.testdependency.valueholder.TestParentChildDependency;
@@ -128,6 +137,7 @@ import org.springframework.web.bind.annotation.ExceptionHandler;
 @Controller
 @RequestMapping(value = "/rest/")
 public class LogbookResultsRestController extends LogbookResultsBaseController {
+    private static final ObjectMapper OBJECT_MAPPER = new ObjectMapper();
 
     private String RESULT_EDIT_ROLE_ID;
 
@@ -146,6 +156,7 @@ public class LogbookResultsRestController extends LogbookResultsBaseController {
             "testResult*.referredOut", "testResult*.referralReasonId", "testResult*.technician",
             "testResult*.shadowRejected", "testResult*.rejected", "testResult*.rejectReasonId", "testResult*.note",
             "testResult*.sampleUsageQuantity", "testResult*.parentSampleUsageQuantity",
+            "testResult*.parentUsageBlockName",
             "paging.currentPage", "testResult*.resultFile", "testResult*.resultFile.fileName",
             "testResult*.resultFile.fileType", "testResult*.resultFile.base64Content", "testResult*.refer",
             "testResult*.referralItem.referralReasonId", "testResult*.referralItem.referredInstituteId",
@@ -158,6 +169,8 @@ public class LogbookResultsRestController extends LogbookResultsBaseController {
     private ResultSignatureService resultSigService;
     @Autowired
     private ResultInventoryService resultInventoryService;
+    @Autowired
+    private ResultService resultService;
     @Autowired
     private OrganizationService organizationService;
     @Autowired
@@ -200,6 +213,10 @@ public class LogbookResultsRestController extends LogbookResultsBaseController {
     private TestParentChildDependencyService testParentChildDependencyService;
     @Autowired
     private TestAdditionalFieldService testAdditionalFieldService;
+    @Autowired
+    private TestService testService;
+    @Autowired
+    private AnalysisTubeUsageService analysisTubeUsageService;
 
     private final String RESULT_SUBJECT = "Result Note";
     private final String REFERRAL_CONFORMATION_ID;
@@ -751,8 +768,23 @@ public class LogbookResultsRestController extends LogbookResultsBaseController {
         }
 
         analysis.setParentAnalysis(parentAnalysis);
+        String sampleUsageSource = normalizeSampleUsageSource(dependency.getSampleUsageSource());
+        Map<String, TubeBlockContext> tubeContexts = TestParentChildDependency.SAMPLE_USAGE_SOURCE_PARENT_TEST_FIELD
+                .equals(sampleUsageSource)
+                        ? resolveTubeBlockContexts(parentAnalysis, dependency.getParentTest().getId())
+                        : Collections.emptyMap();
+        List<String> childTubeUsageBlocks = resolveChildTubeUsageBlocks(testResultItem);
+        boolean blockTubeUsageMode = !tubeContexts.isEmpty() && !childTubeUsageBlocks.isEmpty();
 
-        if (analysis.getSampleUsedQuantity() != null) {
+        if (!blockTubeUsageMode && analysis.getSampleUsedQuantity() != null) {
+            if (!tubeContexts.isEmpty()) {
+                String persistedBlockName = normalizeBlockName(analysis.getParentUsageBlockName());
+                String attemptedBlockName = normalizeBlockName(testResultItem.getParentUsageBlockName());
+                if (!GenericValidator.isBlankOrNull(attemptedBlockName)
+                        && !attemptedBlockName.equals(persistedBlockName)) {
+                    throw new IllegalArgumentException("Selected parent tube cannot be changed after first save");
+                }
+            }
             if (!GenericValidator.isBlankOrNull(testResultItem.getSampleUsageQuantity())) {
                 BigDecimal attemptedUsage = parseAndValidateUsageQuantity(testResultItem.getSampleUsageQuantity());
                 if (analysis.getSampleUsedQuantity().compareTo(attemptedUsage) != 0) {
@@ -762,10 +794,50 @@ public class LogbookResultsRestController extends LogbookResultsBaseController {
             return;
         }
 
-        boolean requiresUsage = hasEnteredResult(testResultItem) || ResultUtil.isReferred(testResultItem)
+        boolean requiresUsage = hasEnteredResult(testResultItem) || hasEnteredAdditionalFieldResult(testResultItem)
+                || ResultUtil.isReferred(testResultItem)
                 || ResultUtil.isRejected(testResultItem) || ResultUtil.isForcedToAcceptance(testResultItem);
 
         if (!requiresUsage) {
+            return;
+        }
+
+        if (blockTubeUsageMode) {
+            Map<String, BlockSampleUsageItem> persistedBlockUsages = getPersistedBlockUsages(analysis.getId());
+            List<BlockSampleUsageItem> submittedBlockUsages = collectSubmittedBlockUsages(testResultItem, childTubeUsageBlocks);
+            if (submittedBlockUsages.isEmpty()) {
+                throw new IllegalArgumentException("At least one block usage is required for dependent child tests");
+            }
+            if (!persistedBlockUsages.isEmpty()) {
+                validateLockedBlockTubeUsageSubmission(submittedBlockUsages, persistedBlockUsages);
+            }
+
+            BigDecimal totalUsage = BigDecimal.ZERO;
+            Map<String, BigDecimal> requestUsageByParentTube = new HashMap<>();
+            for (BlockSampleUsageItem blockUsage : submittedBlockUsages) {
+                String selectedBlockName = normalizeBlockName(blockUsage.getParentTubeBlockName());
+                TubeBlockContext selectedTubeContext = tubeContexts.get(selectedBlockName);
+                if (selectedTubeContext == null) {
+                    throw new IllegalArgumentException("Selected parent tube is not active for the current parent test");
+                }
+                BigDecimal usageQuantity = parseAndValidateUsageQuantity(blockUsage.getUsedQuantity());
+                BigDecimal requestConsumed = requestUsageByParentTube.getOrDefault(selectedBlockName, BigDecimal.ZERO);
+                validateParentTubeBasedUsageLimit(analysis, parentAnalysis, selectedTubeContext, usageQuantity,
+                        requestConsumed);
+                requestUsageByParentTube.put(selectedBlockName, requestConsumed.add(usageQuantity));
+                blockUsage.setParentTubeBlockName(selectedBlockName);
+                blockUsage.setUsedQuantity(usageQuantity.toPlainString());
+                totalUsage = totalUsage.add(usageQuantity);
+            }
+
+            analysisTubeUsageService.deleteByAnalysisId(analysis.getId());
+            for (BlockSampleUsageItem blockUsage : submittedBlockUsages) {
+                analysisTubeUsageService.createUsage(analysis, parentAnalysis, blockUsage.getChildBlockName(),
+                        blockUsage.getParentTubeBlockName(), new BigDecimal(blockUsage.getUsedQuantity()),
+                        getSysUserId(request));
+            }
+            analysis.setParentUsageBlockName(null);
+            analysis.setSampleUsedQuantity(totalUsage);
             return;
         }
 
@@ -774,12 +846,26 @@ public class LogbookResultsRestController extends LogbookResultsBaseController {
         }
 
         BigDecimal usageQuantity = parseAndValidateUsageQuantity(testResultItem.getSampleUsageQuantity());
-        String sampleUsageSource = normalizeSampleUsageSource(dependency.getSampleUsageSource());
         if (TestParentChildDependency.SAMPLE_USAGE_SOURCE_PARENT_TEST_FIELD.equals(sampleUsageSource)) {
-            validateParentFieldBasedUsageLimit(analysis, parentAnalysis, dependency.getParentResultFieldKey(),
-                    usageQuantity);
+            if (!tubeContexts.isEmpty()) {
+                String selectedBlockName = normalizeBlockName(testResultItem.getParentUsageBlockName());
+                if (GenericValidator.isBlankOrNull(selectedBlockName)) {
+                    throw new IllegalArgumentException("A parent tube selection is required for dependent child tests");
+                }
+                TubeBlockContext selectedTubeContext = tubeContexts.get(selectedBlockName);
+                if (selectedTubeContext == null) {
+                    throw new IllegalArgumentException("Selected parent tube is not active for the current parent test");
+                }
+                validateParentTubeBasedUsageLimit(analysis, parentAnalysis, selectedTubeContext, usageQuantity);
+                analysis.setParentUsageBlockName(selectedBlockName);
+            } else {
+                validateParentFieldBasedUsageLimit(analysis, parentAnalysis, dependency.getParentResultFieldKey(),
+                        usageQuantity);
+                analysis.setParentUsageBlockName(null);
+            }
         } else {
             applySampleItemBasedUsage(analysis, actionDataSet, sampleItemsBeingUpdated, usageQuantity);
+            analysis.setParentUsageBlockName(null);
         }
         analysis.setSampleUsedQuantity(usageQuantity);
     }
@@ -807,7 +893,8 @@ public class LogbookResultsRestController extends LogbookResultsBaseController {
             return;
         }
 
-        boolean requiresUsage = hasEnteredResult(testResultItem) || ResultUtil.isReferred(testResultItem)
+        boolean requiresUsage = hasEnteredResult(testResultItem) || hasEnteredAdditionalFieldResult(testResultItem)
+                || ResultUtil.isReferred(testResultItem)
                 || ResultUtil.isRejected(testResultItem) || ResultUtil.isForcedToAcceptance(testResultItem);
         if (!requiresUsage) {
             return;
@@ -835,6 +922,21 @@ public class LogbookResultsRestController extends LogbookResultsBaseController {
 
         return !(TypeOfTestResultServiceImpl.ResultType.DICTIONARY.matches(testResultItem.getResultType())
                 && "0".equals(value));
+    }
+
+    private boolean hasEnteredAdditionalFieldResult(TestResultItem testResultItem) {
+        if (testResultItem == null || testResultItem.getAdditionalFieldValues() == null
+                || testResultItem.getAdditionalFieldValues().isEmpty()) {
+            return false;
+        }
+
+        return testResultItem.getAdditionalFieldValues().values().stream().anyMatch(value -> {
+            if (GenericValidator.isBlankOrNull(value)) {
+                return false;
+            }
+            String trimmed = value.trim();
+            return !trimmed.isEmpty();
+        });
     }
 
     private BigDecimal parseAndValidateUsageQuantity(String usageQuantity) {
@@ -911,6 +1013,34 @@ public class LogbookResultsRestController extends LogbookResultsBaseController {
         }
     }
 
+    private void validateParentTubeBasedUsageLimit(Analysis analysis, Analysis parentAnalysis,
+            TubeBlockContext selectedTubeContext, BigDecimal usageQuantity) {
+        validateParentTubeBasedUsageLimit(analysis, parentAnalysis, selectedTubeContext, usageQuantity, BigDecimal.ZERO);
+    }
+
+    private void validateParentTubeBasedUsageLimit(Analysis analysis, Analysis parentAnalysis,
+            TubeBlockContext selectedTubeContext, BigDecimal usageQuantity, BigDecimal requestConsumed) {
+        if (selectedTubeContext == null || GenericValidator.isBlankOrNull(selectedTubeContext.quantityFieldKey)) {
+            throw new IllegalArgumentException("Selected parent tube is not configured correctly");
+        }
+        if (selectedTubeContext.totalAvailable == null) {
+            throw new IllegalArgumentException("Selected parent tube requires a numeric available quantity");
+        }
+
+        BigDecimal alreadyConsumed = getExistingParentChildConsumedUsage(analysis, parentAnalysis,
+                selectedTubeContext.blockName);
+        if (requestConsumed != null) {
+            alreadyConsumed = alreadyConsumed.add(requestConsumed);
+        }
+        BigDecimal remaining = selectedTubeContext.totalAvailable.subtract(alreadyConsumed);
+        if (remaining.compareTo(BigDecimal.ZERO) < 0) {
+            remaining = BigDecimal.ZERO;
+        }
+        if (usageQuantity.compareTo(remaining) > 0) {
+            throw new IllegalArgumentException("Insufficient remaining quantity from selected parent tube");
+        }
+    }
+
     private BigDecimal resolveParentFieldCapacity(Analysis parentAnalysis, String parentFieldKey) {
         if (GenericValidator.isBlankOrNull(parentFieldKey)) {
             throw new IllegalArgumentException("Parent result field key is not configured for dependency");
@@ -946,8 +1076,18 @@ public class LogbookResultsRestController extends LogbookResultsBaseController {
     }
 
     private BigDecimal getExistingParentChildConsumedUsage(Analysis currentAnalysis, Analysis parentAnalysis) {
+        return getExistingParentChildConsumedUsage(currentAnalysis, parentAnalysis, null);
+    }
+
+    private BigDecimal getExistingParentChildConsumedUsage(Analysis currentAnalysis, Analysis parentAnalysis,
+            String blockName) {
         if (currentAnalysis == null || currentAnalysis.getSampleItem() == null || parentAnalysis == null) {
             return BigDecimal.ZERO;
+        }
+        BigDecimal persistedUsage = getPersistedParentChildConsumedUsage(parentAnalysis.getId(), blockName,
+                currentAnalysis.getId());
+        if (persistedUsage.compareTo(BigDecimal.ZERO) > 0) {
+            return persistedUsage;
         }
         List<Analysis> analyses = analysisService.getAnalysesBySampleItem(currentAnalysis.getSampleItem());
         BigDecimal consumed = BigDecimal.ZERO;
@@ -960,10 +1100,415 @@ public class LogbookResultsRestController extends LogbookResultsBaseController {
                 continue;
             }
             if (parentAnalysis.getId().equals(analysis.getParentAnalysis().getId())) {
+                if (!GenericValidator.isBlankOrNull(blockName)
+                        && !blockName.equals(normalizeBlockName(analysis.getParentUsageBlockName()))) {
+                    continue;
+                }
                 consumed = consumed.add(analysis.getSampleUsedQuantity());
             }
         }
         return consumed;
+    }
+
+    private BigDecimal getPersistedParentChildConsumedUsage(String parentAnalysisId, String blockName,
+            String currentAnalysisId) {
+        if (GenericValidator.isBlankOrNull(parentAnalysisId)) {
+            return BigDecimal.ZERO;
+        }
+
+        List<org.openelisglobal.analysis.valueholder.AnalysisTubeUsage> usages = analysisTubeUsageService
+                .getByParentAnalysisId(parentAnalysisId);
+        BigDecimal consumed = BigDecimal.ZERO;
+        for (org.openelisglobal.analysis.valueholder.AnalysisTubeUsage usage : usages) {
+            if (usage == null || usage.getUsedQuantity() == null || usage.getAnalysis() == null) {
+                continue;
+            }
+            if (!GenericValidator.isBlankOrNull(currentAnalysisId)
+                    && currentAnalysisId.equals(usage.getAnalysis().getId())) {
+                continue;
+            }
+            if (!GenericValidator.isBlankOrNull(blockName)
+                    && !blockName.equals(normalizeBlockName(usage.getParentTubeBlockName()))) {
+                continue;
+            }
+            consumed = consumed.add(usage.getUsedQuantity());
+        }
+        return consumed;
+    }
+
+    private List<String> resolveChildTubeUsageBlocks(TestResultItem testResultItem) {
+        List<String> blocks = new ArrayList<>();
+        if (testResultItem == null) {
+            return Collections.emptyList();
+        }
+
+        JsonNode primaryMetadata = readMetadataNode(testResultItem.getResultDisplayConfigJson());
+        if (isChildTubeUsageBlockEnabled(primaryMetadata)) {
+            String primaryBlockName = normalizeBlockName(primaryMetadata.path("resultBlock").asText(null));
+            if (!GenericValidator.isBlankOrNull(primaryBlockName) && !blocks.contains(primaryBlockName)) {
+                blocks.add(primaryBlockName);
+            }
+        }
+
+        if (testResultItem.getAdditionalFieldDefinitions() == null) {
+            return blocks;
+        }
+
+        for (TestAdditionalFieldPayload definition : testResultItem.getAdditionalFieldDefinitions()) {
+            if (definition == null || definition.getActive() == Boolean.FALSE || !isChildTubeUsageBlockEnabled(definition)) {
+                continue;
+            }
+            String blockName = normalizeBlockName(definition.getBlockName());
+            if (GenericValidator.isBlankOrNull(blockName) || blocks.contains(blockName)) {
+                continue;
+            }
+            blocks.add(blockName);
+        }
+        return blocks;
+    }
+
+    private boolean isChildTubeUsageBlockEnabled(TestAdditionalFieldPayload definition) {
+        return readMetadataNode(definition).path("tubeUsage").path("childBlockEnabled").asBoolean(false);
+    }
+
+    private boolean isChildTubeUsageBlockEnabled(JsonNode metadataNode) {
+        return metadataNode.path("tubeUsage").path("childBlockEnabled").asBoolean(false);
+    }
+
+    private List<BlockSampleUsageItem> collectSubmittedBlockUsages(TestResultItem testResultItem,
+            List<String> childTubeUsageBlocks) {
+        if (testResultItem == null || childTubeUsageBlocks == null || childTubeUsageBlocks.isEmpty()) {
+            return Collections.emptyList();
+        }
+
+        Map<String, BlockSampleUsageItem> submittedByBlock = new LinkedHashMap<>();
+        if (testResultItem.getBlockSampleUsages() != null) {
+            for (BlockSampleUsageItem blockUsage : testResultItem.getBlockSampleUsages()) {
+                if (blockUsage == null || GenericValidator.isBlankOrNull(blockUsage.getChildBlockName())) {
+                    continue;
+                }
+                submittedByBlock.put(normalizeBlockName(blockUsage.getChildBlockName()), blockUsage);
+            }
+        }
+
+        List<BlockSampleUsageItem> usages = new ArrayList<>();
+        for (String childBlockName : childTubeUsageBlocks) {
+            boolean blockHasResult = hasEnteredResultForChildBlock(testResultItem, childBlockName);
+            BlockSampleUsageItem blockUsage = submittedByBlock.get(childBlockName);
+            boolean hasSelection = blockUsage != null && !GenericValidator.isBlankOrNull(blockUsage.getParentTubeBlockName());
+            boolean hasQuantity = blockUsage != null && !GenericValidator.isBlankOrNull(blockUsage.getUsedQuantity());
+
+            if (!blockHasResult && !hasSelection && !hasQuantity) {
+                continue;
+            }
+
+            if (blockUsage == null || !hasSelection || !hasQuantity) {
+                throw new IllegalArgumentException("Each populated child block requires a tube selection and usage quantity");
+            }
+
+            blockUsage.setChildBlockName(childBlockName);
+            usages.add(blockUsage);
+        }
+        return usages;
+    }
+
+    private boolean hasEnteredResultForChildBlock(TestResultItem testResultItem, String childBlockName) {
+        if (testResultItem == null || GenericValidator.isBlankOrNull(childBlockName)) {
+            return false;
+        }
+
+        if (testResultItem.getAdditionalFieldDefinitions() == null) {
+            return false;
+        }
+
+        for (TestAdditionalFieldPayload definition : testResultItem.getAdditionalFieldDefinitions()) {
+            if (definition == null || definition.getActive() == Boolean.FALSE) {
+                continue;
+            }
+            if (!childBlockName.equals(normalizeBlockName(definition.getBlockName()))) {
+                continue;
+            }
+            String value = testResultItem.getAdditionalFieldValues() == null ? null
+                    : testResultItem.getAdditionalFieldValues().get(definition.getFieldKey());
+            if (!GenericValidator.isBlankOrNull(value)) {
+                return true;
+            }
+        }
+        return false;
+    }
+
+    private Map<String, BlockSampleUsageItem> getPersistedBlockUsages(String analysisId) {
+        if (GenericValidator.isBlankOrNull(analysisId)) {
+            return Collections.emptyMap();
+        }
+
+        Map<String, BlockSampleUsageItem> persisted = new LinkedHashMap<>();
+        for (org.openelisglobal.analysis.valueholder.AnalysisTubeUsage usage : analysisTubeUsageService
+                .getByAnalysisId(analysisId)) {
+            if (usage == null || GenericValidator.isBlankOrNull(usage.getChildBlockName())) {
+                continue;
+            }
+            BlockSampleUsageItem item = new BlockSampleUsageItem();
+            item.setChildBlockName(normalizeBlockName(usage.getChildBlockName()));
+            item.setParentTubeBlockName(normalizeBlockName(usage.getParentTubeBlockName()));
+            item.setUsedQuantity(usage.getUsedQuantity() == null ? "" : usage.getUsedQuantity().toPlainString());
+            item.setLocked(true);
+            persisted.put(item.getChildBlockName(), item);
+        }
+        return persisted;
+    }
+
+    private void validateLockedBlockTubeUsageSubmission(List<BlockSampleUsageItem> submittedBlockUsages,
+            Map<String, BlockSampleUsageItem> persistedBlockUsages) {
+        Map<String, BlockSampleUsageItem> submittedByBlock = new LinkedHashMap<>();
+        for (BlockSampleUsageItem submittedUsage : submittedBlockUsages) {
+            if (submittedUsage != null && !GenericValidator.isBlankOrNull(submittedUsage.getChildBlockName())) {
+                submittedByBlock.put(normalizeBlockName(submittedUsage.getChildBlockName()), submittedUsage);
+            }
+        }
+
+        for (Map.Entry<String, BlockSampleUsageItem> persistedEntry : persistedBlockUsages.entrySet()) {
+            BlockSampleUsageItem submittedUsage = submittedByBlock.get(persistedEntry.getKey());
+            BlockSampleUsageItem persistedUsage = persistedEntry.getValue();
+            if (persistedUsage == null) {
+                throw new IllegalArgumentException("Tube selections and usage quantities cannot be changed after first save");
+            }
+            if (submittedUsage == null) {
+                throw new IllegalArgumentException("Tube selections and usage quantities cannot be changed after first save");
+            }
+            if (!StringUtils.equals(normalizeBlockName(submittedUsage.getParentTubeBlockName()),
+                    normalizeBlockName(persistedUsage.getParentTubeBlockName()))) {
+                throw new IllegalArgumentException("Tube selections and usage quantities cannot be changed after first save");
+            }
+            BigDecimal submittedQuantity = parseAndValidateUsageQuantity(submittedUsage.getUsedQuantity());
+            BigDecimal persistedQuantity = parseAndValidateUsageQuantity(persistedUsage.getUsedQuantity());
+            if (submittedQuantity.compareTo(persistedQuantity) != 0) {
+                throw new IllegalArgumentException("Tube selections and usage quantities cannot be changed after first save");
+            }
+        }
+    }
+
+    private BigDecimal sumPersistedBlockUsage(Map<String, BlockSampleUsageItem> persistedBlockUsages) {
+        BigDecimal total = BigDecimal.ZERO;
+        for (BlockSampleUsageItem item : persistedBlockUsages.values()) {
+            if (item == null || GenericValidator.isBlankOrNull(item.getUsedQuantity())) {
+                continue;
+            }
+            total = total.add(parseAndValidateUsageQuantity(item.getUsedQuantity()));
+        }
+        return total;
+    }
+
+    private Map<String, TubeBlockContext> resolveTubeBlockContexts(Analysis parentAnalysis, String parentTestId) {
+        if (parentAnalysis == null || GenericValidator.isBlankOrNull(parentTestId)) {
+            return Collections.emptyMap();
+        }
+
+        List<TestAdditionalFieldPayload> definitions = testAdditionalFieldService.getFieldsForTest(parentTestId, false);
+        if (definitions == null || definitions.isEmpty()) {
+            definitions = Collections.emptyList();
+        }
+
+        JsonNode primaryMetadata = readMetadataNode(parentAnalysis.getTest().getResultDisplayConfigJson());
+        boolean primarySelectorEnabled = primaryMetadata.path("tubeSelector").path("enabled").asBoolean(false);
+        String selectorFieldKey = null;
+        for (TestAdditionalFieldPayload definition : definitions) {
+            if (isTubeSelectorField(definition)) {
+                selectorFieldKey = definition.getFieldKey();
+                break;
+            }
+        }
+        if (!primarySelectorEnabled && GenericValidator.isBlankOrNull(selectorFieldKey)) {
+            return Collections.emptyMap();
+        }
+
+        Map<String, String> values = testAdditionalFieldService.getAnalysisValuesForFields(parentAnalysis.getId(), definitions);
+        BigDecimal selectedTubeCount = primarySelectorEnabled
+                ? parsePositiveOptionalBigDecimal(resolvePrimaryResultNumericValue(parentAnalysis))
+                : parsePositiveOptionalBigDecimal(values == null ? null : values.get(selectorFieldKey));
+        if (selectedTubeCount == null) {
+            return Collections.emptyMap();
+        }
+
+        int selectedCount = selectedTubeCount.intValue();
+        Map<String, TubeBlockContext> contexts = new LinkedHashMap<>();
+        if (primaryMetadata.path("tubeQuantitySource").asBoolean(false)) {
+            int primaryActivationCount = getTubeActivationCount(primaryMetadata);
+            if (primaryActivationCount <= 0 || primaryActivationCount <= selectedCount) {
+                TubeBlockContext context = new TubeBlockContext();
+                context.blockName = resolvePrimaryResultBlockName(parentAnalysis);
+                context.label = context.blockName;
+                context.quantityFieldKey = "__PRIMARY_RESULT__";
+                context.totalAvailable = parseZeroOrPositiveBigDecimal(
+                        resolvePrimaryResultNumericValue(parentAnalysis),
+                        "Selected parent tube requires a numeric available quantity");
+                contexts.put(context.blockName, context);
+            }
+        }
+        for (TestAdditionalFieldPayload definition : definitions) {
+            if (!isTubeQuantitySourceField(definition)) {
+                continue;
+            }
+            int activationCount = getTubeActivationCount(definition);
+            if (activationCount > 0 && activationCount > selectedCount) {
+                continue;
+            }
+            String blockName = resolveFieldBlockName(definition);
+            if (GenericValidator.isBlankOrNull(blockName)) {
+                continue;
+            }
+
+            TubeBlockContext context = new TubeBlockContext();
+            context.blockName = blockName;
+            context.label = blockName;
+            context.quantityFieldKey = definition.getFieldKey();
+            context.totalAvailable = parseZeroOrPositiveBigDecimal(
+                    values == null ? null : values.get(definition.getFieldKey()),
+                    "Selected parent tube requires a numeric available quantity");
+            contexts.put(blockName, context);
+        }
+        return contexts;
+    }
+
+    private String resolvePrimaryResultNumericValue(Analysis analysis) {
+        if (analysis == null) {
+            return null;
+        }
+        List<Result> results = resultService.getResultsByAnalysis(analysis);
+        if (results == null || results.isEmpty()) {
+            return null;
+        }
+        return results.get(0).getValue();
+    }
+
+    private boolean isTubeSelectorField(TestAdditionalFieldPayload definition) {
+        return readMetadataNode(definition).path("tubeSelector").path("enabled").asBoolean(false);
+    }
+
+    private boolean isTubeQuantitySourceField(TestAdditionalFieldPayload definition) {
+        return readMetadataNode(definition).path("tubeQuantitySource").asBoolean(false);
+    }
+
+    private int getTubeActivationCount(TestAdditionalFieldPayload definition) {
+        JsonNode activationNode = readMetadataNode(definition).path("tubeBlock").path("activationCount");
+        if (activationNode.isInt()) {
+            return activationNode.asInt();
+        }
+        if (activationNode.isTextual()) {
+            try {
+                return Integer.parseInt(activationNode.asText().trim());
+            } catch (NumberFormatException e) {
+                return 0;
+            }
+        }
+        return 0;
+    }
+
+    private int getTubeActivationCount(JsonNode metadataNode) {
+        JsonNode activationNode = metadataNode.path("tubeBlock").path("activationCount");
+        if (activationNode.isInt()) {
+            return activationNode.asInt();
+        }
+        if (activationNode.isTextual()) {
+            try {
+                return Integer.parseInt(activationNode.asText().trim());
+            } catch (NumberFormatException e) {
+                return 0;
+            }
+        }
+        return 0;
+    }
+
+    private String resolveFieldBlockName(TestAdditionalFieldPayload definition) {
+        JsonNode metadataNode = readMetadataNode(definition);
+        String blockName = definition.getBlockName();
+        if (GenericValidator.isBlankOrNull(blockName)) {
+            blockName = metadataNode.path("resultBlock").asText("");
+        }
+        if (GenericValidator.isBlankOrNull(blockName)) {
+            blockName = metadataNode.path("blockName").asText("");
+        }
+        if (GenericValidator.isBlankOrNull(blockName)) {
+            String entryScope = String.valueOf(definition.getEntryScope() != null ? definition.getEntryScope()
+                    : metadataNode.path("entryScope").asText("OFFICIAL")).trim().toUpperCase();
+            blockName = "PRELIMINARY".equals(entryScope) ? "Preliminary" : "Official";
+        }
+        return normalizeBlockName(blockName);
+    }
+
+    private String resolvePrimaryResultBlockName(Analysis analysis) {
+        JsonNode metadataNode = readMetadataNode(analysis.getTest().getResultDisplayConfigJson());
+        String blockName = metadataNode.path("resultBlock").asText("");
+        if (GenericValidator.isBlankOrNull(blockName)) {
+            String entryScope = metadataNode.path("entryScope").asText("OFFICIAL").trim().toUpperCase();
+            blockName = "PRELIMINARY".equals(entryScope) ? "Preliminary" : "Official";
+        }
+        return normalizeBlockName(blockName);
+    }
+
+    private JsonNode readMetadataNode(TestAdditionalFieldPayload definition) {
+        if (definition == null || GenericValidator.isBlankOrNull(definition.getMetadataJson())) {
+            return OBJECT_MAPPER.createObjectNode();
+        }
+        try {
+            JsonNode root = OBJECT_MAPPER.readTree(definition.getMetadataJson());
+            return root != null && root.isObject() ? root : OBJECT_MAPPER.createObjectNode();
+        } catch (Exception e) {
+            return OBJECT_MAPPER.createObjectNode();
+        }
+    }
+
+    private JsonNode readMetadataNode(String metadataJson) {
+        if (GenericValidator.isBlankOrNull(metadataJson)) {
+            return OBJECT_MAPPER.createObjectNode();
+        }
+        try {
+            JsonNode root = OBJECT_MAPPER.readTree(metadataJson);
+            return root != null && root.isObject() ? root : OBJECT_MAPPER.createObjectNode();
+        } catch (Exception e) {
+            return OBJECT_MAPPER.createObjectNode();
+        }
+    }
+
+    private BigDecimal parsePositiveOptionalBigDecimal(String raw) {
+        if (GenericValidator.isBlankOrNull(raw)) {
+            return null;
+        }
+        try {
+            BigDecimal parsed = new BigDecimal(raw.trim()).setScale(3, RoundingMode.HALF_UP);
+            return parsed.compareTo(BigDecimal.ZERO) <= 0 ? null : parsed;
+        } catch (NumberFormatException e) {
+            return null;
+        }
+    }
+
+    private BigDecimal parseZeroOrPositiveBigDecimal(String raw, String errorMessage) {
+        if (GenericValidator.isBlankOrNull(raw)) {
+            return null;
+        }
+        try {
+            BigDecimal parsed = new BigDecimal(raw.trim()).setScale(3, RoundingMode.HALF_UP);
+            if (parsed.compareTo(BigDecimal.ZERO) < 0) {
+                throw new IllegalArgumentException(errorMessage);
+            }
+            return parsed;
+        } catch (NumberFormatException e) {
+            throw new IllegalArgumentException(errorMessage);
+        }
+    }
+
+    private String normalizeBlockName(String blockName) {
+        if (GenericValidator.isBlankOrNull(blockName)) {
+            return null;
+        }
+        return blockName.trim();
+    }
+
+    private static class TubeBlockContext {
+        private String blockName;
+        private String label;
+        private String quantityFieldKey;
+        private BigDecimal totalAvailable;
     }
 
     private void handleReferrals(TestResultItem testResultItem, ReferralItem referralItem, List<Result> results,
@@ -1106,6 +1651,8 @@ public class LogbookResultsRestController extends LogbookResultsBaseController {
                 testResult.getResultType()) && !hasCompleteAdditionalResultFields(testResult)) {
             // Do not move to validation/finalized until all active additional result fields are filled.
             return SpringContext.getBean(IStatusService.class).getStatusID(AnalysisStatus.NotStarted);
+        } else if (shouldSkipValidationForParentTest(testResult)) {
+            return SpringContext.getBean(IStatusService.class).getStatusID(AnalysisStatus.Finalized);
         } else if (alwaysValidate || !testResult.isValid() || ResultUtil.isForcedToAcceptance(testResult)) {
             return SpringContext.getBean(IStatusService.class).getStatusID(AnalysisStatus.TechnicalAcceptance);
         } else if (noResults(testResult.getShadowResultValue(), testResult.getMultiSelectResultValues(),
@@ -1131,6 +1678,42 @@ public class LogbookResultsRestController extends LogbookResultsBaseController {
 
         return (GenericValidator.isBlankOrNull(value) && GenericValidator.isBlankOrNull(multiSelectValue))
                 || (TypeOfTestResultServiceImpl.ResultType.DICTIONARY.matches(type) && "0".equals(value));
+    }
+
+    private boolean shouldSkipValidationForParentTest(TestResultItem testResult) {
+        if (testResult == null || GenericValidator.isBlankOrNull(testResult.getTestId())) {
+            return false;
+        }
+
+        Test test = testService.get(testResult.getTestId());
+        if (test == null || !Boolean.TRUE.equals(test.getSkipValidationWhenParentComplete())) {
+            return false;
+        }
+
+        boolean activeParentDependency = testParentChildDependencyService.getByParentTestId(test.getId()).stream()
+                .anyMatch(dependency -> Boolean.TRUE.equals(dependency.getActive()));
+        if (!activeParentDependency) {
+            return false;
+        }
+
+        return hasAnyEnteredResultData(testResult) && hasCompleteAdditionalResultFields(testResult);
+    }
+
+    private boolean hasAnyEnteredResultData(TestResultItem testResultItem) {
+        if (testResultItem == null) {
+            return false;
+        }
+        if (!noResults(testResultItem.getShadowResultValue(), testResultItem.getMultiSelectResultValues(),
+                testResultItem.getResultType())) {
+            return true;
+        }
+
+        Map<String, String> values = testResultItem.getAdditionalFieldValues();
+        if (values == null || values.isEmpty()) {
+            return false;
+        }
+
+        return values.values().stream().anyMatch(value -> !GenericValidator.isBlankOrNull(value));
     }
 
     private boolean hasCompleteAdditionalResultFields(TestResultItem testResultItem) {

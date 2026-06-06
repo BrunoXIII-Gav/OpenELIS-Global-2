@@ -69,6 +69,7 @@ function TestParentChildDependency() {
   const [formState, setFormState] = useState(defaultFormState);
   const [parentFieldOptions, setParentFieldOptions] = useState([]);
   const [isLoadingParentFields, setIsLoadingParentFields] = useState(false);
+  const [parentTestUsesTubeBlocks, setParentTestUsesTubeBlocks] = useState(false);
 
   const testNameById = useMemo(() => {
     const map = {};
@@ -142,23 +143,26 @@ function TestParentChildDependency() {
   const resetForm = () => {
     setFormState(defaultFormState);
     setParentFieldOptions([]);
+    setParentTestUsesTubeBlocks(false);
   };
 
   const loadParentFieldOptions = (parentTestId) => {
     if (!parentTestId) {
       setParentFieldOptions([]);
+      setParentTestUsesTubeBlocks(false);
       setIsLoadingParentFields(false);
       return;
     }
 
     setIsLoadingParentFields(true);
     getFromOpenElisServer(
-      `/rest/test-parent-child-dependencies/parent-test-fields?parentTestId=${parentTestId}`,
+      `/rest/test-parent-child-dependencies/parent-test-field-config?parentTestId=${parentTestId}`,
       (response) => {
         if (!componentMounted.current) {
           return;
         }
-        setParentFieldOptions(Array.isArray(response) ? response : []);
+        setParentFieldOptions(Array.isArray(response?.options) ? response.options : []);
+        setParentTestUsesTubeBlocks(response?.tubeBasedParent === true);
         setIsLoadingParentFields(false);
       },
     );
@@ -226,6 +230,7 @@ function TestParentChildDependency() {
 
     if (
       formState.sampleUsageSource === "PARENT_TEST_FIELD" &&
+      !parentTestUsesTubeBlocks &&
       !formState.parentResultFieldKey
     ) {
       notifyError(
@@ -255,7 +260,8 @@ function TestParentChildDependency() {
       active: formState.active,
       sampleUsageSource: formState.sampleUsageSource,
       parentResultFieldKey:
-        formState.sampleUsageSource === "PARENT_TEST_FIELD"
+        formState.sampleUsageSource === "PARENT_TEST_FIELD" &&
+        !parentTestUsesTubeBlocks
           ? formState.parentResultFieldKey || null
           : null,
       displayOrder:
@@ -541,44 +547,63 @@ function TestParentChildDependency() {
             </Column>
             {formState.sampleUsageSource === "PARENT_TEST_FIELD" && (
               <Column lg={6} md={4} sm={4}>
-                <Select
-                  id="parentResultFieldKey"
-                  labelText={
-                    <FormattedMessage
-                      id="test.dependency.parentResultFieldKey"
-                      defaultMessage="Parent Result Field"
-                    />
-                  }
-                  value={formState.parentResultFieldKey || ""}
-                  onChange={(e) =>
-                    setFormState((prev) => ({
-                      ...prev,
-                      parentResultFieldKey: e.target.value,
-                    }))
-                  }
-                  disabled={
-                    isLoading ||
-                    isSaving ||
-                    !selectedSampleType ||
-                    !formState.parentTestId ||
-                    isLoadingParentFields
-                  }
-                >
-                  <SelectItem
-                    value=""
-                    text={intl.formatMessage({
-                      id: "test.dependency.select.parentField",
-                      defaultMessage: "-- Select parent numeric field --",
+                {parentTestUsesTubeBlocks ? (
+                  <TextInput
+                    id="parentResultFieldKeyTubeModeInfo"
+                    labelText={
+                      <FormattedMessage
+                        id="test.dependency.parentResultFieldKey"
+                        defaultMessage="Parent Result Field"
+                      />
+                    }
+                    value={intl.formatMessage({
+                      id: "test.dependency.parentFieldTubeManaged",
+                      defaultMessage:
+                        "Managed automatically by tube quantity source fields in the parent test.",
                     })}
+                    readOnly
+                    disabled
                   />
-                  {parentFieldOptions.map((field) => (
+                ) : (
+                  <Select
+                    id="parentResultFieldKey"
+                    labelText={
+                      <FormattedMessage
+                        id="test.dependency.parentResultFieldKey"
+                        defaultMessage="Parent Result Field"
+                      />
+                    }
+                    value={formState.parentResultFieldKey || ""}
+                    onChange={(e) =>
+                      setFormState((prev) => ({
+                        ...prev,
+                        parentResultFieldKey: e.target.value,
+                      }))
+                    }
+                    disabled={
+                      isLoading ||
+                      isSaving ||
+                      !selectedSampleType ||
+                      !formState.parentTestId ||
+                      isLoadingParentFields
+                    }
+                  >
                     <SelectItem
-                      key={field.fieldKey}
-                      value={field.fieldKey}
-                      text={`${field.displayName} (${field.fieldKey})`}
+                      value=""
+                      text={intl.formatMessage({
+                        id: "test.dependency.select.parentField",
+                        defaultMessage: "-- Select parent numeric field --",
+                      })}
                     />
-                  ))}
-                </Select>
+                    {parentFieldOptions.map((field) => (
+                      <SelectItem
+                        key={field.fieldKey}
+                        value={field.fieldKey}
+                        text={`${field.displayName} (${field.fieldKey})`}
+                      />
+                    ))}
+                  </Select>
+                )}
               </Column>
             )}
           </Grid>

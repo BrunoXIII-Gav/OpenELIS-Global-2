@@ -89,6 +89,7 @@ public class Analysis extends BaseObject<String> implements NoteObject {
     private ValueHolderInterface method;
     private ResultFile resultFile;
     private BigDecimal sampleUsedQuantity;
+    private String parentUsageBlockName;
 
     public Analysis() {
         super();
@@ -549,6 +550,14 @@ public class Analysis extends BaseObject<String> implements NoteObject {
 
     public void setSampleUsedQuantity(BigDecimal sampleUsedQuantity) {
         this.sampleUsedQuantity = sampleUsedQuantity;
+    }
+
+    public String getParentUsageBlockName() {
+        return parentUsageBlockName;
+    }
+
+    public void setParentUsageBlockName(String parentUsageBlockName) {
+        this.parentUsageBlockName = parentUsageBlockName;
     }
 
 }
