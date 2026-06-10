@@ -3,14 +3,21 @@ import { useFormikContext } from "formik";
 
 const PatientFormObserver = (props) => {
   const { values } = useFormikContext();
-  const { orderFormValues, setOrderFormValues, formAction } = props;
+  const { setOrderFormValues, formAction } = props;
+  const syncKey = JSON.stringify({
+    patientUpdateStatus: formAction,
+    patientProperties: values,
+  });
+
   useEffect(() => {
-    setOrderFormValues({
-      ...orderFormValues,
+    setOrderFormValues((previous) => ({
+      ...(previous || {}),
       patientUpdateStatus: formAction,
-      patientProperties: values,
-    });
-  }, [values]);
+      patientProperties: {
+        ...values,
+      },
+    }));
+  }, [formAction, setOrderFormValues, syncKey]);
   return null;
 };
 

@@ -43,6 +43,7 @@ import PatientImageSelector from "./photoManagement/uploadPhoto/PatientImageSele
 
 function CreatePatientForm(props) {
   const componentMounted = useRef(false);
+  const selectedPatient = props.selectedPatient || {};
 
   const { notificationVisible, setNotificationVisible, addNotification } =
     useContext(NotificationContext);
@@ -84,8 +85,8 @@ function CreatePatientForm(props) {
     days: "",
   });
   const patientIdentifierRef = useRef({
-    nationalId: props.selectedPatient.nationalId || "",
-    subjectNumber: props.selectedPatient.subjectNumber || "",
+    nationalId: selectedPatient.nationalId || "",
+    subjectNumber: selectedPatient.subjectNumber || "",
   });
 
   const [isSubmitting, setIsSubmitting] = useState(false);
@@ -207,17 +208,17 @@ function CreatePatientForm(props) {
   ) => {
     setFieldValue(`patientAdditionalFieldValues.${fieldKey}`, value);
     if (props.setOrderFormValues && props.orderFormValues) {
-      props.setOrderFormValues({
-        ...props.orderFormValues,
+      props.setOrderFormValues((previous) => ({
+        ...(previous || props.orderFormValues),
         patientProperties: {
-          ...(props.orderFormValues.patientProperties || {}),
+          ...((previous || props.orderFormValues)?.patientProperties || {}),
           patientAdditionalFieldValues: {
-            ...(props.orderFormValues.patientProperties
+            ...(((previous || props.orderFormValues)?.patientProperties || {})
               ?.patientAdditionalFieldValues || {}),
             [fieldKey]: value,
           },
         },
-      });
+      }));
     }
   };
 
@@ -1017,7 +1018,7 @@ function CreatePatientForm(props) {
   }
 
   useEffect(() => {
-    const selectedPatientPk = props.selectedPatient?.patientPK;
+    const selectedPatientPk = selectedPatient?.patientPK;
     // Reset address hierarchy initialization when patient changes
     if (
       selectedPatientPk &&
@@ -1027,10 +1028,10 @@ function CreatePatientForm(props) {
     }
 
     if (selectedPatientPk) {
-      if (props.selectedPatient.healthRegion != null) {
+      if (selectedPatient.healthRegion != null) {
         getFromOpenElisServer(
           "/rest/health-districts-for-region?regionId=" +
-            props.selectedPatient.healthRegion,
+            selectedPatient.healthRegion,
           fetchHealthDistrictsCallback,
         );
       } else {
@@ -1038,7 +1039,7 @@ function CreatePatientForm(props) {
         setHealthDistricts([]);
       }
       //merge objects together to avoid "A component is changing a controlled input to be uncontrolled"
-      let patient = { ...props.selectedPatient };
+      let patient = { ...selectedPatient };
       patient.patientUpdateStatus = "UPDATE";
       patient.photo = "";
       //merge objects together to avoid "A component is changing a controlled input to be uncontrolled"
@@ -1134,7 +1135,7 @@ function CreatePatientForm(props) {
         },
       });
     }
-  }, [props.selectedPatient?.patientPK]);
+  }, [selectedPatient?.patientPK]);
 
   const repopulatePatientInfo = () => {
     if (props.orderFormValues != null) {
@@ -1287,9 +1288,9 @@ function CreatePatientForm(props) {
     let error;
     if (
       res.status === false &&
-      (props.selectedPatient.nationalId !==
+      (selectedPatient.nationalId !==
         patientIdentifierRef.current.nationalId ||
-        props.selectedPatient.subjectNumber !==
+        selectedPatient.subjectNumber !==
           patientIdentifierRef.current.subjectNumber)
     ) {
       setNotificationVisible(true);
@@ -1472,7 +1473,7 @@ function CreatePatientForm(props) {
                   {({ field }) => (
                     <>
                       <TextInput
-                        key={`subject-number-${props.selectedPatient.patientPK || "new"}`}
+                        key={`subject-number-${selectedPatient.patientPK || "new"}`}
                         defaultValue={values.subjectNumber || ""}
                         name={field.name}
                         labelText={
@@ -1517,7 +1518,7 @@ function CreatePatientForm(props) {
                   <Field name="nationalId">
                     {({ field }) => (
                       <TextInput
-                        key={`national-id-${props.selectedPatient.patientPK || "new"}`}
+                        key={`national-id-${selectedPatient.patientPK || "new"}`}
                         defaultValue={values.nationalId || ""}
                         name={field.name}
                         labelText={intl.formatMessage({
