@@ -1,0 +1,732 @@
+import React, { useContext, useEffect, useMemo, useState } from "react";
+import {
+  Button,
+  Checkbox,
+  Column,
+  DataTable,
+  Grid,
+  Heading,
+  Section,
+  Select,
+  SelectItem,
+  Stack,
+  Table,
+  TableBody,
+  TableCell,
+  TableContainer,
+  TableHead,
+  TableHeader,
+  TableRow,
+  Tag,
+  TextArea,
+  TextInput,
+} from "@carbon/react";
+import { FormattedMessage, useIntl } from "react-intl";
+import PageBreadCrumb from "../../common/PageBreadCrumb";
+import {
+  deleteFromOpenElisServer,
+  getFromOpenElisServer,
+  postToOpenElisServerJsonResponse,
+  putToOpenElisServerFullResponse,
+} from "../../utils/Utils";
+import { NotificationContext } from "../../layout/Layout";
+import {
+  AlertDialog,
+  NotificationKinds,
+} from "../../common/CustomNotification";
+
+const FIELD_TYPE_OPTIONS = [
+  "TEXT",
+  "TEXTAREA",
+  "NUMBER",
+  "DATE",
+  "TIME",
+  "DATETIME",
+  "BOOLEAN",
+  "SELECT",
+  "MULTISELECT",
+  "RADIO",
+];
+
+const breadcrumbs = [
+  { label: "home.label", link: "/" },
+  { label: "breadcrums.admin.managment", link: "/MasterListsPage" },
+  {
+    label: "master.lists.page.test.management",
+    link: "/MasterListsPage/testManagementConfigMenu",
+  },
+  {
+    label: "patient.additional.fields.menu",
+    link: "/MasterListsPage/PatientAdditionalFields",
+  },
+];
+
+const defaultNewField = {
+  displayName: "",
+  fieldKey: "",
+  fieldType: "TEXT",
+  required: false,
+  active: true,
+  defaultValue: "",
+  maxLength: "",
+  sortOrder: "",
+  optionLines: "",
+};
+
+const OPTION_FIELD_TYPES = new Set(["SELECT", "MULTISELECT", "RADIO"]);
+
+const PatientAdditionalFieldsManagement = () => {
+  const intl = useIntl();
+  const { notificationVisible, setNotificationVisible, addNotification } =
+    useContext(NotificationContext);
+
+  const [fields, setFields] = useState([]);
+  const [newField, setNewField] = useState(defaultNewField);
+  const [editingFieldId, setEditingFieldId] = useState(null);
+  const [savingField, setSavingField] = useState(false);
+  const [savingSortFieldId, setSavingSortFieldId] = useState(null);
+
+  const loadFields = () => {
+    getFromOpenElisServer(
+      "/rest/patient-additional-fields?includeInactive=true",
+      (response) => {
+        setFields(Array.isArray(response) ? response : []);
+      },
+    );
+  };
+
+  useEffect(() => {
+    loadFields();
+  }, []);
+
+  const showNotification = (kind, message) => {
+    setNotificationVisible(true);
+    addNotification({
+      kind,
+      title: intl.formatMessage({ id: "notification.title" }),
+      message,
+    });
+  };
+
+  const parseOptions = (optionLines) => {
+    if (!optionLines || !optionLines.trim()) {
+      return [];
+    }
+
+    return optionLines
+      .split("\n")
+      .map((line) => line.trim())
+      .filter(Boolean)
+      .map((line, index) => {
+        const splitLine = line.split("|");
+        if (splitLine.length >= 2) {
+          return {
+            optionKey: splitLine[0].trim(),
+            optionLabel: splitLine.slice(1).join("|").trim(),
+            active: true,
+            sortOrder: index + 1,
+          };
+        }
+        return {
+          optionKey: splitLine[0].trim().toLowerCase().replace(/\s+/g, "_"),
+          optionLabel: splitLine[0].trim(),
+          active: true,
+          sortOrder: index + 1,
+        };
+      })
+      .filter((option) => option.optionLabel);
+  };
+
+  const mapFieldToForm = (field) => {
+    const optionLines = (field?.options || [])
+      .filter((option) => option?.active !== false)
+      .sort((left, right) => (left?.sortOrder ?? 0) - (right?.sortOrder ?? 0))
+      .map((option) =>
+        option?.optionKey
+          ? `${option.optionKey}|${option.optionLabel || option.optionKey}`
+          : option?.optionLabel || "",
+      )
+      .filter(Boolean)
+      .join("\n");
+
+    return {
+      displayName: field?.displayName || "",
+      fieldKey: field?.fieldKey || "",
+      fieldType: field?.fieldType || "TEXT",
+      required: !!field?.required,
+      active: field?.active !== false,
+      defaultValue: field?.defaultValue || "",
+      maxLength:
+        field?.maxLength !== null && field?.maxLength !== undefined
+          ? String(field.maxLength)
+          : "",
+      sortOrder:
+        field?.sortOrder !== null && field?.sortOrder !== undefined
+          ? String(field.sortOrder)
+          : "",
+      optionLines,
+    };
+  };
+
+  const resetFieldForm = () => {
+    setNewField(defaultNewField);
+    setEditingFieldId(null);
+  };
+
+  const normalizeSortOrder = (sortOrder) => {
+    if (sortOrder === null || sortOrder === undefined || sortOrder === "") {
+      return null;
+    }
+    const parsed = Number.parseInt(sortOrder, 10);
+    return Number.isNaN(parsed) ? null : parsed;
+  };
+
+  const saveField = (event) => {
+    event.preventDefault();
+    setSavingField(true);
+
+    const payload = {
+      displayName: newField.displayName,
+      fieldKey: newField.fieldKey,
+      fieldType: newField.fieldType,
+      required: newField.required,
+      active: true,
+      defaultValue: newField.defaultValue || null,
+      maxLength: newField.maxLength
+        ? Number.parseInt(newField.maxLength, 10)
+        : null,
+      sortOrder: normalizeSortOrder(newField.sortOrder),
+      options: OPTION_FIELD_TYPES.has(newField.fieldType)
+        ? parseOptions(newField.optionLines)
+        : [],
+    };
+
+    const sourceField = fields.find((field) => field.id === editingFieldId);
+    if (sourceField && OPTION_FIELD_TYPES.has(newField.fieldType)) {
+      const existingOptionsByKey = new Map(
+        (sourceField.options || []).map((option) => [option.optionKey, option]),
+      );
+      payload.options = payload.options.map((option) => {
+        const existing = existingOptionsByKey.get(option.optionKey);
+        return existing ? { ...option, id: existing.id } : option;
+      });
+    }
+
+    const onSaveSuccess = () => {
+      resetFieldForm();
+      showNotification(
+        NotificationKinds.success,
+        intl.formatMessage({ id: "order.additional.fields.saved" }),
+      );
+      loadFields();
+    };
+
+    if (!editingFieldId) {
+      postToOpenElisServerJsonResponse(
+        "/rest/patient-additional-fields",
+        JSON.stringify(payload),
+        (response) => {
+          setSavingField(false);
+          if (response?.id) {
+            onSaveSuccess();
+            return;
+          }
+
+          showNotification(
+            NotificationKinds.error,
+            response?.message || intl.formatMessage({ id: "server.error.msg" }),
+          );
+        },
+      );
+      return;
+    }
+
+    putToOpenElisServerFullResponse(
+      `/rest/patient-additional-fields/${editingFieldId}`,
+      JSON.stringify(payload),
+      async (response) => {
+        setSavingField(false);
+        if (response.status >= 200 && response.status < 300) {
+          onSaveSuccess();
+          return;
+        }
+
+        let errorMessage = intl.formatMessage({ id: "server.error.msg" });
+        try {
+          const errorBody = await response.json();
+          errorMessage = errorBody?.message || errorMessage;
+        } catch (_error) {
+          // keep generic message
+        }
+
+        showNotification(NotificationKinds.error, errorMessage);
+      },
+    );
+  };
+
+  const startEditingField = (field) => {
+    if (!field?.id) {
+      return;
+    }
+    setEditingFieldId(field.id);
+    setNewField(mapFieldToForm(field));
+  };
+
+  const toggleFieldStatus = (field) => {
+    if (!field?.id) {
+      return;
+    }
+
+    if (field.active) {
+      deleteFromOpenElisServer(
+        `/rest/patient-additional-fields/${field.id}`,
+        (status) => {
+          if (status === 204) {
+            loadFields();
+            showNotification(
+              NotificationKinds.success,
+              intl.formatMessage({ id: "order.additional.fields.updated" }),
+            );
+            return;
+          }
+          showNotification(
+            NotificationKinds.error,
+            intl.formatMessage({ id: "server.error.msg" }),
+          );
+        },
+      );
+      return;
+    }
+
+    const payload = {
+      active: true,
+      displayName: field.displayName,
+      fieldType: field.fieldType,
+      required: field.required,
+      defaultValue: field.defaultValue,
+      maxLength: field.maxLength,
+      sortOrder: normalizeSortOrder(field.sortOrder),
+      metadataJson: field.metadataJson,
+      options: field.options || [],
+    };
+
+    putToOpenElisServerFullResponse(
+      `/rest/patient-additional-fields/${field.id}`,
+      JSON.stringify(payload),
+      (response) => {
+        if (response.status >= 200 && response.status < 300) {
+          loadFields();
+          showNotification(
+            NotificationKinds.success,
+            intl.formatMessage({ id: "order.additional.fields.updated" }),
+          );
+          return;
+        }
+        showNotification(
+          NotificationKinds.error,
+          intl.formatMessage({ id: "server.error.msg" }),
+        );
+      },
+    );
+  };
+
+  const saveFieldSortOrder = (field) => {
+    if (!field?.id) {
+      return;
+    }
+
+    setSavingSortFieldId(field.id);
+    const payload = {
+      displayName: field.displayName,
+      fieldType: field.fieldType,
+      required: field.required,
+      active: field.active,
+      defaultValue: field.defaultValue,
+      maxLength: field.maxLength,
+      sortOrder: normalizeSortOrder(field.sortOrder),
+      metadataJson: field.metadataJson,
+      options: field.options || [],
+    };
+
+    putToOpenElisServerFullResponse(
+      `/rest/patient-additional-fields/${field.id}`,
+      JSON.stringify(payload),
+      (response) => {
+        setSavingSortFieldId(null);
+        if (response.status >= 200 && response.status < 300) {
+          loadFields();
+          showNotification(
+            NotificationKinds.success,
+            intl.formatMessage({ id: "order.additional.fields.saved" }),
+          );
+          return;
+        }
+        showNotification(
+          NotificationKinds.error,
+          intl.formatMessage({ id: "server.error.msg" }),
+        );
+      },
+    );
+  };
+
+  const rows = useMemo(
+    () =>
+      (fields || []).map((field) => ({
+        id: String(field.id),
+        displayName: field.displayName,
+        fieldKey: field.fieldKey,
+        fieldType: field.fieldType,
+        sortOrder: field.sortOrder,
+        required: field.required,
+        active: field.active,
+      })),
+    [fields],
+  );
+
+  return (
+    <>
+      {notificationVisible ? <AlertDialog /> : null}
+      <div className="adminPageContent">
+        <PageBreadCrumb breadcrumbs={breadcrumbs} />
+        <Grid fullWidth>
+          <Column lg={16} md={8} sm={4}>
+            <Section>
+              <Heading>
+                <FormattedMessage id="patient.additional.fields.title" />
+              </Heading>
+            </Section>
+          </Column>
+        </Grid>
+
+        <div className="orderLegendBody">
+          <Stack gap={6}>
+            <Heading>
+              <FormattedMessage id="order.additional.fields.custom.title" />
+            </Heading>
+            <Grid fullWidth>
+              <Column lg={8} md={4} sm={4}>
+                <TextInput
+                  id="patient-additional-display-name"
+                  labelText={intl.formatMessage({
+                    id: "order.additional.fields.displayName",
+                  })}
+                  value={newField.displayName}
+                  onChange={(event) =>
+                    setNewField((previous) => ({
+                      ...previous,
+                      displayName: event.target.value,
+                    }))
+                  }
+                />
+              </Column>
+              <Column lg={8} md={4} sm={4}>
+                <TextInput
+                  id="patient-additional-field-key"
+                  labelText={intl.formatMessage({
+                    id: "order.additional.fields.fieldKey",
+                  })}
+                  value={newField.fieldKey}
+                  disabled={editingFieldId !== null}
+                  onChange={(event) =>
+                    setNewField((previous) => ({
+                      ...previous,
+                      fieldKey: event.target.value,
+                    }))
+                  }
+                />
+              </Column>
+            </Grid>
+            <Grid fullWidth>
+              <Column lg={8} md={4} sm={4}>
+                <Select
+                  id="patient-additional-field-type"
+                  labelText={intl.formatMessage({
+                    id: "order.additional.fields.fieldType",
+                  })}
+                  value={newField.fieldType}
+                  onChange={(event) =>
+                    setNewField((previous) => ({
+                      ...previous,
+                      fieldType: event.target.value,
+                    }))
+                  }
+                >
+                  {FIELD_TYPE_OPTIONS.map((fieldType) => (
+                    <SelectItem
+                      key={fieldType}
+                      value={fieldType}
+                      text={fieldType}
+                    />
+                  ))}
+                </Select>
+              </Column>
+              <Column lg={8} md={4} sm={4}>
+                <TextInput
+                  id="patient-additional-default-value"
+                  labelText={intl.formatMessage({
+                    id: "order.additional.fields.defaultValue",
+                  })}
+                  value={newField.defaultValue}
+                  onChange={(event) =>
+                    setNewField((previous) => ({
+                      ...previous,
+                      defaultValue: event.target.value,
+                    }))
+                  }
+                />
+              </Column>
+            </Grid>
+            <Grid fullWidth>
+              <Column lg={8} md={4} sm={4}>
+                <TextInput
+                  id="patient-additional-max-length"
+                  labelText={intl.formatMessage({
+                    id: "order.additional.fields.maxLength",
+                  })}
+                  type="number"
+                  value={newField.maxLength}
+                  onChange={(event) =>
+                    setNewField((previous) => ({
+                      ...previous,
+                      maxLength: event.target.value,
+                    }))
+                  }
+                />
+              </Column>
+              <Column lg={8} md={4} sm={4}>
+                <TextInput
+                  id="patient-additional-sort-order"
+                  labelText={intl.formatMessage({
+                    id: "order.additional.fields.sortOrder",
+                  })}
+                  type="number"
+                  value={newField.sortOrder}
+                  onChange={(event) =>
+                    setNewField((previous) => ({
+                      ...previous,
+                      sortOrder: event.target.value,
+                    }))
+                  }
+                />
+              </Column>
+            </Grid>
+            <Grid fullWidth>
+              <Column lg={8} md={4} sm={4}>
+                <Checkbox
+                  id="patient-additional-required"
+                  labelText={intl.formatMessage({
+                    id: "order.additional.fields.required",
+                  })}
+                  checked={newField.required}
+                  onChange={(_event, { checked }) =>
+                    setNewField((previous) => ({
+                      ...previous,
+                      required: checked,
+                    }))
+                  }
+                />
+              </Column>
+            </Grid>
+
+            {OPTION_FIELD_TYPES.has(newField.fieldType) && (
+              <TextArea
+                id="patient-additional-options"
+                labelText={intl.formatMessage({
+                  id: "order.additional.fields.options",
+                })}
+                helperText={intl.formatMessage({
+                  id: "order.additional.fields.options.helper",
+                })}
+                value={newField.optionLines}
+                onChange={(event) =>
+                  setNewField((previous) => ({
+                    ...previous,
+                    optionLines: event.target.value,
+                  }))
+                }
+              />
+            )}
+
+            <Stack orientation="horizontal" gap={4}>
+              <Button
+                onClick={saveField}
+                disabled={savingField}
+                data-cy="create-patient-additional-field"
+              >
+                {editingFieldId ? (
+                  <FormattedMessage id="button.save" />
+                ) : (
+                  <FormattedMessage id="order.additional.fields.create" />
+                )}
+              </Button>
+              {editingFieldId ? (
+                <Button kind="ghost" onClick={resetFieldForm}>
+                  <FormattedMessage id="button.cancel" />
+                </Button>
+              ) : null}
+            </Stack>
+
+            <DataTable
+              rows={rows}
+              headers={[
+                {
+                  key: "displayName",
+                  header: intl.formatMessage({
+                    id: "order.additional.fields.displayName",
+                  }),
+                },
+                {
+                  key: "fieldKey",
+                  header: intl.formatMessage({
+                    id: "order.additional.fields.fieldKey",
+                  }),
+                },
+                {
+                  key: "fieldType",
+                  header: intl.formatMessage({
+                    id: "order.additional.fields.fieldType",
+                  }),
+                },
+                {
+                  key: "sortOrder",
+                  header: intl.formatMessage({
+                    id: "order.additional.fields.sortOrder",
+                  }),
+                },
+                {
+                  key: "required",
+                  header: intl.formatMessage({
+                    id: "order.additional.fields.required",
+                  }),
+                },
+                {
+                  key: "active",
+                  header: intl.formatMessage({
+                    id: "order.additional.fields.active",
+                  }),
+                },
+                {
+                  key: "actions",
+                  header: intl.formatMessage({
+                    id: "order.additional.fields.actions",
+                  }),
+                },
+              ]}
+            >
+              {({ rows, headers, getHeaderProps, getTableProps }) => (
+                <TableContainer>
+                  <Table {...getTableProps()}>
+                    <TableHead>
+                      <TableRow>
+                        {headers.map((header) => (
+                          <TableHeader
+                            key={header.key}
+                            {...getHeaderProps({ header })}
+                          >
+                            {header.header}
+                          </TableHeader>
+                        ))}
+                      </TableRow>
+                    </TableHead>
+                    <TableBody>
+                      {rows.map((row) => {
+                        const sourceField = fields.find(
+                          (field) => String(field.id) === row.id,
+                        );
+                        return (
+                          <TableRow key={row.id}>
+                            <TableCell>{row.cells[0].value}</TableCell>
+                            <TableCell>{row.cells[1].value}</TableCell>
+                            <TableCell>{row.cells[2].value}</TableCell>
+                            <TableCell>
+                              <TextInput
+                                id={`patient-custom-field-sort-order-${row.id}`}
+                                labelText=""
+                                type="number"
+                                value={String(row.cells[3].value ?? "")}
+                                onChange={(event) => {
+                                  const nextSortOrder = event.target.value;
+                                  setFields((previous) =>
+                                    previous.map((field) => {
+                                      if (String(field.id) !== row.id) {
+                                        return field;
+                                      }
+                                      return {
+                                        ...field,
+                                        sortOrder: nextSortOrder,
+                                      };
+                                    }),
+                                  );
+                                }}
+                              />
+                            </TableCell>
+                            <TableCell>
+                              {row.cells[4].value ? (
+                                <Tag type="green">
+                                  <FormattedMessage id="yes.option" />
+                                </Tag>
+                              ) : (
+                                <Tag type="gray">
+                                  <FormattedMessage id="no.option" />
+                                </Tag>
+                              )}
+                            </TableCell>
+                            <TableCell>
+                              {row.cells[5].value ? (
+                                <Tag type="green">
+                                  <FormattedMessage id="status.active" />
+                                </Tag>
+                              ) : (
+                                <Tag type="red">
+                                  <FormattedMessage id="status.inactive" />
+                                </Tag>
+                              )}
+                            </TableCell>
+                            <TableCell>
+                              <Button
+                                kind="ghost"
+                                size="sm"
+                                onClick={() => startEditingField(sourceField)}
+                              >
+                                <FormattedMessage id="button.edit" />
+                              </Button>
+                              {"  "}
+                              <Button
+                                kind="tertiary"
+                                size="sm"
+                                disabled={savingSortFieldId === sourceField?.id}
+                                onClick={() => saveFieldSortOrder(sourceField)}
+                              >
+                                <FormattedMessage id="button.save" />
+                              </Button>
+                              {"  "}
+                              <Button
+                                kind={
+                                  row.cells[5].value ? "danger" : "secondary"
+                                }
+                                size="sm"
+                                onClick={() => toggleFieldStatus(sourceField)}
+                              >
+                                {row.cells[5].value ? (
+                                  <FormattedMessage id="order.additional.fields.disable" />
+                                ) : (
+                                  <FormattedMessage id="order.additional.fields.enable" />
+                                )}
+                              </Button>
+                            </TableCell>
+                          </TableRow>
+                        );
+                      })}
+                    </TableBody>
+                  </Table>
+                </TableContainer>
+              )}
+            </DataTable>
+          </Stack>
+        </div>
+      </div>
+    </>
+  );
+};
+
+export default PatientAdditionalFieldsManagement;

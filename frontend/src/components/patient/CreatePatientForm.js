@@ -17,6 +17,7 @@ import {
   Form,
   FormLabel,
   TextInput,
+  TextArea,
   Checkbox,
   Button,
   RadioButton,
@@ -71,6 +72,7 @@ function CreatePatientForm(props) {
     useState(null); // Track which patient's hierarchy is initialized
   const [educationList, setEducationList] = useState([]);
   const [maritalStatuses, setMaritalStatuses] = useState([]);
+  const [patientAdditionalFields, setPatientAdditionalFields] = useState([]);
   const [prevfirstName, setPrevfirstName] = useState("");
   const [prevlastName, setPrevlastName] = useState("");
   const [prevfirstContactName, setPrevfirstContactName] = useState("");
@@ -126,6 +128,548 @@ function CreatePatientForm(props) {
     setPatientDetails(patient);
     if (patient.birthDateForDisplay) {
       getYearsMonthsDaysFromDOB(patient.birthDateForDisplay);
+    }
+  };
+
+  const handleOrderAdditionalFieldValueChange = (fieldKey, value) => {
+    if (!props.setOrderFormValues || !props.orderFormValues) {
+      return;
+    }
+
+    props.setOrderFormValues({
+      ...props.orderFormValues,
+      sampleOrderItems: {
+        ...props.orderFormValues.sampleOrderItems,
+        additionalFieldValues: {
+          ...(props.orderFormValues.sampleOrderItems.additionalFieldValues || {}),
+          [fieldKey]: value,
+        },
+      },
+    });
+  };
+
+  const getPatientAdditionalFields = () => {
+    return Array.isArray(patientAdditionalFields)
+      ? [...patientAdditionalFields]
+          .filter((field) => field && field.active !== false && field.fieldKey)
+          .sort((left, right) => {
+            const leftSortOrder =
+              left?.sortOrder !== null && left?.sortOrder !== undefined
+                ? Number(left.sortOrder)
+                : Number.POSITIVE_INFINITY;
+            const rightSortOrder =
+              right?.sortOrder !== null && right?.sortOrder !== undefined
+                ? Number(right.sortOrder)
+                : Number.POSITIVE_INFINITY;
+
+            if (leftSortOrder !== rightSortOrder) {
+              return leftSortOrder - rightSortOrder;
+            }
+
+            const leftDisplayName = String(
+              left?.displayName || left?.fieldKey || "",
+            ).toLowerCase();
+            const rightDisplayName = String(
+              right?.displayName || right?.fieldKey || "",
+            ).toLowerCase();
+
+            if (leftDisplayName !== rightDisplayName) {
+              return leftDisplayName.localeCompare(rightDisplayName);
+            }
+
+            return String(left?.id || left?.fieldKey || "").localeCompare(
+              String(right?.id || right?.fieldKey || ""),
+            );
+          })
+      : [];
+  };
+
+  const normalizePatientAdditionalFieldValues = (fieldValues = {}) => {
+    const normalized = { ...(fieldValues || {}) };
+    getPatientAdditionalFields().forEach((field) => {
+      if (
+        normalized[field.fieldKey] === undefined ||
+        normalized[field.fieldKey] === null ||
+        normalized[field.fieldKey] === ""
+      ) {
+        if (field.defaultValue !== undefined && field.defaultValue !== null) {
+          normalized[field.fieldKey] = field.defaultValue;
+        }
+      }
+    });
+    return normalized;
+  };
+
+  const handlePatientAdditionalFieldValueChange = (
+    setFieldValue,
+    fieldKey,
+    value,
+  ) => {
+    setFieldValue(`patientAdditionalFieldValues.${fieldKey}`, value);
+    if (props.setOrderFormValues && props.orderFormValues) {
+      props.setOrderFormValues({
+        ...props.orderFormValues,
+        patientProperties: {
+          ...(props.orderFormValues.patientProperties || {}),
+          patientAdditionalFieldValues: {
+            ...(props.orderFormValues.patientProperties
+              ?.patientAdditionalFieldValues || {}),
+            [fieldKey]: value,
+          },
+        },
+      });
+    }
+  };
+
+  const renderPatientAdditionalField = (field, values, setFieldValue) => {
+    const fieldType = (field.fieldType || "TEXT").toUpperCase();
+    const currentValue = values.patientAdditionalFieldValues?.[field.fieldKey];
+    const value =
+      currentValue !== undefined && currentValue !== null
+        ? currentValue
+        : field.defaultValue || "";
+    const options = Array.isArray(field.options)
+      ? field.options.filter((option) => option && option.active)
+      : [];
+    const required = field.required;
+    const label = (
+      <>
+        {field.displayName}
+        {required ? <span className="requiredlabel">*</span> : null}
+      </>
+    );
+
+    switch (fieldType) {
+      case "TEXTAREA":
+        return (
+          <Column key={field.fieldKey} lg={8} md={4} sm={4}>
+            <TextArea
+              id={`patient-dynamic-${field.fieldKey}`}
+              labelText={label}
+              value={value}
+              onChange={(event) =>
+                handlePatientAdditionalFieldValueChange(
+                  setFieldValue,
+                  field.fieldKey,
+                  event.target.value,
+                )
+              }
+              maxLength={field.maxLength || undefined}
+            />
+          </Column>
+        );
+      case "NUMBER":
+        return (
+          <Column key={field.fieldKey} lg={8} md={4} sm={4}>
+            <TextInput
+              id={`patient-dynamic-${field.fieldKey}`}
+              labelText={label}
+              type="number"
+              value={value}
+              onChange={(event) =>
+                handlePatientAdditionalFieldValueChange(
+                  setFieldValue,
+                  field.fieldKey,
+                  event.target.value,
+                )
+              }
+            />
+          </Column>
+        );
+      case "DATE":
+        return (
+          <Column key={field.fieldKey} lg={8} md={4} sm={4}>
+            <TextInput
+              id={`patient-dynamic-${field.fieldKey}`}
+              labelText={label}
+              type="date"
+              value={value}
+              onChange={(event) =>
+                handlePatientAdditionalFieldValueChange(
+                  setFieldValue,
+                  field.fieldKey,
+                  event.target.value,
+                )
+              }
+            />
+          </Column>
+        );
+      case "TIME":
+        return (
+          <Column key={field.fieldKey} lg={8} md={4} sm={4}>
+            <TextInput
+              id={`patient-dynamic-${field.fieldKey}`}
+              labelText={label}
+              type="time"
+              value={value}
+              onChange={(event) =>
+                handlePatientAdditionalFieldValueChange(
+                  setFieldValue,
+                  field.fieldKey,
+                  event.target.value,
+                )
+              }
+            />
+          </Column>
+        );
+      case "DATETIME":
+        return (
+          <Column key={field.fieldKey} lg={8} md={4} sm={4}>
+            <TextInput
+              id={`patient-dynamic-${field.fieldKey}`}
+              labelText={label}
+              type="datetime-local"
+              value={value}
+              onChange={(event) =>
+                handlePatientAdditionalFieldValueChange(
+                  setFieldValue,
+                  field.fieldKey,
+                  event.target.value,
+                )
+              }
+            />
+          </Column>
+        );
+      case "BOOLEAN":
+        return (
+          <Column key={field.fieldKey} lg={8} md={4} sm={4}>
+            <Checkbox
+              id={`patient-dynamic-${field.fieldKey}`}
+              labelText={field.displayName}
+              checked={String(value).toLowerCase() === "true"}
+              onChange={(_event, { checked }) =>
+                handlePatientAdditionalFieldValueChange(
+                  setFieldValue,
+                  field.fieldKey,
+                  checked ? "true" : "false",
+                )
+              }
+            />
+          </Column>
+        );
+      case "SELECT":
+        return (
+          <Column key={field.fieldKey} lg={8} md={4} sm={4}>
+            <Select
+              id={`patient-dynamic-${field.fieldKey}`}
+              labelText={label}
+              value={value}
+              onChange={(event) =>
+                handlePatientAdditionalFieldValueChange(
+                  setFieldValue,
+                  field.fieldKey,
+                  event.target.value,
+                )
+              }
+            >
+              <SelectItem value="" text="" />
+              {options.map((option) => (
+                <SelectItem
+                  key={`${field.fieldKey}-${option.optionKey}`}
+                  value={option.optionKey}
+                  text={option.optionLabel}
+                />
+              ))}
+            </Select>
+          </Column>
+        );
+      case "RADIO":
+        return (
+          <Column key={field.fieldKey} lg={8} md={4} sm={4}>
+            <RadioButtonGroup
+              legendText={label}
+              name={`patient-dynamic-radio-${field.fieldKey}`}
+              valueSelected={value}
+              onChange={(selectedValue) =>
+                handlePatientAdditionalFieldValueChange(
+                  setFieldValue,
+                  field.fieldKey,
+                  selectedValue,
+                )
+              }
+            >
+              {options.map((option) => (
+                <RadioButton
+                  key={`${field.fieldKey}-${option.optionKey}`}
+                  id={`patient-dynamic-${field.fieldKey}-${option.optionKey}`}
+                  labelText={option.optionLabel}
+                  value={option.optionKey}
+                />
+              ))}
+            </RadioButtonGroup>
+          </Column>
+        );
+      case "MULTISELECT": {
+        const selectedValues = new Set(
+          String(value)
+            .split(",")
+            .map((entry) => entry.trim())
+            .filter(Boolean),
+        );
+        return (
+          <Column key={field.fieldKey} lg={8} md={4} sm={4}>
+            <label htmlFor={`patient-dynamic-${field.fieldKey}`}>{label}</label>
+            <div id={`patient-dynamic-${field.fieldKey}`}>
+              {options.map((option) => (
+                <Checkbox
+                  key={`${field.fieldKey}-${option.optionKey}`}
+                  id={`patient-dynamic-${field.fieldKey}-${option.optionKey}`}
+                  labelText={option.optionLabel}
+                  checked={selectedValues.has(option.optionKey)}
+                  onChange={(_event, { checked }) => {
+                    const nextValues = new Set(selectedValues);
+                    if (checked) {
+                      nextValues.add(option.optionKey);
+                    } else {
+                      nextValues.delete(option.optionKey);
+                    }
+                    handlePatientAdditionalFieldValueChange(
+                      setFieldValue,
+                      field.fieldKey,
+                      Array.from(nextValues).join(","),
+                    );
+                  }}
+                />
+              ))}
+            </div>
+          </Column>
+        );
+      }
+      default:
+        return (
+          <Column key={field.fieldKey} lg={8} md={4} sm={4}>
+            <TextInput
+              id={`patient-dynamic-${field.fieldKey}`}
+              labelText={label}
+              value={value}
+              onChange={(event) =>
+                handlePatientAdditionalFieldValueChange(
+                  setFieldValue,
+                  field.fieldKey,
+                  event.target.value,
+                )
+              }
+              maxLength={field.maxLength || undefined}
+            />
+          </Column>
+        );
+    }
+  };
+
+  const getOrderAdditionalFields = () => {
+    return Array.isArray(props.orderFormValues?.sampleOrderItems?.additionalFields)
+      ? props.orderFormValues.sampleOrderItems.additionalFields.filter(
+          (field) => field && field.active !== false && field.fieldKey,
+        )
+      : [];
+  };
+
+  const renderOrderAdditionalField = (field) => {
+    const fieldType = (field.fieldType || "TEXT").toUpperCase();
+    const currentValue =
+      props.orderFormValues.sampleOrderItems.additionalFieldValues?.[field.fieldKey];
+    const value = currentValue !== undefined && currentValue !== null
+      ? currentValue
+      : field.defaultValue || "";
+    const options = Array.isArray(field.options)
+      ? field.options.filter((option) => option && option.active)
+      : [];
+    const required = field.required;
+    const label = (
+      <>
+        {field.displayName}
+        {required ? <span className="requiredlabel">*</span> : null}
+      </>
+    );
+
+    switch (fieldType) {
+      case "TEXTAREA":
+        return (
+          <Column key={field.fieldKey} lg={8} md={4} sm={4}>
+            <TextArea
+              id={`order-dynamic-${field.fieldKey}`}
+              labelText={label}
+              value={value}
+              onChange={(event) =>
+                handleOrderAdditionalFieldValueChange(field.fieldKey, event.target.value)
+              }
+              maxLength={field.maxLength || undefined}
+            />
+          </Column>
+        );
+      case "NUMBER":
+        return (
+          <Column key={field.fieldKey} lg={8} md={4} sm={4}>
+            <TextInput
+              id={`order-dynamic-${field.fieldKey}`}
+              labelText={label}
+              type="number"
+              value={value}
+              onChange={(event) =>
+                handleOrderAdditionalFieldValueChange(field.fieldKey, event.target.value)
+              }
+              readOnly={field.readOnly}
+            />
+          </Column>
+        );
+      case "DATE":
+        return (
+          <Column key={field.fieldKey} lg={8} md={4} sm={4}>
+            <TextInput
+              id={`order-dynamic-${field.fieldKey}`}
+              labelText={label}
+              type="date"
+              value={value}
+              onChange={(event) =>
+                handleOrderAdditionalFieldValueChange(field.fieldKey, event.target.value)
+              }
+              readOnly={field.readOnly}
+            />
+          </Column>
+        );
+      case "TIME":
+        return (
+          <Column key={field.fieldKey} lg={8} md={4} sm={4}>
+            <TextInput
+              id={`order-dynamic-${field.fieldKey}`}
+              labelText={label}
+              type="time"
+              value={value}
+              onChange={(event) =>
+                handleOrderAdditionalFieldValueChange(field.fieldKey, event.target.value)
+              }
+              readOnly={field.readOnly}
+            />
+          </Column>
+        );
+      case "DATETIME":
+        return (
+          <Column key={field.fieldKey} lg={8} md={4} sm={4}>
+            <TextInput
+              id={`order-dynamic-${field.fieldKey}`}
+              labelText={label}
+              type="datetime-local"
+              value={value}
+              onChange={(event) =>
+                handleOrderAdditionalFieldValueChange(field.fieldKey, event.target.value)
+              }
+              readOnly={field.readOnly}
+            />
+          </Column>
+        );
+      case "BOOLEAN":
+        return (
+          <Column key={field.fieldKey} lg={8} md={4} sm={4}>
+            <Checkbox
+              id={`order-dynamic-${field.fieldKey}`}
+              labelText={field.displayName}
+              checked={String(value).toLowerCase() === "true"}
+              onChange={(_event, { checked }) =>
+                handleOrderAdditionalFieldValueChange(field.fieldKey, checked ? "true" : "false")
+              }
+              disabled={field.readOnly}
+            />
+          </Column>
+        );
+      case "SELECT":
+      case "SYSTEM_USER_BIOLOGIST_SELECT":
+        return (
+          <Column key={field.fieldKey} lg={8} md={4} sm={4}>
+            <Select
+              id={`order-dynamic-${field.fieldKey}`}
+              labelText={label}
+              value={value}
+              onChange={(event) =>
+                handleOrderAdditionalFieldValueChange(field.fieldKey, event.target.value)
+              }
+              disabled={field.readOnly}
+            >
+              <SelectItem value="" text="" />
+              {options.map((option) => (
+                <SelectItem
+                  key={`${field.fieldKey}-${option.optionKey}`}
+                  value={option.optionKey}
+                  text={option.optionLabel}
+                />
+              ))}
+            </Select>
+          </Column>
+        );
+      case "RADIO":
+        return (
+          <Column key={field.fieldKey} lg={8} md={4} sm={4}>
+            <RadioButtonGroup
+              legendText={label}
+              name={`order-dynamic-radio-${field.fieldKey}`}
+              valueSelected={value}
+              onChange={(selectedValue) =>
+                handleOrderAdditionalFieldValueChange(field.fieldKey, selectedValue)
+              }
+            >
+              {options.map((option) => (
+                <RadioButton
+                  key={`${field.fieldKey}-${option.optionKey}`}
+                  id={`order-dynamic-${field.fieldKey}-${option.optionKey}`}
+                  labelText={option.optionLabel}
+                  value={option.optionKey}
+                  disabled={field.readOnly}
+                />
+              ))}
+            </RadioButtonGroup>
+          </Column>
+        );
+      case "MULTISELECT": {
+        const selectedValues = new Set(
+          String(value)
+            .split(",")
+            .map((entry) => entry.trim())
+            .filter(Boolean),
+        );
+        return (
+          <Column key={field.fieldKey} lg={8} md={4} sm={4}>
+            <label htmlFor={`order-dynamic-${field.fieldKey}`}>{label}</label>
+            <div id={`order-dynamic-${field.fieldKey}`}>
+              {options.map((option) => (
+                <Checkbox
+                  key={`${field.fieldKey}-${option.optionKey}`}
+                  id={`order-dynamic-${field.fieldKey}-${option.optionKey}`}
+                  labelText={option.optionLabel}
+                  checked={selectedValues.has(option.optionKey)}
+                  onChange={(_event, { checked }) => {
+                    const nextValues = new Set(selectedValues);
+                    if (checked) {
+                      nextValues.add(option.optionKey);
+                    } else {
+                      nextValues.delete(option.optionKey);
+                    }
+                    handleOrderAdditionalFieldValueChange(
+                      field.fieldKey,
+                      Array.from(nextValues).join(","),
+                    );
+                  }}
+                  disabled={field.readOnly}
+                />
+              ))}
+            </div>
+          </Column>
+        );
+      }
+      case "TEXT":
+      default:
+        return (
+          <Column key={field.fieldKey} lg={8} md={4} sm={4}>
+            <TextInput
+              id={`order-dynamic-${field.fieldKey}`}
+              labelText={label}
+              value={value}
+              onChange={(event) =>
+                handleOrderAdditionalFieldValueChange(field.fieldKey, event.target.value)
+              }
+              maxLength={field.maxLength || undefined}
+              readOnly={field.readOnly}
+            />
+          </Column>
+        );
     }
   };
 
@@ -518,6 +1062,12 @@ function CreatePatientForm(props) {
         ...patientDetails,
         ...patient,
         ...flattenedAddressHierarchy,
+        patientAdditionalFieldValues: normalizePatientAdditionalFieldValues(
+          {
+            ...(patientDetails.patientAdditionalFieldValues || {}),
+            ...(patient.patientAdditionalFieldValues || {}),
+          },
+        ),
         patientContact: patientContact,
       };
       patientIdentifierRef.current = {
@@ -529,6 +1079,12 @@ function CreatePatientForm(props) {
         ...patientDetails,
         ...patient,
         ...flattenedAddressHierarchy,
+        patientAdditionalFieldValues: normalizePatientAdditionalFieldValues(
+          {
+            ...(patientDetails.patientAdditionalFieldValues || {}),
+            ...(patient.patientAdditionalFieldValues || {}),
+          },
+        ),
         patientContact: patientContact,
       });
       getYearsMonthsDaysFromDOB(patient.birthDateForDisplay);
@@ -567,6 +1123,7 @@ function CreatePatientForm(props) {
         ...CreatePatientFormValues,
         patientUpdateStatus: "ADD",
         photo: "",
+        patientAdditionalFieldValues: normalizePatientAdditionalFieldValues({}),
         patientContact: {
           person: {
             firstName: "",
@@ -622,8 +1179,25 @@ function CreatePatientForm(props) {
       getFromOpenElisServer("/rest/health-regions", fetchHeathRegions);
       getFromOpenElisServer("/rest/education-list", fetchEducationList);
       getFromOpenElisServer("/rest/marital-statuses", fetchMaritalStatuses);
+      getFromOpenElisServer("/rest/patient-additional-fields", (fields) => {
+        if (componentMounted.current) {
+          setPatientAdditionalFields(Array.isArray(fields) ? fields : []);
+        }
+      });
     }
   }, [showPatientAdditionalInfoOnOrderEntry]);
+
+  useEffect(() => {
+    if (patientAdditionalFields.length === 0) {
+      return;
+    }
+    setPatientDetails((current) => ({
+      ...current,
+      patientAdditionalFieldValues: normalizePatientAdditionalFieldValues(
+        current.patientAdditionalFieldValues || {},
+      ),
+    }));
+  }, [patientAdditionalFields]);
 
   // Fetch address hierarchy levels when configurationProperties changes
   useEffect(() => {
@@ -1190,6 +1764,9 @@ function CreatePatientForm(props) {
                   )}
                 </Field>
               </Column>
+              {getPatientAdditionalFields().map((field) =>
+                renderPatientAdditionalField(field, values, setFieldValue),
+              )}
               <Column lg={16} md={8} sm={4}>
                 {" "}
                 <br></br>
@@ -1234,6 +1811,19 @@ function CreatePatientForm(props) {
                 {" "}
                 <br></br>
               </Column>
+              {props.orderFormValues && getOrderAdditionalFields().length > 0 && (
+                <>
+                  <Column lg={16} md={8} sm={4}>
+                    <Heading>
+                      <FormattedMessage id="order.additional.fields.title" />
+                    </Heading>
+                  </Column>
+                  {getOrderAdditionalFields().map((field) => renderOrderAdditionalField(field))}
+                  <Column lg={16} md={8} sm={4}>
+                    <br />
+                  </Column>
+                </>
+              )}
               <Column lg={8} md={4} sm={4}>
                 <Field name="birthDateForDisplay">
                   {({ field }) => (

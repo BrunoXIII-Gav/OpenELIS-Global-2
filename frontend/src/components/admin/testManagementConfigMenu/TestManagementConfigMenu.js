@@ -309,6 +309,24 @@ function TestManagementConfigMenu() {
                 </ClickableTile>
                 <br />
                 <ClickableTile
+                  href="/MasterListsPage/PatientAdditionalFields"
+                  id="PatientAdditionalFields"
+                >
+                  <FormattedMessage
+                    id="patient.additional.fields.menu"
+                    defaultMessage="Patient Additional Fields"
+                  />
+                  <UnorderedList nested>
+                    <ListItem>
+                      <FormattedMessage
+                        id="patient.additional.fields.menu.explain"
+                        defaultMessage="Configure additional fields shown on patient forms"
+                      />
+                    </ListItem>
+                  </UnorderedList>
+                </ClickableTile>
+                <br />
+                <ClickableTile
                   href="/MasterListsPage/UomManagement"
                   id="UomManagement"
                 >

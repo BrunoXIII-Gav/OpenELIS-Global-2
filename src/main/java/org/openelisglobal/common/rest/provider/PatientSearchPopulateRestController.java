@@ -12,6 +12,7 @@ import org.openelisglobal.common.util.ConfigurationProperties.Property;
 import org.openelisglobal.common.util.DateUtil;
 import org.openelisglobal.patient.service.PatientContactService;
 import org.openelisglobal.patient.service.PatientService;
+import org.openelisglobal.patientadditionalfield.service.PatientAdditionalFieldService;
 import org.openelisglobal.patient.util.PatientUtil;
 import org.openelisglobal.patient.valueholder.Patient;
 import org.openelisglobal.patient.valueholder.PatientContact;
@@ -50,6 +51,9 @@ public class PatientSearchPopulateRestController {
 
     @Autowired
     PatientIdentityTypeService patientIdentityTypeService;
+
+    @Autowired
+    PatientAdditionalFieldService patientAdditionalFieldService;
 
     private String ADDRESS_PART_VILLAGE_ID;
 
@@ -143,6 +147,8 @@ public class PatientSearchPopulateRestController {
         patientInfo.setPassportNumber(getIdentityValueSafe(identityList, "PASSPORT"));
         patientInfo.setForeignId(getIdentityValueSafe(identityList, "FOREIGN_ID"));
         patientInfo.setGuid(identityMap.getIdentityValue(identityList, "GUID"));
+        patientInfo.setPatientAdditionalFieldValues(
+                patientAdditionalFieldService.getPatientValues(patient.getId(), null));
 
         // Retrieve dynamic address hierarchy values (ADDRESS_HIERARCHY_0,
         // ADDRESS_HIERARCHY_1, etc.)
