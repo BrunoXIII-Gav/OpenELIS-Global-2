@@ -18,8 +18,8 @@ export const patientSearchHeaderData = [
     header: <FormattedMessage id="patient.dob" />,
   },
   {
-    key: "subjectNumber",
-    header: <FormattedMessage id="patient.subject.number" />,
+    key: "nationalId",
+    header: <FormattedMessage id="patient.merge.nationalId" />,
   },
   {
     key: "dataSourceName",

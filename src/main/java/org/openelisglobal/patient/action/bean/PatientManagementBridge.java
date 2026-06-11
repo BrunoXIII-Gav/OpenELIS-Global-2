@@ -24,6 +24,7 @@ import org.openelisglobal.address.valueholder.AddressPart;
 import org.openelisglobal.common.util.DateUtil;
 import org.openelisglobal.patient.service.PatientService;
 import org.openelisglobal.patient.service.PatientServiceImpl;
+import org.openelisglobal.patient.util.PatientIdentifierUtil;
 import org.openelisglobal.patient.valueholder.Patient;
 import org.openelisglobal.patientidentity.valueholder.PatientIdentity;
 import org.openelisglobal.patientidentitytype.util.PatientIdentityTypeMap;
@@ -86,6 +87,12 @@ public class PatientManagementBridge {
             info.setDni(identityMap.getIdentityValue(identityList, "DNI"));
             info.setPassportNumber(identityMap.getIdentityValue(identityList, "PASSPORT"));
             info.setForeignId(identityMap.getIdentityValue(identityList, "FOREIGN_ID"));
+            String primaryPatientIdentifierType = PatientIdentifierUtil.getStoredPrimaryIdentifierType(identityList);
+            if (primaryPatientIdentifierType.isEmpty()) {
+                primaryPatientIdentifierType = PatientIdentifierUtil.inferPrimaryIdentifierType(info.getNationalId(),
+                        info.getDni(), info.getPassportNumber(), info.getForeignId());
+            }
+            info.setPrimaryPatientIdentifierType(primaryPatientIdentifierType);
             info.setPrimaryPhone(patient.getPerson().getPrimaryPhone());
             info.setEmail(patient.getPerson().getEmail());
 

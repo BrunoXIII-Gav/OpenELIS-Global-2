@@ -334,6 +334,13 @@ public class SampleServiceImpl extends AuditableBaseObjectServiceImpl<Sample, St
     @Override
     @Transactional(readOnly = true)
     public SampleRequester getOrganizationSampleRequester(Sample sample, String orgTypeId) {
+        return getOrganizationSampleRequesterExcluding(sample, orgTypeId, null);
+    }
+
+    @Override
+    @Transactional(readOnly = true)
+    public SampleRequester getOrganizationSampleRequesterExcluding(Sample sample, String orgTypeId,
+            String excludedSampleRequesterId) {
         if (sample == null) {
             return null;
         }
@@ -341,6 +348,9 @@ public class SampleServiceImpl extends AuditableBaseObjectServiceImpl<Sample, St
         List<SampleRequester> requesters = sampleRequesterService.getRequestersForSampleId(sample.getId());
 
         for (SampleRequester requester : requesters) {
+            if (excludedSampleRequesterId != null && excludedSampleRequesterId.equals(requester.getId())) {
+                continue;
+            }
             if (ORGANIZATION_REQUESTER_TYPE_ID == requester.getRequesterTypeId()) {
                 Organization org = organizationService.getOrganizationById(String.valueOf(requester.getRequesterId()));
                 if (org != null && org.getOrganizationTypes().stream().anyMatch(e -> e.getId().equals(orgTypeId))) {

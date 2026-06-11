@@ -30,26 +30,18 @@ const AddSample = (props) => {
   ).toUpperCase();
   const patientProperties = orderFormValues?.patientProperties || {};
   const patientPk = String(patientProperties?.patientPK || "").trim();
-  const patientGuid = String(patientProperties?.guid || "").trim();
   const patientNationalId = String(patientProperties?.nationalId || "").trim();
-  const patientSubjectNumber = String(
-    patientProperties?.subjectNumber || "",
-  ).trim();
 
   const canGenerateCug =
-    (patientUpdateStatus === "UPDATE" && patientPk !== "") ||
-    (patientUpdateStatus === "ADD" &&
-      (patientNationalId !== "" ||
-        patientSubjectNumber !== "" ||
-        patientGuid !== ""));
+    patientNationalId !== "" &&
+    ((patientUpdateStatus === "UPDATE" && patientPk !== "") ||
+      patientUpdateStatus === "ADD");
 
   const patientIdForCug =
     patientUpdateStatus === "UPDATE" && patientPk !== "" ? patientPk : "";
   const patientCugKey = [
     patientUpdateStatus,
     patientPk,
-    patientGuid,
-    patientSubjectNumber,
     patientNationalId,
   ].join("|");
 

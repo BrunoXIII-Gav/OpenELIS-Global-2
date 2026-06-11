@@ -59,8 +59,11 @@
   <include relativeToChangelogFile="true" file="047-add-test-result-display-config.xml"/>
   <include relativeToChangelogFile="true" file="048-add-test-direct-sample-usage-flag.xml"/>
   <include relativeToChangelogFile="true" file="049-create-sample-type-uom-assignment.xml"/>
+  <include relativeToChangelogFile="true" file="050-create-patient-additional-fields.xml"/>
   <include relativeToChangelogFile="true" file="050-add-analysis-parent-usage-block-name.xml"/>
   <include relativeToChangelogFile="true" file="051-create-analysis-tube-usage.xml"/>
   <include relativeToChangelogFile="true" file="052-add-test-parent-validation-skip-flag.xml"/>
   <include relativeToChangelogFile="true" file="053-add-result-level-file-upload-config.xml"/>
+  <include relativeToChangelogFile="true" file="054-create-analysis-tube-label.xml"/>
+  <include relativeToChangelogFile="true" file="055-add-notification-profile-destination.xml"/>
 </databaseChangeLog>

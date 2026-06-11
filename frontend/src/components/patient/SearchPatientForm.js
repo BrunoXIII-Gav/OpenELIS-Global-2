@@ -157,7 +157,7 @@ function SearchPatientForm(props) {
       "&subjectNumber=" +
       values.patientId +
       "&nationalID=" +
-      "" +
+      values.patientId +
       "&labNumber=" +
       values.labNumber +
       "&guid=" +

@@ -5,6 +5,7 @@ const CreatePatientFormValues = {
   dni: "",
   passportNumber: "",
   foreignId: "",
+  primaryPatientIdentifierType: "",
   lastName: "",
   firstName: "",
   streetAddress: "",
@@ -29,6 +30,7 @@ const CreatePatientFormValues = {
       email: "",
     },
   },
+  patientAdditionalFieldValues: {},
 };
 
 export default CreatePatientFormValues;

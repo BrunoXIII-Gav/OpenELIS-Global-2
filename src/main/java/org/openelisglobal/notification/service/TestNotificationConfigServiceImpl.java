@@ -1,13 +1,21 @@
 package org.openelisglobal.notification.service;
 
+import java.util.ArrayList;
+import java.util.Iterator;
 import java.util.List;
 import java.util.Optional;
+import org.apache.commons.lang3.StringUtils;
 import org.apache.commons.validator.GenericValidator;
 import org.openelisglobal.common.dao.BaseDAO;
+import org.openelisglobal.common.log.LogEvent;
 import org.openelisglobal.common.service.AuditableBaseObjectServiceImpl;
 import org.openelisglobal.notification.dao.TestNotificationConfigDAO;
 import org.openelisglobal.notification.valueholder.NotificationConfigOption;
+import org.openelisglobal.notification.valueholder.NotificationConfigOption.NotificationMethod;
+import org.openelisglobal.notification.valueholder.NotificationConfigOption.NotificationNature;
+import org.openelisglobal.notification.valueholder.NotificationConfigOption.NotificationPersonType;
 import org.openelisglobal.notification.valueholder.NotificationPayloadTemplate;
+import org.openelisglobal.notification.valueholder.NotificationPayloadTemplate.NotificationPayloadType;
 import org.openelisglobal.notification.valueholder.TestNotificationConfig;
 import org.openelisglobal.test.service.TestService;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -56,11 +64,7 @@ public class TestNotificationConfigServiceImpl extends AuditableBaseObjectServic
                         .get(targetTestNotificationConfig.getDefaultPayloadTemplate().getId()));
             }
         }
-
-        oldConfig.getPatientEmail().setActive(targetTestNotificationConfig.getPatientEmail().getActive());
-        oldConfig.getPatientSMS().setActive(targetTestNotificationConfig.getPatientSMS().getActive());
-        oldConfig.getProviderEmail().setActive(targetTestNotificationConfig.getProviderEmail().getActive());
-        oldConfig.getProviderSMS().setActive(targetTestNotificationConfig.getProviderSMS().getActive());
+        syncNotificationOptions(oldConfig, targetTestNotificationConfig, sysUserId);
         oldConfig.setSysUserId(sysUserId);
         return save(oldConfig);
     }
@@ -85,9 +89,8 @@ public class TestNotificationConfigServiceImpl extends AuditableBaseObjectServic
                 oldConfig.setSysUserId(sysUserId);
             }
             for (NotificationConfigOption newOption : newTestNotificationConfig.getOptions()) {
-                if (testDefaultEmpty(newOption.getPayloadTemplate())) {
-                    NotificationConfigOption oldOption = oldConfig.getOptionFor(newOption.getNotificationNature(),
-                            newOption.getNotificationMethod(), newOption.getNotificationPersonType());
+                if (testDefaultEmpty(resolvePayloadTemplate(newOption))) {
+                    NotificationConfigOption oldOption = findMatchingOption(oldConfig, newOption);
                     oldOption.setPayloadTemplate(null);
                     oldOption.setSysUserId(sysUserId);
                 }
@@ -126,25 +129,139 @@ public class TestNotificationConfigServiceImpl extends AuditableBaseObjectServic
             oldPayloadTemplate.setSysUserId(sysUserId);
 
             for (NotificationConfigOption newOption : newTestNotificationConfig.getOptions()) {
-                NotificationConfigOption oldOption = oldConfig.getOptionFor(newOption.getNotificationNature(),
-                        newOption.getNotificationMethod(), newOption.getNotificationPersonType());
+                NotificationConfigOption oldOption = findMatchingOption(oldConfig, newOption);
 
-                newPayloadTemplate = newOption.getPayloadTemplate();
+                newPayloadTemplate = resolvePayloadTemplate(newOption);
                 oldPayloadTemplate = oldOption.getPayloadTemplate();
+                if (newPayloadTemplate == null
+                        || (GenericValidator.isBlankOrNull(newPayloadTemplate.getSubjectTemplate())
+                                && GenericValidator.isBlankOrNull(newPayloadTemplate.getMessageTemplate()))) {
+                    oldOption.setPayloadTemplate(null);
+                    continue;
+                }
                 if (oldPayloadTemplate == null) {
-                    oldPayloadTemplate = newPayloadTemplate;
-                    oldOption.setPayloadTemplate(oldPayloadTemplate);
+                    oldPayloadTemplate = new NotificationPayloadTemplate();
+                    oldPayloadTemplate.setType(NotificationPayloadType.TEST_RESULT);
                 } else {
+                    if (oldPayloadTemplate.getType() == null) {
+                        oldPayloadTemplate.setType(NotificationPayloadType.TEST_RESULT);
+                    }
                     oldPayloadTemplate.setSubjectTemplate(newPayloadTemplate.getSubjectTemplate());
                     oldPayloadTemplate.setMessageTemplate(newPayloadTemplate.getMessageTemplate());
-                    oldPayloadTemplate.setSysUserId(sysUserId);
                 }
+                oldPayloadTemplate.setSubjectTemplate(newPayloadTemplate.getSubjectTemplate());
+                oldPayloadTemplate.setMessageTemplate(newPayloadTemplate.getMessageTemplate());
+                oldPayloadTemplate.setSysUserId(sysUserId);
+                oldPayloadTemplate = notificationPayloadTemplateService.save(oldPayloadTemplate);
+                oldOption.setPayloadTemplate(oldPayloadTemplate);
             }
         } else {
             oldConfig = newTestNotificationConfig;
             oldConfig.setTest(testService.get(newTestNotificationConfig.getTestId()));
         }
         save(oldConfig);
+    }
+
+    private void syncNotificationOptions(TestNotificationConfig oldConfig, TestNotificationConfig newConfig, String sysUserId) {
+        if (oldConfig.getOptions() == null) {
+            oldConfig.setOptions(new ArrayList<>());
+        }
+        if (newConfig.getOptions() == null) {
+            return;
+        }
+        removeMissingInternalProfileOptions(oldConfig, newConfig);
+        for (NotificationConfigOption newOption : newConfig.getOptions()) {
+            NotificationConfigOption oldOption = findMatchingOption(oldConfig, newOption);
+            oldOption.setActive(newOption.getActive());
+            oldOption.setNotificationNature(newOption.getNotificationNature());
+            oldOption.setProfessionalProfileCode(newOption.getProfessionalProfileCode());
+            oldOption.setAdditionalContacts(newOption.getAdditionalContacts());
+            NotificationPayloadTemplate incomingTemplate = resolvePayloadTemplate(newOption);
+            if (incomingTemplate == null) {
+                oldOption.setPayloadTemplate(null);
+            } else {
+                NotificationPayloadTemplate targetTemplate = oldOption.getPayloadTemplate();
+                if (targetTemplate == null) {
+                    targetTemplate = new NotificationPayloadTemplate();
+                    targetTemplate.setType(NotificationPayloadType.TEST_RESULT);
+                } else if (targetTemplate.getType() == null) {
+                    targetTemplate.setType(NotificationPayloadType.TEST_RESULT);
+                }
+                targetTemplate.setSubjectTemplate(incomingTemplate.getSubjectTemplate());
+                targetTemplate.setMessageTemplate(incomingTemplate.getMessageTemplate());
+                targetTemplate.setSysUserId(sysUserId);
+                targetTemplate = notificationPayloadTemplateService.save(targetTemplate);
+                oldOption.setPayloadTemplate(targetTemplate);
+            }
+            oldOption.setSysUserId(sysUserId);
+        }
+    }
+
+    private void removeMissingInternalProfileOptions(TestNotificationConfig oldConfig, TestNotificationConfig newConfig) {
+        List<NotificationConfigOption> newInternalProfileOptions = newConfig.getOptions().stream()
+                .filter(this::isInternalProfileEmailOption).toList();
+        Iterator<NotificationConfigOption> iterator = oldConfig.getOptions().iterator();
+        while (iterator.hasNext()) {
+            NotificationConfigOption oldOption = iterator.next();
+            if (!isInternalProfileEmailOption(oldOption)) {
+                continue;
+            }
+            boolean stillPresent = newInternalProfileOptions.stream()
+                    .anyMatch(newOption -> internalProfileOptionMatches(oldOption, newOption));
+            if (!stillPresent) {
+                iterator.remove();
+            }
+        }
+    }
+
+    private NotificationConfigOption findMatchingOption(TestNotificationConfig oldConfig, NotificationConfigOption newOption) {
+        if (isInternalProfileEmailOption(newOption)) {
+            return oldConfig.getOptions().stream()
+                    .filter(opt -> internalProfileOptionMatches(opt, newOption))
+                    .findFirst()
+                    .orElseGet(() -> {
+                        NotificationConfigOption created = new NotificationConfigOption(NotificationMethod.EMAIL,
+                                NotificationPersonType.INTERNAL_PROFILE,
+                                newOption.getNotificationNature() == null ? NotificationNature.RESULT_PENDING_VALIDATION
+                                        : newOption.getNotificationNature(),
+                                false);
+                        oldConfig.getOptions().add(created);
+                        return created;
+                    });
+        }
+        return oldConfig.getOptionFor(newOption.getNotificationNature(), newOption.getNotificationMethod(),
+                newOption.getNotificationPersonType());
+    }
+
+    private NotificationPayloadTemplate resolvePayloadTemplate(NotificationConfigOption option) {
+        NotificationPayloadTemplate template = option.getPayloadTemplate();
+        if (template != null) {
+            return template;
+        }
+        String subject = option.getSubjectTemplate();
+        String message = option.getMessageTemplate();
+        if (GenericValidator.isBlankOrNull(subject) && GenericValidator.isBlankOrNull(message)) {
+            return null;
+        }
+        NotificationPayloadTemplate created = new NotificationPayloadTemplate();
+        created.setType(NotificationPayloadType.TEST_RESULT);
+        created.setSubjectTemplate(subject);
+        created.setMessageTemplate(message);
+        return created;
+    }
+
+    private boolean isInternalProfileEmailOption(NotificationConfigOption option) {
+        return option.getNotificationMethod() == NotificationMethod.EMAIL
+                && option.getNotificationPersonType() == NotificationPersonType.INTERNAL_PROFILE;
+    }
+
+    private boolean internalProfileOptionMatches(NotificationConfigOption left, NotificationConfigOption right) {
+        if (left.getId() != null && right.getId() != null) {
+            return left.getId().equals(right.getId());
+        }
+        return left.getNotificationNature() == right.getNotificationNature()
+                && StringUtils.equalsIgnoreCase(StringUtils.trimToEmpty(left.getProfessionalProfileCode()),
+                        StringUtils.trimToEmpty(right.getProfessionalProfileCode()));
     }
 
     @Override
@@ -163,5 +280,13 @@ public class TestNotificationConfigServiceImpl extends AuditableBaseObjectServic
         TestNotificationConfig savedConfig = saveTestNotificationConfigActiveStatuses(config, sysUserId);
         config.setId(savedConfig.getId());
         updatePayloadTemplatesMessageAndSubject(config, sysUserId);
+        TestNotificationConfig persisted = get(savedConfig.getId());
+        LogEvent.logInfo(this.getClass().getSimpleName(), "saveStatusAndMessages",
+                "saved testId=" + persisted.getTestId() + " internalRules=" + persisted.getInternalProfileEmailNotifications()
+                        .stream()
+                        .map(opt -> "nature=" + opt.getNotificationNature() + ",profile=" + opt.getProfessionalProfileCode()
+                                + ",active=" + opt.getActive() + ",subject=" + opt.getSubjectTemplate() + ",message="
+                                + opt.getMessageTemplate())
+                        .reduce((left, right) -> left + " || " + right).orElse("<none>"));
     }
 }

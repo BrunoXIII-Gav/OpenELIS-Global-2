@@ -25,6 +25,7 @@ public class SaveSampleManagementChangesForm {
     public static class SampleUpdate {
         @NotBlank(message = "Sample item ID is required")
         private String sampleItemId;
+        private String cugCode;
         private String quantity;
         private String unitOfMeasureId;
         private String collector;
@@ -50,6 +51,14 @@ public class SaveSampleManagementChangesForm {
 
         public void setQuantity(String quantity) {
             this.quantity = quantity;
+        }
+
+        public String getCugCode() {
+            return cugCode;
+        }
+
+        public void setCugCode(String cugCode) {
+            this.cugCode = cugCode;
         }
 
         public String getUnitOfMeasureId() {

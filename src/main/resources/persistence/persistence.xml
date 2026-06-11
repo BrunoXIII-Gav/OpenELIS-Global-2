@@ -98,7 +98,11 @@
         <class>org.openelisglobal.orderadditionalfield.valueholder.SampleOrderAdditionalFieldValue</class>
         <class>org.openelisglobal.orderadditionalfield.valueholder.SampleOrderAdditionalFieldFile</class>
         <class>org.openelisglobal.orderadditionalfield.valueholder.OrderFixedFieldConfig</class>
+        <class>org.openelisglobal.patientadditionalfield.valueholder.PatientAdditionalFieldDefinition</class>
+        <class>org.openelisglobal.patientadditionalfield.valueholder.PatientAdditionalFieldOption</class>
+        <class>org.openelisglobal.patientadditionalfield.valueholder.PatientAdditionalFieldValue</class>
         <class>org.openelisglobal.analysis.valueholder.AnalysisTubeUsage</class>
+        <class>org.openelisglobal.analysis.valueholder.AnalysisTubeLabel</class>
 
         <properties>
             <property name="hibernate.cfg_xml_file"

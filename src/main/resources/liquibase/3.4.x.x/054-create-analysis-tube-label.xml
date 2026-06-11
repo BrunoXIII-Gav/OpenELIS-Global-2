@@ -1,0 +1,132 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<databaseChangeLog
+  xmlns="http://www.liquibase.org/xml/ns/dbchangelog"
+  xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+  xsi:schemaLocation="http://www.liquibase.org/xml/ns/dbchangelog
+                      http://www.liquibase.org/xml/ns/dbchangelog/dbchangelog-4.8.xsd">
+
+  <changeSet id="054-1-create-analysis-tube-label-seq" author="OpenAI">
+    <preConditions onFail="MARK_RAN">
+      <not>
+        <sequenceExists schemaName="clinlims" sequenceName="analysis_tube_label_seq"/>
+      </not>
+    </preConditions>
+
+    <createSequence schemaName="clinlims" sequenceName="analysis_tube_label_seq" startValue="1"/>
+
+    <rollback>
+      <dropSequence schemaName="clinlims" sequenceName="analysis_tube_label_seq"/>
+    </rollback>
+  </changeSet>
+
+  <changeSet id="054-2-create-analysis-tube-label-table" author="OpenAI">
+    <preConditions onFail="MARK_RAN">
+      <not>
+        <tableExists schemaName="clinlims" tableName="analysis_tube_label"/>
+      </not>
+    </preConditions>
+
+    <createTable schemaName="clinlims" tableName="analysis_tube_label">
+      <column name="id" type="BIGINT">
+        <constraints nullable="false" primaryKey="true" primaryKeyName="pk_analysis_tube_label"/>
+      </column>
+      <column name="analysis_id" type="NUMERIC(10,0)">
+        <constraints nullable="false"/>
+      </column>
+      <column name="tube_block_name" type="VARCHAR(150)">
+        <constraints nullable="false"/>
+      </column>
+      <column name="label_code" type="VARCHAR(180)">
+        <constraints nullable="false"/>
+      </column>
+      <column name="sys_user_id" type="VARCHAR(40)">
+        <constraints nullable="false"/>
+      </column>
+      <column name="last_updated" type="TIMESTAMP"/>
+    </createTable>
+
+    <rollback>
+      <dropTable schemaName="clinlims" tableName="analysis_tube_label"/>
+    </rollback>
+  </changeSet>
+
+  <changeSet id="054-3-add-analysis-tube-label-analysis-block-unique" author="OpenAI">
+    <preConditions onFail="MARK_RAN">
+      <tableExists schemaName="clinlims" tableName="analysis_tube_label"/>
+      <sqlCheck expectedResult="0">
+        SELECT COUNT(*)
+        FROM information_schema.table_constraints
+        WHERE table_schema = 'clinlims'
+          AND table_name = 'analysis_tube_label'
+          AND constraint_name = 'uq_analysis_tube_label_analysis_block'
+          AND constraint_type = 'UNIQUE'
+      </sqlCheck>
+    </preConditions>
+
+    <addUniqueConstraint schemaName="clinlims" tableName="analysis_tube_label"
+      columnNames="analysis_id, tube_block_name" constraintName="uq_analysis_tube_label_analysis_block"/>
+
+    <rollback>
+      <dropUniqueConstraint schemaName="clinlims" tableName="analysis_tube_label"
+        constraintName="uq_analysis_tube_label_analysis_block"/>
+    </rollback>
+  </changeSet>
+
+  <changeSet id="054-4-add-analysis-tube-label-code-unique" author="OpenAI">
+    <preConditions onFail="MARK_RAN">
+      <tableExists schemaName="clinlims" tableName="analysis_tube_label"/>
+      <sqlCheck expectedResult="0">
+        SELECT COUNT(*)
+        FROM information_schema.table_constraints
+        WHERE table_schema = 'clinlims'
+          AND table_name = 'analysis_tube_label'
+          AND constraint_name = 'uq_analysis_tube_label_code'
+          AND constraint_type = 'UNIQUE'
+      </sqlCheck>
+    </preConditions>
+
+    <addUniqueConstraint schemaName="clinlims" tableName="analysis_tube_label"
+      columnNames="label_code" constraintName="uq_analysis_tube_label_code"/>
+
+    <rollback>
+      <dropUniqueConstraint schemaName="clinlims" tableName="analysis_tube_label"
+        constraintName="uq_analysis_tube_label_code"/>
+    </rollback>
+  </changeSet>
+
+  <changeSet id="054-5-add-analysis-tube-label-analysis-fk" author="OpenAI">
+    <preConditions onFail="MARK_RAN">
+      <tableExists schemaName="clinlims" tableName="analysis_tube_label"/>
+      <not>
+        <foreignKeyConstraintExists foreignKeyName="fk_analysis_tube_label_analysis"/>
+      </not>
+    </preConditions>
+
+    <addForeignKeyConstraint baseTableSchemaName="clinlims" baseTableName="analysis_tube_label"
+      baseColumnNames="analysis_id" referencedTableSchemaName="clinlims" referencedTableName="analysis"
+      referencedColumnNames="id" constraintName="fk_analysis_tube_label_analysis"/>
+
+    <rollback>
+      <dropForeignKeyConstraint baseTableSchemaName="clinlims" baseTableName="analysis_tube_label"
+        constraintName="fk_analysis_tube_label_analysis"/>
+    </rollback>
+  </changeSet>
+
+  <changeSet id="054-6-add-analysis-tube-label-analysis-index" author="OpenAI">
+    <preConditions onFail="MARK_RAN">
+      <tableExists schemaName="clinlims" tableName="analysis_tube_label"/>
+      <not>
+        <indexExists schemaName="clinlims" tableName="analysis_tube_label"
+          indexName="idx_analysis_tube_label_analysis"/>
+      </not>
+    </preConditions>
+
+    <createIndex schemaName="clinlims" tableName="analysis_tube_label" indexName="idx_analysis_tube_label_analysis">
+      <column name="analysis_id"/>
+    </createIndex>
+
+    <rollback>
+      <dropIndex schemaName="clinlims" tableName="analysis_tube_label" indexName="idx_analysis_tube_label_analysis"/>
+    </rollback>
+  </changeSet>
+</databaseChangeLog>

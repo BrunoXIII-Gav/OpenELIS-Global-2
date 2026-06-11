@@ -18,6 +18,7 @@ import org.openelisglobal.patient.action.IPatientUpdate.PatientUpdateStatus;
 import org.openelisglobal.patient.action.bean.PatientManagementInfo;
 import org.openelisglobal.patient.action.bean.PatientSearch;
 import org.openelisglobal.patient.service.PatientService;
+import org.openelisglobal.patient.util.PatientIdentifierUtil;
 import org.openelisglobal.patient.validator.ValidatePatientInfo;
 import org.openelisglobal.patient.valueholder.Patient;
 import org.openelisglobal.patientidentity.service.PatientIdentityService;
@@ -48,7 +49,7 @@ public class PatientManagementController extends BaseController {
             "patientProperties.patientLastUpdated", "patientProperties.personLastUpdated",
             "patientProperties.patientUpdateStatus", "patientProperties.patientPK", "patientProperties.guid",
             "patientProperties.fhirUuid", "patientProperties.STnumber", "patientProperties.subjectNumber",
-            "patientProperties.nationalId", "patientProperties.dni", "patientProperties.passportNumber",
+            "patientProperties.nationalId", "patientProperties.primaryPatientIdentifierType", "patientProperties.dni", "patientProperties.passportNumber",
             "patientProperties.foreignId", "patientProperties.lastName", "patientProperties.firstName",
             "patientProperties.aka", "patientProperties.mothersName", "patientProperties.mothersInitial",
             "patientProperties.streetAddress", "patientProperties.commune", "patientProperties.city",
@@ -158,6 +159,7 @@ public class PatientManagementController extends BaseController {
     public void preparePatientData(Errors errors, HttpServletRequest request, PatientManagementInfo patientInfo,
             Patient patient) throws IllegalAccessException, InvocationTargetException, NoSuchMethodException {
 
+        PatientIdentifierUtil.synchronizeDerivedNationalId(patientInfo);
         ValidatePatientInfo.validatePatientInfo(errors, patientInfo);
         if (errors.hasErrors()) {
             return;

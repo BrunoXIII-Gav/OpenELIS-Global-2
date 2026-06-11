@@ -71,12 +71,12 @@ function PatientManagement() {
               id="newPatient"
               kind={newPatientTab.kind}
               onClick={handleNewPatientTab}
-            >
-              <FormattedMessage
-                id="new.patient.label"
-                defaultMessage="New Patient"
-              />
-            </Button>
+              >
+                <FormattedMessage
+                  id="new.patient.label"
+                  defaultMessage="New Patient"
+                />
+              </Button>
           </Column>
 
           {searchPatientTab.active && (

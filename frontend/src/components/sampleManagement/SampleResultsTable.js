@@ -31,9 +31,9 @@ import {
 import { useIntl, FormattedMessage } from "react-intl";
 import { Folder, Document, TrashCan, Chemistry } from "@carbon/icons-react";
 import {
-  postToOpenElisServer,
   postToOpenElisServerFullResponse,
   getFromOpenElisServer,
+  postToOpenElisServerJsonResponse,
 } from "../utils/Utils";
 
 const ORDER_FIXED_FIELD_LABEL_MESSAGE_IDS = {
@@ -66,6 +66,7 @@ const ORDER_FIXED_FIELD_LABEL_MESSAGE_IDS = {
 };
 
 const SAMPLE_FIXED_FIELD_LABEL_MESSAGE_IDS = {
+  cugCode: "sample.cug.label",
   quantity: "sample.quantity.label",
   uom: "sample.uom.label",
   collector: "collector.label",
@@ -74,6 +75,7 @@ const SAMPLE_FIXED_FIELD_LABEL_MESSAGE_IDS = {
 };
 
 const SAMPLE_MANAGEMENT_EDITABLE_FIXED_FIELD_KEYS = [
+  "cugCode",
   "quantity",
   "uom",
   "collector",
@@ -565,6 +567,7 @@ function SampleResultsTable({
         id: item.id,
         externalId: item.externalId || "-",
         sampleAccessionNumber: item.sampleAccessionNumber || "",
+        cugCodeRaw: item.cugCode || "",
         cugCode: item.cugCode || "-",
         sampleType: item.sampleType || "-",
         sampleTypeId: item.sampleTypeId ? String(item.sampleTypeId) : "",
@@ -732,6 +735,7 @@ function SampleResultsTable({
       rowLevelDetailsFromCurrentRow ||
       rowDetailsCandidates.find(
         (d) =>
+          d.cugCode !== undefined ||
           d.quantity !== undefined ||
           d.unitOfMeasureId !== undefined ||
           d.collector !== undefined ||
@@ -742,6 +746,10 @@ function SampleResultsTable({
       {};
 
     const sampleLevel = {
+      cugCode:
+        rowLevelDetails.cugCode !== undefined
+          ? rowLevelDetails.cugCode
+          : originalRow?.cugCode || originalRow?.cugCodeRaw || "",
       quantity:
         rowLevelDetails.quantity !== undefined
           ? rowLevelDetails.quantity
@@ -790,83 +798,6 @@ function SampleResultsTable({
     };
   };
 
-  const toDisplayDate = (dateValue) => {
-    if (!dateValue) return "";
-    if (dateValue.includes("/")) return dateValue;
-    const [year, month, day] = dateValue.split("-");
-    if (!year || !month || !day) return dateValue;
-    return `${month}/${day}/${year}`;
-  };
-
-  const toDisplayTime = (timeValue) => {
-    if (!timeValue) return "";
-    if (
-      timeValue.toUpperCase().includes("AM") ||
-      timeValue.toUpperCase().includes("PM")
-    ) {
-      return timeValue;
-    }
-    const [hourText, minuteText] = String(timeValue).split(":");
-    const hour = Number(hourText);
-    if (Number.isNaN(hour) || minuteText === undefined) return timeValue;
-    const minute = minuteText.slice(0, 2);
-    const suffix = hour >= 12 ? "PM" : "AM";
-    const displayHour = hour % 12 === 0 ? 12 : hour % 12;
-    return `${displayHour}:${minute} ${suffix}`;
-  };
-
-  const applySampleUpdateToSampleEditForm = (form, sampleUpdate) => {
-    if (!form || !Array.isArray(form.existingTests)) {
-      return false;
-    }
-
-    const sampleTests = form.existingTests.filter(
-      (test) => String(test.sampleItemId) === String(sampleUpdate.sampleItemId),
-    );
-    if (sampleTests.length === 0) {
-      return false;
-    }
-
-    const currentTestByAnalysisId = new Map(
-      (sampleUpdate.currentTests || []).map((testUpdate) => [
-        String(testUpdate.analysisId),
-        Boolean(testUpdate.canceled),
-      ]),
-    );
-
-    const collectionDateDisplay = toDisplayDate(sampleUpdate.collectionDate);
-    const collectionTimeDisplay = toDisplayTime(sampleUpdate.collectionTime);
-
-    sampleTests.forEach((test) => {
-      test.sampleItemChanged = true;
-      test.quantity = sampleUpdate.quantity ?? "";
-      test.unitOfMeasureId = sampleUpdate.unitOfMeasureId ?? "";
-      test.collector = sampleUpdate.collector ?? "";
-      test.collectionDate = collectionDateDisplay;
-      test.collectionTime = collectionTimeDisplay;
-      test.additionalFieldValues = sampleUpdate.additionalFieldValues || {};
-      test.canceled =
-        Boolean(sampleUpdate.removeSample) ||
-        Boolean(currentTestByAnalysisId.get(String(test.analysisId)));
-    });
-
-    return true;
-  };
-
-  const prepareSampleEditFormForSubmit = (form) => {
-    if (!form?.sampleOrderItems) return form;
-    form.sampleOrderItems.modified = true;
-    form.sampleOrderItems.priorityList = [];
-    form.sampleOrderItems.programList = [];
-    form.sampleOrderItems.referringSiteList = [];
-    form.sampleOrderItems.providersList = [];
-    form.sampleOrderItems.paymentOptions = [];
-    form.sampleOrderItems.testLocationCodeList = [];
-    form.initialSampleConditionList = [];
-    form.testSectionList = [];
-    return form;
-  };
-
   const handleSaveSampleChanges = (sampleId, originalRow, additionalFields) => {
     const payload = buildSampleSavePayload(
       sampleId,
@@ -875,66 +806,33 @@ function SampleResultsTable({
     );
     setSavingBySampleId((prev) => ({ ...prev, [sampleId]: true }));
     const sampleUpdate = payload?.sampleUpdates?.[0];
-    const accessionNumber = originalRow?.sampleAccessionNumber || "";
-    if (!sampleUpdate || !accessionNumber) {
+    if (!sampleUpdate) {
       setSavingBySampleId((prev) => ({ ...prev, [sampleId]: false }));
       if (onPersistResult) {
         onPersistResult({
           success: false,
-          message: "Missing accession number for save",
+          message: "Missing sample data for save",
         });
       }
       return;
     }
 
-    getFromOpenElisServer(
-      `/rest/SampleEdit?accessionNumber=${encodeURIComponent(accessionNumber)}`,
-      (sampleEditForm) => {
-        if (!sampleEditForm || !Array.isArray(sampleEditForm.existingTests)) {
-          setSavingBySampleId((prev) => ({ ...prev, [sampleId]: false }));
-          if (onPersistResult) {
-            onPersistResult({
-              success: false,
-              message: "Unable to load SampleEdit form for save",
-            });
-          }
-          return;
+    postToOpenElisServerJsonResponse(
+      "/rest/sample-management/save-changes",
+      JSON.stringify(payload),
+      (response) => {
+        setSavingBySampleId((prev) => ({ ...prev, [sampleId]: false }));
+        if (onPersistResult) {
+          onPersistResult({
+            success:
+              !response?.error &&
+              !response?.statusCode &&
+              response?.updatedSamplesCount !== undefined,
+            message:
+              response?.message ||
+              intl.formatMessage({ id: "sample.management.success.title" }),
+          });
         }
-
-        const updated = applySampleUpdateToSampleEditForm(
-          sampleEditForm,
-          sampleUpdate,
-        );
-        if (!updated) {
-          setSavingBySampleId((prev) => ({ ...prev, [sampleId]: false }));
-          if (onPersistResult) {
-            onPersistResult({
-              success: false,
-              message: "Selected sample was not found in SampleEdit flow",
-            });
-          }
-          return;
-        }
-
-        const formToSubmit = prepareSampleEditFormForSubmit(sampleEditForm);
-        postToOpenElisServer(
-          "/rest/SampleEdit",
-          JSON.stringify(formToSubmit),
-          (status) => {
-            setSavingBySampleId((prev) => ({ ...prev, [sampleId]: false }));
-            if (onPersistResult) {
-              onPersistResult({
-                success: status === 200,
-                message:
-                  status === 200
-                    ? intl.formatMessage({
-                        id: "sample.management.success.title",
-                      })
-                    : "Failed to save sample changes",
-              });
-            }
-          },
-        );
       },
     );
   };
@@ -1064,6 +962,28 @@ function SampleResultsTable({
       </div>
     );
   };
+
+  const getPrimarySampleRowId = useCallback(
+    (rowId, originalRow) => {
+      const firstTestId = originalRow?.orderedTests?.[0]?.analysisId;
+      return firstTestId ? `${rowId}-${firstTestId}` : `${rowId}__sample`;
+    },
+    [],
+  );
+
+  const getEditableSampleCugValue = useCallback(
+    (rowId, originalRow) => {
+      const primarySampleRowId = getPrimarySampleRowId(rowId, originalRow);
+      const sampleDetails =
+        currentTestDetailsByKey[`${rowId}__sample`] ||
+        currentTestDetailsByKey[primarySampleRowId] ||
+        {};
+      return sampleDetails.cugCode !== undefined
+        ? sampleDetails.cugCode
+        : originalRow?.cugCodeRaw || originalRow?.cugCode || "";
+    },
+    [currentTestDetailsByKey, getPrimarySampleRowId],
+  );
 
   /**
    * Render expanded row content with test details.
@@ -1199,15 +1119,10 @@ function SampleResultsTable({
         {shouldShowCurrentTests &&
           (() => {
             const orderedTests = originalRow.orderedTests || [];
-            const firstTestId = orderedTests[0]?.analysisId;
-            const primarySampleRowId = firstTestId
-              ? `${row.id}-${firstTestId}`
-              : `${row.id}__sample`;
+            const primarySampleRowId = getPrimarySampleRowId(row.id, originalRow);
             const sampleDetails =
               currentTestDetailsByKey[`${row.id}__sample`] ||
-              (firstTestId
-                ? currentTestDetailsByKey[`${row.id}-${firstTestId}`]
-                : {}) ||
+              currentTestDetailsByKey[primarySampleRowId] ||
               {};
             const sampleQuantity =
               sampleDetails.quantity !== undefined
@@ -1627,13 +1542,14 @@ function SampleResultsTable({
         {shouldShowCurrentTests && (
           <div
             style={{
-              marginTop: "1rem",
+              marginTop: "0.75rem",
               display: "flex",
               justifyContent: "flex-end",
             }}
           >
             <Button
-              kind="primary"
+              kind="secondary"
+              size="sm"
               onClick={() =>
                 handleSaveSampleChanges(row.id, originalRow, additionalFields)
               }
@@ -1642,8 +1558,8 @@ function SampleResultsTable({
               {savingBySampleId[row.id]
                 ? intl.formatMessage({ id: "sample.management.search.loading" })
                 : intl.formatMessage({
-                    id: "sample.management.action.saveChanges",
-                    defaultMessage: "Save Changes",
+                    id: "sample.management.action.save",
+                    defaultMessage: "Save",
                   })}
             </Button>
           </div>
@@ -1822,6 +1738,42 @@ function SampleResultsTable({
                               ? renderHierarchyIndicator(row)
                               : cell.info.header === "tests"
                                 ? renderTestsCount(row)
+                                : cell.info.header === "cugCode"
+                                  ? (() => {
+                                      const editableCugValue =
+                                        getEditableSampleCugValue(
+                                          row.id,
+                                          originalRow,
+                                        );
+                                      const primarySampleRowId =
+                                        getPrimarySampleRowId(
+                                          row.id,
+                                          originalRow,
+                                        );
+                                      return (
+                                        <div
+                                          style={{
+                                            minWidth: "120px",
+                                          }}
+                                          onClick={(e) => e.stopPropagation()}
+                                        >
+                                          <TextInput
+                                            id={`${row.id}-table-cugCode`}
+                                            labelText=""
+                                            hideLabel
+                                            size="sm"
+                                            value={editableCugValue}
+                                            onChange={(e) =>
+                                              handleCurrentTestFieldChange(
+                                                primarySampleRowId,
+                                                "cugCode",
+                                                e.target.value,
+                                              )
+                                            }
+                                          />
+                                        </div>
+                                      );
+                                    })()
                                 : cell.value}
                         </TableCell>
                       ))}

@@ -436,6 +436,39 @@ const InlineResultEditor = ({
   );
 };
 
+const DeferredTextInput = ({
+  inputId,
+  labelText,
+  value,
+  onCommit,
+  type = "text",
+  step,
+  min,
+  disabled = false,
+}) => {
+  const [draftValue, setDraftValue] = useState(value || "");
+
+  useEffect(() => {
+    setDraftValue(value || "");
+  }, [value, inputId, type]);
+
+  return (
+    <TextInput
+      id={inputId}
+      labelText={labelText}
+      type={type}
+      step={step}
+      min={min}
+      value={draftValue}
+      disabled={disabled}
+      onChange={(event) => {
+        setDraftValue(event.target.value);
+      }}
+      onBlur={() => onCommit(draftValue == null ? "" : draftValue)}
+    />
+  );
+};
+
 const normalizeResultEntryScope = (scopeValue) =>
   String(scopeValue || "").toUpperCase() === "PRELIMINARY"
     ? "PRELIMINARY"
@@ -593,6 +626,14 @@ const isPrimaryChildTubeUsageBlockEnabled = (data) =>
     metadataJson: data?.resultDisplayConfigJson,
   })?.tubeUsage?.childBlockEnabled === true;
 
+const isTubeLabelEnabled = (fieldDefinition) =>
+  parseAdditionalFieldMetadata(fieldDefinition)?.tubeLabel?.enabled === true;
+
+const isPrimaryTubeLabelEnabled = (data) =>
+  parseAdditionalFieldMetadata({
+    metadataJson: data?.resultDisplayConfigJson,
+  })?.tubeLabel?.enabled === true;
+
 const normalizeBlockIdentifier = (value) =>
   String(value == null ? "" : value)
     .trim()
@@ -663,6 +704,38 @@ const getConfiguredChildTubeUsageBlocks = (data, intl) => {
   if (isPrimaryChildTubeUsageBlockEnabled(data)) {
     const primaryLayout = getPrimaryResultLayout(data, intl);
     if (isPrimaryResultActive(data) && primaryLayout?.blockName) {
+      configuredBlocks.add(normalizeBlockIdentifier(primaryLayout.blockName));
+    }
+  }
+
+  return Array.from(configuredBlocks);
+};
+
+const getConfiguredTubeLabelBlocks = (data, intl) => {
+  const configuredBlocks = new Set();
+  const activeAdditionalFields = Array.isArray(data?.additionalFieldDefinitions)
+    ? data.additionalFieldDefinitions.filter(
+        (fieldDefinition) => fieldDefinition?.active !== false,
+      )
+    : [];
+  const visibleAdditionalFields = getVisibleAdditionalFields(
+    data,
+    activeAdditionalFields,
+  );
+
+  visibleAdditionalFields.forEach((fieldDefinition) => {
+    if (!isTubeLabelEnabled(fieldDefinition)) {
+      return;
+    }
+    const { blockName } = getFieldBlockAndScope(fieldDefinition);
+    if (blockName) {
+      configuredBlocks.add(normalizeBlockIdentifier(blockName));
+    }
+  });
+
+  if (isPrimaryTubeLabelEnabled(data)) {
+    const primaryLayout = getPrimaryResultLayout(data, intl);
+    if (isPrimaryResultVisible(data) && primaryLayout?.blockName) {
       configuredBlocks.add(normalizeBlockIdentifier(primaryLayout.blockName));
     }
   }
@@ -2060,16 +2133,25 @@ export function SearchResults(props) {
                 { quantity: row.sampleRemainingQuantity || "-" },
               )}
             </small>
-            <TextInput
-              id={"sampleUsageQuantity" + row.id}
-              name={"testResult[" + row.id + "].sampleUsageQuantity"}
+            <DeferredTextInput
+              inputId={"sampleUsageQuantity" + row.id}
               labelText=""
               type="number"
               step="0.001"
               min="0"
               value={row.sampleUsageQuantity || ""}
               disabled={row.sampleUsageLocked === true}
-              onChange={(e) => handleChange(e, row.id)}
+              onCommit={(nextValue) =>
+                handleChange(
+                  {
+                    target: {
+                      name: "testResult[" + row.id + "].sampleUsageQuantity",
+                      value: nextValue,
+                    },
+                  },
+                  row.id,
+                )
+              }
             />
           </Stack>
         );
@@ -2089,16 +2171,26 @@ export function SearchResults(props) {
                 { quantity: row.parentSampleRemainingQuantity || "-" },
               )}
             </small>
-            <TextInput
-              id={"parentSampleUsageQuantity" + row.id}
-              name={"testResult[" + row.id + "].parentSampleUsageQuantity"}
+            <DeferredTextInput
+              inputId={"parentSampleUsageQuantity" + row.id}
               labelText=""
               type="number"
               step="0.001"
               min="0"
               value={row.parentSampleUsageQuantity || ""}
               disabled={row.parentSampleUsageLocked === true}
-              onChange={(e) => handleChange(e, row.id)}
+              onCommit={(nextValue) =>
+                handleChange(
+                  {
+                    target: {
+                      name:
+                        "testResult[" + row.id + "].parentSampleUsageQuantity",
+                      value: nextValue,
+                    },
+                  },
+                  row.id,
+                )
+              }
             />
           </Stack>
         );
@@ -2314,6 +2406,20 @@ export function SearchResults(props) {
     props.setResultForm(form);
   };
 
+  const handleTubeLabelChange = (rowId, blockTitle, nextValue) => {
+    const form = {
+      ...props.results,
+      testResult: [...props.results.testResult],
+    };
+    const row = { ...(form.testResult[rowId] || {}) };
+    const nextLabels = { ...(row.tubeLabels || {}) };
+    nextLabels[blockTitle] = nextValue == null ? "" : `${nextValue}`;
+    row.tubeLabels = nextLabels;
+    row.isModified = "true";
+    form.testResult[rowId] = row;
+    props.setResultForm(form);
+  };
+
   const recalculateBlockTubeUsageState = (row) => {
     const blockSampleUsages = Array.isArray(row?.blockSampleUsages)
       ? row.blockSampleUsages.map((blockUsage) => ({ ...blockUsage }))
@@ -2506,8 +2612,8 @@ export function SearchResults(props) {
               { quantity: resolvedBlockUsage.remainingQuantity || "-" },
             )}
           </small>
-          <TextInput
-            id={`block-sample-usage-${data.id}-${blockTitle}`}
+          <DeferredTextInput
+            inputId={`block-sample-usage-${data.id}-${blockTitle}`}
             labelText={intl.formatMessage({
               id: "result.entry.sampleUsage.label",
               defaultMessage: "Cantidad usada",
@@ -2517,15 +2623,51 @@ export function SearchResults(props) {
             min="0"
             value={resolvedBlockUsage.usedQuantity || ""}
             disabled={resolvedBlockUsage.locked === true}
-            onChange={(event) =>
+            onCommit={(nextValue) =>
               handleBlockTubeUsageQuantityChange(
                 data.id,
                 blockTitle,
-                event.target.value,
+                nextValue,
               )
             }
           />
         </Stack>
+      </Column>
+    );
+  };
+
+  const renderTubeLabelControl = (data, blockTitle) => {
+    const configuredBlocks = getConfiguredTubeLabelBlocks(data, intl);
+    if (!configuredBlocks.includes(normalizeBlockIdentifier(blockTitle))) {
+      return null;
+    }
+
+    const value =
+      data?.tubeLabels?.[blockTitle] ??
+      Object.entries(data?.tubeLabels || {}).find(
+        ([key]) =>
+          normalizeBlockIdentifier(key) === normalizeBlockIdentifier(blockTitle),
+      )?.[1] ??
+      "";
+
+    return (
+      <Column
+        lg={4}
+        md={4}
+        sm={4}
+        key={`tube-label-${data.id}-${blockTitle}`}
+      >
+        <DeferredTextInput
+          inputId={`tube-label-${data.id}-${blockTitle}`}
+          labelText={intl.formatMessage({
+            id: "result.entry.tubeLabel",
+            defaultMessage: "Etiqueta",
+          })}
+          value={value}
+          onCommit={(nextValue) =>
+            handleTubeLabelChange(data.id, blockTitle, nextValue)
+          }
+        />
       </Column>
     );
   };
@@ -2898,6 +3040,7 @@ export function SearchResults(props) {
                           {blockTitle}
                         </h6>
                       </Column>
+                      {renderTubeLabelControl(data, blockTitle)}
                       {renderBlockTubeUsageControl(data, blockTitle)}
                       {sortedItems.map((item, fieldIndex) => {
                         if (item.type === "primary") {
