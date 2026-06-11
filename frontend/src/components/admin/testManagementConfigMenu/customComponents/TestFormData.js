@@ -18,6 +18,7 @@ export const TestFormData = {
   resultTubeSelectorMax: "2",
   resultTubeActivationCount: "",
   resultTubeQuantitySource: false,
+  resultTubeLabelEnabled: false,
   resultChildTubeUsageBlockEnabled: false,
   resultDisplayConfigJson: "",
   resultType: "",
@@ -75,6 +76,7 @@ const parseResultFieldMetadata = (metadataJson) => {
     tubeSelectorMax: "2",
     tubeActivationCount: "",
     tubeQuantitySource: false,
+    tubeLabelEnabled: false,
     childTubeUsageBlockEnabled: false,
   };
   if (!metadataJson || typeof metadataJson !== "string") {
@@ -141,6 +143,7 @@ const parseResultFieldMetadata = (metadataJson) => {
           ? String(tubeActivationCount)
           : "",
       tubeQuantitySource: parsed?.tubeQuantitySource === true,
+      tubeLabelEnabled: parsed?.tubeLabel?.enabled === true,
       childTubeUsageBlockEnabled: parsed?.tubeUsage?.childBlockEnabled === true,
     };
   } catch (e) {
@@ -252,6 +255,7 @@ export const mapTestCatBeanToFormData = (test) => {
     resultTubeSelectorMax: resultDisplayMetadata.tubeSelectorMax,
     resultTubeActivationCount: resultDisplayMetadata.tubeActivationCount,
     resultTubeQuantitySource: resultDisplayMetadata.tubeQuantitySource,
+    resultTubeLabelEnabled: resultDisplayMetadata.tubeLabelEnabled,
     resultChildTubeUsageBlockEnabled:
       resultDisplayMetadata.childTubeUsageBlockEnabled,
     resultDisplayConfigJson: test.resultDisplayConfigJson || "",
@@ -292,7 +296,7 @@ export const mapTestCatBeanToFormData = (test) => {
               displayName: field.displayName || "",
               fieldType: field.fieldType || "TEXT",
               required: !!field.required,
-              active: field.active !== false,
+              active: field.active !== false && parsedMetadata.active !== false,
               sortOrder: fallbackFieldSortOrder,
               fieldSortOrder:
                 parsedMetadata.fieldSortOrder || fallbackFieldSortOrder,

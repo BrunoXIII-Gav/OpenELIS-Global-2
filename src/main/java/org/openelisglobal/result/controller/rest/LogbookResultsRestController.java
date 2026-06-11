@@ -27,8 +27,10 @@ import org.json.simple.JSONObject;
 import org.json.simple.parser.JSONParser;
 import org.json.simple.parser.ParseException;
 import org.openelisglobal.analysis.service.AnalysisService;
+import org.openelisglobal.analysis.service.AnalysisTubeLabelService;
 import org.openelisglobal.analysis.service.AnalysisTubeUsageService;
 import org.openelisglobal.analysis.valueholder.Analysis;
+import org.openelisglobal.analysis.valueholder.AnalysisTubeLabel;
 import org.openelisglobal.analysis.valueholder.ResultFile;
 import org.openelisglobal.common.action.IActionConstants;
 import org.openelisglobal.common.constants.Constants;
@@ -156,7 +158,7 @@ public class LogbookResultsRestController extends LogbookResultsBaseController {
             "testResult*.referredOut", "testResult*.referralReasonId", "testResult*.technician",
             "testResult*.shadowRejected", "testResult*.rejected", "testResult*.rejectReasonId", "testResult*.note",
             "testResult*.sampleUsageQuantity", "testResult*.parentSampleUsageQuantity",
-            "testResult*.parentUsageBlockName",
+            "testResult*.parentUsageBlockName", "testResult*.tubeLabels",
             "paging.currentPage", "testResult*.resultFile", "testResult*.resultFile.fileName",
             "testResult*.resultFile.fileType", "testResult*.resultFile.base64Content", "testResult*.refer",
             "testResult*.referralItem.referralReasonId", "testResult*.referralItem.referredInstituteId",
@@ -217,6 +219,8 @@ public class LogbookResultsRestController extends LogbookResultsBaseController {
     private TestService testService;
     @Autowired
     private AnalysisTubeUsageService analysisTubeUsageService;
+    @Autowired
+    private AnalysisTubeLabelService analysisTubeLabelService;
 
     private final String RESULT_SUBJECT = "Result Note";
     private final String REFERRAL_CONFORMATION_ID;
@@ -689,6 +693,7 @@ public class LogbookResultsRestController extends LogbookResultsBaseController {
 
             Analysis analysis = analysisById.computeIfAbsent(testResultItem.getAnalysisId(), analysisService::get);
             applyParentChildDependencyAndUsage(testResultItem, analysis, actionDataSet, sampleItemsBeingUpdated);
+            applyParentTubeLabels(testResultItem, analysis);
             analysis.setStatusId(getStatusForTestResult(testResultItem, alwaysValidate));
             analysis.setSysUserId(getSysUserId(request));
             if (!GenericValidator.isBlankOrNull(testResultItem.getTestMethod())) {
@@ -939,6 +944,32 @@ public class LogbookResultsRestController extends LogbookResultsBaseController {
         });
     }
 
+    private void applyParentTubeLabels(TestResultItem testResultItem, Analysis analysis) {
+        if (testResultItem == null || analysis == null || analysis.getTest() == null) {
+            return;
+        }
+
+        List<String> activeLabelBlocks = resolveActiveTubeLabelBlocks(testResultItem);
+        if (activeLabelBlocks.isEmpty()) {
+            return;
+        }
+
+        Map<String, String> submittedLabels = testResultItem.getTubeLabels() == null ? Collections.emptyMap()
+                : testResultItem.getTubeLabels();
+        for (String blockName : activeLabelBlocks) {
+            String submittedLabel = submittedLabels.get(blockName);
+            if (GenericValidator.isBlankOrNull(submittedLabel)) {
+                for (Map.Entry<String, String> entry : submittedLabels.entrySet()) {
+                    if (normalizeBlockName(entry.getKey()).equals(normalizeBlockName(blockName))) {
+                        submittedLabel = entry.getValue();
+                        break;
+                    }
+                }
+            }
+            analysisTubeLabelService.saveOrUpdateLabel(analysis, blockName, submittedLabel, getSysUserId(request));
+        }
+    }
+
     private BigDecimal parseAndValidateUsageQuantity(String usageQuantity) {
         try {
             BigDecimal parsed = new BigDecimal(usageQuantity.trim()).setScale(3, RoundingMode.HALF_UP);
@@ -1167,12 +1198,100 @@ public class LogbookResultsRestController extends LogbookResultsBaseController {
         return blocks;
     }
 
+    private List<String> resolveActiveTubeLabelBlocks(TestResultItem testResultItem) {
+        List<String> blocks = new ArrayList<>();
+        if (testResultItem == null) {
+            return Collections.emptyList();
+        }
+
+        JsonNode primaryMetadata = readMetadataNode(testResultItem.getResultDisplayConfigJson());
+        if (isTubeLabelEnabled(primaryMetadata) && isPrimaryTubeLabelBlockActive(testResultItem, primaryMetadata)) {
+            String primaryBlockName = normalizeBlockName(primaryMetadata.path("resultBlock").asText(null));
+            if (GenericValidator.isBlankOrNull(primaryBlockName)) {
+                primaryBlockName = "PRELIMINARY"
+                        .equals(primaryMetadata.path("entryScope").asText("OFFICIAL").trim().toUpperCase())
+                                ? "Preliminary"
+                                : "Official";
+            }
+            if (!blocks.contains(primaryBlockName)) {
+                blocks.add(primaryBlockName);
+            }
+        }
+
+        if (testResultItem.getAdditionalFieldDefinitions() == null) {
+            return blocks;
+        }
+
+        for (TestAdditionalFieldPayload definition : testResultItem.getAdditionalFieldDefinitions()) {
+            if (definition == null || definition.getActive() == Boolean.FALSE || !isTubeLabelEnabled(definition)
+                    || !isTubeLabelBlockActive(definition, testResultItem, primaryMetadata)) {
+                continue;
+            }
+            String blockName = resolveFieldBlockName(definition);
+            if (GenericValidator.isBlankOrNull(blockName) || blocks.contains(blockName)) {
+                continue;
+            }
+            blocks.add(blockName);
+        }
+        return blocks;
+    }
+
     private boolean isChildTubeUsageBlockEnabled(TestAdditionalFieldPayload definition) {
         return readMetadataNode(definition).path("tubeUsage").path("childBlockEnabled").asBoolean(false);
     }
 
     private boolean isChildTubeUsageBlockEnabled(JsonNode metadataNode) {
         return metadataNode.path("tubeUsage").path("childBlockEnabled").asBoolean(false);
+    }
+
+    private boolean isTubeLabelEnabled(TestAdditionalFieldPayload definition) {
+        return readMetadataNode(definition).path("tubeLabel").path("enabled").asBoolean(false);
+    }
+
+    private boolean isTubeLabelEnabled(JsonNode metadataNode) {
+        return metadataNode.path("tubeLabel").path("enabled").asBoolean(false);
+    }
+
+    private boolean isTubeLabelBlockActive(TestAdditionalFieldPayload definition, TestResultItem testResultItem,
+            JsonNode primaryMetadata) {
+        int activationCount = getTubeActivationCount(definition);
+        if (activationCount <= 0) {
+            return true;
+        }
+        Integer selectedTubeCount = resolveSelectedTubeCount(testResultItem, primaryMetadata);
+        return selectedTubeCount != null && selectedTubeCount.intValue() >= activationCount;
+    }
+
+    private boolean isPrimaryTubeLabelBlockActive(TestResultItem testResultItem, JsonNode primaryMetadata) {
+        int activationCount = getTubeActivationCount(primaryMetadata);
+        if (activationCount <= 0) {
+            return true;
+        }
+        Integer selectedTubeCount = resolveSelectedTubeCount(testResultItem, primaryMetadata);
+        return selectedTubeCount != null && selectedTubeCount.intValue() >= activationCount;
+    }
+
+    private Integer resolveSelectedTubeCount(TestResultItem testResultItem, JsonNode primaryMetadata) {
+        if (testResultItem == null) {
+            return null;
+        }
+        if (primaryMetadata.path("tubeSelector").path("enabled").asBoolean(false)) {
+            BigDecimal parsed = parsePositiveOptionalBigDecimal(
+                    StringUtils.defaultIfBlank(testResultItem.getShadowResultValue(), testResultItem.getResultValue()));
+            return parsed == null ? null : Integer.valueOf(parsed.intValue());
+        }
+        if (testResultItem.getAdditionalFieldDefinitions() == null || testResultItem.getAdditionalFieldValues() == null) {
+            return null;
+        }
+        for (TestAdditionalFieldPayload definition : testResultItem.getAdditionalFieldDefinitions()) {
+            if (definition == null || definition.getActive() == Boolean.FALSE || !isTubeSelectorField(definition)) {
+                continue;
+            }
+            BigDecimal parsed = parsePositiveOptionalBigDecimal(
+                    testResultItem.getAdditionalFieldValues().get(definition.getFieldKey()));
+            return parsed == null ? null : Integer.valueOf(parsed.intValue());
+        }
+        return null;
     }
 
     private List<BlockSampleUsageItem> collectSubmittedBlockUsages(TestResultItem testResultItem,
@@ -1323,6 +1442,8 @@ public class LogbookResultsRestController extends LogbookResultsBaseController {
         }
 
         Map<String, String> values = testAdditionalFieldService.getAnalysisValuesForFields(parentAnalysis.getId(), definitions);
+        Map<String, AnalysisTubeLabel> persistedLabels = analysisTubeLabelService
+                .getByAnalysisIdGroupedByBlock(parentAnalysis.getId());
         BigDecimal selectedTubeCount = primarySelectorEnabled
                 ? parsePositiveOptionalBigDecimal(resolvePrimaryResultNumericValue(parentAnalysis))
                 : parsePositiveOptionalBigDecimal(values == null ? null : values.get(selectorFieldKey));
@@ -1337,7 +1458,7 @@ public class LogbookResultsRestController extends LogbookResultsBaseController {
             if (primaryActivationCount <= 0 || primaryActivationCount <= selectedCount) {
                 TubeBlockContext context = new TubeBlockContext();
                 context.blockName = resolvePrimaryResultBlockName(parentAnalysis);
-                context.label = context.blockName;
+                context.label = resolveTubeBlockLabel(context.blockName, persistedLabels);
                 context.quantityFieldKey = "__PRIMARY_RESULT__";
                 context.totalAvailable = parseZeroOrPositiveBigDecimal(
                         resolvePrimaryResultNumericValue(parentAnalysis),
@@ -1360,7 +1481,7 @@ public class LogbookResultsRestController extends LogbookResultsBaseController {
 
             TubeBlockContext context = new TubeBlockContext();
             context.blockName = blockName;
-            context.label = blockName;
+            context.label = resolveTubeBlockLabel(blockName, persistedLabels);
             context.quantityFieldKey = definition.getFieldKey();
             context.totalAvailable = parseZeroOrPositiveBigDecimal(
                     values == null ? null : values.get(definition.getFieldKey()),
@@ -1368,6 +1489,15 @@ public class LogbookResultsRestController extends LogbookResultsBaseController {
             contexts.put(blockName, context);
         }
         return contexts;
+    }
+
+    private String resolveTubeBlockLabel(String blockName, Map<String, AnalysisTubeLabel> persistedLabels) {
+        if (GenericValidator.isBlankOrNull(blockName) || persistedLabels == null || persistedLabels.isEmpty()) {
+            return blockName;
+        }
+        AnalysisTubeLabel persisted = persistedLabels.get(normalizeBlockName(blockName));
+        return persisted == null || GenericValidator.isBlankOrNull(persisted.getLabelCode()) ? blockName
+                : persisted.getLabelCode();
     }
 
     private String resolvePrimaryResultNumericValue(Analysis analysis) {

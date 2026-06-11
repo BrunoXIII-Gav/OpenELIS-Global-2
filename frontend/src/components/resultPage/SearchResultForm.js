@@ -593,6 +593,14 @@ const isPrimaryChildTubeUsageBlockEnabled = (data) =>
     metadataJson: data?.resultDisplayConfigJson,
   })?.tubeUsage?.childBlockEnabled === true;
 
+const isTubeLabelEnabled = (fieldDefinition) =>
+  parseAdditionalFieldMetadata(fieldDefinition)?.tubeLabel?.enabled === true;
+
+const isPrimaryTubeLabelEnabled = (data) =>
+  parseAdditionalFieldMetadata({
+    metadataJson: data?.resultDisplayConfigJson,
+  })?.tubeLabel?.enabled === true;
+
 const normalizeBlockIdentifier = (value) =>
   String(value == null ? "" : value)
     .trim()
@@ -663,6 +671,38 @@ const getConfiguredChildTubeUsageBlocks = (data, intl) => {
   if (isPrimaryChildTubeUsageBlockEnabled(data)) {
     const primaryLayout = getPrimaryResultLayout(data, intl);
     if (isPrimaryResultActive(data) && primaryLayout?.blockName) {
+      configuredBlocks.add(normalizeBlockIdentifier(primaryLayout.blockName));
+    }
+  }
+
+  return Array.from(configuredBlocks);
+};
+
+const getConfiguredTubeLabelBlocks = (data, intl) => {
+  const configuredBlocks = new Set();
+  const activeAdditionalFields = Array.isArray(data?.additionalFieldDefinitions)
+    ? data.additionalFieldDefinitions.filter(
+        (fieldDefinition) => fieldDefinition?.active !== false,
+      )
+    : [];
+  const visibleAdditionalFields = getVisibleAdditionalFields(
+    data,
+    activeAdditionalFields,
+  );
+
+  visibleAdditionalFields.forEach((fieldDefinition) => {
+    if (!isTubeLabelEnabled(fieldDefinition)) {
+      return;
+    }
+    const { blockName } = getFieldBlockAndScope(fieldDefinition);
+    if (blockName) {
+      configuredBlocks.add(normalizeBlockIdentifier(blockName));
+    }
+  });
+
+  if (isPrimaryTubeLabelEnabled(data)) {
+    const primaryLayout = getPrimaryResultLayout(data, intl);
+    if (isPrimaryResultVisible(data) && primaryLayout?.blockName) {
       configuredBlocks.add(normalizeBlockIdentifier(primaryLayout.blockName));
     }
   }
@@ -2314,6 +2354,20 @@ export function SearchResults(props) {
     props.setResultForm(form);
   };
 
+  const handleTubeLabelChange = (rowId, blockTitle, nextValue) => {
+    const form = {
+      ...props.results,
+      testResult: [...props.results.testResult],
+    };
+    const row = { ...(form.testResult[rowId] || {}) };
+    const nextLabels = { ...(row.tubeLabels || {}) };
+    nextLabels[blockTitle] = nextValue == null ? "" : `${nextValue}`;
+    row.tubeLabels = nextLabels;
+    row.isModified = "true";
+    form.testResult[rowId] = row;
+    props.setResultForm(form);
+  };
+
   const recalculateBlockTubeUsageState = (row) => {
     const blockSampleUsages = Array.isArray(row?.blockSampleUsages)
       ? row.blockSampleUsages.map((blockUsage) => ({ ...blockUsage }))
@@ -2526,6 +2580,42 @@ export function SearchResults(props) {
             }
           />
         </Stack>
+      </Column>
+    );
+  };
+
+  const renderTubeLabelControl = (data, blockTitle) => {
+    const configuredBlocks = getConfiguredTubeLabelBlocks(data, intl);
+    if (!configuredBlocks.includes(normalizeBlockIdentifier(blockTitle))) {
+      return null;
+    }
+
+    const value =
+      data?.tubeLabels?.[blockTitle] ??
+      Object.entries(data?.tubeLabels || {}).find(
+        ([key]) =>
+          normalizeBlockIdentifier(key) === normalizeBlockIdentifier(blockTitle),
+      )?.[1] ??
+      "";
+
+    return (
+      <Column
+        lg={4}
+        md={4}
+        sm={4}
+        key={`tube-label-${data.id}-${blockTitle}`}
+      >
+        <TextInput
+          id={`tube-label-${data.id}-${blockTitle}`}
+          labelText={intl.formatMessage({
+            id: "result.entry.tubeLabel",
+            defaultMessage: "Etiqueta",
+          })}
+          value={value}
+          onChange={(event) =>
+            handleTubeLabelChange(data.id, blockTitle, event.target.value)
+          }
+        />
       </Column>
     );
   };
@@ -2898,6 +2988,7 @@ export function SearchResults(props) {
                           {blockTitle}
                         </h6>
                       </Column>
+                      {renderTubeLabelControl(data, blockTitle)}
                       {renderBlockTubeUsageControl(data, blockTitle)}
                       {sortedItems.map((item, fieldIndex) => {
                         if (item.type === "primary") {
