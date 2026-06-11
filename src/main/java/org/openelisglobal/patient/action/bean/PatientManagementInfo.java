@@ -72,7 +72,6 @@ public class PatientManagementInfo implements Serializable {
             SamplePatientEntryBatch.class })
     private String STnumber;
 
-    @NotBlank(groups = { SamplePatientEntryForm.SamplePatientEntry.class })
     @Pattern(regexp = ValidationHelper.PATIENT_ID_REGEX, groups = { SamplePatientEntryForm.SamplePatientEntry.class,
             SamplePatientEntryBatch.class })
     private String subjectNumber;
@@ -92,6 +91,10 @@ public class PatientManagementInfo implements Serializable {
     @Pattern(regexp = ValidationHelper.PATIENT_ID_REGEX, groups = { SamplePatientEntryForm.SamplePatientEntry.class,
             SamplePatientEntryBatch.class })
     private String foreignId;
+
+    @Pattern(regexp = "^(|DNI|PASSPORT|FOREIGN_ID)$", groups = { SamplePatientEntryForm.SamplePatientEntry.class,
+            SamplePatientEntryBatch.class })
+    private String primaryPatientIdentifierType;
 
     @Pattern(regexp = ValidationHelper.PATIENT_ID_REGEX, groups = { SamplePatientEntryForm.SamplePatientEntry.class,
             SamplePatientEntryBatch.class })
@@ -300,6 +303,14 @@ public class PatientManagementInfo implements Serializable {
 
     public void setForeignId(String foreignId) {
         this.foreignId = foreignId;
+    }
+
+    public String getPrimaryPatientIdentifierType() {
+        return primaryPatientIdentifierType;
+    }
+
+    public void setPrimaryPatientIdentifierType(String primaryPatientIdentifierType) {
+        this.primaryPatientIdentifierType = primaryPatientIdentifierType;
     }
 
     public String getLastName() {

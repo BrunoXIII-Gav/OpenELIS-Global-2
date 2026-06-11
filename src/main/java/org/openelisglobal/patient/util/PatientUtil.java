@@ -150,6 +150,7 @@ public class PatientUtil {
     public static void preparePatientData(Errors errors, HttpServletRequest request, PatientManagementInfo patientInfo,
             Patient patient) throws IllegalAccessException, InvocationTargetException, NoSuchMethodException {
 
+        PatientIdentifierUtil.synchronizeDerivedNationalId(patientInfo);
         ValidatePatientInfo.validatePatientInfo(errors, patientInfo);
         if (errors.hasErrors()) {
             return;

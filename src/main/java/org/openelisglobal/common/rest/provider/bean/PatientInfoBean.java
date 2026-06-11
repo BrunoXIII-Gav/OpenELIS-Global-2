@@ -32,6 +32,7 @@ public class PatientInfoBean implements Serializable {
     private String dni;
     private String passportNumber;
     private String foreignId;
+    private String primaryPatientIdentifierType;
     private String guid;
     private String lastName;
     private String firstName;
@@ -155,6 +156,14 @@ public class PatientInfoBean implements Serializable {
 
     public void setForeignId(String foreignId) {
         this.foreignId = foreignId;
+    }
+
+    public String getPrimaryPatientIdentifierType() {
+        return primaryPatientIdentifierType;
+    }
+
+    public void setPrimaryPatientIdentifierType(String primaryPatientIdentifierType) {
+        this.primaryPatientIdentifierType = primaryPatientIdentifierType;
     }
 
     public String getLastName() {

@@ -484,6 +484,10 @@ public class PatientDashBoardProvider {
         if (patient == null) {
             return "";
         }
+        String nationalId = patient.getNationalId();
+        if (!GenericValidator.isBlankOrNull(nationalId)) {
+            return nationalId;
+        }
         try {
             List<PatientIdentity> identityList = PatientUtil.getIdentityListForPatient(patient.getId());
             String subjectNumber = PatientIdentityTypeMap.getInstance().getIdentityValue(identityList, "SUBJECT");
@@ -493,8 +497,7 @@ public class PatientDashBoardProvider {
         } catch (Exception e) {
             // Keep dashboard resilient; fallback to nationalId below.
         }
-        String nationalId = patient.getNationalId();
-        return GenericValidator.isBlankOrNull(nationalId) ? "" : nationalId;
+        return "";
     }
 
     @GetMapping(value = "home-dashboard/metrics", produces = MediaType.APPLICATION_JSON_VALUE)
