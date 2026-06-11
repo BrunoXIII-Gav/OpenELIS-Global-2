@@ -20,7 +20,6 @@ import CustomTimePicker from "../common/CustomTimePicker";
 import { NotificationContext } from "../layout/Layout";
 import { NotificationKinds } from "../common/CustomNotification";
 import AutoComplete from "../common/AutoComplete";
-import OrderResultReporting from "./OrderResultReporting";
 import { FormattedMessage, useIntl } from "react-intl";
 import { ConfigurationContext } from "../layout/Layout";
 import config from "../../config.json";
@@ -144,9 +143,12 @@ const AddOrder = (props) => {
 
   const isProviderSelectionLocked =
     orderFormValues?.sampleOrderItems?.providerSelectionLocked === true;
+  const hasSelectedProvider =
+    String(orderFormValues?.sampleOrderItems?.providerPersonId || "").trim() !==
+    "";
 
   const isProviderFieldLocked = (fieldKey) =>
-    isProviderSelectionLocked || isFieldReadonly(fieldKey);
+    isProviderSelectionLocked || hasSelectedProvider || isFieldReadonly(fieldKey);
 
   const buildRequesterDisplayValue = () => {
     const sampleOrderItems = orderFormValues?.sampleOrderItems || {};
@@ -1764,17 +1766,6 @@ const AddOrder = (props) => {
     }
   }
 
-  const reportingNotifications = (object) => {
-    setOrderFormValues({
-      ...orderFormValues,
-      customNotificationLogic: true,
-      patientSMSNotificationTestIds: object.patientSMSNotificationTestIds,
-      patientEmailNotificationTestIds: object.patientEmailNotificationTestIds,
-      providerSMSNotificationTestIds: object.providerSMSNotificationTestIds,
-      providerEmailNotificationTestIds: object.providerEmailNotificationTestIds,
-    });
-  };
-
   const getSampleEntryPreform = (response) => {
     if (componentMounted.current && response?.sampleOrderItems) {
       const responseOrderItems = response.sampleOrderItems;
@@ -1973,27 +1964,6 @@ const AddOrder = (props) => {
               renderOrderedOrderField(descriptor),
             )}
           </Grid>
-        </div>
-        <div className="orderLegendBody">
-          <h3>
-            <FormattedMessage id="order.result.reporting.heading" />
-          </h3>
-          {samples.map((sample, index) => {
-            if (sample.tests.length > 0) {
-              return (
-                <div key={index}>
-                  <h4>
-                    {" "}
-                    <FormattedMessage id="label.button.sample" /> {index + 1}
-                  </h4>
-                  <OrderResultReporting
-                    selectedTests={sample.tests}
-                    reportingNotifications={reportingNotifications}
-                  />
-                </div>
-              );
-            }
-          })}
         </div>
       </Stack>
     </>

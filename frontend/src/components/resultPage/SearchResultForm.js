@@ -436,6 +436,39 @@ const InlineResultEditor = ({
   );
 };
 
+const DeferredTextInput = ({
+  inputId,
+  labelText,
+  value,
+  onCommit,
+  type = "text",
+  step,
+  min,
+  disabled = false,
+}) => {
+  const [draftValue, setDraftValue] = useState(value || "");
+
+  useEffect(() => {
+    setDraftValue(value || "");
+  }, [value, inputId, type]);
+
+  return (
+    <TextInput
+      id={inputId}
+      labelText={labelText}
+      type={type}
+      step={step}
+      min={min}
+      value={draftValue}
+      disabled={disabled}
+      onChange={(event) => {
+        setDraftValue(event.target.value);
+      }}
+      onBlur={() => onCommit(draftValue == null ? "" : draftValue)}
+    />
+  );
+};
+
 const normalizeResultEntryScope = (scopeValue) =>
   String(scopeValue || "").toUpperCase() === "PRELIMINARY"
     ? "PRELIMINARY"
@@ -2100,16 +2133,25 @@ export function SearchResults(props) {
                 { quantity: row.sampleRemainingQuantity || "-" },
               )}
             </small>
-            <TextInput
-              id={"sampleUsageQuantity" + row.id}
-              name={"testResult[" + row.id + "].sampleUsageQuantity"}
+            <DeferredTextInput
+              inputId={"sampleUsageQuantity" + row.id}
               labelText=""
               type="number"
               step="0.001"
               min="0"
               value={row.sampleUsageQuantity || ""}
               disabled={row.sampleUsageLocked === true}
-              onChange={(e) => handleChange(e, row.id)}
+              onCommit={(nextValue) =>
+                handleChange(
+                  {
+                    target: {
+                      name: "testResult[" + row.id + "].sampleUsageQuantity",
+                      value: nextValue,
+                    },
+                  },
+                  row.id,
+                )
+              }
             />
           </Stack>
         );
@@ -2129,16 +2171,26 @@ export function SearchResults(props) {
                 { quantity: row.parentSampleRemainingQuantity || "-" },
               )}
             </small>
-            <TextInput
-              id={"parentSampleUsageQuantity" + row.id}
-              name={"testResult[" + row.id + "].parentSampleUsageQuantity"}
+            <DeferredTextInput
+              inputId={"parentSampleUsageQuantity" + row.id}
               labelText=""
               type="number"
               step="0.001"
               min="0"
               value={row.parentSampleUsageQuantity || ""}
               disabled={row.parentSampleUsageLocked === true}
-              onChange={(e) => handleChange(e, row.id)}
+              onCommit={(nextValue) =>
+                handleChange(
+                  {
+                    target: {
+                      name:
+                        "testResult[" + row.id + "].parentSampleUsageQuantity",
+                      value: nextValue,
+                    },
+                  },
+                  row.id,
+                )
+              }
             />
           </Stack>
         );
@@ -2560,8 +2612,8 @@ export function SearchResults(props) {
               { quantity: resolvedBlockUsage.remainingQuantity || "-" },
             )}
           </small>
-          <TextInput
-            id={`block-sample-usage-${data.id}-${blockTitle}`}
+          <DeferredTextInput
+            inputId={`block-sample-usage-${data.id}-${blockTitle}`}
             labelText={intl.formatMessage({
               id: "result.entry.sampleUsage.label",
               defaultMessage: "Cantidad usada",
@@ -2571,11 +2623,11 @@ export function SearchResults(props) {
             min="0"
             value={resolvedBlockUsage.usedQuantity || ""}
             disabled={resolvedBlockUsage.locked === true}
-            onChange={(event) =>
+            onCommit={(nextValue) =>
               handleBlockTubeUsageQuantityChange(
                 data.id,
                 blockTitle,
-                event.target.value,
+                nextValue,
               )
             }
           />
@@ -2605,15 +2657,15 @@ export function SearchResults(props) {
         sm={4}
         key={`tube-label-${data.id}-${blockTitle}`}
       >
-        <TextInput
-          id={`tube-label-${data.id}-${blockTitle}`}
+        <DeferredTextInput
+          inputId={`tube-label-${data.id}-${blockTitle}`}
           labelText={intl.formatMessage({
             id: "result.entry.tubeLabel",
             defaultMessage: "Etiqueta",
           })}
           value={value}
-          onChange={(event) =>
-            handleTubeLabelChange(data.id, blockTitle, event.target.value)
+          onCommit={(nextValue) =>
+            handleTubeLabelChange(data.id, blockTitle, nextValue)
           }
         />
       </Column>
