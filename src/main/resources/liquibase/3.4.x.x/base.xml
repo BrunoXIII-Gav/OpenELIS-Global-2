@@ -64,4 +64,5 @@
   <include relativeToChangelogFile="true" file="052-add-test-parent-validation-skip-flag.xml"/>
   <include relativeToChangelogFile="true" file="053-add-result-level-file-upload-config.xml"/>
   <include relativeToChangelogFile="true" file="054-create-analysis-tube-label.xml"/>
+  <include relativeToChangelogFile="true" file="055-add-notification-profile-destination.xml"/>
 </databaseChangeLog>

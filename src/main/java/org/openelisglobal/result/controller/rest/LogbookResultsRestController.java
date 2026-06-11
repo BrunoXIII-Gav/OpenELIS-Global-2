@@ -62,6 +62,8 @@ import org.openelisglobal.method.service.MethodService;
 import org.openelisglobal.note.service.NoteService;
 import org.openelisglobal.note.service.NoteServiceImpl.NoteType;
 import org.openelisglobal.note.valueholder.Note;
+import org.openelisglobal.notification.service.TestNotificationService;
+import org.openelisglobal.notification.valueholder.NotificationConfigOption.NotificationNature;
 import org.openelisglobal.notifications.dao.NotificationDAO;
 import org.openelisglobal.notifications.entity.Notification;
 import org.openelisglobal.orderadditionalfield.service.OrderAdditionalFieldService;
@@ -205,6 +207,8 @@ public class LogbookResultsRestController extends LogbookResultsBaseController {
     private UserRoleService userRoleService;
     @Autowired
     private SampleHumanService sampleHumanService;
+    @Autowired
+    private TestNotificationService testNotificationService;
     @Autowired
     private MethodService methodService;
     @Autowired
@@ -592,6 +596,7 @@ public class LogbookResultsRestController extends LogbookResultsBaseController {
             }
             List<Analysis> newResultAnalyses = actionDataSet.getNewResults().stream().map(a -> a.result.getAnalysis())
                     .collect(Collectors.toList());
+            sendPendingValidationNotifications(actionDataSet);
             List<String> systemUserIds = userRoleService.getUserIdsForRole(Constants.ROLE_VALIDATION);
             String message = MessageUtil.getMessage("notification.result.stat");
             for (String userId : systemUserIds) {
@@ -692,9 +697,13 @@ public class LogbookResultsRestController extends LogbookResultsBaseController {
         for (TestResultItem testResultItem : actionDataSet.getModifiedItems()) {
 
             Analysis analysis = analysisById.computeIfAbsent(testResultItem.getAnalysisId(), analysisService::get);
+            String previousStatusId = analysis.getStatusId();
             applyParentChildDependencyAndUsage(testResultItem, analysis, actionDataSet, sampleItemsBeingUpdated);
             applyParentTubeLabels(testResultItem, analysis);
             analysis.setStatusId(getStatusForTestResult(testResultItem, alwaysValidate));
+            if (enteredPendingValidation(previousStatusId, analysis.getStatusId())) {
+                actionDataSet.addPendingValidationNotificationAnalysisId(analysis.getId());
+            }
             analysis.setSysUserId(getSysUserId(request));
             if (!GenericValidator.isBlankOrNull(testResultItem.getTestMethod())) {
                 analysis.setMethod(methodService.get(testResultItem.getTestMethod()));
@@ -746,6 +755,37 @@ public class LogbookResultsRestController extends LogbookResultsBaseController {
             }
             if (supportReferrals && testResultItem.isRefer()) {
                 handleReferrals(testResultItem, testResultItem.getReferralItem(), results, analysis, actionDataSet);
+            }
+        }
+    }
+
+    private boolean enteredPendingValidation(String previousStatusId, String newStatusId) {
+        IStatusService statusService = SpringContext.getBean(IStatusService.class);
+        return statusService.matches(newStatusId, AnalysisStatus.TechnicalAcceptance)
+                && !statusService.matches(previousStatusId, AnalysisStatus.TechnicalAcceptance)
+                && !statusService.matches(previousStatusId, AnalysisStatus.Finalized);
+    }
+
+    private void sendPendingValidationNotifications(ResultsUpdateDataSet actionDataSet) {
+        if (actionDataSet.getPendingValidationNotificationAnalysisIds().isEmpty()) {
+            return;
+        }
+        Map<String, Result> firstResultByAnalysisId = new LinkedHashMap<>();
+        actionDataSet.getModifiedResults().stream().map(resultSet -> resultSet.result)
+                .forEach(result -> firstResultByAnalysisId.putIfAbsent(result.getAnalysis().getId(), result));
+        actionDataSet.getNewResults().stream().map(resultSet -> resultSet.result)
+                .forEach(result -> firstResultByAnalysisId.putIfAbsent(result.getAnalysis().getId(), result));
+
+        for (String analysisId : actionDataSet.getPendingValidationNotificationAnalysisIds()) {
+            Result result = firstResultByAnalysisId.get(analysisId);
+            if (result == null) {
+                continue;
+            }
+            try {
+                testNotificationService.createAndSendNotificationsToConfiguredSources(
+                        NotificationNature.RESULT_PENDING_VALIDATION, result);
+            } catch (RuntimeException e) {
+                LogEvent.logError(e);
             }
         }
     }

@@ -359,23 +359,22 @@ public class SamplePatientEntryServiceImpl implements SamplePatientEntryService 
                     .setDefaultPayloadTemplate(testNotificationConfig.get().getDefaultPayloadTemplate());
         }
 
-        this.persistAnalysisNotificationConfig(analysis, updateData.getPatientEmailNotificationTestIds(),
-                analysisNotificationConfig, testNotificationConfig, NotificationMethod.EMAIL,
+        this.persistAnalysisNotificationConfig(analysis, analysisNotificationConfig, testNotificationConfig,
+                NotificationMethod.EMAIL,
                 NotificationPersonType.PATIENT);
-        this.persistAnalysisNotificationConfig(analysis, updateData.getPatientSMSNotificationTestIds(),
-                analysisNotificationConfig, testNotificationConfig, NotificationMethod.SMS,
+        this.persistAnalysisNotificationConfig(analysis, analysisNotificationConfig, testNotificationConfig,
+                NotificationMethod.SMS,
                 NotificationPersonType.PATIENT);
-        this.persistAnalysisNotificationConfig(analysis, updateData.getProviderEmailNotificationTestIds(),
-                analysisNotificationConfig, testNotificationConfig, NotificationMethod.EMAIL,
+        this.persistAnalysisNotificationConfig(analysis, analysisNotificationConfig, testNotificationConfig,
+                NotificationMethod.EMAIL,
                 NotificationPersonType.PROVIDER);
-        this.persistAnalysisNotificationConfig(analysis, updateData.getProviderSMSNotificationTestIds(),
-                analysisNotificationConfig, testNotificationConfig, NotificationMethod.SMS,
+        this.persistAnalysisNotificationConfig(analysis, analysisNotificationConfig, testNotificationConfig,
+                NotificationMethod.SMS,
                 NotificationPersonType.PROVIDER);
         analysisNotificationConfigService.save(analysisNotificationConfig);
     }
 
-    private void persistAnalysisNotificationConfig(Analysis analysis, List<String> testIds,
-            AnalysisNotificationConfig analysisNotificationConfig,
+    private void persistAnalysisNotificationConfig(Analysis analysis, AnalysisNotificationConfig analysisNotificationConfig,
             Optional<TestNotificationConfig> testNotificationConfig, NotificationMethod method,
             NotificationPersonType personType) {
         NotificationNature notificationNature = NotificationNature.RESULT_VALIDATION;
@@ -383,15 +382,12 @@ public class SamplePatientEntryServiceImpl implements SamplePatientEntryService 
         nto.setNotificationMethod(method);
         nto.setNotificationNature(notificationNature);
         nto.setNotificationPersonType(personType);
-        if (testIds.contains(analysis.getTest().getId())) {
-            nto.setActive(true);
-        } else {
-            nto.setActive(false);
-        }
+        nto.setActive(false);
 
         if (testNotificationConfig.isPresent()) {
             NotificationConfigOption nto2 = testNotificationConfig.get().getOptionFor(notificationNature, method,
                     personType);
+            nto.setActive(nto2.getActive());
             nto.setPayloadTemplate(nto2.getPayloadTemplate());
             nto.setAdditionalContacts(new ArrayList<>());
             nto.getAdditionalContacts().addAll(nto2.getAdditionalContacts());
