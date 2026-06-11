@@ -963,6 +963,28 @@ function SampleResultsTable({
     );
   };
 
+  const getPrimarySampleRowId = useCallback(
+    (rowId, originalRow) => {
+      const firstTestId = originalRow?.orderedTests?.[0]?.analysisId;
+      return firstTestId ? `${rowId}-${firstTestId}` : `${rowId}__sample`;
+    },
+    [],
+  );
+
+  const getEditableSampleCugValue = useCallback(
+    (rowId, originalRow) => {
+      const primarySampleRowId = getPrimarySampleRowId(rowId, originalRow);
+      const sampleDetails =
+        currentTestDetailsByKey[`${rowId}__sample`] ||
+        currentTestDetailsByKey[primarySampleRowId] ||
+        {};
+      return sampleDetails.cugCode !== undefined
+        ? sampleDetails.cugCode
+        : originalRow?.cugCodeRaw || originalRow?.cugCode || "";
+    },
+    [currentTestDetailsByKey, getPrimarySampleRowId],
+  );
+
   /**
    * Render expanded row content with test details.
    */
@@ -1097,15 +1119,10 @@ function SampleResultsTable({
         {shouldShowCurrentTests &&
           (() => {
             const orderedTests = originalRow.orderedTests || [];
-            const firstTestId = orderedTests[0]?.analysisId;
-            const primarySampleRowId = firstTestId
-              ? `${row.id}-${firstTestId}`
-              : `${row.id}__sample`;
+            const primarySampleRowId = getPrimarySampleRowId(row.id, originalRow);
             const sampleDetails =
               currentTestDetailsByKey[`${row.id}__sample`] ||
-              (firstTestId
-                ? currentTestDetailsByKey[`${row.id}-${firstTestId}`]
-                : {}) ||
+              currentTestDetailsByKey[primarySampleRowId] ||
               {};
             const sampleQuantity =
               sampleDetails.quantity !== undefined
@@ -1127,10 +1144,6 @@ function SampleResultsTable({
               sampleDetails.collectionTime !== undefined
                 ? sampleDetails.collectionTime
                 : originalRow.collectionTimeRaw || "";
-            const sampleCug =
-              sampleDetails.cugCode !== undefined
-                ? sampleDetails.cugCode
-                : originalRow.cugCodeRaw || originalRow.cugCode || "";
             const availableUoms = getAvailableUomsForSampleType(
               originalRow.sampleTypeId,
             );
@@ -1179,25 +1192,6 @@ function SampleResultsTable({
                       {editableSampleFieldDefinitions.map((field) => {
                         const disabled = field.readonly;
                         switch (field.fieldKey) {
-                          case "cugCode":
-                            return (
-                              <TextInput
-                                key={`${row.id}-sample-${field.fieldKey}`}
-                                id={`${row.id}-sample-${field.fieldKey}`}
-                                labelText={intl.formatMessage({
-                                  id: "sample.cug.label",
-                                })}
-                                value={sampleCug}
-                                disabled={disabled}
-                                onChange={(e) =>
-                                  handleCurrentTestFieldChange(
-                                    primarySampleRowId,
-                                    "cugCode",
-                                    e.target.value,
-                                  )
-                                }
-                              />
-                            );
                           case "quantity":
                             return (
                               <TextInput
@@ -1744,6 +1738,42 @@ function SampleResultsTable({
                               ? renderHierarchyIndicator(row)
                               : cell.info.header === "tests"
                                 ? renderTestsCount(row)
+                                : cell.info.header === "cugCode"
+                                  ? (() => {
+                                      const editableCugValue =
+                                        getEditableSampleCugValue(
+                                          row.id,
+                                          originalRow,
+                                        );
+                                      const primarySampleRowId =
+                                        getPrimarySampleRowId(
+                                          row.id,
+                                          originalRow,
+                                        );
+                                      return (
+                                        <div
+                                          style={{
+                                            minWidth: "120px",
+                                          }}
+                                          onClick={(e) => e.stopPropagation()}
+                                        >
+                                          <TextInput
+                                            id={`${row.id}-table-cugCode`}
+                                            labelText=""
+                                            hideLabel
+                                            size="sm"
+                                            value={editableCugValue}
+                                            onChange={(e) =>
+                                              handleCurrentTestFieldChange(
+                                                primarySampleRowId,
+                                                "cugCode",
+                                                e.target.value,
+                                              )
+                                            }
+                                          />
+                                        </div>
+                                      );
+                                    })()
                                 : cell.value}
                         </TableCell>
                       ))}
