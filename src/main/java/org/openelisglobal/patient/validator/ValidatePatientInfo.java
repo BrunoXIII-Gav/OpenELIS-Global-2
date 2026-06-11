@@ -5,6 +5,11 @@ import org.apache.commons.validator.GenericValidator;
 import org.openelisglobal.common.provider.query.PatientSearchResults;
 import org.openelisglobal.common.util.ConfigurationProperties;
 import org.openelisglobal.patient.action.bean.PatientManagementInfo;
+import org.openelisglobal.patient.dao.PatientDAO;
+import org.openelisglobal.patient.util.PatientIdentifierUtil;
+import org.openelisglobal.patientidentity.service.PatientIdentityService;
+import org.openelisglobal.patientidentity.valueholder.PatientIdentity;
+import org.openelisglobal.patientidentitytype.util.PatientIdentityTypeMap;
 import org.openelisglobal.search.service.SearchResultsService;
 import org.openelisglobal.spring.util.SpringContext;
 import org.springframework.validation.Errors;
@@ -16,6 +21,9 @@ public class ValidatePatientInfo {
     private static final String AMBIGUOUS_DATE_HOLDER = AMBIGUOUS_DATE_CHAR + AMBIGUOUS_DATE_CHAR;
 
     public static void validatePatientInfo(Errors errors, PatientManagementInfo patientInfo) {
+        PatientIdentifierUtil.synchronizeDerivedNationalId(patientInfo);
+        validateRequiredPatientIdentifiers(errors, patientInfo);
+
         boolean disallowDuplicateSubjectNumbers = ConfigurationProperties.getInstance()
                 .isPropertyValueEqual(ConfigurationProperties.Property.ALLOW_DUPLICATE_SUBJECT_NUMBERS, "false");
         boolean disallowDuplicateNationalIds = ConfigurationProperties.getInstance()
@@ -69,7 +77,65 @@ public class ValidatePatientInfo {
                 }
             }
         }
+
+        if (disallowDuplicateNationalIds) {
+            validateIdentityTypeDuplicates(errors, patientInfo.getPatientPK(), patientInfo.getDni(),
+                    PatientIdentifierUtil.PRIMARY_IDENTIFIER_DNI, "error.duplicate.nationalId");
+            validateIdentityTypeDuplicates(errors, patientInfo.getPatientPK(), patientInfo.getPassportNumber(),
+                    PatientIdentifierUtil.PRIMARY_IDENTIFIER_PASSPORT, "error.duplicate.nationalId");
+            validateIdentityTypeDuplicates(errors, patientInfo.getPatientPK(), patientInfo.getForeignId(),
+                    PatientIdentifierUtil.PRIMARY_IDENTIFIER_FOREIGN_ID, "error.duplicate.nationalId");
+        }
         validateBirthdateFormat(patientInfo, errors);
+    }
+
+    private static void validateRequiredPatientIdentifiers(Errors errors, PatientManagementInfo patientInfo) {
+        if (!PatientIdentifierUtil.usesDerivedNationalIdMode(patientInfo)) {
+            return;
+        }
+
+        if (!PatientIdentifierUtil.hasAtLeastOnePatientIdentifier(patientInfo)) {
+            errors.reject("error.patient.identifier.required", null, null);
+            return;
+        }
+
+        String primaryType = PatientIdentifierUtil.determinePrimaryIdentifierType(patientInfo);
+        if (GenericValidator.isBlankOrNull(primaryType)) {
+            errors.reject("error.patient.primary.identifier.required", null, null);
+            return;
+        }
+
+        String primaryValue = PatientIdentifierUtil.getValueForType(patientInfo, primaryType);
+        if (GenericValidator.isBlankOrNull(primaryValue)) {
+            errors.reject("error.patient.primary.identifier.value.required", null, null);
+        }
+    }
+
+    private static void validateIdentityTypeDuplicates(Errors errors, String patientPK, String identityValue, String type,
+            String errorKey) {
+        if (GenericValidator.isBlankOrNull(identityValue)) {
+            return;
+        }
+
+        String identityTypeId = PatientIdentityTypeMap.getInstance().getIDForType(type);
+        List<PatientIdentity> identities = SpringContext.getBean(PatientIdentityService.class)
+                .getPatientIdentitiesByValueAndType(identityValue, identityTypeId);
+
+        for (PatientIdentity identity : identities) {
+            if (!identity.getPatientId().equals(patientPK)) {
+                errors.reject(errorKey, null, null);
+                return;
+            }
+        }
+
+        List<org.openelisglobal.patient.valueholder.Patient> patients = SpringContext.getBean(PatientDAO.class)
+                .getPatientsByNationalId(identityValue);
+        for (org.openelisglobal.patient.valueholder.Patient patient : patients) {
+            if (!patient.getId().equals(patientPK)) {
+                errors.reject(errorKey, null, null);
+                return;
+            }
+        }
     }
 
     private static void validateBirthdateFormat(PatientManagementInfo patientInfo, Errors errors) {

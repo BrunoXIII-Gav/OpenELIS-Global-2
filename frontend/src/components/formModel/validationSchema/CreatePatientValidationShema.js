@@ -1,8 +1,9 @@
 import * as Yup from "yup";
 
 const CreatePatientValidationSchema = Yup.object().shape({
-  subjectNumber: Yup.string().required("Clinical History Required"),
+  subjectNumber: Yup.string(),
   nationalId: Yup.string(),
+  primaryPatientIdentifierType: Yup.string(),
   email: Yup.string().email("Patient Email Must Be Valid"),
   birthDateForDisplay: Yup.string()
     .required("Patient Birth date Required")

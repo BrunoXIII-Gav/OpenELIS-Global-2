@@ -26,6 +26,7 @@ import org.openelisglobal.patient.service.PatientContactService;
 import org.openelisglobal.patient.service.PatientPhotoService;
 import org.openelisglobal.patient.service.PatientService;
 import org.openelisglobal.patientadditionalfield.service.PatientAdditionalFieldService;
+import org.openelisglobal.patient.util.PatientIdentifierUtil;
 import org.openelisglobal.patient.validator.ValidatePatientInfo;
 import org.openelisglobal.patient.valueholder.Patient;
 import org.openelisglobal.patient.valueholder.PatientContact;
@@ -163,6 +164,9 @@ public class PatientManagementUpdate extends ControllerUtills implements IPatien
         persistIdentityType(patientInfo.getDni(), "DNI");
         persistIdentityType(patientInfo.getPassportNumber(), "PASSPORT");
         persistIdentityType(patientInfo.getForeignId(), "FOREIGN_ID");
+        if (PatientIdentifierUtil.usesDerivedNationalIdMode(patientInfo)) {
+            persistIdentityType(patientInfo.getPrimaryPatientIdentifierType(), PatientIdentifierUtil.NATIONAL_ID_SOURCE);
+        }
         persistIdentityType(patientInfo.getGuid(), "GUID");
 
         // Persist dynamic address hierarchy values (addressHierarchy_0,
@@ -342,6 +346,7 @@ public class PatientManagementUpdate extends ControllerUtills implements IPatien
     public Errors preparePatientData(HttpServletRequest request, PatientManagementInfo patientInfo)
             throws IllegalAccessException, InvocationTargetException, NoSuchMethodException {
         Errors errors = new BaseErrors();
+        PatientIdentifierUtil.synchronizeDerivedNationalId(patientInfo);
         ValidatePatientInfo.validatePatientInfo(errors, patientInfo);
         if (errors.hasErrors()) {
             return errors;

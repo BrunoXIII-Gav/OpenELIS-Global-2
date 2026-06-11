@@ -34,6 +34,21 @@ function AutoComplete(props) {
     }
   }, [props]);
 
+  const buildFilteredSuggestions = (inputValue = "") => {
+    const { suggestions } = props;
+    const normalizedInput = String(inputValue || "");
+    const allMatches =
+      normalizedInput.trim() === ""
+        ? suggestions
+        : suggestions.filter((suggestion) =>
+            suggestion.value
+              .toLowerCase()
+              .indexOf(normalizedInput.toLowerCase()) > -1,
+          );
+
+    return maxSuggestions ? allMatches.slice(0, maxSuggestions) : allMatches;
+  };
+
   const onChange = (e) => {
     if (props.disabled || props.readOnly) {
       return;
@@ -41,13 +56,7 @@ function AutoComplete(props) {
     const { suggestions } = props;
     const userInput = e.currentTarget.value;
     setTextValue(userInput);
-    const allMatches = suggestions.filter(
-      (suggestion) =>
-        suggestion.value.toLowerCase().indexOf(userInput.toLowerCase()) > -1,
-    );
-    const filteredSuggestions = maxSuggestions
-      ? allMatches.slice(0, maxSuggestions)
-      : allMatches;
+    const filteredSuggestions = buildFilteredSuggestions(userInput);
 
     setActiveSuggestion(0);
     setFilteredSuggestions(filteredSuggestions);
@@ -61,6 +70,18 @@ function AutoComplete(props) {
     if (typeof props.onChange === "function") {
       props.onChange(e);
     }
+  };
+
+  const openSuggestions = () => {
+    if (props.disabled || props.readOnly) {
+      return;
+    }
+
+    const filtered = buildFilteredSuggestions(textValue);
+    setActiveSuggestion(0);
+    setFilteredSuggestions(filtered);
+    setShowSuggestions(true);
+    setInnitialised(true);
   };
 
   const onClick = (e, id, suggestion) => {
@@ -116,7 +137,7 @@ function AutoComplete(props) {
   };
 
   let suggestionsListComponent;
-  if (showSuggestions && userInput) {
+  if (showSuggestions) {
     if (filteredSuggestions.length) {
       suggestionsListComponent = (
         <div className="suggestions-container">
@@ -160,6 +181,8 @@ function AutoComplete(props) {
         className={props.class}
         onChange={onChange}
         onKeyDown={onKeyDown}
+        onFocus={openSuggestions}
+        onClick={openSuggestions}
         value={textValue}
         disabled={props.disabled}
         readOnly={props.readOnly}

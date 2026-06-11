@@ -1,0 +1,19 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<databaseChangeLog
+  xmlns="http://www.liquibase.org/xml/ns/dbchangelog"
+  xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+  xsi:schemaLocation="http://www.liquibase.org/xml/ns/dbchangelog
+                      http://www.liquibase.org/xml/ns/dbchangelog/dbchangelog-3.8.xsd">
+
+  <changeSet id="055-01-add-notification-config-option-professional-profile-code" author="openelis">
+    <preConditions onFail="MARK_RAN">
+      <not>
+        <columnExists tableName="notification_config_option" columnName="professional_profile_code"/>
+      </not>
+    </preConditions>
+    <addColumn tableName="notification_config_option">
+      <column name="professional_profile_code" type="VARCHAR(64)"/>
+    </addColumn>
+  </changeSet>
+
+</databaseChangeLog>

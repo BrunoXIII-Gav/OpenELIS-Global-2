@@ -1,5 +1,7 @@
 package org.openelisglobal.testconfiguration.controller.rest;
 
+import com.fasterxml.jackson.databind.JsonNode;
+import com.fasterxml.jackson.databind.ObjectMapper;
 import jakarta.servlet.http.HttpServletRequest;
 import java.util.ArrayList;
 import java.util.Collections;
@@ -78,6 +80,8 @@ import org.springframework.web.server.ResponseStatusException;
 @RestController
 @RequestMapping("/rest")
 public class TestModifyEntryRestController extends BaseController {
+
+    private static final ObjectMapper OBJECT_MAPPER = new ObjectMapper();
 
     private static final String[] ALLOWED_FIELDS = new String[] { "jsonWad", "testId", "loinc" };
 
@@ -978,7 +982,7 @@ public class TestModifyEntryRestController extends BaseController {
             payload.setDisplayName(asString(fieldObject.get("displayName")));
             payload.setFieldType(asString(fieldObject.get("fieldType")));
             payload.setRequired(asBoolean(fieldObject.get("required"), false));
-            payload.setActive(asBoolean(fieldObject.get("active"), true));
+            payload.setActive(resolvePayloadActive(fieldObject));
             payload.setSortOrder(asInteger(fieldObject.get("sortOrder"), fallbackSortOrder));
             payload.setDefaultValue(asString(fieldObject.get("defaultValue")));
             payload.setMaxLength(asInteger(fieldObject.get("maxLength"), null));
@@ -996,7 +1000,7 @@ public class TestModifyEntryRestController extends BaseController {
                     optionPayload.setId(asInteger(optionObject.get("id"), null));
                     optionPayload.setOptionKey(asString(optionObject.get("optionKey")));
                     optionPayload.setOptionLabel(asString(optionObject.get("optionLabel")));
-                    optionPayload.setActive(asBoolean(optionObject.get("active"), true));
+                    optionPayload.setActive(resolvePayloadActive(optionObject));
                     optionPayload.setSortOrder(asInteger(optionObject.get("sortOrder"), fallbackOptionSort));
                     payload.getOptions().add(optionPayload);
                     fallbackOptionSort++;
@@ -1016,6 +1020,26 @@ public class TestModifyEntryRestController extends BaseController {
         }
         String asString = String.valueOf(value).trim();
         return asString.isEmpty() ? null : asString;
+    }
+
+    private Boolean resolvePayloadActive(JSONObject jsonObject) {
+        if (jsonObject == null) {
+            return Boolean.TRUE;
+        }
+        if (jsonObject.containsKey("active")) {
+            return asBoolean(jsonObject.get("active"), true);
+        }
+        String metadataJson = asString(jsonObject.get("metadataJson"));
+        if (StringUtils.isNotBlank(metadataJson)) {
+            try {
+                JsonNode metadataNode = OBJECT_MAPPER.readTree(metadataJson);
+                if (metadataNode.has("active") && !metadataNode.path("active").isNull()) {
+                    return metadataNode.path("active").asBoolean(true);
+                }
+            } catch (Exception ignored) {
+            }
+        }
+        return Boolean.TRUE;
     }
 
     private Integer asInteger(Object value, Integer defaultValue) {

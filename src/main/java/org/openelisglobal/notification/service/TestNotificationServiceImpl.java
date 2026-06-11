@@ -2,8 +2,12 @@ package org.openelisglobal.notification.service;
 
 import jakarta.annotation.PostConstruct;
 import java.util.List;
+import java.util.Map;
 import java.util.Optional;
+import java.util.Set;
+import java.util.stream.Collectors;
 import org.apache.commons.validator.GenericValidator;
+import org.apache.commons.lang3.StringUtils;
 import org.openelisglobal.common.log.LogEvent;
 import org.openelisglobal.common.util.ConfigurationProperties;
 import org.openelisglobal.common.util.ConfigurationProperties.Property;
@@ -24,7 +28,11 @@ import org.openelisglobal.notification.valueholder.RemoteNotification;
 import org.openelisglobal.notification.valueholder.SMSNotification;
 import org.openelisglobal.notification.valueholder.TestNotificationConfig;
 import org.openelisglobal.person.valueholder.Person;
+import org.openelisglobal.provider.service.ProviderService;
+import org.openelisglobal.provider.valueholder.Provider;
 import org.openelisglobal.result.valueholder.Result;
+import org.openelisglobal.systemuser.service.SystemUserService;
+import org.openelisglobal.systemuser.valueholder.SystemUser;
 import org.openelisglobal.samplehuman.service.SampleHumanService;
 import org.openelisglobal.testresultsview.service.ClientResultsViewInfoService;
 import org.openelisglobal.testresultsview.valueholder.ClientResultsViewBean;
@@ -50,6 +58,10 @@ public class TestNotificationServiceImpl implements TestNotificationService {
     private TestNotificationConfigService testNotificationConfigService;
     @Autowired
     private AnalysisNotificationConfigService analysisNotificationConfigService;
+    @Autowired
+    private SystemUserService systemUserService;
+    @Autowired
+    private ProviderService providerService;
 
     @Value("${org.openelisglobal.ozeki.active:false}")
     private Boolean ozekiActive;
@@ -82,6 +94,15 @@ public class TestNotificationServiceImpl implements TestNotificationService {
         return template;
     }
 
+    private NotificationPayloadTemplate createPendingValidationDefaultTemplate() {
+        NotificationPayloadTemplate template = new NotificationPayloadTemplate();
+        template.setMessageTemplate(
+                "[testName] results have been entered and are pending validation.\n\n"
+                        + "[patientFirstName] [patientLastNameInitial]: [testResult]");
+        template.setSubjectTemplate("[testName] Pending Validation");
+        return template;
+    }
+
     @SuppressWarnings({ "unchecked", "rawtypes" })
     public void sendNotification(RemoteNotification clientNotification) {
         for (ClientNotificationSender notificationSender : notificationSenders) {
@@ -95,27 +116,28 @@ public class TestNotificationServiceImpl implements TestNotificationService {
     @Async
     @Transactional(readOnly = true)
     public void createAndSendNotificationsToConfiguredSources(NotificationNature nature, Result result) {
-        Optional<? extends NotificationConfig<?>> notificationConfig = analysisNotificationConfigService
+        Optional<AnalysisNotificationConfig> analysisNotificationConfig = analysisNotificationConfigService
                 .getAnalysisNotificationConfigForAnalysisId(result.getAnalysis().getId());
-        if (notificationConfig.isEmpty()) {
-            // analysis hasn't been configured to return results
-            notificationConfig = testNotificationConfigService
-                    .getTestNotificationConfigForTestId(result.getAnalysis().getTest().getId());
-            if (notificationConfig.isEmpty()) {
-                // test hasn't been configured to send notifications
-                return;
-            }
+        Optional<TestNotificationConfig> testNotificationConfig = testNotificationConfigService
+                .getTestNotificationConfigForTestId(result.getAnalysis().getTest().getId());
+        if (analysisNotificationConfig.isEmpty() && testNotificationConfig.isEmpty()) {
+            return;
         }
 
         switch (nature) {
+        case RESULT_PENDING_VALIDATION:
         case RESULT_VALIDATION:
-            createAndSendResultsNotificationsToConfiguredSources(nature, result, notificationConfig);
+            createAndSendResultsNotificationsToConfiguredSources(nature, result, analysisNotificationConfig,
+                    testNotificationConfig);
+            break;
         default:
+            break;
         }
     }
 
     private void createAndSendResultsNotificationsToConfiguredSources(NotificationNature nature, Result result,
-            Optional<? extends NotificationConfig<?>> notificationConfig) {
+            Optional<AnalysisNotificationConfig> analysisNotificationConfig,
+            Optional<TestNotificationConfig> testNotificationConfig) {
         ClientResultsViewBean resultsViewInfo = new ClientResultsViewBean(result);
         resultsViewInfo.setSysUserId("1");
         resultsViewInfo = clientResultsViewInfoService.save(resultsViewInfo);
@@ -142,21 +164,33 @@ public class TestNotificationServiceImpl implements TestNotificationService {
         }
         for (NotificationMethod methodType : NotificationMethod.values()) {
             if (systemEnabledForMethod(methodType)) {
-                createAndSendNotificationsConfiguredForTest(nature, methodType, notificationConfig.get(),
-                        resultForDisplay, resultsViewInfo);
+                if (analysisNotificationConfig.isPresent()) {
+                    createAndSendNotificationsConfiguredForTest(nature, methodType, analysisNotificationConfig.get(),
+                            resultForDisplay, resultsViewInfo, false);
+                } else if (testNotificationConfig.isPresent()) {
+                    createAndSendNotificationsConfiguredForTest(nature, methodType, testNotificationConfig.get(),
+                            resultForDisplay, resultsViewInfo, false);
+                }
+                if (testNotificationConfig.isPresent()) {
+                    createAndSendNotificationsConfiguredForTest(nature, methodType, testNotificationConfig.get(),
+                            resultForDisplay, resultsViewInfo, true);
+                }
             }
         }
     }
 
     private void createAndSendNotificationsConfiguredForTest(NotificationNature nature, NotificationMethod methodType,
-            NotificationConfig<?> notificationConfig, String resultForDisplay, ClientResultsViewBean resultsViewInfo) {
-        for (NotificationPersonType personType : NotificationPersonType.values()) {
-            NotificationConfigOption option = notificationConfig.getOptionFor(nature, methodType, personType);
-            if (option.getActive()) {
-                createAndSendNotificationToPerson(nature, methodType, personType, option, resultForDisplay,
-                        resultsViewInfo);
-            }
-        }
+            NotificationConfig<?> notificationConfig, String resultForDisplay, ClientResultsViewBean resultsViewInfo,
+            boolean internalProfileOnly) {
+        notificationConfig.getOptions().stream()
+                .filter(NotificationConfigOption::getActive)
+                .filter(option -> option.getNotificationNature() == nature)
+                .filter(option -> option.getNotificationMethod() == methodType)
+                .filter(option -> internalProfileOnly
+                        ? NotificationPersonType.INTERNAL_PROFILE.equals(option.getNotificationPersonType())
+                        : !NotificationPersonType.INTERNAL_PROFILE.equals(option.getNotificationPersonType()))
+                .forEach(option -> createAndSendNotificationToPerson(nature, methodType,
+                        option.getNotificationPersonType(), option, resultForDisplay, resultsViewInfo));
     }
 
     private void createAndSendNotificationToPerson(NotificationNature nature, NotificationMethod methodType,
@@ -177,6 +211,42 @@ public class TestNotificationServiceImpl implements TestNotificationService {
                     resultsViewInfo);
         } else if (NotificationMethod.SMS.equals(methodType) && canSendSMS(receiverPerson)) {
             createAndSendResultsNotificationSMS(testPerson, receiverPerson, option, resultForDisplay, resultsViewInfo);
+        } else if (NotificationPersonType.INTERNAL_PROFILE.equals(personType) && NotificationMethod.EMAIL.equals(methodType)) {
+            createAndSendResultsNotificationEmailsToInternalProfile(testPerson, option, resultForDisplay, resultsViewInfo);
+        }
+    }
+
+    private void createAndSendResultsNotificationEmailsToInternalProfile(Person testPerson,
+            NotificationConfigOption option, String resultForDisplay, ClientResultsViewBean resultsViewInfo) {
+        String profileCode = StringUtils.trimToEmpty(option.getProfessionalProfileCode());
+        if (profileCode.isBlank()) {
+            LogEvent.logWarn(this.getClass().getSimpleName(), "createAndSendResultsNotificationEmailsToInternalProfile",
+                    "professional profile code is blank for internal profile notification");
+            return;
+        }
+
+        Map<String, Provider> providersByPersonId = providerService.getAllActiveProviders().stream()
+                .filter(provider -> provider.getPerson() != null && StringUtils.isNotBlank(provider.getPerson().getId()))
+                .collect(Collectors.toMap(provider -> provider.getPerson().getId(), provider -> provider, (left, right) -> left));
+
+        Set<String> deliveredEmails = systemUserService.getAll().stream()
+                .filter(user -> "Y".equalsIgnoreCase(user.getIsActive()))
+                .filter(user -> profileCode.equalsIgnoreCase(StringUtils.trimToEmpty(user.getProfessionalProfileCode())))
+                .map(SystemUser::getLinkedProviderPersonId)
+                .filter(StringUtils::isNotBlank)
+                .map(providersByPersonId::get)
+                .filter(provider -> provider != null && canSendEmail(provider.getPerson()))
+                .map(Provider::getPerson)
+                .map(Person::getEmail)
+                .filter(StringUtils::isNotBlank)
+                .map(StringUtils::trim)
+                .map(String::toLowerCase)
+                .collect(Collectors.toSet());
+
+        for (String email : deliveredEmails) {
+            Person receiverPerson = new Person();
+            receiverPerson.setEmail(email);
+            createAndSendResultsNotificationEmail(testPerson, receiverPerson, option, resultForDisplay, resultsViewInfo);
         }
     }
 
@@ -231,6 +301,13 @@ public class TestNotificationServiceImpl implements TestNotificationService {
     }
 
     private NotificationPayloadTemplate findTemplate(NotificationConfigOption option) {
+        if (option.getNotificationNature() == NotificationNature.RESULT_PENDING_VALIDATION) {
+            if (option.getPayloadTemplate() != null) {
+                return option.getPayloadTemplate();
+            }
+            return createPendingValidationDefaultTemplate();
+        }
+
         NotificationPayloadTemplate template;
         TestNotificationConfig testNotificationConfig = testNotificationConfigService
                 .getForConfigOption(option.getId());

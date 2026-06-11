@@ -232,6 +232,8 @@ public class TestResultItem implements ResultItem, Serializable {
     private Map<String, String> parentTubeRemainingQuantities = new HashMap<>();
     private boolean blockTubeUsageEnabled = false;
     private List<BlockSampleUsageItem> blockSampleUsages = new ArrayList<>();
+    private Map<String, String> tubeLabels = new HashMap<>();
+    private List<String> tubeLabelBlocks = new ArrayList<>();
     private boolean failedValidation = false;
     private boolean nonconforming = false;
     private String testSortOrder = null;
@@ -1002,6 +1004,22 @@ public class TestResultItem implements ResultItem, Serializable {
 
     public void setBlockSampleUsages(List<BlockSampleUsageItem> blockSampleUsages) {
         this.blockSampleUsages = blockSampleUsages == null ? new ArrayList<>() : blockSampleUsages;
+    }
+
+    public Map<String, String> getTubeLabels() {
+        return tubeLabels;
+    }
+
+    public void setTubeLabels(Map<String, String> tubeLabels) {
+        this.tubeLabels = tubeLabels == null ? new HashMap<>() : tubeLabels;
+    }
+
+    public List<String> getTubeLabelBlocks() {
+        return tubeLabelBlocks;
+    }
+
+    public void setTubeLabelBlocks(List<String> tubeLabelBlocks) {
+        this.tubeLabelBlocks = tubeLabelBlocks == null ? new ArrayList<>() : tubeLabelBlocks;
     }
 
     public void setFailedValidation(boolean failedValidation) {

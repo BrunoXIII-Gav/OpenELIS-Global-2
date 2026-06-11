@@ -101,6 +101,7 @@ public class SamplePatientEntryRestController extends BaseSampleEntryController 
             "patientProperties.personLastUpdated", "patientProperties.patientUpdateStatus",
             "patientProperties.patientPK", "patientProperties.guid", "patientProperties.fhirUuid",
             "patientProperties.STnumber", "patientProperties.subjectNumber", "patientProperties.nationalId",
+            "patientProperties.primaryPatientIdentifierType",
             "patientProperties.dni", "patientProperties.passportNumber", "patientProperties.foreignId",
             "patientProperties.lastName", "patientProperties.firstName", "patientProperties.aka",
             "patientProperties.mothersName", "patientProperties.mothersInitial", "patientProperties.streetAddress",

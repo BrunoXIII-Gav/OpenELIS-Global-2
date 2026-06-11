@@ -25,6 +25,9 @@ import org.openelisglobal.common.provider.query.PatientSearchResults;
 import org.openelisglobal.common.servlet.validation.AjaxServlet;
 import org.openelisglobal.common.util.ConfigurationProperties;
 import org.openelisglobal.internationalization.MessageUtil;
+import org.openelisglobal.patientidentity.service.PatientIdentityService;
+import org.openelisglobal.patientidentity.valueholder.PatientIdentity;
+import org.openelisglobal.patientidentitytype.util.PatientIdentityTypeMap;
 import org.openelisglobal.search.service.SearchResultsService;
 import org.openelisglobal.spring.util.SpringContext;
 import org.owasp.encoder.Encode;
@@ -36,6 +39,7 @@ import org.owasp.encoder.Encode;
 public class SubjectNumberValidationProvider extends BaseValidationProvider {
 
     protected SearchResultsService searchResultsService = SpringContext.getBean(SearchResultsService.class);
+    protected PatientIdentityService patientIdentityService = SpringContext.getBean(PatientIdentityService.class);
 
     public SubjectNumberValidationProvider() {
         super();
@@ -56,10 +60,14 @@ public class SubjectNumberValidationProvider extends BaseValidationProvider {
         String STNumber = numberType.equals("STnumber") ? number : null;
         String subjectNumber = numberType.equals("subjectNumber") ? number : null;
         String nationalId = numberType.equals("nationalId") ? number : null;
+        String dni = numberType.equals("dni") ? number : null;
+        String passportNumber = numberType.equals("passportNumber") ? number : null;
+        String foreignId = numberType.equals("foreignId") ? number : null;
 
         // We just care about duplicates but blank values do not count as duplicates
         if (!(GenericValidator.isBlankOrNull(STNumber) && GenericValidator.isBlankOrNull(subjectNumber)
-                && GenericValidator.isBlankOrNull(nationalId))) {
+                && GenericValidator.isBlankOrNull(nationalId) && GenericValidator.isBlankOrNull(dni)
+                && GenericValidator.isBlankOrNull(passportNumber) && GenericValidator.isBlankOrNull(foreignId))) {
             List<PatientSearchResults> results = searchResultsService.getSearchResultsExact(null, null, STNumber,
                     subjectNumber, nationalId, null, null, null, null, null);
 
@@ -67,11 +75,14 @@ public class SubjectNumberValidationProvider extends BaseValidationProvider {
                     .isPropertyValueEqual(ConfigurationProperties.Property.ALLOW_DUPLICATE_SUBJECT_NUMBERS, "true");
             boolean allowDuplicateNationalId = ConfigurationProperties.getInstance()
                     .isPropertyValueEqual(ConfigurationProperties.Property.ALLOW_DUPLICATE_NATIONAL_IDS, "true");
+            boolean identifierDuplicate = hasIdentityTypeDuplicate(dni, "DNI")
+                    || hasIdentityTypeDuplicate(passportNumber, "PASSPORT")
+                    || hasIdentityTypeDuplicate(foreignId, "FOREIGN_ID");
             if (!results.isEmpty() && !GenericValidator.isBlankOrNull(subjectNumber)) {
                 queryResponse = (allowDuplicateSubjectNumber ? "warning#" + MessageUtil.getMessage("alert.warning")
                         : "fail#" + MessageUtil.getMessage("alert.error")) + ": "
                         + MessageUtil.getMessage("error.duplicate.subjectNumber.warning");
-            } else if (!results.isEmpty() && !GenericValidator.isBlankOrNull(nationalId)) {
+            } else if ((!results.isEmpty() && !GenericValidator.isBlankOrNull(nationalId)) || identifierDuplicate) {
                 queryResponse = (allowDuplicateNationalId ? "warning#" + MessageUtil.getMessage("alert.warning")
                         : "fail#" + MessageUtil.getMessage("alert.error")) + ": "
                         + MessageUtil.getMessage("error.duplicate.subjectNumber.warning");
@@ -82,5 +93,15 @@ public class SubjectNumberValidationProvider extends BaseValidationProvider {
         }
         response.setCharacterEncoding("UTF-8");
         ajaxServlet.sendData(Encode.forXmlContent(fieldId), queryResponse, request, response);
+    }
+
+    private boolean hasIdentityTypeDuplicate(String value, String type) {
+        if (GenericValidator.isBlankOrNull(value)) {
+            return false;
+        }
+
+        String typeId = PatientIdentityTypeMap.getInstance().getIDForType(type);
+        List<PatientIdentity> identities = patientIdentityService.getPatientIdentitiesByValueAndType(value, typeId);
+        return !identities.isEmpty();
     }
 }

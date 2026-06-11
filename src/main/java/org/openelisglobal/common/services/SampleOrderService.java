@@ -453,8 +453,11 @@ public class SampleOrderService {
     private void createOrganizationDepartProviderArtifacts(SampleOrderItem sampleOrder, String currentUserId,
             SampleOrderPersistenceArtifacts artifacts, RequesterService requesterService) {
 
-        SampleRequester orgDepartRequester = sampleService.getOrganizationSampleRequester(sample,
-                TableIdService.getInstance().REFERRING_ORG_DEPARTMENT_TYPE_ID);
+        String excludedRequesterId = artifacts.getSampleOrganizationRequester() != null
+                ? artifacts.getSampleOrganizationRequester().getId()
+                : null;
+        SampleRequester orgDepartRequester = sampleService.getOrganizationSampleRequesterExcluding(sample,
+                TableIdService.getInstance().REFERRING_ORG_DEPARTMENT_TYPE_ID, excludedRequesterId);
 
         if (orgDepartRequester == null) {
             handleNoExistingOrganizationDepartRequester(sampleOrder, currentUserId, artifacts);

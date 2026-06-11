@@ -1,5 +1,6 @@
 package org.openelisglobal.notification.valueholder;
 
+import com.fasterxml.jackson.annotation.JsonIgnore;
 import java.util.List;
 import org.openelisglobal.common.valueholder.BaseObject;
 import org.openelisglobal.notification.valueholder.NotificationConfigOption.NotificationMethod;
@@ -10,8 +11,10 @@ public abstract class NotificationConfig<T> extends BaseObject<Integer> {
 
     private static final long serialVersionUID = -7224488513935429998L;
 
+    @JsonIgnore
     public abstract List<NotificationConfigOption> getOptions();
 
+    @JsonIgnore
     public abstract void setOptions(List<NotificationConfigOption> options);
 
     public abstract NotificationConfigOption getOptionFor(NotificationNature nature, NotificationMethod methodType,

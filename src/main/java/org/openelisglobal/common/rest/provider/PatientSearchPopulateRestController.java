@@ -13,6 +13,7 @@ import org.openelisglobal.common.util.DateUtil;
 import org.openelisglobal.patient.service.PatientContactService;
 import org.openelisglobal.patient.service.PatientService;
 import org.openelisglobal.patientadditionalfield.service.PatientAdditionalFieldService;
+import org.openelisglobal.patient.util.PatientIdentifierUtil;
 import org.openelisglobal.patient.util.PatientUtil;
 import org.openelisglobal.patient.valueholder.Patient;
 import org.openelisglobal.patient.valueholder.PatientContact;
@@ -113,7 +114,7 @@ public class PatientSearchPopulateRestController {
 
         PatientInfoBean patientInfo = new PatientInfoBean();
         patientInfo.setPatientPK(patient.getId());
-        patientInfo.setNationalId(patient.getNationalId());
+        patientInfo.setNationalId(patientService.getNationalId(patient));
         patientInfo.setSTnumber(identityMap.getIdentityValue(identityList, "ST"));
         patientInfo.setSubjectNumber(identityMap.getIdentityValue(identityList, "SUBJECT"));
         patientInfo.setLastName(getLastNameForResponse(person));
@@ -146,6 +147,12 @@ public class PatientSearchPopulateRestController {
         patientInfo.setDni(getIdentityValueSafe(identityList, "DNI"));
         patientInfo.setPassportNumber(getIdentityValueSafe(identityList, "PASSPORT"));
         patientInfo.setForeignId(getIdentityValueSafe(identityList, "FOREIGN_ID"));
+        String primaryPatientIdentifierType = PatientIdentifierUtil.getStoredPrimaryIdentifierType(identityList);
+        if (primaryPatientIdentifierType.isEmpty()) {
+            primaryPatientIdentifierType = PatientIdentifierUtil.inferPrimaryIdentifierType(patientInfo.getNationalId(),
+                    patientInfo.getDni(), patientInfo.getPassportNumber(), patientInfo.getForeignId());
+        }
+        patientInfo.setPrimaryPatientIdentifierType(primaryPatientIdentifierType);
         patientInfo.setGuid(identityMap.getIdentityValue(identityList, "GUID"));
         patientInfo.setPatientAdditionalFieldValues(
                 patientAdditionalFieldService.getPatientValues(patient.getId(), null));

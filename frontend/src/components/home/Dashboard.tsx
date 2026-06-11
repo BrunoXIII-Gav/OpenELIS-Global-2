@@ -640,7 +640,7 @@ const HomeDashBoard: React.FC<DashBoardProps> = () => {
     },
     {
       key: "patientId",
-      header: <FormattedMessage id="patient.id" />,
+      header: <FormattedMessage id="patient.merge.nationalId" />,
     },
     {
       key: "labNumber",
@@ -659,7 +659,7 @@ const HomeDashBoard: React.FC<DashBoardProps> = () => {
     },
     {
       key: "patientId",
-      header: <FormattedMessage id="patient.id" />,
+      header: <FormattedMessage id="patient.merge.nationalId" />,
     },
     {
       key: "labNumber",
@@ -686,7 +686,7 @@ const HomeDashBoard: React.FC<DashBoardProps> = () => {
     },
     {
       key: "patientId",
-      header: <FormattedMessage id="patient.id" />,
+      header: <FormattedMessage id="patient.merge.nationalId" />,
     },
     {
       key: "labNumber",

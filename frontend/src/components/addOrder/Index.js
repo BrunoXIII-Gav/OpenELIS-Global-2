@@ -620,16 +620,6 @@ const Index = () => {
     if (isSubmitting) {
       return;
     }
-    const subjectNumber = String(
-      orderFormValues?.patientProperties?.subjectNumber || "",
-    ).trim();
-    if (!subjectNumber) {
-      showAlertMessage(
-        `${intl.formatMessage({ id: "patient.subject.number" })}: ${intl.formatMessage({ id: "required.invalidtext" })}`,
-        NotificationKinds.error,
-      );
-      return;
-    }
     const invalidCugSample = (samples || []).find(
       (sampleItem) =>
         String(sampleItem?.sampleXML?.cugValidationMessage || "").trim() !== "",
@@ -865,18 +855,6 @@ const Index = () => {
   };
 
   const navigateForward = () => {
-    if (page === patientInfoPageNumber) {
-      const subjectNumber = String(
-        orderFormValues?.patientProperties?.subjectNumber || "",
-      ).trim();
-      if (!subjectNumber) {
-        showAlertMessage(
-          `${intl.formatMessage({ id: "patient.subject.number" })}: ${intl.formatMessage({ id: "required.invalidtext" })}`,
-          NotificationKinds.error,
-        );
-        return;
-      }
-    }
     if (page < lastPageNumber && page >= firstPageNumber) {
       setPage(page + 1);
     }
@@ -1023,7 +1001,9 @@ const Index = () => {
                       })}
                     />
                     <ProgressStep
-                      label={intl.formatMessage({ id: "order.step.add.request" })}
+                      label={intl.formatMessage({
+                        id: "order.step.add.request",
+                      })}
                     />
                     <ProgressStep
                       label={intl.formatMessage({ id: "order.label.add" })}
@@ -1043,7 +1023,9 @@ const Index = () => {
                       })}
                     />
                     <ProgressStep
-                      label={intl.formatMessage({ id: "order.step.add.request" })}
+                      label={intl.formatMessage({
+                        id: "order.step.add.request",
+                      })}
                     />
                     <ProgressStep
                       label={intl.formatMessage({ id: "order.label.add" })}

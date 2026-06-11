@@ -5,6 +5,7 @@ const CreatePatientFormValues = {
   dni: "",
   passportNumber: "",
   foreignId: "",
+  primaryPatientIdentifierType: "",
   lastName: "",
   firstName: "",
   streetAddress: "",

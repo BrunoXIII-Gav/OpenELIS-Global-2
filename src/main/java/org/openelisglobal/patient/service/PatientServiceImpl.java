@@ -21,6 +21,7 @@ import org.openelisglobal.gender.valueholder.Gender;
 import org.openelisglobal.patient.action.IPatientUpdate.PatientUpdateStatus;
 import org.openelisglobal.patient.action.bean.PatientManagementInfo;
 import org.openelisglobal.patient.dao.PatientDAO;
+import org.openelisglobal.patient.util.PatientIdentifierUtil;
 import org.openelisglobal.patient.util.PatientUtil;
 import org.openelisglobal.patient.valueholder.Patient;
 import org.openelisglobal.patient.valueholder.PatientContact;
@@ -618,6 +619,9 @@ public class PatientServiceImpl extends AuditableBaseObjectServiceImpl<Patient, 
     @Transactional
     public void persistPatientData(PatientManagementInfo patientInfo, Patient patient, String sysUserId)
             throws LIMSRuntimeException {
+        PatientIdentifierUtil.synchronizeDerivedNationalId(patientInfo);
+        patient.setNationalId(patientInfo.getNationalId());
+
         if (patientInfo.getPatientUpdateStatus() == PatientUpdateStatus.ADD) {
             personService.insert(patient.getPerson());
         } else if (patientInfo.getPatientUpdateStatus() == PatientUpdateStatus.UPDATE) {
@@ -690,6 +694,10 @@ public class PatientServiceImpl extends AuditableBaseObjectServiceImpl<Patient, 
         persistIdentityType(patientInfo.getDni(), "DNI", patientInfo, patient, sysUserId);
         persistIdentityType(patientInfo.getPassportNumber(), "PASSPORT", patientInfo, patient, sysUserId);
         persistIdentityType(patientInfo.getForeignId(), "FOREIGN_ID", patientInfo, patient, sysUserId);
+        if (PatientIdentifierUtil.usesDerivedNationalIdMode(patientInfo)) {
+            persistIdentityType(patientInfo.getPrimaryPatientIdentifierType(), PatientIdentifierUtil.NATIONAL_ID_SOURCE,
+                    patientInfo, patient, sysUserId);
+        }
         persistIdentityType(patientInfo.getGuid(), "GUID", patientInfo, patient, sysUserId);
 
         // Persist dynamic address hierarchy values (addressHierarchy_0,

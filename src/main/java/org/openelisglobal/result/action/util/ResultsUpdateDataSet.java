@@ -17,7 +17,9 @@
 package org.openelisglobal.result.action.util;
 
 import java.util.ArrayList;
+import java.util.LinkedHashSet;
 import java.util.List;
+import java.util.Set;
 import org.openelisglobal.analysis.valueholder.Analysis;
 import org.openelisglobal.common.services.IResultSaveService;
 import org.openelisglobal.note.valueholder.Note;
@@ -42,6 +44,7 @@ public class ResultsUpdateDataSet implements IResultSaveService {
     private Analysis previousAnalysis = new Analysis();
     private ResultsValidation resultValidation = SpringContext.getBean(ResultsValidation.class);
     private List<Note> noteList = new ArrayList<>();
+    private Set<String> pendingValidationNotificationAnalysisIds = new LinkedHashSet<>();
 
     private final String currentUserId;
 
@@ -154,5 +157,15 @@ public class ResultsUpdateDataSet implements IResultSaveService {
 
     public void setPreviousAnalysis(Analysis previousAnalysis) {
         this.previousAnalysis = previousAnalysis;
+    }
+
+    public Set<String> getPendingValidationNotificationAnalysisIds() {
+        return pendingValidationNotificationAnalysisIds;
+    }
+
+    public void addPendingValidationNotificationAnalysisId(String analysisId) {
+        if (analysisId != null) {
+            pendingValidationNotificationAnalysisIds.add(analysisId);
+        }
     }
 }

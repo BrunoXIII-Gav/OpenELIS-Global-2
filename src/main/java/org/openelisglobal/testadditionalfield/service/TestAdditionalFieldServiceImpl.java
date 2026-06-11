@@ -14,6 +14,7 @@ import java.util.Comparator;
 import java.util.Collections;
 import java.util.HashMap;
 import java.util.HashSet;
+import java.util.LinkedHashMap;
 import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Map;
@@ -94,7 +95,8 @@ public class TestAdditionalFieldServiceImpl implements TestAdditionalFieldServic
     @Transactional(readOnly = true)
     public List<TestAdditionalFieldPayload> getFieldsForTest(String testId, boolean includeInactive) {
         Integer numericTestId = parseNumericId(testId, "testId");
-        List<TestAdditionalFieldDefinition> definitions = definitionDAO.findByTestId(numericTestId, includeInactive);
+        List<TestAdditionalFieldDefinition> definitions = collapseDuplicateDefinitions(
+                definitionDAO.findByTestId(numericTestId, includeInactive));
         if (definitions.isEmpty()) {
             return Collections.emptyList();
         }
@@ -128,7 +130,8 @@ public class TestAdditionalFieldServiceImpl implements TestAdditionalFieldServic
             return result;
         }
 
-        List<TestAdditionalFieldDefinition> definitions = definitionDAO.findByTestIds(numericIds, true);
+        List<TestAdditionalFieldDefinition> definitions = collapseDuplicateDefinitions(
+                definitionDAO.findByTestIds(numericIds, true));
         if (definitions.isEmpty()) {
             return result;
         }
@@ -152,12 +155,13 @@ public class TestAdditionalFieldServiceImpl implements TestAdditionalFieldServic
     public void replaceFieldsForTest(String testId, List<TestAdditionalFieldPayload> payloads, String currentUserId) {
         Integer numericTestId = parseNumericId(testId, "testId");
         List<TestAdditionalFieldDefinition> existingDefinitions = definitionDAO.findByTestId(numericTestId, true);
+        List<TestAdditionalFieldDefinition> canonicalDefinitions = collapseDuplicateDefinitions(existingDefinitions);
 
         Map<Integer, TestAdditionalFieldDefinition> existingById = existingDefinitions.stream()
                 .collect(Collectors.toMap(TestAdditionalFieldDefinition::getId, d -> d));
-        Map<String, TestAdditionalFieldDefinition> existingByFieldKey = existingDefinitions.stream().collect(Collectors
+        Map<String, TestAdditionalFieldDefinition> existingByFieldKey = canonicalDefinitions.stream().collect(Collectors
                 .toMap(d -> StringUtils.trimToEmpty(d.getFieldKey()).toLowerCase(), d -> d, (left, right) -> left));
-        Map<String, TestAdditionalFieldDefinition> existingByDisplayName = existingDefinitions.stream()
+        Map<String, TestAdditionalFieldDefinition> existingByDisplayName = canonicalDefinitions.stream()
                 .collect(Collectors.toMap(d -> StringUtils.trimToEmpty(d.getDisplayName()).toLowerCase(), d -> d,
                         (left, right) -> left));
 
@@ -619,6 +623,37 @@ public class TestAdditionalFieldServiceImpl implements TestAdditionalFieldServic
         payload.setMetadataJson(definition.getMetadataJson());
         applyResultEntryMetadata(payload);
         return payload;
+    }
+
+    private List<TestAdditionalFieldDefinition> collapseDuplicateDefinitions(
+            List<TestAdditionalFieldDefinition> definitions) {
+        if (definitions == null || definitions.isEmpty()) {
+            return Collections.emptyList();
+        }
+
+        List<TestAdditionalFieldDefinition> sortedDefinitions = new ArrayList<>(definitions);
+        sortedDefinitions.sort(Comparator
+                .comparing(TestAdditionalFieldDefinition::getLastupdated,
+                        Comparator.nullsLast(Comparator.reverseOrder()))
+                .thenComparing(TestAdditionalFieldDefinition::getId, Comparator.nullsLast(Comparator.reverseOrder())));
+
+        Map<String, TestAdditionalFieldDefinition> dedupedByFieldKey = new LinkedHashMap<>();
+        for (TestAdditionalFieldDefinition definition : sortedDefinitions) {
+            if (definition == null) {
+                continue;
+            }
+            String dedupeKey = StringUtils.trimToEmpty(definition.getFieldKey()).toLowerCase();
+            if (StringUtils.isBlank(dedupeKey)) {
+                dedupeKey = "id:" + definition.getId();
+            }
+            dedupedByFieldKey.putIfAbsent(dedupeKey, definition);
+        }
+
+        List<TestAdditionalFieldDefinition> collapsedDefinitions = new ArrayList<>(dedupedByFieldKey.values());
+        collapsedDefinitions.sort(Comparator.comparing(TestAdditionalFieldDefinition::getSortOrder,
+                Comparator.nullsLast(Comparator.naturalOrder())).thenComparing(TestAdditionalFieldDefinition::getId,
+                        Comparator.nullsLast(Comparator.naturalOrder())));
+        return collapsedDefinitions;
     }
 
     private TestAdditionalFieldOptionPayload mapOptionToPayload(TestAdditionalFieldOption option) {

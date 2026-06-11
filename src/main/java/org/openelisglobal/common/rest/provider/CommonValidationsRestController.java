@@ -14,6 +14,9 @@ import org.openelisglobal.common.provider.validation.ProgramAccessionValidator;
 import org.openelisglobal.common.services.PhoneNumberService;
 import org.openelisglobal.common.util.ConfigurationProperties;
 import org.openelisglobal.internationalization.MessageUtil;
+import org.openelisglobal.patientidentity.service.PatientIdentityService;
+import org.openelisglobal.patientidentity.valueholder.PatientIdentity;
+import org.openelisglobal.patientidentitytype.util.PatientIdentityTypeMap;
 import org.openelisglobal.project.service.ProjectService;
 import org.openelisglobal.project.valueholder.Project;
 import org.openelisglobal.sample.util.AccessionNumberUtil;
@@ -36,6 +39,8 @@ public class CommonValidationsRestController {
 
     @Autowired
     protected ProjectService projectService;
+    @Autowired
+    protected PatientIdentityService patientIdentityService;
 
     protected SearchResultsService searchResultsService = SpringContext.getBean(SearchResultsService.class);
 
@@ -196,15 +201,20 @@ public class CommonValidationsRestController {
         String fieldId = request.getParameter("fieldId");
         String number = request.getParameter("subjectNumber");
         String numberType = request.getParameter("numberType");
+        String patientPK = request.getParameter("patientPK");
         String STNumber = numberType.equals("STnumber") ? number : null;
         String subjectNumber = numberType.equals("subjectNumber") ? number : null;
         String nationalId = numberType.equals("nationalId") ? number : null;
+        String dni = numberType.equals("dni") ? number : null;
+        String passportNumber = numberType.equals("passportNumber") ? number : null;
+        String foreignId = numberType.equals("foreignId") ? number : null;
 
         responseObject.setStatus(false);
         String queryResponse = "";
         // We just care about duplicates but blank values do not count as duplicates
         if (!(GenericValidator.isBlankOrNull(STNumber) && GenericValidator.isBlankOrNull(subjectNumber)
-                && GenericValidator.isBlankOrNull(nationalId))) {
+                && GenericValidator.isBlankOrNull(nationalId) && GenericValidator.isBlankOrNull(dni)
+                && GenericValidator.isBlankOrNull(passportNumber) && GenericValidator.isBlankOrNull(foreignId))) {
             List<PatientSearchResults> results = searchResultsService.getSearchResultsExact(null, null, STNumber,
                     subjectNumber, nationalId, null, null, null, null, null);
 
@@ -212,18 +222,23 @@ public class CommonValidationsRestController {
                     .isPropertyValueEqual(ConfigurationProperties.Property.ALLOW_DUPLICATE_SUBJECT_NUMBERS, "true");
             boolean allowDuplicateNationalId = ConfigurationProperties.getInstance()
                     .isPropertyValueEqual(ConfigurationProperties.Property.ALLOW_DUPLICATE_NATIONAL_IDS, "true");
-            if (!results.isEmpty() && !GenericValidator.isBlankOrNull(subjectNumber)) {
+
+            boolean identifierDuplicate = hasIdentityTypeDuplicate(dni, "DNI", patientPK)
+                    || hasIdentityTypeDuplicate(passportNumber, "PASSPORT", patientPK)
+                    || hasIdentityTypeDuplicate(foreignId, "FOREIGN_ID", patientPK);
+            if (hasSearchDuplicate(results, patientPK) && !GenericValidator.isBlankOrNull(subjectNumber)) {
                 queryResponse = (allowDuplicateSubjectNumber ? "warning#" + MessageUtil.getMessage("alert.warning")
                         : "fail#" + MessageUtil.getMessage("alert.error")) + ": "
                         + MessageUtil.getMessage("error.duplicate.subjectNumber.warning");
                 responseObject.setBody(queryResponse);
 
-            } else if (!results.isEmpty() && !GenericValidator.isBlankOrNull(nationalId)) {
+            } else if ((hasSearchDuplicate(results, patientPK) && !GenericValidator.isBlankOrNull(nationalId))
+                    || identifierDuplicate) {
                 queryResponse = (allowDuplicateNationalId ? "warning#" + MessageUtil.getMessage("alert.warning")
                         : "fail#" + MessageUtil.getMessage("alert.error")) + ": "
                         + MessageUtil.getMessage("error.duplicate.subjectNumber.warning");
                 responseObject.setBody(queryResponse);
-            } else if (!results.isEmpty()) {
+            } else if (hasSearchDuplicate(results, patientPK)) {
                 queryResponse = "fail#" + MessageUtil.getMessage("alert.error") + ": "
                         + MessageUtil.getMessage("error.duplicate.subjectNumber.warning");
                 responseObject.setBody(queryResponse);
@@ -233,6 +248,33 @@ public class CommonValidationsRestController {
             }
         }
         return responseObject;
+    }
+
+    private boolean hasSearchDuplicate(List<PatientSearchResults> results, String patientPK) {
+        if (results == null || results.isEmpty()) {
+            return false;
+        }
+        for (PatientSearchResults result : results) {
+            if (!result.getPatientID().equals(patientPK)) {
+                return true;
+            }
+        }
+        return false;
+    }
+
+    private boolean hasIdentityTypeDuplicate(String value, String type, String patientPK) {
+        if (GenericValidator.isBlankOrNull(value)) {
+            return false;
+        }
+
+        String typeId = PatientIdentityTypeMap.getInstance().getIDForType(type);
+        List<PatientIdentity> identities = patientIdentityService.getPatientIdentitiesByValueAndType(value, typeId);
+        for (PatientIdentity identity : identities) {
+            if (!identity.getPatientId().equals(patientPK)) {
+                return true;
+            }
+        }
+        return false;
     }
 
     public static class ResponseObject {

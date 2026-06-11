@@ -1,6 +1,7 @@
 package org.openelisglobal.notification.valueholder;
 
 import com.fasterxml.jackson.annotation.JsonIgnore;
+import com.fasterxml.jackson.annotation.JsonProperty;
 import jakarta.persistence.CascadeType;
 import jakarta.persistence.CollectionTable;
 import jakarta.persistence.Column;
@@ -16,10 +17,15 @@ import jakarta.persistence.JoinColumn;
 import jakarta.persistence.ManyToOne;
 import jakarta.persistence.SequenceGenerator;
 import jakarta.persistence.Table;
+import jakarta.persistence.Transient;
 import jakarta.validation.Valid;
 import jakarta.validation.constraints.NotNull;
+import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.List;
+import java.util.stream.Collectors;
 import org.openelisglobal.common.valueholder.BaseObject;
+import org.openelisglobal.notification.valueholder.NotificationPayloadTemplate.NotificationPayloadType;
 
 @Entity
 @Table(name = "notification_config_option")
@@ -28,13 +34,13 @@ public class NotificationConfigOption extends BaseObject<Integer> {
     private static final long serialVersionUID = -6242849348547228319L;
 
     public enum NotificationNature {
-        RESULT_VALIDATION, FREEZER_TEMPERATURE_ALERT, // Task T039: Alert system integration
+        RESULT_VALIDATION, RESULT_PENDING_VALIDATION, FREEZER_TEMPERATURE_ALERT, // Task T039: Alert system integration
         EQUIPMENT_ALERT, // Task T039: Alert system integration
         INVENTORY_ALERT // Task T039: Alert system integration
     }
 
     public enum NotificationPersonType {
-        PATIENT, PROVIDER
+        PATIENT, PROVIDER, INTERNAL_PROFILE
     }
 
     public enum NotificationMethod {
@@ -81,6 +87,15 @@ public class NotificationConfigOption extends BaseObject<Integer> {
     @Column(name = "contact")
     @JsonIgnore
     private List<String> additionalContacts;
+
+    @Column(name = "professional_profile_code")
+    private String professionalProfileCode;
+
+    @Transient
+    private String transientSubjectTemplate;
+
+    @Transient
+    private String transientMessageTemplate;
 
     public NotificationConfigOption(NotificationMethod methodType, NotificationPersonType personType,
             NotificationNature notificationNature, boolean active) {
@@ -149,5 +164,66 @@ public class NotificationConfigOption extends BaseObject<Integer> {
 
     public void setAdditionalContacts(List<String> additionalContacts) {
         this.additionalContacts = additionalContacts;
+    }
+
+    public String getProfessionalProfileCode() {
+        return professionalProfileCode;
+    }
+
+    public void setProfessionalProfileCode(String professionalProfileCode) {
+        this.professionalProfileCode = professionalProfileCode;
+    }
+
+    @JsonProperty("subjectTemplate")
+    public String getSubjectTemplate() {
+        if (transientSubjectTemplate != null) {
+            return transientSubjectTemplate;
+        }
+        return payloadTemplate == null ? "" : payloadTemplate.getSubjectTemplate();
+    }
+
+    @JsonProperty("subjectTemplate")
+    public void setSubjectTemplate(String subjectTemplate) {
+        transientSubjectTemplate = subjectTemplate;
+        ensurePayloadTemplate();
+        payloadTemplate.setSubjectTemplate(subjectTemplate);
+    }
+
+    @JsonProperty("messageTemplate")
+    public String getMessageTemplate() {
+        if (transientMessageTemplate != null) {
+            return transientMessageTemplate;
+        }
+        return payloadTemplate == null ? "" : payloadTemplate.getMessageTemplate();
+    }
+
+    @JsonProperty("messageTemplate")
+    public void setMessageTemplate(String messageTemplate) {
+        transientMessageTemplate = messageTemplate;
+        ensurePayloadTemplate();
+        payloadTemplate.setMessageTemplate(messageTemplate);
+    }
+
+    @JsonProperty("additionalContactsCsv")
+    public String getAdditionalContactsCsv() {
+        return additionalContacts == null || additionalContacts.isEmpty() ? "" : String.join(",", additionalContacts);
+    }
+
+    public void setAdditionalContactsCsv(String additionalContactsCsv) {
+        if (additionalContactsCsv == null || additionalContactsCsv.isBlank()) {
+            additionalContacts = new ArrayList<>();
+            return;
+        }
+        additionalContacts = Arrays.stream(additionalContactsCsv.split(",")).map(String::trim).filter(s -> !s.isBlank())
+                .distinct().collect(Collectors.toList());
+    }
+
+    private void ensurePayloadTemplate() {
+        if (payloadTemplate == null) {
+            payloadTemplate = new NotificationPayloadTemplate();
+            payloadTemplate.setType(NotificationPayloadType.TEST_RESULT);
+        } else if (payloadTemplate.getType() == null) {
+            payloadTemplate.setType(NotificationPayloadType.TEST_RESULT);
+        }
     }
 }

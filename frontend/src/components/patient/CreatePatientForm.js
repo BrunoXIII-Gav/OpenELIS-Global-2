@@ -41,6 +41,24 @@ import CreatePatientValidationSchema from "../formModel/validationSchema/CreateP
 import CustomDatePicker from "../common/CustomDatePicker";
 import PatientImageSelector from "./photoManagement/uploadPhoto/PatientImageSelector";
 
+const PRIMARY_IDENTIFIER_OPTIONS = [
+  {
+    value: "DNI",
+    labelId: "patient.identifier.dni",
+    toggleKey: "dni",
+  },
+  {
+    value: "PASSPORT",
+    labelId: "patient.identifier.passport",
+    toggleKey: "passportNumber",
+  },
+  {
+    value: "FOREIGN_ID",
+    labelId: "patient.identifier.foreign.card",
+    toggleKey: "foreignId",
+  },
+];
+
 function CreatePatientForm(props) {
   const componentMounted = useRef(false);
   const selectedPatient = props.selectedPatient || {};
@@ -98,6 +116,85 @@ function CreatePatientForm(props) {
   const [showPassportField, setShowPassportField] = useState(false);
   const [showForeignIdField, setShowForeignIdField] = useState(false);
 
+  const getIdentifierValueByType = (values, type) => {
+    switch (type) {
+      case "DNI":
+        return values?.dni || "";
+      case "PASSPORT":
+        return values?.passportNumber || "";
+      case "FOREIGN_ID":
+        return values?.foreignId || "";
+      default:
+        return "";
+    }
+  };
+
+  const getVisiblePrimaryIdentifierOptions = () =>
+    PRIMARY_IDENTIFIER_OPTIONS.filter((option) => {
+      if (option.value === "DNI") {
+        return showDniField;
+      }
+      if (option.value === "PASSPORT") {
+        return showPassportField;
+      }
+      return showForeignIdField;
+    });
+
+  const inferPrimaryIdentifierType = (patient) => {
+    const explicitType = (patient?.primaryPatientIdentifierType || "").trim();
+    if (explicitType) {
+      return explicitType;
+    }
+
+    const nationalId = (patient?.nationalId || "").trim();
+    const dni = (patient?.dni || "").trim();
+    const passportNumber = (patient?.passportNumber || "").trim();
+    const foreignId = (patient?.foreignId || "").trim();
+
+    if (nationalId && nationalId === dni) return "DNI";
+    if (nationalId && nationalId === passportNumber) return "PASSPORT";
+    if (nationalId && nationalId === foreignId) return "FOREIGN_ID";
+    if (dni) return "DNI";
+    if (passportNumber) return "PASSPORT";
+    if (foreignId) return "FOREIGN_ID";
+    return "";
+  };
+
+  const validatePatientIdentifiers = (values) => {
+    const validationErrors = {};
+    const hasIdentifier =
+      Boolean((values?.dni || "").trim()) ||
+      Boolean((values?.passportNumber || "").trim()) ||
+      Boolean((values?.foreignId || "").trim());
+
+    if (!hasIdentifier) {
+      validationErrors.primaryPatientIdentifierType = intl.formatMessage({
+        id: "patient.identifier.required.one",
+      });
+      return validationErrors;
+    }
+
+    if (!values?.primaryPatientIdentifierType) {
+      validationErrors.primaryPatientIdentifierType = intl.formatMessage({
+        id: "patient.identifier.primary.required",
+      });
+      return validationErrors;
+    }
+
+    if (
+      !getIdentifierValueByType(
+        values,
+        values.primaryPatientIdentifierType,
+      ).trim()
+    ) {
+      validationErrors.primaryPatientIdentifierType = intl.formatMessage({
+        id: "patient.identifier.primary.value.required",
+      });
+    }
+
+    return validationErrors;
+  };
+
   const syncOptionalIdentityVisibility = (patient) => {
     setShowDniField(Boolean((patient?.dni || "").trim()));
     setShowPassportField(Boolean((patient?.passportNumber || "").trim()));
@@ -108,12 +205,6 @@ function CreatePatientForm(props) {
     if (setFieldValue) {
       setFieldValue("photo", photo);
     }
-  };
-
-  const handleNationalIdChange = (event) => {
-    const newValue = event.target.value;
-    event.target.value = newValue;
-    patientIdentifierRef.current.nationalId = newValue;
   };
 
   const handleSubjectNoChange = (event) => {
@@ -1075,6 +1166,9 @@ function CreatePatientForm(props) {
         nationalId: patient.nationalId || "",
         subjectNumber: patient.subjectNumber || "",
       };
+      patient.primaryPatientIdentifierType =
+        patient.primaryPatientIdentifierType ||
+        inferPrimaryIdentifierType(patient);
       syncOptionalIdentityVisibility(patient);
       setPatientDetails({
         ...patientDetails,
@@ -1159,6 +1253,9 @@ function CreatePatientForm(props) {
           nationalId: patient.nationalId || "",
           subjectNumber: patient.subjectNumber || "",
         };
+        patient.primaryPatientIdentifierType =
+          patient.primaryPatientIdentifierType ||
+          inferPrimaryIdentifierType(patient);
         syncOptionalIdentityVisibility(patient);
         getYearsMonthsDaysFromDOB(
           props.orderFormValues.patientProperties.birthDateForDisplay,
@@ -1312,7 +1409,7 @@ function CreatePatientForm(props) {
     let error;
     if (numberValue !== "") {
       error = getFromOpenElisServer(
-        `/rest/subjectNumberValidationProvider?fieldId=${fieldId}&numberType=${numberType}&subjectNumber=${numberValue}`,
+        `/rest/subjectNumberValidationProvider?fieldId=${fieldId}&numberType=${numberType}&subjectNumber=${numberValue}&patientPK=${props.selectedPatient?.patientPK || ""}`,
         (response) =>
           accessionNumberValidationResponse(response, numberType, numberValue),
       );
@@ -1354,8 +1451,14 @@ function CreatePatientForm(props) {
       delete values.days;
     }
     values.nationalId = showPatientNationalIdField
-      ? patientIdentifierRef.current.nationalId || ""
-      : "";
+      ? getIdentifierValueByType(
+          values,
+          values.primaryPatientIdentifierType,
+        ).trim()
+      : getIdentifierValueByType(
+          values,
+          values.primaryPatientIdentifierType,
+        ).trim();
     values.subjectNumber = patientIdentifierRef.current.subjectNumber || "";
     values.dni = showDniField ? values.dni || "" : "";
     values.passportNumber = showPassportField
@@ -1395,7 +1498,7 @@ function CreatePatientForm(props) {
     }
   };
 
-  const isNationalIdInvalid = (formikError, fieldTouched) => {
+  const isNationalIdInvalid = (formikError) => {
     const nationalIdErrorFromProps = props.error
       ? props.error("patientProperties.nationalId")
       : "";
@@ -1410,6 +1513,7 @@ function CreatePatientForm(props) {
         initialValues={patientDetails}
         enableReinitialize
         validationSchema={CreatePatientValidationSchema}
+        validate={validatePatientIdentifiers}
         validateOnChange={false}
         validateOnBlur={true}
         onSubmit={handleSubmit}
@@ -1476,14 +1580,9 @@ function CreatePatientForm(props) {
                         key={`subject-number-${selectedPatient.patientPK || "new"}`}
                         defaultValue={values.subjectNumber || ""}
                         name={field.name}
-                        labelText={
-                          <>
-                            {intl.formatMessage({
-                              id: "patient.subject.number",
-                            })}
-                            <span className="requiredlabel">*</span>
-                          </>
-                        }
+                        labelText={intl.formatMessage({
+                          id: "patient.subject.number",
+                        })}
                         id={field.name}
                         invalid={errors.subjectNumber && touched.subjectNumber}
                         invalidText={errors.subjectNumber}
@@ -1518,36 +1617,19 @@ function CreatePatientForm(props) {
                   <Field name="nationalId">
                     {({ field }) => (
                       <TextInput
-                        key={`national-id-${selectedPatient.patientPK || "new"}`}
-                        defaultValue={values.nationalId || ""}
+                        key={`national-id-${props.selectedPatient.patientPK || "new"}`}
+                        value={values.nationalId || ""}
                         name={field.name}
                         labelText={intl.formatMessage({
                           id: "patient.natioanalid",
                         })}
                         id={field.name}
+                        readOnly
                         invalid={isNationalIdInvalid(
                           errors.nationalId,
                           touched.nationalId,
                         )}
                         invalidText=""
-                        onMouseOut={() => {
-                          handleSubjectNoValidation(
-                            "nationalId",
-                            "nationalID",
-                            patientIdentifierRef.current.nationalId,
-                          );
-                        }}
-                        onChange={(event) => {
-                          event.stopPropagation();
-                          handleNationalIdChange(event);
-                        }}
-                        onBlur={(event) => {
-                          setFieldValue(
-                            "nationalId",
-                            patientIdentifierRef.current.nationalId || "",
-                          );
-                          handleBlur(event);
-                        }}
                         placeholder={intl.formatMessage({
                           id: "patient.information.nationalid",
                         })}
@@ -1570,6 +1652,24 @@ function CreatePatientForm(props) {
                         setShowDniField(isChecked);
                         if (!isChecked) {
                           setFieldValue("dni", "");
+                          if (values.primaryPatientIdentifierType === "DNI") {
+                            const nextType = showPassportField
+                              ? "PASSPORT"
+                              : showForeignIdField
+                                ? "FOREIGN_ID"
+                                : "";
+                            setFieldValue(
+                              "primaryPatientIdentifierType",
+                              nextType,
+                            );
+                            setFieldValue(
+                              "nationalId",
+                              getIdentifierValueByType(values, nextType).trim(),
+                              false,
+                            );
+                          }
+                        } else if (!values.primaryPatientIdentifierType) {
+                          setFieldValue("primaryPatientIdentifierType", "DNI");
                         }
                       }}
                     />
@@ -1584,6 +1684,29 @@ function CreatePatientForm(props) {
                         setShowPassportField(isChecked);
                         if (!isChecked) {
                           setFieldValue("passportNumber", "");
+                          if (
+                            values.primaryPatientIdentifierType === "PASSPORT"
+                          ) {
+                            const nextType = showDniField
+                              ? "DNI"
+                              : showForeignIdField
+                                ? "FOREIGN_ID"
+                                : "";
+                            setFieldValue(
+                              "primaryPatientIdentifierType",
+                              nextType,
+                            );
+                            setFieldValue(
+                              "nationalId",
+                              getIdentifierValueByType(values, nextType).trim(),
+                              false,
+                            );
+                          }
+                        } else if (!values.primaryPatientIdentifierType) {
+                          setFieldValue(
+                            "primaryPatientIdentifierType",
+                            "PASSPORT",
+                          );
                         }
                       }}
                     />
@@ -1598,12 +1721,90 @@ function CreatePatientForm(props) {
                         setShowForeignIdField(isChecked);
                         if (!isChecked) {
                           setFieldValue("foreignId", "");
+                          if (
+                            values.primaryPatientIdentifierType === "FOREIGN_ID"
+                          ) {
+                            const nextType = showDniField
+                              ? "DNI"
+                              : showPassportField
+                                ? "PASSPORT"
+                                : "";
+                            setFieldValue(
+                              "primaryPatientIdentifierType",
+                              nextType,
+                            );
+                            setFieldValue(
+                              "nationalId",
+                              getIdentifierValueByType(values, nextType).trim(),
+                              false,
+                            );
+                          }
+                        } else if (!values.primaryPatientIdentifierType) {
+                          setFieldValue(
+                            "primaryPatientIdentifierType",
+                            "FOREIGN_ID",
+                          );
                         }
                       }}
                     />
                   </Section>
                 </Column>
               )}
+              {showPatientOptionalIdentifiersOnOrderEntry &&
+                getVisiblePrimaryIdentifierOptions().length > 0 && (
+                  <Column lg={8} md={4} sm={4}>
+                    <Field name="primaryPatientIdentifierType">
+                      {({ field }) => (
+                        <Select
+                          id={field.name}
+                          name={field.name}
+                          labelText={intl.formatMessage({
+                            id: "patient.identifier.primary",
+                          })}
+                          value={values.primaryPatientIdentifierType || ""}
+                          invalid={
+                            errors.primaryPatientIdentifierType &&
+                            touched.primaryPatientIdentifierType
+                          }
+                          invalidText={errors.primaryPatientIdentifierType}
+                          onChange={(event) => {
+                            const selectedType = event.target.value;
+                            setFieldValue(
+                              "primaryPatientIdentifierType",
+                              selectedType,
+                            );
+                            setFieldValue(
+                              "nationalId",
+                              getIdentifierValueByType(
+                                values,
+                                selectedType,
+                              ).trim(),
+                              false,
+                            );
+                          }}
+                        >
+                          <SelectItem
+                            value=""
+                            text={intl.formatMessage({
+                              id: "patient.identifier.primary.placeholder",
+                            })}
+                          />
+                          {getVisiblePrimaryIdentifierOptions().map(
+                            (option) => (
+                              <SelectItem
+                                key={option.value}
+                                value={option.value}
+                                text={intl.formatMessage({
+                                  id: option.labelId,
+                                })}
+                              />
+                            ),
+                          )}
+                        </Select>
+                      )}
+                    </Field>
+                  </Column>
+                )}
               {showPatientOptionalIdentifiersOnOrderEntry && showDniField && (
                 <Column lg={8} md={4} sm={4}>
                   <Field name="dni">
@@ -1615,6 +1816,25 @@ function CreatePatientForm(props) {
                           id: "patient.identifier.dni",
                         })}
                         id={field.name}
+                        invalid={errors.dni && touched.dni}
+                        invalidText={errors.dni}
+                        onMouseOut={() => {
+                          handleSubjectNoValidation(
+                            "dni",
+                            "dni",
+                            values.dni || "",
+                          );
+                        }}
+                        onChange={(event) => {
+                          handleChange(event);
+                          if (values.primaryPatientIdentifierType === "DNI") {
+                            setFieldValue(
+                              "nationalId",
+                              event.target.value.trim(),
+                              false,
+                            );
+                          }
+                        }}
                         placeholder={intl.formatMessage({
                           id: "patient.information.dni",
                         })}
@@ -1635,6 +1855,29 @@ function CreatePatientForm(props) {
                             id: "patient.identifier.passport",
                           })}
                           id={field.name}
+                          invalid={
+                            errors.passportNumber && touched.passportNumber
+                          }
+                          invalidText={errors.passportNumber}
+                          onMouseOut={() => {
+                            handleSubjectNoValidation(
+                              "passportNumber",
+                              "passportNumber",
+                              values.passportNumber || "",
+                            );
+                          }}
+                          onChange={(event) => {
+                            handleChange(event);
+                            if (
+                              values.primaryPatientIdentifierType === "PASSPORT"
+                            ) {
+                              setFieldValue(
+                                "nationalId",
+                                event.target.value.trim(),
+                                false,
+                              );
+                            }
+                          }}
                           placeholder={intl.formatMessage({
                             id: "patient.information.passport",
                           })}
@@ -1655,6 +1898,28 @@ function CreatePatientForm(props) {
                             id: "patient.identifier.foreign.card",
                           })}
                           id={field.name}
+                          invalid={errors.foreignId && touched.foreignId}
+                          invalidText={errors.foreignId}
+                          onMouseOut={() => {
+                            handleSubjectNoValidation(
+                              "foreignId",
+                              "foreignId",
+                              values.foreignId || "",
+                            );
+                          }}
+                          onChange={(event) => {
+                            handleChange(event);
+                            if (
+                              values.primaryPatientIdentifierType ===
+                              "FOREIGN_ID"
+                            ) {
+                              setFieldValue(
+                                "nationalId",
+                                event.target.value.trim(),
+                                false,
+                              );
+                            }
+                          }}
                           placeholder={intl.formatMessage({
                             id: "patient.information.foreign.card",
                           })}

@@ -1,12 +1,17 @@
 package org.openelisglobal.notification.controller.rest;
 
+import com.fasterxml.jackson.core.JsonProcessingException;
+import com.fasterxml.jackson.databind.ObjectMapper;
 import jakarta.validation.Valid;
 import java.util.List;
+import java.util.stream.Collectors;
 import org.apache.commons.validator.GenericValidator;
 import org.openelisglobal.common.controller.BaseController;
+import org.openelisglobal.common.log.LogEvent;
 import org.openelisglobal.notification.form.TestNotificationConfigForm;
 import org.openelisglobal.notification.service.NotificationPayloadTemplateService;
 import org.openelisglobal.notification.service.TestNotificationConfigService;
+import org.openelisglobal.notification.valueholder.NotificationConfigOption;
 import org.openelisglobal.notification.valueholder.NotificationPayloadTemplate.NotificationPayloadType;
 import org.openelisglobal.notification.valueholder.TestNotificationConfig;
 import org.openelisglobal.test.service.TestService;
@@ -25,6 +30,8 @@ import org.springframework.web.bind.annotation.RestController;
 @RestController
 @RequestMapping("/rest")
 public class TestNotificationConfigRestController extends BaseController {
+
+    private static final ObjectMapper DEBUG_OBJECT_MAPPER = new ObjectMapper();
 
     private static final String[] ALLOWED_FIELDS = new String[] { "config*", "editSystemDefaultPayloadTemplate",
             "systemDefaultPayloadTemplate*" };
@@ -55,6 +62,10 @@ public class TestNotificationConfigRestController extends BaseController {
         if (form.getConfig().getTest() == null || GenericValidator.isBlankOrNull(form.getConfig().getTest().getId())) {
             form.getConfig().setTest(testService.get(testId));
         }
+        LogEvent.logInfo(this.getClass().getSimpleName(), "displayNotificationConfig",
+                "GET testId=" + testId + " internalRules=" + summarizeInternalRules(form.getConfig()));
+        LogEvent.logInfo(this.getClass().getSimpleName(), "displayNotificationConfig",
+                "GET rawConfig=" + safeJson(form.getConfig()));
         // return findForward(FWD_SUCCESS, form);
         return form;
     }
@@ -76,6 +87,10 @@ public class TestNotificationConfigRestController extends BaseController {
             throw new RuntimeException("Validation errors occurred");
         }
         String sysUserId = this.getSysUserId(request);
+        LogEvent.logInfo(this.getClass().getSimpleName(), "updateNotificationConfig",
+                "POST testId=" + form.getConfig().getTestId() + " internalRules=" + summarizeInternalRules(form.getConfig()));
+        LogEvent.logInfo(this.getClass().getSimpleName(), "updateNotificationConfig",
+                "POST rawConfig=" + safeJson(form.getConfig()));
         if (form.getConfig().getDefaultPayloadTemplate() == null) {
             form.getConfig().setDefaultPayloadTemplate(form.getSystemDefaultPayloadTemplate());
         }
@@ -88,6 +103,25 @@ public class TestNotificationConfigRestController extends BaseController {
         // redirectAttributes.addFlashAttribute(FWD_SUCCESS, true);
         // return findForward(FWD_SUCCESS_INSERT, form);
         return form;
+    }
+
+    private String summarizeInternalRules(TestNotificationConfig config) {
+        return config.getInternalProfileEmailNotifications().stream()
+                .map(this::summarizeRule)
+                .collect(Collectors.joining(" || "));
+    }
+
+    private String summarizeRule(NotificationConfigOption option) {
+        return "nature=" + option.getNotificationNature() + ",profile=" + option.getProfessionalProfileCode() + ",active="
+                + option.getActive() + ",subject=" + option.getSubjectTemplate() + ",message=" + option.getMessageTemplate();
+    }
+
+    private String safeJson(Object value) {
+        try {
+            return DEBUG_OBJECT_MAPPER.writeValueAsString(value);
+        } catch (JsonProcessingException e) {
+            return "<json-error:" + e.getMessage() + ">";
+        }
     }
 
     @Override
