@@ -97,6 +97,7 @@ import UomRenameEntry from "./testManagementConfigMenu/UomRenameEntry.js";
 import SelectListRenameEntry from "./testManagementConfigMenu/SelectListRenameEntry.js";
 import MethodRenameEntry from "./testManagementConfigMenu/MethodRenameEntry.js";
 import OrderAdditionalFieldsManagement from "./testManagementConfigMenu/OrderAdditionalFieldsManagement.js";
+import PatientAdditionalFieldsManagement from "./testManagementConfigMenu/PatientAdditionalFieldsManagement.js";
 import UserSessionDetailsContext from "../../UserSessionDetailsContext";
 import { Roles } from "../utils/Utils";
 import TestParentChildDependency from "./testManagementConfigMenu/TestParentChildDependency.js";
@@ -545,6 +546,10 @@ function Admin() {
         <Route
           path={`${path}/OrderAdditionalFields`}
           component={OrderAdditionalFieldsManagement}
+        />
+        <Route
+          path={`${path}/PatientAdditionalFields`}
+          component={PatientAdditionalFieldsManagement}
         />
         <Route
           path={`${path}/SampleTypeTestAssign`}

@@ -58,6 +58,7 @@ export const SampleOrderFormValues = {
     },
     readOnly: false,
     patientIdentities: null,
+    patientAdditionalFieldValues: {},
   },
   patientSearch: null,
   patientEnhancedSearch: null,

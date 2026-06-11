@@ -119,6 +119,16 @@ function TestSectionManagement() {
                 >
                   <FormattedMessage id="order.additional.fields.menu" />
                 </ClickableTile>
+                <br />
+                <ClickableTile
+                  href="/MasterListsPage/PatientAdditionalFields"
+                  id="PatientAdditionalFields"
+                >
+                  <FormattedMessage
+                    id="patient.additional.fields.menu"
+                    defaultMessage="Patient Additional Fields"
+                  />
+                </ClickableTile>
               </UnorderedList>
             </Column>
           </Grid>

@@ -52,6 +52,12 @@ function AdminHome() {
       icon: Settings,
     },
     {
+      id: "adminQuickPatientFields",
+      labelId: "patient.additional.fields.menu",
+      href: `${path}/PatientAdditionalFields`,
+      icon: Settings,
+    },
+    {
       id: "adminQuickSampleFields",
       labelId: "configuration.sampleType.additional.fields",
       href: `${path}/SampleTypeAdditionalFields`,

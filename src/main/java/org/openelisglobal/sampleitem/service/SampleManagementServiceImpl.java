@@ -22,6 +22,7 @@ import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
 import java.util.stream.Collectors;
+import java.util.regex.Pattern;
 import org.apache.commons.validator.GenericValidator;
 import org.openelisglobal.common.util.DateUtil;
 import org.openelisglobal.analysis.service.AnalysisService;
@@ -71,6 +72,8 @@ import org.springframework.transaction.annotation.Transactional;
  */
 @Service
 public class SampleManagementServiceImpl implements SampleManagementService {
+
+    private static final Pattern CUG_PATTERN = Pattern.compile("^.+\\.\\d+$");
 
     @Autowired
     private SampleService sampleService;
@@ -515,6 +518,9 @@ public class SampleManagementServiceImpl implements SampleManagementService {
             if (sampleItem == null) {
                 throw new IllegalArgumentException("Sample item not found: " + update.getSampleItemId());
             }
+            if (sampleItem.getSample() == null) {
+                throw new IllegalArgumentException("Sample not found for sample item: " + update.getSampleItemId());
+            }
 
             applySampleItemCoreUpdates(sampleItem, update);
             sampleItem.setSysUserId(sysUserId);
@@ -569,6 +575,8 @@ public class SampleManagementServiceImpl implements SampleManagementService {
     }
 
     private void applySampleItemCoreUpdates(SampleItem sampleItem, SaveSampleManagementChangesForm.SampleUpdate update) {
+        applyCugUpdate(sampleItem, update);
+
         if (GenericValidator.isBlankOrNull(update.getQuantity())) {
             sampleItem.setQuantity(null);
         } else {
@@ -590,6 +598,26 @@ public class SampleManagementServiceImpl implements SampleManagementService {
                 .setCollector(GenericValidator.isBlankOrNull(update.getCollector()) ? null : update.getCollector().trim());
 
         sampleItem.setCollectionDate(parseCollectionTimestamp(update.getCollectionDate(), update.getCollectionTime()));
+    }
+
+    private void applyCugUpdate(SampleItem sampleItem, SaveSampleManagementChangesForm.SampleUpdate update) {
+        String cugCode = GenericValidator.isBlankOrNull(update.getCugCode()) ? null : update.getCugCode().trim();
+        if (GenericValidator.isBlankOrNull(cugCode)) {
+            throw new IllegalArgumentException("CUG is required");
+        }
+        if (!CUG_PATTERN.matcher(cugCode).matches()) {
+            throw new IllegalArgumentException("Invalid CUG format");
+        }
+
+        String currentCugCode = GenericValidator.isBlankOrNull(sampleItem.getCugCode()) ? null
+                : sampleItem.getCugCode().trim();
+        if (currentCugCode == null || !currentCugCode.equalsIgnoreCase(cugCode)) {
+            if (sampleItemDAO.existsByCugCode(cugCode)) {
+                throw new IllegalArgumentException("CUG already exists");
+            }
+        }
+
+        sampleItem.setCugCode(cugCode);
     }
 
     private Timestamp parseCollectionTimestamp(String dateValue, String timeValue) {

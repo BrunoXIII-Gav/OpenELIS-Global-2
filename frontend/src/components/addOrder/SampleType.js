@@ -1072,18 +1072,6 @@ const SampleType = (props) => {
             <SelectItem text={sampleType.value} value={sampleType.id} key={i} />
           ))}
         </Select>
-        {isSampleFieldVisible("cug") && (
-          <TextInput
-            id={`sample_cug_${index}`}
-            labelText={intl.formatMessage({ id: "sample.cug.label" })}
-            value={sampleXml.cug || ""}
-            required={isSampleFieldRequired("cug", true)}
-            onChange={handleCugChange}
-            invalid={Boolean(sampleXml.cugValidationMessage)}
-            invalidText={sampleXml.cugValidationMessage || ""}
-          />
-        )}
-
         {isSampleFieldVisible("rejected") && (
           <CustomCheckBox
             id={"reject_" + index}

@@ -217,6 +217,7 @@ public class PatientManagementInfo implements Serializable {
     // Dynamic address hierarchy fields (addressHierarchy_0, addressHierarchy_1,
     // etc.)
     private Map<String, String> addressHierarchy = new HashMap<>();
+    private Map<String, String> patientAdditionalFieldValues = new HashMap<>();
 
     // for display
     private static List<Dictionary> addressDepartments;
@@ -612,6 +613,14 @@ public class PatientManagementInfo implements Serializable {
 
     public void setAddressHierarchy(Map<String, String> addressHierarchy) {
         this.addressHierarchy = addressHierarchy;
+    }
+
+    public Map<String, String> getPatientAdditionalFieldValues() {
+        return patientAdditionalFieldValues;
+    }
+
+    public void setPatientAdditionalFieldValues(Map<String, String> patientAdditionalFieldValues) {
+        this.patientAdditionalFieldValues = patientAdditionalFieldValues;
     }
 
     // Capture dynamic addressHierarchy_N fields from JSON

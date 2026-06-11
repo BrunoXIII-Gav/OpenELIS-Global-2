@@ -30,6 +30,7 @@ import org.openelisglobal.patientidentity.valueholder.PatientIdentity;
 import org.openelisglobal.patientidentitytype.service.PatientIdentityTypeService;
 import org.openelisglobal.patientidentitytype.util.PatientIdentityTypeMap;
 import org.openelisglobal.patientidentitytype.valueholder.PatientIdentityType;
+import org.openelisglobal.patientadditionalfield.service.PatientAdditionalFieldService;
 import org.openelisglobal.patienttype.service.PatientPatientTypeService;
 import org.openelisglobal.patienttype.util.PatientTypeMap;
 import org.openelisglobal.patienttype.valueholder.PatientPatientType;
@@ -95,6 +96,8 @@ public class PatientServiceImpl extends AuditableBaseObjectServiceImpl<Patient, 
 
     @Autowired
     private PatientContactService patientContactService;
+    @Autowired
+    private PatientAdditionalFieldService patientAdditionalFieldService;
 
     @PostConstruct
     public void initializeGlobalVariables() {
@@ -638,6 +641,8 @@ public class PatientServiceImpl extends AuditableBaseObjectServiceImpl<Patient, 
 
         persistContact(patientInfo, patient);
         persistPatientRelatedInformation(patientInfo, patient, sysUserId);
+        patientAdditionalFieldService.validateAndPersistPatientValues(patient.getId(),
+                patientInfo.getPatientAdditionalFieldValues(), sysUserId, null);
         patientInfo.setPatientPK(patient.getId());
     }
 

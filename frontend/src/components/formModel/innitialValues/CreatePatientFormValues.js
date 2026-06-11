@@ -30,6 +30,7 @@ const CreatePatientFormValues = {
       email: "",
     },
   },
+  patientAdditionalFieldValues: {},
 };
 
 export default CreatePatientFormValues;
