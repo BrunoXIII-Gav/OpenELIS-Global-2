@@ -2,6 +2,7 @@ package org.openelisglobal.notification.valueholder;
 
 import com.fasterxml.jackson.annotation.JsonGetter;
 import com.fasterxml.jackson.annotation.JsonIgnore;
+import com.fasterxml.jackson.annotation.JsonProperty;
 import jakarta.persistence.CascadeType;
 import jakarta.persistence.Entity;
 import jakarta.persistence.FetchType;
@@ -21,6 +22,7 @@ import java.util.List;
 import org.openelisglobal.notification.valueholder.NotificationConfigOption.NotificationMethod;
 import org.openelisglobal.notification.valueholder.NotificationConfigOption.NotificationNature;
 import org.openelisglobal.notification.valueholder.NotificationConfigOption.NotificationPersonType;
+import org.openelisglobal.notification.valueholder.NotificationPayloadTemplate.NotificationPayloadType;
 import org.openelisglobal.spring.util.SpringContext;
 import org.openelisglobal.test.service.TestService;
 import org.openelisglobal.test.valueholder.Test;
@@ -180,5 +182,44 @@ public class TestNotificationConfig extends NotificationConfig<Test> {
 
     public void setProviderSMS(NotificationConfigOption option) {
         getOptions().add(option);
+    }
+
+    @JsonProperty("internalProfileEmailNotifications")
+    public List<NotificationConfigOption> getInternalProfileEmailNotifications() {
+        if (options == null) {
+            options = new ArrayList<>();
+        }
+        return options.stream()
+                .filter(opt -> opt.getNotificationMethod() == NotificationMethod.EMAIL
+                        && opt.getNotificationPersonType() == NotificationPersonType.INTERNAL_PROFILE
+                        && (opt.getNotificationNature() == NotificationNature.RESULT_PENDING_VALIDATION
+                                || opt.getNotificationNature() == NotificationNature.RESULT_VALIDATION))
+                .toList();
+    }
+
+    public NotificationConfigOption createDefaultInternalProfileEmailNotification() {
+        NotificationConfigOption option = new NotificationConfigOption(NotificationMethod.EMAIL,
+                NotificationPersonType.INTERNAL_PROFILE, NotificationNature.RESULT_PENDING_VALIDATION, false);
+        NotificationPayloadTemplate template = new NotificationPayloadTemplate();
+        template.setType(NotificationPayloadType.TEST_RESULT);
+        template.setSubjectTemplate("[testName] Pending Validation");
+        template.setMessageTemplate(
+                "[testName] has been entered and is pending validation.\n\n[patientFirstName] [patientLastNameInitial]: [testResult]");
+        option.setPayloadTemplate(template);
+        options.add(option);
+        return option;
+    }
+
+    @JsonProperty("internalProfileEmailNotifications")
+    public void setInternalProfileEmailNotifications(List<NotificationConfigOption> internalProfileOptions) {
+        if (options == null) {
+            options = new ArrayList<>();
+        }
+        options.removeIf(opt -> opt.getNotificationMethod() == NotificationMethod.EMAIL
+                && opt.getNotificationPersonType() == NotificationPersonType.INTERNAL_PROFILE);
+        if (internalProfileOptions == null || internalProfileOptions.isEmpty()) {
+            return;
+        }
+        options.addAll(internalProfileOptions);
     }
 }

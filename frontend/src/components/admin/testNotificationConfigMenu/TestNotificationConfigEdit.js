@@ -53,6 +53,7 @@ let breadcrumbs = [
 ];
 
 function TestNotificationConfigEdit() {
+  const { configurationProperties } = useContext(ConfigurationContext);
   const { notificationVisible, setNotificationVisible, addNotification } =
     useContext(NotificationContext);
 
@@ -69,6 +70,7 @@ function TestNotificationConfigEdit() {
   })();
 
   const componentMounted = useRef(false);
+  const latestPostDataRef = useRef({});
   const [indMsg, setIndMsg] = useState("0");
   const [loading, setLoading] = useState(true);
   const [saveButton, setSaveButton] = useState(false);
@@ -81,28 +83,88 @@ function TestNotificationConfigEdit() {
   ] = useState({});
   const [testNamesList, setTestNamesList] = useState([]);
   const [testName, setTestName] = useState("");
-  const [testNotificationConfigMenuList, setTestNotificationConfigMenuList] =
-    useState([]);
+
+  const professionalProfileOptions = (
+    configurationProperties?.professionalProfileOptions || ""
+  )
+    .split(",")
+    .map((entry) => entry.trim())
+    .filter(Boolean)
+    .map((entry) => {
+      const [code, ...labelParts] = entry.split("|");
+      return {
+        code: (code || "").trim(),
+        label: (labelParts.join("|") || code || "").trim(),
+      };
+    });
+
+  const internalProfilePhaseItems = [
+    {
+      id: "RESULT_PENDING_VALIDATION",
+      value: intl.formatMessage({
+        id: "testnotification.phase.pendingValidation",
+      }),
+    },
+    {
+      id: "RESULT_VALIDATION",
+      value: intl.formatMessage({ id: "testnotification.phase.validated" }),
+    },
+  ];
+
+  const createDefaultInternalProfileRule = () => ({
+    notificationMethod: "EMAIL",
+    notificationPersonType: "INTERNAL_PROFILE",
+    notificationNature: "RESULT_PENDING_VALIDATION",
+    active: true,
+    professionalProfileCode: "",
+    additionalContactsCsv: "",
+    subjectTemplate: "[testName] Pending Validation",
+    messageTemplate:
+      "[testName] has been entered and is pending validation.\n\n[patientFirstName] [patientLastNameInitial]: [testResult]",
+  });
+
+  const getInternalProfileRules = (config) =>
+    config?.internalProfileEmailNotifications || [];
+
+  const updateInternalProfileRules = (updater) => {
+    updatePostData((prev) => {
+      const currentRules = getInternalProfileRules(prev?.config);
+      const nextRules = typeof updater === "function" ? updater(currentRules) : updater;
+      return {
+        ...prev,
+        config: {
+          ...(prev.config || {}),
+          internalProfileEmailNotifications: nextRules,
+        },
+      };
+    });
+  };
 
   useEffect(() => {
     if (testNotificationConfigEditData) {
-      setTestNotificationConfigEditDataPost(
-        (prevSetTestNotificationConfigDataPost) => ({
-          ...prevSetTestNotificationConfigDataPost,
-          formName: testNotificationConfigEditData.formName,
-          formMethod: testNotificationConfigEditData.formMethod,
-          cancelAction: testNotificationConfigEditData.cancelAction,
-          submitOnCancel: testNotificationConfigEditData.submitOnCancel,
-          cancelMethod: testNotificationConfigEditData.cancelMethod,
-          config: testNotificationConfigEditData.config,
-          systemDefaultPayloadTemplate:
-            testNotificationConfigEditData.systemDefaultPayloadTemplate,
-          editSystemDefaultPayloadTemplate:
-            testNotificationConfigEditData.editSystemDefaultPayloadTemplate,
-        }),
-      );
+      const nextValue = {
+        ...latestPostDataRef.current,
+        formName: testNotificationConfigEditData.formName,
+        formMethod: testNotificationConfigEditData.formMethod,
+        cancelAction: testNotificationConfigEditData.cancelAction,
+        submitOnCancel: testNotificationConfigEditData.submitOnCancel,
+        cancelMethod: testNotificationConfigEditData.cancelMethod,
+        config: testNotificationConfigEditData.config,
+        systemDefaultPayloadTemplate:
+          testNotificationConfigEditData.systemDefaultPayloadTemplate,
+        editSystemDefaultPayloadTemplate:
+          testNotificationConfigEditData.editSystemDefaultPayloadTemplate,
+      };
+      latestPostDataRef.current = nextValue;
+      setTestNotificationConfigEditDataPost(nextValue);
     }
   }, [testNotificationConfigEditData]);
+
+  const updatePostData = (updater) => {
+    const nextValue = updater(latestPostDataRef.current || {});
+    latestPostDataRef.current = nextValue;
+    setTestNotificationConfigEditDataPost(nextValue);
+  };
 
   const handleMenuItems = (res) => {
     if (res) {
@@ -143,11 +205,11 @@ function TestNotificationConfigEdit() {
   }, [testNamesList, testNotificationConfigEditData]);
 
   function handleSubjectTemplateChange(e) {
-    setTestNotificationConfigEditDataPost((prev) => ({
+    updatePostData((prev) => ({
       ...prev,
       editSystemDefaultPayloadTemplate: true,
     }));
-    setTestNotificationConfigEditDataPost((prev) => ({
+    updatePostData((prev) => ({
       ...prev,
       systemDefaultPayloadTemplate: {
         ...prev.systemDefaultPayloadTemplate,
@@ -157,11 +219,11 @@ function TestNotificationConfigEdit() {
   }
 
   function handleMessageTemplateChange(e) {
-    setTestNotificationConfigEditDataPost((prev) => ({
+    updatePostData((prev) => ({
       ...prev,
       editSystemDefaultPayloadTemplate: true,
     }));
-    setTestNotificationConfigEditDataPost((prev) => ({
+    updatePostData((prev) => ({
       ...prev,
       systemDefaultPayloadTemplate: {
         ...prev.systemDefaultPayloadTemplate,
@@ -173,7 +235,7 @@ function TestNotificationConfigEdit() {
   const handleCheckboxChange = (e) => {
     const { id, checked } = e.target;
 
-    setTestNotificationConfigEditDataPost((prev) => {
+    updatePostData((prev) => {
       const updatedConfig = { ...prev.config };
 
       switch (id) {
@@ -189,6 +251,13 @@ function TestNotificationConfigEdit() {
         case "providerSMS":
           updatedConfig.providerSMS.active = checked;
           break;
+        case "internalProfileEmail":
+          updatedConfig.internalProfileEmailNotifications = checked
+            ? getInternalProfileRules(updatedConfig).length > 0
+              ? getInternalProfileRules(updatedConfig)
+              : [createDefaultInternalProfileRule()]
+            : [];
+          break;
         default:
           break;
       }
@@ -200,11 +269,73 @@ function TestNotificationConfigEdit() {
     });
   };
 
+  const handleInternalProfileFieldChange = (index, field, value) => {
+    updateInternalProfileRules((prevRules) =>
+      prevRules.map((rule, ruleIndex) =>
+        ruleIndex === index ? { ...rule, [field]: value } : rule,
+      ),
+    );
+  };
+
+  const handleAddInternalProfileRule = () => {
+    updateInternalProfileRules((prevRules) => [
+      ...prevRules,
+      createDefaultInternalProfileRule(),
+    ]);
+  };
+
+  const handleRemoveInternalProfileRule = (index) => {
+    updateInternalProfileRules((prevRules) =>
+      prevRules.filter((_, ruleIndex) => ruleIndex !== index),
+    );
+  };
+
+  const buildSavePayload = () => {
+    const current = latestPostDataRef.current || testNotificationConfigEditDataPost || {};
+    const currentConfig = current.config || {};
+    const {
+      options,
+      internalProfileEmailNotifications,
+      ...restConfig
+    } = currentConfig;
+
+    return {
+      ...current,
+      config: {
+        ...restConfig,
+        patientEmail: currentConfig.patientEmail
+          ? { ...currentConfig.patientEmail }
+          : undefined,
+        patientSMS: currentConfig.patientSMS
+          ? { ...currentConfig.patientSMS }
+          : undefined,
+        providerEmail: currentConfig.providerEmail
+          ? { ...currentConfig.providerEmail }
+          : undefined,
+        providerSMS: currentConfig.providerSMS
+          ? { ...currentConfig.providerSMS }
+          : undefined,
+        internalProfileEmailNotifications: getInternalProfileRules(currentConfig).map((rule) => ({
+          id: rule.id,
+          notificationMethod: rule.notificationMethod,
+          notificationPersonType: rule.notificationPersonType,
+          notificationNature: rule.notificationNature,
+          active: rule.active,
+          professionalProfileCode: rule.professionalProfileCode || "",
+          additionalContactsCsv: rule.additionalContactsCsv || "",
+          subjectTemplate: rule.subjectTemplate || "",
+          messageTemplate: rule.messageTemplate || "",
+        })),
+      },
+    };
+  };
+
   function testNotificationConfigEditSavePostCall() {
     setLoading(true);
+    const payload = buildSavePayload();
     postToOpenElisServerJsonResponse(
       `/rest/TestNotificationConfig`,
-      JSON.stringify(testNotificationConfigEditDataPost),
+      JSON.stringify(payload),
       (res) => {
         testNotificationConfigEditSavePostCallBack(res);
       },
@@ -324,11 +455,185 @@ function TestNotificationConfigEdit() {
                   onChange={handleCheckboxChange}
                 />
               </Column>
+              <Column lg={4} md={4} sm={2}>
+                <Checkbox
+                  id="internalProfileEmail"
+                  labelText={
+                    <FormattedMessage id="testnotification.internalProfile.email" />
+                  }
+                  checked={
+                    getInternalProfileRules(testNotificationConfigEditDataPost?.config).length > 0
+                  }
+                  onChange={handleCheckboxChange}
+                />
+              </Column>
             </Grid>
           )}
           <br />
           <hr />
           <br />
+          {testNotificationConfigEditDataPost?.config &&
+            getInternalProfileRules(testNotificationConfigEditDataPost?.config).length > 0 && (
+              <>
+                <Grid fullWidth={true} condensed={true}>
+                  <Column lg={12} md={6} sm={4}>
+                    <Section>
+                      <Heading>
+                        <FormattedMessage id="testnotification.internalProfile.section" />
+                      </Heading>
+                    </Section>
+                  </Column>
+                  <Column lg={4} md={2} sm={4}>
+                    <Button
+                      kind="secondary"
+                      size="sm"
+                      onClick={handleAddInternalProfileRule}
+                    >
+                      {intl.formatMessage({
+                        id: "testnotification.internalProfile.rule.add",
+                      })}
+                    </Button>
+                  </Column>
+                </Grid>
+                <br />
+                {getInternalProfileRules(testNotificationConfigEditDataPost?.config).map((rule, index) => (
+                  <React.Fragment key={`${rule.id || "new"}-${index}`}>
+                    <Grid fullWidth={true} condensed={true}>
+                      <Column lg={12} md={6} sm={4}>
+                        <Heading>
+                          {intl.formatMessage(
+                            {
+                              id: "testnotification.internalProfile.rule.title",
+                            },
+                            { index: index + 1 },
+                          )}
+                        </Heading>
+                      </Column>
+                      <Column lg={4} md={2} sm={4}>
+                        <Button
+                          kind="ghost"
+                          size="sm"
+                          onClick={() => handleRemoveInternalProfileRule(index)}
+                        >
+                          {intl.formatMessage({
+                            id: "testnotification.internalProfile.rule.remove",
+                          })}
+                        </Button>
+                      </Column>
+                    </Grid>
+                    <br />
+                    <Grid fullWidth={true}>
+                      <Column lg={4} md={4} sm={4}>
+                        <Dropdown
+                          id={`internal-profile-phase-${index}`}
+                          titleText={intl.formatMessage({
+                            id: "testnotification.phase.label",
+                          })}
+                          label={intl.formatMessage({
+                            id: "testnotification.phase.select",
+                          })}
+                          items={internalProfilePhaseItems}
+                          itemToString={(item) => item?.value || ""}
+                          selectedItem={internalProfilePhaseItems.find(
+                            (item) => item.id === rule.notificationNature,
+                          )}
+                          onChange={({ selectedItem }) =>
+                            handleInternalProfileFieldChange(
+                              index,
+                              "notificationNature",
+                              selectedItem?.id || "RESULT_PENDING_VALIDATION",
+                            )
+                          }
+                        />
+                      </Column>
+                      <Column lg={4} md={4} sm={4}>
+                        <Dropdown
+                          id={`internal-profile-code-${index}`}
+                          titleText={intl.formatMessage({
+                            id: "unifiedSystemUser.professional.profile.label",
+                          })}
+                          label={intl.formatMessage({
+                            id: "unifiedSystemUser.professional.profile.select",
+                          })}
+                          items={professionalProfileOptions}
+                          itemToString={(item) => item?.label || ""}
+                          selectedItem={professionalProfileOptions.find(
+                            (item) =>
+                              item.code === rule.professionalProfileCode,
+                          )}
+                          onChange={({ selectedItem }) =>
+                            handleInternalProfileFieldChange(
+                              index,
+                              "professionalProfileCode",
+                              selectedItem?.code || "",
+                            )
+                          }
+                        />
+                      </Column>
+                      <Column lg={8} md={8} sm={4}>
+                        <TextInput
+                          id={`internal-profile-bcc-${index}`}
+                          labelText={intl.formatMessage({
+                            id: "testnotification.bcc",
+                          })}
+                          value={rule.additionalContactsCsv || ""}
+                          onChange={(e) =>
+                            handleInternalProfileFieldChange(
+                              index,
+                              "additionalContactsCsv",
+                              e.target.value,
+                            )
+                          }
+                        />
+                      </Column>
+                    </Grid>
+                    <br />
+                    <Grid fullWidth={true}>
+                      <Column lg={8} md={4} sm={4}>
+                        <TextInput
+                          id={`internal-profile-subject-${index}`}
+                          labelText={intl.formatMessage({
+                            id: "testnotification.subjecttemplate",
+                          })}
+                          value={rule.subjectTemplate || ""}
+                          onChange={(e) =>
+                            handleInternalProfileFieldChange(
+                              index,
+                              "subjectTemplate",
+                              e.target.value,
+                            )
+                          }
+                        />
+                      </Column>
+                    </Grid>
+                    <br />
+                    <Grid fullWidth={true}>
+                      <Column lg={16} md={8} sm={4}>
+                        <TextArea
+                          id={`internal-profile-message-${index}`}
+                          labelText={intl.formatMessage({
+                            id: "testnotification.messagetemplate",
+                          })}
+                          value={rule.messageTemplate || ""}
+                          onChange={(e) =>
+                            handleInternalProfileFieldChange(
+                              index,
+                              "messageTemplate",
+                              e.target.value,
+                            )
+                          }
+                        />
+                      </Column>
+                    </Grid>
+                    <br />
+                    <hr />
+                    <br />
+                  </React.Fragment>
+                ))}
+                <hr />
+                <br />
+              </>
+            )}
           <Grid fullWidth={true} className="gridBoundary">
             <Column lg={16} md={8} sm={4}>
               <Section>
