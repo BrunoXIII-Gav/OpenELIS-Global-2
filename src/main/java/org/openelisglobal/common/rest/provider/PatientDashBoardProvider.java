@@ -34,6 +34,8 @@ import org.openelisglobal.dataexchange.fhir.FhirUtil;
 import org.openelisglobal.dataexchange.order.valueholder.ElectronicOrder;
 import org.openelisglobal.dataexchange.service.order.ElectronicOrderService;
 import org.openelisglobal.sample.service.SampleService;
+import org.openelisglobal.sample.service.SampleTypeAdditionalFieldService;
+import org.openelisglobal.sample.bean.SampleTypeAdditionalFieldPayload;
 import org.openelisglobal.sample.valueholder.Sample;
 import org.openelisglobal.samplehuman.service.SampleHumanService;
 import org.openelisglobal.sampleitem.valueholder.SampleItem;
@@ -74,6 +76,9 @@ public class PatientDashBoardProvider {
     private SampleService sampleService;
 
     @Autowired
+    private SampleTypeAdditionalFieldService sampleTypeAdditionalFieldService;
+
+    @Autowired
     private FhirUtil fhirUtil;
 
     @Autowired
@@ -108,6 +113,47 @@ public class PatientDashBoardProvider {
 
     private double averageHours(List<Double> hours) {
         return hours.isEmpty() ? 0.0 : hours.stream().mapToDouble(Double::doubleValue).average().orElse(0.0);
+    }
+
+    private boolean isSampleItemCompleteForDashboard(SampleItem sampleItem,
+            Map<String, List<SampleTypeAdditionalFieldPayload>> fieldsBySampleTypeId,
+            Map<String, Map<String, String>> valuesBySampleItemId) {
+        if (sampleItem == null) {
+            return false;
+        }
+
+        boolean hasCollector = StringUtils.isNotBlank(sampleItem.getCollector());
+        boolean hasCollectionDate = sampleItem.getCollectionDate() != null;
+        if (!(hasCollector && hasCollectionDate)) {
+            return false;
+        }
+
+        if (sampleItem.getTypeOfSample() == null || StringUtils.isBlank(sampleItem.getTypeOfSample().getId())) {
+            return true;
+        }
+
+        String sampleTypeId = sampleItem.getTypeOfSample().getId();
+        List<SampleTypeAdditionalFieldPayload> fieldDefinitions = fieldsBySampleTypeId.computeIfAbsent(sampleTypeId,
+                id -> sampleTypeAdditionalFieldService.getFieldsForSampleType(id, false));
+        if (fieldDefinitions == null || fieldDefinitions.isEmpty()) {
+            return true;
+        }
+
+        String sampleItemId = sampleItem.getId();
+        Map<String, String> additionalFieldValues = valuesBySampleItemId.computeIfAbsent(sampleItemId,
+                id -> sampleTypeAdditionalFieldService.getFieldValuesForSampleItem(sampleTypeId, id));
+
+        for (SampleTypeAdditionalFieldPayload fieldDefinition : fieldDefinitions) {
+            if (!Boolean.TRUE.equals(fieldDefinition.getRequired())) {
+                continue;
+            }
+            String value = additionalFieldValues == null ? null : additionalFieldValues.get(fieldDefinition.getFieldKey());
+            if (StringUtils.isBlank(value)) {
+                return false;
+            }
+        }
+
+        return true;
     }
 
     private double calculateAverageReceptionToValidationTime(java.sql.Date start, java.sql.Date end) {
@@ -521,6 +567,8 @@ public class PatientDashBoardProvider {
 
         List<Analysis> allAnalysesInRange = analysisService.getAnalysisStartedOrCompletedInDateRange(sqlStartDate,
                 sqlEndDate);
+        Map<String, List<SampleTypeAdditionalFieldPayload>> additionalFieldsBySampleType = new HashMap<>();
+        Map<String, Map<String, String>> additionalFieldValuesBySampleItem = new HashMap<>();
 
         DashBoardTile.TileType.stream().forEach(type -> {
             switch (type) {
@@ -534,12 +582,8 @@ public class PatientDashBoardProvider {
                 String nsId = iStatusService.getStatusID(AnalysisStatus.NotStarted);
                 long incompleteSamples = allAnalysesInRange.stream()
                         .filter(a -> a.getStatusId().equals(nsId) && a.getSampleItem() != null).filter(a -> {
-
-                            SampleItem si = a.getSampleItem();
-                            boolean hasCollector = si.getCollector() != null && !si.getCollector().trim().isEmpty();
-                            boolean hasCollectionDate = si.getCollectionDate() != null;
-
-                            return !(hasCollector && hasCollectionDate);
+                            return !isSampleItemCompleteForDashboard(a.getSampleItem(), additionalFieldsBySampleType,
+                                    additionalFieldValuesBySampleItem);
                         }).map(a -> a.getSampleItem().getId()).distinct().count();
 
                 metrics.setAwaitingSample((int) incompleteSamples);
@@ -549,12 +593,8 @@ public class PatientDashBoardProvider {
                 long awaitingResultRows = allAnalysesInRange.stream()
                         .filter(a -> a.getStatusId().equals(notStartedForSamplesId) && a.getSampleItem() != null)
                         .filter(a -> {
-
-                            SampleItem si = a.getSampleItem();
-                            boolean hasCollector = si.getCollector() != null && !si.getCollector().trim().isEmpty();
-                            boolean hasCollectionDate = si.getCollectionDate() != null;
-
-                            return hasCollector && hasCollectionDate;
+                            return isSampleItemCompleteForDashboard(a.getSampleItem(), additionalFieldsBySampleType,
+                                    additionalFieldValuesBySampleItem);
                         }).count();
                 metrics.setAwaitingResults((int) awaitingResultRows);
                 break;
@@ -705,6 +745,8 @@ public class PatientDashBoardProvider {
         List<Analysis> allAnalysesInRange = analysisService.getAnalysisStartedOrCompletedInDateRange(sqlStartDate,
                 sqlEndDate);
         List<Analysis> filteredAnalyses = new ArrayList<>();
+        Map<String, List<SampleTypeAdditionalFieldPayload>> additionalFieldsBySampleType = new HashMap<>();
+        Map<String, Map<String, String>> additionalFieldValuesBySampleItem = new HashMap<>();
 
         switch (listType) {
         case ORDERS_IN_PROGRESS:
@@ -721,10 +763,8 @@ public class PatientDashBoardProvider {
             allAnalysesInRange.forEach(a -> {
                 SampleItem si = a.getSampleItem();
                 if (a.getStatusId().equals(nsIdId) && si != null) {
-                    boolean hasCollector = si.getCollector() != null && !si.getCollector().trim().isEmpty();
-                    boolean hasCollectionDate = si.getCollectionDate() != null;
-
-                    if (!(hasCollector && hasCollectionDate)) {
+                    if (!isSampleItemCompleteForDashboard(si, additionalFieldsBySampleType,
+                            additionalFieldValuesBySampleItem)) {
                         filteredAnalyses.add(a);
                     }
                 }
@@ -744,11 +784,8 @@ public class PatientDashBoardProvider {
             allAnalysesInRange.forEach(a -> {
                 SampleItem si = a.getSampleItem();
                 if (a.getStatusId().equals(awaitingId) && si != null) {
-                    // EL EMBUDO INVERSO: Solo agregamos a la tabla si están completas
-                    boolean hasCollector = si.getCollector() != null && !si.getCollector().trim().isEmpty();
-                    boolean hasCollectionDate = si.getCollectionDate() != null;
-
-                    if (hasCollector && hasCollectionDate) {
+                    if (isSampleItemCompleteForDashboard(si, additionalFieldsBySampleType,
+                            additionalFieldValuesBySampleItem)) {
                         filteredAnalyses.add(a);
                     }
                 }
