@@ -958,6 +958,15 @@
   "dashboard.validation.ready.subtitle.label": "En attente de validation",
   "dashboard.filter.test.type": "Type de test",
   "dashboard.filter.test.type.all": "Tous les tests",
+  "dashboard.awaitingResults.waitingCounter": "Temps d'attente",
+  "dashboard.awaitingResults.sort.label": "Trier par temps d'attente",
+  "dashboard.awaitingResults.sort.mostUrgent": "Plus urgent en premier",
+  "dashboard.awaitingResults.sort.lessUrgent": "Moins urgent en premier",
+  "dashboard.awaitingResults.waiting.hours": "il y a {count, plural, one {# heure} other {# heures}}",
+  "dashboard.awaitingResults.waiting.days": "il y a {count, plural, one {# jour} other {# jours}}",
+  "dashboard.awaitingResults.waiting.noDate": "Aucune date",
+  "dashboard.filter.startDate": "Date de début",
+  "dashboard.filter.endDate": "Date de fin",
   "datasubmission.siteid": "ID du Site",
   "date.created": "Date de création",
   "delete.error.msg": "Erreur lors de la suppression de l'élément",
@@ -3386,5 +3395,8 @@
   "consent.template.source.orderDate": "Date de la commande",
   "consent.template.source.testsSelectedNames": "Tests sélectionnés (noms)",
   "consent.template.source.sampleCug": "CUG de l'échantillon (champ fixe)",
-  "consent.template.source.orderAdditional": "Champ supplémentaire de commande : {name}"
+  "consent.template.source.orderAdditional": "Champ supplémentaire de commande : {name}",
+  "sample.additional.fields.display.section": "Afficher dans",
+  "sample.additional.fields.display.section.collection": "Données de prélèvement de l'échantillon",
+  "sample.additional.fields.display.section.reception": "Réception de l'échantillon"
 }

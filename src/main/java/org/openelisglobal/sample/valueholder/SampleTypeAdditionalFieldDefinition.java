@@ -37,6 +37,9 @@ public class SampleTypeAdditionalFieldDefinition extends BaseObject<Integer> {
     @Column(name = "field_type", nullable = false, length = 30)
     private String fieldType;
 
+    @Column(name = "display_section", nullable = false, length = 30)
+    private String displaySection;
+
     @Column(name = "required", nullable = false)
     private Boolean required;
 
@@ -98,6 +101,14 @@ public class SampleTypeAdditionalFieldDefinition extends BaseObject<Integer> {
 
     public void setFieldType(String fieldType) {
         this.fieldType = fieldType;
+    }
+
+    public String getDisplaySection() {
+        return displaySection;
+    }
+
+    public void setDisplaySection(String displaySection) {
+        this.displaySection = displaySection;
     }
 
     public Boolean getRequired() {

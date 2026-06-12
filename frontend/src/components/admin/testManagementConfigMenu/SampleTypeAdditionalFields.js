@@ -60,6 +60,7 @@ const initialFormState = {
   displayName: "",
   fieldType: "TEXT",
   required: false,
+  displaySection: "RECEPTION",
   sortOrder: "",
   defaultValue: "",
   maxLength: "",
@@ -157,21 +158,22 @@ const SampleTypeAdditionalFields = () => {
 
     setEditingFieldId(field.id);
     setFormState({
-      fieldKey: field.fieldKey || "",
-      displayName: field.displayName || "",
-      fieldType: field.fieldType || "TEXT",
-      required: !!field.required,
-      sortOrder:
-        field.sortOrder !== null && field.sortOrder !== undefined
-          ? String(field.sortOrder)
-          : "",
-      defaultValue: field.defaultValue || "",
-      maxLength:
-        field.maxLength !== null && field.maxLength !== undefined
-          ? String(field.maxLength)
-          : "",
-      optionLines: toOptionLines(field.options),
-    });
+    fieldKey: field.fieldKey || "",
+    displayName: field.displayName || "",
+    fieldType: field.fieldType || "TEXT",
+    required: !!field.required,
+    displaySection: field.displaySection || "RECEPTION",
+    sortOrder:
+      field.sortOrder !== null && field.sortOrder !== undefined
+        ? String(field.sortOrder)
+        : "",
+    defaultValue: field.defaultValue || "",
+    maxLength:
+      field.maxLength !== null && field.maxLength !== undefined
+        ? String(field.maxLength)
+        : "",
+    optionLines: toOptionLines(field.options),
+  });
   };
 
   const resetForm = () => {
@@ -217,23 +219,24 @@ const SampleTypeAdditionalFields = () => {
     const sourceField = fields.find((field) => field.id === editingFieldId);
 
     const payload = {
-      sampleTypeId: selectedSampleTypeId,
-      fieldKey: formState.fieldKey,
-      displayName: formState.displayName,
-      fieldType: formState.fieldType,
-      required: formState.required,
-      active: sourceField ? sourceField.active : true,
-      sortOrder:
-        formState.sortOrder && formState.sortOrder !== ""
-          ? Number(formState.sortOrder)
-          : null,
-      defaultValue: formState.defaultValue,
-      maxLength:
-        formState.maxLength && formState.maxLength !== ""
-          ? Number(formState.maxLength)
-          : null,
-      options,
-    };
+    sampleTypeId: selectedSampleTypeId,
+    fieldKey: formState.fieldKey,
+    displayName: formState.displayName,
+    fieldType: formState.fieldType,
+    required: formState.required,
+    displaySection: formState.displaySection,
+    active: sourceField ? sourceField.active : true,
+    sortOrder:
+      formState.sortOrder && formState.sortOrder !== ""
+        ? Number(formState.sortOrder)
+        : null,
+    defaultValue: formState.defaultValue,
+    maxLength:
+      formState.maxLength && formState.maxLength !== ""
+        ? Number(formState.maxLength)
+        : null,
+    options,
+  };
 
     if (sourceField && optionsRequired) {
       const existingOptionsByKey = new Map(
@@ -554,6 +557,37 @@ const SampleTypeAdditionalFields = () => {
                         />
                       </Select>
                     </Column>
+                    <Column lg={4} md={4} sm={4}>
+                    <Select
+                      id="sampleAdditionalFieldDisplaySection"
+                      labelText={intl.formatMessage({
+                        id: "sample.additional.fields.display.section",
+                        defaultMessage: "Mostrar en",
+                      })}
+                      value={formState.displaySection}
+                      onChange={(event) =>
+                        setFormState((previous) => ({
+                          ...previous,
+                          displaySection: event.target.value,
+                        }))
+                      }
+                    >
+                      <SelectItem
+                        value="COLLECTION"
+                        text={intl.formatMessage({
+                          id: "sample.additional.fields.display.section.collection",
+                          defaultMessage: "Datos de recolección de la muestra",
+                        })}
+                      />
+                      <SelectItem
+                        value="RECEPTION"
+                        text={intl.formatMessage({
+                          id: "sample.additional.fields.display.section.reception",
+                          defaultMessage: "Recepción de la muestra",
+                        })}
+                      />
+                    </Select>
+                  </Column>
                   </Grid>
 
                   <Grid fullWidth>
@@ -676,6 +710,12 @@ const SampleTypeAdditionalFields = () => {
                           <FormattedMessage id="sample.additional.fields.required" />
                         </TableHeader>
                         <TableHeader>
+                          <FormattedMessage
+                            id="sample.additional.fields.display.section"
+                            defaultMessage="Mostrar en"
+                          />
+                      </TableHeader>
+                        <TableHeader>
                           <FormattedMessage id="order.additional.fields.sortOrder" />
                         </TableHeader>
                         <TableHeader>
@@ -692,7 +732,7 @@ const SampleTypeAdditionalFields = () => {
                     <TableBody>
                       {fields.length === 0 ? (
                         <TableRow>
-                          <TableCell colSpan={8}>
+                          <TableCell colSpan={9}>
                             <FormattedMessage id="sample.additional.fields.list.empty" />
                           </TableCell>
                         </TableRow>
@@ -707,6 +747,19 @@ const SampleTypeAdditionalFields = () => {
                                 <FormattedMessage id="label.yes" />
                               ) : (
                                 <FormattedMessage id="label.no" />
+                              )}
+                            </TableCell>
+                            <TableCell>
+                              {field.displaySection === "COLLECTION" ? (
+                                <FormattedMessage
+                                  id="sample.additional.fields.display.section.collection"
+                                  defaultMessage="Datos de recolección de la muestra"
+                                />
+                              ) : (
+                                <FormattedMessage
+                                  id="sample.additional.fields.display.section.reception"
+                                  defaultMessage="Recepción de la muestra"
+                                />
                               )}
                             </TableCell>
                             <TableCell>{field.sortOrder ?? 0}</TableCell>

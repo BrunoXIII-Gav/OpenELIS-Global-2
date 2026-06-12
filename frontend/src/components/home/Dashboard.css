@@ -82,3 +82,8 @@
     padding: 0;
   }
 }
+
+.awaiting-results-counter-tag {
+  white-space: nowrap;
+  font-weight: 600;
+}

@@ -990,6 +990,15 @@
   "dashboard.awaiting.results.subtitle.label": "Awaiting result entry",
   "dashboard.filter.test.type": "Test type",
   "dashboard.filter.test.type.all": "All tests",
+  "dashboard.awaitingResults.waitingCounter": "Waiting time",
+  "dashboard.awaitingResults.sort.label": "Sort by waiting time",
+  "dashboard.awaitingResults.sort.mostUrgent": "Most urgent first",
+  "dashboard.awaitingResults.sort.lessUrgent": "Least urgent first",
+  "dashboard.awaitingResults.waiting.hours": "{count, plural, one {# hour ago} other {# hours ago}}",
+  "dashboard.awaitingResults.waiting.days": "{count, plural, one {# day ago} other {# days ago}}",
+  "dashboard.awaitingResults.waiting.noDate": "No date",
+  "dashboard.filter.startDate": "Start date",
+  "dashboard.filter.endDate": "End date",
   "datasubmission.siteid": "Site Id",
   "date.created": "Date Created",
   "delete.error.msg": "Error while Deleting",
@@ -3473,5 +3482,8 @@
   "consent.template.source.orderDate": "Order date",
   "consent.template.source.testsSelectedNames": "Selected tests (names)",
   "consent.template.source.sampleCug": "Sample CUG (fixed field)",
-  "consent.template.source.orderAdditional": "Order additional: {name}"
+  "consent.template.source.orderAdditional": "Order additional: {name}",
+  "sample.additional.fields.display.section": "Mostrar en",
+  "sample.additional.fields.display.section.collection": "Datos de recolección de la muestra",
+  "sample.additional.fields.display.section.reception": "Recepción de la muestra"
 }

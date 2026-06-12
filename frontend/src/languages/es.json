@@ -962,6 +962,15 @@
   "dashboard.awaiting.results.subtitle.label": "Esperando ingreso de resultados",
   "dashboard.filter.test.type": "Tipo de prueba",
   "dashboard.filter.test.type.all": "Todas las pruebas",
+  "dashboard.awaitingResults.waitingCounter": "Tiempo esperando",
+  "dashboard.awaitingResults.sort.label": "Ordenar por tiempo esperando",
+  "dashboard.awaitingResults.sort.mostUrgent": "Más urgente primero",
+  "dashboard.awaitingResults.sort.lessUrgent": "Menos urgente primero",
+  "dashboard.awaitingResults.waiting.hours": "hace {count, plural, one {# hora} other {# horas}}",
+  "dashboard.awaitingResults.waiting.days": "hace {count, plural, one {# día} other {# días}}",
+  "dashboard.awaitingResults.waiting.noDate": "Sin fecha",
+  "dashboard.filter.startDate": "Fecha inicio",
+  "dashboard.filter.endDate": "Fecha fin",
   "datasubmission.siteid": " ID del sitio",
   "date.created": "Date Created",
   "delete.error.msg": "Error al eliminar",
@@ -3470,5 +3479,8 @@
   "storage.box.position.dropdown.loading": "Cargando posiciones disponibles...",
   "storage.box.position.dropdown.placeholder": "Seleccionar posición disponible",
   "storage.box.position.load.error": "No se pudieron cargar las posiciones disponibles para esta caja.",
-  "storage.location.search.placeholder": "Buscar ubicaciones de almacenamiento"
+  "storage.location.search.placeholder": "Buscar ubicaciones de almacenamiento",
+  "sample.additional.fields.display.section": "Mostrar en",
+  "sample.additional.fields.display.section.collection": "Datos de recolección de la muestra",
+  "sample.additional.fields.display.section.reception": "Recepción de la muestra"
 }
