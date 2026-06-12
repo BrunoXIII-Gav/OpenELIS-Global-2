@@ -10,6 +10,7 @@ public class SampleTypeAdditionalFieldPayload {
     private String fieldKey;
     private String displayName;
     private String fieldType;
+    private String displaySection;
     private Boolean required;
     private Boolean active;
     private Integer sortOrder;
@@ -17,6 +18,14 @@ public class SampleTypeAdditionalFieldPayload {
     private Integer maxLength;
     private String metadataJson;
     private List<SampleTypeAdditionalFieldOptionPayload> options = new ArrayList<>();
+
+    public String getDisplaySection() {
+        return displaySection;
+    }
+
+    public void setDisplaySection(String displaySection) {
+        this.displaySection = displaySection;
+    }
 
     public Integer getId() {
         return id;

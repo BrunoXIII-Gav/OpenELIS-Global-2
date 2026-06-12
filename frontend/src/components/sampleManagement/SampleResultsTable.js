@@ -1002,6 +1002,18 @@ function SampleResultsTable({
       ...(originalRow?.additionalFieldValues || {}),
       ...(additionalFieldValuesBySampleId[row.id] || {}),
     };
+    const getAdditionalFieldDisplaySection = (field) =>
+      String(field?.displaySection || "RECEPTION")
+        .trim()
+        .toUpperCase();
+
+    const collectionAdditionalFields = additionalFields.filter(
+      (field) => getAdditionalFieldDisplaySection(field) === "COLLECTION",
+    );
+
+    const receptionAdditionalFields = additionalFields.filter(
+      (field) => getAdditionalFieldDisplaySection(field) !== "COLLECTION",
+    );
     const orderReceptionFields = Array.isArray(
       originalRow?.orderReceptionFields,
     )
@@ -1313,6 +1325,152 @@ function SampleResultsTable({
                             return null;
                         }
                       })}
+                      {collectionAdditionalFields.map((field, idx) => {
+                        const fieldType = (field.fieldType || "TEXT").toUpperCase();
+                        const fieldKey = resolveAdditionalFieldKey(field);
+                        const fieldLabel = field.displayName || field.fieldKey;
+                        const fieldValue =
+                          effectiveAdditionalFieldValues?.[fieldKey] ??
+                          effectiveAdditionalFieldValues?.[
+                            normalizeAdditionalFieldKey(field?.displayName)
+                          ] ??
+                          "";
+                        const fieldId = `sample_mgmt_collection_additional_${row.id}_${fieldKey}_${idx}`;
+                        const options = field.options || [];
+
+                        if (fieldType === "BOOLEAN") {
+                          return (
+                            <Checkbox
+                              key={fieldId}
+                              id={fieldId}
+                              labelText={fieldLabel}
+                              checked={fieldValue === "true"}
+                              onChange={(e) =>
+                                updateAdditionalFieldValue(
+                                  row.id,
+                                  fieldKey,
+                                  e.target.checked ? "true" : "false",
+                                )
+                              }
+                            />
+                          );
+                        }
+
+                        if (
+                          fieldType === "SELECT" ||
+                          fieldType === "RADIO" ||
+                          fieldType === "SYSTEM_USER_BIOLOGIST_SELECT"
+                        ) {
+                          return (
+                            <Select
+                              key={fieldId}
+                              id={fieldId}
+                              labelText={fieldLabel}
+                              value={fieldValue}
+                              onChange={(e) =>
+                                updateAdditionalFieldValue(
+                                  row.id,
+                                  fieldKey,
+                                  e.target.value,
+                                )
+                              }
+                            >
+                              <SelectItem
+                                text={intl.formatMessage({ id: "label.select" })}
+                                value=""
+                              />
+                              {options.map((option, optionIdx) => (
+                                <SelectItem
+                                  key={`${fieldId}_option_${optionIdx}`}
+                                  text={option.optionLabel}
+                                  value={option.optionKey}
+                                />
+                              ))}
+                            </Select>
+                          );
+                        }
+
+                        if (fieldType === "MULTISELECT") {
+                          const selectedValues = new Set(
+                            String(fieldValue)
+                              .split(",")
+                              .map((entry) => entry.trim())
+                              .filter((entry) => entry !== ""),
+                          );
+                          return (
+                            <div key={fieldId} style={{ gridColumn: "1 / -1" }}>
+                              <div style={{ marginBottom: "0.5rem", fontWeight: 500 }}>
+                                {fieldLabel}
+                              </div>
+                              {options.map((option, optionIdx) => (
+                                <Checkbox
+                                  key={`${fieldId}_multi_${optionIdx}`}
+                                  id={`${fieldId}_multi_${optionIdx}`}
+                                  labelText={option.optionLabel}
+                                  checked={selectedValues.has(option.optionKey)}
+                                  onChange={(e) =>
+                                    updateAdditionalMultiSelectOption(
+                                      row.id,
+                                      fieldKey,
+                                      option.optionKey,
+                                      e.target.checked,
+                                    )
+                                  }
+                                />
+                              ))}
+                            </div>
+                          );
+                        }
+
+                        if (fieldType === "TEXTAREA") {
+                          return (
+                            <TextArea
+                              key={fieldId}
+                              id={fieldId}
+                              labelText={fieldLabel}
+                              style={{ gridColumn: "1 / -1" }}
+                              value={fieldValue}
+                              onChange={(e) =>
+                                updateAdditionalFieldValue(
+                                  row.id,
+                                  fieldKey,
+                                  e.target.value
+                                )
+                              }
+                            />
+                          );
+                        }
+
+                        const htmlInputType =
+                          fieldType === "NUMBER"
+                            ? "number"
+                            : fieldType === "DATE"
+                              ? "date"
+                              : fieldType === "TIME"
+                                ? "time"
+                                : fieldType === "DATETIME"
+                                  ? "datetime-local"
+                                  : "text";
+
+                        return (
+                          <TextInput
+                            key={fieldId}
+                            id={fieldId}
+                            labelText={fieldLabel}
+                            type={htmlInputType}
+                            size="lg"
+                            style={{ minHeight: "52px" }}
+                            value={fieldValue}
+                            onChange={(e) =>
+                              updateAdditionalFieldValue(
+                                row.id,
+                                fieldKey,
+                                e.target.value,
+                              )
+                            }
+                          />
+                        );
+                      })}
                     </div>
                   </Tile>
                 ) : null}
@@ -1373,7 +1531,7 @@ function SampleResultsTable({
             </div>
           </Tile>
         )}
-        {shouldShowCurrentTests && additionalFields.length > 0 && (
+        {shouldShowCurrentTests && receptionAdditionalFields.length > 0 && (
           <Tile style={{ marginTop: "1.5rem", padding: "1rem" }}>
             <h4 style={{ marginTop: 0, marginBottom: "0.75rem" }}>
               <FormattedMessage id="sample.additional.fields.heading" />
@@ -1390,7 +1548,7 @@ function SampleResultsTable({
                 gap: "1rem",
               }}
             >
-              {additionalFields.map((field, idx) => {
+              {receptionAdditionalFields.map((field, idx) => {
                 const fieldType = (field.fieldType || "TEXT").toUpperCase();
                 const fieldKey = resolveAdditionalFieldKey(field);
                 const fieldLabel = field.displayName || field.fieldKey;

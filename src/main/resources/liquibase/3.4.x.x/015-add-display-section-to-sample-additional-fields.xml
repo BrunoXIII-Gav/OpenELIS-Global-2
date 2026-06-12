@@ -1,0 +1,28 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<databaseChangeLog
+    xmlns="http://www.liquibase.org/xml/ns/dbchangelog"
+    xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+    xsi:schemaLocation="http://www.liquibase.org/xml/ns/dbchangelog http://www.liquibase.org/xml/ns/dbchangelog/dbchangelog-3.8.xsd">
+
+    <changeSet id="sample-additional-fields-015-add-display-section" author="codex">
+        <preConditions onFail="MARK_RAN">
+            <and>
+                <tableExists tableName="sample_type_additional_field_def" schemaName="clinlims" />
+                <not>
+                    <columnExists tableName="sample_type_additional_field_def" columnName="display_section" schemaName="clinlims" />
+                </not>
+            </and>
+        </preConditions>
+
+        <addColumn tableName="sample_type_additional_field_def" schemaName="clinlims">
+            <column name="display_section" type="varchar(30)" defaultValue="RECEPTION">
+                <constraints nullable="false" />
+            </column>
+        </addColumn>
+
+        <rollback>
+            <dropColumn tableName="sample_type_additional_field_def" columnName="display_section" schemaName="clinlims" />
+        </rollback>
+    </changeSet>
+
+</databaseChangeLog>

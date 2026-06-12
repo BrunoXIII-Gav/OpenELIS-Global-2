@@ -161,6 +161,7 @@ public class SampleTypeAdditionalFieldServiceImpl implements SampleTypeAdditiona
         definition.setFieldKey(normalizedFieldKey);
         definition.setDisplayName(payload.getDisplayName().trim());
         definition.setFieldType(fieldType.name());
+        definition.setDisplaySection(normalizeDisplaySection(payload.getDisplaySection()));
         definition.setRequired(Boolean.TRUE.equals(payload.getRequired()));
         definition.setActive(payload.getActive() == null || payload.getActive());
         definition.setSortOrder(payload.getSortOrder() == null ? getNextSortOrder(sampleTypeNumericId)
@@ -193,6 +194,10 @@ public class SampleTypeAdditionalFieldServiceImpl implements SampleTypeAdditiona
         if (payload.getFieldType() != null) {
             FieldType fieldType = parseFieldType(payload.getFieldType());
             definition.setFieldType(fieldType.name());
+
+            if (payload.getDisplaySection() != null) {
+                    definition.setDisplaySection(normalizeDisplaySection(payload.getDisplaySection()));
+            }
 
             if (!isOptionFieldType(fieldType)) {
                 List<SampleTypeAdditionalFieldOption> existingOptions = optionDAO.findByDefinitionId(fieldId, true);
@@ -421,6 +426,7 @@ public class SampleTypeAdditionalFieldServiceImpl implements SampleTypeAdditiona
         payload.setFieldKey(definition.getFieldKey());
         payload.setDisplayName(definition.getDisplayName());
         payload.setFieldType(definition.getFieldType());
+        payload.setDisplaySection(normalizeDisplaySection(definition.getDisplaySection()));
         payload.setRequired(definition.getRequired());
         payload.setActive(definition.getActive());
         payload.setSortOrder(definition.getSortOrder());
@@ -487,6 +493,20 @@ public class SampleTypeAdditionalFieldServiceImpl implements SampleTypeAdditiona
             normalized = normalized.substring(0, 80);
         }
         return normalized;
+    }
+
+    private String normalizeDisplaySection(String displaySection) {
+        if (displaySection == null || displaySection.trim().isEmpty()) {
+            return "RECEPTION";
+        }
+
+        String normalized = displaySection.trim().toUpperCase();
+
+        if ("COLLECTION".equals(normalized)) {
+            return "COLLECTION";
+        }
+
+        return "RECEPTION";
     }
 
     private void validateFieldKey(String fieldKey) {

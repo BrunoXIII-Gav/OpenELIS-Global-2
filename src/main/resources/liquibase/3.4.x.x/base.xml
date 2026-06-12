@@ -25,6 +25,7 @@
   <include relativeToChangelogFile="true" file="013-create-order-additional-fields.xml"/>
   <include relativeToChangelogFile="true" file="014-create-order-additional-field-files.xml"/>
   <include relativeToChangelogFile="true" file="015-order-additional-fields-search-config.xml"/>
+  <include relativeToChangelogFile="true" file="015-add-display-section-to-sample-additional-fields.xml"/>
   <include relativeToChangelogFile="true" file="016-order-additional-fields-search-performance.xml"/>
   <include relativeToChangelogFile="true" file="017-add-enabled-order-priorities-config.xml"/>
   <include relativeToChangelogFile="true" file="018-add-storage-aliquot-permissions.xml"/>

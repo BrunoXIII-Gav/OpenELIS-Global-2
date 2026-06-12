@@ -102,6 +102,7 @@ const HomeDashBoard: React.FC<DashBoardProps> = () => {
   const [startDate, setStartDate] = useState("");
   const [endDate, setEndDate] = useState("");
   const [selectedTestType, setSelectedTestType] = useState("all");
+  const [awaitingResultsSort, setAwaitingResultsSort] = useState("mostUrgent");
 
   const handleDateChange = (dates) => {
     
@@ -624,6 +625,16 @@ const HomeDashBoard: React.FC<DashBoardProps> = () => {
           <Link style={{ color: "blue" }}>{cell.value} </Link>
         </TableCell>
       );
+      } else if (cell.info.header === "waitingCounter") {
+      const [tagType, label] = String(cell.value || "gray|Sin fecha").split("|");
+
+      return (
+        <TableCell key={cell.id}>
+          <Tag type={tagType as any} className="awaiting-results-counter-tag">
+            {label}
+          </Tag>
+        </TableCell>
+      );
     } else {
       return <TableCell key={cell.id}>{cell.value}</TableCell>;
     }
@@ -675,6 +686,19 @@ const HomeDashBoard: React.FC<DashBoardProps> = () => {
     },
   ];
 
+  const orderHeadersAwaitingResults = [
+  ...orderHeadersWithTest,
+    {
+      key: "waitingCounter",
+      header: (
+        <FormattedMessage
+          id="dashboard.awaitingResults.waitingCounter"
+          defaultMessage="Tiempo esperando"
+        />
+      ),
+    },
+  ];
+
   const orderHeadersAwaitingSample = [
     {
       key: "priority",
@@ -721,6 +745,74 @@ const HomeDashBoard: React.FC<DashBoardProps> = () => {
     ),
   ).sort((a, b) => a.localeCompare(b));
 
+  const parseOrderDateTime = (orderDate?: string): Date | null => {
+    if (!orderDate) {
+      return null;
+    }
+
+    const normalizedDate = String(orderDate).trim().replace(" ", "T");
+    const parsedDate = new Date(normalizedDate);
+
+    if (Number.isNaN(parsedDate.getTime())) {
+      return null;
+    }
+
+    return parsedDate;
+  };
+
+  const getAwaitingResultsWaitingInfo = (orderDate?: string) => {
+    const parsedOrderDate = parseOrderDateTime(orderDate);
+
+    if (!parsedOrderDate) {
+      return {
+        label: intl.formatMessage({
+          id: "dashboard.awaitingResults.waiting.noDate",
+          defaultMessage: "Sin fecha",
+        }),
+        tagType: "gray",
+        waitingMs: -1,
+      };
+    }
+
+    const now = new Date();
+    const waitingMs = Math.max(0, now.getTime() - parsedOrderDate.getTime());
+    const totalHours = Math.floor(waitingMs / (1000 * 60 * 60));
+    const totalDays = Math.floor(totalHours / 24);
+
+    const label =
+  totalHours < 24
+    ? intl.formatMessage(
+        {
+          id: "dashboard.awaitingResults.waiting.hours",
+          defaultMessage:
+            "hace {count, plural, one {# hora} other {# horas}}",
+        },
+        { count: totalHours },
+      )
+    : intl.formatMessage(
+        {
+          id: "dashboard.awaitingResults.waiting.days",
+          defaultMessage:
+            "hace {count, plural, one {# día} other {# días}}",
+        },
+        { count: totalDays },
+      );
+
+    let tagType = "green";
+
+    if (totalDays >= 10) {
+      tagType = "red";
+    } else if (totalDays >= 5) {
+      tagType = "yellow";
+    }
+
+    return {
+      label,
+      tagType,
+      waitingMs,
+    };
+  };
+
   const matchesSelectedFilters = (item) => {
     const shouldFilterBySection =
       tilesWithTabs.includes(selectedTile.type) &&
@@ -749,6 +841,39 @@ const HomeDashBoard: React.FC<DashBoardProps> = () => {
 
     return matchesSection && matchesTestType;
   };
+
+  const filteredTableData =
+  selectedTile != null
+    ? data
+        .filter((item) => matchesSelectedFilters(item))
+        .map((item) => {
+          if (selectedTile.type !== "AWAITING_RESULTS") {
+            return item;
+          }
+
+          const waitingInfo = getAwaitingResultsWaitingInfo(item.orderDate);
+
+          return {
+            ...item,
+            waitingMs: waitingInfo.waitingMs,
+            waitingCounter: `${waitingInfo.tagType}|${waitingInfo.label}`,
+          };
+        })
+        .sort((a, b) => {
+          if (selectedTile.type !== "AWAITING_RESULTS") {
+            return 0;
+          }
+
+          const firstWaitingMs = a.waitingMs ?? -1;
+          const secondWaitingMs = b.waitingMs ?? -1;
+
+          if (awaitingResultsSort === "mostUrgent") {
+            return secondWaitingMs - firstWaitingMs;
+          }
+
+          return firstWaitingMs - secondWaitingMs;
+        })
+    : [];
 
   return (
     <>
@@ -811,36 +936,86 @@ const HomeDashBoard: React.FC<DashBoardProps> = () => {
               </Column>
             </Grid>
             {selectedTile.type !== "AVERAGE_TURN_AROUND_TIME" && (
-              <div style={{ padding: "1rem 0" }}>
-                <DatePicker
-                  datePickerType="range"
-                  onChange={handleDateChange}
-                  dateFormat="Y-m-d"
-                >
-                  <DatePickerInput
-                    id="date-picker-start"
-                    placeholder="yyyy-mm-dd"
-                    labelText="Fecha inicio"
-                    size="md"
-                  />
-                  <DatePickerInput
-                    id="date-picker-end"
-                    placeholder="yyyy-mm-dd"
-                    labelText="Fecha fin"
-                    size="md"
-                  />
-                </DatePicker>
+              <div
+                style={{
+                  display: "flex",
+                  flexWrap: "wrap",
+                  gap: "1rem",
+                  alignItems: "flex-end",
+                  padding: "1rem 0",
+                }}
+              >
+                <div style={{ minWidth: "25rem" }}>
+                  <DatePicker
+                    datePickerType="range"
+                    onChange={handleDateChange}
+                    dateFormat="Y-m-d"
+                  >
+                    <DatePickerInput
+                      id="date-picker-start"
+                      placeholder="yyyy-mm-dd"
+                      labelText={intl.formatMessage({
+                        id: "dashboard.filter.startDate",
+                        defaultMessage: "Fecha inicio",
+                      })}
+                      size="md"
+                    />
+                    <DatePickerInput
+                      id="date-picker-end"
+                      placeholder="yyyy-mm-dd"
+                      labelText={intl.formatMessage({
+                        id: "dashboard.filter.endDate",
+                        defaultMessage: "Fecha fin",
+                      })}
+                      size="md"
+                    />
+                  </DatePicker>
+                </div>
+
+                {selectedTile.type === "AWAITING_RESULTS" && (
+                  <div style={{ minWidth: "18rem", maxWidth: "22rem" }}>
+                    <Select
+                      id="awaiting-results-priority-sort"
+                      labelText={intl.formatMessage({
+                        id: "dashboard.awaitingResults.sort.label",
+                        defaultMessage: "Ordenar por tiempo esperando",
+                      })}
+                      value={awaitingResultsSort}
+                      onChange={(event) => {
+                        setAwaitingResultsSort(event.target.value);
+                        setPage(1);
+                      }}
+                    >
+                      <SelectItem
+                        value="mostUrgent"
+                        text={intl.formatMessage({
+                          id: "dashboard.awaitingResults.sort.mostUrgent",
+                          defaultMessage: "Más urgente primero",
+                        })}
+                      />
+                      <SelectItem
+                        value="lessUrgent"
+                        text={intl.formatMessage({
+                          id: "dashboard.awaitingResults.sort.lessUrgent",
+                          defaultMessage: "Menos urgente primero",
+                        })}
+                      />
+                    </Select>
+                  </div>
+                )}
+
                 {supportsTestTypeFilter && (
-                  <div style={{ maxWidth: "22rem", marginTop: "1rem" }}>
+                  <div style={{ minWidth: "18rem", maxWidth: "22rem" }}>
                     <Select
                       id="dashboard-test-type-filter"
                       labelText={intl.formatMessage({
                         id: "dashboard.filter.test.type",
                       })}
                       value={selectedTestType}
-                      onChange={(event) =>
-                        setSelectedTestType(event.target.value)
-                      }
+                      onChange={(event) => {
+                        setSelectedTestType(event.target.value);
+                        setPage(1);
+                      }}
                     >
                       <SelectItem
                         value="all"
@@ -849,11 +1024,7 @@ const HomeDashBoard: React.FC<DashBoardProps> = () => {
                         })}
                       />
                       {testTypeOptions.map((testName) => (
-                        <SelectItem
-                          key={testName}
-                          value={testName}
-                          text={testName}
-                        />
+                        <SelectItem key={testName} value={testName} text={testName} />
                       ))}
                     </Select>
                   </div>
@@ -972,26 +1143,26 @@ const HomeDashBoard: React.FC<DashBoardProps> = () => {
                       </Grid>
                     )}
                     <DataTable
-                      rows={data
-                        .filter((item) => matchesSelectedFilters(item))
-                        .slice((page - 1) * pageSize, page * pageSize)}
+                      rows={filteredTableData.slice((page - 1) * pageSize, page * pageSize)}
                       headers={
-                        [
-                          "ORDERS_IN_PROGRESS",
-                          "ORDERS_COMPLETED_TODAY",
-                          "ORDERS_PATIALLY_COMPLETED_TODAY",
-                          "ORDERS_REJECTED_TODAY",
-                          "ORDERS_FOR_USER",
-                          "UN_PRINTED_RESULTS",
-                          "INCOMING_ORDERS",
-                          "DELAYED_TURN_AROUND",
-                        ].includes(selectedTile.type)
-                          ? orderHeadersInProgress
-                          : selectedTile.type === "ORDERS_ENTERED_BY_USER_TODAY"
-                            ? userHeaders
-                            : selectedTile.type === "AWAITING_SAMPLE"
-                              ? orderHeadersAwaitingSample
-                              : orderHeadersWithTest
+                        selectedTile.type === "AWAITING_RESULTS"
+                          ? orderHeadersAwaitingResults
+                          : [
+                              "ORDERS_IN_PROGRESS",
+                              "ORDERS_COMPLETED_TODAY",
+                              "ORDERS_PATIALLY_COMPLETED_TODAY",
+                              "ORDERS_REJECTED_TODAY",
+                              "ORDERS_FOR_USER",
+                              "UN_PRINTED_RESULTS",
+                              "INCOMING_ORDERS",
+                              "DELAYED_TURN_AROUND",
+                            ].includes(selectedTile.type)
+                            ? orderHeadersInProgress
+                            : selectedTile.type === "ORDERS_ENTERED_BY_USER_TODAY"
+                              ? userHeaders
+                              : selectedTile.type === "AWAITING_SAMPLE"
+                                ? orderHeadersAwaitingSample
+                                : orderHeadersWithTest
                       }
                       isSortable
                     >
@@ -1038,10 +1209,7 @@ const HomeDashBoard: React.FC<DashBoardProps> = () => {
                       page={page}
                       pageSize={pageSize}
                       pageSizes={[10, 20, 30, 50, 100]}
-                      totalItems={
-                        data.filter((item) => matchesSelectedFilters(item))
-                          .length
-                      }
+                      totalItems={filteredTableData.length}
                       forwardText={intl.formatMessage({
                         id: "pagination.forward",
                       })}
