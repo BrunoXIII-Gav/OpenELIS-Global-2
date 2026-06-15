@@ -102,7 +102,7 @@ const HomeDashBoard: React.FC<DashBoardProps> = () => {
   const [startDate, setStartDate] = useState("");
   const [endDate, setEndDate] = useState("");
   const [selectedTestType, setSelectedTestType] = useState("all");
-  const [awaitingResultsSort, setAwaitingResultsSort] = useState("mostUrgent");
+  const [waitingTimeSort, setWaitingTimeSort] = useState("mostUrgent");
 
   const handleDateChange = (dates) => {
     
@@ -155,6 +155,11 @@ const HomeDashBoard: React.FC<DashBoardProps> = () => {
     useContext(NotificationContext) as Notification;
 
   const supportsTestTypeFilter =
+    selectedTile?.type === "AWAITING_RESULTS" ||
+    selectedTile?.type === "ORDERS_READY_FOR_VALIDATION";
+
+  const supportsWaitingCounter =
+    selectedTile?.type === "AWAITING_SAMPLE" ||
     selectedTile?.type === "AWAITING_RESULTS" ||
     selectedTile?.type === "ORDERS_READY_FOR_VALIDATION";
 
@@ -720,6 +725,28 @@ const HomeDashBoard: React.FC<DashBoardProps> = () => {
       key: "cugCode",
       header: <FormattedMessage id="sample.management.table.header.cug" />,
     },
+    {
+      key: "waitingCounter",
+      header: (
+        <FormattedMessage
+          id="dashboard.awaitingResults.waitingCounter"
+          defaultMessage="Tiempo esperando"
+        />
+      ),
+    },
+  ];
+
+  const orderHeadersReadyForValidation = [
+    ...orderHeadersWithTest,
+    {
+      key: "waitingCounter",
+      header: (
+        <FormattedMessage
+          id="dashboard.awaitingResults.waitingCounter"
+          defaultMessage="Tiempo esperando"
+        />
+      ),
+    },
   ];
 
   const userHeaders = [
@@ -760,8 +787,8 @@ const HomeDashBoard: React.FC<DashBoardProps> = () => {
     return parsedDate;
   };
 
-  const getAwaitingResultsWaitingInfo = (orderDate?: string) => {
-    const parsedOrderDate = parseOrderDateTime(orderDate);
+  const getWaitingInfo = (waitingStartDate?: string) => {
+    const parsedOrderDate = parseOrderDateTime(waitingStartDate);
 
     if (!parsedOrderDate) {
       return {
@@ -847,11 +874,11 @@ const HomeDashBoard: React.FC<DashBoardProps> = () => {
     ? data
         .filter((item) => matchesSelectedFilters(item))
         .map((item) => {
-          if (selectedTile.type !== "AWAITING_RESULTS") {
+          if (!supportsWaitingCounter) {
             return item;
           }
 
-          const waitingInfo = getAwaitingResultsWaitingInfo(item.orderDate);
+          const waitingInfo = getWaitingInfo(item.waitingStartDate || item.orderDate);
 
           return {
             ...item,
@@ -860,14 +887,14 @@ const HomeDashBoard: React.FC<DashBoardProps> = () => {
           };
         })
         .sort((a, b) => {
-          if (selectedTile.type !== "AWAITING_RESULTS") {
+          if (!supportsWaitingCounter) {
             return 0;
           }
 
           const firstWaitingMs = a.waitingMs ?? -1;
           const secondWaitingMs = b.waitingMs ?? -1;
 
-          if (awaitingResultsSort === "mostUrgent") {
+          if (waitingTimeSort === "mostUrgent") {
             return secondWaitingMs - firstWaitingMs;
           }
 
@@ -972,7 +999,7 @@ const HomeDashBoard: React.FC<DashBoardProps> = () => {
                   </DatePicker>
                 </div>
 
-                {selectedTile.type === "AWAITING_RESULTS" && (
+                {supportsWaitingCounter && (
                   <div style={{ minWidth: "18rem", maxWidth: "22rem" }}>
                     <Select
                       id="awaiting-results-priority-sort"
@@ -980,9 +1007,9 @@ const HomeDashBoard: React.FC<DashBoardProps> = () => {
                         id: "dashboard.awaitingResults.sort.label",
                         defaultMessage: "Ordenar por tiempo esperando",
                       })}
-                      value={awaitingResultsSort}
+                      value={waitingTimeSort}
                       onChange={(event) => {
-                        setAwaitingResultsSort(event.target.value);
+                        setWaitingTimeSort(event.target.value);
                         setPage(1);
                       }}
                     >
@@ -1147,6 +1174,8 @@ const HomeDashBoard: React.FC<DashBoardProps> = () => {
                       headers={
                         selectedTile.type === "AWAITING_RESULTS"
                           ? orderHeadersAwaitingResults
+                          : selectedTile.type === "ORDERS_READY_FOR_VALIDATION"
+                            ? orderHeadersReadyForValidation
                           : [
                               "ORDERS_IN_PROGRESS",
                               "ORDERS_COMPLETED_TODAY",

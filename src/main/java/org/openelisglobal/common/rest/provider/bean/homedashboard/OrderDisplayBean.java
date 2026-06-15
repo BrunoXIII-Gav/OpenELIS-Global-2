@@ -5,6 +5,7 @@ public class OrderDisplayBean {
     private String priority;
 
     private String orderDate;
+    private String waitingStartDate;
 
     private String patientId;
 
@@ -53,6 +54,14 @@ public class OrderDisplayBean {
 
     public void setOrderDate(String orderDate) {
         this.orderDate = orderDate;
+    }
+
+    public String getWaitingStartDate() {
+        return waitingStartDate;
+    }
+
+    public void setWaitingStartDate(String waitingStartDate) {
+        this.waitingStartDate = waitingStartDate;
     }
 
     public String getPatientId() {

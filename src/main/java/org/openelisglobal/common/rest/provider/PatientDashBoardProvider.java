@@ -115,6 +115,62 @@ public class PatientDashBoardProvider {
         return hours.isEmpty() ? 0.0 : hours.stream().mapToDouble(Double::doubleValue).average().orElse(0.0);
     }
 
+    private String formatDateTime(java.util.Date value) {
+        if (value == null) {
+            return "";
+        }
+        return new java.text.SimpleDateFormat("yyyy-MM-dd HH:mm:ss").format(value);
+    }
+
+    private String resolveAwaitingSampleWaitingStart(Sample sample) {
+        if (sample == null) {
+            return "";
+        }
+        if (sample.getEnteredDate() != null) {
+            return formatDateTime(sample.getEnteredDate());
+        }
+        if (sample.getLastupdated() != null) {
+            return formatDateTime(sample.getLastupdated());
+        }
+        return "";
+    }
+
+    private String resolveAwaitingResultsWaitingStart(Analysis analysis) {
+        if (analysis == null) {
+            return "";
+        }
+        if (analysis.getSampleItem() != null && analysis.getSampleItem().getCollectionDate() != null) {
+            return formatDateTime(analysis.getSampleItem().getCollectionDate());
+        }
+        if (analysis.getSampleItem() != null && analysis.getSampleItem().getSample() != null
+                && analysis.getSampleItem().getSample().getCollectionDate() != null) {
+            return formatDateTime(analysis.getSampleItem().getSample().getCollectionDate());
+        }
+        if (analysis.getStartedDate() != null) {
+            return formatDateTime(analysis.getStartedDate());
+        }
+        if (analysis.getLastupdated() != null) {
+            return formatDateTime(analysis.getLastupdated());
+        }
+        return "";
+    }
+
+    private String resolveReadyForValidationWaitingStart(Analysis analysis) {
+        if (analysis == null) {
+            return "";
+        }
+        if (analysis.getEnteredDate() != null) {
+            return formatDateTime(analysis.getEnteredDate());
+        }
+        if (analysis.getCompletedDate() != null) {
+            return formatDateTime(analysis.getCompletedDate());
+        }
+        if (analysis.getLastupdated() != null) {
+            return formatDateTime(analysis.getLastupdated());
+        }
+        return "";
+    }
+
     private boolean isSampleItemCompleteForDashboard(SampleItem sampleItem,
             Map<String, List<SampleTypeAdditionalFieldPayload>> fieldsBySampleTypeId,
             Map<String, Map<String, String>> valuesBySampleItemId) {
@@ -325,6 +381,7 @@ public class PatientDashBoardProvider {
                     } else {
                         orderBean.setOrderDate("");
                     }
+                    orderBean.setWaitingStartDate(resolveAwaitingResultsWaitingStart(analysis));
 
                     orderBean.setTestName(analysis.getTest() != null ? analysis.getTest().getLocalizedName() : "");
                     orderBean
@@ -372,6 +429,7 @@ public class PatientDashBoardProvider {
                 } else {
                     orderBean.setOrderDate(sample.getLastupdated() != null ? sdf.format(sample.getLastupdated()) : "");
                 }
+                orderBean.setWaitingStartDate(resolveReadyForValidationWaitingStart(analysis));
 
                 orderBean.setTestName("");
                 groupedByLabNumber.put(labNumber, orderBean);
@@ -516,6 +574,7 @@ public class PatientDashBoardProvider {
                     } else {
                         orderBean.setOrderDate(sample.getLastupdated() != null ? sdf.format(sample.getLastupdated()) : "");
                     }
+                    orderBean.setWaitingStartDate(resolveAwaitingSampleWaitingStart(sample));
 
                     orderBean.setTestName("");
                     orderBean.setTestSection(analysis.getTestSection() != null ? analysis.getTestSection().getId() : "");
