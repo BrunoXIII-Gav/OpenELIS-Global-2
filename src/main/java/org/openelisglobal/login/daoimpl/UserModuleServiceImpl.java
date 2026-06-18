@@ -16,6 +16,7 @@
 package org.openelisglobal.login.daoimpl;
 
 import jakarta.servlet.http.HttpServletRequest;
+import jakarta.servlet.http.HttpSession;
 import java.util.List;
 import org.openelisglobal.common.action.IActionConstants;
 import org.openelisglobal.common.exception.LIMSRuntimeException;
@@ -170,11 +171,15 @@ public class UserModuleServiceImpl implements UserModuleService, IActionConstant
             // Authentication authentication2 =
             // SecurityContextHolder.getContext().getAuthentication();
             // TODO workaround for Security Context authentication is null
-            Object sc = request.getSession()
-                    .getAttribute(HttpSessionSecurityContextRepository.SPRING_SECURITY_CONTEXT_KEY);
+            HttpSession session = request.getSession(false);
+            if (session == null) {
+                return null;
+            }
+            Object sc = session.getAttribute(HttpSessionSecurityContextRepository.SPRING_SECURITY_CONTEXT_KEY);
             if (!(sc instanceof SecurityContext)) {
                 LogEvent.logWarn(this.getClass().getSimpleName(), "getUserLogin",
                         "security context is not of type SecurityContext");
+                return null;
             }
             Authentication authentication = ((SecurityContext) sc).getAuthentication();
             if (authentication != null) {
