@@ -530,7 +530,7 @@ public class SampleManagementServiceImpl implements SampleManagementService {
             Map<String, String> additionalFieldValues = update.getAdditionalFieldValues();
             if (additionalFieldValues != null && !additionalFieldValues.isEmpty()) {
                 sampleTypeAdditionalFieldService.validateAndPersistSampleItemValues(sampleItem.getTypeOfSampleId(),
-                        sampleItem.getId(), additionalFieldValues, sysUserId, null);
+                        sampleItem.getId(), additionalFieldValues, sysUserId, null, false);
             }
 
             if (Boolean.TRUE.equals(update.getRemoveSample())) {
@@ -645,22 +645,27 @@ public class SampleManagementServiceImpl implements SampleManagementService {
 
     private String normalizeTimeForOpenElis(String timeValue) {
         if (GenericValidator.isBlankOrNull(timeValue)) {
-            return "12:00 AM";
+            return "00:00";
         }
 
         String trimmed = timeValue.trim();
         String upper = trimmed.toUpperCase();
         if (upper.endsWith("AM") || upper.endsWith("PM")) {
-            return upper;
+            try {
+                LocalTime time = LocalTime.parse(upper, DateTimeFormatter.ofPattern("h:mm a"));
+                return time.format(DateTimeFormatter.ofPattern("HH:mm"));
+            } catch (DateTimeParseException ignored) {
+                return trimmed;
+            }
         }
 
         try {
             LocalTime time = LocalTime.parse(trimmed, DateTimeFormatter.ofPattern("H:mm"));
-            return time.format(DateTimeFormatter.ofPattern("hh:mm a"));
+            return time.format(DateTimeFormatter.ofPattern("HH:mm"));
         } catch (DateTimeParseException ignored) {
             try {
                 LocalTime time = LocalTime.parse(trimmed, DateTimeFormatter.ofPattern("HH:mm:ss"));
-                return time.format(DateTimeFormatter.ofPattern("hh:mm a"));
+                return time.format(DateTimeFormatter.ofPattern("HH:mm"));
             } catch (DateTimeParseException e) {
                 return trimmed;
             }

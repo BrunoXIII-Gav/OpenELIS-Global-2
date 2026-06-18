@@ -39,6 +39,7 @@ import {
 const ORDER_FIXED_FIELD_LABEL_MESSAGE_IDS = {
   priority: "sample.management.order.fixed.priority",
   requestDate: "sample.management.order.fixed.requestDate",
+  requestTime: "sample.management.order.fixed.requestTime",
   receivedDateForDisplay:
     "sample.management.order.fixed.receivedDateForDisplay",
   receivedTime: "sample.management.order.fixed.receivedTime",
@@ -178,6 +179,15 @@ function SampleResultsTable({
         return `${year}-${String(month).padStart(2, "0")}-${String(day).padStart(2, "0")}`;
       }
     }
+    if (typeof value === "string") {
+      const isoMatch = value
+        .trim()
+        .match(/^(\d{4})-(\d{2})-(\d{2})(?:[T\s].*)?$/);
+      if (isoMatch) {
+        const [, year, month, day] = isoMatch;
+        return `${year}-${month}-${day}`;
+      }
+    }
     const date = new Date(value);
     if (Number.isNaN(date.getTime())) return "";
     const year = date.getFullYear();
@@ -217,6 +227,13 @@ function SampleResultsTable({
             return `${String(hour24).padStart(2, "0")}:${String(minuteRaw).padStart(2, "0")}`;
           }
         }
+      }
+
+      const isoMatch = normalized.match(
+        /^\d{4}-\d{2}-\d{2}[t\s](\d{2}):(\d{2})(?::\d{2})?/,
+      );
+      if (isoMatch) {
+        return `${isoMatch[1]}:${isoMatch[2]}`;
       }
     }
     const date = new Date(value);
@@ -963,13 +980,10 @@ function SampleResultsTable({
     );
   };
 
-  const getPrimarySampleRowId = useCallback(
-    (rowId, originalRow) => {
-      const firstTestId = originalRow?.orderedTests?.[0]?.analysisId;
-      return firstTestId ? `${rowId}-${firstTestId}` : `${rowId}__sample`;
-    },
-    [],
-  );
+  const getPrimarySampleRowId = useCallback((rowId, originalRow) => {
+    const firstTestId = originalRow?.orderedTests?.[0]?.analysisId;
+    return firstTestId ? `${rowId}-${firstTestId}` : `${rowId}__sample`;
+  }, []);
 
   const getEditableSampleCugValue = useCallback(
     (rowId, originalRow) => {
@@ -1131,7 +1145,10 @@ function SampleResultsTable({
         {shouldShowCurrentTests &&
           (() => {
             const orderedTests = originalRow.orderedTests || [];
-            const primarySampleRowId = getPrimarySampleRowId(row.id, originalRow);
+            const primarySampleRowId = getPrimarySampleRowId(
+              row.id,
+              originalRow,
+            );
             const sampleDetails =
               currentTestDetailsByKey[`${row.id}__sample`] ||
               currentTestDetailsByKey[primarySampleRowId] ||
@@ -1326,7 +1343,9 @@ function SampleResultsTable({
                         }
                       })}
                       {collectionAdditionalFields.map((field, idx) => {
-                        const fieldType = (field.fieldType || "TEXT").toUpperCase();
+                        const fieldType = (
+                          field.fieldType || "TEXT"
+                        ).toUpperCase();
                         const fieldKey = resolveAdditionalFieldKey(field);
                         const fieldLabel = field.displayName || field.fieldKey;
                         const fieldValue =
@@ -1376,7 +1395,9 @@ function SampleResultsTable({
                               }
                             >
                               <SelectItem
-                                text={intl.formatMessage({ id: "label.select" })}
+                                text={intl.formatMessage({
+                                  id: "label.select",
+                                })}
                                 value=""
                               />
                               {options.map((option, optionIdx) => (
@@ -1399,7 +1420,12 @@ function SampleResultsTable({
                           );
                           return (
                             <div key={fieldId} style={{ gridColumn: "1 / -1" }}>
-                              <div style={{ marginBottom: "0.5rem", fontWeight: 500 }}>
+                              <div
+                                style={{
+                                  marginBottom: "0.5rem",
+                                  fontWeight: 500,
+                                }}
+                              >
                                 {fieldLabel}
                               </div>
                               {options.map((option, optionIdx) => (
@@ -1434,7 +1460,7 @@ function SampleResultsTable({
                                 updateAdditionalFieldValue(
                                   row.id,
                                   fieldKey,
-                                  e.target.value
+                                  e.target.value,
                                 )
                               }
                             />
@@ -1932,7 +1958,7 @@ function SampleResultsTable({
                                         </div>
                                       );
                                     })()
-                                : cell.value}
+                                  : cell.value}
                         </TableCell>
                       ))}
                     </TableExpandRow>

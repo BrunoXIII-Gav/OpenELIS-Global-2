@@ -129,7 +129,8 @@ function TestNotificationConfigEdit() {
   const updateInternalProfileRules = (updater) => {
     updatePostData((prev) => {
       const currentRules = getInternalProfileRules(prev?.config);
-      const nextRules = typeof updater === "function" ? updater(currentRules) : updater;
+      const nextRules =
+        typeof updater === "function" ? updater(currentRules) : updater;
       return {
         ...prev,
         config: {
@@ -291,13 +292,11 @@ function TestNotificationConfigEdit() {
   };
 
   const buildSavePayload = () => {
-    const current = latestPostDataRef.current || testNotificationConfigEditDataPost || {};
+    const current =
+      latestPostDataRef.current || testNotificationConfigEditDataPost || {};
     const currentConfig = current.config || {};
-    const {
-      options,
-      internalProfileEmailNotifications,
-      ...restConfig
-    } = currentConfig;
+    const { options, internalProfileEmailNotifications, ...restConfig } =
+      currentConfig;
 
     return {
       ...current,
@@ -315,7 +314,9 @@ function TestNotificationConfigEdit() {
         providerSMS: currentConfig.providerSMS
           ? { ...currentConfig.providerSMS }
           : undefined,
-        internalProfileEmailNotifications: getInternalProfileRules(currentConfig).map((rule) => ({
+        internalProfileEmailNotifications: getInternalProfileRules(
+          currentConfig,
+        ).map((rule) => ({
           id: rule.id,
           notificationMethod: rule.notificationMethod,
           notificationPersonType: rule.notificationPersonType,
@@ -462,7 +463,9 @@ function TestNotificationConfigEdit() {
                     <FormattedMessage id="testnotification.internalProfile.email" />
                   }
                   checked={
-                    getInternalProfileRules(testNotificationConfigEditDataPost?.config).length > 0
+                    getInternalProfileRules(
+                      testNotificationConfigEditDataPost?.config,
+                    ).length > 0
                   }
                   onChange={handleCheckboxChange}
                 />
@@ -473,7 +476,8 @@ function TestNotificationConfigEdit() {
           <hr />
           <br />
           {testNotificationConfigEditDataPost?.config &&
-            getInternalProfileRules(testNotificationConfigEditDataPost?.config).length > 0 && (
+            getInternalProfileRules(testNotificationConfigEditDataPost?.config)
+              .length > 0 && (
               <>
                 <Grid fullWidth={true} condensed={true}>
                   <Column lg={12} md={6} sm={4}>
@@ -496,7 +500,9 @@ function TestNotificationConfigEdit() {
                   </Column>
                 </Grid>
                 <br />
-                {getInternalProfileRules(testNotificationConfigEditDataPost?.config).map((rule, index) => (
+                {getInternalProfileRules(
+                  testNotificationConfigEditDataPost?.config,
+                ).map((rule, index) => (
                   <React.Fragment key={`${rule.id || "new"}-${index}`}>
                     <Grid fullWidth={true} condensed={true}>
                       <Column lg={12} md={6} sm={4}>

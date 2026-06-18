@@ -233,7 +233,8 @@ function CreatePatientForm(props) {
       sampleOrderItems: {
         ...props.orderFormValues.sampleOrderItems,
         additionalFieldValues: {
-          ...(props.orderFormValues.sampleOrderItems.additionalFieldValues || {}),
+          ...(props.orderFormValues.sampleOrderItems.additionalFieldValues ||
+            {}),
           [fieldKey]: value,
         },
       },
@@ -549,7 +550,9 @@ function CreatePatientForm(props) {
   };
 
   const getOrderAdditionalFields = () => {
-    return Array.isArray(props.orderFormValues?.sampleOrderItems?.additionalFields)
+    return Array.isArray(
+      props.orderFormValues?.sampleOrderItems?.additionalFields,
+    )
       ? props.orderFormValues.sampleOrderItems.additionalFields.filter(
           (field) => field && field.active !== false && field.fieldKey,
         )
@@ -559,10 +562,13 @@ function CreatePatientForm(props) {
   const renderOrderAdditionalField = (field) => {
     const fieldType = (field.fieldType || "TEXT").toUpperCase();
     const currentValue =
-      props.orderFormValues.sampleOrderItems.additionalFieldValues?.[field.fieldKey];
-    const value = currentValue !== undefined && currentValue !== null
-      ? currentValue
-      : field.defaultValue || "";
+      props.orderFormValues.sampleOrderItems.additionalFieldValues?.[
+        field.fieldKey
+      ];
+    const value =
+      currentValue !== undefined && currentValue !== null
+        ? currentValue
+        : field.defaultValue || "";
     const options = Array.isArray(field.options)
       ? field.options.filter((option) => option && option.active)
       : [];
@@ -583,7 +589,10 @@ function CreatePatientForm(props) {
               labelText={label}
               value={value}
               onChange={(event) =>
-                handleOrderAdditionalFieldValueChange(field.fieldKey, event.target.value)
+                handleOrderAdditionalFieldValueChange(
+                  field.fieldKey,
+                  event.target.value,
+                )
               }
               maxLength={field.maxLength || undefined}
             />
@@ -598,7 +607,10 @@ function CreatePatientForm(props) {
               type="number"
               value={value}
               onChange={(event) =>
-                handleOrderAdditionalFieldValueChange(field.fieldKey, event.target.value)
+                handleOrderAdditionalFieldValueChange(
+                  field.fieldKey,
+                  event.target.value,
+                )
               }
               readOnly={field.readOnly}
             />
@@ -613,7 +625,10 @@ function CreatePatientForm(props) {
               type="date"
               value={value}
               onChange={(event) =>
-                handleOrderAdditionalFieldValueChange(field.fieldKey, event.target.value)
+                handleOrderAdditionalFieldValueChange(
+                  field.fieldKey,
+                  event.target.value,
+                )
               }
               readOnly={field.readOnly}
             />
@@ -628,7 +643,10 @@ function CreatePatientForm(props) {
               type="time"
               value={value}
               onChange={(event) =>
-                handleOrderAdditionalFieldValueChange(field.fieldKey, event.target.value)
+                handleOrderAdditionalFieldValueChange(
+                  field.fieldKey,
+                  event.target.value,
+                )
               }
               readOnly={field.readOnly}
             />
@@ -643,7 +661,10 @@ function CreatePatientForm(props) {
               type="datetime-local"
               value={value}
               onChange={(event) =>
-                handleOrderAdditionalFieldValueChange(field.fieldKey, event.target.value)
+                handleOrderAdditionalFieldValueChange(
+                  field.fieldKey,
+                  event.target.value,
+                )
               }
               readOnly={field.readOnly}
             />
@@ -657,7 +678,10 @@ function CreatePatientForm(props) {
               labelText={field.displayName}
               checked={String(value).toLowerCase() === "true"}
               onChange={(_event, { checked }) =>
-                handleOrderAdditionalFieldValueChange(field.fieldKey, checked ? "true" : "false")
+                handleOrderAdditionalFieldValueChange(
+                  field.fieldKey,
+                  checked ? "true" : "false",
+                )
               }
               disabled={field.readOnly}
             />
@@ -672,7 +696,10 @@ function CreatePatientForm(props) {
               labelText={label}
               value={value}
               onChange={(event) =>
-                handleOrderAdditionalFieldValueChange(field.fieldKey, event.target.value)
+                handleOrderAdditionalFieldValueChange(
+                  field.fieldKey,
+                  event.target.value,
+                )
               }
               disabled={field.readOnly}
             >
@@ -695,7 +722,10 @@ function CreatePatientForm(props) {
               name={`order-dynamic-radio-${field.fieldKey}`}
               valueSelected={value}
               onChange={(selectedValue) =>
-                handleOrderAdditionalFieldValueChange(field.fieldKey, selectedValue)
+                handleOrderAdditionalFieldValueChange(
+                  field.fieldKey,
+                  selectedValue,
+                )
               }
             >
               {options.map((option) => (
@@ -755,7 +785,10 @@ function CreatePatientForm(props) {
               labelText={label}
               value={value}
               onChange={(event) =>
-                handleOrderAdditionalFieldValueChange(field.fieldKey, event.target.value)
+                handleOrderAdditionalFieldValueChange(
+                  field.fieldKey,
+                  event.target.value,
+                )
               }
               maxLength={field.maxLength || undefined}
               readOnly={field.readOnly}
@@ -1154,12 +1187,10 @@ function CreatePatientForm(props) {
         ...patientDetails,
         ...patient,
         ...flattenedAddressHierarchy,
-        patientAdditionalFieldValues: normalizePatientAdditionalFieldValues(
-          {
-            ...(patientDetails.patientAdditionalFieldValues || {}),
-            ...(patient.patientAdditionalFieldValues || {}),
-          },
-        ),
+        patientAdditionalFieldValues: normalizePatientAdditionalFieldValues({
+          ...(patientDetails.patientAdditionalFieldValues || {}),
+          ...(patient.patientAdditionalFieldValues || {}),
+        }),
         patientContact: patientContact,
       };
       patientIdentifierRef.current = {
@@ -1174,12 +1205,10 @@ function CreatePatientForm(props) {
         ...patientDetails,
         ...patient,
         ...flattenedAddressHierarchy,
-        patientAdditionalFieldValues: normalizePatientAdditionalFieldValues(
-          {
-            ...(patientDetails.patientAdditionalFieldValues || {}),
-            ...(patient.patientAdditionalFieldValues || {}),
-          },
-        ),
+        patientAdditionalFieldValues: normalizePatientAdditionalFieldValues({
+          ...(patientDetails.patientAdditionalFieldValues || {}),
+          ...(patient.patientAdditionalFieldValues || {}),
+        }),
         patientContact: patientContact,
       });
       getYearsMonthsDaysFromDOB(patient.birthDateForDisplay);
@@ -1385,8 +1414,7 @@ function CreatePatientForm(props) {
     let error;
     if (
       res.status === false &&
-      (selectedPatient.nationalId !==
-        patientIdentifierRef.current.nationalId ||
+      (selectedPatient.nationalId !== patientIdentifierRef.current.nationalId ||
         selectedPatient.subjectNumber !==
           patientIdentifierRef.current.subjectNumber)
     ) {
@@ -2077,19 +2105,22 @@ function CreatePatientForm(props) {
                 {" "}
                 <br></br>
               </Column>
-              {props.orderFormValues && getOrderAdditionalFields().length > 0 && (
-                <>
-                  <Column lg={16} md={8} sm={4}>
-                    <Heading>
-                      <FormattedMessage id="order.additional.fields.title" />
-                    </Heading>
-                  </Column>
-                  {getOrderAdditionalFields().map((field) => renderOrderAdditionalField(field))}
-                  <Column lg={16} md={8} sm={4}>
-                    <br />
-                  </Column>
-                </>
-              )}
+              {props.orderFormValues &&
+                getOrderAdditionalFields().length > 0 && (
+                  <>
+                    <Column lg={16} md={8} sm={4}>
+                      <Heading>
+                        <FormattedMessage id="order.additional.fields.title" />
+                      </Heading>
+                    </Column>
+                    {getOrderAdditionalFields().map((field) =>
+                      renderOrderAdditionalField(field),
+                    )}
+                    <Column lg={16} md={8} sm={4}>
+                      <br />
+                    </Column>
+                  </>
+                )}
               <Column lg={8} md={4} sm={4}>
                 <Field name="birthDateForDisplay">
                   {({ field }) => (

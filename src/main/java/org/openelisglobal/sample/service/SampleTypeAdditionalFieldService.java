@@ -30,4 +30,12 @@ public interface SampleTypeAdditionalFieldService {
 
     void validateAndPersistSampleItemValues(String sampleTypeId, String sampleItemId, Map<String, String> fieldValues,
             String currentUserId, Map<String, List<SampleTypeAdditionalFieldPayload>> activeFieldsBySampleTypeCache);
+
+    default void validateAndPersistSampleItemValues(String sampleTypeId, String sampleItemId,
+            Map<String, String> fieldValues, String currentUserId,
+            Map<String, List<SampleTypeAdditionalFieldPayload>> activeFieldsBySampleTypeCache,
+            boolean enforceRequired) {
+        validateAndPersistSampleItemValues(sampleTypeId, sampleItemId, fieldValues, currentUserId,
+                activeFieldsBySampleTypeCache);
+    }
 }

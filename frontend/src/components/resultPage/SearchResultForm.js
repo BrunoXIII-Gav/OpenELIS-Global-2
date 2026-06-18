@@ -563,10 +563,7 @@ const getVisibleAdditionalFields = (data, fieldDefinitions) => {
     : selectorField?.fieldKey
       ? data?.additionalFieldValues?.[selectorField.fieldKey]
       : null;
-  if (
-    !primaryMetadata?.tubeSelector?.enabled &&
-    !selectorField?.fieldKey
-  ) {
+  if (!primaryMetadata?.tubeSelector?.enabled && !selectorField?.fieldKey) {
     return definitions;
   }
 
@@ -602,24 +599,30 @@ const isPrimaryResultVisible = (data) => {
   if (metadata?.tubeSelector?.enabled) {
     selectorRawValue = data?.resultValue;
   } else {
-    const activeAdditionalFields = Array.isArray(data?.additionalFieldDefinitions)
+    const activeAdditionalFields = Array.isArray(
+      data?.additionalFieldDefinitions,
+    )
       ? data.additionalFieldDefinitions.filter(
           (fieldDefinition) => fieldDefinition?.active !== false,
         )
       : [];
-    const selectorField = activeAdditionalFields.find(isTubeSelectorFieldDefinition);
+    const selectorField = activeAdditionalFields.find(
+      isTubeSelectorFieldDefinition,
+    );
     if (selectorField?.fieldKey) {
       selectorRawValue = data?.additionalFieldValues?.[selectorField.fieldKey];
     }
   }
 
   const selectedTubeCount = Number.parseInt(selectorRawValue, 10);
-  return Number.isFinite(selectedTubeCount) && selectedTubeCount >= activationCount;
+  return (
+    Number.isFinite(selectedTubeCount) && selectedTubeCount >= activationCount
+  );
 };
 
 const isChildTubeUsageBlockEnabled = (fieldDefinition) =>
-  parseAdditionalFieldMetadata(fieldDefinition)?.tubeUsage?.childBlockEnabled ===
-  true;
+  parseAdditionalFieldMetadata(fieldDefinition)?.tubeUsage
+    ?.childBlockEnabled === true;
 
 const isPrimaryChildTubeUsageBlockEnabled = (data) =>
   parseAdditionalFieldMetadata({
@@ -2458,7 +2461,8 @@ export function SearchResults(props) {
         return;
       }
       const ownUsage = Number(blockUsage?.usedQuantity);
-      const otherUsage = (usedByTube[selectedTube] || 0) -
+      const otherUsage =
+        (usedByTube[selectedTube] || 0) -
         (Number.isFinite(ownUsage) && ownUsage > 0 ? ownUsage : 0);
       const effectiveRemaining = Math.max(0, baseRemaining - otherUsage);
       blockUsage.remainingQuantity = effectiveRemaining.toFixed(3);
@@ -2569,12 +2573,7 @@ export function SearchResults(props) {
     };
 
     return (
-      <Column
-        lg={4}
-        md={4}
-        sm={4}
-        key={`tube-usage-${data.id}-${blockTitle}`}
-      >
+      <Column lg={4} md={4} sm={4} key={`tube-usage-${data.id}-${blockTitle}`}>
         <Stack gap={2}>
           <Select
             id={`block-parent-tube-${data.id}-${blockTitle}`}
@@ -2624,11 +2623,7 @@ export function SearchResults(props) {
             value={resolvedBlockUsage.usedQuantity || ""}
             disabled={resolvedBlockUsage.locked === true}
             onCommit={(nextValue) =>
-              handleBlockTubeUsageQuantityChange(
-                data.id,
-                blockTitle,
-                nextValue,
-              )
+              handleBlockTubeUsageQuantityChange(data.id, blockTitle, nextValue)
             }
           />
         </Stack>
@@ -2646,17 +2641,13 @@ export function SearchResults(props) {
       data?.tubeLabels?.[blockTitle] ??
       Object.entries(data?.tubeLabels || {}).find(
         ([key]) =>
-          normalizeBlockIdentifier(key) === normalizeBlockIdentifier(blockTitle),
+          normalizeBlockIdentifier(key) ===
+          normalizeBlockIdentifier(blockTitle),
       )?.[1] ??
       "";
 
     return (
-      <Column
-        lg={4}
-        md={4}
-        sm={4}
-        key={`tube-label-${data.id}-${blockTitle}`}
-      >
+      <Column lg={4} md={4} sm={4} key={`tube-label-${data.id}-${blockTitle}`}>
         <DeferredTextInput
           inputId={`tube-label-${data.id}-${blockTitle}`}
           labelText={intl.formatMessage({
@@ -3513,49 +3504,51 @@ export function SearchResults(props) {
       },
     );
 
-    const dependentChildBlockUsageError = props.results.testResult.find((item) => {
-      if (
-        !item.dependentChild ||
-        item.sampleUsageLocked === true ||
-        item.blockTubeUsageEnabled !== true
-      ) {
-        return false;
-      }
-
-      const enteredBlocks = getEnteredChildTubeUsageBlocks(item, intl);
-      if (enteredBlocks.length === 0) {
-        return false;
-      }
-
-      const usagesByBlock = Array.isArray(item.blockSampleUsages)
-        ? item.blockSampleUsages.reduce((acc, usage) => {
-            if (usage?.childBlockName) {
-              acc[normalizeBlockIdentifier(usage.childBlockName)] = usage;
-            }
-            return acc;
-          }, {})
-        : {};
-
-      return enteredBlocks.some((blockName) => {
-        const usage = usagesByBlock[blockName];
-        if (!usage) {
-          return true;
-        }
-        if (usage.locked === true) {
+    const dependentChildBlockUsageError = props.results.testResult.find(
+      (item) => {
+        if (
+          !item.dependentChild ||
+          item.sampleUsageLocked === true ||
+          item.blockTubeUsageEnabled !== true
+        ) {
           return false;
         }
-        const selectedTube = String(usage.parentTubeBlockName || "").trim();
-        const parsedUsage = Number(usage.usedQuantity);
-        const parsedRemaining = Number(usage.remainingQuantity);
-        return (
-          !selectedTube ||
-          !Number.isFinite(parsedUsage) ||
-          parsedUsage <= 0 ||
-          !Number.isFinite(parsedRemaining) ||
-          parsedUsage > parsedRemaining
-        );
-      });
-    });
+
+        const enteredBlocks = getEnteredChildTubeUsageBlocks(item, intl);
+        if (enteredBlocks.length === 0) {
+          return false;
+        }
+
+        const usagesByBlock = Array.isArray(item.blockSampleUsages)
+          ? item.blockSampleUsages.reduce((acc, usage) => {
+              if (usage?.childBlockName) {
+                acc[normalizeBlockIdentifier(usage.childBlockName)] = usage;
+              }
+              return acc;
+            }, {})
+          : {};
+
+        return enteredBlocks.some((blockName) => {
+          const usage = usagesByBlock[blockName];
+          if (!usage) {
+            return true;
+          }
+          if (usage.locked === true) {
+            return false;
+          }
+          const selectedTube = String(usage.parentTubeBlockName || "").trim();
+          const parsedUsage = Number(usage.usedQuantity);
+          const parsedRemaining = Number(usage.remainingQuantity);
+          return (
+            !selectedTube ||
+            !Number.isFinite(parsedUsage) ||
+            parsedUsage <= 0 ||
+            !Number.isFinite(parsedRemaining) ||
+            parsedUsage > parsedRemaining
+          );
+        });
+      },
+    );
 
     if (dependentChildMissingTubeSelection) {
       addNotification({

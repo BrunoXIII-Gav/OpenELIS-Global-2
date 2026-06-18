@@ -351,6 +351,15 @@ public class SampleTypeAdditionalFieldServiceImpl implements SampleTypeAdditiona
     public void validateAndPersistSampleItemValues(String sampleTypeId, String sampleItemId,
             Map<String, String> fieldValues, String currentUserId,
             Map<String, List<SampleTypeAdditionalFieldPayload>> activeFieldsBySampleTypeCache) {
+        validateAndPersistSampleItemValues(sampleTypeId, sampleItemId, fieldValues, currentUserId,
+                activeFieldsBySampleTypeCache, true);
+    }
+
+    @Override
+    public void validateAndPersistSampleItemValues(String sampleTypeId, String sampleItemId,
+            Map<String, String> fieldValues, String currentUserId,
+            Map<String, List<SampleTypeAdditionalFieldPayload>> activeFieldsBySampleTypeCache,
+            boolean enforceRequired) {
         if (fieldValues == null || fieldValues.isEmpty()) {
             return;
         }
@@ -378,7 +387,7 @@ public class SampleTypeAdditionalFieldServiceImpl implements SampleTypeAdditiona
             String normalizedValue = normalizeAndValidateValue(fieldDefinition, rawValue);
 
             if (StringUtils.isBlank(normalizedValue)) {
-                if (Boolean.TRUE.equals(fieldDefinition.getRequired())) {
+                if (enforceRequired && Boolean.TRUE.equals(fieldDefinition.getRequired())) {
                     throw new LIMSRuntimeException("Additional field is required: "
                             + StringUtils.defaultString(fieldDefinition.getDisplayName()));
                 }
