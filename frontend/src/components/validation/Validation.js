@@ -160,7 +160,6 @@ const Validation = (props) => {
     }
   };
 
-
   const getAcceptedAnalysisIds = () => {
     const acceptedRows =
       props?.results?.resultList?.filter(

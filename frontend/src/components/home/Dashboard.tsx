@@ -105,7 +105,6 @@ const HomeDashBoard: React.FC<DashBoardProps> = () => {
   const [waitingTimeSort, setWaitingTimeSort] = useState("mostUrgent");
 
   const handleDateChange = (dates) => {
-    
     if (!dates || dates.length === 0) {
       setStartDate("");
       setEndDate("");
@@ -121,8 +120,9 @@ const HomeDashBoard: React.FC<DashBoardProps> = () => {
 
     if (dates.length >= 1) {
       const start = formatSafeDate(dates[0]);
-      const end = dates.length === 2 && dates[1] ? formatSafeDate(dates[1]) : start;
-      
+      const end =
+        dates.length === 2 && dates[1] ? formatSafeDate(dates[1]) : start;
+
       setStartDate(start);
       setEndDate(end);
     }
@@ -182,14 +182,11 @@ const HomeDashBoard: React.FC<DashBoardProps> = () => {
       loadCount,
     );
 
-    getFromOpenElisServer(
-      `/rest/home-dashboard/visibility-config`,
-      (data) => {
-        if (data) {
-          setTileVisibility(data);
-        }
+    getFromOpenElisServer(`/rest/home-dashboard/visibility-config`, (data) => {
+      if (data) {
+        setTileVisibility(data);
       }
-    );
+    });
 
     return () => {
       componentMounted.current = false;
@@ -413,7 +410,7 @@ const HomeDashBoard: React.FC<DashBoardProps> = () => {
     if (tileVisibility[tile.type] !== undefined) {
       return tileVisibility[tile.type];
     }
-    return true; 
+    return true;
   });
 
   const averageTimeTileList: Array<Tile> = [
@@ -630,8 +627,14 @@ const HomeDashBoard: React.FC<DashBoardProps> = () => {
           <Link style={{ color: "blue" }}>{cell.value} </Link>
         </TableCell>
       );
-      } else if (cell.info.header === "waitingCounter") {
-      const [tagType, label] = String(cell.value || "gray|Sin fecha").split("|");
+    } else if (
+      cell.info.header === "waitingCounter" ||
+      cell.info.header === "orderWaitingCounter"
+    ) {
+      const [, tagType, ...labelParts] = String(
+        cell.value || `${Number.MAX_SAFE_INTEGER}|gray|Sin fecha`,
+      ).split("|");
+      const label = labelParts.join("|");
 
       return (
         <TableCell key={cell.id}>
@@ -692,13 +695,13 @@ const HomeDashBoard: React.FC<DashBoardProps> = () => {
   ];
 
   const orderHeadersAwaitingResults = [
-  ...orderHeadersWithTest,
+    ...orderHeadersWithTest,
     {
       key: "waitingCounter",
       header: (
         <FormattedMessage
-          id="dashboard.awaitingResults.waitingCounter"
-          defaultMessage="Tiempo esperando"
+          id="dashboard.awaitingResults.waitingCounterFromReception"
+          defaultMessage="Tiempo esperando desde la recepción de la muestra"
         />
       ),
     },
@@ -729,8 +732,8 @@ const HomeDashBoard: React.FC<DashBoardProps> = () => {
       key: "waitingCounter",
       header: (
         <FormattedMessage
-          id="dashboard.awaitingResults.waitingCounter"
-          defaultMessage="Tiempo esperando"
+          id="dashboard.awaitingSample.waitingCounterFromOrder"
+          defaultMessage="Tiempo esperando desde la orden"
         />
       ),
     },
@@ -742,8 +745,17 @@ const HomeDashBoard: React.FC<DashBoardProps> = () => {
       key: "waitingCounter",
       header: (
         <FormattedMessage
-          id="dashboard.awaitingResults.waitingCounter"
-          defaultMessage="Tiempo esperando"
+          id="dashboard.readyForValidation.waitingCounterFromResults"
+          defaultMessage="Tiempo esperando desde el ingreso de resultados"
+        />
+      ),
+    },
+    {
+      key: "orderWaitingCounter",
+      header: (
+        <FormattedMessage
+          id="dashboard.readyForValidation.totalWaitingCounterFromOrder"
+          defaultMessage="Tiempo total desde la orden"
         />
       ),
     },
@@ -807,23 +819,23 @@ const HomeDashBoard: React.FC<DashBoardProps> = () => {
     const totalDays = Math.floor(totalHours / 24);
 
     const label =
-  totalHours < 24
-    ? intl.formatMessage(
-        {
-          id: "dashboard.awaitingResults.waiting.hours",
-          defaultMessage:
-            "hace {count, plural, one {# hora} other {# horas}}",
-        },
-        { count: totalHours },
-      )
-    : intl.formatMessage(
-        {
-          id: "dashboard.awaitingResults.waiting.days",
-          defaultMessage:
-            "hace {count, plural, one {# día} other {# días}}",
-        },
-        { count: totalDays },
-      );
+      totalHours < 24
+        ? intl.formatMessage(
+            {
+              id: "dashboard.awaitingResults.waiting.hours",
+              defaultMessage:
+                "hace {count, plural, one {# hora} other {# horas}}",
+            },
+            { count: totalHours },
+          )
+        : intl.formatMessage(
+            {
+              id: "dashboard.awaitingResults.waiting.days",
+              defaultMessage:
+                "hace {count, plural, one {# día} other {# días}}",
+            },
+            { count: totalDays },
+          );
 
     let tagType = "green";
 
@@ -838,6 +850,19 @@ const HomeDashBoard: React.FC<DashBoardProps> = () => {
       tagType,
       waitingMs,
     };
+  };
+
+  const serializeWaitingCounterValue = (
+    waitingMs?: number,
+    tagType?: string,
+    label?: string,
+  ) => {
+    const normalizedWaitingMs =
+      typeof waitingMs === "number" && waitingMs >= 0
+        ? waitingMs
+        : Number.MAX_SAFE_INTEGER;
+    const sortableValue = String(normalizedWaitingMs).padStart(16, "0");
+    return `${sortableValue}|${tagType || "gray"}|${label || ""}`;
   };
 
   const matchesSelectedFilters = (item) => {
@@ -870,37 +895,58 @@ const HomeDashBoard: React.FC<DashBoardProps> = () => {
   };
 
   const filteredTableData =
-  selectedTile != null
-    ? data
-        .filter((item) => matchesSelectedFilters(item))
-        .map((item) => {
-          if (!supportsWaitingCounter) {
-            return item;
-          }
+    selectedTile != null
+      ? data
+          .filter((item) => matchesSelectedFilters(item))
+          .map((item) => {
+            if (!supportsWaitingCounter) {
+              return item;
+            }
 
-          const waitingInfo = getWaitingInfo(item.waitingStartDate || item.orderDate);
+            const waitingInfo = getWaitingInfo(
+              item.waitingStartDate || item.orderDate,
+            );
 
-          return {
-            ...item,
-            waitingMs: waitingInfo.waitingMs,
-            waitingCounter: `${waitingInfo.tagType}|${waitingInfo.label}`,
-          };
-        })
-        .sort((a, b) => {
-          if (!supportsWaitingCounter) {
-            return 0;
-          }
+            const orderWaitingInfo =
+              selectedTile?.type === "ORDERS_READY_FOR_VALIDATION"
+                ? getWaitingInfo(item.orderCreatedStartDate || item.orderDate)
+                : null;
 
-          const firstWaitingMs = a.waitingMs ?? -1;
-          const secondWaitingMs = b.waitingMs ?? -1;
+            return {
+              ...item,
+              waitingMs: waitingInfo.waitingMs,
+              waitingCounter: serializeWaitingCounterValue(
+                waitingInfo.waitingMs,
+                waitingInfo.tagType,
+                waitingInfo.label,
+              ),
+              ...(orderWaitingInfo
+                ? {
+                    orderWaitingMs: orderWaitingInfo.waitingMs,
+                    orderWaitingCounter: serializeWaitingCounterValue(
+                      orderWaitingInfo.waitingMs,
+                      orderWaitingInfo.tagType,
+                      orderWaitingInfo.label,
+                    ),
+                  }
+                : {}),
+            };
+          })
+          .sort((a, b) => {
+            if (!supportsWaitingCounter) {
+              return 0;
+            }
 
-          if (waitingTimeSort === "mostUrgent") {
-            return secondWaitingMs - firstWaitingMs;
-          }
+            const firstWaitingMs = a.waitingMs ?? -1;
+            const secondWaitingMs = b.waitingMs ?? -1;
 
-          return firstWaitingMs - secondWaitingMs;
-        })
-    : [];
+            if (waitingTimeSort === "mostUrgent") {
+              return secondWaitingMs - firstWaitingMs;
+            }
+
+            return firstWaitingMs - secondWaitingMs;
+          })
+      : [];
 
   return (
     <>
@@ -1051,7 +1097,11 @@ const HomeDashBoard: React.FC<DashBoardProps> = () => {
                         })}
                       />
                       {testTypeOptions.map((testName) => (
-                        <SelectItem key={testName} value={testName} text={testName} />
+                        <SelectItem
+                          key={testName}
+                          value={testName}
+                          text={testName}
+                        />
                       ))}
                     </Select>
                   </div>
@@ -1170,28 +1220,32 @@ const HomeDashBoard: React.FC<DashBoardProps> = () => {
                       </Grid>
                     )}
                     <DataTable
-                      rows={filteredTableData.slice((page - 1) * pageSize, page * pageSize)}
+                      rows={filteredTableData.slice(
+                        (page - 1) * pageSize,
+                        page * pageSize,
+                      )}
                       headers={
                         selectedTile.type === "AWAITING_RESULTS"
                           ? orderHeadersAwaitingResults
                           : selectedTile.type === "ORDERS_READY_FOR_VALIDATION"
                             ? orderHeadersReadyForValidation
-                          : [
-                              "ORDERS_IN_PROGRESS",
-                              "ORDERS_COMPLETED_TODAY",
-                              "ORDERS_PATIALLY_COMPLETED_TODAY",
-                              "ORDERS_REJECTED_TODAY",
-                              "ORDERS_FOR_USER",
-                              "UN_PRINTED_RESULTS",
-                              "INCOMING_ORDERS",
-                              "DELAYED_TURN_AROUND",
-                            ].includes(selectedTile.type)
-                            ? orderHeadersInProgress
-                            : selectedTile.type === "ORDERS_ENTERED_BY_USER_TODAY"
-                              ? userHeaders
-                              : selectedTile.type === "AWAITING_SAMPLE"
-                                ? orderHeadersAwaitingSample
-                                : orderHeadersWithTest
+                            : [
+                                  "ORDERS_IN_PROGRESS",
+                                  "ORDERS_COMPLETED_TODAY",
+                                  "ORDERS_PATIALLY_COMPLETED_TODAY",
+                                  "ORDERS_REJECTED_TODAY",
+                                  "ORDERS_FOR_USER",
+                                  "UN_PRINTED_RESULTS",
+                                  "INCOMING_ORDERS",
+                                  "DELAYED_TURN_AROUND",
+                                ].includes(selectedTile.type)
+                              ? orderHeadersInProgress
+                              : selectedTile.type ===
+                                  "ORDERS_ENTERED_BY_USER_TODAY"
+                                ? userHeaders
+                                : selectedTile.type === "AWAITING_SAMPLE"
+                                  ? orderHeadersAwaitingSample
+                                  : orderHeadersWithTest
                       }
                       isSortable
                     >

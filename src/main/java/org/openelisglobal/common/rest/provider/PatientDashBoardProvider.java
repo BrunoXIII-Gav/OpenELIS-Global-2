@@ -50,6 +50,9 @@ import org.openelisglobal.test.valueholder.Test;
 import org.openelisglobal.patient.util.PatientUtil;
 import org.openelisglobal.patientidentity.valueholder.PatientIdentity;
 import org.openelisglobal.patientidentitytype.util.PatientIdentityTypeMap;
+import org.openelisglobal.observationhistory.service.ObservationHistoryService;
+import org.openelisglobal.observationhistory.service.ObservationHistoryServiceImpl.ObservationType;
+import org.openelisglobal.common.util.DateUtil;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Controller;
 import org.springframework.web.bind.annotation.PathVariable;
@@ -93,6 +96,9 @@ public class PatientDashBoardProvider {
     @Autowired
     SiteInformationService siteInformationService;
 
+    @Autowired
+    private ObservationHistoryService observationHistoryService;
+
     private Long toEpochMillis(java.sql.Date date) {
         if (date == null) {
             return null;
@@ -126,8 +132,37 @@ public class PatientDashBoardProvider {
         if (sample == null) {
             return "";
         }
+        if (sample.getReceivedTimestamp() != null) {
+            return formatDateTime(sample.getReceivedTimestamp());
+        }
         if (sample.getEnteredDate() != null) {
             return formatDateTime(sample.getEnteredDate());
+        }
+        if (sample.getLastupdated() != null) {
+            return formatDateTime(sample.getLastupdated());
+        }
+        return "";
+    }
+
+    private String resolveOrderCreatedDateTime(Sample sample) {
+        if (sample == null) {
+            return "";
+        }
+        String requestDate = observationHistoryService.getValueForSample(ObservationType.REQUEST_DATE, sample.getId());
+        if (StringUtils.isNotBlank(requestDate)) {
+            String requestTime = observationHistoryService.getValueForSample(ObservationType.REQUEST_TIME, sample.getId());
+            try {
+                String requestDateTime = StringUtils.isNotBlank(requestTime) ? requestDate + " " + requestTime
+                        : requestDate + " 00:00";
+                return formatDateTime(DateUtil.convertStringDateToTimestamp(requestDateTime));
+            } catch (Exception ignored) {
+            }
+        }
+        if (sample.getEnteredDate() != null) {
+            return formatDateTime(sample.getEnteredDate());
+        }
+        if (sample.getReceivedTimestamp() != null) {
+            return formatDateTime(sample.getReceivedTimestamp());
         }
         if (sample.getLastupdated() != null) {
             return formatDateTime(sample.getLastupdated());
@@ -344,6 +379,11 @@ public class PatientDashBoardProvider {
     }
 
     private List<OrderDisplayBean> convertAnalysesToOrderBean(List<Analysis> analyses) {
+        return convertAnalysesToOrderBean(analyses, false);
+    }
+
+    private List<OrderDisplayBean> convertAnalysesToOrderBean(List<Analysis> analyses,
+            boolean readyForValidationWaitingTime) {
         List<OrderDisplayBean> orderBeanList = new ArrayList<>();
         java.text.SimpleDateFormat sdf = new java.text.SimpleDateFormat("yyyy-MM-dd HH:mm:ss");
 
@@ -372,16 +412,13 @@ public class PatientDashBoardProvider {
                         orderBean.setPatientId("");
                     }
 
-                    if (analysis.getEnteredDate() != null) {
-                        orderBean.setOrderDate(sdf.format(analysis.getEnteredDate()));
-                    } else if (analysis.getLastupdated() != null) {
-                        orderBean.setOrderDate(sdf.format(analysis.getLastupdated()));
-                    } else if (sample != null && sample.getLastupdated() != null) {
-                        orderBean.setOrderDate(sdf.format(sample.getLastupdated()));
-                    } else {
-                        orderBean.setOrderDate("");
+                    orderBean.setOrderDate(resolveOrderCreatedDateTime(sample));
+                    orderBean.setWaitingStartDate(readyForValidationWaitingTime
+                            ? resolveReadyForValidationWaitingStart(analysis)
+                            : resolveAwaitingResultsWaitingStart(analysis));
+                    if (readyForValidationWaitingTime && sample != null) {
+                        orderBean.setOrderCreatedStartDate(resolveOrderCreatedDateTime(sample));
                     }
-                    orderBean.setWaitingStartDate(resolveAwaitingResultsWaitingStart(analysis));
 
                     orderBean.setTestName(analysis.getTest() != null ? analysis.getTest().getLocalizedName() : "");
                     orderBean
@@ -424,11 +461,7 @@ public class PatientDashBoardProvider {
                         analysis.getSampleItem().getCugCode() != null ? analysis.getSampleItem().getCugCode() : "");
                 orderBean.setPatientId(getDisplayPatientIdentifier(sampleHumanService.getPatientForSample(sample)));
         
-                if (analysis.getEnteredDate() != null) {
-                    orderBean.setOrderDate(sdf.format(analysis.getEnteredDate()));
-                } else {
-                    orderBean.setOrderDate(sample.getLastupdated() != null ? sdf.format(sample.getLastupdated()) : "");
-                }
+                orderBean.setOrderDate(resolveOrderCreatedDateTime(sample));
                 orderBean.setWaitingStartDate(resolveReadyForValidationWaitingStart(analysis));
 
                 orderBean.setTestName("");
@@ -569,12 +602,8 @@ public class PatientDashBoardProvider {
                     orderBean.setCugCode(sampleItem.getCugCode() != null ? sampleItem.getCugCode() : "");
                     orderBean.setPatientId(getDisplayPatientIdentifier(sampleHumanService.getPatientForSample(sample)));
                     
-                    if (analysis.getEnteredDate() != null) {
-                        orderBean.setOrderDate(sdf.format(analysis.getEnteredDate()));
-                    } else {
-                        orderBean.setOrderDate(sample.getLastupdated() != null ? sdf.format(sample.getLastupdated()) : "");
-                    }
-                    orderBean.setWaitingStartDate(resolveAwaitingSampleWaitingStart(sample));
+                    orderBean.setOrderDate(resolveOrderCreatedDateTime(sample));
+                    orderBean.setWaitingStartDate(resolveOrderCreatedDateTime(sample));
 
                     orderBean.setTestName("");
                     orderBean.setTestSection(analysis.getTestSection() != null ? analysis.getTestSection().getId() : "");
@@ -836,7 +865,7 @@ public class PatientDashBoardProvider {
                 if (a.getStatusId().equals(readyId))
                     filteredAnalyses.add(a);
             });
-            return convertAnalysesToOrderBean(filterByTestType(filteredAnalyses, testType));
+            return convertAnalysesToOrderBean(filterByTestType(filteredAnalyses, testType), true);
 
         case AWAITING_RESULTS:
             String awaitingId = iStatusService.getStatusID(AnalysisStatus.NotStarted);

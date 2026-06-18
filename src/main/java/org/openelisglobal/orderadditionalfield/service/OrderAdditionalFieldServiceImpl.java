@@ -59,16 +59,18 @@ public class OrderAdditionalFieldServiceImpl implements OrderAdditionalFieldServ
     private static final Set<FieldType> OPTION_TYPES = Set.of(FieldType.SELECT, FieldType.RADIO, FieldType.MULTISELECT);
 
     private static final List<FixedFieldDefault> FIXED_FIELD_DEFAULTS = List.of(new FixedFieldDefault("priority", 10),
-            new FixedFieldDefault("requestDate", 20), new FixedFieldDefault("receivedDateForDisplay", 30),
-            new FixedFieldDefault("receivedTime", 40), new FixedFieldDefault("nextVisitDate", 50),
-            new FixedFieldDefault("referringSiteName", 60), new FixedFieldDefault("referringSiteDepartmentId", 70),
-            new FixedFieldDefault("provisionalClinicalDiagnosis", 80), new FixedFieldDefault("providerFirstName", 90),
-            new FixedFieldDefault("providerLastName", 100), new FixedFieldDefault("providerCmp", 110),
-            new FixedFieldDefault("providerRne", 120), new FixedFieldDefault("providerDni", 130),
-            new FixedFieldDefault("providerSpecialty", 140), new FixedFieldDefault("providerWorkPhone", 150),
-            new FixedFieldDefault("providerFax", 160), new FixedFieldDefault("providerEmail", 170),
-            new FixedFieldDefault("paymentOptionSelection", 180), new FixedFieldDefault("testLocationCode", 190),
-            new FixedFieldDefault("otherLocationCode", 200), new FixedFieldDefault("rememberSiteAndRequester", 210));
+            new FixedFieldDefault("requestDate", 20), new FixedFieldDefault("requestTime", 30),
+            new FixedFieldDefault("receivedDateForDisplay", 40), new FixedFieldDefault("receivedTime", 50),
+            new FixedFieldDefault("nextVisitDate", 60), new FixedFieldDefault("referringSiteName", 70),
+            new FixedFieldDefault("referringSiteDepartmentId", 80),
+            new FixedFieldDefault("provisionalClinicalDiagnosis", 90),
+            new FixedFieldDefault("providerFirstName", 100), new FixedFieldDefault("providerLastName", 110),
+            new FixedFieldDefault("providerCmp", 120), new FixedFieldDefault("providerRne", 130),
+            new FixedFieldDefault("providerDni", 140), new FixedFieldDefault("providerSpecialty", 150),
+            new FixedFieldDefault("providerWorkPhone", 160), new FixedFieldDefault("providerFax", 170),
+            new FixedFieldDefault("providerEmail", 180), new FixedFieldDefault("paymentOptionSelection", 190),
+            new FixedFieldDefault("testLocationCode", 200), new FixedFieldDefault("otherLocationCode", 210),
+            new FixedFieldDefault("rememberSiteAndRequester", 220));
     private static final Set<String> FIXED_FIELD_KEYS = FIXED_FIELD_DEFAULTS.stream().map(f -> f.fieldKey.toLowerCase())
             .collect(Collectors.toSet());
 

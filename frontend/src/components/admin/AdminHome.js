@@ -1,11 +1,5 @@
 import React from "react";
-import {
-  ClickableTile,
-  Column,
-  Grid,
-  Heading,
-  Section,
-} from "@carbon/react";
+import { ClickableTile, Column, Grid, Heading, Section } from "@carbon/react";
 import {
   CicsSystemGroup,
   ListDropdown,

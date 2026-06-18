@@ -46,6 +46,7 @@ import {
 import { CommonProperties } from "./menu/CommonProperties";
 import ConfigMenuDisplay from "./generalConfig/common/ConfigMenuDisplay";
 import SiteBrandingConfig from "./generalConfig/siteBranding/SiteBrandingConfig";
+import ExternalConnectionsConfig from "./generalConfig/externalConnections";
 import ProviderMenu from "./ProviderMenu/ProviderMenu";
 import BarcodeConfiguration from "./barcodeConfiguration/BarcodeConfiguration";
 import AnalyzerTestName from "./analyzerTestName/AnalyzerTestName.js";
@@ -349,6 +350,12 @@ function Admin() {
               <FormattedMessage id="sidenav.label.admin.formEntry.siteBranding" />
             </SideNavMenuItem>
             <SideNavMenuItem
+              data-cy="externalConnectionsConfigMenu"
+              onClick={handleNavigation(`${path}/ExternalConnectionsConfig`)}
+            >
+              <FormattedMessage id="sidenav.label.admin.formEntry.externalConnections" />
+            </SideNavMenuItem>
+            <SideNavMenuItem
               data-cy="resultConfigMenu"
               onClick={handleNavigation(`${path}/ResultConfigurationMenu`)}
             >
@@ -497,6 +504,10 @@ function Admin() {
         <Route
           path={`${path}/SiteBrandingMenu`}
           component={SiteBrandingConfig}
+        />
+        <Route
+          path={`${path}/ExternalConnectionsConfig`}
+          component={ExternalConnectionsConfig}
         />
         <Route
           path={`${path}/nonConformityMenuManagement`}

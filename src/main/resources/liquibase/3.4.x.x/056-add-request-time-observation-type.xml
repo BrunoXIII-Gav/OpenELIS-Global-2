@@ -1,0 +1,19 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<databaseChangeLog
+  xmlns="http://www.liquibase.org/xml/ns/dbchangelog"
+  xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+  xsi:schemaLocation="http://www.liquibase.org/xml/ns/dbchangelog http://www.liquibase.org/xml/ns/dbchangelog/dbchangelog-3.8.xsd">
+
+  <changeSet id="056-add-request-time-observation-type" author="codex">
+    <preConditions onFail="MARK_RAN">
+      <sqlCheck expectedResult="0">
+        SELECT count(*) FROM clinlims.observation_history_type WHERE type_name = 'requestTime'
+      </sqlCheck>
+    </preConditions>
+
+    <sql>
+      INSERT INTO clinlims.observation_history_type(id, type_name, description, lastupdated)
+      VALUES (nextval('observation_history_type_seq'), 'requestTime', 'When the order was requested (time)', now());
+    </sql>
+  </changeSet>
+</databaseChangeLog>

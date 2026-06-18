@@ -99,6 +99,7 @@ const buildDynamicConditionContext = (sampleOrderItems, rootValues) => ({
   ...(sampleOrderItems?.additionalFieldValues || {}),
   priority: sampleOrderItems?.priority,
   requestDate: sampleOrderItems?.requestDate,
+  requestTime: sampleOrderItems?.requestTime,
   receivedDateForDisplay: sampleOrderItems?.receivedDateForDisplay,
   receivedTime: sampleOrderItems?.receivedTime,
   nextVisitDate: sampleOrderItems?.nextVisitDate,

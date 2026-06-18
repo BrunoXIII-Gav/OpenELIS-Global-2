@@ -102,9 +102,11 @@ public class SampleOrderService {
         SampleOrderItem orderItems = new SampleOrderItem();
 
         String dateAsText = DateUtil.getCurrentDateAsText();
+        String timeAsText = DateUtil.convertTimestampToStringHourTime(DateUtil.getNowAsTimestamp());
         orderItems.setReceivedDateForDisplay(dateAsText);
         orderItems.setRequestDate(dateAsText);
-        orderItems.setReceivedTime(DateUtil.convertTimestampToStringHourTime(DateUtil.getNowAsTimestamp()));
+        orderItems.setRequestTime(timeAsText);
+        orderItems.setReceivedTime(timeAsText);
 
         orderItems.setProvidersList(
                 DisplayListService.getInstance().getFreshList(DisplayListService.ListType.ORDER_PROVIDER_PERSONS));
@@ -162,6 +164,8 @@ public class SampleOrderService {
 
             sampleOrder.setRequestDate(
                     observationHistoryService.getValueForSample(ObservationType.REQUEST_DATE, sample.getId()));
+            sampleOrder.setRequestTime(
+                    observationHistoryService.getValueForSample(ObservationType.REQUEST_TIME, sample.getId()));
             sampleOrder.setReferringPatientNumber(
                     observationHistoryService.getValueForSample(ObservationType.REFERRERS_PATIENT_ID, sample.getId()));
             sampleOrder.setNextVisitDate(
@@ -384,6 +388,8 @@ public class SampleOrderService {
                 sampleOrder.getPaymentOptionSelection(), ValueType.DICTIONARY);
         createOrUpdateObservation(currentUserId, observations, patientId, ObservationType.REQUEST_DATE,
                 sampleOrder.getRequestDate(), ValueType.LITERAL);
+        createOrUpdateObservation(currentUserId, observations, patientId, ObservationType.REQUEST_TIME,
+                sampleOrder.getRequestTime(), ValueType.LITERAL);
         createOrUpdateObservation(currentUserId, observations, patientId, ObservationType.PROGRAM,
                 sampleOrder.getProgram(), ValueType.DICTIONARY);
         createOrUpdateObservation(currentUserId, observations, patientId, ObservationType.BILLING_REFERENCE_NUMBER,

@@ -81,15 +81,15 @@ function SampleSearch({ onSearchResults, includeTests = false }) {
 
     if (accessionFromUrl) {
       setSearchValue(accessionFromUrl);
-      
+
       hasSearchedInitial.current = true;
-      
+
       setTimeout(() => {
         performSearch(accessionFromUrl);
       }, 100);
     }
   }, [performSearch]);
-  
+
   /**
    * Handle search input change - no longer auto-triggers search.
    */

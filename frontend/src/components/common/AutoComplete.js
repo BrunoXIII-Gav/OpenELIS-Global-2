@@ -40,10 +40,11 @@ function AutoComplete(props) {
     const allMatches =
       normalizedInput.trim() === ""
         ? suggestions
-        : suggestions.filter((suggestion) =>
-            suggestion.value
-              .toLowerCase()
-              .indexOf(normalizedInput.toLowerCase()) > -1,
+        : suggestions.filter(
+            (suggestion) =>
+              suggestion.value
+                .toLowerCase()
+                .indexOf(normalizedInput.toLowerCase()) > -1,
           );
 
     return maxSuggestions ? allMatches.slice(0, maxSuggestions) : allMatches;

@@ -75,7 +75,8 @@ public class SampleEditController extends BaseController {
             //
             "sampleOrderItems.newRequesterName", "sampleOrderItems.modified", "sampleOrderItems.sampleId",
             "sampleOrderItems.labNo", "sampleOrderItems.requestDate", "sampleOrderItems.receivedDateForDisplay",
-            "sampleOrderItems.receivedTime", "sampleOrderItems.nextVisitDate", "sampleOrderItems.requesterSampleID",
+            "sampleOrderItems.requestTime", "sampleOrderItems.receivedTime", "sampleOrderItems.nextVisitDate",
+            "sampleOrderItems.requesterSampleID",
             "sampleOrderItems.referringPatientNumber", "sampleOrderItems.referringSiteId",
             "sampleOrderItems.referringSiteName", "sampleOrderItems.referringSiteCode",
             "sampleOrderItems.referringSiteDepartmentId", "sampleOrderItems.referringSiteDepartmentName",

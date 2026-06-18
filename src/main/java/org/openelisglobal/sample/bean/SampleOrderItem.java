@@ -74,6 +74,10 @@ public class SampleOrderItem implements Serializable {
             SamplePatientEntryBatch.class, SampleEditForm.SampleEdit.class })
     private String requestDate;
 
+    @ValidTime(groups = { SamplePatientEntryForm.SamplePatientEntry.class, SamplePatientEntryBatch.class,
+            SampleEditForm.SampleEdit.class })
+    private String requestTime;
+
     @NotBlank(groups = { SampleBatchEntryForm.SampleBatchEntrySetup.class,
             SamplePatientEntryForm.SamplePatientEntry.class, SamplePatientEntryBatch.class,
             SampleEditForm.SampleEdit.class })
@@ -327,6 +331,14 @@ public class SampleOrderItem implements Serializable {
 
     public void setRequestDate(String requestDate) {
         this.requestDate = requestDate;
+    }
+
+    public String getRequestTime() {
+        return requestTime;
+    }
+
+    public void setRequestTime(String requestTime) {
+        this.requestTime = requestTime;
     }
 
     public String getReceivedDateForDisplay() {

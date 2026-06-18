@@ -69,7 +69,8 @@ function TestParentChildDependency() {
   const [formState, setFormState] = useState(defaultFormState);
   const [parentFieldOptions, setParentFieldOptions] = useState([]);
   const [isLoadingParentFields, setIsLoadingParentFields] = useState(false);
-  const [parentTestUsesTubeBlocks, setParentTestUsesTubeBlocks] = useState(false);
+  const [parentTestUsesTubeBlocks, setParentTestUsesTubeBlocks] =
+    useState(false);
 
   const testNameById = useMemo(() => {
     const map = {};
@@ -161,7 +162,9 @@ function TestParentChildDependency() {
         if (!componentMounted.current) {
           return;
         }
-        setParentFieldOptions(Array.isArray(response?.options) ? response.options : []);
+        setParentFieldOptions(
+          Array.isArray(response?.options) ? response.options : [],
+        );
         setParentTestUsesTubeBlocks(response?.tubeBasedParent === true);
         setIsLoadingParentFields(false);
       },
