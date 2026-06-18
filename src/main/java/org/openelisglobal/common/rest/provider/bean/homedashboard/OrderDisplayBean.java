@@ -6,6 +6,7 @@ public class OrderDisplayBean {
 
     private String orderDate;
     private String waitingStartDate;
+    private String orderCreatedStartDate;
 
     private String patientId;
 
@@ -62,6 +63,14 @@ public class OrderDisplayBean {
 
     public void setWaitingStartDate(String waitingStartDate) {
         this.waitingStartDate = waitingStartDate;
+    }
+
+    public String getOrderCreatedStartDate() {
+        return orderCreatedStartDate;
+    }
+
+    public void setOrderCreatedStartDate(String orderCreatedStartDate) {
+        this.orderCreatedStartDate = orderCreatedStartDate;
     }
 
     public String getPatientId() {

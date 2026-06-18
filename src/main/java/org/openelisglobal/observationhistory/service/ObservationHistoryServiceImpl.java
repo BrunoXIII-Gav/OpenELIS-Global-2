@@ -25,7 +25,8 @@ public class ObservationHistoryServiceImpl extends AuditableBaseObjectServiceImp
 
     public enum ObservationType {
         INITIAL_SAMPLE_CONDITION("initialSampleCondition"), PAYMENT_STATUS("paymentStatus"),
-        REQUEST_DATE("requestDate"), NEXT_VISIT_DATE("nextVisitDate"), REFERRING_SITE("referringSite"),
+        REQUEST_DATE("requestDate"), REQUEST_TIME("requestTime"), NEXT_VISIT_DATE("nextVisitDate"),
+        REFERRING_SITE("referringSite"),
         REFERRERS_PATIENT_ID("referrersPatientId"), BILLING_REFERENCE_NUMBER("billingRefNumber"),
         TEST_LOCATION_CODE("testLocationCode"), TEST_LOCATION_CODE_OTHER("testLocationCodeOther"), PROGRAM("program"),
         HIV_STATUS("hivStatus"), VL_PREGNANCY("vlPregnancy"), VL_SUCKLE("vlSuckle"), TB_ORDER_REASON("TbOrderReason"),

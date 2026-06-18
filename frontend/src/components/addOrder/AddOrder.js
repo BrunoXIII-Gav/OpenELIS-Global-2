@@ -27,25 +27,26 @@ import config from "../../config.json";
 const DEFAULT_FIXED_FIELD_ORDER = [
   { fieldKey: "priority", sortOrder: 10 },
   { fieldKey: "requestDate", sortOrder: 20 },
-  { fieldKey: "receivedDateForDisplay", sortOrder: 30 },
-  { fieldKey: "receivedTime", sortOrder: 40 },
-  { fieldKey: "nextVisitDate", sortOrder: 50 },
-  { fieldKey: "referringSiteName", sortOrder: 60 },
-  { fieldKey: "referringSiteDepartmentId", sortOrder: 70 },
-  { fieldKey: "provisionalClinicalDiagnosis", sortOrder: 80 },
-  { fieldKey: "providerFirstName", sortOrder: 90 },
-  { fieldKey: "providerLastName", sortOrder: 100 },
-  { fieldKey: "providerCmp", sortOrder: 110 },
-  { fieldKey: "providerRne", sortOrder: 120 },
-  { fieldKey: "providerDni", sortOrder: 130 },
-  { fieldKey: "providerSpecialty", sortOrder: 140 },
-  { fieldKey: "providerWorkPhone", sortOrder: 150 },
-  { fieldKey: "providerFax", sortOrder: 160 },
-  { fieldKey: "providerEmail", sortOrder: 170 },
-  { fieldKey: "paymentOptionSelection", sortOrder: 180 },
-  { fieldKey: "testLocationCode", sortOrder: 190 },
-  { fieldKey: "otherLocationCode", sortOrder: 200 },
-  { fieldKey: "rememberSiteAndRequester", sortOrder: 210 },
+  { fieldKey: "requestTime", sortOrder: 30 },
+  { fieldKey: "receivedDateForDisplay", sortOrder: 40 },
+  { fieldKey: "receivedTime", sortOrder: 50 },
+  { fieldKey: "nextVisitDate", sortOrder: 60 },
+  { fieldKey: "referringSiteName", sortOrder: 70 },
+  { fieldKey: "referringSiteDepartmentId", sortOrder: 80 },
+  { fieldKey: "provisionalClinicalDiagnosis", sortOrder: 90 },
+  { fieldKey: "providerFirstName", sortOrder: 100 },
+  { fieldKey: "providerLastName", sortOrder: 110 },
+  { fieldKey: "providerCmp", sortOrder: 120 },
+  { fieldKey: "providerRne", sortOrder: 130 },
+  { fieldKey: "providerDni", sortOrder: 140 },
+  { fieldKey: "providerSpecialty", sortOrder: 150 },
+  { fieldKey: "providerWorkPhone", sortOrder: 160 },
+  { fieldKey: "providerFax", sortOrder: 170 },
+  { fieldKey: "providerEmail", sortOrder: 180 },
+  { fieldKey: "paymentOptionSelection", sortOrder: 190 },
+  { fieldKey: "testLocationCode", sortOrder: 200 },
+  { fieldKey: "otherLocationCode", sortOrder: 210 },
+  { fieldKey: "rememberSiteAndRequester", sortOrder: 220 },
 ];
 
 const DEFAULT_CONDITION_OPERATOR = "equals";
@@ -148,7 +149,9 @@ const AddOrder = (props) => {
     "";
 
   const isProviderFieldLocked = (fieldKey) =>
-    isProviderSelectionLocked || hasSelectedProvider || isFieldReadonly(fieldKey);
+    isProviderSelectionLocked ||
+    hasSelectedProvider ||
+    isFieldReadonly(fieldKey);
 
   const buildRequesterDisplayValue = () => {
     const sampleOrderItems = orderFormValues?.sampleOrderItems || {};
@@ -189,6 +192,7 @@ const AddOrder = (props) => {
       ...(sampleOrderItems.additionalFieldValues || {}),
       priority: sampleOrderItems.priority,
       requestDate: sampleOrderItems.requestDate,
+      requestTime: sampleOrderItems.requestTime,
       receivedDateForDisplay: sampleOrderItems.receivedDateForDisplay,
       receivedTime: sampleOrderItems.receivedTime,
       nextVisitDate: sampleOrderItems.nextVisitDate,
@@ -874,6 +878,22 @@ const AddOrder = (props) => {
             />
           </Column>
         );
+      case "requestTime":
+        return (
+          <Column key={fieldKey} lg={8} md={4} sm={4}>
+            <CustomTimePicker
+              id="order_requestTime"
+              labelText={intl.formatMessage({ id: "order.request.time" })}
+              onChange={handleRequestTime}
+              value={
+                orderFormValues.sampleOrderItems.requestTime
+                  ? orderFormValues.sampleOrderItems.requestTime
+                  : configurationProperties.currentTimeAsText
+              }
+              disabled={isFieldReadonly("requestTime")}
+            />
+          </Column>
+        );
       case "receivedDateForDisplay":
         return (
           <Column key={fieldKey} lg={8} md={4} sm={4}>
@@ -1524,6 +1544,20 @@ const AddOrder = (props) => {
     });
   }
 
+  function handleRequestTime(valueOrEvent) {
+    const requestTime =
+      typeof valueOrEvent === "string"
+        ? valueOrEvent
+        : valueOrEvent?.target?.value || "";
+    setOrderFormValues({
+      ...orderFormValues,
+      sampleOrderItems: {
+        ...orderFormValues.sampleOrderItems,
+        requestTime,
+      },
+    });
+  }
+
   const handleLabNoGeneration = (e) => {
     if (e) {
       e.preventDefault();
@@ -1716,6 +1750,7 @@ const AddOrder = (props) => {
         sampleOrderItems: {
           ...orderFormValues.sampleOrderItems,
           requestDate: configurationProperties.currentDateAsText,
+          requestTime: configurationProperties.currentTimeAsText,
           receivedDateForDisplay: configurationProperties.currentDateAsText,
           nextVisitDate: configurationProperties.currentDateAsText,
           receivedTime: configurationProperties.currentTimeAsText,

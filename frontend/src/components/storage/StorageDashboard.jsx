@@ -1720,8 +1720,7 @@ const StorageDashboard = () => {
     setAssignStatus(null);
 
     if (occupied) {
-      const sampleCode =
-        sampleInfo?.externalId || sampleInfo?.sampleItemId;
+      const sampleCode = sampleInfo?.externalId || sampleInfo?.sampleItemId;
       const cugCode = sampleInfo?.cugCode || sampleInfo?.cug;
       setAssignSampleId("");
       setAssignNotes("");
@@ -1730,7 +1729,8 @@ const StorageDashboard = () => {
         message: intl.formatMessage(
           {
             id: "storage.boxes.assign.readOnlyOccupied",
-            defaultMessage: "Position {coordinate} is occupied by sample {sampleCode}{cugSuffix}. Read-only view.",
+            defaultMessage:
+              "Position {coordinate} is occupied by sample {sampleCode}{cugSuffix}. Read-only view.",
           },
           {
             coordinate,
