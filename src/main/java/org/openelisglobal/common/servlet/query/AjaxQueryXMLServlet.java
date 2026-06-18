@@ -56,10 +56,14 @@ public class AjaxQueryXMLServlet extends AjaxServlet {
 
         // check for csrf token to prevent js hijacking since we employ callback
         // functions
-        CsrfToken officialToken = new HttpSessionCsrfTokenRepository().loadToken(request);
-        String clientSuppliedToken = request.getHeader("X-CSRF-Token");
-        // unauthorized |= !officialToken.getToken().equals(clientSuppliedToken);
-        unauthorized |= clientSuppliedToken == null;
+        try {
+            CsrfToken officialToken = new HttpSessionCsrfTokenRepository().loadToken(request);
+            String clientSuppliedToken = request.getHeader("X-CSRF-Token");
+            // unauthorized |= !officialToken.getToken().equals(clientSuppliedToken);
+            unauthorized |= officialToken == null || clientSuppliedToken == null;
+        } catch (IllegalStateException e) {
+            unauthorized = true;
+        }
 
         if (unauthorized) {
             response.setStatus(HttpServletResponse.SC_UNAUTHORIZED);

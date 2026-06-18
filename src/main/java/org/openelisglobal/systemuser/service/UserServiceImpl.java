@@ -190,13 +190,17 @@ public class UserServiceImpl implements UserService {
         if (requestAttributes instanceof ServletRequestAttributes) {
             request = ((ServletRequestAttributes) requestAttributes).getRequest();
 
-            Object sc = request.getSession()
-                    .getAttribute(HttpSessionSecurityContextRepository.SPRING_SECURITY_CONTEXT_KEY);
-            if (!(sc instanceof SecurityContext)) {
-                LogEvent.logWarn(this.getClass().getSimpleName(), "getUserLogin",
-                        "security context is not of type SecurityContext");
+            HttpSession requestSession = request.getSession(false);
+            if (requestSession == null) {
+                authentication = null;
             } else {
-                authentication = ((SecurityContext) sc).getAuthentication();
+                Object sc = requestSession.getAttribute(HttpSessionSecurityContextRepository.SPRING_SECURITY_CONTEXT_KEY);
+                if (!(sc instanceof SecurityContext)) {
+                    LogEvent.logWarn(this.getClass().getSimpleName(), "getUserLogin",
+                            "security context is not of type SecurityContext");
+                } else {
+                    authentication = ((SecurityContext) sc).getAuthentication();
+                }
             }
         } else {
             LogEvent.logWarn(this.getClass().getSimpleName(), "getUserLogin",
