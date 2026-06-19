@@ -556,6 +556,8 @@ public class SamplePatientUpdateData {
 
         createObservation(sampleOrder.getRequestDate(),
                 observationHistoryService.getObservationTypeIdForType(ObservationType.REQUEST_DATE), ValueType.LITERAL);
+        createObservation(sampleOrder.getRequestTime(),
+                observationHistoryService.getObservationTypeIdForType(ObservationType.REQUEST_TIME), ValueType.LITERAL);
         createObservation(sampleOrder.getNextVisitDate(),
                 observationHistoryService.getObservationTypeIdForType(ObservationType.NEXT_VISIT_DATE),
                 ValueType.LITERAL);
