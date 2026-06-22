@@ -257,6 +257,85 @@ function SampleResultsTable({
     return normalizeAdditionalFieldKey(candidate);
   };
 
+  const isLabelAdditionalField = (field) => {
+    const normalizedFieldKey = normalizeAdditionalFieldKey(field?.fieldKey);
+    const normalizedDisplayName = normalizeAdditionalFieldKey(
+      field?.displayName,
+    );
+    const resolvedKey = resolveAdditionalFieldKey(field);
+
+    return [normalizedFieldKey, normalizedDisplayName, resolvedKey].includes(
+      "label",
+    );
+  };
+
+  const buildTubeSequenceBySampleId = (items) => {
+    const groupedItems = new Map();
+
+    items.forEach((item) => {
+      const familyKey = item?.parentExternalId || item?.externalId || item?.id;
+      if (!familyKey) {
+        return;
+      }
+
+      if (!groupedItems.has(familyKey)) {
+        groupedItems.set(familyKey, []);
+      }
+      groupedItems.get(familyKey).push(item);
+    });
+
+    const sequenceBySampleId = {};
+
+    groupedItems.forEach((groupedSampleItems) => {
+      groupedSampleItems
+        .slice()
+        .sort((left, right) => {
+          const leftIsParent =
+            !left?.parentExternalId ||
+            String(left.parentExternalId) === String(left.externalId);
+          const rightIsParent =
+            !right?.parentExternalId ||
+            String(right.parentExternalId) === String(right.externalId);
+
+          if (leftIsParent !== rightIsParent) {
+            return leftIsParent ? -1 : 1;
+          }
+
+          return String(left?.externalId || left?.id || "").localeCompare(
+            String(right?.externalId || right?.id || ""),
+            undefined,
+            { numeric: true, sensitivity: "base" },
+          );
+        })
+        .forEach((item, index) => {
+          if (item?.id) {
+            sequenceBySampleId[item.id] = index + 1;
+          }
+        });
+    });
+
+    return sequenceBySampleId;
+  };
+
+  const getInitialLabelValue = useCallback(
+    (sampleItem, tubeSequenceBySampleId) => {
+      const cugCode = String(sampleItem?.cugCode || "").trim().replace(/\.+$/, "");
+      if (!cugCode) {
+        return "";
+      }
+
+      const hasResultBlocks = Array.isArray(sampleItem?.orderedTests)
+        && sampleItem.orderedTests.length > 0;
+      if (!hasResultBlocks) {
+        return `${cugCode}.`;
+      }
+
+      const tubeNumber = tubeSequenceBySampleId?.[sampleItem?.id] || 1;
+      return `${cugCode}.${tubeNumber}`;
+    },
+    [],
+  );
+
   const resolveOrderFieldLabel = (field) => {
     if (field?.source === "fixed") {
       const messageId = ORDER_FIXED_FIELD_LABEL_MESSAGE_IDS[field?.fieldKey];
@@ -473,6 +552,76 @@ function SampleResultsTable({
       );
     });
   }, [sampleItems]);
+
+  useEffect(() => {
+    if (!Array.isArray(sampleItems) || sampleItems.length === 0) {
+      return;
+    }
+
+    const tubeSequenceBySampleId = buildTubeSequenceBySampleId(sampleItems);
+
+    setAdditionalFieldValuesBySampleId((prev) => {
+      let nextState = prev;
+
+      sampleItems.forEach((item) => {
+        if (!item?.id) {
+          return;
+        }
+
+        const configuredFields = Array.isArray(item.additionalFields)
+          ? item.additionalFields
+          : Array.isArray(additionalFieldsBySampleId[item.id])
+            ? additionalFieldsBySampleId[item.id]
+            : [];
+
+        if (configuredFields.length === 0) {
+          return;
+        }
+
+        const labelField = configuredFields.find(isLabelAdditionalField);
+        if (!labelField) {
+          return;
+        }
+
+        const fieldKey = resolveAdditionalFieldKey(labelField);
+        if (!fieldKey) {
+          return;
+        }
+
+        const existingStateValue = prev?.[item.id]?.[fieldKey];
+        const existingBackendValue =
+          item.additionalFieldValues?.[fieldKey] ??
+          item.additionalFieldValues?.[
+            normalizeAdditionalFieldKey(labelField?.displayName)
+          ];
+
+        if (
+          String(existingStateValue || "").trim() ||
+          String(existingBackendValue || "").trim()
+        ) {
+          return;
+        }
+
+        const initialLabelValue = getInitialLabelValue(
+          item,
+          tubeSequenceBySampleId,
+        );
+        if (!initialLabelValue) {
+          return;
+        }
+
+        nextState = {
+          ...nextState,
+          [item.id]: {
+            ...(nextState[item.id] || {}),
+            [fieldKey]: initialLabelValue,
+          },
+        };
+      });
+
+      return nextState;
+    });
+  }, [additionalFieldsBySampleId, getInitialLabelValue, sampleItems]);
 
   const handleCurrentTestFieldChange = useCallback((key, field, value) => {
     setCurrentTestDetailsByKey((prev) => ({
@@ -1983,3 +2132,5 @@ function SampleResultsTable({
 }
 
 export default SampleResultsTable;
+
+

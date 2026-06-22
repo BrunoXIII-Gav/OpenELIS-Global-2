@@ -143,7 +143,7 @@ public class ResultsUpdateDataSet implements IResultSaveService {
     private boolean isUpdated(TestResultItem item) {
         return item.getIsModified() && (ResultUtil.areResults(item) || ResultUtil.areNotes(item)
                 || ResultUtil.isReferred(item) || ResultUtil.isForcedToAcceptance(item) || ResultUtil.isRejected(item)
-                || hasSampleUsageUpdate(item));
+                || hasSampleUsageUpdate(item) || hasTubeLabelUpdate(item));
     }
 
     private boolean hasSampleUsageUpdate(TestResultItem item) {
@@ -153,6 +153,10 @@ public class ResultsUpdateDataSet implements IResultSaveService {
                                 .isBlankOrNull(item.getParentSampleUsageQuantity()))
                         || (!org.apache.commons.validator.GenericValidator
                                 .isBlankOrNull(item.getParentUsageBlockName())));
+    }
+
+    private boolean hasTubeLabelUpdate(TestResultItem item) {
+        return item != null && item.getTubeLabels() != null && !item.getTubeLabels().isEmpty();
     }
 
     public void setPreviousAnalysis(Analysis previousAnalysis) {

@@ -421,7 +421,7 @@ public class LogbookResultsController extends LogbookResultsBaseController {
 
         ResultsPaging paging = new ResultsPaging();
         paging.updatePagedResults(request, form);
-        List<TestResultItem> tests = paging.getResults(request);
+        List<TestResultItem> tests = form.getTestResult();
 
         ResultsUpdateDataSet actionDataSet = new ResultsUpdateDataSet(getSysUserId(request));
         actionDataSet.filterModifiedItems(tests);

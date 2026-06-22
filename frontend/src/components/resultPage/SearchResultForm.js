@@ -746,6 +746,143 @@ const getConfiguredTubeLabelBlocks = (data, intl) => {
   return Array.from(configuredBlocks);
 };
 
+const getResultBlockTitles = (data, intl) => {
+  const activeAdditionalFields = Array.isArray(data?.additionalFieldDefinitions)
+    ? data.additionalFieldDefinitions.filter(
+        (fieldDefinition) => fieldDefinition?.active !== false,
+      )
+    : [];
+  const visibleAdditionalFields = getVisibleAdditionalFields(
+    data,
+    activeAdditionalFields,
+  );
+  const primaryResultVisible = isPrimaryResultVisible(data);
+  const primaryLayout = getPrimaryResultLayout(data, intl);
+  const groupedBlocks = [];
+  const groupedByName = new Map();
+  const blockSortOrderByKey = new Map();
+  let nextBlockSortOrder = 1;
+  const resolvedAdditionalFields = visibleAdditionalFields.map(
+    (fieldDefinition) => {
+      const layout = getFieldBlockAndScope(fieldDefinition);
+      const blockKey = String(layout.blockName || "").trim();
+      if (!blockSortOrderByKey.has(blockKey)) {
+        blockSortOrderByKey.set(
+          blockKey,
+          layout.blockSortOrder || nextBlockSortOrder,
+        );
+        nextBlockSortOrder += 1;
+      }
+      return {
+        fieldDefinition,
+        layout: {
+          ...layout,
+          blockSortOrder: blockSortOrderByKey.get(blockKey),
+        },
+      };
+    },
+  );
+  const sortedAdditionalFields = [...resolvedAdditionalFields].sort(
+    (leftField, rightField) => {
+      const leftLayout = leftField.layout;
+      const rightLayout = rightField.layout;
+      if (leftLayout.blockSortOrder !== rightLayout.blockSortOrder) {
+        return leftLayout.blockSortOrder - rightLayout.blockSortOrder;
+      }
+      const blockNameComparison = leftLayout.blockName.localeCompare(
+        rightLayout.blockName,
+      );
+      if (blockNameComparison !== 0) {
+        return blockNameComparison;
+      }
+      if (leftLayout.fieldSortOrder !== rightLayout.fieldSortOrder) {
+        return leftLayout.fieldSortOrder - rightLayout.fieldSortOrder;
+      }
+      return (
+        (leftField?.fieldDefinition?.sortOrder || 0) -
+        (rightField?.fieldDefinition?.sortOrder || 0)
+      );
+    },
+  );
+
+  sortedAdditionalFields.forEach(({ fieldDefinition, layout }) => {
+    const { blockName, blockSortOrder, fieldSortOrder } = layout;
+    const blockKey = String(blockName || "").trim();
+    if (!groupedByName.has(blockKey)) {
+      const group = {
+        blockName,
+        blockSortOrder,
+        items: [],
+      };
+      groupedByName.set(blockKey, group);
+      groupedBlocks.push(group);
+    }
+    groupedByName.get(blockKey).items.push({
+      type: "additional",
+      fieldDefinition,
+      fieldSortOrder,
+    });
+  });
+
+  const officialBlockName = intl.formatMessage({
+    id: "results.block.official",
+    defaultMessage: "Official",
+  });
+  const primaryBlockName = primaryLayout.blockName || officialBlockName;
+  const primaryBlockKey = String(primaryBlockName || "").trim();
+  if (primaryResultVisible && !groupedByName.has(primaryBlockKey)) {
+    const group = {
+      blockName: primaryBlockName,
+      blockSortOrder: primaryLayout.blockSortOrder,
+      items: [],
+    };
+    groupedByName.set(primaryBlockKey, group);
+    groupedBlocks.push(group);
+  }
+  if (primaryResultVisible) {
+    groupedByName.get(primaryBlockKey).items.push({
+      type: "primary",
+      fieldSortOrder: primaryLayout.fieldSortOrder,
+    });
+  }
+
+  return groupedBlocks
+    .sort((leftBlock, rightBlock) => {
+      if (leftBlock.blockSortOrder !== rightBlock.blockSortOrder) {
+        return leftBlock.blockSortOrder - rightBlock.blockSortOrder;
+      }
+      return leftBlock.blockName.localeCompare(rightBlock.blockName);
+    })
+    .map((block) => block.blockName || officialBlockName);
+};
+
+const getTubeLabelBasePrefix = (data) =>
+  String(data?.cugCode || data?.accessionNumber || "")
+    .trim()
+    .replace(/\.+$/, "");
+
+const getNextTubeLabelSuffix = (prefix, tubeLabels) => {
+  if (!prefix) {
+    return null;
+  }
+
+  const matcher = new RegExp(`^${prefix.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")}\\.(\\d+)$`, "i");
+  let nextSuffix = 1;
+  Object.values(tubeLabels || {}).forEach((labelValue) => {
+    const normalizedLabel = String(labelValue || "").trim();
+    const match = normalizedLabel.match(matcher);
+    if (!match) {
+      return;
+    }
+    const parsedSuffix = Number.parseInt(match[1], 10);
+    if (Number.isFinite(parsedSuffix) && parsedSuffix >= nextSuffix) {
+      nextSuffix = parsedSuffix + 1;
+    }
+  });
+
+  return nextSuffix;
+};
+
 const getTubeUsageTotalRemaining = (row) => {
   const remainingByTube = row?.parentTubeRemainingQuantities || {};
   const totalBaseRemaining = Object.values(remainingByTube).reduce(
@@ -838,6 +975,38 @@ export function SearchResultForm(props) {
     if (results?.testResult) {
       var i = 0;
       results.testResult.forEach((item) => (item.id = "" + i++));
+      results.testResult.forEach((item) => {
+        const blockTitles = getResultBlockTitles(item, intl);
+        if (!Array.isArray(blockTitles) || blockTitles.length === 0) {
+          return;
+        }
+
+        const normalizedCug = getTubeLabelBasePrefix(item);
+        if (!normalizedCug) {
+          return;
+        }
+
+        const nextTubeLabels = { ...(item.tubeLabels || {}) };
+        let hasUpdates = false;
+        let nextSuffix = getNextTubeLabelSuffix(normalizedCug, nextTubeLabels);
+        if (!Number.isFinite(nextSuffix)) {
+          return;
+        }
+
+        blockTitles.forEach((blockTitle, blockIndex) => {
+          const existingLabel = nextTubeLabels[blockTitle];
+          if (existingLabel != null && `${existingLabel}`.trim() !== "") {
+            return;
+          }
+          nextTubeLabels[blockTitle] = `${normalizedCug}.${nextSuffix}`;
+          nextSuffix += 1;
+          hasUpdates = true;
+        });
+
+        if (hasUpdates) {
+          item.tubeLabels = nextTubeLabels;
+        }
+      });
       props.setResults?.(results);
       setLoading(false);
       if (results.paging) {
@@ -1518,6 +1687,7 @@ export function SearchResults(props) {
   const [referTest, setReferTest] = useState({});
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [sampleLocations, setSampleLocations] = useState({}); // Track location by analysisId
+  const [tubeLabelDraftsByRowId, setTubeLabelDraftsByRowId] = useState({});
 
   const componentMounted = useRef(false);
 
@@ -1580,6 +1750,14 @@ export function SearchResults(props) {
       });
       setValidationState(newValidationState);
     }
+  }, [props.results]);
+
+  useEffect(() => {
+    const nextDrafts = {};
+    (props.results?.testResult || []).forEach((row) => {
+      nextDrafts[row.id] = { ...(row.tubeLabels || {}) };
+    });
+    setTubeLabelDraftsByRowId(nextDrafts);
   }, [props.results]);
 
   const loadReferalOrganizations = (values) => {
@@ -2410,14 +2588,25 @@ export function SearchResults(props) {
   };
 
   const handleTubeLabelChange = (rowId, blockTitle, nextValue) => {
+    const normalizedValue = nextValue == null ? "" : `${nextValue}`;
+
+    setTubeLabelDraftsByRowId((prev) => {
+      const nextDrafts = { ...(prev || {}) };
+      nextDrafts[rowId] = {
+        ...(nextDrafts[rowId] || {}),
+        [blockTitle]: normalizedValue,
+      };
+      return nextDrafts;
+    });
+
     const form = {
       ...props.results,
-      testResult: [...props.results.testResult],
+      testResult: [...(props.results?.testResult || [])],
     };
     const row = { ...(form.testResult[rowId] || {}) };
-    const nextLabels = { ...(row.tubeLabels || {}) };
-    nextLabels[blockTitle] = nextValue == null ? "" : `${nextValue}`;
-    row.tubeLabels = nextLabels;
+    const nextTubeLabels = { ...(row.tubeLabels || {}) };
+    nextTubeLabels[blockTitle] = normalizedValue;
+    row.tubeLabels = nextTubeLabels;
     row.isModified = "true";
     form.testResult[rowId] = row;
     props.setResultForm(form);
@@ -2631,13 +2820,15 @@ export function SearchResults(props) {
     );
   };
 
-  const renderTubeLabelControl = (data, blockTitle) => {
+  const renderTubeLabelControl = (data, blockTitle, blockIndex) => {
     const configuredBlocks = getConfiguredTubeLabelBlocks(data, intl);
     if (!configuredBlocks.includes(normalizeBlockIdentifier(blockTitle))) {
       return null;
     }
 
-    const value =
+    const normalizedCug = getTubeLabelBasePrefix(data);
+    const draftValue =
+      tubeLabelDraftsByRowId?.[data.id]?.[blockTitle] ??
       data?.tubeLabels?.[blockTitle] ??
       Object.entries(data?.tubeLabels || {}).find(
         ([key]) =>
@@ -2654,7 +2845,7 @@ export function SearchResults(props) {
             id: "result.entry.tubeLabel",
             defaultMessage: "Etiqueta",
           })}
-          value={value}
+          value={draftValue}
           onCommit={(nextValue) =>
             handleTubeLabelChange(data.id, blockTitle, nextValue)
           }
@@ -3031,7 +3222,7 @@ export function SearchResults(props) {
                           {blockTitle}
                         </h6>
                       </Column>
-                      {renderTubeLabelControl(data, blockTitle)}
+                      {renderTubeLabelControl(data, blockTitle, blockIndex)}
                       {renderBlockTubeUsageControl(data, blockTitle)}
                       {sortedItems.map((item, fieldIndex) => {
                         if (item.type === "primary") {
@@ -3622,13 +3813,31 @@ export function SearchResults(props) {
     setIsSubmitting(true);
     values.status = saveStatus;
     var searchEndPoint = "/rest/LogbookResults";
-    props.results.testResult.forEach((result) => {
-      result.reportable = result.reportable === "N" ? false : true;
+    const resultPayload = {
+      ...props.results,
+      testResult: (props.results.testResult || []).map((result) => {
+        const rowDraftLabels = tubeLabelDraftsByRowId?.[result.id] || {};
+        const mergedTubeLabels = {
+          ...(result.tubeLabels || {}),
+          ...rowDraftLabels,
+        };
+        const rowHasTubeLabelDraft =
+          Object.keys(rowDraftLabels).length > 0;
+        return {
+          ...result,
+          tubeLabels: mergedTubeLabels,
+          isModified: rowHasTubeLabelDraft ? "true" : result.isModified,
+          reportable: result.reportable === "N" ? false : true,
+          result: undefined,
+        };
+      }),
+    };
+    resultPayload.testResult.forEach((result) => {
       delete result.result;
     });
     postToOpenElisServerJsonResponse(
       searchEndPoint,
-      JSON.stringify(props.results),
+      JSON.stringify(resultPayload),
       setResponse,
     );
   };
@@ -3773,3 +3982,9 @@ export function SearchResults(props) {
 }
 
 export default injectIntl(ResultSearchPage);
+
+
+
+
+
+

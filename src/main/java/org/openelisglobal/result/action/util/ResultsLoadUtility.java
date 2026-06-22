@@ -1109,6 +1109,14 @@ public class ResultsLoadUtility {
 
         Map<String, AnalysisTubeLabel> persistedLabels = getPersistedTubeLabelsByBlock(analysis.getId());
         Map<String, String> labelValues = new LinkedHashMap<>();
+        persistedLabels.values().forEach(label -> {
+            if (label == null || StringUtils.isBlank(label.getTubeBlockName())
+                    || StringUtils.isBlank(label.getLabelCode())) {
+                return;
+            }
+            labelValues.putIfAbsent(normalizeBlockName(label.getTubeBlockName()),
+                    StringUtils.defaultString(label.getLabelCode()));
+        });
         for (String blockName : activeBlocks) {
             AnalysisTubeLabel persisted = persistedLabels.get(normalizeBlockName(blockName));
             labelValues.put(blockName, persisted == null ? "" : StringUtils.defaultString(persisted.getLabelCode()));
