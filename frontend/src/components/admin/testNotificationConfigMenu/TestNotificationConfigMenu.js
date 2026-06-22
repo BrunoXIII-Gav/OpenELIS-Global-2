@@ -1,4 +1,4 @@
-import React, { useContext, useState, useEffect, useRef } from "react";
+import React, { useContext, useState, useEffect, useMemo } from "react";
 import {
   Heading,
   Button,
@@ -13,23 +13,16 @@ import {
   TableBody,
   TableHeader,
   TableCell,
-  TableSelectRow,
-  TableSelectAll,
   TableContainer,
   Pagination,
   Search,
-  Modal,
-  TextInput,
-  Dropdown,
   Checkbox,
 } from "@carbon/react";
 import {
   getFromOpenElisServer,
-  postToOpenElisServerFullResponse,
   postToOpenElisServerJsonResponse,
 } from "../../utils/Utils.js";
 import {
-  ConfigurationContext,
   NotificationContext,
 } from "../../layout/Layout.js";
 import {
@@ -39,7 +32,6 @@ import {
 import { FormattedMessage, injectIntl, useIntl } from "react-intl";
 import PageBreadCrumb from "../../common/PageBreadCrumb.js";
 import { Settings } from "@carbon/icons-react";
-import ActionPaginationButtonType from "../../common/ActionPaginationButtonType.js";
 
 let breadcrumbs = [
   { label: "home.label", link: "/" },
@@ -56,7 +48,6 @@ function TestNotificationConfigMenu() {
 
   const intl = useIntl();
 
-  const componentMounted = useRef(false);
   const [page, setPage] = useState(1);
   const [pageSize, setPageSize] = useState(25);
   const [loading, setLoading] = useState(true);
@@ -69,6 +60,8 @@ function TestNotificationConfigMenu() {
     setTestNotificationConfigMenuDataPost,
   ] = useState({ menuList: [] });
   const [testNamesMap, setTestNamesMap] = useState({});
+  const [searchValue, setSearchValue] = useState("");
+  const [debouncedSearchValue, setDebouncedSearchValue] = useState("");
 
   const handleMenuItems = (res) => {
     if (res) {
@@ -85,12 +78,8 @@ function TestNotificationConfigMenu() {
   };
 
   useEffect(() => {
-    componentMounted.current = true;
     getFromOpenElisServer(`/rest/TestNotificationConfigMenu`, handleMenuItems);
     getFromOpenElisServer(`/rest/test-list`, handleTestNamesList);
-    return () => {
-      componentMounted.current = false;
-    };
   }, []);
 
   useEffect(() => {
@@ -124,6 +113,72 @@ function TestNotificationConfigMenu() {
     }, {});
     setTestNamesMap(map);
   }, [testNamesList]);
+
+  useEffect(() => {
+    const debounceTimer = setTimeout(() => {
+      setDebouncedSearchValue(searchValue);
+    }, 250);
+
+    return () => clearTimeout(debounceTimer);
+  }, [searchValue]);
+
+  const normalizeSearchText = (value) =>
+    String(value || "")
+      .normalize("NFD")
+      .replace(/[\u0300-\u036f]/g, "")
+      .toLowerCase()
+      .trim()
+      .replace(/[^a-z0-9]+/g, " ");
+
+  const normalizedSearchTokens = useMemo(() => {
+    const normalizedSearchTerm = normalizeSearchText(debouncedSearchValue);
+
+    if (!normalizedSearchTerm) {
+      return [];
+    }
+
+    return normalizedSearchTerm.split(/\s+/).filter(Boolean);
+  }, [debouncedSearchValue]);
+
+  const filteredMenuList = useMemo(() => {
+    const menuList = testNotificationConfigMenuDataPost?.menuList || [];
+
+    if (!normalizedSearchTokens.length) {
+      return menuList;
+    }
+
+    return menuList.filter((item) => {
+      const searchableText = normalizeSearchText(
+        `${item.testId} ${testNamesMap[item.testId] || ""}`,
+      );
+
+      return normalizedSearchTokens.every((token) =>
+        searchableText.includes(token),
+      );
+    });
+  }, [
+    normalizedSearchTokens,
+    testNamesMap,
+    testNotificationConfigMenuDataPost?.menuList,
+  ]);
+
+  const paginatedRows = useMemo(() => {
+    return filteredMenuList
+      .slice((page - 1) * pageSize, page * pageSize)
+      .map((item) => ({
+        id: item.testId,
+        testId: item.testId,
+        patientEmail: item.patientEmail.active ? "true" : "false",
+        patientSMS: item.patientSMS.active ? "true" : "false",
+        providerEmail: item.providerEmail.active ? "true" : "false",
+        providerSMS: item.providerSMS.active ? "true" : "false",
+        testName: testNamesMap[item.testId] || item.testId,
+      }));
+  }, [filteredMenuList, page, pageSize, testNamesMap]);
+
+  useEffect(() => {
+    setPage(1);
+  }, [debouncedSearchValue]);
 
   const handleEditButtonClick = (id) => {
     window.location.assign(
@@ -305,22 +360,43 @@ function TestNotificationConfigMenu() {
           <Grid fullWidth={true}>
             <Column lg={16} md={8} sm={4}>
               <br />
+              <Section>
+                <Search
+                  size="lg"
+                  id="test-notification-config-search"
+                  labelText={intl.formatMessage({
+                    id: "testnotificationconfig.search.label",
+                    defaultMessage: "Search tests",
+                  })}
+                  aria-label={intl.formatMessage({
+                    id: "testnotificationconfig.search.ariaLabel",
+                    defaultMessage: "Search by Test ID or Test name",
+                  })}
+                  placeholder={intl.formatMessage({
+                    id: "testnotificationconfig.search.placeholder",
+                    defaultMessage: "Search by Test ID or Test name",
+                  })}
+                  onChange={(event) => setSearchValue(event.target.value)}
+                  value={searchValue}
+                  onClear={() => setSearchValue("")}
+                />
+              </Section>
+              <br />
+              <Section>
+                {intl.formatMessage(
+                  {
+                    id: "testnotificationconfig.search.count",
+                    defaultMessage: "Showing {shown} of {total} tests",
+                  },
+                  {
+                    shown: filteredMenuList.length,
+                    total: testNotificationConfigMenuDataPost?.menuList.length || 0,
+                  },
+                )}
+              </Section>
+              <br />
               <DataTable
-                rows={
-                  testNotificationConfigMenuDataPost?.menuList
-                    ?.slice((page - 1) * pageSize, page * pageSize)
-                    ?.map((item) => ({
-                      id: item.testId,
-                      testId: item.testId,
-                      patientEmail: item.patientEmail.active ? "true" : "false",
-                      patientSMS: item.patientSMS.active ? "true" : "false",
-                      providerEmail: item.providerEmail.active
-                        ? "true"
-                        : "false",
-                      providerSMS: item.providerSMS.active ? "true" : "false",
-                      testName: testNamesMap[item.testId] || item.testId,
-                    })) || []
-                }
+                rows={paginatedRows}
                 headers={[
                   {
                     key: "testId",
@@ -371,7 +447,6 @@ function TestNotificationConfigMenu() {
                   headers,
                   getHeaderProps,
                   getTableProps,
-                  getSelectionProps,
                 }) => (
                   <TableContainer>
                     <Table {...getTableProps()}>
@@ -389,13 +464,23 @@ function TestNotificationConfigMenu() {
                         </TableRow>
                       </TableHead>
                       <TableBody>
-                        <>
-                          {rows.map((row) => (
+                        {rows.length ? (
+                          rows.map((row) => (
                             <TableRow key={row.id}>
                               {row.cells.map((cell) => renderCell(cell, row))}
                             </TableRow>
-                          ))}
-                        </>
+                          ))
+                        ) : (
+                          <TableRow>
+                            <TableCell colSpan={headers.length}>
+                              {intl.formatMessage({
+                                id: "testnotificationconfig.search.empty",
+                                defaultMessage:
+                                  "No tests found matching your search",
+                              })}
+                            </TableCell>
+                          </TableRow>
+                        )}
                       </TableBody>
                     </Table>
                   </TableContainer>
@@ -406,7 +491,7 @@ function TestNotificationConfigMenu() {
                 page={page}
                 pageSize={pageSize}
                 pageSizes={[25, 50]}
-                totalItems={testNotificationConfigMenuDataPost?.menuList.length}
+                totalItems={filteredMenuList.length}
                 forwardText={intl.formatMessage({
                   id: "pagination.forward",
                 })}
