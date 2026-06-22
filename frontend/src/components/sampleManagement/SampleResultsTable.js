@@ -35,6 +35,7 @@ import {
   getFromOpenElisServer,
   postToOpenElisServerJsonResponse,
 } from "../utils/Utils";
+import "./SampleResultsTable.css";
 
 const ORDER_FIXED_FIELD_LABEL_MESSAGE_IDS = {
   priority: "sample.management.order.fixed.priority",
@@ -1197,42 +1198,19 @@ function SampleResultsTable({
     }
 
     return (
-      <div style={{ padding: "1rem" }}>
-        <div
-          style={{
-            fontWeight: "600",
-            marginBottom: "0.75rem",
-            display: "flex",
-            alignItems: "center",
-            gap: "0.5rem",
-          }}
-        >
-          <Chemistry size={20} />
-          <FormattedMessage
-            id="sample.management.table.orderedTests"
-            values={{ count: originalRow.orderedTests.length }}
-          />
+      <div className="sample-mgmt-expanded-content">
+        <div className="sample-mgmt-ordered-tests-header">
+          <div className="sample-mgmt-section-title-row">
+            <Chemistry size={20} />
+            <FormattedMessage
+              id="sample.management.table.orderedTests"
+              values={{ count: originalRow.orderedTests.length }}
+            />
+          </div>
         </div>
-        <div
-          style={{
-            display: "grid",
-            gridTemplateColumns: "repeat(auto-fill, minmax(300px, 1fr))",
-            gap: "0.5rem",
-          }}
-        >
+        <div className="sample-mgmt-tests-grid">
           {originalRow.orderedTests.map((test) => (
-            <div
-              key={test.analysisId}
-              style={{
-                display: "flex",
-                alignItems: "center",
-                justifyContent: "space-between",
-                padding: "0.5rem 0.75rem",
-                backgroundColor: "#f4f4f4",
-                borderRadius: "4px",
-                border: "1px solid #e0e0e0",
-              }}
-            >
+            <div key={test.analysisId} className="sample-mgmt-test-card">
               <div style={{ flex: 1 }}>
                 <div style={{ fontWeight: "500" }}>
                   {resolveTestName(test, originalRow.sampleTypeId)}
@@ -1339,18 +1317,9 @@ function SampleResultsTable({
             return (
               <div style={{ marginTop: "1rem", display: "grid", gap: "1rem" }}>
                 {editableSampleFieldDefinitions.length > 0 ? (
-                  <Tile style={{ padding: "1rem" }}>
-                    <div
-                      style={{
-                        display: "flex",
-                        justifyContent: "space-between",
-                        alignItems: "center",
-                        marginBottom: "1rem",
-                        gap: "0.75rem",
-                        flexWrap: "wrap",
-                      }}
-                    >
-                      <h4 style={{ margin: 0 }}>
+                  <Tile className="sample-mgmt-section-card">
+                    <div className="sample-mgmt-section-header">
+                      <h4 className="sample-mgmt-section-title">
                         {intl.formatMessage({
                           id: "sample.management.current.sample.fields.heading",
                         })}
@@ -1359,14 +1328,7 @@ function SampleResultsTable({
                         {originalRow.sampleType || "-"}
                       </Tag>
                     </div>
-                    <div
-                      style={{
-                        display: "grid",
-                        gridTemplateColumns:
-                          "repeat(auto-fit, minmax(220px, 1fr))",
-                        gap: "1rem",
-                      }}
-                    >
+                    <div className="sample-mgmt-grid">
                       {editableSampleFieldDefinitions.map((field) => {
                         const disabled = field.readonly;
                         switch (field.fieldKey) {
@@ -1653,17 +1615,11 @@ function SampleResultsTable({
             );
           })()}
         {shouldShowCurrentTests && orderReceptionFields.length > 0 && (
-          <Tile style={{ marginTop: "1.5rem", padding: "1rem" }}>
-            <h4 style={{ marginTop: 0, marginBottom: "1rem" }}>
+          <Tile className="sample-mgmt-section-card" style={{ marginTop: "1.5rem" }}>
+            <h4 className="sample-mgmt-section-title">
               <FormattedMessage id="sample.management.order.fields.heading" />
             </h4>
-            <div
-              style={{
-                display: "grid",
-                gridTemplateColumns: "repeat(auto-fit, minmax(240px, 1fr))",
-                gap: "1rem",
-              }}
-            >
+            <div className="sample-mgmt-grid">
               {orderReceptionFields.map((field, index) => {
                 const fieldId = `sample_mgmt_order_readonly_${row.id}_${field.fieldKey}_${index}`;
                 const rawValue =
@@ -1707,7 +1663,7 @@ function SampleResultsTable({
           </Tile>
         )}
         {shouldShowCurrentTests && receptionAdditionalFields.length > 0 && (
-          <Tile style={{ marginTop: "1.5rem", padding: "1rem" }}>
+          <Tile className="sample-mgmt-section-card" style={{ marginTop: "1.5rem" }}>
             <h4 style={{ marginTop: 0, marginBottom: "0.75rem" }}>
               <FormattedMessage id="sample.additional.fields.heading" />
             </h4>
@@ -1716,13 +1672,7 @@ function SampleResultsTable({
                 " - " +
                 (originalRow.sampleType || "")}
             </div>
-            <div
-              style={{
-                display: "grid",
-                gridTemplateColumns: "repeat(auto-fit, minmax(240px, 1fr))",
-                gap: "1rem",
-              }}
-            >
+            <div className="sample-mgmt-grid">
               {receptionAdditionalFields.map((field, idx) => {
                 const fieldType = (field.fieldType || "TEXT").toUpperCase();
                 const fieldKey = resolveAdditionalFieldKey(field);
@@ -1873,16 +1823,10 @@ function SampleResultsTable({
           </Tile>
         )}
         {shouldShowCurrentTests && (
-          <div
-            style={{
-              marginTop: "0.75rem",
-              display: "flex",
-              justifyContent: "flex-end",
-            }}
-          >
+          <div className="sample-mgmt-save-bar">
             <Button
-              kind="secondary"
-              size="sm"
+              kind="primary"
+              size="md"
               onClick={() =>
                 handleSaveSampleChanges(row.id, originalRow, additionalFields)
               }

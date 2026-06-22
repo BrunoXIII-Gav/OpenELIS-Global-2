@@ -1,0 +1,14 @@
+.oe-layout-shell {
+  min-height: 100vh;
+  background: #f4f7fb;
+}
+
+.oe-layout-content {
+  min-height: calc(100vh - 3rem);
+  background: #f4f7fb;
+  box-sizing: border-box;
+}
+
+.oe-layout-content.cds--content {
+  margin-top: 3rem;
+}

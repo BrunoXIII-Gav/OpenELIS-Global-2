@@ -1181,3 +1181,111 @@ nav.cds--side-nav .cds--side-nav__link::before {
   .cds--side-nav__link[aria-current="page"] {
   padding-left: calc(7rem - 4px) !important;
 }
+
+/* 
+   Modern UI polish: header and side navigation
+ */
+
+#mainHeader.cds--header {
+  min-height: 3rem;
+  background-color: var(--site-branding-header, #295785) !important;
+  border-bottom: 1px solid
+    color-mix(
+      in srgb,
+      var(--site-branding-header, #295785) 78%,
+      white
+    );
+  box-shadow: 0 2px 10px rgba(15, 23, 42, 0.16);
+}
+
+#mainHeader .logo {
+  max-height: 34px;
+  object-fit: contain;
+}
+
+#header-logo {
+  display: flex;
+  align-items: center;
+  margin: 0 0.75rem;
+}
+
+#mainHeader .cds--header__name {
+  font-weight: 600;
+  letter-spacing: 0.01em;
+}
+
+#mainHeader .cds--header__action {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  transition:
+    background-color 0.15s ease,
+    color 0.15s ease;
+}
+
+#mainHeader .cds--header__action:hover {
+  background-color: color-mix(
+    in srgb,
+    var(--site-branding-header, #295785) 82%,
+    white
+  ) !important;
+}
+
+#mainHeader .cds--header-panel {
+  box-shadow: 0 12px 28px rgba(15, 23, 42, 0.24);
+}
+
+nav.cds--side-nav {
+  border-right: 1px solid
+    color-mix(
+      in srgb,
+      var(--site-branding-sidenav-bg, #295785) 78%,
+      white
+    );
+  box-shadow: 4px 0 14px rgba(15, 23, 42, 0.12);
+}
+
+nav.cds--side-nav .cds--side-nav__navigation {
+  padding-top: 0.5rem;
+}
+
+nav.cds--side-nav .cds--side-nav__link,
+nav.cds--side-nav .cds--side-nav__submenu {
+  min-height: 2.75rem;
+  transition:
+    background-color 0.15s ease,
+    color 0.15s ease;
+}
+
+nav.cds--side-nav .cds--side-nav__link-text,
+nav.cds--side-nav .cds--side-nav__submenu-title {
+  font-size: 0.875rem;
+  font-weight: 500;
+}
+
+nav.cds--side-nav .cds--side-nav__link:hover,
+nav.cds--side-nav .cds--side-nav__submenu:hover {
+  background-color: color-mix(
+    in srgb,
+    var(--site-branding-sidenav-bg, #295785) 86%,
+    white
+  ) !important;
+}
+
+nav.cds--side-nav .cds--side-nav__link--current,
+nav.cds--side-nav .cds--side-nav__link[aria-current="page"] {
+  font-weight: 600;
+}
+
+nav.cds--side-nav .cds--side-nav__link--current .cds--side-nav__link-text,
+nav.cds--side-nav
+  .cds--side-nav__link[aria-current="page"]
+  .cds--side-nav__link-text {
+  font-weight: 600;
+}
+
+@media screen and (max-width: 1056px) {
+  nav.cds--side-nav {
+    box-shadow: 8px 0 24px rgba(15, 23, 42, 0.22);
+  }
+}

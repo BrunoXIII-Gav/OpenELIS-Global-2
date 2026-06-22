@@ -727,7 +727,7 @@ function OEHeader({
     setMode(SIDENAV_MODES.CLOSE);
   };
 
-  useEffect(() => {
+  useLayoutEffect(() => {
     const wasAdminContext = wasAdminContextRef.current;
     if (!wasAdminContext && isAdminContext && mode !== SIDENAV_MODES.CLOSE) {
       setMode(SIDENAV_MODES.CLOSE);
@@ -942,6 +942,7 @@ function OEHeader({
             {userSessionDetails.authenticated && (
               <>
                 <SideNav
+                  key={`main-sidenav-${storageKeyPrefix}-${isAdminContext ? "admin" : "standard"}-${mode}`}
                   aria-label="Side navigation"
                   expanded={mode !== SIDENAV_MODES.CLOSE}
                   isFixedNav={mode === SIDENAV_MODES.LOCK}

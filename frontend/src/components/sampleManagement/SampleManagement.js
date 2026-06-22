@@ -14,6 +14,7 @@ import SampleResultsTable from "./SampleResultsTable";
 import CreateAliquotModal from "./CreateAliquotModal";
 import AddTestsModal from "./AddTestsModal";
 import { getFromOpenElisServer } from "../utils/Utils";
+import "./SampleManagement.css";
 
 /**
  * SampleManagement - Main container component for Sample Management feature.
@@ -369,8 +370,8 @@ export default function SampleManagement() {
         )}
 
         {/* Search Section */}
-        <Grid fullWidth={true}>
-          <Column lg={16} md={8} sm={4}>
+        <div className="sample-management-card sample-management-search-card">
+          <div className="sample-management-section-header">
             <Section>
               <Heading>
                 <FormattedMessage
@@ -379,17 +380,13 @@ export default function SampleManagement() {
                 />
               </Heading>
             </Section>
-          </Column>
-        </Grid>
+          </div>
 
-        <Grid fullWidth={true}>
-          <Column lg={16} md={8} sm={4}>
-            <SampleSearch
-              onSearchResults={handleSearchResults}
-              includeTests={true}
-            />
-          </Column>
-        </Grid>
+          <SampleSearch
+            onSearchResults={handleSearchResults}
+            includeTests={true}
+          />
+        </div>
 
         {/* Empty State (when search has been performed but no results) */}
         {searchResponse &&
@@ -419,14 +416,7 @@ export default function SampleManagement() {
           selectedSampleIds.length > 0 && (
             <Grid fullWidth={true}>
               <Column lg={16} md={8} sm={4}>
-                <div
-                  style={{
-                    marginTop: "1rem",
-                    marginBottom: "1rem",
-                    display: "flex",
-                    gap: "1rem",
-                  }}
-                >
+                <div className="sample-management-action-bar">
                   {/* Toggle Current Tests Section */}
                   <Button kind="tertiary" onClick={handleToggleCurrentTests}>
                     <FormattedMessage
@@ -444,8 +434,8 @@ export default function SampleManagement() {
           searchResponse.sampleItems &&
           searchResponse.sampleItems.length > 0 && (
             <>
-              <Grid fullWidth={true}>
-                <Column lg={16} md={8} sm={4}>
+              <div className="sample-management-results-card">
+                <div className="sample-management-results-header">
                   <Section>
                     <Heading>
                       <FormattedMessage
@@ -454,22 +444,18 @@ export default function SampleManagement() {
                       />
                     </Heading>
                   </Section>
-                </Column>
-              </Grid>
+                </div>
 
-              <Grid fullWidth={true}>
-                <Column lg={16} md={8} sm={4}>
+                <div className="sample-management-results-table">
                   <SampleResultsTable
                     sampleItems={searchResponse.sampleItems}
                     onSelectionChange={handleSelectionChange}
                     onTestRemoved={handleTestRemoved}
-                    currentTestsVisibleBySampleId={
-                      currentTestsVisibleBySampleId
-                    }
+                    currentTestsVisibleBySampleId={currentTestsVisibleBySampleId}
                     onPersistResult={handlePersistResult}
                   />
-                </Column>
-              </Grid>
+                </div>
+              </div>
             </>
           )}
       </div>
