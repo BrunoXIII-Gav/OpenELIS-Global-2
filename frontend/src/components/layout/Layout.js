@@ -6,6 +6,7 @@ import { Content, Theme } from "@carbon/react";
 import UserSessionDetailsContext from "../../UserSessionDetailsContext";
 import { getFromOpenElisServer } from "../utils/Utils";
 import { useSideNavPreference } from "./useSideNavPreference";
+import "./Layout.css";
 
 export const ConfigurationContext = createContext(null);
 export const NotificationContext = createContext(null);
@@ -160,7 +161,7 @@ export default function Layout(props) {
           removeNotification,
         }}
       >
-        <div className="d-flex flex-column min-vh-100">
+        <div className="oe-layout-shell d-flex flex-column min-vh-100">
           <Header
             onChangeLanguage={props.onChangeLanguage}
             mode={mode}
@@ -176,11 +177,11 @@ export default function Layout(props) {
           <Theme theme="white">
             <Content
               data-testid="content-wrapper"
-              className={`${mode === SIDENAV_MODES.LOCK ? "content-nav-locked" : ""} ${
-                mode === SIDENAV_MODES.SHOW ? "content-nav-show" : ""
-              } ${mode === SIDENAV_MODES.CLOSE ? "content-nav-close" : ""} ${
-                isAdminContext ? "oe-admin-context" : ""
-              }`.trim()}
+              className={`oe-layout-content ${
+                mode === SIDENAV_MODES.LOCK ? "content-nav-locked" : ""
+              } ${mode === SIDENAV_MODES.SHOW ? "content-nav-show" : ""} ${
+                mode === SIDENAV_MODES.CLOSE ? "content-nav-close" : ""
+              } ${isAdminContext ? "oe-admin-context" : ""}`.trim()}
             >
               {children}
             </Content>

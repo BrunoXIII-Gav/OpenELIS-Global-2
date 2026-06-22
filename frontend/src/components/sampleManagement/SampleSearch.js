@@ -137,8 +137,8 @@ function SampleSearch({ onSearchResults, includeTests = false }) {
   };
 
   return (
-    <div style={{ display: "flex", alignItems: "flex-end", gap: "0.5rem" }}>
-      <div style={{ position: "relative", flex: 1 }}>
+    <div className="sample-management-search-row">
+      <div className="sample-management-search-input">
         <Search
           id="sample-search-input"
           labelText={intl.formatMessage({
@@ -155,14 +155,7 @@ function SampleSearch({ onSearchResults, includeTests = false }) {
           size="lg"
         />
         {isLoading && (
-          <div
-            style={{
-              position: "absolute",
-              right: "40px",
-              top: "50%",
-              transform: "translateY(-50%)",
-            }}
-          >
+          <div className="sample-management-search-loading">
             <Loading
               small
               withOverlay={false}
@@ -178,7 +171,7 @@ function SampleSearch({ onSearchResults, includeTests = false }) {
         renderIcon={SearchIcon}
         onClick={handleSearchSubmit}
         disabled={isLoading || !searchValue.trim()}
-        style={{ minHeight: "48px" }}
+        className="sample-management-search-button"
       >
         {intl.formatMessage({ id: "label.button.search" })}
       </Button>
