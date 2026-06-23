@@ -83,6 +83,10 @@ function TestNotificationConfigEdit() {
   ] = useState({});
   const [testNamesList, setTestNamesList] = useState([]);
   const [testName, setTestName] = useState("");
+  const [profileUsersByCode, setProfileUsersByCode] = useState({});
+  const [loadingProfileUsersByCode, setLoadingProfileUsersByCode] = useState(
+    {},
+  );
 
   const professionalProfileOptions = (
     configurationProperties?.professionalProfileOptions || ""
@@ -117,6 +121,7 @@ function TestNotificationConfigEdit() {
     notificationNature: "RESULT_PENDING_VALIDATION",
     active: true,
     professionalProfileCode: "",
+    selectedUserIds: [],
     additionalContactsCsv: "",
     subjectTemplate: "[testName] Pending Validation",
     messageTemplate:
@@ -291,6 +296,109 @@ function TestNotificationConfigEdit() {
     );
   };
 
+  const fetchUsersForProfessionalProfile = (profileCode) => {
+    const normalizedCode = (profileCode || "").trim();
+    if (!normalizedCode || profileUsersByCode[normalizedCode]) {
+      return;
+    }
+
+    setLoadingProfileUsersByCode((prev) => ({
+      ...prev,
+      [normalizedCode]: true,
+    }));
+
+    getFromOpenElisServer(
+      `/rest/users/professional-profile/${encodeURIComponent(
+        normalizedCode,
+      )}?activeOnly=true&labelMode=fullName`,
+      (res) => {
+        setProfileUsersByCode((prev) => ({
+          ...prev,
+          [normalizedCode]: Array.isArray(res) ? res : [],
+        }));
+        setLoadingProfileUsersByCode((prev) => ({
+          ...prev,
+          [normalizedCode]: false,
+        }));
+      },
+    );
+  };
+
+  const handleInternalProfileProfessionalProfileChange = (index, profileCode) => {
+    handleInternalProfileFieldChange(index, "professionalProfileCode", profileCode);
+    handleInternalProfileFieldChange(index, "selectedUserIds", []);
+    if (profileCode) {
+      fetchUsersForProfessionalProfile(profileCode);
+    }
+  };
+
+  const handleInternalProfileSelectedUsersChange = (
+    index,
+    selectedUserId,
+    checked,
+  ) => {
+    updateInternalProfileRules((prevRules) =>
+      prevRules.map((rule, ruleIndex) => {
+        if (ruleIndex !== index) {
+          return rule;
+        }
+        const currentSelectedUserIds = Array.isArray(rule.selectedUserIds)
+          ? rule.selectedUserIds
+          : [];
+        const nextSelectedUserIds = checked
+          ? [...new Set([...currentSelectedUserIds, selectedUserId])]
+          : currentSelectedUserIds.filter((userId) => userId !== selectedUserId);
+        return { ...rule, selectedUserIds: nextSelectedUserIds };
+      }),
+    );
+  };
+
+  useEffect(() => {
+    getInternalProfileRules(testNotificationConfigEditDataPost?.config).forEach(
+      (rule) => {
+        if (rule?.professionalProfileCode) {
+          fetchUsersForProfessionalProfile(rule.professionalProfileCode);
+        }
+      },
+    );
+  }, [testNotificationConfigEditDataPost?.config]);
+
+  useEffect(() => {
+    const rules = getInternalProfileRules(testNotificationConfigEditDataPost?.config);
+    if (!rules.length) {
+      return;
+    }
+
+    let hasChanges = false;
+    const nextRules = rules.map((rule) => {
+      const professionalProfileCode = (rule.professionalProfileCode || "").trim();
+      if (!professionalProfileCode || !Array.isArray(rule.selectedUserIds)) {
+        return rule;
+      }
+
+      const availableUsers = profileUsersByCode[professionalProfileCode];
+      if (!availableUsers) {
+        return rule;
+      }
+
+      const allowedIds = new Set(availableUsers.map((user) => user.id));
+      const filteredSelectedUserIds = rule.selectedUserIds.filter((userId) =>
+        allowedIds.has(userId),
+      );
+
+      if (filteredSelectedUserIds.length === rule.selectedUserIds.length) {
+        return rule;
+      }
+
+      hasChanges = true;
+      return { ...rule, selectedUserIds: filteredSelectedUserIds };
+    });
+
+    if (hasChanges) {
+      updateInternalProfileRules(nextRules);
+    }
+  }, [profileUsersByCode]);
+
   const buildSavePayload = () => {
     const current =
       latestPostDataRef.current || testNotificationConfigEditDataPost || {};
@@ -323,6 +431,9 @@ function TestNotificationConfigEdit() {
           notificationNature: rule.notificationNature,
           active: rule.active,
           professionalProfileCode: rule.professionalProfileCode || "",
+          selectedUserIds: Array.isArray(rule.selectedUserIds)
+            ? rule.selectedUserIds
+            : [],
           additionalContactsCsv: rule.additionalContactsCsv || "",
           subjectTemplate: rule.subjectTemplate || "",
           messageTemplate: rule.messageTemplate || "",
@@ -568,9 +679,8 @@ function TestNotificationConfigEdit() {
                               item.code === rule.professionalProfileCode,
                           )}
                           onChange={({ selectedItem }) =>
-                            handleInternalProfileFieldChange(
+                            handleInternalProfileProfessionalProfileChange(
                               index,
-                              "professionalProfileCode",
                               selectedItem?.code || "",
                             )
                           }
@@ -594,6 +704,68 @@ function TestNotificationConfigEdit() {
                       </Column>
                     </Grid>
                     <br />
+                    {(rule.professionalProfileCode || "").trim() !== "" && (
+                      <>
+                        <Grid fullWidth={true}>
+                          <Column lg={16} md={8} sm={4}>
+                            <div
+                              style={{
+                                border: "1px solid #c6c6c6",
+                                padding: "1rem",
+                                backgroundColor: "#f4f4f4",
+                              }}
+                            >
+                              <div style={{ marginBottom: "0.75rem", fontWeight: 600 }}>
+                                {intl.formatMessage({
+                                  id: "testnotification.internalProfile.users.label",
+                                })}
+                              </div>
+                              {loadingProfileUsersByCode[
+                                rule.professionalProfileCode
+                              ] ? (
+                                <div>
+                                  <FormattedMessage id="testnotification.internalProfile.users.loading" />
+                                </div>
+                              ) : (profileUsersByCode[rule.professionalProfileCode] || [])
+                                  .length > 0 ? (
+                                <Grid condensed fullWidth={true}>
+                                  {(profileUsersByCode[
+                                    rule.professionalProfileCode
+                                  ] || []).map((userOption) => (
+                                    <Column
+                                      key={`internal-profile-user-${index}-${userOption.id}`}
+                                      lg={4}
+                                      md={4}
+                                      sm={4}
+                                    >
+                                      <Checkbox
+                                        id={`internal-profile-user-${index}-${userOption.id}`}
+                                        labelText={userOption.value}
+                                        checked={(rule.selectedUserIds || []).includes(
+                                          userOption.id,
+                                        )}
+                                        onChange={(_, { checked }) =>
+                                          handleInternalProfileSelectedUsersChange(
+                                            index,
+                                            userOption.id,
+                                            checked,
+                                          )
+                                        }
+                                      />
+                                    </Column>
+                                  ))}
+                                </Grid>
+                              ) : (
+                                <div>
+                                  <FormattedMessage id="testnotification.internalProfile.users.empty" />
+                                </div>
+                              )}
+                            </div>
+                          </Column>
+                        </Grid>
+                        <br />
+                      </>
+                    )}
                     <Grid fullWidth={true}>
                       <Column lg={8} md={4} sm={4}>
                         <TextInput
