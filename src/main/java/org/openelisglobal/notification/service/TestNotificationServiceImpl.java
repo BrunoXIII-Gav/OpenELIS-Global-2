@@ -31,6 +31,7 @@ import org.openelisglobal.person.valueholder.Person;
 import org.openelisglobal.provider.service.ProviderService;
 import org.openelisglobal.provider.valueholder.Provider;
 import org.openelisglobal.result.valueholder.Result;
+import org.openelisglobal.systemuser.service.ProfessionalProfileRecipientService;
 import org.openelisglobal.systemuser.service.SystemUserService;
 import org.openelisglobal.systemuser.valueholder.SystemUser;
 import org.openelisglobal.samplehuman.service.SampleHumanService;
@@ -62,6 +63,8 @@ public class TestNotificationServiceImpl implements TestNotificationService {
     private SystemUserService systemUserService;
     @Autowired
     private ProviderService providerService;
+    @Autowired
+    private ProfessionalProfileRecipientService professionalProfileRecipientService;
 
     @Value("${org.openelisglobal.ozeki.active:false}")
     private Boolean ozekiActive;
@@ -120,6 +123,11 @@ public class TestNotificationServiceImpl implements TestNotificationService {
                 .getAnalysisNotificationConfigForAnalysisId(result.getAnalysis().getId());
         Optional<TestNotificationConfig> testNotificationConfig = testNotificationConfigService
                 .getTestNotificationConfigForTestId(result.getAnalysis().getTest().getId());
+        LogEvent.logInfo(this.getClass().getSimpleName(), "createAndSendNotificationsToConfiguredSources",
+                "nature=" + nature + ", testId=" + result.getAnalysis().getTest().getId() + ", analysisId="
+                        + result.getAnalysis().getId() + ", smtpEnabled=" + emailEnabledForSystem()
+                        + ", hasAnalysisConfig=" + analysisNotificationConfig.isPresent() + ", hasTestConfig="
+                        + testNotificationConfig.isPresent());
         if (analysisNotificationConfig.isEmpty() && testNotificationConfig.isEmpty()) {
             return;
         }
@@ -218,20 +226,24 @@ public class TestNotificationServiceImpl implements TestNotificationService {
 
     private void createAndSendResultsNotificationEmailsToInternalProfile(Person testPerson,
             NotificationConfigOption option, String resultForDisplay, ClientResultsViewBean resultsViewInfo) {
-        String profileCode = StringUtils.trimToEmpty(option.getProfessionalProfileCode());
+        String profileCode = professionalProfileRecipientService
+                .normalizeProfessionalProfileCode(option.getProfessionalProfileCode());
         if (profileCode.isBlank()) {
             LogEvent.logWarn(this.getClass().getSimpleName(), "createAndSendResultsNotificationEmailsToInternalProfile",
                     "professional profile code is blank for internal profile notification");
             return;
         }
 
+        Set<String> explicitlySelectedUserIds = option.getSelectedUserIds().stream().map(StringUtils::trim)
+                .filter(StringUtils::isNotBlank).collect(Collectors.toSet());
+
         Map<String, Provider> providersByPersonId = providerService.getAllActiveProviders().stream()
                 .filter(provider -> provider.getPerson() != null && StringUtils.isNotBlank(provider.getPerson().getId()))
                 .collect(Collectors.toMap(provider -> provider.getPerson().getId(), provider -> provider, (left, right) -> left));
 
-        Set<String> deliveredEmails = systemUserService.getAll().stream()
-                .filter(user -> "Y".equalsIgnoreCase(user.getIsActive()))
-                .filter(user -> profileCode.equalsIgnoreCase(StringUtils.trimToEmpty(user.getProfessionalProfileCode())))
+        Set<String> deliveredEmails = professionalProfileRecipientService
+                .getEligibleUsersForProfessionalProfile(profileCode, true).stream()
+                .filter(user -> explicitlySelectedUserIds.isEmpty() || explicitlySelectedUserIds.contains(user.getId()))
                 .map(SystemUser::getLinkedProviderPersonId)
                 .filter(StringUtils::isNotBlank)
                 .map(providersByPersonId::get)
@@ -242,6 +254,16 @@ public class TestNotificationServiceImpl implements TestNotificationService {
                 .map(StringUtils::trim)
                 .map(String::toLowerCase)
                 .collect(Collectors.toSet());
+
+        if (deliveredEmails.isEmpty()) {
+            LogEvent.logWarn(this.getClass().getSimpleName(), "createAndSendResultsNotificationEmailsToInternalProfile",
+                    "no active internal profile recipients found for profileCode=" + profileCode
+                            + ", selectedUsers=" + explicitlySelectedUserIds.size());
+        } else {
+            LogEvent.logInfo(this.getClass().getSimpleName(), "createAndSendResultsNotificationEmailsToInternalProfile",
+                    "sending internal profile notifications to " + deliveredEmails.size() + " recipient(s) for profileCode="
+                            + profileCode + ", selectedUsers=" + explicitlySelectedUserIds.size());
+        }
 
         for (String email : deliveredEmails) {
             Person receiverPerson = new Person();

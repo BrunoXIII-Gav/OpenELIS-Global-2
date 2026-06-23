@@ -22,7 +22,9 @@ import jakarta.validation.Valid;
 import jakarta.validation.constraints.NotNull;
 import java.util.ArrayList;
 import java.util.Arrays;
+import java.util.LinkedHashSet;
 import java.util.List;
+import java.util.Set;
 import java.util.stream.Collectors;
 import org.openelisglobal.common.valueholder.BaseObject;
 import org.openelisglobal.notification.valueholder.NotificationPayloadTemplate.NotificationPayloadType;
@@ -90,6 +92,11 @@ public class NotificationConfigOption extends BaseObject<Integer> {
 
     @Column(name = "professional_profile_code")
     private String professionalProfileCode;
+
+    @ElementCollection(fetch = FetchType.EAGER)
+    @CollectionTable(name = "notification_config_option_user", joinColumns = @JoinColumn(name = "notification_config_option_id"))
+    @Column(name = "system_user_id")
+    private Set<String> selectedUserIds;
 
     @Transient
     private String transientSubjectTemplate;
@@ -172,6 +179,24 @@ public class NotificationConfigOption extends BaseObject<Integer> {
 
     public void setProfessionalProfileCode(String professionalProfileCode) {
         this.professionalProfileCode = professionalProfileCode;
+    }
+
+    @JsonProperty("selectedUserIds")
+    public List<String> getSelectedUserIds() {
+        if (selectedUserIds == null) {
+            selectedUserIds = new LinkedHashSet<>();
+        }
+        return new ArrayList<>(selectedUserIds);
+    }
+
+    @JsonProperty("selectedUserIds")
+    public void setSelectedUserIds(List<String> selectedUserIds) {
+        if (selectedUserIds == null) {
+            this.selectedUserIds = new LinkedHashSet<>();
+            return;
+        }
+        this.selectedUserIds = selectedUserIds.stream().map(String::trim).filter(s -> !s.isBlank()).distinct()
+                .collect(Collectors.toCollection(LinkedHashSet::new));
     }
 
     @JsonProperty("subjectTemplate")

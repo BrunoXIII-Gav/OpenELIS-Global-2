@@ -176,6 +176,7 @@ public class TestNotificationConfigServiceImpl extends AuditableBaseObjectServic
             oldOption.setNotificationNature(newOption.getNotificationNature());
             oldOption.setProfessionalProfileCode(newOption.getProfessionalProfileCode());
             oldOption.setAdditionalContacts(newOption.getAdditionalContacts());
+            oldOption.setSelectedUserIds(newOption.getSelectedUserIds());
             NotificationPayloadTemplate incomingTemplate = resolvePayloadTemplate(newOption);
             if (incomingTemplate == null) {
                 oldOption.setPayloadTemplate(null);
