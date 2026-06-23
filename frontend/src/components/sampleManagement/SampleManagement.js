@@ -1,4 +1,4 @@
-import React, { useState } from "react";
+import React, { useContext, useState } from "react";
 import {
   Grid,
   Column,
@@ -8,6 +8,11 @@ import {
   Button,
 } from "@carbon/react";
 import { FormattedMessage, useIntl } from "react-intl";
+import {
+  AlertDialog,
+  NotificationKinds,
+} from "../common/CustomNotification";
+import { NotificationContext } from "../layout/Layout";
 import PageBreadCrumb from "../common/PageBreadCrumb";
 import SampleSearch from "./SampleSearch";
 import SampleResultsTable from "./SampleResultsTable";
@@ -33,6 +38,8 @@ import "./SampleManagement.css";
  */
 export default function SampleManagement() {
   const intl = useIntl();
+  const { notificationVisible, setNotificationVisible, addNotification } =
+    useContext(NotificationContext);
 
   // Breadcrumb navigation
   const breadcrumbs = [
@@ -299,10 +306,15 @@ export default function SampleManagement() {
 
   const handlePersistResult = (result) => {
     if (result?.success) {
-      setSearchError({
-        kind: "success",
+      addNotification({
+        kind: NotificationKinds.success,
+        title: intl.formatMessage({
+          id: "sample.management.success.title",
+        }),
         message: result.message,
       });
+      setNotificationVisible(true);
+      setSearchError(null);
 
       if (searchResponse?.accessionNumber) {
         getFromOpenElisServer(
@@ -317,15 +329,21 @@ export default function SampleManagement() {
         );
       }
     } else {
-      setSearchError({
-        kind: "error",
+      addNotification({
+        kind: NotificationKinds.error,
+        title: intl.formatMessage({
+          id: "sample.management.error.title",
+        }),
         message: result?.message || "Error saving sample changes",
       });
+      setNotificationVisible(true);
     }
   };
 
   return (
     <>
+      {notificationVisible === true ? <AlertDialog /> : ""}
+
       {/* Breadcrumb Navigation */}
       <PageBreadCrumb breadcrumbs={breadcrumbs} />
 
@@ -350,17 +368,14 @@ export default function SampleManagement() {
           margin: "0 auto",
         }}
       >
-        {/* Notification (Error or Success) */}
-        {searchError && (
+        {/* Inline search error */}
+        {searchError?.message && !searchError?.kind && (
           <Grid fullWidth={true}>
             <Column lg={16} md={8} sm={4}>
               <InlineNotification
-                kind={searchError.kind || "error"}
+                kind="error"
                 title={intl.formatMessage({
-                  id:
-                    searchError.kind === "success"
-                      ? "sample.management.success.title"
-                      : "sample.management.error.title",
+                  id: "sample.management.error.title",
                 })}
                 subtitle={searchError.message}
                 onClose={handleDismissError}

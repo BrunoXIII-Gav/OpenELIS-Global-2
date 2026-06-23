@@ -3444,6 +3444,8 @@
   "order.additional.fields.title": "Campos adicionales de orden",
   "order.additional.fields.menu": "Campos adicionales de orden",
   "order.additional.fields.menu.explain": "Configura campos personalizados de orden y visibilidad de campos fijos en Add/Modify Order.",
+  "patient.additional.fields.menu": "Campos adicionales del paciente",
+  "patient.additional.fields.menu.explain": "Configura campos personalizados del paciente mostrados en los formularios del paciente.",
   "order.additional.fields.fixed.title": "Campos fijos de orden",
   "order.additional.fields.custom.title": "Campos personalizados de orden",
   "order.additional.fields.saveFixed": "Guardar configuración de campos fijos",

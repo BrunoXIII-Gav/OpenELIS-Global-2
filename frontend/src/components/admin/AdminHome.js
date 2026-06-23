@@ -2,6 +2,7 @@ import React from "react";
 import { ClickableTile, Column, Grid, Heading, Section } from "@carbon/react";
 import {
   CicsSystemGroup,
+  Edit,
   ListDropdown,
   ResultNew,
   Settings,
@@ -38,6 +39,12 @@ function AdminHome() {
       labelId: "master.lists.page.test.management",
       href: `${path}/testManagementConfigMenu`,
       icon: ResultNew,
+    },
+    {
+      id: "adminQuickModifyTests",
+      labelId: "configuration.test.modify",
+      href: `${path}/TestModifyEntry`,
+      icon: Edit,
     },
     {
       id: "adminQuickOrderFields",

@@ -684,6 +684,10 @@ const Validation = (props) => {
       message: message,
     });
     setNotificationVisible(true);
+
+    if (status == 200) {
+      window.location.reload();
+    }
   };
 
   const handlePageChange = (pageInfo) => {
