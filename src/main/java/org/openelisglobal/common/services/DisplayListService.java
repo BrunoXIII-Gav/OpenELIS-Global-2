@@ -1055,7 +1055,14 @@ public class DisplayListService implements LocaleChangeListener {
         List<TestSection> testSections = testSectionService.getAllActiveTestSections();
 
         for (TestSection section : testSections) {
-            testSectionsPairs.add(new IdValuePair(section.getId(), section.getLocalizedName()));
+            String displayValue = StringUtils.trimToNull(section.getLocalizedName());
+            if (displayValue == null) {
+                displayValue = StringUtils.trimToNull(section.getTestSectionName());
+            }
+            if (displayValue == null) {
+                displayValue = StringUtils.trimToNull(section.getDescription());
+            }
+            testSectionsPairs.add(new IdValuePair(section.getId(), displayValue != null ? displayValue : section.getId()));
         }
 
         return testSectionsPairs;

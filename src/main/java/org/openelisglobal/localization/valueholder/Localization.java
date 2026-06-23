@@ -16,6 +16,7 @@
 
 package org.openelisglobal.localization.valueholder;
 
+import com.fasterxml.jackson.annotation.JsonIgnore;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.Comparator;
@@ -126,32 +127,33 @@ public class Localization extends BaseObject<String> {
         setLocalizedValue(LocaleContextHolder.getLocale(), value);
     }
 
+    @JsonIgnore
     public List<Locale> getAllActiveLocales() {
-        return SpringContext.getBean(LocalizationService.class).getAllActiveLocales();
+        return new ArrayList<>(SpringContext.getBean(LocalizationService.class).getAllActiveLocales());
     }
 
+    @JsonIgnore
     public List<Locale> getLocalesSortedForDisplay() {
         List<Locale> locales = getAllActiveLocales();
         sortLocales(locales);
         return locales;
     }
 
+    @JsonIgnore
     public List<Locale> getLocalesWithValue() {
         List<Locale> locales = getAllActiveLocales();
-        for (Locale locale : locales) {
-            if (GenericValidator.isBlankOrNull(localeValues.get(locale))) {
-                locales.remove(locale);
-            }
-        }
-        return new ArrayList<>(locales);
+        locales.removeIf(locale -> GenericValidator.isBlankOrNull(localeValues.get(locale)));
+        return locales;
     }
 
+    @JsonIgnore
     public List<Locale> getLocalesWithValueSortedForDisplay() {
         List<Locale> locales = getLocalesWithValue();
         sortLocales(locales);
         return locales;
     }
 
+    @JsonIgnore
     public List<String> getLocalesAndValuesOfLocalesWithValues() {
         List<String> localizationValues = new ArrayList<>();
         Locale displayLocale = LocaleContextHolder.getLocale();
