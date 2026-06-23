@@ -68,4 +68,27 @@ public class ExternalConnectionServiceImpl extends AuditableBaseObjectServiceImp
             externalConnectionContactService.save(externalConnectionContact);
         }
     }
+
+    @Override
+    @Transactional
+    public void deleteExternalConnection(Integer externalConnectionId) {
+        ExternalConnection externalConnection = get(externalConnectionId);
+        if (externalConnection == null || externalConnection.getId() == null) {
+            return;
+        }
+
+        List<ExternalConnectionContact> contacts = externalConnectionContactService
+                .getAllMatching("externalConnection.id", externalConnectionId);
+        for (ExternalConnectionContact contact : contacts) {
+            externalConnectionContactService.delete(contact);
+        }
+
+        Map<AuthType, ExternalConnectionAuthenticationData> authDataMap = externalConnectionAuthenticationDataService
+                .getForExternalConnection(externalConnectionId);
+        for (ExternalConnectionAuthenticationData authData : authDataMap.values()) {
+            externalConnectionAuthenticationDataService.delete(authData);
+        }
+
+        delete(externalConnection);
+    }
 }

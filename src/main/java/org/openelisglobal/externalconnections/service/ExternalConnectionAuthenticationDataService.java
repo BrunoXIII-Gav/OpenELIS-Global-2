@@ -13,4 +13,6 @@ public interface ExternalConnectionAuthenticationDataService {
     ExternalConnectionAuthenticationData update(ExternalConnectionAuthenticationData authData);
 
     ExternalConnectionAuthenticationData save(ExternalConnectionAuthenticationData authData);
+
+    void delete(ExternalConnectionAuthenticationData authData);
 }

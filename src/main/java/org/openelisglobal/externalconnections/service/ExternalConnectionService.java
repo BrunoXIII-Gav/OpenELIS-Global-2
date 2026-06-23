@@ -15,4 +15,6 @@ public interface ExternalConnectionService extends BaseObjectService<ExternalCon
 
     void updateExternalConnection(Map<AuthType, ExternalConnectionAuthenticationData> externalConnectionAuthData,
             List<ExternalConnectionContact> externalConnectionContacts, ExternalConnection externalConnection);
+
+    void deleteExternalConnection(Integer externalConnectionId);
 }
