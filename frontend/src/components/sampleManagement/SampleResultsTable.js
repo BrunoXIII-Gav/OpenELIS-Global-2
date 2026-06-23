@@ -258,7 +258,26 @@ function SampleResultsTable({
     return normalizeAdditionalFieldKey(candidate);
   };
 
+  const parseAdditionalFieldMetadata = (field) => {
+    const rawMetadata = field?.metadataJson || field?.metadata;
+    if (!rawMetadata) {
+      return {};
+    }
+    if (typeof rawMetadata === "object") {
+      return rawMetadata;
+    }
+    try {
+      return JSON.parse(rawMetadata);
+    } catch (e) {
+      return {};
+    }
+  };
+
   const isLabelAdditionalField = (field) => {
+    if (parseAdditionalFieldMetadata(field)?.tubeLabel?.enabled === true) {
+      return true;
+    }
+
     const normalizedFieldKey = normalizeAdditionalFieldKey(field?.fieldKey);
     const normalizedDisplayName = normalizeAdditionalFieldKey(
       field?.displayName,
@@ -2076,5 +2095,4 @@ function SampleResultsTable({
 }
 
 export default SampleResultsTable;
-
 

@@ -883,6 +883,20 @@ const getNextTubeLabelSuffix = (prefix, tubeLabels) => {
   return nextSuffix;
 };
 
+const getConfiguredTubeLabelMap = (row, intl) => {
+  const configuredBlocks = getConfiguredTubeLabelBlocks(row, intl);
+  if (!Array.isArray(configuredBlocks) || configuredBlocks.length === 0) {
+    return {};
+  }
+
+  return Object.entries(row?.tubeLabels || {}).reduce((acc, [key, value]) => {
+    if (configuredBlocks.includes(normalizeBlockIdentifier(key))) {
+      acc[key] = value;
+    }
+    return acc;
+  }, {});
+};
+
 const getTubeUsageTotalRemaining = (row) => {
   const remainingByTube = row?.parentTubeRemainingQuantities || {};
   const totalBaseRemaining = Object.values(remainingByTube).reduce(
@@ -976,8 +990,8 @@ export function SearchResultForm(props) {
       var i = 0;
       results.testResult.forEach((item) => (item.id = "" + i++));
       results.testResult.forEach((item) => {
-        const blockTitles = getResultBlockTitles(item, intl);
-        if (!Array.isArray(blockTitles) || blockTitles.length === 0) {
+        const configuredBlocks = getConfiguredTubeLabelBlocks(item, intl);
+        if (!Array.isArray(configuredBlocks) || configuredBlocks.length === 0) {
           return;
         }
 
@@ -988,16 +1002,31 @@ export function SearchResultForm(props) {
 
         const nextTubeLabels = { ...(item.tubeLabels || {}) };
         let hasUpdates = false;
-        let nextSuffix = getNextTubeLabelSuffix(normalizedCug, nextTubeLabels);
+        let nextSuffix = getNextTubeLabelSuffix(
+          normalizedCug,
+          getConfiguredTubeLabelMap(item, intl),
+        );
         if (!Number.isFinite(nextSuffix)) {
           return;
         }
 
-        blockTitles.forEach((blockTitle, blockIndex) => {
-          const existingLabel = nextTubeLabels[blockTitle];
+        configuredBlocks.forEach((normalizedBlockTitle) => {
+          const existingLabel = Object.entries(nextTubeLabels).find(
+            ([key, value]) =>
+              normalizeBlockIdentifier(key) === normalizedBlockTitle &&
+              value != null &&
+              `${value}`.trim() !== "",
+          )?.[1];
           if (existingLabel != null && `${existingLabel}`.trim() !== "") {
             return;
           }
+
+          const blockTitle =
+            getResultBlockTitles(item, intl).find(
+              (title) =>
+                normalizeBlockIdentifier(title) === normalizedBlockTitle,
+            ) || normalizedBlockTitle;
+
           nextTubeLabels[blockTitle] = `${normalizedCug}.${nextSuffix}`;
           nextSuffix += 1;
           hasUpdates = true;
@@ -1751,6 +1780,75 @@ export function SearchResults(props) {
       setValidationState(newValidationState);
     }
   }, [props.results]);
+
+  useEffect(() => {
+    const currentResults = props.results?.testResult || [];
+    if (!Array.isArray(currentResults) || currentResults.length === 0) {
+      return;
+    }
+
+    let hasUpdates = false;
+    const nextResults = currentResults.map((row) => {
+      const configuredBlocks = getConfiguredTubeLabelBlocks(row, intl);
+      if (!Array.isArray(configuredBlocks) || configuredBlocks.length === 0) {
+        return row;
+      }
+
+      const normalizedCug = getTubeLabelBasePrefix(row);
+      if (!normalizedCug) {
+        return row;
+      }
+
+      const nextTubeLabels = { ...(row.tubeLabels || {}) };
+      let nextSuffix = getNextTubeLabelSuffix(
+        normalizedCug,
+        getConfiguredTubeLabelMap(row, intl),
+      );
+      if (!Number.isFinite(nextSuffix)) {
+        return row;
+      }
+
+      let rowUpdated = false;
+      configuredBlocks.forEach((normalizedBlockTitle) => {
+        const existingEntry = Object.entries(nextTubeLabels).find(
+          ([key, value]) =>
+            normalizeBlockIdentifier(key) === normalizedBlockTitle &&
+            value != null &&
+            `${value}`.trim() !== "",
+        );
+        if (existingEntry) {
+          return;
+        }
+
+        const blockTitle =
+          getResultBlockTitles(row, intl).find(
+            (title) =>
+              normalizeBlockIdentifier(title) === normalizedBlockTitle,
+          ) || normalizedBlockTitle;
+
+        nextTubeLabels[blockTitle] = `${normalizedCug}.${nextSuffix}`;
+        nextSuffix += 1;
+        rowUpdated = true;
+      });
+
+      if (!rowUpdated) {
+        return row;
+      }
+
+      hasUpdates = true;
+      return {
+        ...row,
+        tubeLabels: nextTubeLabels,
+      };
+    });
+
+    if (hasUpdates) {
+      props.setResultForm?.({
+        ...props.results,
+        testResult: nextResults,
+      });
+    }
+  }, [intl, props.results, props.setResultForm]);
 
   useEffect(() => {
     const nextDrafts = {};
@@ -3982,9 +4080,6 @@ export function SearchResults(props) {
 }
 
 export default injectIntl(ResultSearchPage);
-
-
-
 
 
 
