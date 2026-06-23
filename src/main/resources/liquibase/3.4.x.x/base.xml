@@ -68,4 +68,5 @@
   <include relativeToChangelogFile="true" file="054-create-analysis-tube-label.xml"/>
   <include relativeToChangelogFile="true" file="055-add-notification-profile-destination.xml"/>
   <include relativeToChangelogFile="true" file="056-add-request-time-observation-type.xml"/>
+  <include relativeToChangelogFile="true" file="057-add-notification-option-selected-users.xml"/>
 </databaseChangeLog>

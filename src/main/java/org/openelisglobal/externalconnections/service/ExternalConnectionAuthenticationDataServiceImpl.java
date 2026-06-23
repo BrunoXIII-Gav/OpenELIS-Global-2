@@ -72,4 +72,19 @@ public class ExternalConnectionAuthenticationDataServiceImpl implements External
             throw new RuntimeException();
         }
     }
+
+    @Override
+    public void delete(ExternalConnectionAuthenticationData authData) {
+        switch (authData.getAuthenticationType()) {
+        case CERTIFICATE:
+            certificateAuthenticationDataService.delete((CertificateAuthenticationData) authData);
+            break;
+        case BASIC:
+            basicAuthenticationDataService.delete((BasicAuthenticationData) authData);
+            break;
+        case NONE:
+        default:
+            throw new RuntimeException();
+        }
+    }
 }

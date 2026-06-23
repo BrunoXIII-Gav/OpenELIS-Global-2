@@ -1,5 +1,6 @@
 package org.openelisglobal.notification.service.sender;
 
+import org.openelisglobal.common.log.LogEvent;
 import org.openelisglobal.common.util.ConfigurationListener;
 import org.openelisglobal.common.util.validator.GenericValidator;
 import org.openelisglobal.notification.valueholder.EmailNotification;
@@ -43,11 +44,17 @@ public class EmailNotificationSender implements ClientNotificationSender<EmailNo
         }
         message.setSubject(notification.getSubject());
         message.setText(notification.getMessage());
+        LogEvent.logInfo(this.getClass().getSimpleName(), "send",
+                "sending email to=" + notification.getRecipientEmailAddress() + ", subject=" + notification.getSubject());
         javaMailSender.send(message);
+        LogEvent.logInfo(this.getClass().getSimpleName(), "send",
+                "email sent to=" + notification.getRecipientEmailAddress());
     }
 
     @Override
     public void refreshConfiguration() {
         javaMailSender = SpringContext.getBean(JavaMailSender.class);
+        LogEvent.logInfo(this.getClass().getSimpleName(), "refreshConfiguration",
+                "reloaded JavaMailSender from current configuration");
     }
 }

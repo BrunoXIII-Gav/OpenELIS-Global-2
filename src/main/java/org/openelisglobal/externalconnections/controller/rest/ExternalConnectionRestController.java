@@ -8,6 +8,7 @@ import java.util.Map;
 import java.util.Optional;
 import java.util.stream.Collectors;
 import org.apache.commons.validator.GenericValidator;
+import org.apache.commons.lang3.StringUtils;
 import org.openelisglobal.common.rest.BaseRestController;
 import org.openelisglobal.common.util.ConfigurationProperties;
 import org.openelisglobal.externalconnections.controller.rest.bean.ExternalConnectionConfig;
@@ -27,6 +28,7 @@ import org.openelisglobal.person.valueholder.Person;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
+import org.springframework.web.bind.annotation.DeleteMapping;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.PostMapping;
@@ -71,6 +73,17 @@ public class ExternalConnectionRestController extends BaseRestController {
             return ResponseEntity.notFound().build();
         }
         return ResponseEntity.ok(toConfigDetail(connection));
+    }
+
+    @DeleteMapping("/{id}")
+    public ResponseEntity<Void> delete(@PathVariable("id") Integer id) {
+        ExternalConnection connection = externalConnectionService.get(id);
+        if (connection == null || connection.getId() == null) {
+            return ResponseEntity.notFound().build();
+        }
+        externalConnectionService.deleteExternalConnection(id);
+        ConfigurationProperties.loadDBValuesIntoConfiguration();
+        return ResponseEntity.noContent().build();
     }
 
     @PostMapping
@@ -127,8 +140,24 @@ public class ExternalConnectionRestController extends BaseRestController {
             if (basicAuthData == null) {
                 basicAuthData = new BasicAuthenticationData();
             }
-            basicAuthData.setUsername(payload.getUsername());
-            basicAuthData.setPassword(payload.getPassword());
+            String username = StringUtils.trimToNull(payload.getUsername());
+            String password = StringUtils.trimToNull(payload.getPassword());
+
+            if (payload.getId() != null) {
+                if (username == null) {
+                    username = basicAuthData.getUsername();
+                }
+                if (password == null) {
+                    password = basicAuthData.getPassword();
+                }
+            }
+
+            if (username == null || password == null) {
+                return ResponseEntity.badRequest().body(Map.of("error", "Missing basic authentication credentials"));
+            }
+
+            basicAuthData.setUsername(username);
+            basicAuthData.setPassword(password);
         }
 
         List<ExternalConnectionContact> mappedContacts = mapContacts(payload.getContacts(), contacts);
