@@ -19,12 +19,14 @@ import {
   Select,
   SelectItem,
   Checkbox,
+  InlineNotification,
 } from "@carbon/react";
 import { Add, Edit, Save, TrashCan } from "@carbon/icons-react";
 import { FormattedMessage, useIntl } from "react-intl";
 import PageBreadCrumb from "../../../common/PageBreadCrumb";
 import {
   getFromOpenElisServer,
+  deleteFromOpenElisServerFullResponse,
   postToOpenElisServerJsonResponse,
 } from "../../../utils/Utils";
 import { NotificationContext } from "../../../layout/Layout";
@@ -207,6 +209,55 @@ const ExternalConnectionsConfig = () => {
     );
   };
 
+  const handleDelete = (connection) => {
+    if (!connection?.id) {
+      return;
+    }
+
+    const confirmed = window.confirm(
+      intl.formatMessage(
+        { id: "externalConnections.delete.confirm.message" },
+        { name: connection.name || "" },
+      ),
+    );
+
+    if (!confirmed) {
+      return;
+    }
+
+    deleteFromOpenElisServerFullResponse(
+      `/rest/external-connections/${connection.id}`,
+      (response) => {
+        if (!response?.ok) {
+          setNotificationVisible(true);
+          addNotification({
+            kind: NotificationKinds.error,
+            title: intl.formatMessage({ id: "error.title" }),
+            message: intl.formatMessage({
+              id: "externalConnections.delete.error",
+            }),
+          });
+          return;
+        }
+
+        setNotificationVisible(true);
+        addNotification({
+          kind: NotificationKinds.success,
+          title: intl.formatMessage({
+            id: "externalConnections.delete.success",
+          }),
+          message: intl.formatMessage({
+            id: "externalConnections.delete.success.message",
+          }),
+        });
+        if (formData.id === connection.id) {
+          setFormData(emptyForm());
+        }
+        loadData();
+      },
+    );
+  };
+
   const isCertificateMode = formData.authenticationType === "certificate";
 
   return (
@@ -271,7 +322,23 @@ const ExternalConnectionsConfig = () => {
                                         id: "externalConnections.button.edit",
                                       })}
                                       hasIconOnly
-                                      onClick={() => loadConnection(row.id)}
+                                  onClick={() => loadConnection(row.id)}
+                                    />
+                                    <Button
+                                      kind="ghost"
+                                      size="sm"
+                                      renderIcon={TrashCan}
+                                      iconDescription={intl.formatMessage({
+                                        id: "externalConnections.button.delete",
+                                      })}
+                                      hasIconOnly
+                                      onClick={() =>
+                                        handleDelete(
+                                          connections.find(
+                                            (connection) => connection.id === row.id,
+                                          ),
+                                        )
+                                      }
                                     />
                                   </TableCell>
                                 );
@@ -519,6 +586,15 @@ const ExternalConnectionsConfig = () => {
               >
                 <FormattedMessage id="externalConnections.button.save" />
               </Button>
+              {formData.id ? (
+                <Button
+                  kind="danger"
+                  renderIcon={TrashCan}
+                  onClick={() => handleDelete(formData)}
+                >
+                  <FormattedMessage id="externalConnections.button.delete" />
+                </Button>
+              ) : null}
             </div>
           </Tile>
         </Column>
