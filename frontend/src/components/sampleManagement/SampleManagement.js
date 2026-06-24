@@ -317,16 +317,13 @@ export default function SampleManagement() {
       setSearchError(null);
 
       if (searchResponse?.accessionNumber) {
-        getFromOpenElisServer(
-          `/rest/sample-management/search?accessionNumber=${encodeURIComponent(searchResponse.accessionNumber)}&includeTests=true`,
-          (response) => {
-            if (response && Array.isArray(response.sampleItems)) {
-              hydrateSearchResponse(response, (hydrated) => {
-                setSearchResponse(hydrated);
-              });
-            }
-          },
+        const currentUrl = new URL(window.location.href);
+        currentUrl.searchParams.set(
+          "accessionNumber",
+          searchResponse.accessionNumber,
         );
+        window.location.assign(currentUrl.toString());
+        return;
       }
     } else {
       addNotification({
