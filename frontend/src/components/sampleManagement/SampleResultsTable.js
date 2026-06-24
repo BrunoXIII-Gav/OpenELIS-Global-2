@@ -438,7 +438,7 @@ function SampleResultsTable({
       getFromOpenElisServer(
         `/rest/users/professional-profile/${encodeURIComponent(
           normalizedCode,
-        )}?activeOnly=true`,
+        )}?activeOnly=true&requireEmail=false`,
         (usersResponse) => {
           if (!componentMounted.current) return;
           const options = Array.isArray(usersResponse)
@@ -2095,4 +2095,3 @@ function SampleResultsTable({
 }
 
 export default SampleResultsTable;
-

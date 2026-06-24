@@ -15,6 +15,8 @@ package org.openelisglobal.sampleitem.service;
 
 import java.math.BigDecimal;
 import java.sql.Timestamp;
+import java.time.LocalDate;
+import java.time.LocalDateTime;
 import java.time.LocalTime;
 import java.time.format.DateTimeFormatter;
 import java.time.format.DateTimeParseException;
@@ -24,7 +26,6 @@ import java.util.Map;
 import java.util.stream.Collectors;
 import java.util.regex.Pattern;
 import org.apache.commons.validator.GenericValidator;
-import org.openelisglobal.common.util.DateUtil;
 import org.openelisglobal.analysis.service.AnalysisService;
 import org.openelisglobal.analysis.valueholder.Analysis;
 import org.openelisglobal.common.services.IStatusService;
@@ -626,49 +627,42 @@ public class SampleManagementServiceImpl implements SampleManagementService {
         }
 
         try {
-            String normalizedDate = normalizeDateForOpenElis(dateValue);
-            String normalizedTime = normalizeTimeForOpenElis(timeValue);
-            return DateUtil.convertStringDateToTimestamp(normalizedDate + " " + normalizedTime);
+            LocalDate collectionDate = parseCollectionLocalDate(dateValue);
+            LocalTime collectionTime = parseCollectionLocalTime(timeValue);
+            return Timestamp.valueOf(LocalDateTime.of(collectionDate, collectionTime));
         } catch (RuntimeException ex) {
             throw new IllegalArgumentException("Invalid collection date/time format");
         }
     }
 
-    private String normalizeDateForOpenElis(String dateValue) {
+    private LocalDate parseCollectionLocalDate(String dateValue) {
         String trimmedDate = dateValue == null ? "" : dateValue.trim();
         if (trimmedDate.matches("\\d{4}-\\d{2}-\\d{2}")) {
-            String[] parts = trimmedDate.split("-");
-            return parts[1] + "/" + parts[2] + "/" + parts[0];
+            return LocalDate.parse(trimmedDate, DateTimeFormatter.ISO_LOCAL_DATE);
         }
-        return trimmedDate;
+
+        try {
+            return LocalDate.parse(trimmedDate, DateTimeFormatter.ofPattern("dd/MM/yyyy"));
+        } catch (DateTimeParseException ignored) {
+            return LocalDate.parse(trimmedDate, DateTimeFormatter.ofPattern("MM/dd/yyyy"));
+        }
     }
 
-    private String normalizeTimeForOpenElis(String timeValue) {
+    private LocalTime parseCollectionLocalTime(String timeValue) {
         if (GenericValidator.isBlankOrNull(timeValue)) {
-            return "00:00";
+            return LocalTime.of(0, 0);
         }
 
         String trimmed = timeValue.trim();
         String upper = trimmed.toUpperCase();
         if (upper.endsWith("AM") || upper.endsWith("PM")) {
-            try {
-                LocalTime time = LocalTime.parse(upper, DateTimeFormatter.ofPattern("h:mm a"));
-                return time.format(DateTimeFormatter.ofPattern("HH:mm"));
-            } catch (DateTimeParseException ignored) {
-                return trimmed;
-            }
+            return LocalTime.parse(upper, DateTimeFormatter.ofPattern("h:mm a"));
         }
 
         try {
-            LocalTime time = LocalTime.parse(trimmed, DateTimeFormatter.ofPattern("H:mm"));
-            return time.format(DateTimeFormatter.ofPattern("HH:mm"));
+            return LocalTime.parse(trimmed, DateTimeFormatter.ofPattern("H:mm"));
         } catch (DateTimeParseException ignored) {
-            try {
-                LocalTime time = LocalTime.parse(trimmed, DateTimeFormatter.ofPattern("HH:mm:ss"));
-                return time.format(DateTimeFormatter.ofPattern("HH:mm"));
-            } catch (DateTimeParseException e) {
-                return trimmed;
-            }
+            return LocalTime.parse(trimmed, DateTimeFormatter.ofPattern("HH:mm:ss"));
         }
     }
 }
