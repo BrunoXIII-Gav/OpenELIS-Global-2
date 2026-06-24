@@ -37,6 +37,12 @@ public class ProfessionalProfileRecipientServiceImpl implements ProfessionalProf
 
     @Override
     public List<SystemUser> getEligibleUsersForProfessionalProfile(String profileCode, boolean activeOnly) {
+        return getEligibleUsersForProfessionalProfile(profileCode, activeOnly, true);
+    }
+
+    @Override
+    public List<SystemUser> getEligibleUsersForProfessionalProfile(String profileCode, boolean activeOnly,
+            boolean requireDeliverableEmail) {
         String normalizedProfileCode = normalizeProfessionalProfileCode(profileCode);
         if (StringUtils.isBlank(normalizedProfileCode)) {
             return Collections.emptyList();
@@ -56,25 +62,31 @@ public class ProfessionalProfileRecipientServiceImpl implements ProfessionalProf
                 .filter(user -> normalizedProfileCode
                         .equals(normalizeProfessionalProfileCode(user.getProfessionalProfileCode())))
                 .filter(user -> isUserEligibleForProfile(user, providersByPersonId, loginBySystemUserId,
-                        normalizedProfileCode))
+                        normalizedProfileCode, requireDeliverableEmail))
                 .sorted(Comparator.comparing(SystemUser::getNameForDisplay, String.CASE_INSENSITIVE_ORDER))
                 .collect(Collectors.toList());
     }
 
     @Override
     public List<IdValuePair> getEligibleUserOptionsForProfessionalProfile(String profileCode, boolean activeOnly) {
-        return getEligibleUserOptionsForProfessionalProfile(profileCode, activeOnly, false);
+        return getEligibleUserOptionsForProfessionalProfile(profileCode, activeOnly, false, true);
     }
 
     @Override
     public List<IdValuePair> getEligibleUserOptionsForProfessionalProfile(String profileCode, boolean activeOnly,
             boolean useFullNameLabel) {
+        return getEligibleUserOptionsForProfessionalProfile(profileCode, activeOnly, useFullNameLabel, true);
+    }
+
+    @Override
+    public List<IdValuePair> getEligibleUserOptionsForProfessionalProfile(String profileCode, boolean activeOnly,
+            boolean useFullNameLabel, boolean requireDeliverableEmail) {
         Map<String, Provider> providersByPersonId = providerService.getAllActiveProviders().stream()
                 .filter(provider -> provider.getPerson() != null && StringUtils.isNotBlank(provider.getPerson().getId()))
                 .collect(Collectors.toMap(provider -> provider.getPerson().getId(), provider -> provider,
                         (left, right) -> left));
 
-        return getEligibleUsersForProfessionalProfile(profileCode, activeOnly).stream()
+        return getEligibleUsersForProfessionalProfile(profileCode, activeOnly, requireDeliverableEmail).stream()
                 .map(user -> new IdValuePair(user.getId(),
                         buildProfessionalDisplayLabel(user, providersByPersonId.get(user.getLinkedProviderPersonId()),
                                 useFullNameLabel)))
@@ -98,9 +110,12 @@ public class ProfessionalProfileRecipientServiceImpl implements ProfessionalProf
     }
 
     private boolean isUserEligibleForProfile(SystemUser user, Map<String, Provider> providersByPersonId,
-            Map<String, LoginUser> loginBySystemUserId, String normalizedProfileCode) {
+            Map<String, LoginUser> loginBySystemUserId, String normalizedProfileCode, boolean requireDeliverableEmail) {
         Provider linkedProvider = providersByPersonId.get(user.getLinkedProviderPersonId());
-        if (linkedProvider == null || !hasDeliverableEmail(linkedProvider.getPerson())) {
+        if (linkedProvider == null) {
+            return false;
+        }
+        if (requireDeliverableEmail && !hasDeliverableEmail(linkedProvider.getPerson())) {
             return false;
         }
 

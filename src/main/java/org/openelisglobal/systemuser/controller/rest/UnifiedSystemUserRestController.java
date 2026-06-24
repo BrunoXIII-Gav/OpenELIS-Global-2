@@ -159,7 +159,8 @@ public class UnifiedSystemUserRestController extends BaseController {
     public List<IdValuePair> getUsersByProfessionalProfile(
             @PathVariable String profileCode,
             @RequestParam(name = "activeOnly", defaultValue = "true") boolean activeOnly,
-            @RequestParam(name = "labelMode", defaultValue = "professional") String labelMode) {
+            @RequestParam(name = "labelMode", defaultValue = "professional") String labelMode,
+            @RequestParam(name = "requireEmail", defaultValue = "true") boolean requireEmail) {
         final String normalizedProfileCode = professionalProfileRecipientService
                 .normalizeProfessionalProfileCode(profileCode);
         if (StringUtils.isBlank(normalizedProfileCode)) {
@@ -167,7 +168,7 @@ public class UnifiedSystemUserRestController extends BaseController {
         }
         boolean useFullNameLabel = "fullName".equalsIgnoreCase(StringUtils.trimToEmpty(labelMode));
         return professionalProfileRecipientService.getEligibleUserOptionsForProfessionalProfile(normalizedProfileCode,
-                activeOnly, useFullNameLabel);
+                activeOnly, useFullNameLabel, requireEmail);
     }
 
     @GetMapping(value = "/UnifiedSystemUser")
