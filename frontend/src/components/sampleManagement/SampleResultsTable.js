@@ -175,9 +175,11 @@ function SampleResultsTable({
   const toDateInputValue = (value) => {
     if (!value) return "";
     if (typeof value === "string" && value.includes("/")) {
-      const parts = value.split("/").map((part) => part.trim());
-      if (parts.length >= 3) {
-        const [first, second, year] = parts;
+      const slashDateMatch = value
+        .trim()
+        .match(/^(\d{1,2})\/(\d{1,2})\/(\d{4})(?:\D.*)?$/);
+      if (slashDateMatch) {
+        const [, first, second, year] = slashDateMatch;
         const firstNum = Number(first);
         const secondNum = Number(second);
         const yearNum = Number(year);

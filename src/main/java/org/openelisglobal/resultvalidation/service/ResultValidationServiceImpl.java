@@ -3,7 +3,9 @@ package org.openelisglobal.resultvalidation.service;
 import java.util.ArrayList;
 import java.sql.Date;
 import java.time.LocalDate;
+import java.util.LinkedHashSet;
 import java.util.List;
+import java.util.Set;
 import org.openelisglobal.analysis.service.AnalysisService;
 import org.openelisglobal.analysis.valueholder.Analysis;
 import org.openelisglobal.common.log.LogEvent;
@@ -71,15 +73,9 @@ public class ResultValidationServiceImpl implements ResultValidationService {
                 LogEvent.logWarn(this.getClass().getSimpleName(), "persistdata",
                         "Result with id: " + id + " created while validating");
             }
-            if (isResultAnalysisFinalized(resultUpdate, analysisUpdateList)) {
-                try {
-                    testNotificationService.createAndSendNotificationsToConfiguredSources(
-                            NotificationNature.RESULT_VALIDATION, resultUpdate);
-                } catch (RuntimeException e) {
-                    LogEvent.logError(e);
-                }
-            }
         }
+
+        sendFinalValidationNotifications(analysisUpdateList, resultUpdateList);
 
         checkIfSamplesFinished(resultItemList, sampleUpdateList);
 
@@ -123,15 +119,44 @@ public class ResultValidationServiceImpl implements ResultValidationService {
         }
     }
 
-    private boolean isResultAnalysisFinalized(Result result, List<Analysis> analysisUpdateList) {
-        String analysisId = result.getAnalysis().getId();
+    private void sendFinalValidationNotifications(List<Analysis> analysisUpdateList, List<Result> resultUpdateList) {
+        Set<String> finalizedAnalysisIds = new LinkedHashSet<>();
+
         for (Analysis analysis : analysisUpdateList) {
-            if (analysis.getId().equals(analysisId)) {
-                return analysis.getStatusId()
-                        .equals(SpringContext.getBean(IStatusService.class).getStatusID(AnalysisStatus.Finalized));
+            if (analysis.getStatusId()
+                    .equals(SpringContext.getBean(IStatusService.class).getStatusID(AnalysisStatus.Finalized))) {
+                finalizedAnalysisIds.add(analysis.getId());
             }
         }
-        return false;
+
+        for (String analysisId : finalizedAnalysisIds) {
+            Result notificationResult = findNotificationResultForAnalysis(analysisId, resultUpdateList);
+            if (notificationResult == null) {
+                continue;
+            }
+            try {
+                testNotificationService.createAndSendNotificationsToConfiguredSources(
+                        NotificationNature.RESULT_VALIDATION, notificationResult);
+            } catch (RuntimeException e) {
+                LogEvent.logError(e);
+            }
+        }
+    }
+
+    private Result findNotificationResultForAnalysis(String analysisId, List<Result> resultUpdateList) {
+        for (Result result : resultUpdateList) {
+            if (result.getAnalysis() != null && analysisId.equals(result.getAnalysis().getId())) {
+                return result;
+            }
+        }
+
+        Analysis analysis = analysisService.getAnalysisById(analysisId);
+        if (analysis == null) {
+            return null;
+        }
+
+        List<Result> persistedResults = resultService.getResultsByAnalysis(analysis);
+        return persistedResults == null || persistedResults.isEmpty() ? null : persistedResults.get(0);
     }
 
     private void checkIfSamplesFinished(List<AnalysisItem> resultItemList, List<Sample> sampleUpdateList) {
