@@ -1281,6 +1281,7 @@ export const StepThreeTestResultTypeAndLoinc = ({
   const intl = useIntl();
   const { setNotificationVisible, addNotification } =
     useContext(NotificationContext);
+  const additionalFieldsEndRef = useRef(null);
   const additionalFieldTypeOptions = [
     "TEXT",
     "TEXTAREA",
@@ -1784,12 +1785,32 @@ export const StepThreeTestResultTypeAndLoinc = ({
               Yup.object().shape({
                 displayName: Yup.string()
                   .trim()
-                  .required("Display Name is required"),
-                fieldType: Yup.string().required("Field Type is required"),
-                blockName: Yup.string().trim().required("Block is required"),
-                entryScope: Yup.string()
-                  .oneOf(["OFFICIAL", "PRELIMINARY"])
-                  .required("Entry Scope is required"),
+                  .when("active", {
+                    is: (active) => active !== false,
+                    then: (schema) =>
+                      schema.required("Display Name is required"),
+                    otherwise: (schema) => schema.notRequired(),
+                  }),
+                fieldType: Yup.string().when("active", {
+                  is: (active) => active !== false,
+                  then: (schema) => schema.required("Field Type is required"),
+                  otherwise: (schema) => schema.notRequired(),
+                }),
+                blockName: Yup.string()
+                  .trim()
+                  .when("active", {
+                    is: (active) => active !== false,
+                    then: (schema) => schema.required("Block is required"),
+                    otherwise: (schema) => schema.notRequired(),
+                  }),
+                entryScope: Yup.string().when("active", {
+                  is: (active) => active !== false,
+                  then: (schema) =>
+                    schema
+                      .oneOf(["OFFICIAL", "PRELIMINARY"])
+                      .required("Entry Scope is required"),
+                  otherwise: (schema) => schema.notRequired(),
+                }),
                 options: Yup.array().when(["fieldType", "active"], {
                   is: (fieldType, active) =>
                     optionBasedTypes.has(fieldType) && active !== false,
@@ -2029,11 +2050,33 @@ export const StepThreeTestResultTypeAndLoinc = ({
               .map((field, index) => ({ field, fieldIndex: index }))
               .filter(({ field }) => field?.active !== false),
           );
+          const firstDraftAdditionalFieldIndex =
+            activeAdditionalFields.findIndex(({ field }) => !field?.id);
           const inactiveAdditionalFields = normalizedAdditionalFields
             .map((field, index) => ({ field, fieldIndex: index }))
             .filter(({ field }) => field?.active === false);
 
           const handleAddAdditionalField = () => {
+            const lastVisibleEntry =
+              activeAdditionalFields[activeAdditionalFields.length - 1];
+            const lastVisibleField = lastVisibleEntry?.field || {};
+            const lastVisibleBlockName =
+              lastVisibleField?.blockName || defaultOfficialBlock;
+            const lastVisibleEntryScope =
+              lastVisibleField?.entryScope || "OFFICIAL";
+            const lastVisibleBlockSortOrder =
+              lastVisibleField?.blockSortOrder || 1;
+            const lastFieldSortOrderInBlock = activeAdditionalFields
+              .filter(
+                ({ field }) =>
+                  String(field?.blockName || "").trim() ===
+                  String(lastVisibleBlockName || "").trim(),
+              )
+              .reduce(
+                (highest, { field }) =>
+                  Math.max(highest, Number(field?.fieldSortOrder) || 0),
+                0,
+              );
             const nextFields = [
               ...normalizedAdditionalFields,
               {
@@ -2043,19 +2086,19 @@ export const StepThreeTestResultTypeAndLoinc = ({
                 required: false,
                 active: true,
                 sortOrder: normalizedAdditionalFields.length + 1,
-                fieldSortOrder: normalizedAdditionalFields.length + 1,
-                blockSortOrder: 1,
+                fieldSortOrder: lastFieldSortOrderInBlock + 1,
+                blockSortOrder: lastVisibleBlockSortOrder,
                 defaultValue: "",
                 maxLength: "",
                 metadataJson: JSON.stringify({
-                  resultBlock: defaultOfficialBlock,
-                  entryScope: "OFFICIAL",
+                  resultBlock: lastVisibleBlockName,
+                  entryScope: lastVisibleEntryScope,
                   includeInValidation: true,
-                  blockSortOrder: 1,
-                  fieldSortOrder: normalizedAdditionalFields.length + 1,
+                  blockSortOrder: lastVisibleBlockSortOrder,
+                  fieldSortOrder: lastFieldSortOrderInBlock + 1,
                 }),
-                blockName: defaultOfficialBlock,
-                entryScope: "OFFICIAL",
+                blockName: lastVisibleBlockName,
+                entryScope: lastVisibleEntryScope,
                 includeInValidation: true,
                 documentAccept: "",
                 documentMaxSizeMb: "",
@@ -2073,6 +2116,12 @@ export const StepThreeTestResultTypeAndLoinc = ({
             setEditingAdditionalFieldIndexes((previous) =>
               Array.from(new Set([...previous, nextFields.length - 1])),
             );
+            setTimeout(() => {
+              additionalFieldsEndRef.current?.scrollIntoView({
+                behavior: "smooth",
+                block: "end",
+              });
+            }, 0);
           };
 
           const handleDisableAdditionalField = (fieldIndex) => {
@@ -2605,20 +2654,24 @@ export const StepThreeTestResultTypeAndLoinc = ({
                     </p>
                     {activeAdditionalFields.map(
                       ({ field, fieldIndex }, groupIndex) => {
+                        const isDraftField = !field?.id;
                         const fieldType = field?.fieldType || "TEXT";
                         const supportsOptions = optionBasedTypes.has(fieldType);
                         const isEditable = isFieldEditable(fieldIndex, field);
                         const blockName =
                           field?.blockName || defaultOfficialBlock || "-";
-                        const previousBlockName =
-                          activeAdditionalFields[groupIndex - 1]?.field
-                            ?.blockName ||
-                          defaultOfficialBlock ||
-                          "-";
+                        const previousBlockName = isDraftField
+                          ? null
+                          : activeAdditionalFields[groupIndex - 1]?.field
+                              ?.blockName ||
+                            defaultOfficialBlock ||
+                            "-";
                         const isFirstFieldInBlock =
-                          groupIndex === 0 || previousBlockName !== blockName;
-                        const groupAccent =
-                          getAdditionalFieldGroupAccent(blockName);
+                          !isDraftField &&
+                          (groupIndex === 0 || previousBlockName !== blockName);
+                        const groupAccent = isDraftField
+                          ? { background: "#ffffff", border: "#8d8d8d" }
+                          : getAdditionalFieldGroupAccent(blockName);
                         const entryScopeLabel = intl.formatMessage({
                           id:
                             field?.entryScope === "PRELIMINARY"
@@ -2649,6 +2702,16 @@ export const StepThreeTestResultTypeAndLoinc = ({
                               marginBottom: "1rem",
                             }}
                           >
+                            {isDraftField &&
+                              groupIndex === firstDraftAdditionalFieldIndex && (
+                                <div
+                                  style={{
+                                    margin: "1.5rem 0 0.75rem",
+                                    paddingTop: "0.75rem",
+                                    borderTop: "1px dashed #c6c6c6",
+                                  }}
+                                />
+                              )}
                             {isFirstFieldInBlock && (
                               <div
                                 style={{
@@ -2784,7 +2847,7 @@ export const StepThreeTestResultTypeAndLoinc = ({
                                     <FormattedMessage
                                       id={
                                         isEditable
-                                          ? "label.button.cancel"
+                                          ? "label.button.ok"
                                           : "label.button.edit"
                                       }
                                     />
@@ -3443,6 +3506,7 @@ export const StepThreeTestResultTypeAndLoinc = ({
                     >
                       <FormattedMessage id="test.additionalFields.addField" />
                     </Button>
+                    <div ref={additionalFieldsEndRef} />
                     {inactiveAdditionalFields.length > 0 && (
                       <div style={{ marginTop: "1rem" }}>
                         <Heading level={6} size="compact-01">

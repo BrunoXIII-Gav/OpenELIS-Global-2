@@ -15,10 +15,15 @@ import java.util.List;
 import java.util.Map;
 import java.util.Optional;
 import java.util.Set;
+import java.util.Comparator;
 import java.util.regex.Pattern;
 import java.util.stream.Collectors;
 import org.apache.commons.lang3.StringUtils;
 import org.openelisglobal.common.exception.LIMSRuntimeException;
+import org.openelisglobal.person.service.PersonService;
+import org.openelisglobal.person.valueholder.Person;
+import org.openelisglobal.provider.service.ProviderService;
+import org.openelisglobal.provider.valueholder.Provider;
 import org.openelisglobal.sample.bean.SampleTypeAdditionalFieldOptionPayload;
 import org.openelisglobal.sample.bean.SampleTypeAdditionalFieldPayload;
 import org.openelisglobal.sample.dao.SampleItemAdditionalFieldValueDAO;
@@ -28,6 +33,8 @@ import org.openelisglobal.sample.valueholder.SampleItemAdditionalFieldValue;
 import org.openelisglobal.sample.valueholder.SampleTypeAdditionalFieldDefinition;
 import org.openelisglobal.sample.valueholder.SampleTypeAdditionalFieldDefinition.FieldType;
 import org.openelisglobal.sample.valueholder.SampleTypeAdditionalFieldOption;
+import org.openelisglobal.systemuser.service.SystemUserService;
+import org.openelisglobal.systemuser.valueholder.SystemUser;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -42,7 +49,11 @@ public class SampleTypeAdditionalFieldServiceImpl implements SampleTypeAdditiona
     private static final DateTimeFormatter DATE_TIME_WITH_SPACE_SECONDS = DateTimeFormatter
             .ofPattern("yyyy-MM-dd HH:mm:ss");
 
-    private static final Set<FieldType> OPTION_TYPES = Set.of(FieldType.SELECT, FieldType.RADIO, FieldType.MULTISELECT);
+    private static final Set<FieldType> OPTION_TYPES = Set.of(FieldType.SELECT, FieldType.RADIO, FieldType.MULTISELECT,
+            FieldType.SYSTEM_USER_BIOLOGIST_SELECT);
+    private static final Set<FieldType> STATIC_OPTION_TYPES = Set.of(FieldType.SELECT, FieldType.RADIO,
+            FieldType.MULTISELECT);
+    private static final String BIOLOGIST_PROFILE_CODE = "BIOLOGIST";
 
     @Autowired
     private SampleTypeAdditionalFieldDefinitionDAO definitionDAO;
@@ -52,6 +63,15 @@ public class SampleTypeAdditionalFieldServiceImpl implements SampleTypeAdditiona
 
     @Autowired
     private SampleItemAdditionalFieldValueDAO valueDAO;
+
+    @Autowired
+    private SystemUserService systemUserService;
+
+    @Autowired
+    private PersonService personService;
+
+    @Autowired
+    private ProviderService providerService;
 
     @Override
     @Transactional(readOnly = true)
@@ -199,7 +219,7 @@ public class SampleTypeAdditionalFieldServiceImpl implements SampleTypeAdditiona
                     definition.setDisplaySection(normalizeDisplaySection(payload.getDisplaySection()));
             }
 
-            if (!isOptionFieldType(fieldType)) {
+            if (!isStaticOptionFieldType(fieldType)) {
                 List<SampleTypeAdditionalFieldOption> existingOptions = optionDAO.findByDefinitionId(fieldId, true);
                 for (SampleTypeAdditionalFieldOption option : existingOptions) {
                     option.setActive(false);
@@ -232,7 +252,7 @@ public class SampleTypeAdditionalFieldServiceImpl implements SampleTypeAdditiona
         definitionDAO.update(definition);
 
         if (payload.getOptions() != null && !payload.getOptions().isEmpty()
-                && isOptionFieldType(parseFieldType(definition.getFieldType()))) {
+                && isStaticOptionFieldType(parseFieldType(definition.getFieldType()))) {
             upsertOptionsForDefinition(definition.getId(), payload.getOptions(), currentUserId);
         }
 
@@ -422,7 +442,11 @@ public class SampleTypeAdditionalFieldServiceImpl implements SampleTypeAdditiona
         List<SampleTypeAdditionalFieldPayload> payloads = new ArrayList<>();
         for (SampleTypeAdditionalFieldDefinition definition : definitions) {
             SampleTypeAdditionalFieldPayload payload = mapDefinitionToPayload(definition);
-            payload.setOptions(optionsByDefinitionId.getOrDefault(definition.getId(), Collections.emptyList()));
+            if (isDynamicBiologistField(definition)) {
+                payload.setOptions(buildDynamicBiologistOptions());
+            } else {
+                payload.setOptions(optionsByDefinitionId.getOrDefault(definition.getId(), Collections.emptyList()));
+            }
             payloads.add(payload);
         }
         return payloads;
@@ -459,8 +483,12 @@ public class SampleTypeAdditionalFieldServiceImpl implements SampleTypeAdditiona
         SampleTypeAdditionalFieldDefinition definition = definitionDAO.get(fieldId)
                 .orElseThrow(() -> new IllegalArgumentException("Field definition not found: " + fieldId));
         SampleTypeAdditionalFieldPayload payload = mapDefinitionToPayload(definition);
-        List<SampleTypeAdditionalFieldOption> options = optionDAO.findByDefinitionId(fieldId, includeInactiveOptions);
-        payload.setOptions(options.stream().map(this::mapOptionToPayload).collect(Collectors.toList()));
+        if (isDynamicBiologistField(definition)) {
+            payload.setOptions(buildDynamicBiologistOptions());
+        } else {
+            List<SampleTypeAdditionalFieldOption> options = optionDAO.findByDefinitionId(fieldId, includeInactiveOptions);
+            payload.setOptions(options.stream().map(this::mapOptionToPayload).collect(Collectors.toList()));
+        }
         return payload;
     }
 
@@ -561,6 +589,71 @@ public class SampleTypeAdditionalFieldServiceImpl implements SampleTypeAdditiona
         return OPTION_TYPES.contains(fieldType);
     }
 
+    private boolean isStaticOptionFieldType(FieldType fieldType) {
+        return STATIC_OPTION_TYPES.contains(fieldType);
+    }
+
+    private boolean isDynamicBiologistField(SampleTypeAdditionalFieldDefinition definition) {
+        if (definition == null || StringUtils.isBlank(definition.getFieldType())) {
+            return false;
+        }
+        return FieldType.SYSTEM_USER_BIOLOGIST_SELECT.name().equalsIgnoreCase(definition.getFieldType().trim());
+    }
+
+    private List<SampleTypeAdditionalFieldOptionPayload> buildDynamicBiologistOptions() {
+        List<SystemUser> allUsers = systemUserService.getAllSystemUsers();
+        if (allUsers == null || allUsers.isEmpty()) {
+            return Collections.emptyList();
+        }
+
+        List<SampleTypeAdditionalFieldOptionPayload> options = new ArrayList<>();
+        int order = 1;
+        for (SystemUser user : allUsers) {
+            if (user == null || StringUtils.isBlank(user.getId()) || !isActiveSystemUser(user)) {
+                continue;
+            }
+
+            Provider linkedProvider = resolveLinkedProvider(user);
+            if (linkedProvider == null || !Boolean.TRUE.equals(linkedProvider.getActive())
+                    || !BIOLOGIST_PROFILE_CODE.equalsIgnoreCase(
+                            StringUtils.trimToEmpty(linkedProvider.getProfessionalProfileCode()))) {
+                continue;
+            }
+
+            String initials = StringUtils.defaultIfBlank(linkedProvider.getProfessionalInitials(), user.getInitials());
+
+            SampleTypeAdditionalFieldOptionPayload optionPayload = new SampleTypeAdditionalFieldOptionPayload();
+            optionPayload.setOptionKey(user.getId());
+            optionPayload.setOptionLabel(StringUtils.defaultIfBlank(initials, user.getLoginName()));
+            optionPayload.setSortOrder(order++);
+            optionPayload.setActive(true);
+            options.add(optionPayload);
+        }
+
+        options.sort(Comparator.comparing(option -> StringUtils.defaultString(option.getOptionLabel()),
+                String.CASE_INSENSITIVE_ORDER));
+        for (int index = 0; index < options.size(); index++) {
+            options.get(index).setSortOrder(index + 1);
+        }
+        return options;
+    }
+
+    private boolean isActiveSystemUser(SystemUser user) {
+        String activeFlag = StringUtils.upperCase(StringUtils.trimToEmpty(user.getIsActive()));
+        return "Y".equals(activeFlag) || "YES".equals(activeFlag) || "TRUE".equals(activeFlag);
+    }
+
+    private Provider resolveLinkedProvider(SystemUser user) {
+        if (user == null || StringUtils.isBlank(user.getLinkedProviderPersonId())) {
+            return null;
+        }
+        Person person = personService.getPersonById(user.getLinkedProviderPersonId());
+        if (person == null) {
+            return null;
+        }
+        return providerService.getProviderByPerson(person);
+    }
+
     private Integer getNextSortOrder(Integer sampleTypeId) {
         List<SampleTypeAdditionalFieldDefinition> existing = definitionDAO.findBySampleTypeId(sampleTypeId, true);
         return existing.stream().map(SampleTypeAdditionalFieldDefinition::getSortOrder).filter(value -> value != null)
@@ -575,7 +668,7 @@ public class SampleTypeAdditionalFieldServiceImpl implements SampleTypeAdditiona
 
     private void saveOptionsForDefinition(Integer definitionId, List<SampleTypeAdditionalFieldOptionPayload> options,
             FieldType fieldType, String currentUserId) {
-        if (!isOptionFieldType(fieldType) || options == null || options.isEmpty()) {
+        if (!isStaticOptionFieldType(fieldType) || options == null || options.isEmpty()) {
             return;
         }
 
@@ -680,6 +773,7 @@ public class SampleTypeAdditionalFieldServiceImpl implements SampleTypeAdditiona
             return trimmedValue.toLowerCase();
         case SELECT:
         case RADIO:
+        case SYSTEM_USER_BIOLOGIST_SELECT:
             validateSingleOption(fieldDefinition, trimmedValue);
             return trimmedValue;
         case MULTISELECT:

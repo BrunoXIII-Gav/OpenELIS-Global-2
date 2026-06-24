@@ -531,6 +531,10 @@ const SampleTypeAdditionalFields = () => {
                         <SelectItem value="SELECT" text="SELECT" />
                         <SelectItem value="MULTISELECT" text="MULTISELECT" />
                         <SelectItem value="RADIO" text="RADIO" />
+                        <SelectItem
+                          value="SYSTEM_USER_BIOLOGIST_SELECT"
+                          text="SYSTEM_USER_BIOLOGIST_SELECT"
+                        />
                       </Select>
                     </Column>
                     <Column lg={4} md={4} sm={4}>
