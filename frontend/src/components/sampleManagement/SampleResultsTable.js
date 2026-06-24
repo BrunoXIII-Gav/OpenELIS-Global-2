@@ -175,9 +175,24 @@ function SampleResultsTable({
   const toDateInputValue = (value) => {
     if (!value) return "";
     if (typeof value === "string" && value.includes("/")) {
-      const [month, day, year] = value.split("/");
-      if (month && day && year) {
-        return `${year}-${String(month).padStart(2, "0")}-${String(day).padStart(2, "0")}`;
+      const parts = value.split("/").map((part) => part.trim());
+      if (parts.length >= 3) {
+        const [first, second, year] = parts;
+        const firstNum = Number(first);
+        const secondNum = Number(second);
+        const yearNum = Number(year);
+
+        if (
+          Number.isInteger(firstNum) &&
+          Number.isInteger(secondNum) &&
+          Number.isInteger(yearNum)
+        ) {
+          // Backend dates are typically dd/MM/yyyy in this locale, but we also
+          // keep the legacy MM/dd/yyyy path working for older records.
+          const day = firstNum > 12 || secondNum <= 12 ? firstNum : secondNum;
+          const month = firstNum > 12 || secondNum <= 12 ? secondNum : firstNum;
+          return `${String(yearNum).padStart(4, "0")}-${String(month).padStart(2, "0")}-${String(day).padStart(2, "0")}`;
+        }
       }
     }
     if (typeof value === "string") {
