@@ -158,7 +158,7 @@ const SearchForm = (props) => {
     getFromOpenElisServer(url + "&page=" + previousPage, validationResults);
   };
   const fetchTestSections = (response) => {
-    setTestSections(response);
+    setTestSections(Array.isArray(response) ? response : []);
   };
 
   const submitOnSelect = (e) => {
@@ -199,13 +199,16 @@ const SearchForm = (props) => {
         getFromOpenElisServer(
           "/rest/user-test-sections/" + Roles.VALIDATION,
           (fetchedTestSections) => {
-            let testSection = fetchedTestSections.find(
+            const safeTestSections = Array.isArray(fetchedTestSections)
+              ? fetchedTestSections
+              : [];
+            let testSection = safeTestSections.find(
               (testSection) => testSection.id === testSectionId,
             );
             let testSectionLabel = testSection ? testSection.value : "";
             setDefaultTestSectionId(testSectionId);
             setDefaultTestSectionLabel(testSectionLabel);
-            fetchTestSections(fetchedTestSections);
+            fetchTestSections(safeTestSections);
           },
         );
         if (testSectionId) {

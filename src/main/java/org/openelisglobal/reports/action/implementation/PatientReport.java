@@ -35,6 +35,7 @@ import org.openelisglobal.address.valueholder.AddressPart;
 import org.openelisglobal.address.valueholder.PersonAddress;
 import org.openelisglobal.analysis.service.AnalysisService;
 import org.openelisglobal.analysis.valueholder.Analysis;
+import org.openelisglobal.common.constants.Constants;
 import org.openelisglobal.common.exception.LIMSRuntimeException;
 import org.openelisglobal.common.formfields.FormFields;
 import org.openelisglobal.common.formfields.FormFields.Field;
@@ -370,6 +371,21 @@ public abstract class PatientReport extends Report {
             return false;
         }
         return requestedAnalysisIds.isEmpty() || requestedAnalysisIds.contains(analysis.getId());
+    }
+
+    protected List<Analysis> filterAnalysesForReportAccess(List<Analysis> analysisList) {
+        if (analysisList == null || analysisList.isEmpty()) {
+            return analysisList == null ? new ArrayList<>() : analysisList;
+        }
+
+        // When a secured workflow passes explicit analysis IDs, do not re-empty the
+        // report with the legacy Reports role filter.
+        if (!requestedAnalysisIds.isEmpty()) {
+            return analysisList.stream().filter(this::shouldIncludeAnalysisForRequestedReport)
+                    .collect(Collectors.toList());
+        }
+
+        return userService.filterAnalysesByLabUnitRoles(systemUserId, analysisList, Constants.ROLE_REPORTS);
     }
 
     private boolean isFinalizedForReport(Analysis analysis) {

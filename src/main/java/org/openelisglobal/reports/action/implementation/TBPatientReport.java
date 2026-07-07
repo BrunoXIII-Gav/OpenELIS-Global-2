@@ -101,8 +101,7 @@ public class TBPatientReport extends PatientReport implements IReportCreator, IR
         boolean isConfirmationSample = sampleService.isConfirmationSample(currentSample);
         List<Analysis> analysisList = analysisService
                 .getAnalysesBySampleIdAndStatusId(sampleService.getId(currentSample), analysisStatusIds);
-        List<Analysis> filteredAnalysisList = userService.filterAnalysesByLabUnitRoles(systemUserId, analysisList,
-                Constants.ROLE_REPORTS);
+        List<Analysis> filteredAnalysisList = filterAnalysesForReportAccess(analysisList);
         List<ClinicalPatientData> currentSampleReportItems = new ArrayList<>(filteredAnalysisList.size());
         currentConclusion = null;
         for (Analysis analysis : filteredAnalysisList) {

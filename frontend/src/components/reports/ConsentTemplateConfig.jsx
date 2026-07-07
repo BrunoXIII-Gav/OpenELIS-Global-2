@@ -129,7 +129,7 @@ const ConsentTemplateConfig = () => {
   };
 
   return (
-    <div className="consent-template-config-page">
+    <div className="adminPageContent consent-template-config-page">
       <header className="consent-template-config-header">
         <h1>
           <FormattedMessage id="consent.template.config.title" />

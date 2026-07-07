@@ -86,8 +86,7 @@ public class PatientClinicalReport extends PatientReport implements IReportCreat
         List<Analysis> analysisList = analysisService
                 .getAnalysesBySampleIdAndStatusId(sampleService.getId(currentSample), analysisStatusIds);
 
-        List<Analysis> filteredAnalysisList = userService.filterAnalysesByLabUnitRoles(systemUserId, analysisList,
-                Constants.ROLE_REPORTS);
+        List<Analysis> filteredAnalysisList = filterAnalysesForReportAccess(analysisList);
         currentConclusion = null;
         Set<SampleItem> sampleSet = new HashSet<>();
         List<ClinicalPatientData> currentSampleReportItems = new ArrayList<>(filteredAnalysisList.size());
