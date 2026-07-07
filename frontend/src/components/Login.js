@@ -20,7 +20,7 @@ import { Formik } from "formik";
 import { AlertDialog, NotificationKinds } from "./common/CustomNotification";
 import UserSessionDetailsContext from "../UserSessionDetailsContext";
 import { ConfigurationContext, NotificationContext } from "./layout/Layout";
-import { getBranding } from "./utils/BrandingUtils";
+import { getBranding, getLoginLogoSrc } from "./utils/BrandingUtils";
 
 function Login(props) {
   const { notificationVisible, addNotification, setNotificationVisible } =
@@ -30,9 +30,11 @@ function Login(props) {
   const { userSessionDetails, refresh } = useContext(UserSessionDetailsContext);
   const [submitting, setSubmitting] = useState(false);
   const [samlRedirectInitiated, setSamlRedirectInitiated] = useState(false);
-  const [loginLogoUrl, setLoginLogoUrl] = useState(null);
+  const [brandingState, setBrandingState] = useState({
+    loaded: false,
+    data: null,
+  });
   const [logoVersion, setLogoVersion] = useState(0); // Version counter for cache-busting
-  const [showLoginNotice, setShowLoginNotice] = useState(true);
   const firstInput = createRef();
 
   // Auto-redirect to SAML if configured to bypass login page
@@ -72,15 +74,16 @@ function Login(props) {
   useEffect(() => {
     getBranding((response) => {
       if (response) {
-        setShowLoginNotice(response.showLoginNotice !== false);
-        // Check useHeaderLogoForLogin flag
-        if (response.useHeaderLogoForLogin && response.headerLogoUrl) {
-          setLoginLogoUrl(response.headerLogoUrl);
-          setLogoVersion((prev) => prev + 1);
-        } else if (response.loginLogoUrl) {
-          setLoginLogoUrl(response.loginLogoUrl);
-          setLogoVersion((prev) => prev + 1);
-        }
+        setBrandingState({ loaded: true, data: response });
+        setLogoVersion((prev) => prev + 1);
+      } else {
+        setBrandingState({
+          loaded: true,
+          data: {
+            showLoginLogo: true,
+            showLoginNotice: true,
+          },
+        });
       }
     });
   }, []);
@@ -96,28 +99,31 @@ function Login(props) {
   };
 
   const loginMessage = () => {
-    // Add cache-busting parameter to prevent stale logo display after upload
-    const logoSrc = loginLogoUrl
-      ? `${config.serverBaseUrl}${loginLogoUrl}?v=${logoVersion}`
-      : `images/openelis_logo_full.png`;
+    const logoSrc = brandingState.loaded
+      ? getLoginLogoSrc(brandingState.data, logoVersion)
+      : null;
+    const showLoginNotice =
+      brandingState.loaded && brandingState.data?.showLoginNotice !== false;
 
     return (
       <>
         <Column lg={6} md={0} sm={0} />
         <Column lg={4} md={8} sm={4}>
-          <picture>
-            <img
-              src={logoSrc}
-              alt="fullsize logo"
-              width="300"
-              height="56"
-              style={{ objectFit: "contain" }}
-              onError={(e) => {
-                // Fallback to default logo if custom logo fails to load
-                e.target.src = `images/openelis_logo_full.png`;
-              }}
-            />
-          </picture>
+          {logoSrc && (
+            <picture>
+              <img
+                src={logoSrc}
+                alt="fullsize logo"
+                width="300"
+                height="56"
+                style={{ objectFit: "contain" }}
+                onError={(e) => {
+                  // Fallback to default logo if custom logo fails to load
+                  e.target.src = `images/openelis_logo_full.png`;
+                }}
+              />
+            </picture>
+          )}
         </Column>
         <Column lg={6} md={0} sm={0} />
         {showLoginNotice && (

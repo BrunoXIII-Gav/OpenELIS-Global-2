@@ -24,6 +24,9 @@ jest.mock("../../../../utils/BrandingUtils", () => ({
   getBranding: jest.fn(),
   updateBranding: jest.fn(),
   resetBranding: jest.fn(),
+  applyFavicon: jest.fn(),
+  applyFaviconHref: jest.fn(),
+  clearFavicons: jest.fn(),
 }));
 
 // ========== IMPORTS (Standard order - MANDATORY) ==========

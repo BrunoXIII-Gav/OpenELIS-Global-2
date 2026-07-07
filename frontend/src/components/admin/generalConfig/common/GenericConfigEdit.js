@@ -286,14 +286,18 @@ const GenericConfigEdit = ({ menuType, ID }) => {
                     <Column lg={3} md={6} sm={3}>
                       {!removeImage && (
                         <FileUploader
-                          buttonLabel="Choose file"
+                          buttonLabel={intl.formatMessage({
+                            id: "admin.page.configuration.formEntryConfigMenu.chooseFile",
+                          })}
                           buttonKind="primary"
                           size="sm"
                           filenameStatus="edit"
                           accept={[".jpg", ".png", ".gif"]}
                           multiple={false}
                           disabled={false}
-                          iconDescription="Delete file"
+                          iconDescription={intl.formatMessage({
+                            id: "admin.page.configuration.formEntryConfigMenu.deleteFile",
+                          })}
                           onChange={handleFileUpload}
                         />
                       )}
@@ -316,7 +320,9 @@ const GenericConfigEdit = ({ menuType, ID }) => {
                   <Grid>
                     <Column lg={3}>
                       <Checkbox
-                        labelText={`Remove Image`}
+                        labelText={intl.formatMessage({
+                          id: "admin.page.configuration.formEntryConfigMenu.removeImage",
+                        })}
                         id="checkbox-label-1"
                         checked={removeImage}
                         onChange={() => {

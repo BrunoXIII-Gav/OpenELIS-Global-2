@@ -30,14 +30,23 @@ public class SiteBranding extends BaseObject<Integer> {
     @Column(name = "header_logo_path", length = 500)
     private String headerLogoPath;
 
+    @Column(name = "show_header_logo", nullable = false)
+    private Boolean showHeaderLogo = true;
+
     @Column(name = "login_logo_path", length = 500)
     private String loginLogoPath;
+
+    @Column(name = "show_login_logo", nullable = false)
+    private Boolean showLoginLogo = true;
 
     @Column(name = "use_header_logo_for_login", nullable = false)
     private Boolean useHeaderLogoForLogin = false;
 
     @Column(name = "favicon_path", length = 500)
     private String faviconPath;
+
+    @Column(name = "show_favicon", nullable = false)
+    private Boolean showFavicon = true;
 
     /** Header bar background color - defaults to OpenELIS brand color */
     @Column(name = "header_color", length = 50, nullable = false)
@@ -103,12 +112,28 @@ public class SiteBranding extends BaseObject<Integer> {
         this.headerLogoPath = headerLogoPath;
     }
 
+    public Boolean getShowHeaderLogo() {
+        return showHeaderLogo;
+    }
+
+    public void setShowHeaderLogo(Boolean showHeaderLogo) {
+        this.showHeaderLogo = showHeaderLogo;
+    }
+
     public String getLoginLogoPath() {
         return loginLogoPath;
     }
 
     public void setLoginLogoPath(String loginLogoPath) {
         this.loginLogoPath = loginLogoPath;
+    }
+
+    public Boolean getShowLoginLogo() {
+        return showLoginLogo;
+    }
+
+    public void setShowLoginLogo(Boolean showLoginLogo) {
+        this.showLoginLogo = showLoginLogo;
     }
 
     public Boolean getUseHeaderLogoForLogin() {
@@ -125,6 +150,14 @@ public class SiteBranding extends BaseObject<Integer> {
 
     public void setFaviconPath(String faviconPath) {
         this.faviconPath = faviconPath;
+    }
+
+    public Boolean getShowFavicon() {
+        return showFavicon;
+    }
+
+    public void setShowFavicon(Boolean showFavicon) {
+        this.showFavicon = showFavicon;
     }
 
     public String getPrimaryColor() {

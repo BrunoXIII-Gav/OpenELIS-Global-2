@@ -110,7 +110,10 @@ public class SiteBrandingRestControllerTest extends BaseWebContextSensitiveTest 
         mockMvc.perform(get("/rest/site-branding/").contentType(MediaType.APPLICATION_JSON)).andExpect(status().isOk())
                 .andExpect(jsonPath("$.primaryColor").value("#0f62fe"))
                 .andExpect(jsonPath("$.secondaryColor").value("#393939"))
-                .andExpect(jsonPath("$.headerColor").value("#295785"));
+                .andExpect(jsonPath("$.headerColor").value("#295785"))
+                .andExpect(jsonPath("$.showHeaderLogo").value(true))
+                .andExpect(jsonPath("$.showLoginLogo").value(true))
+                .andExpect(jsonPath("$.showFavicon").value(true));
     }
 
     /**
@@ -151,7 +154,10 @@ public class SiteBrandingRestControllerTest extends BaseWebContextSensitiveTest 
         form.setSecondaryColor("#00ff00");
         form.setHeaderColor("#0000ff");
         form.setColorMode("light");
+        form.setShowHeaderLogo(false);
+        form.setShowLoginLogo(false);
         form.setUseHeaderLogoForLogin(false);
+        form.setShowFavicon(false);
 
         String requestBody = objectMapper.writeValueAsString(form);
 
@@ -160,7 +166,10 @@ public class SiteBrandingRestControllerTest extends BaseWebContextSensitiveTest 
         mockMvc.perform(put("/rest/site-branding/").contentType(MediaType.APPLICATION_JSON).content(requestBody))
                 .andExpect(status().isOk()).andExpect(jsonPath("$.primaryColor").value("#ff0000"))
                 .andExpect(jsonPath("$.secondaryColor").value("#00ff00"))
-                .andExpect(jsonPath("$.headerColor").value("#0000ff"));
+                .andExpect(jsonPath("$.headerColor").value("#0000ff"))
+                .andExpect(jsonPath("$.showHeaderLogo").value(false))
+                .andExpect(jsonPath("$.showLoginLogo").value(false))
+                .andExpect(jsonPath("$.showFavicon").value(false));
     }
 
     /**
@@ -532,7 +541,10 @@ public class SiteBrandingRestControllerTest extends BaseWebContextSensitiveTest 
                 .andExpect(jsonPath("$.loginLogoUrl").doesNotExist()).andExpect(jsonPath("$.faviconUrl").doesNotExist())
                 .andExpect(jsonPath("$.headerColor").value("#295785")) // Default header color
                 .andExpect(jsonPath("$.primaryColor").value("#0f62fe")) // Default primary color
-                .andExpect(jsonPath("$.secondaryColor").value("#393939")); // Default secondary color
+                .andExpect(jsonPath("$.secondaryColor").value("#393939")) // Default secondary color
+                .andExpect(jsonPath("$.showHeaderLogo").value(true))
+                .andExpect(jsonPath("$.showLoginLogo").value(true))
+                .andExpect(jsonPath("$.showFavicon").value(true));
 
         // Verify files were deleted
         assertFalse("Header logo file should be deleted", Files.exists(Paths.get(headerPath)));

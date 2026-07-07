@@ -509,21 +509,22 @@ const HomeDashBoard: React.FC<DashBoardProps> = () => {
 
   const viewUserOrders = (row) => {
     console.log("Icon clicked!");
-    const firstName = row.cells.find(
+    const rowCells = Array.isArray(row?.cells) ? row.cells : [];
+    const firstName = rowCells.find(
       (e) => e.info.header === "userFirstName",
-    ).value;
-    const lastName = row.cells.find(
+    )?.value;
+    const lastName = rowCells.find(
       (e) => e.info.header === "userLastName",
-    ).value;
-    const value = row.cells.find(
+    )?.value;
+    const value = rowCells.find(
       (e) => e.info.header === "countOfOrdersEntered",
-    ).value;
+    )?.value;
 
     const tile: Tile = {
       title: <FormattedMessage id="dashboard.user.orders.today.label" />,
-      subTitle: firstName + " " + lastName,
+      subTitle: `${firstName || ""} ${lastName || ""}`.trim(),
       type: "ORDERS_FOR_USER",
-      value: value,
+      value: value || 0,
       id: row.id,
     };
     setSelectedTile(tile);
