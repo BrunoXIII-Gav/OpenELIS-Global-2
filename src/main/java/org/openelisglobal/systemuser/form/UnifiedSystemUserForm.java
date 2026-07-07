@@ -60,6 +60,9 @@ public class UnifiedSystemUserForm extends BaseForm {
     private List<DisplayRole> labUnitRoles;
 
     // for display
+    private List<DisplayRole> customRoles;
+
+    // for display
     private List<IdValuePair> testSections;
 
     // for display
@@ -81,6 +84,8 @@ public class UnifiedSystemUserForm extends BaseForm {
     private List<String> selectedLabUnitRoles;
 
     private List<@Pattern(regexp = ValidationHelper.ID_REGEX) String> selectedRoles;
+
+    private List<@Pattern(regexp = ValidationHelper.ID_REGEX) String> selectedCustomRoleIds;
 
     @NotBlank
     @ValidDate(relative = DateRelation.FUTURE)
@@ -231,12 +236,28 @@ public class UnifiedSystemUserForm extends BaseForm {
         this.labUnitRoles = labUnitRoles;
     }
 
+    public List<DisplayRole> getCustomRoles() {
+        return customRoles;
+    }
+
+    public void setCustomRoles(List<DisplayRole> customRoles) {
+        this.customRoles = customRoles;
+    }
+
     public List<String> getSelectedRoles() {
         return selectedRoles;
     }
 
     public void setSelectedRoles(List<String> selectedRoles) {
         this.selectedRoles = selectedRoles;
+    }
+
+    public List<String> getSelectedCustomRoleIds() {
+        return selectedCustomRoleIds;
+    }
+
+    public void setSelectedCustomRoleIds(List<String> selectedCustomRoleIds) {
+        this.selectedCustomRoleIds = selectedCustomRoleIds;
     }
 
     public String getExpirationDate() {

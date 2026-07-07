@@ -12,8 +12,10 @@ import java.util.Collections;
 import java.util.Comparator;
 import java.util.HashMap;
 import java.util.HashSet;
+import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Map;
+import java.util.Objects;
 import java.util.Set;
 import java.util.stream.Collectors;
 import org.apache.commons.lang3.StringUtils;
@@ -35,9 +37,11 @@ import org.openelisglobal.common.validator.BaseErrors;
 import org.openelisglobal.login.dao.UserModuleService;
 import org.openelisglobal.login.service.LoginUserService;
 import org.openelisglobal.login.valueholder.LoginUser;
+import org.openelisglobal.person.valueholder.Person;
 import org.openelisglobal.provider.service.ProviderService;
 import org.openelisglobal.provider.valueholder.Provider;
 import org.openelisglobal.role.action.bean.DisplayRole;
+import org.openelisglobal.role.service.CustomRoleDefinitionService;
 import org.openelisglobal.role.service.RoleService;
 import org.openelisglobal.role.valueholder.Role;
 import org.openelisglobal.systemuser.form.UnifiedSystemUserForm;
@@ -81,8 +85,8 @@ public class UnifiedSystemUserRestController extends BaseController {
     private static final String[] ALLOWED_FIELDS = new String[] { "systemUserId", "loginUserId", "userLoginName",
             "userPassword", "confirmPassword", "userFirstName", "userLastName", "expirationDate", "timeout",
             "accountLocked", "accountDisabled", "accountActive", "selectedRoles*", "selectedLabUnitRoles",
-            "testSectionId", "systemUsers", "systemUserIdToCopy", "allowCopyUserRoles", "linkedProviderPersonId",
-            "professionalProfileCode", "signatureImageData", "signatureImageContentType" };
+            "selectedCustomRoleIds*", "testSectionId", "systemUsers", "systemUserIdToCopy", "allowCopyUserRoles",
+            "linkedProviderPersonId", "professionalProfileCode", "signatureImageData", "signatureImageContentType" };
 
     @Autowired
     private UnifiedSystemUserFormValidator formValidator;
@@ -93,6 +97,8 @@ public class UnifiedSystemUserRestController extends BaseController {
     private RoleService roleService;
     @Autowired
     private UserRoleService userRoleService;
+    @Autowired
+    private CustomRoleDefinitionService customRoleDefinitionService;
     @Autowired
     private SystemUserService systemUserService;
     @Autowired
@@ -222,6 +228,7 @@ public class UnifiedSystemUserRestController extends BaseController {
                 .filter(role -> role.getParentRole().equals(labUnitRoleId)).collect(Collectors.toList());
         form.setGlobalRoles(globalRoles);
         form.setLabUnitRoles(labUnitRoles);
+        form.setCustomRoles(convertToDisplayRoles(customRoleDefinitionService.getCustomRoles()));
     }
 
     private List<DisplayRole> convertToDisplayRoles(List<Role> roles) {
@@ -416,10 +423,15 @@ public class UnifiedSystemUserRestController extends BaseController {
             List<String> globalRoleIds = getAllRoles().stream().filter(role -> role.getGroupingParent() != null)
                     .filter(role -> role.getGroupingParent().equals(globalParentRoleId)).map(role -> role.getId())
                     .collect(Collectors.toList());
+            List<String> customRoleIds = customRoleDefinitionService.getCustomRoles().stream().map(Role::getId)
+                    .collect(Collectors.toList());
             List<String> globalSelectedRoleIds = roleIds.stream().filter(role -> globalRoleIds.contains(role))
+                    .collect(Collectors.toList());
+            List<String> selectedCustomRoleIds = roleIds.stream().filter(role -> customRoleIds.contains(role))
                     .collect(Collectors.toList());
             setLabunitRolesForExistingUser(form);
             form.setSelectedRoles(globalSelectedRoleIds);
+            form.setSelectedCustomRoleIds(selectedCustomRoleIds);
             // is this meant to be returned?
 //            doFiltering = !roleIds.contains(MAINTENANCE_ADMIN_ID);
         }
@@ -465,7 +477,13 @@ public class UnifiedSystemUserRestController extends BaseController {
     }
 
     private List<Role> getAllRoles() {
-        return roleService.getAllActiveRoles();
+        return roleService.getAllActiveRoles().stream().filter(this::isVisibleRole).toList();
+    }
+
+    private boolean isVisibleRole(Role role) {
+        String roleName = role == null ? null : role.getName();
+        return !Constants.ROLE_VALIDATION_BIOLOGIST.equals(roleName)
+                && !Constants.ROLE_VALIDATION_MEDICAL.equals(roleName);
     }
 
     @PostMapping(value = "/UnifiedSystemUser")
@@ -534,23 +552,35 @@ public class UnifiedSystemUserRestController extends BaseController {
         }
 
         String loggedOnUserId = getSysUserId(request);
+        List<String> selectedCustomRoleIds = normalizedRoleIds(form.getSelectedCustomRoleIds());
+        List<String> derivedCustomPermissionRoleIds = selectedCustomRoleIds.stream()
+                .flatMap(roleId -> customRoleDefinitionService.getPermissionRoleIdsForCustomRole(roleId).stream())
+                .collect(Collectors.toList());
+        List<String> effectiveGlobalRoles = new ArrayList<>();
+        effectiveGlobalRoles.addAll(normalizedRoleIds(form.getSelectedRoles()));
+        effectiveGlobalRoles.addAll(selectedCustomRoleIds);
+        effectiveGlobalRoles.addAll(getGlobalRoleIds(derivedCustomPermissionRoleIds));
 
         LoginUser loginUser = createLoginUser(form, loginUserId, loginUserNew, passwordUpdated, loggedOnUserId);
         SystemUser systemUser = createSystemUser(form, systemUserId, systemUserNew, loggedOnUserId);
         try {
             if (form.getAllowCopyUserRoles().equals(NO)) {
-                userService.updateLoginUser(loginUser, loginUserNew, systemUser, systemUserNew, form.getSelectedRoles(),
-                        loggedOnUserId);
-                saveUserLabUnitRoles(systemUser, form, loggedOnUserId);
+                userService.updateLoginUser(loginUser, loginUserNew, systemUser, systemUserNew,
+                        deduplicateRoleIds(effectiveGlobalRoles), loggedOnUserId);
+                saveUserLabUnitRoles(systemUser, form, loggedOnUserId, selectedCustomRoleIds,
+                        derivedCustomPermissionRoleIds);
             } else if (form.getAllowCopyUserRoles().equals(YES)) {
                 if (StringUtils.isNotBlank(form.getSystemUserIdToCopy().trim())) {
                     String globalParentRoleId = roleService.getRoleByName(Constants.GLOBAL_ROLES_GROUP).getId();
                     List<String> globaRolesIds = getAllRoles().stream().filter(role -> role.getGroupingParent() != null)
                             .filter(role -> role.getGroupingParent().equals(globalParentRoleId))
                             .map(role -> role.getId()).collect(Collectors.toList());
+                    List<String> customRoleIds = customRoleDefinitionService.getCustomRoles().stream().map(Role::getId)
+                            .collect(Collectors.toList());
                     List<String> copiedRoleIds = userRoleService.getRoleIdsForUser(form.getSystemUserIdToCopy().trim());
                     List<String> globalCopiedRoleIds = copiedRoleIds.stream()
-                            .filter(role -> globaRolesIds.contains(role)).collect(Collectors.toList());
+                            .filter(role -> globaRolesIds.contains(role) || customRoleIds.contains(role))
+                            .collect(Collectors.toList());
 
                     userService.updateLoginUser(loginUser, loginUserNew, systemUser, systemUserNew, globalCopiedRoleIds,
                             loggedOnUserId);
@@ -658,11 +688,7 @@ public class UnifiedSystemUserRestController extends BaseController {
             return;
         }
 
-        Provider linkedProvider = providerService.getAllActiveProviders().stream()
-                .filter(provider -> provider.getPerson() != null)
-                .filter(provider -> linkedProviderPersonId.equals(provider.getPerson().getId()))
-                .findFirst()
-                .orElse(null);
+        Provider linkedProvider = findLinkedActiveProvider(linkedProviderPersonId);
 
         if (linkedProvider == null) {
             return;
@@ -712,16 +738,30 @@ public class UnifiedSystemUserRestController extends BaseController {
             systemUser = systemUserService.get(systemUserId);
         }
 
-        systemUser.setFirstName(form.getUserFirstName());
-        systemUser.setLastName(form.getUserLastName());
+        String linkedProviderPersonId = StringUtils.trimToNull(form.getLinkedProviderPersonId());
+        Provider linkedProvider = findLinkedActiveProvider(linkedProviderPersonId);
+        String resolvedFirstName = StringUtils.trimToNull(form.getUserFirstName());
+        String resolvedLastName = StringUtils.trimToNull(form.getUserLastName());
+
+        if (linkedProvider != null && linkedProvider.getPerson() != null) {
+            Person linkedPerson = linkedProvider.getPerson();
+            resolvedFirstName = StringUtils.defaultIfBlank(
+                    StringUtils.trimToNull(linkedPerson.getFirstName()), resolvedFirstName);
+            resolvedLastName = StringUtils.defaultIfBlank(
+                    StringUtils.trimToNull(linkedPerson.getLastName()), resolvedLastName);
+        }
+
+        systemUser.setFirstName(resolvedFirstName);
+        systemUser.setLastName(resolvedLastName);
         systemUser.setLoginName(form.getUserLoginName());
         systemUser.setIsActive(form.getAccountActive());
         systemUser.setIsEmployee("Y");
         systemUser.setExternalId("1");
-        String initial = systemUser.getFirstName().substring(0, 1) + systemUser.getLastName().substring(0, 1);
+        String initial = StringUtils.substring(StringUtils.defaultString(systemUser.getFirstName()), 0, 1)
+                + StringUtils.substring(StringUtils.defaultString(systemUser.getLastName()), 0, 1);
         systemUser.setInitials(initial);
-        systemUser.setLinkedProviderPersonId(StringUtils.trimToNull(form.getLinkedProviderPersonId()));
-        systemUser.setProfessionalProfileCode(resolveUserProfessionalProfileCode(form));
+        systemUser.setLinkedProviderPersonId(linkedProviderPersonId);
+        systemUser.setProfessionalProfileCode(resolveUserProfessionalProfileCode(form, linkedProvider));
         systemUser.setSignatureImageData(StringUtils.trimToNull(form.getSignatureImageData()));
         systemUser.setSignatureImageContentType(StringUtils.trimToNull(form.getSignatureImageContentType()));
         systemUser.setSysUserId(loggedOnUserId);
@@ -729,22 +769,28 @@ public class UnifiedSystemUserRestController extends BaseController {
         return systemUser;
     }
 
-    private String resolveUserProfessionalProfileCode(UnifiedSystemUserForm form) {
+    private String resolveUserProfessionalProfileCode(UnifiedSystemUserForm form, Provider linkedProvider) {
         String selectedProfileCode = StringUtils.trimToNull(form.getProfessionalProfileCode());
         if (selectedProfileCode != null) {
             return selectedProfileCode;
         }
 
-        String linkedProviderPersonId = StringUtils.trimToNull(form.getLinkedProviderPersonId());
-        if (linkedProviderPersonId == null) {
+        if (linkedProvider == null) {
+            return null;
+        }
+
+        return StringUtils.trimToNull(linkedProvider.getProfessionalProfileCode());
+    }
+
+    private Provider findLinkedActiveProvider(String linkedProviderPersonId) {
+        String normalizedPersonId = StringUtils.trimToNull(linkedProviderPersonId);
+        if (normalizedPersonId == null) {
             return null;
         }
 
         return providerService.getAllActiveProviders().stream()
                 .filter(provider -> provider.getPerson() != null)
-                .filter(provider -> linkedProviderPersonId.equals(provider.getPerson().getId()))
-                .map(Provider::getProfessionalProfileCode)
-                .map(StringUtils::trimToNull)
+                .filter(provider -> normalizedPersonId.equals(provider.getPerson().getId()))
                 .findFirst()
                 .orElse(null);
     }
@@ -754,10 +800,66 @@ public class UnifiedSystemUserRestController extends BaseController {
         request.setAttribute(NEXT_DISABLED, TRUE);
     }
 
-    private void saveUserLabUnitRoles(SystemUser user, UnifiedSystemUserForm form, String loggedOnUserId) {
-        Map<String, Set<String>> selectedLabUnitRolesMap = form.getSelectedTestSectionLabUnits();
+    private void saveUserLabUnitRoles(SystemUser user, UnifiedSystemUserForm form, String loggedOnUserId,
+            List<String> selectedCustomRoleIds, List<String> derivedCustomPermissionRoleIds) {
+        Map<String, Set<String>> selectedLabUnitRolesMap = new HashMap<>(form.getSelectedTestSectionLabUnits());
+        mergeCustomLabRoles(selectedLabUnitRolesMap, selectedCustomRoleIds, derivedCustomPermissionRoleIds);
 
         userService.saveUserLabUnitRoles(user, selectedLabUnitRolesMap, loggedOnUserId);
+    }
+
+    private void mergeCustomLabRoles(Map<String, Set<String>> selectedLabUnitRolesMap, List<String> selectedCustomRoleIds,
+            List<String> permissionRoleIds) {
+        List<String> labRoleIds = getLabUnitRoleIds(permissionRoleIds);
+        if (labRoleIds.isEmpty()) {
+            return;
+        }
+
+        Map<String, List<String>> customRoleLabUnitScopes = customRoleDefinitionService
+                .getApplicableLabUnitIdsForCustomRoles(selectedCustomRoleIds);
+        Map<String, List<String>> customRolePermissionMap = customRoleDefinitionService
+                .getPermissionRoleIdsForCustomRoles(selectedCustomRoleIds);
+
+        selectedCustomRoleIds.forEach(customRoleId -> {
+            List<String> scopedLabUnits = customRoleLabUnitScopes.getOrDefault(customRoleId, List.of());
+            List<String> scopedLabRoleIds = getLabUnitRoleIds(
+                    customRolePermissionMap.getOrDefault(customRoleId, List.of()));
+            if (scopedLabRoleIds.isEmpty()) {
+                return;
+            }
+            if (scopedLabUnits.isEmpty()) {
+                scopedLabUnits = List.of(ALL_LAB_UNITS);
+            }
+            scopedLabUnits.forEach(labUnitId -> {
+                Set<String> currentRoleIds = new HashSet<>(
+                        selectedLabUnitRolesMap.getOrDefault(labUnitId, new HashSet<>()));
+                currentRoleIds.addAll(scopedLabRoleIds);
+                selectedLabUnitRolesMap.put(labUnitId, currentRoleIds);
+            });
+        });
+    }
+
+    private List<String> getGlobalRoleIds(List<String> roleIds) {
+        String globalParentRoleId = roleService.getRoleByName(Constants.GLOBAL_ROLES_GROUP).getId();
+        return normalizedRoleIds(roleIds).stream().map(roleService::getRoleById).filter(Objects::nonNull)
+                .filter(role -> globalParentRoleId.equals(role.getGroupingParent())).map(Role::getId).toList();
+    }
+
+    private List<String> getLabUnitRoleIds(List<String> roleIds) {
+        String labUnitParentRoleId = roleService.getRoleByName(Constants.LAB_ROLES_GROUP).getId();
+        return normalizedRoleIds(roleIds).stream().map(roleService::getRoleById).filter(Objects::nonNull)
+                .filter(role -> labUnitParentRoleId.equals(role.getGroupingParent())).map(Role::getId).toList();
+    }
+
+    private List<String> normalizedRoleIds(List<String> roleIds) {
+        if (roleIds == null) {
+            return new ArrayList<>();
+        }
+        return roleIds.stream().filter(StringUtils::isNotBlank).map(StringUtils::trim).collect(Collectors.toList());
+    }
+
+    private List<String> deduplicateRoleIds(List<String> roleIds) {
+        return new ArrayList<>(new LinkedHashSet<>(normalizedRoleIds(roleIds)));
     }
 
     private void setLabunitRolesForExistingUser(UnifiedSystemUserForm form) {

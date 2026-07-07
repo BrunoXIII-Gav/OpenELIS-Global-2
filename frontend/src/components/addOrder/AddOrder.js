@@ -153,6 +153,10 @@ const AddOrder = (props) => {
     hasSelectedProvider ||
     isFieldReadonly(fieldKey);
 
+  const isRequesterSelectionStrict =
+    configurationProperties?.restrictFreeTextProviderEntry === "true" ||
+    isProviderSelectionLocked;
+
   const buildRequesterDisplayValue = () => {
     const sampleOrderItems = orderFormValues?.sampleOrderItems || {};
     const firstName = (sampleOrderItems.providerFirstName || "").trim();
@@ -820,8 +824,13 @@ const AddOrder = (props) => {
         readOnly={isProviderSelectionLocked}
         label={
           <>
-            <FormattedMessage id="order.search.requester.label" />{" "}
-            <span className="requiredlabel">*</span>
+            <FormattedMessage id="order.search.requester.label" />
+            {isRequesterSelectionStrict ? (
+              <>
+                {" "}
+                <span className="requiredlabel">*</span>
+              </>
+            ) : null}
           </>
         }
         style={{ width: "!important 100%" }}
@@ -829,7 +838,7 @@ const AddOrder = (props) => {
           <FormattedMessage id="order.invalid.requester.name.label" />
         }
         suggestions={providers.length > 0 ? providers : []}
-        required
+        required={isRequesterSelectionStrict}
       />
     </Column>
   );
@@ -964,14 +973,14 @@ const AddOrder = (props) => {
               label={
                 <>
                   <FormattedMessage id="order.search.site.name" />{" "}
-                  {isFieldRequired("referringSiteName", true) ? (
+                  {isFieldRequired("referringSiteName", false) ? (
                     <span className="requiredlabel">*</span>
                   ) : null}
                 </>
               }
               style={{ width: "!important 100%" }}
               suggestions={siteNames.length > 0 ? siteNames : []}
-              required={isFieldRequired("referringSiteName", true)}
+              required={isFieldRequired("referringSiteName", false)}
             />
           </Column>
         );
@@ -1030,7 +1039,7 @@ const AddOrder = (props) => {
               labelText={
                 <>
                   <FormattedMessage id="order.requester.firstName.label" />
-                  {isFieldRequired("providerFirstName", true) ? (
+                  {isFieldRequired("providerFirstName", false) ? (
                     <span className="requiredlabel">*</span>
                   ) : null}
                 </>
@@ -1064,7 +1073,7 @@ const AddOrder = (props) => {
               labelText={
                 <>
                   <FormattedMessage id="order.requester.lastName.label" />
-                  {isFieldRequired("providerLastName", true) ? (
+                  {isFieldRequired("providerLastName", false) ? (
                     <span className="requiredlabel">*</span>
                   ) : null}
                 </>
