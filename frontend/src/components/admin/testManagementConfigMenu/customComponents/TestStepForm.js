@@ -819,6 +819,8 @@ export const StepOneTestNameAndTestSection = ({
   setSelectedLabUnitList,
   cancelCall,
 }) => {
+  const intl = useIntl();
+
   const handleSubmit = (values) => {
     handleNextStep(values, true);
   };
@@ -896,7 +898,13 @@ export const StepOneTestNameAndTestSection = ({
                       onBlur={handleBlur}
                       value={values.testSection}
                     >
-                      <SelectItem value="0" text="Select Test Section" />
+                      <SelectItem
+                        value="0"
+                        text={intl.formatMessage({
+                          id: "field.select.testSection",
+                          defaultMessage: "Select Test Section",
+                        })}
+                      />
                       {labUnitList?.map((test) => (
                         <SelectItem
                           key={test.id}
@@ -1053,6 +1061,8 @@ export const StepTwoTestPanelAndUom = ({
   selectedUomList,
   setSelectedUomList,
 }) => {
+  const intl = useIntl();
+
   const handleSubmit = (values) => {
     handleNextStep(values, true);
   };
@@ -1193,7 +1203,13 @@ export const StepTwoTestPanelAndUom = ({
                     invalid={touched.panels && !!errors.panels}
                     invalidText={touched.panels && errors.panels}
                   >
-                    <SelectItem value="0" text="Select Panel" />
+                    <SelectItem
+                      value="0"
+                      text={intl.formatMessage({
+                        id: "input.placeholder.selectPanel",
+                        defaultMessage: "Select Panel",
+                      })}
+                    />
                     {panelList?.map((test) => (
                       <SelectItem
                         key={test.id}
@@ -1236,7 +1252,13 @@ export const StepTwoTestPanelAndUom = ({
                     invalidText={touched.uom && errors.uom}
                     value={values.uom}
                   >
-                    <SelectItem value="0" text="Select Unit Of Measurement" />
+                    <SelectItem
+                      value="0"
+                      text={intl.formatMessage({
+                        id: "input.placeholder.selectUom",
+                        defaultMessage: "Select Unit Of Measurement",
+                      })}
+                    />
                     {uomList?.map((test) => (
                       <SelectItem
                         key={test.id}
@@ -1778,8 +1800,19 @@ export const StepThreeTestResultTypeAndLoinc = ({
         initialValues={formData}
         validationSchema={Yup.object({
           resultType: Yup.string()
-            .notOneOf(["0", ""], "Please select a valid Result Type")
-            .required("Result Type is required"),
+            .notOneOf(
+              ["0", ""],
+              intl.formatMessage({
+                id: "test.resultType.required",
+                defaultMessage: "Result Type is required",
+              }),
+            )
+            .required(
+              intl.formatMessage({
+                id: "test.resultType.required",
+                defaultMessage: "Result Type is required",
+              }),
+            ),
           additionalFields: Yup.array()
             .of(
               Yup.object().shape({
@@ -2391,7 +2424,13 @@ export const StepThreeTestResultTypeAndLoinc = ({
                       invalid={touched.resultType && !!errors.resultType}
                       invalidText={touched.resultType && errors.resultType}
                     >
-                      <SelectItem value="0" text="Select Result Type" />
+                      <SelectItem
+                        value="0"
+                        text={intl.formatMessage({
+                          id: "input.placeholder.selectResultType",
+                          defaultMessage: "Select Result Type",
+                        })}
+                      />
                       {resultTypeList?.map((test) => (
                         <SelectItem
                           key={test.id}
@@ -2410,7 +2449,10 @@ export const StepThreeTestResultTypeAndLoinc = ({
                       id="loinc"
                       name="loinc"
                       value={values.loinc}
-                      placeholder={`Example : 430-0, 43166-0, 43167-8`}
+                      placeholder={intl.formatMessage({
+                        id: "label.example.loinc",
+                        defaultMessage: "Example: 430-0, 43166-0, 43167-8",
+                      })}
                       onChange={(e) => {
                         handleChange(e);
                       }}
@@ -3707,6 +3749,8 @@ export const StepFourSelectSampleTypeAndTestDisplayOrder = ({
   setSelectedSampleTypeResp,
   currentStep,
 }) => {
+  const intl = useIntl();
+
   const handleSubmit = (values) => {
     handleNextStep(values, true);
   };
@@ -3835,7 +3879,13 @@ export const StepFourSelectSampleTypeAndTestDisplayOrder = ({
                         invalid={touched.sampleTypes && !!errors.sampleTypes}
                         invalidText={touched.sampleTypes && errors.sampleTypes}
                       >
-                        <SelectItem value="0" text="Select Sample Type" />
+                        <SelectItem
+                          value="0"
+                          text={intl.formatMessage({
+                            id: "sample.type.select.placeholder",
+                            defaultMessage: "Select Sample Type",
+                          })}
+                        />
                         {sampleTypeList?.map((test) => (
                           <SelectItem
                             key={test.id}
