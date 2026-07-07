@@ -8,9 +8,7 @@ import org.openelisglobal.common.action.IActionConstants;
 import org.openelisglobal.common.constants.Constants;
 import org.openelisglobal.login.service.LoginUserService;
 import org.openelisglobal.login.valueholder.LoginUser;
-import org.openelisglobal.role.service.RoleService;
-import org.openelisglobal.role.valueholder.Role;
-import org.openelisglobal.userrole.service.UserRoleService;
+import org.openelisglobal.security.service.UserPermissionService;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.context.annotation.Primary;
 import org.springframework.security.core.GrantedAuthority;
@@ -29,10 +27,7 @@ public class CustomUserDetailsService implements UserDetailsService {
     LoginUserService loginService;
 
     @Autowired
-    UserRoleService userRoleService;
-
-    @Autowired
-    RoleService roleService;
+    UserPermissionService userPermissionService;
 
     @Override
     @Transactional(readOnly = true)
@@ -51,18 +46,16 @@ public class CustomUserDetailsService implements UserDetailsService {
         Set<String> authorityNames = new LinkedHashSet<>();
 
         if (user != null && user.getSystemUserId() > 0) {
-            List<String> roleIds = userRoleService.getRoleIdsForUser(String.valueOf(user.getSystemUserId()));
-            if (roleIds != null) {
-                for (String roleId : roleIds) {
-                    if (roleId == null || roleId.trim().isEmpty()) {
+            Set<String> effectiveRoles = userPermissionService
+                    .getEffectiveRoleNames(String.valueOf(user.getSystemUserId()));
+            if (effectiveRoles != null) {
+                for (String roleName : effectiveRoles) {
+                    if (roleName == null || roleName.trim().isEmpty()) {
                         continue;
                     }
-                    Role role = roleService.getRoleById(roleId.trim());
-                    if (role != null && role.getName() != null && !role.getName().trim().isEmpty()) {
-                        authorityNames.add(toRoleAuthority(role.getName()));
-                        if (Constants.ROLE_GLOBAL_ADMIN.equalsIgnoreCase(role.getName())) {
-                            authorityNames.add("ROLE_ADMIN");
-                        }
+                    authorityNames.add(toRoleAuthority(roleName));
+                    if (Constants.ROLE_GLOBAL_ADMIN.equalsIgnoreCase(roleName)) {
+                        authorityNames.add("ROLE_ADMIN");
                     }
                 }
             }

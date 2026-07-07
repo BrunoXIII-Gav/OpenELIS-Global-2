@@ -16,6 +16,7 @@ import org.hl7.fhir.r4.model.Reference;
 import org.hl7.fhir.r4.model.Task;
 import org.openelisglobal.analysis.valueholder.Analysis;
 import org.openelisglobal.common.constants.Constants;
+import org.openelisglobal.common.constants.SystemPermission;
 import org.openelisglobal.common.exception.LIMSRuntimeException;
 import org.openelisglobal.common.formfields.FormFields;
 import org.openelisglobal.common.log.LogEvent;
@@ -44,6 +45,7 @@ import org.openelisglobal.patient.action.bean.PatientManagementInfo;
 import org.openelisglobal.patient.action.bean.PatientSearch;
 import org.openelisglobal.provider.service.ProviderService;
 import org.openelisglobal.provider.valueholder.Provider;
+import org.openelisglobal.security.service.UserPermissionService;
 import org.openelisglobal.sample.action.util.SamplePatientUpdateData;
 import org.openelisglobal.sample.bean.SampleOrderItem;
 import org.openelisglobal.sample.form.SamplePatientEntryForm;
@@ -164,6 +166,8 @@ public class SamplePatientEntryController extends BaseSampleEntryController {
     private NotificationDAO notificationDAO;
     @Autowired
     private UserRoleService userRoleService;
+    @Autowired
+    private UserPermissionService userPermissionService;
     @Autowired
     private SystemUserService systemUserService;
     @Autowired
@@ -290,7 +294,7 @@ public class SamplePatientEntryController extends BaseSampleEntryController {
             }
 
             if (sampleOrder.getPriority().equals(OrderPriority.STAT)) {
-                List<String> systemUserIds = userRoleService.getUserIdsForRole(Constants.ROLE_RESULTS);
+                List<String> systemUserIds = userPermissionService.getUserIdsForPermission(SystemPermission.RESULTS);
                 List<Analysis> analyses = sampleService
                         .getAnalysis(sampleService.getSampleByAccessionNumber(sampleOrder.getLabNo()));
                 String message = MessageUtil.getMessage("notification.order.stat",

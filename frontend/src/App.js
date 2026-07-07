@@ -304,12 +304,12 @@ export default function App() {
                   path="/admin"
                   exact
                   component={() => <Admin />}
-                  role={Roles.GLOBAL_ADMIN}
+                  role={Roles.ADMINISTRATION}
                 />
                 <SecureRoute
                   path="/MasterListsPage"
                   component={() => <Admin />}
-                  role={Roles.GLOBAL_ADMIN}
+                  role={Roles.ADMINISTRATION}
                 />
                 <SecureRoute
                   path="/PathologyDashboard"
@@ -414,7 +414,7 @@ export default function App() {
                       require("./components/genericSample/GenericSampleOrder").default;
                     return <GenericSampleOrder />;
                   }}
-                  role=""
+                  role={Roles.GENERIC_SAMPLE}
                 />
                 <SecureRoute
                   path="/GenericSample/Edit"
@@ -424,7 +424,7 @@ export default function App() {
                       require("./components/genericSample/GenericSampleOrderEdit").default;
                     return <GenericSampleOrderEdit />;
                   }}
-                  role=""
+                  role={Roles.GENERIC_SAMPLE}
                 />
                 <SecureRoute
                   path="/GenericSample/Import"
@@ -434,7 +434,7 @@ export default function App() {
                       require("./components/genericSample/GenericSampleOrderImport").default;
                     return <GenericSampleOrderImport />;
                   }}
-                  role=""
+                  role={Roles.GENERIC_SAMPLE}
                 />
                 <SecureRoute
                   path="/FreezerMonitoring"
@@ -446,19 +446,19 @@ export default function App() {
                   path="/SamplePatientEntry"
                   exact
                   component={() => <AddOrder />}
-                  role={Roles.RECEPTION}
+                  role={Roles.ORDER}
                 />
                 <SecureRoute
                   path="/ModifyOrder"
                   exact
                   component={() => <ModifyOrder />}
-                  role={Roles.RECEPTION}
+                  role={Roles.ORDER}
                 />
                 <SecureRoute
                   path="/SampleEdit"
                   exact
                   component={() => <FindOrder />}
-                  role={Roles.RECEPTION}
+                  role={Roles.ORDER}
                 />
                 <SecureRoute
                   path="/ReportNonConformingEvent"
@@ -490,26 +490,26 @@ export default function App() {
                   path="/SampleBatchEntrySetup"
                   exact
                   component={() => <SampleBatchEntrySetup />}
-                  role={Roles.RECEPTION}
+                  role={Roles.ORDER}
                 />
 
                 <SecureRoute
                   path="/ElectronicOrders"
                   exact
                   component={() => <EOrderPage />}
-                  role={Roles.RECEPTION}
+                  role={Roles.ORDER}
                 />
                 <SecureRoute
                   path="/PrintBarcode"
                   exact
                   component={() => <PrintBarcode />}
-                  role={Roles.RECEPTION}
+                  role={Roles.ORDER}
                 />
                 <SecureRoute
                   path="/PatientManagement"
                   exact
                   component={() => <PatientManagement />}
-                  role={Roles.RECEPTION}
+                  role={Roles.PATIENT}
                 />
                 <SecureRoute
                   path="/Storage"
@@ -548,31 +548,31 @@ export default function App() {
                   path="/analyzers"
                   exact
                   component={() => <AnalyzersPage />}
-                  role={Roles.GLOBAL_ADMIN}
+                  role={[Roles.ADMINISTRATION, Roles.GLOBAL_ADMIN]}
                 />
                 <SecureRoute
                   path="/analyzers/:id/mappings"
                   exact
                   component={FieldMapping}
-                  role={Roles.GLOBAL_ADMIN}
+                  role={[Roles.ADMINISTRATION, Roles.GLOBAL_ADMIN]}
                 />
                 <SecureRoute
                   path="/analyzers/errors"
                   exact
                   component={() => <ErrorDashboardPage />}
-                  role={Roles.LAB_SUPERVISOR}
+                  role={[Roles.ADMINISTRATION, Roles.GLOBAL_ADMIN]}
                 />
                 <SecureRoute
                   path="/analyzers/custom-field-types"
                   exact
                   component={() => <CustomFieldTypeManagementPage />}
-                  role={Roles.GLOBAL_ADMIN}
+                  role={[Roles.ADMINISTRATION, Roles.GLOBAL_ADMIN]}
                 />
                 <SecureRoute
                   path="/analyzers/types"
                   exact
                   component={() => <AnalyzerTypesPage />}
-                  role={Roles.GLOBAL_ADMIN}
+                  role={[Roles.ADMINISTRATION, Roles.GLOBAL_ADMIN]}
                 />
                 <SecureRoute
                   path="/validation-template-config"
@@ -590,25 +590,25 @@ export default function App() {
                   path="/analyzers/qc"
                   exact
                   component={() => <QCDashboardPlaceholder />}
-                  role={Roles.LAB_SUPERVISOR}
+                  role={[Roles.ADMINISTRATION, Roles.GLOBAL_ADMIN]}
                 />
                 <SecureRoute
                   path="/analyzers/qc/alerts"
                   exact
                   component={() => <QCAlertsPlaceholder />}
-                  role={Roles.LAB_SUPERVISOR}
+                  role={[Roles.ADMINISTRATION, Roles.GLOBAL_ADMIN]}
                 />
                 <SecureRoute
                   path="/analyzers/qc/corrective-actions"
                   exact
                   component={() => <CorrectiveActionsPlaceholder />}
-                  role={Roles.LAB_SUPERVISOR}
+                  role={[Roles.ADMINISTRATION, Roles.GLOBAL_ADMIN]}
                 />
                 <SecureRoute
                   path="/PatientHistory"
                   exact
                   component={() => <PatientHistory />}
-                  role={Roles.RECEPTION}
+                  role={Roles.PATIENT}
                 />
                 <SecureRoute
                   path="/PatientMerge"
@@ -624,7 +624,7 @@ export default function App() {
                       require("./components/genericSample/GenericSampleResults").default;
                     return <GenericSampleResults />;
                   }}
-                  role={Roles.RESULTS}
+                  role={Roles.GENERIC_SAMPLE}
                 />
                 <SecureRoute
                   path="/Aliquot"
@@ -637,7 +637,7 @@ export default function App() {
                   path="/PatientResults/:patientId"
                   exact
                   component={() => <RoutedResultsViewer />}
-                  role={Roles.RECEPTION}
+                  role={Roles.PATIENT}
                 />
 
                 <SecureRoute

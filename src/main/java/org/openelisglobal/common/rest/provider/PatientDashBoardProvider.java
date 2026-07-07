@@ -660,12 +660,15 @@ public class PatientDashBoardProvider {
 
         DashBoardTile.TileType.stream().forEach(type -> {
             switch (type) {
-            case ORDERS_IN_PROGRESS:
-                String notStartedId = iStatusService.getStatusID(AnalysisStatus.NotStarted);
-                long uniqueOrders = allAnalysesInRange.stream().filter(a -> a.getStatusId().equals(notStartedId))
+            case ORDERS_IN_PROGRESS: {
+                String finalizedId = iStatusService.getStatusID(AnalysisStatus.Finalized);
+                String rejectedId = iStatusService.getStatusID(AnalysisStatus.SampleRejected);
+                long uniqueOrders = allAnalysesInRange.stream()
+                        .filter(a -> !a.getStatusId().equals(finalizedId) && !a.getStatusId().equals(rejectedId))
                         .map(a -> a.getSampleItem().getSample().getId()).distinct().count();
                 metrics.setOrdersInProgress((int) uniqueOrders);
                 break;
+            }
             case AWAITING_SAMPLE:
                 String nsId = iStatusService.getStatusID(AnalysisStatus.NotStarted);
                 long incompleteSamples = allAnalysesInRange.stream()
@@ -837,14 +840,16 @@ public class PatientDashBoardProvider {
         Map<String, Map<String, String>> additionalFieldValuesBySampleItem = new HashMap<>();
 
         switch (listType) {
-        case ORDERS_IN_PROGRESS:
-            String notStartedId = iStatusService.getStatusID(AnalysisStatus.NotStarted);
+        case ORDERS_IN_PROGRESS: {
+            String finalizedId = iStatusService.getStatusID(AnalysisStatus.Finalized);
+            String rejectedId = iStatusService.getStatusID(AnalysisStatus.SampleRejected);
             allAnalysesInRange.forEach(a -> {
-                if (a.getStatusId().equals(notStartedId))
+                if (!a.getStatusId().equals(finalizedId) && !a.getStatusId().equals(rejectedId))
                     filteredAnalyses.add(a);
             });
 
             return convertAnalysesToGroupedOrderBean(filteredAnalyses);
+        }
 
         case AWAITING_SAMPLE:
             String nsIdId = iStatusService.getStatusID(AnalysisStatus.NotStarted);

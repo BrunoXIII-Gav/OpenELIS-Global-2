@@ -1,5 +1,6 @@
 package org.openelisglobal.storage.controller;
 
+import org.openelisglobal.common.constants.SystemPermission;
 import org.openelisglobal.storage.service.BarcodeValidationRequest;
 import org.openelisglobal.storage.service.BarcodeValidationResponse;
 import org.openelisglobal.storage.service.BarcodeValidationService;
@@ -7,6 +8,7 @@ import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.MediaType;
 import org.springframework.http.ResponseEntity;
+import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
@@ -18,6 +20,7 @@ import org.springframework.web.bind.annotation.RestController;
  */
 @RestController
 @RequestMapping("/rest/storage/barcode")
+@PreAuthorize("@accessControl.hasPermission(T(org.openelisglobal.common.constants.SystemPermission).STORAGE)")
 public class BarcodeValidationRestController {
 
     @Autowired

@@ -1,0 +1,66 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<databaseChangeLog
+  xmlns="http://www.liquibase.org/xml/ns/dbchangelog"
+  xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+  xsi:schemaLocation="http://www.liquibase.org/xml/ns/dbchangelog http://www.liquibase.org/xml/ns/dbchangelog/dbchangelog-3.8.xsd">
+
+  <changeSet id="061-01-map-order-permission-to-legacy-order-modules" author="openelis">
+    <preConditions onFail="MARK_RAN">
+      <tableExists tableName="system_role" schemaName="clinlims" />
+      <tableExists tableName="system_role_module" schemaName="clinlims" />
+      <tableExists tableName="system_module" schemaName="clinlims" />
+      <sqlCheck expectedResult="1">SELECT COUNT(*) FROM clinlims.system_role WHERE name = 'Reception'</sqlCheck>
+      <sqlCheck expectedResult="1">SELECT COUNT(*) FROM clinlims.system_role WHERE name = 'Order'</sqlCheck>
+    </preConditions>
+
+    <comment>Grant semantic Order permission the legacy order-entry modules still enforced by ModuleAuthenticationInterceptor</comment>
+
+    <sql>
+      INSERT INTO clinlims.system_role_module (
+        id,
+        has_select,
+        has_add,
+        has_update,
+        has_delete,
+        system_role_id,
+        system_module_id
+      )
+      SELECT
+        nextval('clinlims.system_role_module_seq'),
+        src.has_select,
+        src.has_add,
+        src.has_update,
+        src.has_delete,
+        order_role.id,
+        src.system_module_id
+      FROM clinlims.system_role_module src
+      JOIN clinlims.system_role reception_role
+        ON reception_role.id = src.system_role_id
+       AND reception_role.name = 'Reception'
+      JOIN clinlims.system_role order_role
+        ON order_role.name = 'Order'
+      JOIN clinlims.system_module module_ref
+        ON module_ref.id = src.system_module_id
+      WHERE module_ref.name IN (
+        'SamplePatientEntry',
+        'SampleEntryByProject',
+        'SampleEntryByProject:initial',
+        'SampleEntryByProject:verify',
+        'SampleEdit',
+        'SampleEdit:readwrite',
+        'SampleEdit:readonly',
+        'PrintBarcode',
+        'SampleBatchEntry',
+        'SampleBatchEntryOnDemand',
+        'SampleBatchEntryPrePrinted'
+      )
+        AND NOT EXISTS (
+          SELECT 1
+          FROM clinlims.system_role_module existing
+          WHERE existing.system_role_id = order_role.id
+            AND existing.system_module_id = src.system_module_id
+        );
+    </sql>
+  </changeSet>
+
+</databaseChangeLog>

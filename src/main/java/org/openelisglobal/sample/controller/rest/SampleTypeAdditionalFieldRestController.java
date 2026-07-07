@@ -17,6 +17,7 @@ import org.springframework.http.HttpStatus;
 import org.springframework.http.MediaType;
 import org.springframework.http.ResponseEntity;
 import org.springframework.stereotype.Controller;
+import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.web.bind.annotation.DeleteMapping;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PathVariable;
@@ -36,6 +37,7 @@ public class SampleTypeAdditionalFieldRestController extends BaseRestController 
     private SampleTypeAdditionalFieldService sampleTypeAdditionalFieldService;
 
     @GetMapping(value = "sample-type-additional-fields", produces = MediaType.APPLICATION_JSON_VALUE)
+    @PreAuthorize("@accessControl.hasPermission(T(org.openelisglobal.common.constants.SystemPermission).ADMINISTRATION)")
     @ResponseBody
     public List<SampleTypeAdditionalFieldPayload> getFieldsForSampleType(
             @RequestParam("sampleTypeId") String sampleTypeId,
@@ -48,6 +50,7 @@ public class SampleTypeAdditionalFieldRestController extends BaseRestController 
     }
 
     @GetMapping(value = "sample-type-additional-fields/values", produces = MediaType.APPLICATION_JSON_VALUE)
+    @PreAuthorize("@accessControl.hasPermission(T(org.openelisglobal.common.constants.SystemPermission).SAMPLE_MANAGEMENT)")
     @ResponseBody
     public Map<String, String> getFieldValuesForSampleItem(
             @RequestParam("sampleTypeId") String sampleTypeId,
@@ -60,6 +63,7 @@ public class SampleTypeAdditionalFieldRestController extends BaseRestController 
     }
 
     @GetMapping(value = "sample-type-additional-fields/sample-types", produces = MediaType.APPLICATION_JSON_VALUE)
+    @PreAuthorize("@accessControl.hasPermission(T(org.openelisglobal.common.constants.SystemPermission).ADMINISTRATION)")
     @ResponseBody
     public List<IdValuePair> getSampleTypesForAdditionalFieldConfiguration() {
         List<IdValuePair> sampleTypes = DisplayListService.getInstance()
@@ -77,6 +81,7 @@ public class SampleTypeAdditionalFieldRestController extends BaseRestController 
     }
 
     @PostMapping(value = "sample-type-additional-fields", produces = MediaType.APPLICATION_JSON_VALUE, consumes = MediaType.APPLICATION_JSON_VALUE)
+    @PreAuthorize("@accessControl.hasPermission(T(org.openelisglobal.common.constants.SystemPermission).ADMINISTRATION)")
     @ResponseBody
     public ResponseEntity<SampleTypeAdditionalFieldPayload> createField(HttpServletRequest request,
             @RequestBody SampleTypeAdditionalFieldPayload payload) {
@@ -90,6 +95,7 @@ public class SampleTypeAdditionalFieldRestController extends BaseRestController 
     }
 
     @PutMapping(value = "sample-type-additional-fields/{fieldId}", produces = MediaType.APPLICATION_JSON_VALUE, consumes = MediaType.APPLICATION_JSON_VALUE)
+    @PreAuthorize("@accessControl.hasPermission(T(org.openelisglobal.common.constants.SystemPermission).ADMINISTRATION)")
     @ResponseBody
     public SampleTypeAdditionalFieldPayload updateField(HttpServletRequest request, @PathVariable Integer fieldId,
             @RequestBody SampleTypeAdditionalFieldPayload payload) {
@@ -101,6 +107,7 @@ public class SampleTypeAdditionalFieldRestController extends BaseRestController 
     }
 
     @DeleteMapping(value = "sample-type-additional-fields/{fieldId}", produces = MediaType.APPLICATION_JSON_VALUE)
+    @PreAuthorize("@accessControl.hasPermission(T(org.openelisglobal.common.constants.SystemPermission).ADMINISTRATION)")
     @ResponseBody
     public ResponseEntity<Void> deactivateField(HttpServletRequest request, @PathVariable Integer fieldId) {
         try {
@@ -112,6 +119,7 @@ public class SampleTypeAdditionalFieldRestController extends BaseRestController 
     }
 
     @PostMapping(value = "sample-type-additional-fields/{fieldId}/options", produces = MediaType.APPLICATION_JSON_VALUE, consumes = MediaType.APPLICATION_JSON_VALUE)
+    @PreAuthorize("@accessControl.hasPermission(T(org.openelisglobal.common.constants.SystemPermission).ADMINISTRATION)")
     @ResponseBody
     public ResponseEntity<SampleTypeAdditionalFieldOptionPayload> createOption(HttpServletRequest request,
             @PathVariable Integer fieldId, @RequestBody SampleTypeAdditionalFieldOptionPayload payload) {
@@ -125,6 +133,7 @@ public class SampleTypeAdditionalFieldRestController extends BaseRestController 
     }
 
     @PutMapping(value = "sample-type-additional-fields/options/{optionId}", produces = MediaType.APPLICATION_JSON_VALUE, consumes = MediaType.APPLICATION_JSON_VALUE)
+    @PreAuthorize("@accessControl.hasPermission(T(org.openelisglobal.common.constants.SystemPermission).ADMINISTRATION)")
     @ResponseBody
     public SampleTypeAdditionalFieldOptionPayload updateOption(HttpServletRequest request,
             @PathVariable Integer optionId, @RequestBody SampleTypeAdditionalFieldOptionPayload payload) {
@@ -136,6 +145,7 @@ public class SampleTypeAdditionalFieldRestController extends BaseRestController 
     }
 
     @DeleteMapping(value = "sample-type-additional-fields/options/{optionId}", produces = MediaType.APPLICATION_JSON_VALUE)
+    @PreAuthorize("@accessControl.hasPermission(T(org.openelisglobal.common.constants.SystemPermission).ADMINISTRATION)")
     @ResponseBody
     public ResponseEntity<Void> deactivateOption(HttpServletRequest request, @PathVariable Integer optionId) {
         try {

@@ -34,6 +34,7 @@ import org.openelisglobal.analysis.valueholder.AnalysisTubeLabel;
 import org.openelisglobal.analysis.valueholder.ResultFile;
 import org.openelisglobal.common.action.IActionConstants;
 import org.openelisglobal.common.constants.Constants;
+import org.openelisglobal.common.constants.SystemPermission;
 import org.openelisglobal.common.exception.LIMSRuntimeException;
 import org.openelisglobal.common.formfields.FormFields;
 import org.openelisglobal.common.formfields.FormFields.Field;
@@ -103,6 +104,7 @@ import org.openelisglobal.samplehuman.service.SampleHumanService;
 import org.openelisglobal.sampleitem.service.SampleItemService;
 import org.openelisglobal.sampleitem.valueholder.SampleItem;
 import org.openelisglobal.search.service.SearchResultsService;
+import org.openelisglobal.security.service.UserPermissionService;
 import org.openelisglobal.spring.util.SpringContext;
 import org.openelisglobal.statusofsample.util.StatusRules;
 import org.openelisglobal.systemuser.service.SystemUserService;
@@ -123,6 +125,7 @@ import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.MediaType;
 import org.springframework.http.ResponseEntity;
+import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.stereotype.Controller;
 import org.springframework.validation.BindingResult;
 import org.springframework.validation.Errors;
@@ -140,6 +143,7 @@ import org.springframework.web.bind.annotation.ExceptionHandler;
 
 @Controller
 @RequestMapping(value = "/rest/")
+@PreAuthorize("@accessControl.hasPermission(T(org.openelisglobal.common.constants.SystemPermission).RESULTS)")
 public class LogbookResultsRestController extends LogbookResultsBaseController {
     private static final ObjectMapper OBJECT_MAPPER = new ObjectMapper();
 
@@ -210,6 +214,8 @@ public class LogbookResultsRestController extends LogbookResultsBaseController {
     @Autowired
     private TestNotificationService testNotificationService;
     @Autowired
+    private UserPermissionService userPermissionService;
+    @Autowired
     private MethodService methodService;
     @Autowired
     private NotificationDAO notificationDAO;
@@ -230,7 +236,8 @@ public class LogbookResultsRestController extends LogbookResultsBaseController {
     private final String REFERRAL_CONFORMATION_ID;
     private static final String REFLEX_ACCESSIONS = "reflex_accessions";
 
-    private LogbookResultsRestController(ReferralTypeService referralTypeService) {
+    @Autowired
+    public LogbookResultsRestController(ReferralTypeService referralTypeService) {
         ReferralType referralType = referralTypeService.getReferralTypeByName("Confirmation");
         if (referralType != null) {
             REFERRAL_CONFORMATION_ID = referralType.getId();
@@ -597,7 +604,7 @@ public class LogbookResultsRestController extends LogbookResultsBaseController {
             List<Analysis> newResultAnalyses = actionDataSet.getNewResults().stream().map(a -> a.result.getAnalysis())
                     .collect(Collectors.toList());
             sendPendingValidationNotifications(actionDataSet);
-            List<String> systemUserIds = userRoleService.getUserIdsForRole(Constants.ROLE_VALIDATION);
+            List<String> systemUserIds = userPermissionService.getUserIdsForPermission(SystemPermission.VALIDATION);
             String message = MessageUtil.getMessage("notification.result.stat");
             for (String userId : systemUserIds) {
                 List<Analysis> userAnalyses = userService

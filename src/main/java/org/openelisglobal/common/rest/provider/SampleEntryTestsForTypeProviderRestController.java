@@ -12,6 +12,7 @@ import java.util.List;
 import java.util.Map;
 import org.apache.commons.validator.GenericValidator;
 import org.openelisglobal.common.action.IActionConstants;
+import org.openelisglobal.common.constants.SystemPermission;
 import org.openelisglobal.common.constants.Constants;
 import org.openelisglobal.common.rest.BaseRestController;
 import org.openelisglobal.common.util.IdValuePair;
@@ -25,6 +26,7 @@ import org.openelisglobal.role.service.RoleService;
 import org.openelisglobal.sample.bean.SampleTypeAdditionalFieldPayload;
 import org.openelisglobal.sample.service.SampleTypeAdditionalFieldService;
 import org.openelisglobal.spring.util.SpringContext;
+import org.openelisglobal.security.service.UserPermissionService;
 import org.openelisglobal.systemuser.service.UserService;
 import org.openelisglobal.test.service.TestSectionService;
 import org.openelisglobal.test.service.TestServiceImpl;
@@ -32,6 +34,8 @@ import org.openelisglobal.test.valueholder.Test;
 import org.openelisglobal.typeofsample.service.TypeOfSamplePanelService;
 import org.openelisglobal.typeofsample.service.TypeOfSampleService;
 import org.openelisglobal.typeofsample.valueholder.TypeOfSamplePanel;
+import org.openelisglobal.userrole.valueholder.LabUnitRoleMap;
+import org.openelisglobal.userrole.valueholder.UserLabUnitRoles;
 import org.springframework.http.MediaType;
 import org.springframework.stereotype.Controller;
 import org.springframework.web.bind.annotation.GetMapping;
@@ -59,6 +63,8 @@ public class SampleEntryTestsForTypeProviderRestController extends BaseRestContr
     private SampleTypeAdditionalFieldService sampleTypeAdditionalFieldService = SpringContext
             .getBean(SampleTypeAdditionalFieldService.class);
 
+    private UserPermissionService userPermissionService = SpringContext.getBean(UserPermissionService.class);
+
     @GetMapping(value = "sample-type-tests", produces = MediaType.APPLICATION_JSON_VALUE)
     @ResponseBody
     public SampleEntryTests processRequest(HttpServletRequest request, HttpServletResponse response)
@@ -66,10 +72,10 @@ public class SampleEntryTestsForTypeProviderRestController extends BaseRestContr
 
         String sampleType = request.getParameter("sampleType");
 
-        String receptionRoleId = roleService.getRoleByName(Constants.ROLE_RECEPTION).getId();
         UserSessionData usd = (UserSessionData) request.getSession().getAttribute(IActionConstants.USER_SESSION_DATA);
-        List<IdValuePair> testSections = userService.getUserTestSections(String.valueOf(usd.getSystemUserId()),
-                receptionRoleId);
+        String systemUserId = String.valueOf(usd.getSystemUserId());
+        String scopedRoleId = resolveReceptionScopedRoleId(systemUserId);
+        List<IdValuePair> testSections = userService.getUserTestSections(systemUserId, scopedRoleId);
         List<String> testUnitIds = new ArrayList<>();
         if (testSections != null) {
             testSections.forEach(test -> testUnitIds.add(test.getId()));
@@ -91,6 +97,26 @@ public class SampleEntryTestsForTypeProviderRestController extends BaseRestContr
             throws ServletException, IOException {
 
         return userService.getUserPrograms(getSysUserId(request), Constants.ROLE_RECEPTION);
+    }
+
+    private String resolveReceptionScopedRoleId(String systemUserId) {
+        var receptionRole = roleService.getRoleByName(Constants.ROLE_RECEPTION);
+        if (receptionRole == null) {
+            return null;
+        }
+
+        UserLabUnitRoles userLabRoles = userService.getUserLabUnitRoles(systemUserId);
+        boolean hasReceptionLabRole = userLabRoles != null && userLabRoles.getLabUnitRoleMap() != null
+                && userLabRoles.getLabUnitRoleMap().stream().map(LabUnitRoleMap::getRoles).filter(roles -> roles != null)
+                        .anyMatch(roles -> roles.contains(receptionRole.getId()));
+
+        if (!hasReceptionLabRole && (userPermissionService.hasPermission(systemUserId, SystemPermission.ORDER)
+                || userPermissionService.hasPermission(systemUserId, SystemPermission.SAMPLE_MANAGEMENT)
+                || userPermissionService.hasPermission(systemUserId, SystemPermission.GENERIC_SAMPLE))) {
+            return null;
+        }
+
+        return receptionRole.getId();
     }
 
     private SampleEntryTests createSearchResult(String sampleType, List<String> testUnitIds) {

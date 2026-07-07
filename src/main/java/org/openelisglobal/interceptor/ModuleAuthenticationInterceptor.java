@@ -13,6 +13,7 @@ import org.openelisglobal.common.util.ConfigurationProperties;
 import org.openelisglobal.common.validator.BaseErrors;
 import org.openelisglobal.login.dao.UserModuleService;
 import org.openelisglobal.login.valueholder.UserSessionData;
+import org.openelisglobal.security.service.ModuleAccessService;
 import org.openelisglobal.systemmodule.service.SystemModuleUrlService;
 import org.openelisglobal.systemmodule.valueholder.SystemModuleParam;
 import org.openelisglobal.systemmodule.valueholder.SystemModuleUrl;
@@ -47,6 +48,8 @@ public class ModuleAuthenticationInterceptor implements HandlerInterceptor {
     private UserRoleService userRoleService;
     @Autowired
     private PermissionModuleService<PermissionModule> permissionModuleService;
+    @Autowired
+    private ModuleAccessService moduleAccessService;
     String path;
 
     @Override
@@ -54,7 +57,7 @@ public class ModuleAuthenticationInterceptor implements HandlerInterceptor {
             throws IOException {
         path = request.getRequestURI().substring(request.getContextPath().length());
         Errors errors = new BaseErrors();
-        if (!hasPermission(errors, request)) {
+        if (!hasPermission(errors, request) && !hasSemanticPermissionFallback(request)) {
             LogEvent.logInfo("ModuleAuthenticationInterceptor", "preHandle()",
                     "======> NOT ALLOWED ACCESS TO THIS MODULE");
             LogEvent.logInfo(this.getClass().getSimpleName(), "preHandle", "has no permission"); //
@@ -118,6 +121,17 @@ public class ModuleAuthenticationInterceptor implements HandlerInterceptor {
             }
         }
         return false;
+    }
+
+    private boolean hasSemanticPermissionFallback(HttpServletRequest request) {
+        if (moduleAccessService == null) {
+            return false;
+        }
+        String targetUrl = path;
+        if (request.getQueryString() != null && !request.getQueryString().isBlank()) {
+            targetUrl = targetUrl + "?" + request.getQueryString();
+        }
+        return moduleAccessService.canAccess(targetUrl, request).isAllowed();
     }
 
     private List<SystemModuleUrl> filterParamMatches(HttpServletRequest request, List<SystemModuleUrl> sysModsByUrl) {

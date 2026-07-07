@@ -1,0 +1,29 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<databaseChangeLog
+  xmlns="http://www.liquibase.org/xml/ns/dbchangelog"
+  xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+  xsi:schemaLocation="http://www.liquibase.org/xml/ns/dbchangelog http://www.liquibase.org/xml/ns/dbchangelog/dbchangelog-3.8.xsd">
+
+  <changeSet id="060-01-set-order-provider-selection-policy-self-only" author="openelis">
+    <preConditions onFail="MARK_RAN">
+      <sqlCheck expectedResult="1">
+        SELECT count(*)
+        FROM clinlims.site_information
+        WHERE name = 'orderProviderSelectionPolicy'
+      </sqlCheck>
+    </preConditions>
+
+    <update schemaName="clinlims" tableName="site_information">
+      <column name="value" value="SELF_ONLY" />
+      <where>name = 'orderProviderSelectionPolicy'</where>
+    </update>
+
+    <rollback>
+      <update schemaName="clinlims" tableName="site_information">
+        <column name="value" value="OPEN" />
+        <where>name = 'orderProviderSelectionPolicy'</where>
+      </update>
+    </rollback>
+  </changeSet>
+
+</databaseChangeLog>

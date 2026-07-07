@@ -24,6 +24,7 @@ import org.openelisglobal.address.service.PersonAddressService;
 import org.openelisglobal.address.valueholder.AddressPart;
 import org.openelisglobal.address.valueholder.PersonAddress;
 import org.openelisglobal.common.constants.Constants;
+import org.openelisglobal.common.constants.SystemPermission;
 import org.openelisglobal.common.log.LogEvent;
 import org.openelisglobal.common.services.IStatusService;
 import org.openelisglobal.common.services.StatusService.ExternalOrderStatus;
@@ -44,6 +45,7 @@ import org.openelisglobal.patientidentitytype.valueholder.PatientIdentityType;
 import org.openelisglobal.person.service.PersonService;
 import org.openelisglobal.person.valueholder.Person;
 import org.openelisglobal.sample.valueholder.OrderPriority;
+import org.openelisglobal.security.service.UserPermissionService;
 import org.openelisglobal.spring.util.SpringContext;
 import org.openelisglobal.systemuser.service.SystemUserService;
 import org.openelisglobal.systemuser.valueholder.SystemUser;
@@ -86,6 +88,8 @@ public class DBOrderPersister implements IOrderPersister {
     private NotificationDAO notificationDAO;
     @Autowired
     private UserRoleService userRoleService;
+    @Autowired
+    private UserPermissionService userPermissionService;
 
     private Patient patient;
 
@@ -372,7 +376,7 @@ public class DBOrderPersister implements IOrderPersister {
             eOrderService.insert(eOrder);
             if (eOrder.getPriority().equals(OrderPriority.STAT)) {
                 String message = MessageUtil.getMessage("notification.eorder.stat", eOrder.getExternalId());
-                List<String> systemUserIds = userRoleService.getUserIdsForRole(Constants.ROLE_RECEPTION);
+                List<String> systemUserIds = userPermissionService.getUserIdsForPermission(SystemPermission.RECEPTION);
                 for (String userId : systemUserIds) {
                     try {
                         Notification notification = new Notification();

@@ -12,6 +12,7 @@ import org.openelisglobal.common.rest.BaseRestController;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
+import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.validation.BindingResult;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PathVariable;
@@ -25,11 +26,11 @@ import org.springframework.web.bind.annotation.RestController;
  * REST controller for creating OpenELIS fields inline from the analyzer mapping
  * interface.
  * 
- * Endpoint: POST /rest/analyzer/openelis-fields Authorization: LAB_ADMIN or
- * LAB_SUPERVISOR (TODO: Add security annotations)
+ * Endpoint: POST /rest/analyzer/openelis-fields
  */
 @RestController
 @RequestMapping("/rest/analyzer")
+@PreAuthorize("@accessControl.hasPermission(T(org.openelisglobal.common.constants.SystemPermission).ADMINISTRATION)")
 public class OpenELISFieldRestController extends BaseRestController {
 
     @Autowired

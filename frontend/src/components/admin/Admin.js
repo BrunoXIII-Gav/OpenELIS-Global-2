@@ -56,6 +56,10 @@ import TestCatalog from "./testManagement/ViewTestCatalog.js";
 import PushNotificationPage from "../notifications/PushNotificationPage.jsx";
 import OrganizationManagement from "./OrganizationManagement/OrganizationManagement";
 import OrganizationAddModify from "./OrganizationManagement/OrganizationAddModify";
+import RoleManagement from "./roleManagement/RoleManagement";
+import RoleAddModify from "./roleManagement/RoleAddModify";
+import ProfileManagement from "./profileManagement/ProfileManagement";
+import ProfileAddModify from "./profileManagement/ProfileAddModify";
 import UserManagement from "./userManagement/UserManagement";
 import UserAddModify from "./userManagement/UserAddModify";
 import ManageMethod from "./testManagement/ManageMethod.js";
@@ -137,7 +141,10 @@ function Admin() {
         : roles && typeof roles === "object"
           ? Object.values(roles)
           : [];
-    return normalizedRoles.includes(Roles.GLOBAL_ADMIN);
+    return (
+      normalizedRoles.includes(Roles.GLOBAL_ADMIN) ||
+      normalizedRoles.includes(Roles.ADMINISTRATION)
+    );
   };
 
   useEffect(() => {
@@ -262,6 +269,26 @@ function Admin() {
             onClick={handleNavigation(`${path}/userManagement`)}
           >
             <FormattedMessage id="unifiedSystemUser.browser.title" />
+          </SideNavLink>
+          <SideNavLink
+            data-cy="roleMgmnt"
+            renderIcon={User}
+            onClick={handleNavigation(`${path}/roleManagement`)}
+          >
+            <FormattedMessage
+              id="customRole.page.title"
+              defaultMessage="Custom Role Management"
+            />
+          </SideNavLink>
+          <SideNavLink
+            data-cy="profileMgmnt"
+            renderIcon={User}
+            onClick={handleNavigation(`${path}/profileManagement`)}
+          >
+            <FormattedMessage
+              id="professionalProfile.page.title"
+              defaultMessage="Professional Profile Management"
+            />
           </SideNavLink>
           <SideNavLink
             data-cy="batchTestReassignment"
@@ -488,11 +515,15 @@ function Admin() {
           component={ResultReportingConfiguration}
         />
         <Route path={`${path}/userManagement`} component={UserManagement} />
+        <Route path={`${path}/roleManagement`} component={RoleManagement} />
+        <Route path={`${path}/profileManagement`} component={ProfileManagement} />
         <Route
           path={`${path}/batchTestReassignment`}
           component={BatchTestReassignmentAndCancelation}
         />
         <Route path={`${path}/userEdit`} component={UserAddModify} />
+        <Route path={`${path}/roleEdit`} component={RoleAddModify} />
+        <Route path={`${path}/profileEdit`} component={ProfileAddModify} />
         <Route
           path={`${path}/globalMenuManagement`}
           component={GlobalMenuManagement}

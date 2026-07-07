@@ -4,21 +4,27 @@ import { ConfigurationContext } from "../layout/Layout";
 import { Route } from "react-router-dom";
 import { useLocation } from "react-router-dom";
 import { useIdleTimer } from "react-idle-timer";
-import { confirmAlert } from "react-confirm-alert";
 import "react-confirm-alert/src/react-confirm-alert.css"; // Import css
 import { Loading, Modal } from "@carbon/react/";
 import config from "../../config.json";
 import { Roles } from "../utils/Utils";
 import { FormattedMessage, useIntl } from "react-intl";
+import AccessDeniedPanel from "./AccessDeniedPanel";
+import { emitAccessDeniedEvent } from "./accessDenied";
 
 const idleTimeout = 1000 * 60 * 30; // milliseconds until idle warning will appear
 const idleWarningTimeout = 1000 * 60; // milliseconds until logout is automatically processed from idle warning
 const idleLogoutTimeout = idleTimeout + idleWarningTimeout;
 
+const normalizeRoles = (roles) =>
+  Array.isArray(roles) ? roles : Object.values(roles || {});
+
 function SecureRoute(props) {
   const [permissionGranted, setPermissionGranted] = useState(false);
   const [loading, setLoading] = useState(false);
   const [stillThereOpen, setStillThereOpen] = useState(false);
+  const [accessDenied, setAccessDenied] = useState(false);
+  const accessDeniedShownRef = useRef(false);
 
   const intl = useIntl();
   const location = useLocation();
@@ -31,6 +37,20 @@ function SecureRoute(props) {
   } = useContext(UserSessionDetailsContext);
 
   const { configurationProperties } = useContext(ConfigurationContext);
+
+  const showAccessDenied = () => {
+    setPermissionGranted(false);
+    setAccessDenied(true);
+
+    if (accessDeniedShownRef.current) {
+      return;
+    }
+
+    accessDeniedShownRef.current = true;
+    emitAccessDeniedEvent({
+      redirectToHome: true,
+    });
+  };
 
   const checkRouteAccess = async () => {
     try {
@@ -63,27 +83,14 @@ function SecureRoute(props) {
 
     const evaluateAccess = async () => {
       setLoading(!errorLoadingSessionDetails && isCheckingLogin());
+      setAccessDenied(false);
+      accessDeniedShownRef.current = false;
 
       if (userSessionDetails.authenticated) {
         const roleAllowed = hasPermission(userSessionDetails);
         if (!roleAllowed) {
-          const options = {
-            title: intl.formatMessage({ id: "accessDenied.title" }),
-            message: intl.formatMessage({ id: "accessDenied.message" }),
-            buttons: [
-              {
-                label: intl.formatMessage({ id: "accessDenied.okButton" }),
-                onClick: () => {
-                  window.location.href = window.location.origin;
-                },
-              },
-            ],
-            closeOnClickOutside: false,
-            closeOnEscape: false,
-          };
-          confirmAlert(options);
           if (!cancelled) {
-            setPermissionGranted(false);
+            showAccessDenied();
           }
           return;
         }
@@ -91,7 +98,7 @@ function SecureRoute(props) {
         if (
           configurationProperties.REQUIRE_LAB_UNIT_AT_LOGIN === "true" &&
           !userSessionDetails.loginLabUnit &&
-          !userSessionDetails.roles.includes(Roles.GLOBAL_ADMIN)
+          !normalizeRoles(userSessionDetails.roles).includes(Roles.GLOBAL_ADMIN)
         ) {
           window.location.href = "/landing";
           return;
@@ -102,26 +109,12 @@ function SecureRoute(props) {
           return;
         }
         if (!routeAllowed) {
-          const options = {
-            title: intl.formatMessage({ id: "accessDenied.title" }),
-            message: intl.formatMessage({ id: "accessDenied.message" }),
-            buttons: [
-              {
-                label: intl.formatMessage({ id: "accessDenied.okButton" }),
-                onClick: () => {
-                  window.location.href = window.location.origin;
-                },
-              },
-            ],
-            closeOnClickOutside: false,
-            closeOnEscape: false,
-          };
-          confirmAlert(options);
-          setPermissionGranted(false);
+          showAccessDenied();
           return;
         }
 
         setPermissionGranted(true);
+        setAccessDenied(false);
       } else if ("authenticated" in userSessionDetails) {
         window.location.href = config.loginRedirect;
       }
@@ -143,7 +136,7 @@ function SecureRoute(props) {
       !props.role ||
       []
         .concat(props.role)
-        .some((role) => userDetails.roles && userDetails.roles.includes(role));
+        .some((role) => normalizeRoles(userDetails.roles).includes(role));
     var containsLabUnitRole = false;
     if (props.labUnitRole) {
       Object.keys(props.labUnitRole).forEach((labunit) => {
@@ -211,6 +204,7 @@ function SecureRoute(props) {
       {!loading &&
         !userSessionDetails.authenticated &&
         intl.formatMessage({ id: "notAuthenticated" })}
+      {!loading && userSessionDetails.authenticated && accessDenied && <AccessDeniedPanel />}
       {!loading && userSessionDetails.authenticated && permissionGranted && (
         <>{!stillThereOpen && <Route {...props} />}</>
       )}
