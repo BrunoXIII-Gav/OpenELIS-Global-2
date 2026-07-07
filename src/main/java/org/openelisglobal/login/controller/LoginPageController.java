@@ -21,12 +21,12 @@ import org.openelisglobal.login.bean.UserSession.LoginMethod;
 import org.openelisglobal.login.form.LoginForm;
 import org.openelisglobal.login.valueholder.UserSessionData;
 import org.openelisglobal.role.service.RoleService;
+import org.openelisglobal.security.service.UserPermissionService;
 import org.openelisglobal.systemuser.service.SystemUserService;
 import org.openelisglobal.systemuser.service.UserService;
 import org.openelisglobal.systemuser.valueholder.SystemUser;
 import org.openelisglobal.test.service.TestSectionService;
 import org.openelisglobal.test.valueholder.TestSection;
-import org.openelisglobal.userrole.service.UserRoleService;
 import org.openelisglobal.userrole.valueholder.LabUnitRoleMap;
 import org.openelisglobal.userrole.valueholder.UserLabUnitRoles;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -75,9 +75,9 @@ public class LoginPageController extends BaseController {
     @Autowired
     SystemUserService systemUserService;
     @Autowired
-    UserRoleService userRoleService;
-    @Autowired
     RoleService roleService;
+    @Autowired
+    UserPermissionService userPermissionService;
     @Autowired
     private UserService userService;
     @Autowired
@@ -179,10 +179,7 @@ public class LoginPageController extends BaseController {
             Object principal = authentication.getPrincipal();
             if (principal instanceof UserDetails) {
                 setLabunitRolesForExistingUserFromDB(session);
-                Set<String> roles = new HashSet<>();
-                for (String roleId : userRoleService.getRoleIdsForUser(session.getUserId())) {
-                    roles.add(roleService.getRoleById(roleId).getName().trim());
-                }
+                Set<String> roles = new HashSet<>(userPermissionService.getEffectiveRoleNames(session.getUserId()));
                 session.setRoles(roles);
             } else if (principal instanceof DefaultSaml2AuthenticatedPrincipal) {
                 setLabunitRolesForExistingUserFromGrantedAuthorities(session, authentication);

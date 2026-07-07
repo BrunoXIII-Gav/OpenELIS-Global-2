@@ -33,11 +33,13 @@ const LogoUploadSection = forwardRef(function LogoUploadSection(
   {
     type,
     currentLogoUrl,
+    isVisible = true,
     onLogoUploaded,
     onLogoRemoved,
     onFileSelected,
     useHeaderLogoForLogin = false,
     onUseHeaderLogoChange,
+    onVisibilityChange,
   },
   ref,
 ) {
@@ -237,6 +239,19 @@ const LogoUploadSection = forwardRef(function LogoUploadSection(
     }
   };
 
+  const getVisibilityLabelKey = () => {
+    switch (type) {
+      case "header":
+        return "site.branding.show.header.logo";
+      case "login":
+        return "site.branding.show.login.logo";
+      case "favicon":
+        return "site.branding.show.favicon";
+      default:
+        return "site.branding.show.logo";
+    }
+  };
+
   return (
     <Section>
       <Grid fullWidth={true}>
@@ -259,8 +274,23 @@ const LogoUploadSection = forwardRef(function LogoUploadSection(
             />
           )}
 
+          {onVisibilityChange && (
+            <div style={{ marginBottom: "1rem" }}>
+              <Checkbox
+                id={`${type}-logo-visible`}
+                labelText={intl.formatMessage({
+                  id: getVisibilityLabelKey(),
+                })}
+                checked={isVisible}
+                onChange={(event) => {
+                  onVisibilityChange(event.target.checked);
+                }}
+              />
+            </div>
+          )}
+
           {/* "Use same logo as header" checkbox for login logo */}
-          {type === "login" && onUseHeaderLogoChange && (
+          {type === "login" && onUseHeaderLogoChange && isVisible && (
             <div style={{ marginBottom: "1rem" }}>
               <Checkbox
                 id="use-header-logo-for-login"
@@ -277,7 +307,9 @@ const LogoUploadSection = forwardRef(function LogoUploadSection(
             </div>
           )}
 
-          {preview && !(type === "login" && useHeaderLogoForLogin) && (
+          {isVisible &&
+            preview &&
+            !(type === "login" && useHeaderLogoForLogin) && (
             <div style={{ marginBottom: "1rem" }}>
               <img
                 src={preview}
@@ -302,7 +334,7 @@ const LogoUploadSection = forwardRef(function LogoUploadSection(
           )}
 
           {/* Hide file uploader when login logo uses header logo */}
-          {!(type === "login" && useHeaderLogoForLogin) && (
+          {isVisible && !(type === "login" && useHeaderLogoForLogin) && (
             <FileUploader
               buttonLabel={intl.formatMessage({
                 id: getUploadButtonKey(),
@@ -318,14 +350,20 @@ const LogoUploadSection = forwardRef(function LogoUploadSection(
             />
           )}
 
-          {type === "login" && useHeaderLogoForLogin && (
+          {type === "login" && isVisible && useHeaderLogoForLogin && (
             <p style={{ marginTop: "1rem", fontStyle: "italic" }}>
               <FormattedMessage id="site.branding.login.using.header.logo" />
             </p>
           )}
 
+          {!isVisible && (
+            <p style={{ marginTop: "1rem", fontStyle: "italic" }}>
+              <FormattedMessage id="site.branding.logo.hidden.message" />
+            </p>
+          )}
+
           {/* Show pending upload indicator */}
-          {file && preview?.startsWith("data:") && (
+          {isVisible && file && preview?.startsWith("data:") && (
             <p
               style={{
                 marginTop: "0.5rem",

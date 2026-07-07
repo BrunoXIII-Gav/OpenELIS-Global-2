@@ -41,13 +41,13 @@ import {
   SideNavMenuItem,
   Theme,
 } from "@carbon/react";
-import { confirmAlert } from "react-confirm-alert";
 import SlideOverNotifications from "../notifications/SlideOverNotifications";
 import { getFromOpenElisServer, putToOpenElisServer } from "../utils/Utils";
 import SearchBar from "./search/searchBar";
-import { getBranding } from "../utils/BrandingUtils";
+import { getBranding, getHeaderLogoSrc } from "../utils/BrandingUtils";
 import config from "../../config.json";
 import { Roles } from "../utils/Utils";
+import { emitAccessDeniedEvent } from "../security/accessDenied";
 
 function OEHeader({
   onChangeLanguage,
@@ -69,7 +69,10 @@ function OEHeader({
 
   const { configurationProperties } = useContext(ConfigurationContext);
   const { userSessionDetails, logout } = useContext(UserSessionDetailsContext);
-  const [headerLogoUrl, setHeaderLogoUrl] = useState(null);
+  const [brandingState, setBrandingState] = useState({
+    loaded: false,
+    data: null,
+  });
   const [logoVersion, setLogoVersion] = useState(0); // Version counter for cache-busting
   const [brandingVisibility, setBrandingVisibility] =
     useState(defaultVisibility);
@@ -127,7 +130,7 @@ function OEHeader({
   const loadHeaderLogo = () => {
     getBranding((response) => {
       if (response) {
-        setHeaderLogoUrl(response.headerLogoUrl || null);
+        setBrandingState({ loaded: true, data: response });
         setBrandingVisibility({
           showHeaderBannerText: response.showHeaderBannerText !== false,
           showHeaderVersion: response.showHeaderVersion !== false,
@@ -147,6 +150,12 @@ function OEHeader({
         }
         setLogoVersion((prev) => prev + 1);
       } else {
+        setBrandingState({
+          loaded: true,
+          data: {
+            showHeaderLogo: true,
+          },
+        });
         setBrandingVisibility(defaultVisibility);
       }
     });
@@ -313,11 +322,14 @@ function OEHeader({
   };
 
   const logo = () => {
-    // Use custom header logo if available, otherwise use default
-    // Add cache-busting parameter to prevent stale logo display after upload
-    const logoSrc = headerLogoUrl
-      ? `${config.serverBaseUrl}${headerLogoUrl}?v=${logoVersion}`
-      : `../images/openelis_logo.png`;
+    if (!brandingState.loaded) {
+      return null;
+    }
+
+    const logoSrc = getHeaderLogoSrc(brandingState.data, logoVersion);
+    if (!logoSrc) {
+      return null;
+    }
 
     return (
       <>
@@ -339,17 +351,7 @@ function OEHeader({
   const hideTimerRef = useRef(null);
 
   const showAccessDeniedDialog = () => {
-    confirmAlert({
-      title: intl.formatMessage({ id: "accessDenied.title" }),
-      message: intl.formatMessage({ id: "accessDenied.message" }),
-      buttons: [
-        {
-          label: intl.formatMessage({ id: "accessDenied.okButton" }),
-        },
-      ],
-      closeOnClickOutside: false,
-      closeOnEscape: false,
-    });
+    emitAccessDeniedEvent();
   };
 
   const checkMenuAccess = async (actionUrl) => {

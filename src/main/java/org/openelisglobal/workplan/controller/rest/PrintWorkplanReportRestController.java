@@ -22,6 +22,7 @@ import org.openelisglobal.workplan.form.WorkplanForm.PrintWorkplan;
 import org.openelisglobal.workplan.reports.IWorkplanReport;
 import org.openelisglobal.workplan.reports.TestSectionWorkplanReport;
 import org.openelisglobal.workplan.reports.TestWorkplanReport;
+import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.validation.BindingResult;
 import org.springframework.validation.annotation.Validated;
 import org.springframework.web.bind.annotation.PostMapping;
@@ -29,6 +30,7 @@ import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RestController;
 
 @RestController("PrintWorkplanReportRestController")
+@PreAuthorize("@accessControl.hasPermission(T(org.openelisglobal.common.constants.SystemPermission).RESULTS)")
 public class PrintWorkplanReportRestController extends BaseRestController {
 
     private String reportPath = null;

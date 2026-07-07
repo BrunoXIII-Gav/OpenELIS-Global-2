@@ -22,6 +22,7 @@ import org.openelisglobal.search.service.SearchResultsService;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.http.MediaType;
 import org.springframework.http.ResponseEntity;
+import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.stereotype.Controller;
 import org.springframework.validation.BindException;
 import org.springframework.validation.BindingResult;
@@ -35,6 +36,8 @@ import org.springframework.web.bind.annotation.ResponseBody;
 
 @Controller
 @RequestMapping(value = "/rest/")
+@PreAuthorize("@accessControl.hasAnyPermission(T(org.openelisglobal.common.constants.SystemPermission).PATIENT, "
+        + "T(org.openelisglobal.common.constants.SystemPermission).ORDER)")
 public class PatientManagementRestController extends BaseRestController {
     @Autowired
     SearchResultsService searchService;

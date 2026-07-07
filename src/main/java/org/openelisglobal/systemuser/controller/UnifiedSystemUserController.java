@@ -398,7 +398,13 @@ public class UnifiedSystemUserController extends BaseController {
     }
 
     private List<Role> getAllRoles() {
-        return roleService.getAllActiveRoles();
+        return roleService.getAllActiveRoles().stream().filter(this::isVisibleRole).toList();
+    }
+
+    private boolean isVisibleRole(Role role) {
+        String roleName = role == null ? null : role.getName();
+        return !Constants.ROLE_VALIDATION_BIOLOGIST.equals(roleName)
+                && !Constants.ROLE_VALIDATION_MEDICAL.equals(roleName);
     }
 
     @RequestMapping(value = "/UnifiedSystemUser", method = RequestMethod.POST)

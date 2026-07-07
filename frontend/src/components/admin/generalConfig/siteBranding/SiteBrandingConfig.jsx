@@ -22,6 +22,9 @@ import {
   getBranding,
   updateBranding,
   resetBranding,
+  applyFavicon,
+  applyFaviconHref,
+  clearFavicons,
 } from "../../../utils/BrandingUtils";
 import { NotificationContext } from "../../../layout/Layout";
 import {
@@ -33,7 +36,6 @@ import { useHistory } from "react-router-dom";
 import PageBreadCrumb from "../../../common/PageBreadCrumb";
 import LogoUploadSection from "./LogoUploadSection";
 import ColorPickerSection from "./ColorPickerSection";
-import config from "../../../../config.json";
 
 function SiteBrandingConfig() {
   const intl = useIntl();
@@ -84,10 +86,7 @@ function SiteBrandingConfig() {
         initialBrandingRef.current = JSON.parse(JSON.stringify(response));
         // Apply colors immediately
         applyBrandingColors(response);
-        // Update favicon if custom favicon exists
-        if (response.faviconUrl) {
-          updateFavicon(response.faviconUrl);
-        }
+        applyFavicon(response);
       } else {
         // Handle error - use default values
         const defaultBranding = {
@@ -95,7 +94,10 @@ function SiteBrandingConfig() {
           primaryColor: "#0f62fe",
           secondaryColor: "#393939",
           colorMode: "light",
+          showHeaderLogo: true,
+          showLoginLogo: true,
           useHeaderLogoForLogin: false,
+          showFavicon: true,
           showLoginNotice: true,
           showHeaderBannerText: true,
           showHeaderVersion: true,
@@ -110,6 +112,7 @@ function SiteBrandingConfig() {
         );
         // Apply default colors
         applyBrandingColors(defaultBranding);
+        applyFavicon(defaultBranding);
       }
       setIsLoading(false);
       setHasUnsavedChanges(false);
@@ -143,6 +146,9 @@ function SiteBrandingConfig() {
         secondaryColor: (obj.secondaryColor || "").trim().toLowerCase(),
         colorMode: (obj.colorMode || "").trim().toLowerCase(),
         useHeaderLogoForLogin: Boolean(obj.useHeaderLogoForLogin),
+        showHeaderLogo: obj.showHeaderLogo !== false,
+        showLoginLogo: obj.showLoginLogo !== false,
+        showFavicon: obj.showFavicon !== false,
         showLoginNotice: obj.showLoginNotice !== false,
         showHeaderBannerText: obj.showHeaderBannerText !== false,
         showHeaderVersion: obj.showHeaderVersion !== false,
@@ -365,29 +371,8 @@ function SiteBrandingConfig() {
     );
   };
 
-  const updateFavicon = (faviconUrl) => {
-    // Remove existing favicon links
-    const existingLinks = document.querySelectorAll('link[rel*="icon"]');
-    existingLinks.forEach((link) => link.remove());
-
-    // Add new favicon link
-    const link = document.createElement("link");
-    link.rel = "icon";
-    link.type = "image/x-icon";
-    link.href = `${config.serverBaseUrl}${faviconUrl}`;
-    document.head.appendChild(link);
-  };
-
   const resetFavicon = () => {
-    // Remove existing favicon links
-    const existingLinks = document.querySelectorAll('link[rel*="icon"]');
-    existingLinks.forEach((link) => link.remove());
-
-    // Add default favicon link
-    const link = document.createElement("link");
-    link.rel = "icon";
-    link.href = "../images/favicon-16x16.png";
-    document.head.appendChild(link);
+    applyFaviconHref("/images/favicon-16x16.png", "image/png");
   };
 
   // Handler for when a file is selected in LogoUploadSection
@@ -410,7 +395,10 @@ function SiteBrandingConfig() {
       primaryColor: branding.primaryColor?.trim() || "#0f62fe",
       secondaryColor: branding.secondaryColor?.trim() || "#393939",
       colorMode: branding.colorMode?.trim() || "light",
+      showHeaderLogo: branding.showHeaderLogo !== false,
+      showLoginLogo: branding.showLoginLogo !== false,
       useHeaderLogoForLogin: branding.useHeaderLogoForLogin || false,
+      showFavicon: branding.showFavicon !== false,
       showLoginNotice: branding.showLoginNotice !== false,
       showHeaderBannerText: branding.showHeaderBannerText !== false,
       showHeaderVersion: branding.showHeaderVersion !== false,
@@ -477,8 +465,19 @@ function SiteBrandingConfig() {
       );
       applyBrandingColors(dataToSend);
 
-      // Reload from server to get complete state including logo URLs
-      loadBranding();
+        if (branding.showFavicon === false) {
+          clearFavicons();
+        } else if (branding.faviconUrl) {
+          applyFavicon({
+            ...branding,
+            faviconUrl: branding.faviconUrl,
+          });
+        } else {
+          resetFavicon();
+        }
+
+        // Reload from server to get complete state including logo URLs
+        loadBranding();
 
       // Dispatch event to notify Header and other components to reload branding
       window.dispatchEvent(new CustomEvent("branding-updated"));
@@ -620,6 +619,8 @@ function SiteBrandingConfig() {
         // Reset favicon
         resetFavicon();
 
+        window.dispatchEvent(new CustomEvent("branding-updated"));
+
         addNotification({
           title: intl.formatMessage({ id: "notification.title" }),
           message: intl.formatMessage({ id: "site.branding.reset.success" }),
@@ -675,6 +676,7 @@ function SiteBrandingConfig() {
             ref={headerLogoRef}
             type="header"
             currentLogoUrl={branding?.headerLogoUrl}
+            isVisible={branding?.showHeaderLogo !== false}
             onFileSelected={handleFileSelected}
             onLogoUploaded={(url) => {
               // Don't call loadBranding() here - handleSave calls it once after all uploads complete
@@ -687,6 +689,12 @@ function SiteBrandingConfig() {
               // Dispatch event to notify Header to reload branding
               window.dispatchEvent(new CustomEvent("branding-updated"));
             }}
+            onVisibilityChange={(showLogo) => {
+              setBranding((prev) => ({
+                ...prev,
+                showHeaderLogo: showLogo,
+              }));
+            }}
           />
         </Column>
       </Grid>
@@ -697,6 +705,7 @@ function SiteBrandingConfig() {
             ref={loginLogoRef}
             type="login"
             currentLogoUrl={branding?.loginLogoUrl}
+            isVisible={branding?.showLoginLogo !== false}
             useHeaderLogoForLogin={branding?.useHeaderLogoForLogin || false}
             onFileSelected={handleFileSelected}
             onLogoUploaded={(url) => {
@@ -716,6 +725,12 @@ function SiteBrandingConfig() {
                 useHeaderLogoForLogin: useHeader,
               }));
             }}
+            onVisibilityChange={(showLogo) => {
+              setBranding((prev) => ({
+                ...prev,
+                showLoginLogo: showLogo,
+              }));
+            }}
           />
         </Column>
       </Grid>
@@ -726,10 +741,14 @@ function SiteBrandingConfig() {
             ref={faviconRef}
             type="favicon"
             currentLogoUrl={branding?.faviconUrl}
+            isVisible={branding?.showFavicon !== false}
             onFileSelected={handleFileSelected}
             onLogoUploaded={(url) => {
-              // Update favicon in document head
-              updateFavicon(url);
+              applyFavicon({
+                ...branding,
+                faviconUrl: url,
+                showFavicon: branding?.showFavicon !== false,
+              });
               // Don't call loadBranding() here - handleSave calls it once after all uploads complete
               // Just dispatch event to notify Header to reload branding
               window.dispatchEvent(new CustomEvent("branding-updated"));
@@ -737,10 +756,20 @@ function SiteBrandingConfig() {
             onLogoRemoved={() => {
               // Logo removal is saved immediately, so reload from server to sync state
               // Reset to default favicon
-              resetFavicon();
+              if (branding?.showFavicon === false) {
+                clearFavicons();
+              } else {
+                resetFavicon();
+              }
               loadBranding();
               // Dispatch event to notify Header to reload branding
               window.dispatchEvent(new CustomEvent("branding-updated"));
+            }}
+            onVisibilityChange={(showLogo) => {
+              setBranding((prev) => ({
+                ...prev,
+                showFavicon: showLogo,
+              }));
             }}
           />
         </Column>

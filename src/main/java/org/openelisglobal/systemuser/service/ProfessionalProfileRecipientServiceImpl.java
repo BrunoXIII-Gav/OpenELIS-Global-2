@@ -132,8 +132,7 @@ public class ProfessionalProfileRecipientServiceImpl implements ProfessionalProf
         if (!BIOLOGIST.equals(providerProfileCode)) {
             return false;
         }
-
-        return StringUtils.isNotBlank(StringUtils.trimToEmpty(linkedProvider.getProfessionalInitials()));
+        return true;
     }
 
     private boolean isLoginEligible(LoginUser login) {
@@ -161,7 +160,7 @@ public class ProfessionalProfileRecipientServiceImpl implements ProfessionalProf
             if (StringUtils.isNotBlank(initials)) {
                 return initials;
             }
-            return "";
+            return user.getNameForDisplay();
         }
         return user.getNameForDisplay();
     }

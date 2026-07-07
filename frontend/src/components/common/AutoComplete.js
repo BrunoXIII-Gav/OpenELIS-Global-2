@@ -180,6 +180,9 @@ function AutoComplete(props) {
         name={props.name}
         labelText={props.label ? props.label : ""}
         className={props.class}
+        autoComplete={props.autoComplete || "off"}
+        data-form-type={props.dataFormType || "other"}
+        spellCheck={props.spellCheck || false}
         onChange={onChange}
         onKeyDown={onKeyDown}
         onFocus={openSuggestions}

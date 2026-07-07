@@ -10,6 +10,7 @@ import org.openelisglobal.analysis.service.AnalysisService;
 import org.openelisglobal.analysis.valueholder.Analysis;
 import org.openelisglobal.common.action.IActionConstants;
 import org.openelisglobal.common.constants.Constants;
+import org.openelisglobal.common.constants.SystemPermission;
 import org.openelisglobal.common.exception.LIMSRuntimeException;
 import org.openelisglobal.common.log.LogEvent;
 import org.openelisglobal.common.services.DisplayListService;
@@ -56,6 +57,7 @@ import org.openelisglobal.samplehuman.service.SampleHumanService;
 import org.openelisglobal.sampleitem.service.SampleItemService;
 import org.openelisglobal.sampleitem.valueholder.SampleItem;
 import org.openelisglobal.search.service.SearchResultsService;
+import org.openelisglobal.security.service.UserPermissionService;
 import org.openelisglobal.spring.util.SpringContext;
 import org.openelisglobal.systemuser.service.SystemUserService;
 import org.openelisglobal.systemuser.service.UserService;
@@ -68,6 +70,7 @@ import org.openelisglobal.typeoftestresult.service.TypeOfTestResultServiceImpl;
 import org.openelisglobal.userrole.service.UserRoleService;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.http.MediaType;
+import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.stereotype.Controller;
 import org.springframework.validation.BindingResult;
 import org.springframework.validation.Errors;
@@ -77,6 +80,7 @@ import org.springframework.web.bind.annotation.*;
 
 @Controller
 @RequestMapping(value = "/rest/")
+@PreAuthorize("@accessControl.hasPermission(T(org.openelisglobal.common.constants.SystemPermission).VALIDATION)")
 public class AccessionValidationRestController extends BaseResultValidationController {
     @Autowired
     private UserService userService;
@@ -91,6 +95,8 @@ public class AccessionValidationRestController extends BaseResultValidationContr
     private OrderAdditionalFieldService orderAdditionalFieldService;
     @Autowired
     private UserRoleService userRoleService;
+    @Autowired
+    private UserPermissionService userPermissionService;
     @Autowired
     private SampleItemService sampleItemService;
 
@@ -274,16 +280,14 @@ public class AccessionValidationRestController extends BaseResultValidationContr
         if (StringUtils.isBlank(userId)) {
             return false;
         }
-        return userRoleService.userInRole(userId, Constants.ROLE_VALIDATION_MEDICAL)
-                || userRoleService.userInRole(userId, Constants.ROLE_PATHOLOGIST);
+        return userPermissionService.hasPermission(userId, SystemPermission.VALIDATION);
     }
 
     private boolean isBiologistValidator(String userId) {
         if (StringUtils.isBlank(userId)) {
             return false;
         }
-        return userRoleService.userInRole(userId, Constants.ROLE_VALIDATION_BIOLOGIST)
-                || userRoleService.userInRole(userId, Constants.ROLE_VALIDATION);
+        return userPermissionService.hasPermission(userId, SystemPermission.VALIDATION);
     }
 
     private List<IdValuePair> getUserValidationTestSections(String userId) {
@@ -321,19 +325,12 @@ public class AccessionValidationRestController extends BaseResultValidationContr
     }
 
     private List<String> getValidationRoleNamesForScope(String userId) {
-        List<String> roleNames = new ArrayList<>();
-        if (isBiologistValidator(userId)) {
-            roleNames.add(Constants.ROLE_VALIDATION_BIOLOGIST);
-            roleNames.add(Constants.ROLE_VALIDATION);
-        }
-        if (isMedicalValidator(userId)) {
-            roleNames.add(Constants.ROLE_VALIDATION_MEDICAL);
-            roleNames.add(Constants.ROLE_PATHOLOGIST);
-        }
+        List<String> roleNames = new ArrayList<>(userPermissionService.getGrantedLegacyRoleNames(userId,
+                SystemPermission.VALIDATION));
         if (roleNames.isEmpty()) {
             roleNames.add(Constants.ROLE_VALIDATION);
         }
-        return roleNames;
+        return roleNames.stream().distinct().toList();
     }
 
     @PostMapping(value = "AccessionValidation", produces = MediaType.APPLICATION_JSON_VALUE, consumes = MediaType.APPLICATION_JSON_VALUE)

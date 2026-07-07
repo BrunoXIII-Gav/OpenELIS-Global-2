@@ -32,6 +32,7 @@ import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.MediaType;
 import org.springframework.http.ResponseEntity;
+import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.validation.annotation.Validated;
 import org.springframework.web.bind.annotation.ExceptionHandler;
 import org.springframework.web.bind.annotation.GetMapping;
@@ -81,6 +82,7 @@ public class SampleManagementRestController extends BaseRestController {
      * @return SearchSamplesResponse with 200 OK, or empty results if not found
      */
     @GetMapping(value = "/search", produces = MediaType.APPLICATION_JSON_VALUE)
+    @PreAuthorize("@accessControl.hasPermission(T(org.openelisglobal.common.constants.SystemPermission).SAMPLE_MANAGEMENT)")
     @ResponseBody
     public ResponseEntity<SearchSamplesResponse> searchSamplesByAccessionNumber(
             @RequestParam @NotBlank(message = "Accession number is required") String accessionNumber,
@@ -122,6 +124,7 @@ public class SampleManagementRestController extends BaseRestController {
      *                                  REQUEST)
      */
     @PostMapping(value = "/aliquot", consumes = MediaType.APPLICATION_JSON_VALUE, produces = MediaType.APPLICATION_JSON_VALUE)
+    @PreAuthorize("@accessControl.hasPermission(T(org.openelisglobal.common.constants.SystemPermission).ALIQUOT)")
     @ResponseBody
     public ResponseEntity<CreateAliquotResponse> createAliquot(@Valid @RequestBody CreateAliquotForm form,
             HttpServletRequest request) {
@@ -172,6 +175,7 @@ public class SampleManagementRestController extends BaseRestController {
      *                                  REQUEST)
      */
     @PostMapping(value = "/add-tests", consumes = MediaType.APPLICATION_JSON_VALUE, produces = MediaType.APPLICATION_JSON_VALUE)
+    @PreAuthorize("@accessControl.hasPermission(T(org.openelisglobal.common.constants.SystemPermission).SAMPLE_MANAGEMENT)")
     @ResponseBody
     public ResponseEntity<AddTestsResponse> addTestsToSamples(@Valid @RequestBody AddTestsForm form,
             HttpServletRequest request) {
@@ -225,6 +229,7 @@ public class SampleManagementRestController extends BaseRestController {
      *                                  REQUEST)
      */
     @PostMapping(value = "/cancel-test", consumes = MediaType.APPLICATION_JSON_VALUE, produces = MediaType.APPLICATION_JSON_VALUE)
+    @PreAuthorize("@accessControl.hasPermission(T(org.openelisglobal.common.constants.SystemPermission).SAMPLE_MANAGEMENT)")
     @ResponseBody
     public ResponseEntity<CancelTestResponse> cancelTest(@Valid @RequestBody CancelTestForm form,
             HttpServletRequest request) {
@@ -258,6 +263,7 @@ public class SampleManagementRestController extends BaseRestController {
     }
 
     @PostMapping(value = "/save-changes", consumes = MediaType.APPLICATION_JSON_VALUE, produces = MediaType.APPLICATION_JSON_VALUE)
+    @PreAuthorize("@accessControl.hasPermission(T(org.openelisglobal.common.constants.SystemPermission).SAMPLE_MANAGEMENT)")
     @ResponseBody
     public ResponseEntity<SaveSampleManagementChangesResponse> saveSampleManagementChanges(
             @Valid @RequestBody SaveSampleManagementChangesForm form, HttpServletRequest request) {

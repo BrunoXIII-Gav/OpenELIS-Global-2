@@ -82,6 +82,9 @@ public class SiteBrandingServiceTest {
         assertEquals("Secondary color should be default", "#393939", result.getSecondaryColor());
         assertEquals("Header color should be default", "#295785", result.getHeaderColor());
         assertEquals("Color mode should be default", "light", result.getColorMode());
+        assertTrue("Header logo should be visible by default", result.getShowHeaderLogo());
+        assertTrue("Login logo should be visible by default", result.getShowLoginLogo());
+        assertTrue("Favicon should be visible by default", result.getShowFavicon());
         verify(siteBrandingDAO, times(1)).insert(any(SiteBranding.class));
     }
 

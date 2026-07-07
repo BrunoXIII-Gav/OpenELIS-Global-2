@@ -88,6 +88,10 @@ export const removeLogo = (type, callback, extraParams) => {
   );
 };
 
+const DEFAULT_HEADER_LOGO = "../images/openelis_logo.png";
+const DEFAULT_LOGIN_LOGO = "images/openelis_logo_full.png";
+const DEFAULT_FAVICON = "/images/favicon-16x16.png";
+
 /**
  * Reset all branding to default values
  * @param {Function} callback - Callback function to handle response
@@ -261,19 +265,41 @@ export const applyBrandingColors = (branding) => {
  * Update the document favicon.
  * @param {String} faviconUrl - URL path to the favicon
  */
-export const applyFavicon = (faviconUrl) => {
-  if (!faviconUrl) return;
+export const clearFavicons = () => {
+  if (typeof document === "undefined") return;
 
-  // Remove existing favicon links
-  const existingLinks = document.querySelectorAll('link[rel*="icon"]');
+  const existingLinks = document.querySelectorAll(
+    'link[rel*="icon"], link[rel="apple-touch-icon"]',
+  );
   existingLinks.forEach((link) => link.remove());
+};
 
-  // Add new favicon link
+export const applyFaviconHref = (href, type = "image/x-icon", rel = "icon") => {
+  if (!href || typeof document === "undefined") return;
+
+  clearFavicons();
+
   const link = document.createElement("link");
-  link.rel = "icon";
-  link.type = "image/x-icon";
-  link.href = `${config.serverBaseUrl}${faviconUrl}`;
+  link.rel = rel;
+  link.type = type;
+  link.href = href;
   document.head.appendChild(link);
+};
+
+export const applyFavicon = (branding) => {
+  if (!branding) return;
+
+  if (branding.showFavicon === false) {
+    clearFavicons();
+    return;
+  }
+
+  if (branding.faviconUrl) {
+    applyFaviconHref(`${config.serverBaseUrl}${branding.faviconUrl}`);
+    return;
+  }
+
+  applyFaviconHref(DEFAULT_FAVICON, "image/png");
 };
 
 /**
@@ -285,12 +311,39 @@ export const loadAndApplyBranding = (callback) => {
   getBranding((response) => {
     if (response) {
       applyBrandingColors(response);
-      if (response.faviconUrl) {
-        applyFavicon(response.faviconUrl);
-      }
+      applyFavicon(response);
     }
     if (callback) {
       callback(response);
     }
   });
+};
+
+export const getHeaderLogoSrc = (branding, logoVersion = 0) => {
+  if (branding?.showHeaderLogo === false) {
+    return null;
+  }
+
+  if (branding?.headerLogoUrl) {
+    return `${config.serverBaseUrl}${branding.headerLogoUrl}?v=${logoVersion}`;
+  }
+
+  return DEFAULT_HEADER_LOGO;
+};
+
+export const getLoginLogoSrc = (branding, logoVersion = 0) => {
+  if (branding?.showLoginLogo === false) {
+    return null;
+  }
+
+  const logoUrl =
+    branding?.useHeaderLogoForLogin && branding?.headerLogoUrl
+      ? branding.headerLogoUrl
+      : branding?.loginLogoUrl;
+
+  if (logoUrl) {
+    return `${config.serverBaseUrl}${logoUrl}?v=${logoVersion}`;
+  }
+
+  return DEFAULT_LOGIN_LOGO;
 };

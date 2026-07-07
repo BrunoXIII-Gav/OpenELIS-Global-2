@@ -65,6 +65,7 @@ import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.core.ResolvableType;
 import org.springframework.http.MediaType;
+import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.security.oauth2.client.registration.ClientRegistration;
 import org.springframework.security.oauth2.client.registration.ClientRegistrationRepository;
 import org.springframework.stereotype.Controller;
@@ -289,18 +290,24 @@ public class DisplayListController extends BaseRestController {
     }
 
     @GetMapping(value = "health-regions", produces = MediaType.APPLICATION_JSON_VALUE)
+    @PreAuthorize("@accessControl.hasAnyPermission(T(org.openelisglobal.common.constants.SystemPermission).PATIENT, "
+            + "T(org.openelisglobal.common.constants.SystemPermission).ORDER)")
     @ResponseBody
     public List<IdValuePair> getHealthRegions() {
         return DisplayListService.getInstance().getList(ListType.PATIENT_HEALTH_REGIONS);
     }
 
     @GetMapping(value = "education-list", produces = MediaType.APPLICATION_JSON_VALUE)
+    @PreAuthorize("@accessControl.hasAnyPermission(T(org.openelisglobal.common.constants.SystemPermission).PATIENT, "
+            + "T(org.openelisglobal.common.constants.SystemPermission).ORDER)")
     @ResponseBody
     public List<IdValuePair> getEducationList() {
         return DisplayListService.getInstance().getList(ListType.PATIENT_EDUCATION);
     }
 
     @GetMapping(value = "marital-statuses", produces = MediaType.APPLICATION_JSON_VALUE)
+    @PreAuthorize("@accessControl.hasAnyPermission(T(org.openelisglobal.common.constants.SystemPermission).PATIENT, "
+            + "T(org.openelisglobal.common.constants.SystemPermission).ORDER)")
     @ResponseBody
     public List<IdValuePair> getMaritialList() {
         return DisplayListService.getInstance().getList(ListType.PATIENT_MARITAL_STATUS);
@@ -344,25 +351,25 @@ public class DisplayListController extends BaseRestController {
 
     @GetMapping(value = "referral-reasons", produces = MediaType.APPLICATION_JSON_VALUE)
     @ResponseBody
-    private List<IdValuePair> createReferralReasonList() {
+    public List<IdValuePair> createReferralReasonList() {
         return DisplayListService.getInstance().getList(ListType.REFERRAL_REASONS);
     }
 
     @GetMapping(value = "referral-organizations", produces = MediaType.APPLICATION_JSON_VALUE)
     @ResponseBody
-    private List<IdValuePair> createReferralOrganizationsList() {
+    public List<IdValuePair> createReferralOrganizationsList() {
         return DisplayListService.getInstance().getList(ListType.REFERRAL_ORGANIZATIONS);
     }
 
     @GetMapping(value = "site-names", produces = MediaType.APPLICATION_JSON_VALUE)
     @ResponseBody
-    private List<IdValuePair> getSiteNameList() {
+    public List<IdValuePair> getSiteNameList() {
         return DisplayListService.getInstance().getList(ListType.SAMPLE_PATIENT_REFERRING_CLINIC);
     }
 
     @GetMapping(value = "configuration-properties", produces = MediaType.APPLICATION_JSON_VALUE)
     @ResponseBody
-    private Map<String, Object> getConfigurationProperties() {
+    public Map<String, Object> getConfigurationProperties() {
         SiteInformation DEFAULT_SITE_INFORATION = new SiteInformation();
         String DEFAULT_REGEX = "0-9a-z .'_@-";
         DEFAULT_SITE_INFORATION.setValue(DEFAULT_REGEX);
@@ -422,7 +429,7 @@ public class DisplayListController extends BaseRestController {
     // these are fetched before login
     @GetMapping(value = "open-configuration-properties", produces = MediaType.APPLICATION_JSON_VALUE)
     @ResponseBody
-    private Map<String, Object> getOpenConfigurationProperties() {
+    public Map<String, Object> getOpenConfigurationProperties() {
         Map<String, Object> configs = new HashMap<>();
         configs.put(Property.restrictFreeTextProviderEntry.toString(),
                 ConfigurationProperties.getInstance().getPropertyValue(Property.restrictFreeTextProviderEntry));
@@ -492,7 +499,7 @@ public class DisplayListController extends BaseRestController {
 
     @GetMapping(value = "practitioner", produces = MediaType.APPLICATION_JSON_VALUE)
     @ResponseBody
-    private Provider getProviderInformation(@RequestParam String providerId) {
+    public Provider getProviderInformation(@RequestParam String providerId) {
         if (providerId != null) {
             Person person = personService.getPersonById(providerId);
             Provider provider = providerService.getProviderByPerson(person);
@@ -503,7 +510,7 @@ public class DisplayListController extends BaseRestController {
 
     @GetMapping(value = "test-list", produces = MediaType.APPLICATION_JSON_VALUE)
     @ResponseBody
-    private List<IdValuePair> getTestDropdownList(HttpServletRequest request) {
+    public List<IdValuePair> getTestDropdownList(HttpServletRequest request) {
         List<IdValuePair> testList = userService.getAllDisplayUserTestsByLabUnit(getSysUserId(request),
                 Constants.ROLE_RESULTS);
 
@@ -516,7 +523,7 @@ public class DisplayListController extends BaseRestController {
 
     @GetMapping(value = "priorities", produces = MediaType.APPLICATION_JSON_VALUE)
     @ResponseBody
-    private List<IdValuePair> createPriorityList() {
+    public List<IdValuePair> createPriorityList() {
         List<IdValuePair> allPriorities = DisplayListService.getInstance().getList(ListType.ORDER_PRIORITY);
         String enabledPriorities = ConfigurationProperties.getInstance()
                 .getPropertyValue(Property.ENABLED_ORDER_PRIORITIES);
@@ -541,25 +548,24 @@ public class DisplayListController extends BaseRestController {
 
     @GetMapping(value = "panels", produces = MediaType.APPLICATION_JSON_VALUE)
     @ResponseBody
-    private List<IdValuePair> createPanelList() {
+    public List<IdValuePair> createPanelList() {
         return DisplayListService.getInstance().getList(ListType.PANELS);
     }
 
     @GetMapping(value = "test-sections", produces = MediaType.APPLICATION_JSON_VALUE)
     @ResponseBody
-    private List<IdValuePair> createTestSectionsList() {
+    public List<IdValuePair> createTestSectionsList() {
         return DisplayListService.getInstance().getList(ListType.TEST_SECTION_ACTIVE);
     }
 
     @GetMapping(value = "user-test-sections/{roleName}", produces = MediaType.APPLICATION_JSON_VALUE)
     @ResponseBody
-    private List<IdValuePair> createUserTestSectionsList(HttpServletRequest request, @PathVariable String roleName) {
+    public List<IdValuePair> createUserTestSectionsList(HttpServletRequest request, @PathVariable String roleName) {
         if (roleName.equals("ALL")) {
             return userService.getUserTestSections(getSysUserId(request), null);
         } else if (Constants.ROLE_VALIDATION.equals(roleName)) {
             LinkedHashMap<String, IdValuePair> merged = new LinkedHashMap<>();
-            List<String> validationRoles = List.of(Constants.ROLE_VALIDATION_BIOLOGIST, Constants.ROLE_VALIDATION,
-                    Constants.ROLE_VALIDATION_MEDICAL, Constants.ROLE_PATHOLOGIST);
+            List<String> validationRoles = List.of(Constants.ROLE_VALIDATION, Constants.ROLE_PATHOLOGIST);
             for (String role : validationRoles) {
                 Role currentRole = roleService.getRoleByName(role);
                 if (currentRole == null) {

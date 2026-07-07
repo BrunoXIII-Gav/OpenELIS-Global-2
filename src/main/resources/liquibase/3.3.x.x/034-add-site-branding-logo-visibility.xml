@@ -1,0 +1,38 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<databaseChangeLog
+    xmlns="http://www.liquibase.org/xml/ns/dbchangelog"
+    xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+    xsi:schemaLocation="http://www.liquibase.org/xml/ns/dbchangelog
+    http://www.liquibase.org/xml/ns/dbchangelog/dbchangelog-3.8.xsd">
+
+    <changeSet id="034-add-site-branding-logo-visibility" author="openelis">
+        <preConditions onFail="MARK_RAN">
+            <and>
+                <tableExists tableName="site_branding"/>
+                <not>
+                    <columnExists tableName="site_branding" columnName="show_header_logo"/>
+                </not>
+            </and>
+        </preConditions>
+
+        <comment>Add explicit visibility toggles for header logo, login logo, and favicon</comment>
+
+        <addColumn tableName="site_branding">
+            <column name="show_header_logo" type="BOOLEAN" defaultValueBoolean="true">
+                <constraints nullable="false"/>
+            </column>
+            <column name="show_login_logo" type="BOOLEAN" defaultValueBoolean="true">
+                <constraints nullable="false"/>
+            </column>
+            <column name="show_favicon" type="BOOLEAN" defaultValueBoolean="true">
+                <constraints nullable="false"/>
+            </column>
+        </addColumn>
+
+        <rollback>
+            <dropColumn tableName="site_branding" columnName="show_favicon"/>
+            <dropColumn tableName="site_branding" columnName="show_login_logo"/>
+            <dropColumn tableName="site_branding" columnName="show_header_logo"/>
+        </rollback>
+    </changeSet>
+</databaseChangeLog>

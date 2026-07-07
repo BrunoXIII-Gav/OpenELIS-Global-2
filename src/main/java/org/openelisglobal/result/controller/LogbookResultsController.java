@@ -66,6 +66,7 @@ import org.openelisglobal.result.action.util.ResultUtil;
 import org.openelisglobal.result.action.util.ResultsLoadUtility;
 import org.openelisglobal.result.action.util.ResultsPaging;
 import org.openelisglobal.result.action.util.ResultsUpdateDataSet;
+import org.openelisglobal.common.constants.SystemPermission;
 import org.openelisglobal.result.form.LogbookResultsForm;
 import org.openelisglobal.result.form.LogbookResultsForm.LogbookResults;
 import org.openelisglobal.result.service.LogbookResultsPersistService;
@@ -80,6 +81,7 @@ import org.openelisglobal.role.service.RoleService;
 import org.openelisglobal.sample.service.SampleService;
 import org.openelisglobal.sample.valueholder.OrderPriority;
 import org.openelisglobal.sample.valueholder.Sample;
+import org.openelisglobal.security.service.UserPermissionService;
 import org.openelisglobal.spring.util.SpringContext;
 import org.openelisglobal.statusofsample.util.StatusRules;
 import org.openelisglobal.systemuser.service.SystemUserService;
@@ -156,6 +158,8 @@ public class LogbookResultsController extends LogbookResultsBaseController {
     private SystemUserService systemUserService;
     @Autowired
     private UserRoleService userRoleService;
+    @Autowired
+    private UserPermissionService userPermissionService;
 
     private final String RESULT_SUBJECT = "Result Note";
     private final String REFERRAL_CONFORMATION_ID;
@@ -448,7 +452,7 @@ public class LogbookResultsController extends LogbookResultsBaseController {
             }
             List<Analysis> newResultAnalyses = actionDataSet.getNewResults().stream().map(a -> a.result.getAnalysis())
                     .collect(Collectors.toList());
-            List<String> systemUserIds = userRoleService.getUserIdsForRole(Constants.ROLE_VALIDATION);
+            List<String> systemUserIds = userPermissionService.getUserIdsForPermission(SystemPermission.VALIDATION);
             String message = MessageUtil.getMessage("notification.result.stat");
             for (String userId : systemUserIds) {
                 List<Analysis> userAnalyses = userService

@@ -11,6 +11,7 @@ import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.MediaType;
 import org.springframework.http.ResponseEntity;
+import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.stereotype.Controller;
 import org.springframework.web.bind.annotation.DeleteMapping;
 import org.springframework.web.bind.annotation.GetMapping;
@@ -30,6 +31,8 @@ public class PatientAdditionalFieldRestController extends BaseRestController {
     private PatientAdditionalFieldService patientAdditionalFieldService;
 
     @GetMapping(value = "patient-additional-fields", produces = MediaType.APPLICATION_JSON_VALUE)
+    @PreAuthorize("@accessControl.hasAnyPermission(T(org.openelisglobal.common.constants.SystemPermission).PATIENT, "
+            + "T(org.openelisglobal.common.constants.SystemPermission).ORDER)")
     @ResponseBody
     public List<PatientAdditionalFieldPayload> getFields(
             @RequestParam(value = "includeInactive", defaultValue = "false") boolean includeInactive) {
@@ -37,12 +40,15 @@ public class PatientAdditionalFieldRestController extends BaseRestController {
     }
 
     @GetMapping(value = "patient-additional-fields/values", produces = MediaType.APPLICATION_JSON_VALUE)
+    @PreAuthorize("@accessControl.hasAnyPermission(T(org.openelisglobal.common.constants.SystemPermission).PATIENT, "
+            + "T(org.openelisglobal.common.constants.SystemPermission).ORDER)")
     @ResponseBody
     public Map<String, String> getValues(@RequestParam("patientId") String patientId) {
         return patientAdditionalFieldService.getPatientValues(patientId, null);
     }
 
     @PostMapping(value = "patient-additional-fields", produces = MediaType.APPLICATION_JSON_VALUE, consumes = MediaType.APPLICATION_JSON_VALUE)
+    @PreAuthorize("@accessControl.hasPermission(T(org.openelisglobal.common.constants.SystemPermission).ADMINISTRATION)")
     @ResponseBody
     public ResponseEntity<?> createField(HttpServletRequest request,
             @RequestBody PatientAdditionalFieldPayload payload) {
@@ -56,6 +62,7 @@ public class PatientAdditionalFieldRestController extends BaseRestController {
     }
 
     @PutMapping(value = "patient-additional-fields/{fieldId}", produces = MediaType.APPLICATION_JSON_VALUE, consumes = MediaType.APPLICATION_JSON_VALUE)
+    @PreAuthorize("@accessControl.hasPermission(T(org.openelisglobal.common.constants.SystemPermission).ADMINISTRATION)")
     @ResponseBody
     public ResponseEntity<?> updateField(HttpServletRequest request,
             @PathVariable Integer fieldId, @RequestBody PatientAdditionalFieldPayload payload) {
@@ -67,6 +74,7 @@ public class PatientAdditionalFieldRestController extends BaseRestController {
     }
 
     @DeleteMapping(value = "patient-additional-fields/{fieldId}", produces = MediaType.APPLICATION_JSON_VALUE)
+    @PreAuthorize("@accessControl.hasPermission(T(org.openelisglobal.common.constants.SystemPermission).ADMINISTRATION)")
     @ResponseBody
     public ResponseEntity<?> deactivateField(HttpServletRequest request, @PathVariable Integer fieldId) {
         try {
@@ -78,6 +86,7 @@ public class PatientAdditionalFieldRestController extends BaseRestController {
     }
 
     @PostMapping(value = "patient-additional-fields/{fieldId}/options", produces = MediaType.APPLICATION_JSON_VALUE, consumes = MediaType.APPLICATION_JSON_VALUE)
+    @PreAuthorize("@accessControl.hasPermission(T(org.openelisglobal.common.constants.SystemPermission).ADMINISTRATION)")
     @ResponseBody
     public ResponseEntity<?> createOption(HttpServletRequest request,
             @PathVariable Integer fieldId, @RequestBody PatientAdditionalFieldOptionPayload payload) {
@@ -91,6 +100,7 @@ public class PatientAdditionalFieldRestController extends BaseRestController {
     }
 
     @PutMapping(value = "patient-additional-fields/options/{optionId}", produces = MediaType.APPLICATION_JSON_VALUE, consumes = MediaType.APPLICATION_JSON_VALUE)
+    @PreAuthorize("@accessControl.hasPermission(T(org.openelisglobal.common.constants.SystemPermission).ADMINISTRATION)")
     @ResponseBody
     public ResponseEntity<?> updateOption(HttpServletRequest request,
             @PathVariable Integer optionId, @RequestBody PatientAdditionalFieldOptionPayload payload) {
@@ -102,6 +112,7 @@ public class PatientAdditionalFieldRestController extends BaseRestController {
     }
 
     @DeleteMapping(value = "patient-additional-fields/options/{optionId}", produces = MediaType.APPLICATION_JSON_VALUE)
+    @PreAuthorize("@accessControl.hasPermission(T(org.openelisglobal.common.constants.SystemPermission).ADMINISTRATION)")
     @ResponseBody
     public ResponseEntity<?> deactivateOption(HttpServletRequest request, @PathVariable Integer optionId) {
         try {

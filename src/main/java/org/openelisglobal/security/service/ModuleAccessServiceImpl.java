@@ -11,6 +11,7 @@ import java.util.Map;
 import java.util.Set;
 import org.apache.commons.validator.GenericValidator;
 import org.openelisglobal.common.action.IActionConstants;
+import org.openelisglobal.common.constants.SystemPermission;
 import org.openelisglobal.login.dao.UserModuleService;
 import org.openelisglobal.login.valueholder.UserSessionData;
 import org.openelisglobal.systemmodule.service.SystemModuleUrlService;
@@ -36,6 +37,8 @@ public class ModuleAccessServiceImpl implements ModuleAccessService {
 
     @Autowired
     private PermissionModuleService<PermissionModule> permissionModuleService;
+    @Autowired
+    private UserPermissionService userPermissionService;
 
     @Override
     public ModuleAccessResult canAccess(String targetUrl, HttpServletRequest request) {
@@ -56,11 +59,25 @@ public class ModuleAccessServiceImpl implements ModuleAccessService {
             return ModuleAccessResult.allowed();
         }
 
+        String userId = Integer.toString(getSysUserId(request));
         Map<String, String> targetParams = parseQueryParams(targetUrl);
+        if (isPatientAnalysisReportRequest(normalizedPath, targetParams)) {
+            boolean reportPrintAllowed = userPermissionService.hasPermission(userId, SystemPermission.VALIDATION)
+                    || userPermissionService.hasPermission(userId, SystemPermission.RESULTS)
+                    || userPermissionService.hasPermission(userId, SystemPermission.REPORTS);
+            if (reportPrintAllowed) {
+                return ModuleAccessResult.allowed();
+            }
+        }
+
+        SystemPermission semanticPermission = resolveSemanticPermission(normalizedPath, targetParams);
         List<SystemModuleUrl> systemModuleUrls = systemModuleUrlService.getByUrlPath(normalizedPath);
         systemModuleUrls = filterParamMatches(systemModuleUrls, targetParams);
 
         if (systemModuleUrls.isEmpty()) {
+            if (semanticPermission != null && userPermissionService.hasPermission(userId, semanticPermission)) {
+                return ModuleAccessResult.allowed();
+            }
             return ModuleAccessResult.denied();
         }
 
@@ -68,7 +85,86 @@ public class ModuleAccessServiceImpl implements ModuleAccessService {
         boolean allowed = systemModuleUrls.stream().anyMatch(
                 moduleUrl -> permittedModuleNames.contains(moduleUrl.getSystemModule().getSystemModuleName()));
 
+        if (!allowed && semanticPermission != null) {
+            allowed = userPermissionService.hasPermission(userId, semanticPermission);
+        }
+
         return allowed ? ModuleAccessResult.allowed() : ModuleAccessResult.denied();
+    }
+
+    private SystemPermission resolveSemanticPermission(String normalizedPath, Map<String, String> targetParams) {
+        if (GenericValidator.isBlankOrNull(normalizedPath)) {
+            return null;
+        }
+
+        if (normalizedPath.startsWith("/MasterListsPage") || "/admin".equals(normalizedPath)) {
+            return SystemPermission.ADMINISTRATION;
+        }
+        if (normalizedPath.startsWith("/analyzers")) {
+            return SystemPermission.ADMINISTRATION;
+        }
+        if (normalizedPath.startsWith("/GenericSample/")) {
+            return SystemPermission.GENERIC_SAMPLE;
+        }
+        if ("/AnalyzerResults".equals(normalizedPath)) {
+            return SystemPermission.ANALYSER_IMPORT;
+        }
+        if (List.of("/SamplePatientEntry", "/ModifyOrder", "/SampleEdit", "/SampleBatchEntrySetup",
+                "/ElectronicOrders", "/PrintBarcode").contains(normalizedPath)) {
+            return SystemPermission.ORDER;
+        }
+        if (List.of("/PatientManagement", "/PatientHistory").contains(normalizedPath)
+                || normalizedPath.startsWith("/PatientResults/")) {
+            return SystemPermission.PATIENT;
+        }
+        if ("/SampleManagement".equals(normalizedPath)) {
+            return SystemPermission.SAMPLE_MANAGEMENT;
+        }
+        if ("/Aliquot".equals(normalizedPath)) {
+            return SystemPermission.ALIQUOT;
+        }
+        if (List.of("/RoutineReports", "/RoutineReport", "/StudyReports", "/StudyReport", "/Report",
+                "/AuditTrailReport").contains(normalizedPath)
+                || normalizedPath.startsWith("/reports")) {
+            return SystemPermission.REPORTS;
+        }
+        if ("/ReportPrint".equals(normalizedPath)) {
+            if (isPatientAnalysisReportRequest(normalizedPath, targetParams)) {
+                return SystemPermission.VALIDATION;
+            }
+            return SystemPermission.REPORTS;
+        }
+        if (normalizedPath.startsWith("/Storage")) {
+            return SystemPermission.STORAGE;
+        }
+        if (normalizedPath.startsWith("/FreezerMonitoring") || normalizedPath.startsWith("/rest/storage")
+                || normalizedPath.startsWith("/rest/freezer-monitoring")) {
+            return SystemPermission.STORAGE;
+        }
+        if (List.of("/WorkPlanByTestSection", "/WorkplanByTest", "/WorkplanByPanel", "/WorkplanByPriority",
+                "/PrintWorkplanReport").contains(normalizedPath)) {
+            return SystemPermission.RESULTS;
+        }
+        if (List.of("/validation", "/ResultValidation", "/AccessionValidation", "/AccessionValidationRange",
+                "/ResultValidationByTestDate").contains(normalizedPath)) {
+            return SystemPermission.VALIDATION;
+        }
+        if (List.of("/result", "/LogbookResults", "/PatientResults", "/AccessionResults", "/StatusResults",
+                "/RangeResults", "/ReferredOutTests").contains(normalizedPath)) {
+            return SystemPermission.RESULTS;
+        }
+        return null;
+    }
+
+    private boolean isPatientAnalysisReportRequest(String normalizedPath, Map<String, String> targetParams) {
+        if (!"/ReportPrint".equals(normalizedPath)) {
+            return false;
+        }
+        if (!"patient".equalsIgnoreCase(targetParams.getOrDefault("type", ""))) {
+            return false;
+        }
+        return !GenericValidator.isBlankOrNull(targetParams.get("analysisIds"))
+                || !GenericValidator.isBlankOrNull(targetParams.get("previewAnalysisIds"));
     }
 
     @SuppressWarnings("unchecked")

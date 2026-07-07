@@ -61,4 +61,6 @@
   <include relativeToChangelogFile="true" file="032-create-tb-method-test-table.xml"/>
   <!-- Site Branding visibility controls -->
   <include relativeToChangelogFile="true" file="033-add-site-branding-visibility-options.xml"/>
+  <!-- Site Branding explicit logo visibility controls -->
+  <include relativeToChangelogFile="true" file="034-add-site-branding-logo-visibility.xml"/>
 </databaseChangeLog>

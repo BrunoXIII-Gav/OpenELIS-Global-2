@@ -13,11 +13,17 @@ public class SiteBrandingForm {
 
     private String headerLogoUrl;
 
+    private Boolean showHeaderLogo = true;
+
     private String loginLogoUrl;
+
+    private Boolean showLoginLogo = true;
 
     private Boolean useHeaderLogoForLogin = false;
 
     private String faviconUrl;
+
+    private Boolean showFavicon = true;
 
     @Size(max = 50, message = "Header color must not exceed 50 characters")
     private String headerColor;
@@ -65,12 +71,28 @@ public class SiteBrandingForm {
         this.headerLogoUrl = headerLogoUrl;
     }
 
+    public Boolean getShowHeaderLogo() {
+        return showHeaderLogo;
+    }
+
+    public void setShowHeaderLogo(Boolean showHeaderLogo) {
+        this.showHeaderLogo = showHeaderLogo;
+    }
+
     public String getLoginLogoUrl() {
         return loginLogoUrl;
     }
 
     public void setLoginLogoUrl(String loginLogoUrl) {
         this.loginLogoUrl = loginLogoUrl;
+    }
+
+    public Boolean getShowLoginLogo() {
+        return showLoginLogo;
+    }
+
+    public void setShowLoginLogo(Boolean showLoginLogo) {
+        this.showLoginLogo = showLoginLogo;
     }
 
     public Boolean getUseHeaderLogoForLogin() {
@@ -87,6 +109,14 @@ public class SiteBrandingForm {
 
     public void setFaviconUrl(String faviconUrl) {
         this.faviconUrl = faviconUrl;
+    }
+
+    public Boolean getShowFavicon() {
+        return showFavicon;
+    }
+
+    public void setShowFavicon(Boolean showFavicon) {
+        this.showFavicon = showFavicon;
     }
 
     public String getPrimaryColor() {

@@ -185,7 +185,7 @@ const sampleOrderItemsSchema = Yup.object()
       "providerLastNameRequired",
       "Requester Last Name is required",
       function (value) {
-        if (!isFixedFieldRequired(this.parent, "providerLastName", true)) {
+        if (!isFixedFieldRequired(this.parent, "providerLastName", false)) {
           return true;
         }
         return !!(value || "").trim();
@@ -195,7 +195,7 @@ const sampleOrderItemsSchema = Yup.object()
       "providerFirstNameRequired",
       "Requester First Name is required",
       function (value) {
-        if (!isFixedFieldRequired(this.parent, "providerFirstName", true)) {
+        if (!isFixedFieldRequired(this.parent, "providerFirstName", false)) {
           return true;
         }
         return !!(value || "").trim();
@@ -208,20 +208,25 @@ const sampleOrderItemsSchema = Yup.object()
     providerSpecialty: Yup.string(),
   })
   .test("referringSiteName", "Referring Site is required", function (value) {
-    if (!isFixedFieldRequired(value, "referringSiteName", true)) {
+    if (!isFixedFieldRequired(value, "referringSiteName", false)) {
       return true;
     }
     const { referringSiteName, referringSiteId } = value || {};
     return !!referringSiteName || !!referringSiteId;
   })
   .test(
-    "providerSelectionRequired",
-    "Search Requester is required",
-    function (value) {
-      const selectedProviderId = value?.providerId || value?.providerPersonId;
-      return !!String(selectedProviderId || "").trim();
-    },
-  )
+      "providerSelectionRequired",
+      "Search Requester is required",
+      function (value) {
+        const selectedProviderId = value?.providerId || value?.providerPersonId;
+        if (!!String(selectedProviderId || "").trim()) {
+          return true;
+        }
+        const providerFirstName = String(value?.providerFirstName || "").trim();
+        const providerLastName = String(value?.providerLastName || "").trim();
+        return !!providerFirstName && !!providerLastName;
+      },
+    )
   .test(
     "requiredOrderAdditionalFields",
     "Order additional field is required",

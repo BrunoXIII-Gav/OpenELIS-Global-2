@@ -1,4 +1,11 @@
 import config from "../../config.json";
+import { emitAccessDeniedEvent } from "../security/accessDenied";
+
+const notifyIfAccessDenied = (response) => {
+  if (response?.status === 403) {
+    emitAccessDeniedEvent();
+  }
+};
 
 export const getFromOpenElisServer = (endPoint, callback, signal = null) => {
   fetch(
@@ -17,6 +24,7 @@ export const getFromOpenElisServer = (endPoint, callback, signal = null) => {
       //     throw "No Login Session";
       // }
       if (!response.ok) {
+        notifyIfAccessDenied(response);
         callback(undefined);
         return;
       }
@@ -59,7 +67,10 @@ export const postToOpenElisServer = (
       body: payLoad,
     },
   )
-    .then((response) => response.status)
+    .then((response) => {
+      notifyIfAccessDenied(response);
+      return response.status;
+    })
     .then((status) => {
       callback(status, extraParams);
     })
@@ -88,7 +99,10 @@ export const postToOpenElisServerFullResponse = (
       body: payLoad,
     },
   )
-    .then((response) => callback(response, extraParams))
+    .then((response) => {
+      notifyIfAccessDenied(response);
+      callback(response, extraParams);
+    })
     .catch((error) => {
       console.error(error);
     });
@@ -112,7 +126,10 @@ export const postToOpenElisServerFormData = (
       body: formData,
     },
   )
-    .then((response) => response.status)
+    .then((response) => {
+      notifyIfAccessDenied(response);
+      return response.status;
+    })
     .then((status) => {
       callback(status, extraParams);
     })
@@ -142,6 +159,7 @@ export const postToOpenElisServerJsonResponse = (
     },
   )
     .then((response) => {
+      notifyIfAccessDenied(response);
       // Check if response is ok (status 200-299)
       if (!response.ok) {
         // For error responses, try to parse JSON error message
@@ -273,7 +291,10 @@ export const putToOpenElisServer = (endPoint, payLoad, callback) => {
   }
 
   fetch(config.serverBaseUrl + endPoint, options)
-    .then((response) => response.status)
+    .then((response) => {
+      notifyIfAccessDenied(response);
+      return response.status;
+    })
     .then((status) => {
       callback(status);
     })
@@ -298,7 +319,10 @@ export const putToOpenElisServerFullResponse = (
     },
     body: payLoad,
   })
-    .then((response) => callback(response, extraParams))
+    .then((response) => {
+      notifyIfAccessDenied(response);
+      callback(response, extraParams);
+    })
     .catch((error) => {
       console.error(error);
     });
@@ -314,7 +338,10 @@ export const deleteFromOpenElisServer = (endPoint, callback) => {
       "X-CSRF-Token": localStorage.getItem("CSRF"),
     },
   })
-    .then((response) => response.status)
+    .then((response) => {
+      notifyIfAccessDenied(response);
+      return response.status;
+    })
     .then((status) => {
       callback(status);
     })
@@ -337,7 +364,10 @@ export const deleteFromOpenElisServerFullResponse = (
       "X-CSRF-Token": localStorage.getItem("CSRF"),
     },
   })
-    .then((response) => callback(response, extraParams))
+    .then((response) => {
+      notifyIfAccessDenied(response);
+      callback(response, extraParams);
+    })
     .catch((error) => {
       console.error(error);
     });
@@ -347,7 +377,10 @@ export const hasRole = (userSessionDetails, role) => {
   if (!userSessionDetails || !userSessionDetails.roles) {
     return false;
   }
-  return userSessionDetails.roles.includes(role);
+  const roles = Array.isArray(userSessionDetails.roles)
+    ? userSessionDetails.roles
+    : Object.values(userSessionDetails.roles);
+  return roles.includes(role);
 };
 
 // this is complicated to enable it to format "smartly" as a person types
@@ -387,6 +420,7 @@ export const patchToOpenElisServerJsonResponse = (
     },
   )
     .then((response) => {
+      notifyIfAccessDenied(response);
       if (!response.ok) {
         throw new Error(`HTTP ${response.status}: ${response.statusText}`);
       }
@@ -528,6 +562,7 @@ export function urlBase64ToUint8Array(base64String) {
 }
 
 export const Roles = {
+  ADMINISTRATION: "Administration",
   GLOBAL_ADMIN: "Global Administrator",
   USER_ACCOUNT_ADMIN: "User Account Administrator",
   AUDIT_TRAIL: "Audit Trail",
@@ -535,6 +570,9 @@ export const Roles = {
   CYTOPATHOLOGIST: "Cytopathologist",
   PATHOLOGIST: "Pathologist",
   RECEPTION: "Reception",
+  GENERIC_SAMPLE: "Generic Sample",
+  ORDER: "Order",
+  PATIENT: "Patient",
   RESULTS: "Results",
   VALIDATION: "Validation",
   REPORTS: "Reports",

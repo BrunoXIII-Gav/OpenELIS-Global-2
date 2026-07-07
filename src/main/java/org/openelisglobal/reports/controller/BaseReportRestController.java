@@ -19,6 +19,7 @@ import org.openelisglobal.common.rest.BaseRestController;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.http.ResponseEntity;
+import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RestController;
@@ -38,6 +39,7 @@ import org.springframework.web.bind.annotation.RestController;
  */
 @RestController
 @RequestMapping("/rest/reports")
+@PreAuthorize("@accessControl.hasPermission(T(org.openelisglobal.common.constants.SystemPermission).REPORTS)")
 public class BaseReportRestController extends BaseRestController {
 
     private static final Logger logger = LoggerFactory.getLogger(BaseReportRestController.class);

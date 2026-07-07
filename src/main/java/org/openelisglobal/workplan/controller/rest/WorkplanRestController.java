@@ -24,9 +24,11 @@ import org.openelisglobal.spring.util.SpringContext;
 import org.openelisglobal.test.service.TestService;
 import org.openelisglobal.test.valueholder.Test;
 import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.stereotype.Controller;
 
 @Controller
+@PreAuthorize("@accessControl.hasPermission(T(org.openelisglobal.common.constants.SystemPermission).RESULTS)")
 public class WorkplanRestController extends BaseRestController {
 
     @Autowired

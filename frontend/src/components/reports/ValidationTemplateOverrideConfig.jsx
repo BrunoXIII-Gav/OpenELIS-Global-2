@@ -558,7 +558,7 @@ const ValidationTemplateOverrideConfig = () => {
   };
 
   return (
-    <div className="validation-template-override-page">
+    <div className="adminPageContent validation-template-override-page">
       <h1>
         <FormattedMessage
           id="validation.template.override.title"

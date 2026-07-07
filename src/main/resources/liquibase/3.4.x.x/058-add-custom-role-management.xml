@@ -1,0 +1,126 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<databaseChangeLog
+  xmlns="http://www.liquibase.org/xml/ns/dbchangelog"
+  xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+  xsi:schemaLocation="http://www.liquibase.org/xml/ns/dbchangelog http://www.liquibase.org/xml/ns/dbchangelog/dbchangelog-3.8.xsd">
+
+  <changeSet id="058-01-create-custom-role-group" author="codex">
+    <preConditions onFail="MARK_RAN">
+      <tableExists tableName="system_role" schemaName="clinlims" />
+      <sqlCheck expectedResult="0">
+        SELECT COUNT(*) FROM clinlims.system_role WHERE name = 'Custom Roles'
+      </sqlCheck>
+    </preConditions>
+
+    <insert tableName="system_role" schemaName="clinlims">
+      <column name="id" valueSequenceNext="system_role_seq" />
+      <column name="name" value="Custom Roles" />
+      <column name="description" value="Grouping role for user-defined roles" />
+      <column name="is_grouping_role" valueBoolean="true" />
+      <column name="active" valueBoolean="true" />
+      <column name="editable" valueBoolean="false" />
+    </insert>
+  </changeSet>
+
+  <changeSet id="058-02-create-role-permission-mapping-table" author="codex">
+    <preConditions onFail="MARK_RAN">
+      <not>
+        <tableExists tableName="role_permission_mapping" schemaName="clinlims" />
+      </not>
+    </preConditions>
+
+    <createTable tableName="role_permission_mapping" schemaName="clinlims">
+      <column name="id" type="SERIAL">
+        <constraints primaryKey="true" nullable="false" />
+      </column>
+      <column name="custom_role_id" type="INTEGER">
+        <constraints nullable="false" />
+      </column>
+      <column name="permission_role_id" type="INTEGER">
+        <constraints nullable="false" />
+      </column>
+    </createTable>
+
+    <addUniqueConstraint tableName="role_permission_mapping" schemaName="clinlims"
+      columnNames="custom_role_id, permission_role_id"
+      constraintName="uq_role_permission_mapping_role_permission" />
+  </changeSet>
+
+  <changeSet id="058-02b-add-role-permission-mapping-last-updated" author="codex">
+    <preConditions onFail="MARK_RAN">
+      <tableExists tableName="role_permission_mapping" schemaName="clinlims" />
+      <not>
+        <columnExists tableName="role_permission_mapping" schemaName="clinlims" columnName="last_updated" />
+      </not>
+    </preConditions>
+
+    <addColumn tableName="role_permission_mapping" schemaName="clinlims">
+      <column name="last_updated" type="TIMESTAMP" defaultValueComputed="CURRENT_TIMESTAMP">
+        <constraints nullable="false" />
+      </column>
+    </addColumn>
+  </changeSet>
+
+  <changeSet id="058-03-add-custom-role-spa-routes" author="codex">
+    <preConditions onFail="MARK_RAN">
+      <tableExists tableName="system_module" schemaName="clinlims" />
+      <tableExists tableName="system_module_url" schemaName="clinlims" />
+      <sqlCheck expectedResult="1">
+        SELECT COUNT(*) FROM clinlims.system_module WHERE name = 'SystemUser'
+      </sqlCheck>
+    </preConditions>
+
+    <sql>
+      INSERT INTO clinlims.system_module_url (id, url_path, system_module_id)
+      SELECT nextval('clinlims.system_module_url_seq'), routes.url_path, module_ref.id
+      FROM (
+        VALUES
+          ('/roleManagement'),
+          ('/roleEdit'),
+          ('/MasterListsPage/roleManagement'),
+          ('/MasterListsPage/roleEdit'),
+          ('/profileManagement'),
+          ('/profileEdit'),
+          ('/MasterListsPage/profileManagement'),
+          ('/MasterListsPage/profileEdit')
+      ) AS routes(url_path)
+      CROSS JOIN (
+        SELECT id FROM clinlims.system_module WHERE name = 'SystemUser'
+      ) AS module_ref
+      WHERE NOT EXISTS (
+        SELECT 1
+        FROM clinlims.system_module_url existing
+        WHERE existing.url_path = routes.url_path
+          AND existing.system_module_id = module_ref.id
+      );
+    </sql>
+  </changeSet>
+
+  <changeSet id="058-04-create-custom-role-lab-unit-scope-table" author="codex">
+    <preConditions onFail="MARK_RAN">
+      <not>
+        <tableExists tableName="custom_role_lab_unit_scope" schemaName="clinlims" />
+      </not>
+    </preConditions>
+
+    <createTable tableName="custom_role_lab_unit_scope" schemaName="clinlims">
+      <column name="id" type="SERIAL">
+        <constraints primaryKey="true" nullable="false" />
+      </column>
+      <column name="custom_role_id" type="INTEGER">
+        <constraints nullable="false" />
+      </column>
+      <column name="lab_unit_id" type="VARCHAR(64)">
+        <constraints nullable="false" />
+      </column>
+      <column name="last_updated" type="TIMESTAMP" defaultValueComputed="CURRENT_TIMESTAMP">
+        <constraints nullable="false" />
+      </column>
+    </createTable>
+
+    <addUniqueConstraint tableName="custom_role_lab_unit_scope" schemaName="clinlims"
+      columnNames="custom_role_id, lab_unit_id"
+      constraintName="uq_custom_role_lab_unit_scope_role_lab" />
+  </changeSet>
+
+</databaseChangeLog>

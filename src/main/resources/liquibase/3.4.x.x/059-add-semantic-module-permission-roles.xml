@@ -1,0 +1,87 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<databaseChangeLog
+  xmlns="http://www.liquibase.org/xml/ns/dbchangelog"
+  xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+  xsi:schemaLocation="http://www.liquibase.org/xml/ns/dbchangelog http://www.liquibase.org/xml/ns/dbchangelog/dbchangelog-3.8.xsd">
+
+  <changeSet id="059-01-add-role-administration" author="codex">
+    <preConditions onFail="MARK_RAN">
+      <tableExists tableName="system_role" schemaName="clinlims" />
+      <sqlCheck expectedResult="1">SELECT COUNT(*) FROM clinlims.system_role WHERE name = 'Global Roles'</sqlCheck>
+      <sqlCheck expectedResult="0">SELECT COUNT(*) FROM clinlims.system_role WHERE name = 'Administration'</sqlCheck>
+    </preConditions>
+
+    <comment>Create Administration semantic permission under Global Roles</comment>
+    <insert schemaName="clinlims" tableName="system_role">
+      <column name="id" valueSequenceNext="system_role_seq" />
+      <column name="name" value="Administration" />
+      <column name="description" value="Access to administration menus and configuration workflows" />
+      <column name="is_grouping_role" valueBoolean="false" />
+      <column name="grouping_parent" valueComputed="(SELECT id FROM clinlims.system_role WHERE name = 'Global Roles')" />
+      <column name="display_key" value="role.administration" />
+      <column name="active" valueBoolean="true" />
+      <column name="editable" valueBoolean="false" />
+    </insert>
+  </changeSet>
+
+  <changeSet id="059-02-add-role-generic-sample" author="codex">
+    <preConditions onFail="MARK_RAN">
+      <tableExists tableName="system_role" schemaName="clinlims" />
+      <sqlCheck expectedResult="1">SELECT COUNT(*) FROM clinlims.system_role WHERE name = 'Lab Unit Roles'</sqlCheck>
+      <sqlCheck expectedResult="0">SELECT COUNT(*) FROM clinlims.system_role WHERE name = 'Generic Sample'</sqlCheck>
+    </preConditions>
+
+    <comment>Create Generic Sample semantic permission under Lab Unit Roles</comment>
+    <insert schemaName="clinlims" tableName="system_role">
+      <column name="id" valueSequenceNext="system_role_seq" />
+      <column name="name" value="Generic Sample" />
+      <column name="description" value="Access to generic sample entry, edit, import, and results workflows" />
+      <column name="is_grouping_role" valueBoolean="false" />
+      <column name="grouping_parent" valueComputed="(SELECT id FROM clinlims.system_role WHERE name = 'Lab Unit Roles')" />
+      <column name="display_key" value="role.generic.sample" />
+      <column name="active" valueBoolean="true" />
+      <column name="editable" valueBoolean="false" />
+    </insert>
+  </changeSet>
+
+  <changeSet id="059-03-add-role-order" author="codex">
+    <preConditions onFail="MARK_RAN">
+      <tableExists tableName="system_role" schemaName="clinlims" />
+      <sqlCheck expectedResult="1">SELECT COUNT(*) FROM clinlims.system_role WHERE name = 'Lab Unit Roles'</sqlCheck>
+      <sqlCheck expectedResult="0">SELECT COUNT(*) FROM clinlims.system_role WHERE name = 'Order'</sqlCheck>
+    </preConditions>
+
+    <comment>Create Order semantic permission under Lab Unit Roles</comment>
+    <insert schemaName="clinlims" tableName="system_role">
+      <column name="id" valueSequenceNext="system_role_seq" />
+      <column name="name" value="Order" />
+      <column name="description" value="Order entry, search, edit, e-order, and barcode access" />
+      <column name="is_grouping_role" valueBoolean="false" />
+      <column name="grouping_parent" valueComputed="(SELECT id FROM clinlims.system_role WHERE name = 'Lab Unit Roles')" />
+      <column name="display_key" value="role.order" />
+      <column name="active" valueBoolean="true" />
+      <column name="editable" valueBoolean="false" />
+    </insert>
+  </changeSet>
+
+  <changeSet id="059-04-add-role-patient" author="codex">
+    <preConditions onFail="MARK_RAN">
+      <tableExists tableName="system_role" schemaName="clinlims" />
+      <sqlCheck expectedResult="1">SELECT COUNT(*) FROM clinlims.system_role WHERE name = 'Lab Unit Roles'</sqlCheck>
+      <sqlCheck expectedResult="0">SELECT COUNT(*) FROM clinlims.system_role WHERE name = 'Patient'</sqlCheck>
+    </preConditions>
+
+    <comment>Create Patient semantic permission under Lab Unit Roles</comment>
+    <insert schemaName="clinlims" tableName="system_role">
+      <column name="id" valueSequenceNext="system_role_seq" />
+      <column name="name" value="Patient" />
+      <column name="description" value="Access to patient registration, patient history, and patient-linked result views" />
+      <column name="is_grouping_role" valueBoolean="false" />
+      <column name="grouping_parent" valueComputed="(SELECT id FROM clinlims.system_role WHERE name = 'Lab Unit Roles')" />
+      <column name="display_key" value="role.patient" />
+      <column name="active" valueBoolean="true" />
+      <column name="editable" valueBoolean="false" />
+    </insert>
+  </changeSet>
+
+</databaseChangeLog>

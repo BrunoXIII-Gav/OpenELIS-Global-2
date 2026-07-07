@@ -12,6 +12,7 @@ import {
   Grid,
   Column,
   Section,
+  Button,
   DataTable,
   Table,
   TableHead,
@@ -60,6 +61,19 @@ function ProviderMenu() {
     useContext(ConfigurationContext);
 
   const intl = useIntl();
+  const yesOrNo = useMemo(
+    () => [
+      {
+        id: "yes",
+        value: intl.formatMessage({ id: "label.yes", defaultMessage: "Yes" }),
+      },
+      {
+        id: "no",
+        value: intl.formatMessage({ id: "label.no", defaultMessage: "No" }),
+      },
+    ],
+    [intl],
+  );
 
   const componentMounted = useRef(false);
   const [page, setPage] = useState(1);
@@ -93,12 +107,7 @@ function ProviderMenu() {
     useState("MEDICAL_DOCTOR");
   const [professionalInitials, setProfessionalInitials] = useState("");
   const [cbpCode, setCbpCode] = useState("");
-  const [isActive, setIsActive] = useState({ id: "yes", value: "Yes" });
-
-  const yesOrNo = [
-    { id: "yes", value: "Yes" },
-    { id: "no", value: "No" },
-  ];
+  const [isActive, setIsActive] = useState(yesOrNo[0]);
 
   const providerSpecialtyOptions = useMemo(
     () =>
@@ -310,7 +319,7 @@ function ProviderMenu() {
     setProfessionalProfileCode("MEDICAL_DOCTOR");
     setProfessionalInitials("");
     setCbpCode("");
-    setIsActive({ id: "yes", value: "Yes" });
+    setIsActive(yesOrNo[0]);
     setIsAddModalOpen(true);
   };
 
@@ -334,7 +343,7 @@ function ProviderMenu() {
     setProfessionalInitials(provider.professionalInitials || "");
     setCbpCode(provider.cbpCode || "");
     setIsActive(
-      provider.active ? { id: "yes", value: "Yes" } : { id: "no", value: "No" },
+      provider.active ? yesOrNo[0] : yesOrNo[1],
     );
     setIsUpdateModalOpen(true);
   };
@@ -642,12 +651,34 @@ function ProviderMenu() {
           type="type1"
         />
         <br />
+        <Button
+          kind="ghost"
+          size="sm"
+          onClick={() =>
+            window.location.assign("/MasterListsPage/profileManagement")
+          }
+        >
+          <FormattedMessage
+            id="professionalProfile.actions.manage"
+            defaultMessage="Manage professional profiles"
+          />
+        </Button>
+        <br />
         {isAddModalOpen ? (
           <Modal
             open={isAddModalOpen}
-            modalHeading="Add Provider"
-            primaryButtonText="Add"
-            secondaryButtonText="Cancel"
+            modalHeading={intl.formatMessage({
+              id: "provider.modal.add",
+              defaultMessage: "Add professional",
+            })}
+            primaryButtonText={intl.formatMessage({
+              id: "provider.modal.add.action",
+              defaultMessage: "Add",
+            })}
+            secondaryButtonText={intl.formatMessage({
+              id: "provider.modal.cancel",
+              defaultMessage: "Cancel",
+            })}
             onRequestSubmit={handleAddProvider}
             onRequestClose={closeAddModal}
           >
@@ -729,7 +760,9 @@ function ProviderMenu() {
             <Dropdown
               className="dropdown-list"
               id="isActive"
-              titleText="Active"
+              titleText={intl.formatMessage({
+                id: "provider.isActive",
+              })}
               label={intl.formatMessage({ id: "provider.select" })}
               items={yesOrNo}
               itemToString={(item) => (item ? item.value : "")}
@@ -755,9 +788,18 @@ function ProviderMenu() {
         {isUpdateModalOpen ? (
           <Modal
             open={isUpdateModalOpen}
-            modalHeading="Update Provider"
-            primaryButtonText="Update"
-            secondaryButtonText="Cancel"
+            modalHeading={intl.formatMessage({
+              id: "provider.modal.update",
+              defaultMessage: "Update professional",
+            })}
+            primaryButtonText={intl.formatMessage({
+              id: "provider.modal.update.action",
+              defaultMessage: "Update",
+            })}
+            secondaryButtonText={intl.formatMessage({
+              id: "provider.modal.cancel",
+              defaultMessage: "Cancel",
+            })}
             onRequestSubmit={handleUpdateProvider}
             onRequestClose={closeUpdateModal}
           >
@@ -837,7 +879,9 @@ function ProviderMenu() {
             />
             <Dropdown
               id="isActive"
-              titleText="Active"
+              titleText={intl.formatMessage({
+                id: "provider.isActive",
+              })}
               label={intl.formatMessage({ id: "provider.select" })}
               items={yesOrNo}
               itemToString={(item) => (item ? item.value : "")}

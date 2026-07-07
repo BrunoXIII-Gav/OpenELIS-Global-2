@@ -15,14 +15,22 @@ public class Constants {
     public static final String ROLE_GLOBAL_ADMIN = "Global Administrator";
     public static final String ROLE_USER_ACCOUNT_ADMIN = "User Account Administrator";
     public static final String ROLE_AUDIT_TRAIL = "Audit Trail";
+    public static final String ROLE_ADMINISTRATION = "Administration";
+    public static final String ROLE_ANALYSER_IMPORT = "Analyser Import";
     public static final String ROLE_RECEPTION = "Reception";
+    public static final String ROLE_GENERIC_SAMPLE = "Generic Sample";
+    public static final String ROLE_ORDER = "Order";
+    public static final String ROLE_PATIENT = "Patient";
     public static final String ROLE_RESULTS = "Results";
+    public static final String ROLE_ALIQUOT = "Aliquot";
     public static final String ROLE_VALIDATION = "Validation";
     public static final String ROLE_VALIDATION_BIOLOGIST = "Validation Biologist";
     public static final String ROLE_VALIDATION_MEDICAL = "Validation Medical";
     public static final String ROLE_REPORTS = "Reports";
+    public static final String ROLE_STORAGE = "Storage";
     public static final String ROLE_PATHOLOGIST = "Pathologist";
     // roles groups
     public static final String GLOBAL_ROLES_GROUP = "Global Roles";
     public static final String LAB_ROLES_GROUP = "Lab Unit Roles";
+    public static final String CUSTOM_ROLES_GROUP = "Custom Roles";
 }

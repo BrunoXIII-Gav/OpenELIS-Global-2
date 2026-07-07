@@ -110,6 +110,7 @@
         <class>org.openelisglobal.analyzer.valueholder.UnitMapping</class>
         <class>org.openelisglobal.analyzer.valueholder.ValidationRuleConfiguration</class>
         <class>org.openelisglobal.analyzer.valueholder.FileImportConfiguration</class>
+        <class>org.openelisglobal.role.valueholder.RolePermissionMapping</class>
         <class>org.openelisglobal.analyzerresults.valueholder.AnalyzerResults</class>
         <class>org.openelisglobal.analyzerimport.valueholder.AnalyzerTestMapping</class>
         <class>org.openelisglobal.analyzer.valueholder.AnalyzerType</class>

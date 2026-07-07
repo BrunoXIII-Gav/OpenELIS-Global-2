@@ -11,6 +11,7 @@ import org.openelisglobal.common.log.LogEvent;
 import org.openelisglobal.common.propertyeditor.CaseInsensitiveEnumPropertyEditor;
 import org.openelisglobal.externalconnections.valueholder.ExternalConnection.AuthType;
 import org.openelisglobal.externalconnections.valueholder.ExternalConnection.ProgrammedConnection;
+import org.springframework.security.access.AccessDeniedException;
 import org.springframework.beans.propertyeditors.StringTrimmerEditor;
 import org.springframework.beans.propertyeditors.URIEditor;
 import org.springframework.core.Ordered;
@@ -56,6 +57,19 @@ public class ControllerSetup extends ResponseEntityExceptionHandler {
     protected ResponseEntity<Object> handleLIMSRuntimeException(RuntimeException ex, WebRequest request) {
         LogEvent.logError(ex);
         return new ResponseEntity<>("Check server logs", new HttpHeaders(), HttpStatus.INTERNAL_SERVER_ERROR);
+    }
+
+    @ExceptionHandler(value = { AccessDeniedException.class })
+    protected ResponseEntity<Object> handleAccessDeniedException(AccessDeniedException ex, WebRequest request) {
+        LogEvent.logWarn(this.getClass().getName(), "handleAccessDeniedException", ex.getMessage());
+
+        Map<String, Object> body = new LinkedHashMap<>();
+        body.put("timestamp", new Date());
+        body.put("status", HttpStatus.FORBIDDEN.value());
+        body.put("message", "Access denied");
+        body.put("error", "FORBIDDEN");
+
+        return new ResponseEntity<>(body, new HttpHeaders(), HttpStatus.FORBIDDEN);
     }
 
     @Override

@@ -1,11 +1,17 @@
-import React, { createContext, useState, useEffect, useContext } from "react";
+import React, { createContext, useState, useEffect, useContext, useRef } from "react";
 import { useLocation } from "react-router-dom";
+import { useIntl } from "react-intl";
 import Header from "./Header";
 import Footer from "./Footer";
 import { Content, Theme } from "@carbon/react";
 import UserSessionDetailsContext from "../../UserSessionDetailsContext";
 import { getFromOpenElisServer } from "../utils/Utils";
 import { useSideNavPreference } from "./useSideNavPreference";
+import {
+  ACCESS_DENIED_EVENT,
+  redirectToHome,
+  showAccessDeniedDialog,
+} from "../security/accessDenied";
 import "./Layout.css";
 
 export const ConfigurationContext = createContext(null);
@@ -18,11 +24,13 @@ export default function Layout(props) {
     storageKeyPrefix: pageStorageKeyPrefix,
   } = props;
   const location = useLocation();
+  const intl = useIntl();
   const { userSessionDetails } = useContext(UserSessionDetailsContext);
   const [resetConfig, setResetConfig] = useState(false);
   const [configurationProperties, setConfigurationProperties] = useState({});
   const [notificationVisible, setNotificationVisible] = useState(false);
   const [notifications, setNotifications] = useState([]);
+  const accessDeniedDialogOpenRef = useRef(false);
 
   const dismissRouteStaleConfirmAlerts = () => {
     // react-confirm-alert keeps an internal root (#react-confirm-alert).
@@ -139,9 +147,35 @@ export default function Layout(props) {
 
   useEffect(() => {
     dismissRouteStaleConfirmAlerts();
+    accessDeniedDialogOpenRef.current = false;
     setNotificationVisible(false);
     setNotifications([]);
   }, [location.pathname, location.search]);
+
+  useEffect(() => {
+    const handleAccessDenied = (event) => {
+      if (accessDeniedDialogOpenRef.current) {
+        return;
+      }
+
+      accessDeniedDialogOpenRef.current = true;
+      const redirectAfterAcknowledge = event?.detail?.redirectToHome === true;
+
+      showAccessDeniedDialog(intl, {
+        onAcknowledge: () => {
+          accessDeniedDialogOpenRef.current = false;
+          if (redirectAfterAcknowledge) {
+            redirectToHome();
+          }
+        },
+      });
+    };
+
+    window.addEventListener(ACCESS_DENIED_EVENT, handleAccessDenied);
+    return () => {
+      window.removeEventListener(ACCESS_DENIED_EVENT, handleAccessDenied);
+    };
+  }, [intl]);
 
   return (
     <ConfigurationContext.Provider

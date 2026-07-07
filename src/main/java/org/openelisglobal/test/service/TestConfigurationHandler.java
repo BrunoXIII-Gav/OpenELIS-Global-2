@@ -311,6 +311,7 @@ public class TestConfigurationHandler implements DomainConfigurationHandler {
             int frenchNameIndex, int defaultSortOrder) {
 
         test.setDescription(testName);
+        test.setStoredName(testName);
         test.setTestSection(testSection);
 
         // Update LOINC
@@ -389,6 +390,7 @@ public class TestConfigurationHandler implements DomainConfigurationHandler {
         // Create test
         Test test = new Test();
         test.setDescription(testName);
+        test.setStoredName(testName);
         test.setTestSection(testSection);
         test.setLocalizedTestName(localization);
         test.setLocalizedReportingName(reportingLocalization);
@@ -435,6 +437,8 @@ public class TestConfigurationHandler implements DomainConfigurationHandler {
 
         // Set other defaults
         test.setIsReportable("Y");
+        test.setDirectSampleUsageEnabled(false);
+        test.setSkipValidationWhenParentComplete(false);
         test.setSysUserId("1");
 
         String testId = testService.insert(test);

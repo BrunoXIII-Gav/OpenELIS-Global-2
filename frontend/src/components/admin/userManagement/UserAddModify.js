@@ -164,9 +164,11 @@ function UserAddModify() {
   const [selectedGlobalLabUnitRoles, setSelectedGlobalLabUnitRoles] = useState(
     [],
   );
+  const [selectedCustomRoles, setSelectedCustomRoles] = useState([]);
   const [selectedTestSectionLabUnits, setSelectedTestSectionLabUnits] =
     useState({});
   const [selectedTestSectionList, setSelectedTestSectionList] = useState([]);
+  const [showLegacyPermissions, setShowLegacyPermissions] = useState(false);
   const [passwordTouched, setPasswordTouched] = useState({
     userPassword: false,
     confirmPassword: false,
@@ -185,18 +187,22 @@ function UserAddModify() {
   const professionalProfileOptions = parseProfessionalProfileOptions(
     configurationProperties?.professionalProfileOptions,
   );
+  const selectedProfessionalProfileCode = String(
+    userDataShow?.professionalProfileCode || "",
+  ).trim();
+  const linkedProviderPersonId = String(
+    userDataShow?.linkedProviderPersonId || "",
+  ).trim();
+  const isLinkedProfessionalSelected = Boolean(linkedProviderPersonId);
 
   useEffect(() => {
-    const selectedProfileCode = String(
-      userDataShow?.professionalProfileCode || "MEDICAL_DOCTOR",
-    ).trim();
-    if (!selectedProfileCode) {
+    if (!selectedProfessionalProfileCode) {
       setLinkedProviderSuggestions([]);
       return;
     }
 
     getFromOpenElisServer(
-      `/rest/providers/professional-profile/${encodeURIComponent(selectedProfileCode)}`,
+      `/rest/providers/professional-profile/${encodeURIComponent(selectedProfessionalProfileCode)}`,
       (providers) => {
         const normalizedProviders = Array.isArray(providers) ? providers : [];
         setLinkedProviderSuggestions(normalizedProviders);
@@ -222,7 +228,12 @@ function UserAddModify() {
         }
       },
     );
-  }, [userDataShow?.professionalProfileCode]);
+  }, [
+    selectedProfessionalProfileCode,
+    userDataShow?.linkedProviderPersonId,
+    setUserDataPost,
+    setUserDataShow,
+  ]);
 
   useEffect(() => {
     componentMounted.current = true;
@@ -298,8 +309,10 @@ function UserAddModify() {
         formAction: userData.formAction,
         formMethod: userData.formMethod,
         formName: userData.formName,
+        customRoles: userData.customRoles,
         loginUserId: userData.loginUserId,
         selectedRoles: userData.selectedRoles || [],
+        selectedCustomRoleIds: userData.selectedCustomRoleIds || [],
         selectedTestSectionLabUnits: userData.selectedTestSectionLabUnits || {},
         systemUserId: userData.systemUserId,
         systemUserIdToCopy: userData.systemUserIdToCopy,
@@ -328,10 +341,12 @@ function UserAddModify() {
         formAction: userData.formAction,
         formMethod: userData.formMethod,
         formName: userData.formName,
+        customRoles: userData.customRoles,
         globalRoles: userData.globalRoles,
         labUnitRoles: userData.labUnitRoles,
         loginUserId: userData.loginUserId,
         selectedRoles: userData.selectedRoles || [],
+        selectedCustomRoleIds: userData.selectedCustomRoleIds || [],
         selectedTestSectionLabUnits: userData.selectedTestSectionLabUnits || {},
         systemUserId: userData.systemUserId,
         systemUserIdToCopy: userData.systemUserIdToCopy,
@@ -366,6 +381,24 @@ function UserAddModify() {
         setUserDataShow((prevUserDataShow) => ({
           ...prevUserDataShow,
           globalRoles: globalRoles,
+        }));
+      }
+
+      if (userData.customRoles) {
+        const customRoles = userData.customRoles.map((item) => {
+          return {
+            childrenID: item.childrenID,
+            elementID: item.elementID,
+            groupingRole: item.groupingRole,
+            nestingLevel: item.nestingLevel,
+            parentRole: item.parentRole,
+            roleId: item.roleId,
+            roleName: String(item.roleName || "").trim(),
+          };
+        });
+        setUserDataShow((prevUserDataShow) => ({
+          ...prevUserDataShow,
+          customRoles: customRoles,
         }));
       }
 
@@ -417,6 +450,16 @@ function UserAddModify() {
         setSelectedGlobalLabUnitRoles([]);
       }
 
+      if (userData.selectedCustomRoleIds !== undefined) {
+        if (ID !== "0") {
+          setSelectedCustomRoles(userData.selectedCustomRoleIds.map((item) => item));
+        } else {
+          setSelectedCustomRoles([]);
+        }
+      } else {
+        setSelectedCustomRoles([]);
+      }
+
       if (userData.selectedTestSectionLabUnits) {
         if (ID !== "0") {
           setSelectedTestSectionLabUnits(userData.selectedTestSectionLabUnits);
@@ -439,9 +482,15 @@ function UserAddModify() {
         userDataShow.userPassword &&
         userDataShow.userPassword === userDataShow.confirmPassword
       ) {
-        setValidation({ ...validation, validatepassword: true });
+        setValidation((prevValidation) => ({
+          ...prevValidation,
+          validatepassword: true,
+        }));
       } else {
-        setValidation({ ...validation, validatepassword: false });
+        setValidation((prevValidation) => ({
+          ...prevValidation,
+          validatepassword: false,
+        }));
       }
     }
   }, [userDataShow]);
@@ -500,18 +549,16 @@ function UserAddModify() {
       });
       setNotificationVisible(true);
       setTimeout(() => {
-        window.location.reload();
+        window.location.assign("/MasterListsPage/userManagement");
       }, 200);
     } else {
+      setIsLoading(false);
       addNotification({
         kind: NotificationKinds.error,
         title: intl.formatMessage({ id: "notification.title" }),
         message: intl.formatMessage({ id: "server.error.msg" }),
       });
       setNotificationVisible(true);
-      setTimeout(() => {
-        window.location.reload();
-      }, 200);
     }
   }
 
@@ -531,11 +578,17 @@ function UserAddModify() {
         });
       }
       setSaveButton(true);
-      setValidation({ ...validation, loginName: false });
+      setValidation((prevValidation) => ({
+        ...prevValidation,
+        loginName: false,
+      }));
     } else {
       setNotificationVisible(false);
       setSaveButton(false);
-      setValidation({ ...validation, loginName: true });
+      setValidation((prevValidation) => ({
+        ...prevValidation,
+        loginName: true,
+      }));
       setUserDataPost((prevUserDataPost) => ({
         ...prevUserDataPost,
         userLoginName: value,
@@ -568,11 +621,17 @@ function UserAddModify() {
         });
       }
       setSaveButton(true);
-      setValidation({ ...validation, password: false });
+      setValidation((prevValidation) => ({
+        ...prevValidation,
+        password: false,
+      }));
     } else {
       setNotificationVisible(false);
       setSaveButton(false);
-      setValidation({ ...validation, password: true });
+      setValidation((prevValidation) => ({
+        ...prevValidation,
+        password: true,
+      }));
       setUserDataPost((prevUserDataPost) => ({
         ...prevUserDataPost,
         userPassword: value,
@@ -605,11 +664,17 @@ function UserAddModify() {
         });
       }
       setSaveButton(true);
-      setValidation({ ...validation, password2: false });
+      setValidation((prevValidation) => ({
+        ...prevValidation,
+        password2: false,
+      }));
     } else {
       setNotificationVisible(false);
       setSaveButton(false);
-      setValidation({ ...validation, password2: true });
+      setValidation((prevValidation) => ({
+        ...prevValidation,
+        password2: true,
+      }));
       setUserDataPost((prevUserDataPost) => ({
         ...prevUserDataPost,
         confirmPassword: value,
@@ -638,11 +703,17 @@ function UserAddModify() {
         });
       }
       setSaveButton(true);
-      setValidation({ ...validation, firstName: false });
+      setValidation((prevValidation) => ({
+        ...prevValidation,
+        firstName: false,
+      }));
     } else {
       setNotificationVisible(false);
       setSaveButton(false);
-      setValidation({ ...validation, firstName: true });
+      setValidation((prevValidation) => ({
+        ...prevValidation,
+        firstName: true,
+      }));
       setUserDataPost((prevUserDataPost) => ({
         ...prevUserDataPost,
         userFirstName: value,
@@ -671,7 +742,10 @@ function UserAddModify() {
         });
       }
       setSaveButton(true);
-      setValidation({ ...validation, secondName: false });
+      setValidation((prevValidation) => ({
+        ...prevValidation,
+        secondName: false,
+      }));
     } else {
       setNotificationVisible(false);
       setUserDataPost((prevUserDataPost) => ({
@@ -679,7 +753,10 @@ function UserAddModify() {
         userLastName: value,
       }));
       setSaveButton(false);
-      setValidation({ ...validation, secondName: true });
+      setValidation((prevValidation) => ({
+        ...prevValidation,
+        secondName: true,
+      }));
     }
 
     setUserDataShow((prevUserData) => ({
@@ -688,7 +765,48 @@ function UserAddModify() {
     }));
   }
 
+  function syncLinkedProfessionalNames(providerPersonId) {
+    const normalizedPersonId = String(providerPersonId || "").trim();
+    if (!normalizedPersonId) {
+      return;
+    }
+
+    getFromOpenElisServer(
+      `/rest/Provider/Person/${encodeURIComponent(normalizedPersonId)}`,
+      (person) => {
+        if (!person) {
+          return;
+        }
+
+        const firstName = String(person.firstName || "").trim();
+        const lastName = String(person.lastName || "").trim();
+        const firstNameIsValid = Boolean(firstName) && nameRegex.test(firstName);
+        const lastNameIsValid = Boolean(lastName) && nameRegex.test(lastName);
+
+        setUserDataPost((prevUserDataPost) => ({
+          ...prevUserDataPost,
+          userFirstName: firstName,
+          userLastName: lastName,
+        }));
+        setUserDataShow((prevUserData) => ({
+          ...prevUserData,
+          userFirstName: firstName,
+          userLastName: lastName,
+        }));
+        setValidation((prevValidation) => ({
+          ...prevValidation,
+          firstName: firstNameIsValid,
+          secondName: lastNameIsValid,
+        }));
+        if (firstNameIsValid && lastNameIsValid) {
+          setNotificationVisible(false);
+        }
+      },
+    );
+  }
+
   function handleLinkedProviderSelect(providerPersonId) {
+    syncLinkedProfessionalNames(providerPersonId);
     setUserDataPost((prevUserDataPost) => ({
       ...prevUserDataPost,
       linkedProviderPersonId: providerPersonId || "",
@@ -699,6 +817,14 @@ function UserAddModify() {
     }));
     setSaveButton(false);
   }
+
+  useEffect(() => {
+    if (!linkedProviderPersonId) {
+      return;
+    }
+
+    syncLinkedProfessionalNames(linkedProviderPersonId);
+  }, [linkedProviderPersonId]);
 
   function clearLinkedProvider() {
     setUserDataPost((prevUserDataPost) => ({
@@ -763,7 +889,10 @@ function UserAddModify() {
 
   function handleExpirationDateChange(date) {
     setSaveButton(false);
-    setValidation({ ...validation, expDate: true });
+    setValidation((prevValidation) => ({
+      ...prevValidation,
+      expDate: true,
+    }));
     setUserDataPost((prevUserDataPost) => ({
       ...prevUserDataPost,
       expirationDate: date,
@@ -776,7 +905,10 @@ function UserAddModify() {
 
   function handleTimeoutChange(e) {
     setSaveButton(false);
-    setValidation({ ...validation, timeout: true });
+    setValidation((prevValidation) => ({
+      ...prevValidation,
+      timeout: true,
+    }));
     setUserDataPost((prevUserDataPost) => ({
       ...prevUserDataPost,
       timeout: e.target.value,
@@ -789,7 +921,10 @@ function UserAddModify() {
 
   function handleAccountActiveChange(e) {
     setSaveButton(false);
-    setValidation({ ...validation, active: true });
+    setValidation((prevValidation) => ({
+      ...prevValidation,
+      active: true,
+    }));
     setUserDataPost((prevUserDataPost) => ({
       ...prevUserDataPost,
       accountActive: e.target.value,
@@ -802,7 +937,10 @@ function UserAddModify() {
 
   function handleAccountDisabledChange(e) {
     setSaveButton(false);
-    setValidation({ ...validation, disabled: true });
+    setValidation((prevValidation) => ({
+      ...prevValidation,
+      disabled: true,
+    }));
     setUserDataPost((prevUserDataPost) => ({
       ...prevUserDataPost,
       accountDisabled: e.target.value,
@@ -815,7 +953,10 @@ function UserAddModify() {
 
   function handleAccountLockedChange(e) {
     setSaveButton(false);
-    setValidation({ ...validation, locked: true });
+    setValidation((prevValidation) => ({
+      ...prevValidation,
+      locked: true,
+    }));
     setUserDataPost((prevUserDataPost) => ({
       ...prevUserDataPost,
       accountLocked: e.target.value,
@@ -829,14 +970,20 @@ function UserAddModify() {
   function handleCopyUserPermissionsChange() {
     if (copyUserPermission.length > 0) {
       setSaveButton(false);
-      setValidation({ ...validation, copy: true });
+      setValidation((prevValidation) => ({
+        ...prevValidation,
+        copy: true,
+      }));
     }
   }
 
   function handleAutoCompleteCopyUserPermissionsChange(selectedUserId) {
     setCopyUserPermission(selectedUserId);
     setSaveButton(false);
-    setValidation({ ...validation, autoCopy: true });
+    setValidation((prevValidation) => ({
+      ...prevValidation,
+      autoCopy: true,
+    }));
   }
 
   function handleCopyUserPermissionsChangeClick() {
@@ -881,7 +1028,31 @@ function UserAddModify() {
       selectedRoles: updatedRoles,
     }));
     setSaveButton(false);
-    setValidation({ ...validation, checkBox: true });
+    setValidation((prevValidation) => ({
+      ...prevValidation,
+      checkBox: true,
+    }));
+  }
+
+  function handleCustomRoleCheckboxChange(roleId) {
+    const updatedCustomRoles = selectedCustomRoles.includes(roleId)
+      ? selectedCustomRoles.filter((id) => id !== roleId)
+      : [...selectedCustomRoles, roleId];
+
+    setSelectedCustomRoles(updatedCustomRoles);
+    setUserDataPost((prevUserDataPost) => ({
+      ...prevUserDataPost,
+      selectedCustomRoleIds: updatedCustomRoles,
+    }));
+    setUserDataShow((prevUserDataShow) => ({
+      ...prevUserDataShow,
+      selectedCustomRoleIds: updatedCustomRoles,
+    }));
+    setSaveButton(false);
+    setValidation((prevValidation) => ({
+      ...prevValidation,
+      customRoles: true,
+    }));
   }
 
   function handleTestSectionsSelectChange(e, key) {
@@ -915,7 +1086,10 @@ function UserAddModify() {
 
     setSelectedTestSectionLabUnits(updatedTestSectionLabUnits);
     setSaveButton(false);
-    setValidation({ ...validation, testSection: true });
+    setValidation((prevValidation) => ({
+      ...prevValidation,
+      testSection: true,
+    }));
   }
 
   const addRoleToSelectedUnits = (key, roleIdToAdd) => {
@@ -925,7 +1099,10 @@ function UserAddModify() {
       if (!currentRoles.includes(roleIdToAdd)) {
         updatedUnits[key] = [...currentRoles, roleIdToAdd];
         setSaveButton(false);
-        setValidation({ ...validation, role: true });
+        setValidation((prevValidation) => ({
+          ...prevValidation,
+          role: true,
+        }));
       }
       return updatedUnits;
     });
@@ -939,7 +1116,10 @@ function UserAddModify() {
           (roleId) => roleId !== roleIdToRemove,
         );
         setSaveButton(false);
-        setValidation({ ...validation, removeSelected: true });
+        setValidation((prevValidation) => ({
+          ...prevValidation,
+          removeSelected: true,
+        }));
       }
       return updatedUnits;
     });
@@ -1146,6 +1326,86 @@ function UserAddModify() {
                 <br />
 
                 <Grid fullWidth={true}>
+                  <Column lg={16} md={8} sm={4}>
+                    <Button
+                      kind="ghost"
+                      size="sm"
+                      onClick={() =>
+                        window.location.assign(
+                          "/MasterListsPage/profileManagement",
+                        )
+                      }
+                    >
+                      <FormattedMessage
+                        id="professionalProfile.actions.manage"
+                        defaultMessage="Manage professional profiles"
+                      />
+                    </Button>
+                  </Column>
+                </Grid>
+                <br />
+                <Grid fullWidth={true}>
+                  <Column lg={8} md={4} sm={4}>
+                    <FormattedMessage id="unifiedSystemUser.professional.profile.label" />
+                    {" :"}
+                  </Column>
+                  <Column lg={8} md={4} sm={4}>
+                    <Select
+                      id="professional-profile-code"
+                      labelText=""
+                      value={userDataShow?.professionalProfileCode || ""}
+                      onChange={handleProfessionalProfileChange}
+                    >
+                      <SelectItem
+                        value=""
+                        text={intl.formatMessage({
+                          id: "unifiedSystemUser.professional.profile.select",
+                        })}
+                      />
+                      {professionalProfileOptions.map((option) => (
+                        <SelectItem
+                          key={option.code}
+                          value={option.code}
+                          text={option.label}
+                        />
+                      ))}
+                    </Select>
+                  </Column>
+                </Grid>
+                <br />
+                <Grid fullWidth={true}>
+                  <Column lg={8} md={4} sm={4}>
+                    <FormattedMessage id="unifiedSystemUser.linked.provider.label" />
+                    {" :"}
+                  </Column>
+                  <Column lg={8} md={4} sm={4}>
+                    <AutoComplete
+                      key={`linked-provider-${selectedProfessionalProfileCode}-${userDataShow?.linkedProviderPersonId || ""}`}
+                      id="linked-provider-person"
+                      name="professional-link-search"
+                      autoComplete="one-time-code"
+                      dataFormType="other"
+                      allowFreeText={false}
+                      maxSuggestions={6}
+                      value={userDataShow?.linkedProviderPersonId || ""}
+                      onSelect={handleLinkedProviderSelect}
+                      onChange={clearLinkedProvider}
+                      suggestions={linkedProviderSuggestions}
+                      disabled={!selectedProfessionalProfileCode}
+                      label=""
+                    />
+                    {isLinkedProfessionalSelected ? (
+                      <div style={{ marginTop: "0.5rem", fontSize: "0.875rem" }}>
+                        <FormattedMessage
+                          id="unifiedSystemUser.linked.provider.sync.notice"
+                          defaultMessage="User first and last name are synchronized from the linked professional."
+                        />
+                      </div>
+                    ) : null}
+                  </Column>
+                </Grid>
+                <br />
+                <Grid fullWidth={true}>
                   <Column lg={8} md={4} sm={4}>
                     <>
                       <FormattedMessage id="login.login.first" />
@@ -1173,6 +1433,7 @@ function UserAddModify() {
                           ? userDataShow.userFirstName
                           : ""
                       }
+                      disabled={isLinkedProfessionalSelected}
                       onChange={(e) => handleUserFirstNameChange(e)}
                     />
                   </Column>
@@ -1206,57 +1467,9 @@ function UserAddModify() {
                           ? userDataShow.userLastName
                           : ""
                       }
+                      disabled={isLinkedProfessionalSelected}
                       onChange={(e) => handleUserLastNameChange(e)}
                     />
-                  </Column>
-                </Grid>
-                <br />
-                <Grid fullWidth={true}>
-                  <Column lg={8} md={4} sm={4}>
-                    <FormattedMessage id="unifiedSystemUser.linked.provider.label" />
-                    {" :"}
-                  </Column>
-                  <Column lg={8} md={4} sm={4}>
-                    <AutoComplete
-                      id="linked-provider-person"
-                      name="linkedProviderPersonId"
-                      allowFreeText={false}
-                      maxSuggestions={6}
-                      value={userDataShow?.linkedProviderPersonId || ""}
-                      onSelect={handleLinkedProviderSelect}
-                      onChange={clearLinkedProvider}
-                      suggestions={linkedProviderSuggestions}
-                      label=""
-                    />
-                  </Column>
-                </Grid>
-                <br />
-                <Grid fullWidth={true}>
-                  <Column lg={8} md={4} sm={4}>
-                    <FormattedMessage id="unifiedSystemUser.professional.profile.label" />
-                    {" :"}
-                  </Column>
-                  <Column lg={8} md={4} sm={4}>
-                    <Select
-                      id="professional-profile-code"
-                      labelText=""
-                      value={userDataShow?.professionalProfileCode || ""}
-                      onChange={handleProfessionalProfileChange}
-                    >
-                      <SelectItem
-                        value=""
-                        text={intl.formatMessage({
-                          id: "unifiedSystemUser.professional.profile.select",
-                        })}
-                      />
-                      {professionalProfileOptions.map((option) => (
-                        <SelectItem
-                          key={option.code}
-                          value={option.code}
-                          text={option.label}
-                        />
-                      ))}
-                    </Select>
                   </Column>
                 </Grid>
                 <br />
@@ -1455,38 +1668,6 @@ function UserAddModify() {
                 <br />
                 <hr />
                 <br />
-                <Grid fullWidth={true} className="gridBoundary">
-                  <Column lg={16} md={8} sm={4}>
-                    <Section>
-                      <Section>
-                        <Heading>
-                          <FormattedMessage id="systemuser.role" />
-                        </Heading>
-                      </Section>
-                    </Section>
-                  </Column>
-                  <Column lg={16} md={8} sm={4}>
-                    <br />
-                    <FormattedMessage id="systemuserrole.instruction.1" />
-                    <br />
-                    <br />
-                    <FormattedMessage id="systemuserrole.instruction.2" />
-                    <br />
-                    <br />
-                    <FormattedMessage id="systemuserrole.instruction.3" />
-                    <br />
-                    <br />
-                    <FormattedMessage id="systemuserrole.instruction.4" />
-                    <br />
-                    <br />
-                    <FormattedMessage id="systemuserrole.instruction.5" />
-                    <br />
-                    <br />
-                  </Column>
-                </Grid>
-                <br />
-                <hr />
-                <br />
                 <Grid fullWidth={true}>
                   <Column lg={8} md={4} sm={4}>
                     <>
@@ -1528,184 +1709,272 @@ function UserAddModify() {
                 <br />
                 <Grid fullWidth={true}>
                   <Column lg={8} md={4} sm={4}>
-                    <FormattedMessage id="systemuserrole.roles.global" />
+                    <FormattedMessage
+                      id="customRole.assignment.title"
+                      defaultMessage="Assigned Roles"
+                    />
                     <br />
-                    <FormGroup legendId="globalRules" legendText="">
+                    <br />
+                    <FormGroup legendId="customRoles" legendText="">
                       {userDataShow &&
-                      userDataShow.globalRoles &&
-                      userDataShow.globalRoles.length > 0 ? (
-                        userDataShow.globalRoles.map((section) => (
+                      userDataShow.customRoles &&
+                      userDataShow.customRoles.length > 0 ? (
+                        userDataShow.customRoles.map((section) => (
                           <Checkbox
-                            key={section.elementID}
-                            id={section.elementID}
+                            key={`custom-${section.elementID}`}
+                            id={`custom-${section.elementID}`}
                             value={section.roleId}
                             labelText={section.roleName}
-                            checked={selectedGlobalLabUnitRoles.includes(
+                            checked={selectedCustomRoles.includes(
                               section.roleId,
                             )}
                             onChange={() => {
-                              handleCheckboxChange(section.roleId);
+                              handleCustomRoleCheckboxChange(section.roleId);
                             }}
                           />
                         ))
                       ) : (
                         <Checkbox
-                          id="no-options-global-roles"
+                          id="no-options-custom-roles"
                           value=""
-                          labelText="No options available"
+                          labelText={intl.formatMessage({
+                            id: "customRole.assignment.empty",
+                            defaultMessage: "No custom roles available",
+                          })}
                         />
                       )}
                     </FormGroup>
+                    <Button
+                      kind="ghost"
+                      type="button"
+                      onClick={() =>
+                        window.location.assign("/MasterListsPage/roleManagement")
+                      }
+                    >
+                      <FormattedMessage
+                        id="customRole.assignment.manage"
+                        defaultMessage="Manage custom roles"
+                      />
+                    </Button>
                     <br />
-                  </Column>
-                </Grid>
-                <Grid fullWidth={true}>
-                  <Column lg={8} md={4} sm={4}>
-                    <FormattedMessage id="systemuserrole.roles.labunit" />
+                    <br />
+                    <Button
+                      kind="tertiary"
+                      type="button"
+                      onClick={() =>
+                        setShowLegacyPermissions(
+                          (previousState) => !previousState,
+                        )
+                      }
+                    >
+                      <FormattedMessage
+                        id={
+                          showLegacyPermissions
+                            ? "customRole.assignment.legacyToggle.hide"
+                            : "customRole.assignment.legacyToggle"
+                        }
+                        defaultMessage={
+                          showLegacyPermissions
+                            ? "Hide legacy permissions"
+                            : "Show legacy permissions"
+                        }
+                      />
+                    </Button>
                   </Column>
                 </Grid>
                 <br />
-                <>
-                  {selectedTestSectionList.map((key) => (
-                    <Grid
-                      fullWidth={true}
-                      key={key}
-                      style={{ paddingBottom: "10px" }}
-                    >
-                      <Column lg={4} md={4} sm={4}>
-                        <Select
-                          id={`select-${key}`}
-                          noLabel={true}
-                          defaultValue={
-                            userDataShow &&
-                            userDataShow.testSections &&
-                            userDataShow.testSections.length > 0
-                              ? userDataShow.testSections.find(
-                                  (section) => section.id === key,
-                                )?.id || userDataShow.testSections[0].id
-                              : ""
-                          }
-                          onChange={(e) =>
-                            handleTestSectionsSelectChange(e, key)
-                          }
-                        >
-                          {userDataShow &&
-                          userDataShow.testSections &&
-                          userDataShow.testSections.length > 0 ? (
-                            userDataShow.testSections
-                              .filter(
-                                (section) =>
-                                  !Object.keys(
-                                    selectedTestSectionLabUnits,
-                                  ).includes(section.id) || section.id === key,
-                              )
-                              .map((section) => (
-                                <SelectItem
-                                  key={`${section.id}-${key}`}
-                                  value={section.id}
-                                  text={section.value}
-                                />
-                              ))
-                          ) : (
-                            <SelectItem
-                              key="no-option-test-section"
-                              value=""
-                              text="No options available"
-                            />
-                          )}
-                        </Select>
+                {showLegacyPermissions && (
+                  <>
+                    <Grid fullWidth={true}>
+                      <Column lg={8} md={4} sm={4}>
+                        <FormattedMessage id="systemuserrole.roles.global" />
                         <br />
-                        <Checkbox
-                          id={`all-permissions-${key}`}
-                          labelText={"All Permissions"}
-                          checked={isAllPermissionsSelected(
-                            selectedTestSectionLabUnits,
-                            key,
-                            userDataShow?.labUnitRoles,
-                          )}
-                          onChange={() => {
-                            const updatedRoles = toggleAllPermissionsForLabUnit(
-                              selectedTestSectionLabUnits,
-                              key,
-                              userDataShow?.labUnitRoles,
-                            );
-                            setSelectedTestSectionLabUnits((prev) => ({
-                              ...prev,
-                              [key]: updatedRoles,
-                            }));
-                            setSaveButton(false);
-                            setValidation({ ...validation, selectedLab: true });
-                          }}
-                        />
-                        <FormGroup
-                          key={key}
-                          legendId={`labUnitRoles-${key}`}
-                          legendText=""
-                        >
+                        <FormGroup legendId="globalRules" legendText="">
                           {userDataShow &&
-                          userDataShow.labUnitRoles &&
-                          userDataShow.labUnitRoles.length > 0 ? (
-                            userDataShow.labUnitRoles.map((section) => (
+                          userDataShow.globalRoles &&
+                          userDataShow.globalRoles.length > 0 ? (
+                            userDataShow.globalRoles.map((section) => (
                               <Checkbox
-                                key={`${section.elementID}-${key}`}
-                                id={`${section.elementID}-${key}`}
+                                key={section.elementID}
+                                id={section.elementID}
                                 value={section.roleId}
                                 labelText={section.roleName}
-                                checked={
-                                  selectedTestSectionLabUnits[key] &&
-                                  selectedTestSectionLabUnits[key].includes(
-                                    section.roleId,
-                                  )
-                                }
+                                checked={selectedGlobalLabUnitRoles.includes(
+                                  section.roleId,
+                                )}
                                 onChange={() => {
-                                  if (
-                                    selectedTestSectionLabUnits[key]?.includes(
-                                      section.roleId,
-                                    )
-                                  ) {
-                                    removeRoleFromSelectedUnits(
-                                      key,
-                                      section.roleId,
-                                    );
-                                  } else {
-                                    addRoleToSelectedUnits(key, section.roleId);
-                                  }
+                                  handleCheckboxChange(section.roleId);
                                 }}
                               />
                             ))
                           ) : (
                             <Checkbox
-                              id="no-options-lab-units"
+                              id="no-options-global-roles"
                               value=""
                               labelText="No options available"
                             />
                           )}
                         </FormGroup>
+                        <br />
                       </Column>
-                      <Column lg={4} md={4} sm={4}>
+                    </Grid>
+                    <Grid fullWidth={true}>
+                      <Column lg={8} md={4} sm={4}>
+                        <FormattedMessage id="systemuserrole.roles.labunit" />
+                      </Column>
+                    </Grid>
+                    <br />
+                    <>
+                      {selectedTestSectionList.map((key) => (
+                        <Grid
+                          fullWidth={true}
+                          key={key}
+                          style={{ paddingBottom: "10px" }}
+                        >
+                          <Column lg={4} md={4} sm={4}>
+                            <Select
+                              id={`select-${key}`}
+                              noLabel={true}
+                              defaultValue={
+                                userDataShow &&
+                                userDataShow.testSections &&
+                                userDataShow.testSections.length > 0
+                                  ? userDataShow.testSections.find(
+                                      (section) => section.id === key,
+                                    )?.id || userDataShow.testSections[0].id
+                                  : ""
+                              }
+                              onChange={(e) =>
+                                handleTestSectionsSelectChange(e, key)
+                              }
+                            >
+                              {userDataShow &&
+                              userDataShow.testSections &&
+                              userDataShow.testSections.length > 0 ? (
+                                userDataShow.testSections
+                                  .filter(
+                                    (section) =>
+                                      !Object.keys(
+                                        selectedTestSectionLabUnits,
+                                      ).includes(section.id) ||
+                                      section.id === key,
+                                  )
+                                  .map((section) => (
+                                    <SelectItem
+                                      key={`${section.id}-${key}`}
+                                      value={section.id}
+                                      text={section.value}
+                                    />
+                                  ))
+                              ) : (
+                                <SelectItem
+                                  key="no-option-test-section"
+                                  value=""
+                                  text="No options available"
+                                />
+                              )}
+                            </Select>
+                            <br />
+                            <Checkbox
+                              id={`all-permissions-${key}`}
+                              labelText={"All Permissions"}
+                              checked={isAllPermissionsSelected(
+                                selectedTestSectionLabUnits,
+                                key,
+                                userDataShow?.labUnitRoles,
+                              )}
+                              onChange={() => {
+                                const updatedRoles =
+                                  toggleAllPermissionsForLabUnit(
+                                    selectedTestSectionLabUnits,
+                                    key,
+                                    userDataShow?.labUnitRoles,
+                                  );
+                                setSelectedTestSectionLabUnits((prev) => ({
+                                  ...prev,
+                                  [key]: updatedRoles,
+                                }));
+                                setSaveButton(false);
+                                setValidation({
+                                  ...validation,
+                                  selectedLab: true,
+                                });
+                              }}
+                            />
+                            <FormGroup
+                              key={key}
+                              legendId={`labUnitRoles-${key}`}
+                              legendText=""
+                            >
+                              {userDataShow &&
+                              userDataShow.labUnitRoles &&
+                              userDataShow.labUnitRoles.length > 0 ? (
+                                userDataShow.labUnitRoles.map((section) => (
+                                  <Checkbox
+                                    key={`${section.elementID}-${key}`}
+                                    id={`${section.elementID}-${key}`}
+                                    value={section.roleId}
+                                    labelText={section.roleName}
+                                    checked={
+                                      selectedTestSectionLabUnits[key] &&
+                                      selectedTestSectionLabUnits[
+                                        key
+                                      ].includes(section.roleId)
+                                    }
+                                    onChange={() => {
+                                      if (
+                                        selectedTestSectionLabUnits[
+                                          key
+                                        ]?.includes(section.roleId)
+                                      ) {
+                                        removeRoleFromSelectedUnits(
+                                          key,
+                                          section.roleId,
+                                        );
+                                      } else {
+                                        addRoleToSelectedUnits(
+                                          key,
+                                          section.roleId,
+                                        );
+                                      }
+                                    }}
+                                  />
+                                ))
+                              ) : (
+                                <Checkbox
+                                  id="no-options-lab-units"
+                                  value=""
+                                  labelText="No options available"
+                                />
+                              )}
+                            </FormGroup>
+                          </Column>
+                          <Column lg={4} md={4} sm={4}>
+                            <Button
+                              data-cy="removePermission"
+                              onClick={() => removeSection(key)}
+                              kind="tertiary"
+                              type="button"
+                            >
+                              <FormattedMessage id="systemuserrole.rmpermissions" />
+                            </Button>
+                          </Column>
+                        </Grid>
+                      ))}
+                    </>
+                    <Grid fullWidth={true}>
+                      <Column lg={16} md={8} sm={4}>
                         <Button
-                          data-cy="removePermission"
-                          onClick={() => removeSection(key)}
-                          kind="tertiary"
+                          data-cy="addNewPermission"
+                          onClick={addNewSection}
                           type="button"
                         >
-                          <FormattedMessage id="systemuserrole.rmpermissions" />
+                          <FormattedMessage id="systemuserrole.newpermissions" />
                         </Button>
                       </Column>
                     </Grid>
-                  ))}
-                </>
-                <Grid fullWidth={true}>
-                  <Column lg={16} md={8} sm={4}>
-                    <Button
-                      data-cy="addNewPermission"
-                      onClick={addNewSection}
-                      type="button"
-                    >
-                      <FormattedMessage id="systemuserrole.newpermissions" />
-                    </Button>
-                  </Column>
-                </Grid>
+                  </>
+                )}
                 <hr />
                 <br />
                 <Grid fullWidth={true}>
