@@ -5,7 +5,9 @@ import App from "./App";
 import reportWebVitals from "./reportWebVitals";
 import * as ServiceWorker from "./serviceWorkerRegistration";
 
-ServiceWorker.registerServiceWorker();
+// Unregister any previously installed service worker so the modern UI
+// does not keep serving stale bundles after frontend updates.
+ServiceWorker.unregisterServiceWorker();
 
 ReactDOM.render(
   <React.StrictMode>

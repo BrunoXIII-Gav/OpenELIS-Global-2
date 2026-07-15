@@ -41,9 +41,9 @@ const LandingPage: React.FC = () => {
     ) {
       const refererUrl = document.referrer;
       if (refererUrl.endsWith("/landing")) {
-        window.location.href = "/";
+        window.location.replace("/");
       } else {
-        window.location.href = refererUrl;
+        window.location.replace(refererUrl);
       }
     }
     getFromOpenElisServer("/rest/user-test-sections/ALL", (response) => {
@@ -77,9 +77,9 @@ const LandingPage: React.FC = () => {
     }
     const refererUrl = document.referrer;
     if (refererUrl.endsWith("/landing")) {
-      window.location.href = "/";
+      window.location.replace("/");
     } else {
-      window.location.href = refererUrl;
+      window.location.replace(refererUrl);
     }
   };
 

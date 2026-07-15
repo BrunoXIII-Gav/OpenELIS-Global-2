@@ -22,10 +22,39 @@ export function registerServiceWorker() {
 // Function to unregister the service worker
 export function unregisterServiceWorker() {
   if ("serviceWorker" in navigator) {
-    navigator.serviceWorker.ready.then((registration) => {
-      registration.unregister().then((boolean) => {
-        console.log("Service Worker unregistered:", boolean);
+    navigator.serviceWorker
+      .getRegistrations()
+      .then((registrations) =>
+        Promise.all(
+          registrations.map((registration) =>
+            registration.unregister().then((unregistered) => {
+              console.log("Service Worker unregistered:", unregistered);
+              return unregistered;
+            }),
+          ),
+        ),
+      )
+      .catch((error) => {
+        console.error("Service Worker unregistration failed:", error);
       });
-    });
+  }
+
+  if ("caches" in window) {
+    caches
+      .keys()
+      .then((keys) =>
+        Promise.all(
+          keys.map((key) => {
+            if (key.includes("workbox") || key.includes("precache") || key.includes("runtime")) {
+              return caches.delete(key);
+            }
+
+            return Promise.resolve(false);
+          }),
+        ),
+      )
+      .catch((error) => {
+        console.error("Cache cleanup failed:", error);
+      });
   }
 }

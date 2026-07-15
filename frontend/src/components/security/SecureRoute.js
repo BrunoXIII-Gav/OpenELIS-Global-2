@@ -7,7 +7,7 @@ import { useIdleTimer } from "react-idle-timer";
 import "react-confirm-alert/src/react-confirm-alert.css"; // Import css
 import { Loading, Modal } from "@carbon/react/";
 import config from "../../config.json";
-import { Roles } from "../utils/Utils";
+import { Roles, redirectToPortalOnSamlExpiry } from "../utils/Utils";
 import { FormattedMessage, useIntl } from "react-intl";
 import AccessDeniedPanel from "./AccessDeniedPanel";
 import { emitAccessDeniedEvent } from "./accessDenied";
@@ -64,6 +64,7 @@ function SecureRoute(props) {
       );
 
       if (response.status === 401) {
+        redirectToPortalOnSamlExpiry();
         return false;
       }
 
@@ -116,7 +117,9 @@ function SecureRoute(props) {
         setPermissionGranted(true);
         setAccessDenied(false);
       } else if ("authenticated" in userSessionDetails) {
-        window.location.href = config.loginRedirect;
+        if (!redirectToPortalOnSamlExpiry()) {
+          window.location.replace(config.loginRedirect);
+        }
       }
     };
 
