@@ -31,6 +31,21 @@ function submitOnClick(button){
 	document.getElementById("mainForm").submit();
 }
 
+(function() {
+    var autoSamlRedirect = "${requestScope.autoSamlRedirect}" === "true";
+    if (!autoSamlRedirect) {
+        return;
+    }
+
+    try {
+        sessionStorage.removeItem("openelis.loggedOutToPortal");
+    } catch (error) {
+        console.error(error);
+    }
+
+    window.location.replace("${requestScope.samlAutoRedirectUrl}");
+})();
+
 </script>
 <table width="100%">
 <tr>
@@ -73,7 +88,6 @@ function submitOnClick(button){
     </td>
 </tr>
 </table>
-
 
 
 

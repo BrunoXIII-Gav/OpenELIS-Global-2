@@ -293,7 +293,8 @@ public class SecurityConfig {
                 .createDefaultAssertionValidator();
         authenticationProvider.setAssertionValidator(validator);
         http.securityMatcher(new SamlRequestedMatcher())
-                .authorizeHttpRequests(auth -> auth.anyRequest().authenticated())
+                .authorizeHttpRequests(auth -> auth.requestMatchers("/saml2/authenticate/**", "/login/saml2/sso/**",
+                        "/logout/saml2/**").permitAll().anyRequest().authenticated())
                 .saml2Login(saml2 -> saml2.failureHandler(customSamlAuthenticationFailureHandler())
                         .successHandler(customSamlAuthenticationSuccessHandler())
                         .relyingPartyRegistrationRepository(relyingPartyRegistrationRepository()))

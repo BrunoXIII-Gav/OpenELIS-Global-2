@@ -8,6 +8,15 @@
 
 
 <table width="95%">
+<script>
+    function clearOpenElisPortalLogoutMarker() {
+        try {
+            sessionStorage.removeItem("openelis.loggedOutToPortal");
+        } catch (error) {
+            console.error(error);
+        }
+    }
+</script>
 <tr><td colspan="4">&nbsp;</td>
 <tr>
     <td width="20%">&nbsp;</td>	
@@ -23,7 +32,7 @@
   		<c:if test="${form.useSAML}">
 			<spring:message code="label.button.ssoLogin" var="ssoLoginText"/>
   			<spring:url var="ssoEndpoint" value="/LoginPage?useSAML=true" htmlEscape="true"/>
-  	        <button type="button" onclick="window.location.href='${ssoEndpoint}'"><c:out value="${ssoLoginText}"/> </button>
+  	        <button type="button" onclick="clearOpenElisPortalLogoutMarker(); window.location.href='${ssoEndpoint}'"><c:out value="${ssoLoginText}"/> </button>
   		</c:if>
   		</br>
   		<c:forEach items="${form.oauthUrls}" var="oauthUrl">
