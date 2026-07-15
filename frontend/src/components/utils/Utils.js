@@ -7,6 +7,28 @@ const notifyIfAccessDenied = (response) => {
   }
 };
 
+export const redirectToPortalOnSamlExpiry = () => {
+  const portalLogoutUrl =
+    sessionStorage.getItem("openelis.portalLogoutUrl") || "";
+  const lastLoginMethod =
+    sessionStorage.getItem("openelis.lastLoginMethod") || "";
+  if (lastLoginMethod !== "SAML" || !portalLogoutUrl) {
+    return false;
+  }
+
+  try {
+    const portalUrl = new URL(portalLogoutUrl, window.location.origin);
+    portalUrl.searchParams.set("source", "openelis");
+    portalUrl.searchParams.set("session_expired", "1");
+    sessionStorage.removeItem("openelis.lastLoginMethod");
+    window.location.replace(portalUrl.toString());
+    return true;
+  } catch (error) {
+    console.error(error);
+    return false;
+  }
+};
+
 export const getFromOpenElisServer = (endPoint, callback, signal = null) => {
   fetch(
     config.serverBaseUrl + endPoint,
@@ -23,6 +45,9 @@ export const getFromOpenElisServer = (endPoint, callback, signal = null) => {
       // if (response.url.includes("LoginPage")) {
       //     throw "No Login Session";
       // }
+      if (response.status === 401 && redirectToPortalOnSamlExpiry()) {
+        return;
+      }
       if (!response.ok) {
         notifyIfAccessDenied(response);
         callback(undefined);

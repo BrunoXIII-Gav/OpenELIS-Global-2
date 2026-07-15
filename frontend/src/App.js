@@ -69,6 +69,9 @@ import SampleManagement from "./components/sampleManagement/SampleManagement";
 import InventoryManagement from "./components/inventory/InventoryManagement";
 
 export default function App() {
+  const PORTAL_LOGOUT_FLAG = "openelis.loggedOutToPortal";
+  const PORTAL_SAML_LAUNCH_FLAG = "openelis.portalSamlLaunch";
+
   const defaultLocale =
     localStorage.getItem("locale") || navigator.language.split(/[-_]/)[0];
 
@@ -83,6 +86,57 @@ export default function App() {
 
   useEffect(() => {
     getUserSessionDetails();
+  }, []);
+
+  useEffect(() => {
+    const handlePageShow = (event) => {
+      if (event.persisted) {
+        getUserSessionDetails();
+      }
+    };
+
+    window.addEventListener("pageshow", handlePageShow);
+    return () => window.removeEventListener("pageshow", handlePageShow);
+  }, []);
+
+  useEffect(() => {
+    const handlePortalRestore = async () => {
+      if (sessionStorage.getItem(PORTAL_SAML_LAUNCH_FLAG) === "1") {
+        sessionStorage.removeItem(PORTAL_LOGOUT_FLAG);
+        return;
+      }
+
+      if (sessionStorage.getItem(PORTAL_LOGOUT_FLAG) !== "1") {
+        return;
+      }
+
+      const portalLogoutUrl =
+        sessionStorage.getItem("openelis.portalLogoutUrl") || "";
+      const targetUrl = buildPortalReturnUrl(
+        portalLogoutUrl,
+        "openelis",
+        "logged_out",
+      );
+
+      if (targetUrl) {
+        window.location.replace(targetUrl);
+      } else {
+        window.location.replace(config.loginRedirect);
+      }
+    };
+
+    handlePortalRestore();
+    window.addEventListener("pageshow", handlePortalRestore);
+    window.addEventListener("popstate", handlePortalRestore);
+    window.addEventListener("hashchange", handlePortalRestore);
+    document.addEventListener("visibilitychange", handlePortalRestore);
+
+    return () => {
+      window.removeEventListener("pageshow", handlePortalRestore);
+      window.removeEventListener("popstate", handlePortalRestore);
+      window.removeEventListener("hashchange", handlePortalRestore);
+      document.removeEventListener("visibilitychange", handlePortalRestore);
+    };
   }, []);
 
   // Load and apply site branding (colors, favicon)
@@ -100,6 +154,101 @@ export default function App() {
     };
   }, []);
 
+  const fetchPortalLogoutUrl = async (authenticated) => {
+    const endpoint = authenticated
+      ? "/rest/configuration-properties"
+      : "/rest/open-configuration-properties";
+
+    try {
+      const response = await fetch(config.serverBaseUrl + endpoint, {
+        credentials: "include",
+      });
+      if (!response.ok) {
+        return "";
+      }
+      const portalConfigResponse = await response.json();
+      const portalLogoutUrl = portalConfigResponse?.samlPortalLogoutUrl;
+      const normalized =
+        typeof portalLogoutUrl === "string" ? portalLogoutUrl.trim() : "";
+      if (normalized) {
+        sessionStorage.setItem("openelis.portalLogoutUrl", normalized);
+      }
+      return normalized;
+    } catch (error) {
+      console.error(error);
+      return "";
+    }
+  };
+
+  const buildPortalReturnUrl = (url, source, reason) => {
+    try {
+      const portalUrl = new URL(url);
+      portalUrl.searchParams.set("source", source);
+      if (reason) {
+        portalUrl.searchParams.set(reason, "1");
+      }
+      return portalUrl.toString();
+    } catch (_error) {
+      return "";
+    }
+  };
+
+  const redirectExpiredSamlSessionToPortal = async () => {
+    if (sessionStorage.getItem(PORTAL_SAML_LAUNCH_FLAG) === "1") {
+      return false;
+    }
+
+    const lastLoginMethod =
+      userSessionDetails.loginMethod ||
+      sessionStorage.getItem("openelis.lastLoginMethod") ||
+      "";
+    if (lastLoginMethod !== "SAML") {
+      return false;
+    }
+
+    const portalLogoutUrl = await fetchPortalLogoutUrl(false);
+    const targetUrl = buildPortalReturnUrl(
+      portalLogoutUrl,
+      "openelis",
+      "session_expired",
+    );
+    if (!targetUrl) {
+      return false;
+    }
+
+    sessionStorage.removeItem(PORTAL_LOGOUT_FLAG);
+    sessionStorage.removeItem("openelis.lastLoginMethod");
+    window.location.replace(targetUrl);
+    return true;
+  };
+
+  const redirectLoggedOutSamlSessionToPortal = async () => {
+    if (sessionStorage.getItem(PORTAL_SAML_LAUNCH_FLAG) === "1") {
+      sessionStorage.removeItem(PORTAL_LOGOUT_FLAG);
+      return false;
+    }
+
+    if (sessionStorage.getItem(PORTAL_LOGOUT_FLAG) !== "1") {
+      return false;
+    }
+
+    const portalLogoutUrl =
+      sessionStorage.getItem("openelis.portalLogoutUrl") ||
+      (await fetchPortalLogoutUrl(false));
+    const targetUrl = buildPortalReturnUrl(
+      portalLogoutUrl,
+      "openelis",
+      "logged_out",
+    );
+
+    if (!targetUrl) {
+      return false;
+    }
+
+    window.location.replace(targetUrl);
+    return true;
+  };
+
   const getUserSessionDetails = async () => {
     let counter = 0;
     while (counter < 10) {
@@ -114,6 +263,23 @@ export default function App() {
           console.debug(JSON.stringify(jsonResp));
           if (jsonResp.authenticated) {
             localStorage.setItem("CSRF", jsonResp.csrf);
+            sessionStorage.removeItem(PORTAL_LOGOUT_FLAG);
+            sessionStorage.removeItem(PORTAL_SAML_LAUNCH_FLAG);
+            if (jsonResp.loginMethod) {
+              sessionStorage.setItem(
+                "openelis.lastLoginMethod",
+                jsonResp.loginMethod,
+              );
+            }
+          } else {
+            if (await redirectLoggedOutSamlSessionToPortal()) {
+              return jsonResp;
+            }
+            if (await redirectExpiredSamlSessionToPortal()) {
+              return jsonResp;
+            }
+            sessionStorage.removeItem(PORTAL_SAML_LAUNCH_FLAG);
+            sessionStorage.removeItem("openelis.lastLoginMethod");
           }
           if (
             !Object.keys(jsonResp).every(
@@ -131,6 +297,12 @@ export default function App() {
         }
       } catch (error) {
         console.error(error);
+        if (await redirectLoggedOutSamlSessionToPortal()) {
+          return userSessionDetails;
+        }
+        if (await redirectExpiredSamlSessionToPortal()) {
+          return userSessionDetails;
+        }
         if (counter === 10) {
           const options = {
             title: "System Error",
@@ -156,9 +328,85 @@ export default function App() {
   };
 
   const logout = () => {
-    if (userSessionDetails.loginMethod === "SAML") {
+    const redirectToLogin = () => {
+      sessionStorage.removeItem(PORTAL_LOGOUT_FLAG);
+      getUserSessionDetails();
+      window.location.replace(config.loginRedirect);
+    };
+
+    const addLogoutMarker = (url) => {
+      return buildPortalReturnUrl(url, "openelis", "logged_out");
+    };
+
+    const probePortalAvailability = async (url) => {
+      if (!url) {
+        return false;
+      }
+
+      const targetUrl = addLogoutMarker(url);
+      if (!targetUrl) {
+        return false;
+      }
+
+      try {
+        const parsedUrl = new URL(targetUrl);
+        const isLocalhostTarget =
+          parsedUrl.hostname === "localhost" ||
+          parsedUrl.hostname === "127.0.0.1";
+        const currentPageIsHttps = window.location.protocol === "https:";
+
+        // Browsers block HTTPS -> HTTP fetch probes as mixed content even when
+        // a top-level redirect to localhost would still be acceptable. For
+        // local portal development we skip the probe and allow direct
+        // navigation after local logout.
+        if (
+          isLocalhostTarget &&
+          currentPageIsHttps &&
+          parsedUrl.protocol === "http:"
+        ) {
+          return true;
+        }
+      } catch (_error) {
+        return false;
+      }
+
+      try {
+        const controller = new AbortController();
+        const timeoutId = window.setTimeout(() => controller.abort(), 4000);
+        await fetch(targetUrl, {
+          method: "GET",
+          mode: "no-cors",
+          cache: "no-store",
+          signal: controller.signal,
+        });
+        window.clearTimeout(timeoutId);
+        return true;
+      } catch (_error) {
+        return false;
+      }
+    };
+
+    const performLocalLogoutToPortal = async (url) => {
+      const targetUrl = addLogoutMarker(url);
+      if (!targetUrl) {
+        throw new Error("Invalid portal logout URL");
+      }
+
+      await fetch(config.serverBaseUrl + "/Logout", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          "X-CSRF-Token": localStorage.getItem("CSRF"),
+        },
+      });
+
+      sessionStorage.setItem(PORTAL_LOGOUT_FLAG, "1");
+      sessionStorage.removeItem("openelis.lastLoginMethod");
+      window.location.replace(targetUrl);
+    };
+
+    const performSamlSingleLogout = () => {
       fetch(config.serverBaseUrl + "/Logout?useSAML=true", {
-        //includes the browser sessionId in the Header for Authentication on the backend server
         method: "POST",
         headers: {
           "Content-Type": "application/json",
@@ -167,8 +415,6 @@ export default function App() {
       })
         .then((response) => response.text())
         .then((html) => {
-          // Parse the SAML SLO response and submit the form in the current
-          // window — no popup, no iframe needed.
           const parser = new DOMParser();
           const doc = parser.parseFromString(html, "text/html");
           const samlForm = doc.querySelector("form");
@@ -187,17 +433,17 @@ export default function App() {
             document.body.appendChild(form);
             form.submit();
           } else {
-            // No SAML form in response — fall back to a direct redirect
-            getUserSessionDetails();
-            window.location.href = config.loginRedirect;
+            redirectToLogin();
           }
         })
         .catch((error) => {
           console.error(error);
+          redirectToLogin();
         });
-    } else {
+    };
+
+    const performStandardLogout = () => {
       fetch(config.serverBaseUrl + "/Logout", {
-        //includes the browser sessionId in the Header for Authentication on the backend server
         method: "POST",
         headers: {
           "Content-Type": "application/json",
@@ -206,12 +452,42 @@ export default function App() {
       })
         .then((response) => response.status)
         .then(() => {
-          getUserSessionDetails();
-          window.location.href = config.loginRedirect;
+          redirectToLogin();
         })
         .catch((error) => {
           console.error(error);
         });
+    };
+
+    if (userSessionDetails.loginMethod === "SAML") {
+      fetchPortalLogoutUrl(userSessionDetails.authenticated)
+        .then((portalLogoutUrl) => {
+          if (!portalLogoutUrl) {
+            performSamlSingleLogout();
+            return null;
+          }
+
+          return probePortalAvailability(portalLogoutUrl)
+            .then((isAvailable) => {
+              if (isAvailable) {
+                return performLocalLogoutToPortal(portalLogoutUrl);
+              }
+
+              performSamlSingleLogout();
+              return null;
+            })
+            .catch((error) => {
+              console.error(error);
+              performSamlSingleLogout();
+              return null;
+            });
+        })
+        .catch((error) => {
+          console.error(error);
+          performSamlSingleLogout();
+        });
+    } else {
+      performStandardLogout();
     }
   };
 

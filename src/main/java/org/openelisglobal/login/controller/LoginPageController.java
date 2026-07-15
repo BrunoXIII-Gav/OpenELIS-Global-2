@@ -15,6 +15,8 @@ import org.openelisglobal.common.constants.Constants;
 import org.openelisglobal.common.controller.BaseController;
 import org.openelisglobal.common.util.ConfigurationProperties;
 import org.openelisglobal.common.util.ConfigurationProperties.Property;
+import org.openelisglobal.security.SamlRoleMapping;
+import org.openelisglobal.security.SamlRoleMapping.ParsedSamlRole;
 import org.openelisglobal.localization.service.LocalizationService;
 import org.openelisglobal.login.bean.UserSession;
 import org.openelisglobal.login.bean.UserSession.LoginMethod;
@@ -63,8 +65,13 @@ public class LoginPageController extends BaseController {
     @Value("${org.itech.login.saml:false}")
     private Boolean useSAML;
 
+    @Value("${org.itech.login.saml.registrationId:keycloak}")
+    private String samlRegistrationId;
+
     @Value("${org.itech.login.oauth:false}")
     private Boolean useOAUTH;
+    @Value("${org.itech.login.saml.legacyRoleFallback:false}")
+    private boolean samlLegacyRoleFallback;
 
     private static String authorizationRequestBaseUri = "oauth2/authorization";
     Map<String, String> oauth2AuthenticationUrls = new HashMap<>();
@@ -92,14 +99,22 @@ public class LoginPageController extends BaseController {
 
     @RequestMapping(value = "/LoginPage", method = RequestMethod.GET)
     public ModelAndView showLoginPage(HttpServletRequest request, Principal principal) {
-        if (principal != null) {
-            return new ModelAndView(findForward(HOME_PAGE));
-        }
-
         // Store redirect parameter in session for SAML success handler to check
         String redirectParam = request.getParameter("redirect");
         if ("true".equals(redirectParam)) {
             request.getSession().setAttribute("saml_full_page_redirect", true);
+        }
+
+        if (Boolean.TRUE.equals(useSAML) && "true".equals(request.getParameter("useSAML"))) {
+            request.setAttribute("autoSamlRedirect", true);
+            request.setAttribute("samlAutoRedirectUrl", request.getContextPath() + "/saml2/authenticate/" + samlRegistrationId);
+        }
+
+        if (principal != null) {
+            if (shouldReturnToFrontend(request, redirectParam)) {
+                return new ModelAndView("redirect:/");
+            }
+            return new ModelAndView(findForward(HOME_PAGE));
         }
 
         String forward = FWD_SUCCESS;
@@ -131,6 +146,15 @@ public class LoginPageController extends BaseController {
         form.setFormAction("ValidateLogin");
 
         return findForward(forward, form);
+    }
+
+    private boolean shouldReturnToFrontend(HttpServletRequest request, String redirectParam) {
+        if ("true".equals(redirectParam) || "true".equals(request.getParameter("useSAML"))) {
+            return true;
+        }
+
+        return Boolean.TRUE.equals(request.getSession().getAttribute("samlSession"))
+                || Boolean.TRUE.equals(request.getSession().getAttribute("oauthSession"));
     }
 
     @GetMapping(value = "/session", produces = MediaType.APPLICATION_JSON_VALUE)
@@ -182,31 +206,74 @@ public class LoginPageController extends BaseController {
                 Set<String> roles = new HashSet<>(userPermissionService.getEffectiveRoleNames(session.getUserId()));
                 session.setRoles(roles);
             } else if (principal instanceof DefaultSaml2AuthenticatedPrincipal) {
-                setLabunitRolesForExistingUserFromGrantedAuthorities(session, authentication);
+                setLabunitRolesForExistingUserFromSso(session, authentication);
             } else if (principal instanceof DefaultOAuth2User) {
-                setLabunitRolesForExistingUserFromGrantedAuthorities(session, authentication);
+                setLabunitRolesForExistingUserFromSso(session, authentication);
             }
         }
+    }
+
+    private void setLabunitRolesForExistingUserFromSso(UserSession session, Authentication authentication) {
+        Set<String> internalRoles = new HashSet<>(userPermissionService.getEffectiveRoleNames(session.getUserId()));
+        setLabunitRolesForExistingUserFromDB(session);
+        session.setRoles(internalRoles);
+
+        if (!internalRoles.isEmpty() || !samlLegacyRoleFallback) {
+            return;
+        }
+
+        setLabunitRolesForExistingUserFromGrantedAuthorities(session, authentication);
     }
 
     private void setLabunitRolesForExistingUserFromGrantedAuthorities(UserSession session,
             Authentication authentication) {
         Collection<? extends GrantedAuthority> authorities = authentication.getAuthorities();
         Map<String, List<String>> userLabRolesMap = new HashMap<>();
-        Set<String> roles = new HashSet<>();
+        Set<String> roles = new HashSet<>(SamlRoleMapping.toInternalRoleNames(authorities));
         for (GrantedAuthority authority : authorities) {
-            String[] authorityExplode = authority.getAuthority().split("-");
-            if (authorityExplode.length == 2) {
-                roles.add(authorityExplode[1]);
-            } else if (authorityExplode.length == 3) {
-                List<String> userLabRoles = userLabRolesMap.getOrDefault(authorityExplode[2], new ArrayList<>());
-                userLabRoles.add(authorityExplode[1]);
-                roles.add(authorityExplode[1]);
-                userLabRolesMap.put(authorityExplode[2], userLabRoles);
+            ParsedSamlRole parsedRole = SamlRoleMapping.parseAuthority(authority.getAuthority());
+            if (parsedRole != null && parsedRole.getLabScope() != null) {
+                String resolvedLabUnit = resolveLabUnitDisplayName(parsedRole.getLabScope());
+                if (resolvedLabUnit != null) {
+                    List<String> userLabRoles = userLabRolesMap.getOrDefault(resolvedLabUnit, new ArrayList<>());
+                    userLabRoles.add(parsedRole.getInternalRoleName());
+                    userLabRolesMap.put(resolvedLabUnit, userLabRoles);
+                }
             }
         }
         session.setRoles(roles);
         session.setUserLabRolesMap(userLabRolesMap);
+    }
+
+    private String resolveLabUnitDisplayName(String labScope) {
+        if (labScope == null) {
+            return null;
+        }
+
+        String normalizedScope = normalizeScope(labScope);
+        if (ALL_LAB_UNITS.equalsIgnoreCase(labScope) || "all-lab-units".equals(normalizedScope)) {
+            return ALL_LAB_UNITS;
+        }
+
+        for (TestSection testSection : testSectionService.getAllActiveTestSections()) {
+            if (testSection == null) {
+                continue;
+            }
+            if (normalizedScope.equals(normalizeScope(testSection.getLocalizedName()))
+                    || normalizedScope.equals(normalizeScope(testSection.getTestSectionName()))
+                    || normalizedScope.equals(normalizeScope(testSection.getDescription()))) {
+                return testSection.getLocalizedName();
+            }
+        }
+
+        return null;
+    }
+
+    private String normalizeScope(String value) {
+        if (value == null) {
+            return null;
+        }
+        return value.trim().toLowerCase().replace('_', '-').replace(' ', '-');
     }
 
     @PostMapping(value = "/rest/setUserLoginLabUnit/{labUnitId}", produces = MediaType.APPLICATION_JSON_VALUE)

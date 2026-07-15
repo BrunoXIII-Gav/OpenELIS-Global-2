@@ -50,8 +50,9 @@ function Login(props) {
 
       // Use full-page redirect instead of popup to avoid popup blockers
       // Add 'redirect=true' parameter to tell backend to redirect to dashboard after auth
-      window.location.href =
-        config.serverBaseUrl + "/LoginPage?useSAML=true&redirect=true";
+      window.location.replace(
+        config.serverBaseUrl + "/LoginPage?useSAML=true&redirect=true"
+      );
     }
   }, [
     configurationProperties,
@@ -90,7 +91,7 @@ function Login(props) {
 
   useEffect(() => {
     if (userSessionDetails.authenticated) {
-      window.location.href = "/";
+      window.location.replace("/");
     }
   }, [userSessionDetails]);
 
@@ -155,7 +156,7 @@ function Login(props) {
         // get json response here
         let data = await response.json();
         if (response.status === 200) {
-          window.location.href = "/";
+          window.location.replace("/");
         } else {
           addNotification({
             title: props.intl.formatMessage({

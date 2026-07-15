@@ -25,6 +25,8 @@ import org.openelisglobal.login.valueholder.UserSessionData;
 import org.openelisglobal.program.service.ProgramService;
 import org.openelisglobal.resultvalidation.bean.AnalysisItem;
 import org.openelisglobal.role.service.RoleService;
+import org.openelisglobal.security.SamlRoleMapping;
+import org.openelisglobal.security.SamlRoleMapping.ParsedSamlRole;
 import org.openelisglobal.security.service.UserPermissionService;
 import org.openelisglobal.systemuser.controller.UnifiedSystemUserController;
 import org.openelisglobal.systemuser.valueholder.SystemUser;
@@ -40,6 +42,7 @@ import org.openelisglobal.userrole.valueholder.LabUnitRoleMap;
 import org.openelisglobal.userrole.valueholder.UserLabUnitRoles;
 import org.openelisglobal.userrole.valueholder.UserRole;
 import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.beans.factory.annotation.Value;
 import org.springframework.security.core.Authentication;
 import org.springframework.security.core.GrantedAuthority;
 import org.springframework.security.core.context.SecurityContext;
@@ -76,6 +79,8 @@ public class UserServiceImpl implements UserService {
     private HttpSession session;
     @Autowired
     private UserPermissionService userPermissionService;
+    @Value("${org.itech.login.saml.legacyRoleFallback:false}")
+    private boolean samlLegacyRoleFallback;
 
     @Override
     @Transactional
@@ -269,33 +274,76 @@ public class UserServiceImpl implements UserService {
                 }
             } else if (principal instanceof DefaultSaml2AuthenticatedPrincipal
                     || principal instanceof DefaultOAuth2User) {
+                List<IdValuePair> internalSections = getUserTestSectionsFromInternalLabRoles(systemUserId, roleId);
+                if (!internalSections.isEmpty() || !samlLegacyRoleFallback) {
+                    return internalSections;
+                }
+
                 List<IdValuePair> testSections = new ArrayList<>();
 
                 for (GrantedAuthority authority : authentication.getAuthorities()) {
-                    String[] authorityExplode = authority.getAuthority().split("-");
-                    if (authorityExplode.length == 3) {
-                        if (roleId == null || roleService.get(roleId).getName().trim().equals(authorityExplode[1])) {
-                            List<IdValuePair> allTestSections = DisplayListService.getInstance()
-                                    .getList(ListType.TEST_SECTION_ACTIVE);
-                            if (UnifiedSystemUserController.ALL_LAB_UNITS.equals(authorityExplode[2])) {
-                                return allTestSections;
-                            } else {
-                                List<IdValuePair> userTestSections = allTestSections.stream()
-                                        .filter(testSection -> testSection.getValue().equals(authorityExplode[2]))
-                                        .collect(Collectors.toList());
-                                testSections.addAll(userTestSections);
-                            }
-
-                        }
+                    ParsedSamlRole parsedRole = SamlRoleMapping.parseAuthority(authority.getAuthority());
+                    if (parsedRole == null || parsedRole.getLabScope() == null) {
+                        continue;
                     }
+                    if (roleId != null && !roleService.get(roleId).getName().trim().equals(parsedRole.getInternalRoleName())) {
+                        continue;
+                    }
+
+                    List<IdValuePair> allTestSections = DisplayListService.getInstance().getList(ListType.TEST_SECTION_ACTIVE);
+                    if (UnifiedSystemUserController.ALL_LAB_UNITS.equalsIgnoreCase(parsedRole.getLabScope())
+                            || "all-lab-units".equals(normalizeLabScope(parsedRole.getLabScope()))) {
+                        return allTestSections;
+                    }
+
+                    List<IdValuePair> userTestSections = allTestSections.stream()
+                            .filter(testSection -> normalizeLabScope(testSection.getValue())
+                                    .equals(normalizeLabScope(parsedRole.getLabScope())))
+                            .collect(Collectors.toList());
+                    testSections.addAll(userTestSections);
                 }
-                return testSections;
+                if (!testSections.isEmpty()) {
+                    return testSections;
+                }
+
+                return getUserTestSectionsFromInternalLabRoles(systemUserId, roleId);
             }
         }
         LogEvent.logWarn(this.getClass().getSimpleName(), "getUserTestSections",
                 "no principal object in spring security context. Could not get tests belonging to user");
         return new ArrayList<>();
 
+    }
+
+    private List<IdValuePair> getUserTestSectionsFromInternalLabRoles(String systemUserId, String roleId) {
+        String adminRoleId = roleService.getRoleByName(Constants.ROLE_GLOBAL_ADMIN).getId();
+        if (userRoleService.getRoleIdsForUser(systemUserId).contains(adminRoleId)) {
+            return DisplayListService.getInstance().getList(ListType.TEST_SECTION_ACTIVE);
+        }
+
+        List<String> userLabUnits = new ArrayList<>();
+        UserLabUnitRoles userLabRoles = getUserLabUnitRoles(systemUserId);
+        if (userLabRoles != null) {
+            userLabRoles.getLabUnitRoleMap().forEach(roles -> {
+                if (roleId == null || roles.getRoles().contains(roleId)) {
+                    userLabUnits.add(roles.getLabUnit());
+                }
+            });
+        }
+
+        List<IdValuePair> allTestSections = DisplayListService.getInstance().getList(ListType.TEST_SECTION_ACTIVE);
+        if (userLabUnits.contains(UnifiedSystemUserController.ALL_LAB_UNITS)) {
+            return allTestSections;
+        }
+        return allTestSections.stream().filter(testSection -> userLabUnits.contains(testSection.getId()))
+                .collect(Collectors.toList());
+    }
+
+    private String normalizeLabScope(String value) {
+        if (value == null) {
+            return "";
+        }
+        return value.trim().toLowerCase().replace('_', '-').replace(' ', '-');
     }
 
     @Override

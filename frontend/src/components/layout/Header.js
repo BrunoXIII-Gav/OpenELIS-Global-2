@@ -42,7 +42,11 @@ import {
   Theme,
 } from "@carbon/react";
 import SlideOverNotifications from "../notifications/SlideOverNotifications";
-import { getFromOpenElisServer, putToOpenElisServer } from "../utils/Utils";
+import {
+  getFromOpenElisServer,
+  putToOpenElisServer,
+  redirectToPortalOnSamlExpiry,
+} from "../utils/Utils";
 import SearchBar from "./search/searchBar";
 import { getBranding, getHeaderLogoSrc } from "../utils/BrandingUtils";
 import config from "../../config.json";
@@ -365,7 +369,9 @@ function OEHeader({
       );
 
       if (response.status === 401) {
-        window.location.href = config.loginRedirect;
+        if (!redirectToPortalOnSamlExpiry()) {
+          window.location.replace(config.loginRedirect);
+        }
         return false;
       }
 

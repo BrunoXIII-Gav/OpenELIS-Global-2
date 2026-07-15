@@ -90,6 +90,9 @@ public class DisplayListController extends BaseRestController {
     @Value("${org.itech.login.form:true}")
     private Boolean useFormLogin;
 
+    @Value("${org.itech.login.saml.portal-logout-url:}")
+    private String samlPortalLogoutUrl;
+
     @Autowired
     private ProviderService providerService;
 
@@ -453,6 +456,7 @@ public class DisplayListController extends BaseRestController {
         configs.put("studyManagementTab", studyManagementTab != null ? studyManagementTab.getValue() : "false");
         configs.put("useSaml", useSAML ? "true" : "false");
         configs.put("useSamlLoginPage", useSamlLoginPage ? "true" : "false");
+        configs.put("samlPortalLogoutUrl", samlPortalLogoutUrl);
         configs.put("useOauth", useOAUTH ? "true" : "false");
         if (useOAUTH) {
             ResolvableType type = ResolvableType.forInstance(clientRegistrationRepository).as(Iterable.class);

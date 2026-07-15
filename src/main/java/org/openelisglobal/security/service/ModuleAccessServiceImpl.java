@@ -173,7 +173,7 @@ public class ModuleAccessServiceImpl implements ModuleAccessService {
         if (accessMap == null) {
             accessMap = (Set<String>) request.getAttribute(IActionConstants.PERMITTED_ACTIONS_MAP);
         }
-        if (accessMap != null) {
+        if (accessMap != null && !accessMap.isEmpty()) {
             return accessMap;
         }
 
