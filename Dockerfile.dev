@@ -42,6 +42,7 @@ WORKDIR /build
 # OE Default Password
 ARG DEFAULT_PW="adminADMIN!"
 ADD ./install/createDefaultPassword.sh /build/install/createDefaultPassword.sh
+RUN chmod +x /build/install/createDefaultPassword.sh
 RUN ./install/createDefaultPassword.sh -c -p ${DEFAULT_PW}
 
 
