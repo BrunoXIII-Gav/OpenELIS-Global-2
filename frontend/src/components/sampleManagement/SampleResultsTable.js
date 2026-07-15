@@ -356,13 +356,16 @@ function SampleResultsTable({
 
   const getInitialLabelValue = useCallback(
     (sampleItem, tubeSequenceBySampleId) => {
-      const cugCode = String(sampleItem?.cugCode || "").trim().replace(/\.+$/, "");
+      const cugCode = String(sampleItem?.cugCode || "")
+        .trim()
+        .replace(/\.+$/, "");
       if (!cugCode) {
         return "";
       }
 
-      const hasResultBlocks = Array.isArray(sampleItem?.orderedTests)
-        && sampleItem.orderedTests.length > 0;
+      const hasResultBlocks =
+        Array.isArray(sampleItem?.orderedTests) &&
+        sampleItem.orderedTests.length > 0;
       if (!hasResultBlocks) {
         return `${cugCode}.`;
       }
@@ -1307,7 +1310,6 @@ function SampleResultsTable({
         </div>
         {shouldShowCurrentTests &&
           (() => {
-            const orderedTests = originalRow.orderedTests || [];
             const primarySampleRowId = getPrimarySampleRowId(
               row.id,
               originalRow,

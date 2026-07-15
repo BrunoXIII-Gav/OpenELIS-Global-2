@@ -223,7 +223,7 @@ const OrderEntryValidationSchema = Yup.object().shape({
       "Search Requester is required",
       function (value) {
         const selectedProviderId = value?.providerId || value?.providerPersonId;
-        if (!!String(selectedProviderId || "").trim()) {
+        if (String(selectedProviderId || "").trim()) {
           return true;
         }
         const providerFirstName = String(value?.providerFirstName || "").trim();
