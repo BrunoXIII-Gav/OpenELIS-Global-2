@@ -71,6 +71,8 @@ import InventoryManagement from "./components/inventory/InventoryManagement";
 export default function App() {
   const PORTAL_LOGOUT_FLAG = "openelis.loggedOutToPortal";
   const PORTAL_SAML_LAUNCH_FLAG = "openelis.portalSamlLaunch";
+  const BACK_GUARD_FLAG = "openelis.samlBackGuardArmed";
+  const BACK_GUARD_SOURCE = "openelis.samlBackGuard";
 
   const defaultLocale =
     localStorage.getItem("locale") || navigator.language.split(/[-_]/)[0];
@@ -138,6 +140,84 @@ export default function App() {
       document.removeEventListener("visibilitychange", handlePortalRestore);
     };
   }, []);
+
+  useEffect(() => {
+    const isAuthenticated = Boolean(userSessionDetails?.authenticated);
+    const loginMethod =
+      userSessionDetails?.loginMethod ||
+      sessionStorage.getItem("openelis.lastLoginMethod") ||
+      "";
+    const isSamlSession = isAuthenticated && loginMethod === "SAML";
+    const loggedOutToPortal =
+      sessionStorage.getItem(PORTAL_LOGOUT_FLAG) === "1";
+
+    if (!isSamlSession || loggedOutToPortal) {
+      sessionStorage.removeItem(BACK_GUARD_FLAG);
+      return undefined;
+    }
+
+    const trapState = {
+      ...(window.history.state || {}),
+      [BACK_GUARD_SOURCE]: "trap",
+    };
+    const rootState = {
+      ...(window.history.state || {}),
+      [BACK_GUARD_SOURCE]: "root",
+    };
+
+    if (sessionStorage.getItem(BACK_GUARD_FLAG) !== "1") {
+      window.history.replaceState(rootState, "", window.location.href);
+      window.history.pushState(trapState, "", window.location.href);
+      sessionStorage.setItem(BACK_GUARD_FLAG, "1");
+    }
+
+    const rearmGuard = () => {
+      if (
+        sessionStorage.getItem(PORTAL_LOGOUT_FLAG) === "1" ||
+        sessionStorage.getItem("openelis.lastLoginMethod") !== "SAML"
+      ) {
+        sessionStorage.removeItem(BACK_GUARD_FLAG);
+        return;
+      }
+
+      if (window.history.state?.[BACK_GUARD_SOURCE] !== "trap") {
+        window.history.pushState(
+          {
+            ...(window.history.state || {}),
+            [BACK_GUARD_SOURCE]: "trap",
+          },
+          "",
+          window.location.href,
+        );
+      }
+    };
+
+    const blockBrowserBack = () => {
+      if (
+        sessionStorage.getItem(PORTAL_LOGOUT_FLAG) === "1" ||
+        sessionStorage.getItem("openelis.lastLoginMethod") !== "SAML"
+      ) {
+        sessionStorage.removeItem(BACK_GUARD_FLAG);
+        return;
+      }
+
+      window.history.go(1);
+      window.setTimeout(rearmGuard, 0);
+    };
+
+    window.addEventListener("popstate", blockBrowserBack);
+    window.addEventListener("pageshow", rearmGuard);
+
+    return () => {
+      window.removeEventListener("popstate", blockBrowserBack);
+      window.removeEventListener("pageshow", rearmGuard);
+    };
+  }, [
+    BACK_GUARD_FLAG,
+    BACK_GUARD_SOURCE,
+    PORTAL_LOGOUT_FLAG,
+    userSessionDetails,
+  ]);
 
   // Load and apply site branding (colors, favicon)
   useEffect(() => {

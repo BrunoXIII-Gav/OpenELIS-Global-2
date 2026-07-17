@@ -7,7 +7,12 @@
   </head>
   <body>
     <script>
-      (function () {
+      (async function () {
+        const SESSION_ENDPOINT = "/api/OpenELIS-Global/session";
+        const LOGIN_URL =
+          "/api/OpenELIS-Global/LoginPage?useSAML=true&redirect=true";
+        const FRONTEND_ROOT = "/";
+
         try {
           sessionStorage.setItem("openelis.portalSamlLaunch", "1");
           sessionStorage.removeItem("openelis.loggedOutToPortal");
@@ -15,7 +20,24 @@
           // no-op
         }
 
-        window.location.replace("/api/OpenELIS-Global/LoginPage?useSAML=true&redirect=true");
+        try {
+          const response = await fetch(SESSION_ENDPOINT, {
+            credentials: "include",
+            cache: "no-store",
+          });
+
+          if (response.ok) {
+            const session = await response.json();
+            if (session && session.authenticated) {
+              window.location.replace(FRONTEND_ROOT);
+              return;
+            }
+          }
+        } catch (_error) {
+          // fall through to the normal SAML launch
+        }
+
+        window.location.replace(LOGIN_URL);
       })();
     </script>
   </body>
