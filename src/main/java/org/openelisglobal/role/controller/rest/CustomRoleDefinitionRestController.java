@@ -29,7 +29,7 @@ import org.springframework.web.bind.annotation.RestController;
 
 @RestController
 @RequestMapping("/rest/custom-roles")
-@PreAuthorize("hasRole('GLOBAL_ADMIN')")
+@PreAuthorize("@accessControl.hasPermission(T(org.openelisglobal.common.constants.SystemPermission).GLOBAL_ADMIN)")
 public class CustomRoleDefinitionRestController extends BaseRestController {
 
     @Autowired
