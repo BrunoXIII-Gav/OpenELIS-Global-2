@@ -2,6 +2,8 @@ package org.openelisglobal.reportdefinition.controller;
 
 import jakarta.servlet.http.HttpServletRequest;
 import java.awt.image.BufferedImage;
+import java.io.ByteArrayInputStream;
+import java.nio.charset.StandardCharsets;
 import java.sql.Timestamp;
 import java.time.Instant;
 import java.util.ArrayList;
@@ -19,6 +21,9 @@ import java.util.Set;
 import java.util.UUID;
 import java.util.stream.Collectors;
 import javax.imageio.ImageIO;
+import javax.xml.XMLConstants;
+import javax.xml.parsers.DocumentBuilder;
+import javax.xml.parsers.DocumentBuilderFactory;
 import org.apache.commons.lang3.StringUtils;
 import org.apache.commons.validator.GenericValidator;
 import org.json.JSONArray;
@@ -54,6 +59,9 @@ import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
 import org.springframework.web.multipart.MultipartFile;
+import org.w3c.dom.Document;
+import org.w3c.dom.Element;
+import org.w3c.dom.NodeList;
 
 @RestController
 @RequestMapping("/rest/reports/validation-template-overrides")
@@ -67,6 +75,13 @@ public class ValidationTemplateOverrideRestController extends BaseRestController
     private static final String TEST_CODE_KEY = "testCode";
     private static final String TEST_CODES_KEY = "testCodes";
     private static final String CONFIG_KEY = "config";
+    private static final String DYNAMIC_REPORT_KEY = "dynamicJasperValidation";
+    private static final String CONFIG_MODE_KEY = "mode";
+    private static final String CONFIG_MODE_DYNAMIC_JASPER = "jasper_dynamic";
+    private static final String TEMPLATE_NAME_KEY = "templateName";
+    private static final String TEMPLATE_CONTENT_KEY = "templateContent";
+    private static final String PARAMETER_DEFINITIONS_KEY = "parameterDefinitions";
+    private static final String WARNING_MESSAGES_KEY = "warningMessages";
     private static final List<String> VALIDATION_REPORT_CANDIDATES = Arrays.asList("patientCILNSP_vreduit",
             "patientDMPK", "patientCILNSP", "patientHaitiClinical", "patientHaitiLNSP", "TBPatientReport");
     private static final List<String> DMPK_SECTIONS = Arrays.asList("PATIENT", "REQUESTING_PHYSICIAN", "SAMPLE",
@@ -106,9 +121,11 @@ public class ValidationTemplateOverrideRestController extends BaseRestController
     @GetMapping("/report-options")
     public ResponseEntity<?> getReportOptions() {
         try {
-            List<IdValuePair> options = VALIDATION_REPORT_CANDIDATES.stream()
+            List<IdValuePair> options = new ArrayList<>();
+            options.add(new IdValuePair(DYNAMIC_REPORT_KEY, "Uploaded Jasper Template"));
+            options.addAll(VALIDATION_REPORT_CANDIDATES.stream()
                     .filter(report -> ReportImplementationFactory.getReportCreator(report) != null)
-                    .map(report -> new IdValuePair(report, report)).collect(Collectors.toList());
+                    .map(report -> new IdValuePair(report, report)).collect(Collectors.toList()));
             return ResponseEntity.ok(options);
         } catch (Exception e) {
             logger.error("Error retrieving validation template report options", e);
@@ -124,11 +141,32 @@ public class ValidationTemplateOverrideRestController extends BaseRestController
             payload.put("sections", new JSONArray(DMPK_SECTIONS));
             payload.put("sources", new JSONArray(buildSourceOptions(sanitizeList(testIds))));
             payload.put("defaultSectionFields", new JSONArray(buildDefaultSectionFields()));
+            payload.put("imageOptions", new JSONArray(buildImageOptions()));
             return ResponseEntity.ok(payload.toMap());
         } catch (Exception e) {
             logger.error("Error retrieving validation template field options", e);
             return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR)
                     .body("Error retrieving validation template field options");
+        }
+    }
+
+    @PostMapping("/parse-template")
+    public ResponseEntity<?> parseTemplate(@RequestParam("file") MultipartFile file) {
+        try {
+            if (file == null || file.isEmpty()) {
+                return ResponseEntity.badRequest().body("JRXML template file is required");
+            }
+
+            String filename = StringUtils.defaultString(file.getOriginalFilename());
+            if (!filename.toLowerCase().endsWith(".jrxml")) {
+                return ResponseEntity.badRequest().body("Only JRXML templates are supported");
+            }
+
+            String templateContent = new String(file.getBytes(), StandardCharsets.UTF_8);
+            return ResponseEntity.ok(parseTemplateMetadata(filename, templateContent).toMap());
+        } catch (Exception e) {
+            logger.error("Error parsing Jasper template", e);
+            return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR).body("Error parsing Jasper template");
         }
     }
 
@@ -179,16 +217,21 @@ public class ValidationTemplateOverrideRestController extends BaseRestController
             if (form == null) {
                 return ResponseEntity.badRequest().body("Request body is required");
             }
-            String reportName = sanitize(form.getReport());
+            Map<String, Object> normalizedConfig = normalizeConfig(form.getConfig());
+            boolean dynamicJasperTemplate = isDynamicJasperConfig(normalizedConfig);
+            String reportName = dynamicJasperTemplate ? DYNAMIC_REPORT_KEY : sanitize(form.getReport());
             List<String> testIds = sanitizeList(form.getTestIds());
             List<String> testCodes = sanitizeList(form.getTestCodes());
 
-            if (GenericValidator.isBlankOrNull(reportName)) {
+            if (!dynamicJasperTemplate && GenericValidator.isBlankOrNull(reportName)) {
                 return ResponseEntity.badRequest().body("Field 'report' is required");
             }
             if (testIds.isEmpty() && testCodes.isEmpty()) {
                 return ResponseEntity.badRequest()
                         .body("At least one test identifier is required (testIds or testCodes)");
+            }
+            if (dynamicJasperTemplate && !hasDynamicTemplateContent(normalizedConfig)) {
+                return ResponseEntity.badRequest().body("Upload a JRXML template before saving");
             }
 
             String targetId = !GenericValidator.isBlankOrNull(pathId) ? pathId : sanitize(form.getId());
@@ -213,9 +256,9 @@ public class ValidationTemplateOverrideRestController extends BaseRestController
             }
 
             entity.setCategory(CATEGORY);
-            entity.setName(resolveName(form, reportName, testIds, testCodes));
+            entity.setName(resolveName(form, reportName, testIds, testCodes, normalizedConfig));
             entity.setDescription(sanitize(form.getDescription()));
-            entity.setDefinitionJson(buildDefinitionJson(reportName, testIds, testCodes, form.getConfig()));
+            entity.setDefinitionJson(buildDefinitionJson(reportName, testIds, testCodes, normalizedConfig));
             entity.setIsActive(form.getIsActive() == null ? Boolean.TRUE : form.getIsActive());
             entity.setSysUserId(getSysUserId(request));
 
@@ -280,10 +323,16 @@ public class ValidationTemplateOverrideRestController extends BaseRestController
     }
 
     private String resolveName(ValidationTemplateOverrideForm form, String reportName, List<String> testIds,
-            List<String> testCodes) {
+            List<String> testCodes, Map<String, Object> config) {
         String requestedName = sanitize(form.getName());
         if (!GenericValidator.isBlankOrNull(requestedName)) {
             return requestedName;
+        }
+        if (isDynamicJasperConfig(config)) {
+            String templateName = sanitize(readString(config.get(TEMPLATE_NAME_KEY)));
+            if (!GenericValidator.isBlankOrNull(templateName)) {
+                return templateName;
+            }
         }
         String scope = !testCodes.isEmpty() ? String.join(", ", testCodes) : String.join(", ", testIds);
         return "Validation Template Override - " + reportName + " - " + scope;
@@ -434,6 +483,7 @@ public class ValidationTemplateOverrideRestController extends BaseRestController
         addSourceOption(options, "siteInfo", "Referring Site");
         addSourceOption(options, "collectionDateTime", "Collection Date/Time");
         addSourceOption(options, "sampleType", "Sample Source");
+        addSourceOption(options, "orderDate", "Order Date");
         addSourceOption(options, "orderFinishDate", "Order Finish Date");
         addSourceOption(options, "testDate", "Test Date");
         addSourceOption(options, "analysisResult1", "Analysis Result #1");
@@ -445,6 +495,102 @@ public class ValidationTemplateOverrideRestController extends BaseRestController
         addSourceOption(options, "orderAdditional.<field_key>", "Order Additional Field (use key)");
         addSourceOption(options, "sampleAdditional.<field_key>", "Sample Additional Field (use key)");
         return options;
+    }
+
+    private List<Map<String, String>> buildImageOptions() {
+        List<Map<String, String>> options = new ArrayList<>();
+        addSourceOption(options, "headerLeftImage", "Site Header Left Logo");
+        addSourceOption(options, "headerRightImage", "Site Header Right Logo");
+        addSourceOption(options, "labDirectorSignature", "Lab Director Signature");
+        return options;
+    }
+
+    private JSONObject parseTemplateMetadata(String filename, String templateContent) throws Exception {
+        DocumentBuilderFactory factory = DocumentBuilderFactory.newInstance();
+        factory.setFeature(XMLConstants.FEATURE_SECURE_PROCESSING, true);
+        factory.setAttribute(XMLConstants.ACCESS_EXTERNAL_DTD, "");
+        factory.setAttribute(XMLConstants.ACCESS_EXTERNAL_SCHEMA, "");
+        factory.setExpandEntityReferences(false);
+        factory.setNamespaceAware(false);
+
+        DocumentBuilder builder = factory.newDocumentBuilder();
+        Document document = builder.parse(new ByteArrayInputStream(templateContent.getBytes(StandardCharsets.UTF_8)));
+        Element root = document.getDocumentElement();
+
+        JSONObject payload = new JSONObject();
+        payload.put(TEMPLATE_CONTENT_KEY, templateContent);
+        payload.put(TEMPLATE_NAME_KEY, resolveTemplateName(filename, root));
+
+        JSONArray parameterDefinitions = new JSONArray();
+        NodeList parameters = root.getElementsByTagName("parameter");
+        for (int i = 0; i < parameters.getLength(); i++) {
+            Element parameter = (Element) parameters.item(i);
+            String name = sanitize(parameter.getAttribute("name"));
+            if (GenericValidator.isBlankOrNull(name)) {
+                continue;
+            }
+            JSONObject definition = new JSONObject();
+            definition.put("name", name);
+            definition.put("className",
+                    StringUtils.defaultIfBlank(sanitize(parameter.getAttribute("class")), "java.lang.String"));
+            parameterDefinitions.put(definition);
+        }
+        payload.put(PARAMETER_DEFINITIONS_KEY, parameterDefinitions);
+
+        NodeList fields = root.getElementsByTagName("field");
+        JSONArray warnings = new JSONArray();
+        if (fields.getLength() > 0) {
+            warnings.put("This template declares Jasper fields. The current OpenELIS flow fills parameters only.");
+        }
+        if (parameterDefinitions.length() == 0) {
+            warnings.put("No Jasper parameters were detected. Add parameters before uploading.");
+        }
+        payload.put("fieldCount", fields.getLength());
+        payload.put(WARNING_MESSAGES_KEY, warnings);
+        payload.put(CONFIG_MODE_KEY, CONFIG_MODE_DYNAMIC_JASPER);
+        return payload;
+    }
+
+    private String resolveTemplateName(String filename, Element root) {
+        String reportName = root == null ? null : sanitize(root.getAttribute("name"));
+        if (!GenericValidator.isBlankOrNull(reportName)) {
+            return reportName;
+        }
+        if (GenericValidator.isBlankOrNull(filename)) {
+            return "Uploaded Jasper Template";
+        }
+        return filename.replaceFirst("(?i)\\.jrxml$", "");
+    }
+
+    private boolean isDynamicJasperConfig(Map<String, Object> config) {
+        return config != null && StringUtils.equals(CONFIG_MODE_DYNAMIC_JASPER, readString(config.get(CONFIG_MODE_KEY)));
+    }
+
+    private boolean hasDynamicTemplateContent(Map<String, Object> config) {
+        return config != null && !GenericValidator.isBlankOrNull(readString(config.get(TEMPLATE_CONTENT_KEY)));
+    }
+
+    @SuppressWarnings("unchecked")
+    private Map<String, Object> normalizeConfig(Map<String, Object> config) {
+        if (config == null || config.isEmpty()) {
+            return config;
+        }
+        Object mode = config.get(CONFIG_MODE_KEY);
+        if (StringUtils.equals(CONFIG_MODE_DYNAMIC_JASPER, readString(mode))) {
+            Object params = config.get(PARAMETER_DEFINITIONS_KEY);
+            if (params == null) {
+                config.put(PARAMETER_DEFINITIONS_KEY, new ArrayList<Map<String, String>>());
+            }
+            Object warnings = config.get(WARNING_MESSAGES_KEY);
+            if (warnings == null) {
+                config.put(WARNING_MESSAGES_KEY, new ArrayList<String>());
+            }
+        }
+        return config;
+    }
+
+    private String readString(Object value) {
+        return value == null ? null : String.valueOf(value).trim();
     }
 
     private boolean isSupportedImage(MultipartFile file) {

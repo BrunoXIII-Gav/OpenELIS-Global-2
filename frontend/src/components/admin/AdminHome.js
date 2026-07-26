@@ -64,6 +64,12 @@ function AdminHome() {
       href: `${path}/SampleTypeAdditionalFields`,
       icon: ListDropdown,
     },
+    {
+      id: "adminQuickJasperTemplates",
+      labelId: "sidenav.label.admin.formEntry.validationTemplateOverrides",
+      href: `${path}/ValidationTemplateOverrides`,
+      icon: Settings,
+    },
   ];
 
   const handleTileClick = (href) => (event) => {

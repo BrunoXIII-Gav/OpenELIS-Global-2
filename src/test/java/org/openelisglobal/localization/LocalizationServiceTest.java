@@ -178,6 +178,20 @@ public class LocalizationServiceTest extends BaseWebContextSensitiveTest {
     }
 
     @Test
+    public void getLocalizedValue_shouldFallbackToEnglishWhenRequestedLocaleIsMissing() {
+        Localization loc = new Localization();
+        loc.setLocalizedValue(Locale.ENGLISH, "Hello");
+        assertEquals("Hello", loc.getLocalizedValue(Locale.forLanguageTag("es")));
+    }
+
+    @Test
+    public void getLocalizedValue_shouldFallbackToFrenchWhenEnglishIsUnavailable() {
+        Localization loc = new Localization();
+        loc.setLocalizedValue(Locale.FRENCH, "Bonjour");
+        assertEquals("Bonjour", loc.getLocalizedValue(Locale.forLanguageTag("es")));
+    }
+
+    @Test
     public void getLocalizedValue_shouldReturnEmptyIfNoValue() {
         Localization loc = new Localization();
         assertEquals("", loc.getLocalizedValue(Locale.CANADA_FRENCH));
