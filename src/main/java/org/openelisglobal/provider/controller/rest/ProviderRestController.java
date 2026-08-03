@@ -72,6 +72,11 @@ public class ProviderRestController {
     public ResponseEntity<?> insertOrUpdateProviderByFhirUuid(@RequestParam(required = false) UUID fhirUuid,
             @RequestBody Provider provider) {
         try {
+            String dni = StringUtils.trimToEmpty(provider.getDni());
+            if (!dni.matches("\\d{1,8}")) {
+                return ResponseEntity.status(HttpStatus.BAD_REQUEST)
+                        .body("DNI is required and must be at most 8 digits.");
+            }
             if (fhirUuid == null) {
                 fhirUuid = UUID.randomUUID();
             }

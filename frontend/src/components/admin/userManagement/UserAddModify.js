@@ -1670,45 +1670,6 @@ function UserAddModify() {
                 <br />
                 <Grid fullWidth={true}>
                   <Column lg={8} md={4} sm={4}>
-                    <>
-                      <FormattedMessage id="systemuserrole.copypermissions" /> :
-                    </>
-                  </Column>
-                  <Column lg={8} md={4} sm={4}>
-                    <AutoComplete
-                      name="copy-permissions"
-                      id="copy-permissions"
-                      allowFreeText={
-                        !(
-                          configurationProperties.restrictFreeTextProviderEntry ===
-                          "true"
-                        )
-                      }
-                      onChange={handleCopyUserPermissionsChange}
-                      onSelect={handleAutoCompleteCopyUserPermissionsChange}
-                      suggestions={
-                        copyUserPermissionList?.length > 0
-                          ? copyUserPermissionList
-                          : []
-                      }
-                    />
-                  </Column>
-                  <br />
-                  <Button
-                    data-cy="apply-button"
-                    disabled={copyUserPermission === "0"}
-                    type="button"
-                    onClick={() => {
-                      handleCopyUserPermissionsChangeClick();
-                    }}
-                  >
-                    <FormattedMessage id="systemuserrole.apply" />
-                  </Button>
-                </Grid>
-                <hr />
-                <br />
-                <Grid fullWidth={true}>
-                  <Column lg={8} md={4} sm={4}>
                     <FormattedMessage
                       id="customRole.assignment.title"
                       defaultMessage="Assigned Roles"

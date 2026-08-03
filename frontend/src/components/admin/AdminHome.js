@@ -29,6 +29,18 @@ function AdminHome() {
       icon: User,
     },
     {
+      id: "adminQuickCustomRoles",
+      labelId: "customRole.page.title",
+      href: `${path}/roleManagement`,
+      icon: Settings,
+    },
+    {
+      id: "adminQuickProfiles",
+      labelId: "professionalProfile.page.title",
+      href: `${path}/profileManagement`,
+      icon: User,
+    },
+    {
       id: "adminQuickProviders",
       labelId: "provider.browse.title",
       href: `${path}/providerMenu`,
@@ -38,6 +50,12 @@ function AdminHome() {
       id: "adminQuickTests",
       labelId: "master.lists.page.test.management",
       href: `${path}/testManagementConfigMenu`,
+      icon: ResultNew,
+    },
+    {
+      id: "adminQuickAddTest",
+      labelId: "configuration.test.add",
+      href: `${path}/TestAdd`,
       icon: ResultNew,
     },
     {

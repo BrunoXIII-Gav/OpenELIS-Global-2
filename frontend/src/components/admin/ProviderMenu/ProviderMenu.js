@@ -108,6 +108,7 @@ function ProviderMenu() {
   const [professionalInitials, setProfessionalInitials] = useState("");
   const [cbpCode, setCbpCode] = useState("");
   const [isActive, setIsActive] = useState(yesOrNo[0]);
+  const [showValidationErrors, setShowValidationErrors] = useState(false);
 
   const providerSpecialtyOptions = useMemo(
     () =>
@@ -320,10 +321,12 @@ function ProviderMenu() {
     setProfessionalInitials("");
     setCbpCode("");
     setIsActive(yesOrNo[0]);
+    setShowValidationErrors(false);
     setIsAddModalOpen(true);
   };
 
   const closeAddModal = () => {
+    setShowValidationErrors(false);
     setIsAddModalOpen(false);
   };
 
@@ -345,14 +348,37 @@ function ProviderMenu() {
     setIsActive(
       provider.active ? yesOrNo[0] : yesOrNo[1],
     );
+    setShowValidationErrors(false);
     setIsUpdateModalOpen(true);
   };
 
   const closeUpdateModal = () => {
+    setShowValidationErrors(false);
     setIsUpdateModalOpen(false);
   };
 
+  const isDniValid = useMemo(() => /^\d{1,8}$/.test((dni || "").trim()), [dni]);
+
+  const validateProviderForm = () => {
+    const normalizedDni = (dni || "").trim();
+    if (!normalizedDni) {
+      return false;
+    }
+    return /^\d{1,8}$/.test(normalizedDni);
+  };
+
   const handleAddProvider = () => {
+    setShowValidationErrors(true);
+    if (!validateProviderForm()) {
+      addNotification({
+        kind: NotificationKinds.error,
+        title: intl.formatMessage({ id: "notification.title" }),
+        message: intl.formatMessage({ id: "provider.dni.required" }),
+      });
+      setNotificationVisible(true);
+      return;
+    }
+
     const newProvider = {
       person: {
         lastName,
@@ -381,6 +407,17 @@ function ProviderMenu() {
   };
 
   const handleUpdateProvider = () => {
+    setShowValidationErrors(true);
+    if (!validateProviderForm()) {
+      addNotification({
+        kind: NotificationKinds.error,
+        title: intl.formatMessage({ id: "notification.title" }),
+        message: intl.formatMessage({ id: "provider.dni.required" }),
+      });
+      setNotificationVisible(true);
+      return;
+    }
+
     const updatedProvider = {
       fhirUuid: currentProvider.fhirUuid,
       person: {
@@ -441,6 +478,13 @@ function ProviderMenu() {
     const value = (event.target.value || "").toUpperCase();
     if (/^[A-Z0-9-]*$/.test(value) && value.length <= 32) {
       setCbpCode(value);
+    }
+  };
+
+  const handleDniChange = (event) => {
+    const value = (event.target.value || "").trim();
+    if (/^\d{0,8}$/.test(value)) {
+      setDni(value);
     }
   };
 
@@ -735,9 +779,15 @@ function ProviderMenu() {
             />
             <TextInput
               id="dni"
-              labelText="DNI"
+              labelText={intl.formatMessage({ id: "patient.identifier.dni" })}
               value={dni}
-              onChange={(e) => setDni(e.target.value)}
+              onChange={handleDniChange}
+              required
+              maxLength={8}
+              invalid={showValidationErrors && !isDniValid}
+              invalidText={intl.formatMessage({
+                id: "provider.dni.required",
+              })}
             />
             {renderSpecialtyInput()}
             <TextInput
@@ -856,9 +906,15 @@ function ProviderMenu() {
             />
             <TextInput
               id="dni"
-              labelText="DNI"
+              labelText={intl.formatMessage({ id: "patient.identifier.dni" })}
               value={dni}
-              onChange={(e) => setDni(e.target.value)}
+              onChange={handleDniChange}
+              required
+              maxLength={8}
+              invalid={showValidationErrors && !isDniValid}
+              invalidText={intl.formatMessage({
+                id: "provider.dni.required",
+              })}
             />
             {renderSpecialtyInput()}
             <TextInput

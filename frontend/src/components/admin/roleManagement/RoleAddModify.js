@@ -26,6 +26,14 @@ import {
   putToOpenElisServerFullResponse,
 } from "../../utils/Utils.js";
 
+const HIDDEN_GLOBAL_PERMISSION_NAMES = new Set([
+  "Analyser Import",
+  "Cytopathologist",
+  "Pathologist",
+]);
+
+const HIDDEN_LAB_PERMISSION_NAMES = new Set(["Aliquot"]);
+
 function RoleAddModify() {
   const history = useHistory();
   const location = useLocation();
@@ -129,6 +137,15 @@ function RoleAddModify() {
 
   const hasSelectedLabPermissions = catalog.labPermissionRoles.some((permissionRole) =>
     formData.permissionRoleIds.includes(permissionRole.id),
+  );
+
+  const visibleGlobalPermissionRoles = catalog.globalPermissionRoles.filter(
+    (permissionRole) =>
+      !HIDDEN_GLOBAL_PERMISSION_NAMES.has(String(permissionRole?.name || "").trim()),
+  );
+  const visibleLabPermissionRoles = catalog.labPermissionRoles.filter(
+    (permissionRole) =>
+      !HIDDEN_LAB_PERMISSION_NAMES.has(String(permissionRole?.name || "").trim()),
   );
 
   const showError = async (response) => {
@@ -292,7 +309,7 @@ function RoleAddModify() {
                   />
                 </Heading>
                 <FormGroup legendId="custom-role-global-permissions" legendText="">
-                  {catalog.globalPermissionRoles.map((permissionRole) => (
+                  {visibleGlobalPermissionRoles.map((permissionRole) => (
                     <Checkbox
                       key={`global-${permissionRole.id}`}
                       id={`global-${permissionRole.id}`}
@@ -319,7 +336,7 @@ function RoleAddModify() {
                   />
                 </p>
                 <FormGroup legendId="custom-role-lab-permissions" legendText="">
-                  {catalog.labPermissionRoles.map((permissionRole) => (
+                  {visibleLabPermissionRoles.map((permissionRole) => (
                     <Checkbox
                       key={`lab-${permissionRole.id}`}
                       id={`lab-${permissionRole.id}`}

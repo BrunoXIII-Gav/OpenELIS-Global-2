@@ -29,6 +29,35 @@ import { getFromOpenElisServer } from "../../../utils/Utils.js";
 import { NotificationContext } from "../../../layout/Layout.js";
 import { extractAgeRangeParts } from "./TestFormData.js";
 
+const resolveCheckboxChecked = (checkedOrEvent, stateOrEvent) => {
+  if (typeof checkedOrEvent === "boolean") {
+    return checkedOrEvent;
+  }
+  if (typeof stateOrEvent?.checked === "boolean") {
+    return stateOrEvent.checked;
+  }
+  if (typeof checkedOrEvent?.checked === "boolean") {
+    return checkedOrEvent.checked;
+  }
+  if (typeof stateOrEvent?.target?.checked === "boolean") {
+    return stateOrEvent.target.checked;
+  }
+  if (typeof checkedOrEvent?.target?.checked === "boolean") {
+    return checkedOrEvent.target.checked;
+  }
+  return false;
+};
+
+const resolveBooleanPreference = (fieldValue, metadataValue) => {
+  if (typeof fieldValue === "boolean") {
+    return fieldValue;
+  }
+  if (typeof metadataValue === "boolean") {
+    return metadataValue;
+  }
+  return false;
+};
+
 export const TestStepForm = ({
   initialData,
   mode = "add",
@@ -127,6 +156,7 @@ export const TestStepForm = ({
     const normalizedData = normalizeResultTypeId(newData || {});
     const previousData = formDataRef.current || {};
     const mergedData = { ...previousData, ...normalizedData };
+    const isActiveTest = mergedData.resultActive !== false;
     const isAdditionalFieldsEditStep = currentStep === 2;
     if (!isAdditionalFieldsEditStep) {
       mergedData.additionalFields = Array.isArray(previousData.additionalFields)
@@ -153,6 +183,10 @@ export const TestStepForm = ({
 
     setCurrentStep((prev) => {
       if (prev === 3) {
+        if (!isActiveTest) {
+          return 6;
+        }
+
         if (freeResultList.includes(selectedResultTypeId)) {
           return prev + 3;
         }
@@ -181,6 +215,7 @@ export const TestStepForm = ({
   const handlePreviousStep = (newData) => {
     const previousData = formDataRef.current || {};
     const mergedData = { ...previousData, ...(newData || {}) };
+    const isActiveTest = mergedData.resultActive !== false;
     const isAdditionalFieldsEditStep = currentStep === 2;
     if (!isAdditionalFieldsEditStep) {
       mergedData.additionalFields = Array.isArray(previousData.additionalFields)
@@ -201,6 +236,10 @@ export const TestStepForm = ({
 
     setCurrentStep((prevStep) => {
       if (prevStep === 6) {
+        if (!isActiveTest) {
+          return 3;
+        }
+
         if (freeResultList.includes(selectedResultTypeId)) {
           return prevStep - 3;
         }
@@ -784,6 +823,12 @@ export const TestStepForm = ({
     />,
   ];
 
+  const shouldBypassResultSpecificConfiguration =
+    formData?.resultActive === false && currentStep >= 4 && currentStep <= 5;
+  const visibleStepIndex = shouldBypassResultSpecificConfiguration
+    ? 6
+    : currentStep;
+
   if (isLoading) {
     return (
       <>
@@ -799,7 +844,7 @@ export const TestStepForm = ({
           <br />
           <hr />
           <br />
-          <div>{steps[currentStep]}</div>
+          <div>{steps[visibleStepIndex]}</div>
           <br />
           <hr />
           <br />
@@ -1438,9 +1483,10 @@ export const StepThreeTestResultTypeAndLoinc = ({
       includeInValidation,
       blockSortOrder,
       fieldSortOrder,
-      tubeSelectorEnabled:
-        field.tubeSelectorEnabled === true ||
-        parsedMetadata?.tubeSelector?.enabled === true,
+      tubeSelectorEnabled: resolveBooleanPreference(
+        field.tubeSelectorEnabled,
+        parsedMetadata?.tubeSelector?.enabled,
+      ),
       tubeSelectorMin:
         Number.isFinite(tubeSelectorMin) && tubeSelectorMin > 0
           ? String(tubeSelectorMin)
@@ -1453,15 +1499,18 @@ export const StepThreeTestResultTypeAndLoinc = ({
         Number.isFinite(tubeActivationCount) && tubeActivationCount > 0
           ? String(tubeActivationCount)
           : "",
-      tubeQuantitySource:
-        field.tubeQuantitySource === true ||
-        parsedMetadata?.tubeQuantitySource === true,
-      tubeLabelEnabled:
-        field.tubeLabelEnabled === true ||
-        parsedMetadata?.tubeLabel?.enabled === true,
-      childTubeUsageBlockEnabled:
-        field.childTubeUsageBlockEnabled === true ||
-        parsedMetadata?.tubeUsage?.childBlockEnabled === true,
+      tubeQuantitySource: resolveBooleanPreference(
+        field.tubeQuantitySource,
+        parsedMetadata?.tubeQuantitySource,
+      ),
+      tubeLabelEnabled: resolveBooleanPreference(
+        field.tubeLabelEnabled,
+        parsedMetadata?.tubeLabel?.enabled,
+      ),
+      childTubeUsageBlockEnabled: resolveBooleanPreference(
+        field.childTubeUsageBlockEnabled,
+        parsedMetadata?.tubeUsage?.childBlockEnabled,
+      ),
     };
   };
 
@@ -2045,37 +2094,33 @@ export const StepThreeTestResultTypeAndLoinc = ({
             }
           };
 
-          const handleAntimicrobialResistance = (e) => {
+          const handleIsActive = (_event, state) => {
             setFieldValue(
-              "antimicrobialResistance",
-              e.target.checked ? "Y" : "N",
+              "active",
+              resolveCheckboxChecked(_event, state) ? "Y" : "N",
             );
           };
-          const handleIsActive = (e) => {
-            setFieldValue("active", e.target.checked ? "Y" : "N");
+          const handleResultActive = (_event, state) => {
+            setFieldValue("resultActive", resolveCheckboxChecked(_event, state));
           };
-          const handleOrderable = (e) => {
-            setFieldValue("orderable", e.target.checked ? "Y" : "N");
+          const handleOrderable = (_event, state) => {
+            setFieldValue(
+              "orderable",
+              resolveCheckboxChecked(_event, state) ? "Y" : "N",
+            );
           };
-          const handleDirectSampleUsage = (e) => {
+          const handleDirectSampleUsage = (_event, state) => {
             setFieldValue(
               "directSampleUsageEnabled",
-              e.target.checked ? "Y" : "N",
+              resolveCheckboxChecked(_event, state) ? "Y" : "N",
             );
           };
-          const handleSkipValidationWhenParentComplete = (e) => {
+          const handleSkipValidationWhenParentComplete = (_event, state) => {
             setFieldValue(
               "skipValidationWhenParentComplete",
-              e.target.checked ? "Y" : "N",
+              resolveCheckboxChecked(_event, state) ? "Y" : "N",
             );
           };
-          const handleNotifyPatientofResults = (e) => {
-            setFieldValue("notifyResults", e.target.checked ? "Y" : "N");
-          };
-          const handleInLabOnly = (e) => {
-            setFieldValue("inLabOnly", e.target.checked ? "Y" : "N");
-          };
-
           const normalizedAdditionalFields =
             normalizeAdditionalFieldsForDisplay(values.additionalFields);
           const activeAdditionalFields = sortAdditionalFieldEntries(
@@ -2483,9 +2528,7 @@ export const StepThreeTestResultTypeAndLoinc = ({
                           defaultMessage: "Active",
                         })}
                         checked={values.resultActive !== false}
-                        onChange={(event) =>
-                          setFieldValue("resultActive", event.target.checked)
-                        }
+                        onChange={handleResultActive}
                       />
                     </div>
                     <Grid condensed fullWidth style={{ marginTop: "0.75rem" }}>
@@ -2585,10 +2628,10 @@ export const StepThreeTestResultTypeAndLoinc = ({
                               id: "test.additionalFields.tubeSelector",
                             })}
                             checked={values.resultTubeSelectorEnabled === true}
-                            onChange={(event) =>
+                            onChange={(_event, state) =>
                               setFieldValue(
                                 "resultTubeSelectorEnabled",
-                                event.target.checked,
+                                resolveCheckboxChecked(_event, state),
                               )
                             }
                           />
@@ -2598,10 +2641,10 @@ export const StepThreeTestResultTypeAndLoinc = ({
                               id: "test.additionalFields.tubeQuantitySource",
                             })}
                             checked={values.resultTubeQuantitySource === true}
-                            onChange={(event) =>
+                            onChange={(_event, state) =>
                               setFieldValue(
                                 "resultTubeQuantitySource",
-                                event.target.checked,
+                                resolveCheckboxChecked(_event, state),
                               )
                             }
                           />
@@ -2612,10 +2655,10 @@ export const StepThreeTestResultTypeAndLoinc = ({
                               defaultMessage: "Generate tube label",
                             })}
                             checked={values.resultTubeLabelEnabled === true}
-                            onChange={(event) =>
+                            onChange={(_event, state) =>
                               setFieldValue(
                                 "resultTubeLabelEnabled",
-                                event.target.checked,
+                                resolveCheckboxChecked(_event, state),
                               )
                             }
                           />
@@ -2629,10 +2672,10 @@ export const StepThreeTestResultTypeAndLoinc = ({
                             checked={
                               values.resultChildTubeUsageBlockEnabled === true
                             }
-                            onChange={(event) =>
+                            onChange={(_event, state) =>
                               setFieldValue(
                                 "resultChildTubeUsageBlockEnabled",
-                                event.target.checked,
+                                resolveCheckboxChecked(_event, state),
                               )
                             }
                           />
@@ -3256,11 +3299,14 @@ export const StepThreeTestResultTypeAndLoinc = ({
                                         })}
                                         checked={field?.required === true}
                                         disabled={!isEditable}
-                                        onChange={(event) =>
+                                        onChange={(_event, state) =>
                                           handleAdditionalFieldChange(
                                             fieldIndex,
                                             "required",
-                                            event.target.checked,
+                                            resolveCheckboxChecked(
+                                              _event,
+                                              state,
+                                            ),
                                           )
                                         }
                                       />
@@ -3278,11 +3324,14 @@ export const StepThreeTestResultTypeAndLoinc = ({
                                           !isEditable ||
                                           field?.entryScope === "PRELIMINARY"
                                         }
-                                        onChange={(event) =>
+                                        onChange={(_event, state) =>
                                           handleAdditionalFieldChange(
                                             fieldIndex,
                                             "includeInValidation",
-                                            event.target.checked,
+                                            resolveCheckboxChecked(
+                                              _event,
+                                              state,
+                                            ),
                                           )
                                         }
                                       />
@@ -3300,11 +3349,14 @@ export const StepThreeTestResultTypeAndLoinc = ({
                                               true
                                             }
                                             disabled={!isEditable}
-                                            onChange={(event) =>
+                                            onChange={(_event, state) =>
                                               handleAdditionalFieldChange(
                                                 fieldIndex,
                                                 "tubeSelectorEnabled",
-                                                event.target.checked,
+                                                resolveCheckboxChecked(
+                                                  _event,
+                                                  state,
+                                                ),
                                               )
                                             }
                                           />
@@ -3319,11 +3371,14 @@ export const StepThreeTestResultTypeAndLoinc = ({
                                               field?.tubeQuantitySource === true
                                             }
                                             disabled={!isEditable}
-                                            onChange={(event) =>
+                                            onChange={(_event, state) =>
                                               handleAdditionalFieldChange(
                                                 fieldIndex,
                                                 "tubeQuantitySource",
-                                                event.target.checked,
+                                                resolveCheckboxChecked(
+                                                  _event,
+                                                  state,
+                                                ),
                                               )
                                             }
                                           />
@@ -3341,11 +3396,14 @@ export const StepThreeTestResultTypeAndLoinc = ({
                                           true
                                         }
                                         disabled={!isEditable}
-                                        onChange={(event) =>
+                                        onChange={(_event, state) =>
                                           handleAdditionalFieldChange(
                                             fieldIndex,
                                             "childTubeUsageBlockEnabled",
-                                            event.target.checked,
+                                            resolveCheckboxChecked(
+                                              _event,
+                                              state,
+                                            ),
                                           )
                                         }
                                       />
@@ -3359,11 +3417,14 @@ export const StepThreeTestResultTypeAndLoinc = ({
                                           field?.tubeLabelEnabled === true
                                         }
                                         disabled={!isEditable}
-                                        onChange={(event) =>
+                                        onChange={(_event, state) =>
                                           handleAdditionalFieldChange(
                                             fieldIndex,
                                             "tubeLabelEnabled",
-                                            event.target.checked,
+                                            resolveCheckboxChecked(
+                                              _event,
+                                              state,
+                                            ),
                                           )
                                         }
                                       />
@@ -3489,12 +3550,15 @@ export const StepThreeTestResultTypeAndLoinc = ({
                                                   option?.active !== false
                                                 }
                                                 disabled={!isEditable}
-                                                onChange={(event) =>
+                                                onChange={(_event, state) =>
                                                   handleFieldOptionChange(
                                                     fieldIndex,
                                                     optionIndex,
                                                     "active",
-                                                    event.target.checked,
+                                                    resolveCheckboxChecked(
+                                                      _event,
+                                                      state,
+                                                    ),
                                                   )
                                                 }
                                               />
@@ -3629,15 +3693,6 @@ export const StepThreeTestResultTypeAndLoinc = ({
                   <div>
                     <Checkbox
                       labelText={
-                        <FormattedMessage id="test.antimicrobialResistance" />
-                      }
-                      id="antimicrobial-resistance"
-                      name="antimicrobialResistance"
-                      onChange={handleAntimicrobialResistance}
-                      checked={values?.antimicrobialResistance === "Y"}
-                    />
-                    <Checkbox
-                      labelText={
                         <FormattedMessage id="dictionary.category.isActive" />
                       }
                       id="is-active"
@@ -3692,20 +3747,6 @@ export const StepThreeTestResultTypeAndLoinc = ({
                         <FormattedMessage id="test.skipValidationWhenParentComplete.disabledForNonParent" />
                       </p>
                     )}
-                    <Checkbox
-                      labelText={<FormattedMessage id="test.notifyResults" />}
-                      id="notify-patient-of-results"
-                      name="notifyResults"
-                      onChange={handleNotifyPatientofResults}
-                      checked={values?.notifyResults === "Y"}
-                    />
-                    <Checkbox
-                      labelText={<FormattedMessage id="test.inLabOnly" />}
-                      id="in-lab-only"
-                      name="inLabOnly"
-                      onChange={handleInLabOnly}
-                      checked={values?.inLabOnly === "Y"}
-                    />
                   </div>
                 </Column>
               </Grid>
@@ -5125,7 +5166,7 @@ export const StepSixSelectRangeAgeRangeAndSignificantDigits = ({
                               checked={
                                 values.resultLimits?.[index]?.gender || false
                               }
-                              onChange={(e) => {
+                              onChange={(_event, state) => {
                                 if (!values.resultLimits?.[index]) {
                                   const updatedLimits = [
                                     ...(values.resultLimits || []),
@@ -5136,7 +5177,7 @@ export const StepSixSelectRangeAgeRangeAndSignificantDigits = ({
                                 handleRangeChange(
                                   index,
                                   "gender",
-                                  e.target.checked,
+                                  resolveCheckboxChecked(_event, state),
                                 );
                               }}
                             />
@@ -5800,29 +5841,27 @@ export const StepSevenFinalDisplayAndSaveConfirmation = ({
   };
   return (
     <>
-      {currentStep === 7 - 1 ? (
-        <>
-          <Formik
-            initialValues={formData}
-            enableReinitialize={true}
-            validateOnChange={true}
-            validateOnBlur={true}
-            onSubmit={(values, actions) => {
-              handleSubmit(values);
-              actions.setSubmitting(false);
-            }}
-          >
-            {({
-              values,
-              handleChange,
-              handleBlur,
-              touched,
-              errors,
-              setFieldValue,
-            }) => {
-              return (
-                <Form>
-                  <Grid fullWidth={true}>
+      <Formik
+        initialValues={formData}
+        enableReinitialize={true}
+        validateOnChange={true}
+        validateOnBlur={true}
+        onSubmit={(values, actions) => {
+          handleSubmit(values);
+          actions.setSubmitting(false);
+        }}
+      >
+        {({
+          values,
+          handleChange,
+          handleBlur,
+          touched,
+          errors,
+          setFieldValue,
+        }) => {
+          return (
+            <Form>
+              <Grid fullWidth={true}>
                     <Column lg={6} md={8} sm={4}>
                       <Section>
                         <Section>
@@ -5897,11 +5936,6 @@ export const StepSevenFinalDisplayAndSaveConfirmation = ({
                       {selectedResultTypeList.value}
                       <br />
                       <br />
-                      <FormattedMessage id="test.antimicrobialResistance" />
-                      {" : "}
-                      {values?.antimicrobialResistance}
-                      <br />
-                      <br />
                       <FormattedMessage id="dictionary.category.isActive" />
                       {" : "}
                       {values?.active}
@@ -5921,15 +5955,6 @@ export const StepSevenFinalDisplayAndSaveConfirmation = ({
                       {" : "}
                       {values?.skipValidationWhenParentComplete}
                       <br />
-                      <br />
-                      <FormattedMessage id="test.notifyResults" />
-                      {" : "}
-                      {values?.notifyResults}
-                      <br />
-                      <br />
-                      <FormattedMessage id="test.inLabOnly" />
-                      {" : "}
-                      {values?.inLabOnly}
                       <br />
                     </Column>
                     <Column lg={10} md={8} sm={4}>
@@ -6003,30 +6028,26 @@ export const StepSevenFinalDisplayAndSaveConfirmation = ({
                       {" : "}
                       {values?.defaultTestResult}
                     </Column>
-                  </Grid>
-                  <br />
-                  <Grid fullWidth={true}>
-                    <Column lg={16} md={8} sm={4}>
-                      <Button type="submit">
-                        <FormattedMessage id="accept.action.button" />
-                      </Button>{" "}
-                      <Button
-                        onClick={() => handlePreviousStep(values)}
-                        kind="tertiary"
-                        type="button"
-                      >
-                        <FormattedMessage id="back.action.button" />
-                      </Button>
-                    </Column>
-                  </Grid>
-                </Form>
-              );
-            }}
-          </Formik>
-        </>
-      ) : (
-        <></>
-      )}
+              </Grid>
+              <br />
+              <Grid fullWidth={true}>
+                <Column lg={16} md={8} sm={4}>
+                  <Button type="submit">
+                    <FormattedMessage id="accept.action.button" />
+                  </Button>{" "}
+                  <Button
+                    onClick={() => handlePreviousStep(values)}
+                    kind="tertiary"
+                    type="button"
+                  >
+                    <FormattedMessage id="back.action.button" />
+                  </Button>
+                </Column>
+              </Grid>
+            </Form>
+          );
+        }}
+      </Formik>
     </>
   );
 };

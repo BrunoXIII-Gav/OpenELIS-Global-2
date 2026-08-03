@@ -1545,36 +1545,38 @@ const OrderAdditionalFieldsManagement = () => {
                               )}
                             </TableCell>
                             <TableCell>
-                              <Button
-                                kind="ghost"
-                                size="sm"
-                                onClick={() => startEditingField(sourceField)}
-                              >
-                                <FormattedMessage id="button.edit" />
-                              </Button>
-                              {"  "}
-                              <Button
-                                kind="tertiary"
-                                size="sm"
-                                disabled={savingSortFieldId === sourceField?.id}
-                                onClick={() => saveFieldSortOrder(sourceField)}
-                              >
-                                <FormattedMessage id="button.save" />
-                              </Button>
-                              {"  "}
-                              <Button
-                                kind={
-                                  row.cells[7].value ? "danger" : "secondary"
-                                }
-                                size="sm"
-                                onClick={() => toggleFieldStatus(sourceField)}
-                              >
-                                {row.cells[7].value ? (
-                                  <FormattedMessage id="order.additional.fields.disable" />
-                                ) : (
-                                  <FormattedMessage id="order.additional.fields.enable" />
-                                )}
-                              </Button>
+                              <Stack gap={2}>
+                                <Button
+                                  kind="ghost"
+                                  size="sm"
+                                  onClick={() => startEditingField(sourceField)}
+                                >
+                                  <FormattedMessage id="button.edit" />
+                                </Button>
+                                <Button
+                                  kind="tertiary"
+                                  size="sm"
+                                  disabled={
+                                    savingSortFieldId === sourceField?.id
+                                  }
+                                  onClick={() => saveFieldSortOrder(sourceField)}
+                                >
+                                  <FormattedMessage id="button.save" />
+                                </Button>
+                                <Button
+                                  kind={
+                                    row.cells[7].value ? "danger" : "secondary"
+                                  }
+                                  size="sm"
+                                  onClick={() => toggleFieldStatus(sourceField)}
+                                >
+                                  {row.cells[7].value ? (
+                                    <FormattedMessage id="order.additional.fields.disable" />
+                                  ) : (
+                                    <FormattedMessage id="order.additional.fields.enable" />
+                                  )}
+                                </Button>
+                              </Stack>
                             </TableCell>
                           </TableRow>
                         );
@@ -1598,11 +1600,21 @@ const OrderAdditionalFieldsManagement = () => {
               <Table>
                 <TableHead>
                   <TableRow>
-                    <TableHeader>Field</TableHeader>
-                    <TableHeader>Visible</TableHeader>
-                    <TableHeader>Required</TableHeader>
-                    <TableHeader>Readonly</TableHeader>
-                    <TableHeader>Sort Order</TableHeader>
+                    <TableHeader>
+                      <FormattedMessage id="sample.fixed.fields.field" />
+                    </TableHeader>
+                    <TableHeader>
+                      <FormattedMessage id="sample.fixed.fields.visible" />
+                    </TableHeader>
+                    <TableHeader>
+                      <FormattedMessage id="sample.fixed.fields.required" />
+                    </TableHeader>
+                    <TableHeader>
+                      <FormattedMessage id="sample.fixed.fields.readonly" />
+                    </TableHeader>
+                    <TableHeader>
+                      <FormattedMessage id="sample.fixed.fields.sortOrder" />
+                    </TableHeader>
                   </TableRow>
                 </TableHead>
                 <TableBody>

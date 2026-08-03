@@ -149,26 +149,6 @@ export const CustomTestDataDisplay = ({ testToDisplay }) => {
         <Section>
           <Section>
             <Section>
-              <FormattedMessage id="test.notifyResults" /> :{" "}
-              {String(testToDisplay.notifyResults)}
-            </Section>
-          </Section>
-        </Section>
-      </Column>
-      <Column lg={4} md={4} sm={4}>
-        <Section>
-          <Section>
-            <Section>
-              <FormattedMessage id="test.inLabOnly" /> :{" "}
-              {String(testToDisplay.inLabOnly)}
-            </Section>
-          </Section>
-        </Section>
-      </Column>
-      <Column lg={4} md={4} sm={4}>
-        <Section>
-          <Section>
-            <Section>
               <FormattedMessage id="field.testUnit" /> :{" "}
               {testToDisplay.testUnit}
             </Section>

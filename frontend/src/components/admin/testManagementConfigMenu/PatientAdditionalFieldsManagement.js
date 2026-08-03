@@ -216,7 +216,7 @@ const PatientAdditionalFieldsManagement = () => {
       resetFieldForm();
       showNotification(
         NotificationKinds.success,
-        intl.formatMessage({ id: "order.additional.fields.saved" }),
+        intl.formatMessage({ id: "patient.additional.fields.saved" }),
       );
       loadFields();
     };
@@ -285,7 +285,7 @@ const PatientAdditionalFieldsManagement = () => {
             loadFields();
             showNotification(
               NotificationKinds.success,
-              intl.formatMessage({ id: "order.additional.fields.updated" }),
+              intl.formatMessage({ id: "patient.additional.fields.updated" }),
             );
             return;
           }
@@ -318,7 +318,7 @@ const PatientAdditionalFieldsManagement = () => {
           loadFields();
           showNotification(
             NotificationKinds.success,
-            intl.formatMessage({ id: "order.additional.fields.updated" }),
+            intl.formatMessage({ id: "patient.additional.fields.updated" }),
           );
           return;
         }
@@ -357,7 +357,7 @@ const PatientAdditionalFieldsManagement = () => {
           loadFields();
           showNotification(
             NotificationKinds.success,
-            intl.formatMessage({ id: "order.additional.fields.saved" }),
+            intl.formatMessage({ id: "patient.additional.fields.saved" }),
           );
           return;
         }
@@ -401,7 +401,7 @@ const PatientAdditionalFieldsManagement = () => {
         <div className="orderLegendBody">
           <Stack gap={6}>
             <Heading>
-              <FormattedMessage id="order.additional.fields.custom.title" />
+              <FormattedMessage id="patient.additional.fields.custom.title" />
             </Heading>
             <Grid fullWidth>
               <Column lg={8} md={4} sm={4}>

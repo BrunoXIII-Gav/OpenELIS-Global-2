@@ -352,6 +352,8 @@ function TestModifyEntry() {
               <Toggle
                 id="toggle"
                 labelText={<FormattedMessage id="test.show.guide" />}
+                labelA={intl.formatMessage({ id: "gps.manual.entry.off" })}
+                labelB={intl.formatMessage({ id: "gps.manual.entry.on" })}
                 onClick={handleToggleShowGuide}
               />
             </Column>
