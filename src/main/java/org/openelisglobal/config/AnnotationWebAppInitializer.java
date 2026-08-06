@@ -45,8 +45,8 @@ public class AnnotationWebAppInitializer implements WebApplicationInitializer {
         dispatcher.addMapping("/");
         // Enable Multipart Support
         dispatcher.setMultipartConfig(new jakarta.servlet.MultipartConfigElement(null, // Location
-                10485760, // Max file size (10MB)
-                20971520, // Max request size (20MB)
+                -1L, // Max file size
+                -1L, // Max request size
                 0 // File size threshold
         ));
 

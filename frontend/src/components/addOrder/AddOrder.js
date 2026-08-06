@@ -15,7 +15,10 @@ import {
 } from "@carbon/react";
 import CustomLabNumberInput from "../common/CustomLabNumberInput";
 import CustomDatePicker from "../common/CustomDatePicker";
-import { getFromOpenElisServer, toBase64 } from "../utils/Utils";
+import {
+  getFromOpenElisServer,
+  postToOpenElisServerFormDataJsonResponse,
+} from "../utils/Utils";
 import CustomTimePicker from "../common/CustomTimePicker";
 import { NotificationContext } from "../layout/Layout";
 import { NotificationKinds } from "../common/CustomNotification";
@@ -51,6 +54,8 @@ const DEFAULT_FIXED_FIELD_ORDER = [
 
 const DEFAULT_CONDITION_OPERATOR = "equals";
 const DEFAULT_CONDITION_LOGIC = "ALL";
+const DEFAULT_DOCUMENT_MAX_SIZE_MB = 5;
+const BYTES_PER_MEGABYTE = 1024 * 1024;
 const DEFAULT_ORDER_PRIORITIES = [
   { id: "ROUTINE", value: "ROUTINE" },
   { id: "ASAP", value: "ASAP" },
@@ -77,6 +82,13 @@ const parseProviderSpecialtyOptions = (rawValue) => {
     .filter(Boolean);
 };
 
+const resolveDocumentMaxSizeMb = (documentConfig) => {
+  const configuredMaxSize = Number(documentConfig?.maxSizeMb);
+  return Number.isFinite(configuredMaxSize) && configuredMaxSize > 0
+    ? configuredMaxSize
+    : DEFAULT_DOCUMENT_MAX_SIZE_MB;
+};
+
 const AddOrder = (props) => {
   const { setNotificationVisible, addNotification } =
     useContext(NotificationContext);
@@ -88,6 +100,7 @@ const AddOrder = (props) => {
   );
 
   const componentMounted = useRef(false);
+  const additionalFieldPreviewUrlsRef = useRef({});
 
   const {
     orderFormValues,
@@ -110,6 +123,9 @@ const AddOrder = (props) => {
   const [departments, setDepartments] = useState([]);
   const [waitingForFixedFieldConfig, setWaitingForFixedFieldConfig] =
     useState(true);
+  const [additionalFieldPreviewUrls, setAdditionalFieldPreviewUrls] = useState(
+    {},
+  );
 
   const hasLoadedFixedFieldConfig =
     Array.isArray(orderFormValues?.sampleOrderItems?.fixedFieldConfigs) &&
@@ -332,9 +348,22 @@ const AddOrder = (props) => {
     });
   };
 
+  const clearAdditionalFieldPreviewUrl = (fieldKey) => {
+    setAdditionalFieldPreviewUrls((previous) => {
+      const currentUrl = previous?.[fieldKey];
+      if (currentUrl) {
+        URL.revokeObjectURL(currentUrl);
+      }
+      const next = { ...previous };
+      delete next[fieldKey];
+      return next;
+    });
+  };
+
   const removeAdditionalFieldFile = (fieldKey) => {
     const existingFiles = orderFormValues.sampleOrderItems.additionalFieldFiles;
     const existingFile = existingFiles?.[fieldKey];
+    clearAdditionalFieldPreviewUrl(fieldKey);
     if (existingFile?.fileName) {
       handleAdditionalFieldFileChange(fieldKey, { deleteFile: true });
       return;
@@ -359,23 +388,93 @@ const AddOrder = (props) => {
       return;
     }
 
-    try {
-      const base64Content = await toBase64(file);
-      handleAdditionalFieldFileChange(field.fieldKey, {
-        fileName: file.name,
-        fileType: file.type,
-        fileSize: file.size,
-        base64Content,
-        deleteFile: false,
-      });
-    } catch (_error) {
+    const documentConfig = parseFieldMetadata(field)?.document || {};
+    const maxSizeMb = resolveDocumentMaxSizeMb(documentConfig);
+    const maxBytes = maxSizeMb * BYTES_PER_MEGABYTE;
+
+    if (file.size > maxBytes) {
+      if (event?.target) {
+        event.target.value = "";
+      }
       setNotificationVisible(true);
       addNotification({
         kind: NotificationKinds.error,
         title: intl.formatMessage({ id: "notification.title" }),
-        message: intl.formatMessage({ id: "server.error.msg" }),
+        message: intl.formatMessage(
+          { id: "order.additional.fields.document.maxSizeExceeded" },
+          { maxSizeMb },
+        ),
       });
+      return;
     }
+
+    const formData = new FormData();
+    formData.append("fieldKey", field.fieldKey);
+    formData.append("file", file);
+
+    postToOpenElisServerFormDataJsonResponse(
+      "/rest/order-additional-fields/files/upload",
+      formData,
+      (response) => {
+        if (event?.target) {
+          event.target.value = "";
+        }
+
+        if (!response?.ok || !response?.body?.uploadToken) {
+          setNotificationVisible(true);
+          addNotification({
+            kind: NotificationKinds.error,
+            title: intl.formatMessage({ id: "notification.title" }),
+            message:
+              response?.body?.message ||
+              intl.formatMessage({ id: "server.error.msg" }),
+          });
+          return;
+        }
+
+        clearAdditionalFieldPreviewUrl(field.fieldKey);
+        const previewUrl = URL.createObjectURL(file);
+        setAdditionalFieldPreviewUrls((previous) => ({
+          ...previous,
+          [field.fieldKey]: previewUrl,
+        }));
+
+        handleAdditionalFieldFileChange(field.fieldKey, {
+          fileName: response.body.fileName || file.name,
+          fileType: response.body.fileType || file.type,
+          fileSize: response.body.fileSize || file.size,
+          uploadToken: response.body.uploadToken,
+          deleteFile: false,
+        });
+      },
+    );
+  };
+
+  useEffect(() => {
+    additionalFieldPreviewUrlsRef.current = additionalFieldPreviewUrls || {};
+  }, [additionalFieldPreviewUrls]);
+
+  const openLocalPreviewUrl = (previewUrl) => {
+    if (previewUrl) {
+      window.open(previewUrl, "_blank", "noopener,noreferrer");
+    }
+  };
+
+  const buildCurrentFilePreviewHref = (fieldKey, currentFile) => {
+    const localPreviewUrl = additionalFieldPreviewUrls?.[fieldKey];
+    if (localPreviewUrl) {
+      return localPreviewUrl;
+    }
+
+    if (currentFile?.base64Content) {
+      const safeFileType = currentFile.fileType || "application/octet-stream";
+      const normalizedBase64 = currentFile.base64Content.includes(";base64,")
+        ? currentFile.base64Content.split(";base64,", 2)[1]
+        : currentFile.base64Content;
+      return `data:${safeFileType};base64,${normalizedBase64}`;
+    }
+
+    return buildAdditionalFieldFileUrl(fieldKey, false) || "";
   };
 
   const buildAdditionalFieldFileUrl = (fieldKey, download = false) => {
@@ -419,6 +518,12 @@ const AddOrder = (props) => {
   const openAdditionalFieldFilePreview = (fieldKey, currentFile) => {
     if (currentFile?.base64Content) {
       openBase64FilePreview(currentFile.fileType, currentFile.base64Content);
+      return;
+    }
+
+    const localPreviewUrl = additionalFieldPreviewUrls?.[fieldKey];
+    if (currentFile?.uploadToken && localPreviewUrl) {
+      openLocalPreviewUrl(localPreviewUrl);
       return;
     }
 
@@ -691,9 +796,21 @@ const AddOrder = (props) => {
             {currentFile?.fileName ? (
               <div style={{ marginTop: "0.5rem" }}>
                 <Link
-                  onClick={() =>
-                    openAdditionalFieldFilePreview(field.fieldKey, currentFile)
+                  href={
+                    buildCurrentFilePreviewHref(field.fieldKey, currentFile) ||
+                    undefined
                   }
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  onClick={(event) => {
+                    const previewHref = buildCurrentFilePreviewHref(
+                      field.fieldKey,
+                      currentFile,
+                    );
+                    if (!previewHref) {
+                      event.preventDefault();
+                    }
+                  }}
                 >
                   {currentFile.fileName}
                 </Link>
@@ -701,9 +818,21 @@ const AddOrder = (props) => {
                   <>
                     {"  "}
                     <Link
-                      onClick={() =>
-                        downloadAdditionalFieldFile(field.fieldKey)
+                      href={
+                        buildAdditionalFieldFileUrl(field.fieldKey, true) ||
+                        undefined
                       }
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      onClick={(event) => {
+                        const downloadHref = buildAdditionalFieldFileUrl(
+                          field.fieldKey,
+                          true,
+                        );
+                        if (!downloadHref) {
+                          event.preventDefault();
+                        }
+                      }}
                     >
                       <FormattedMessage id="order.additional.fields.document.download" />
                     </Link>
@@ -1110,7 +1239,7 @@ const AddOrder = (props) => {
               }
               onChange={handleRequesterWorkPhone}
               value={orderFormValues.sampleOrderItems.providerWorkPhone}
-              onMouseLeave={handlePhoneNoValidation}
+              onBlur={handlePhoneNoValidation}
               labelText={intl.formatMessage({
                 id: "order.requester.phone.label",
               })}
@@ -1361,6 +1490,13 @@ const AddOrder = (props) => {
     getFromOpenElisServer("/rest/priorities", loadPriorityOptions);
     window.scrollTo(0, 0);
     return () => {
+      Object.values(additionalFieldPreviewUrlsRef.current || {}).forEach(
+        (previewUrl) => {
+          if (previewUrl) {
+            URL.revokeObjectURL(previewUrl);
+          }
+        },
+      );
       componentMounted.current = false;
     };
   }, []);

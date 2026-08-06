@@ -163,7 +163,11 @@ const hasRequiredDynamicFieldValue = (field, sampleOrderItems) => {
     if (!filePayload || filePayload.deleteFile === true) {
       return false;
     }
-    return !!(filePayload.base64Content || filePayload.fileName);
+    return !!(
+      filePayload.base64Content ||
+      filePayload.uploadToken ||
+      filePayload.fileName
+    );
   }
 
   const rawValue = values[field.fieldKey];

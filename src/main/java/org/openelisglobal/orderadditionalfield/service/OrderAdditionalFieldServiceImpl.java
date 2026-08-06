@@ -21,6 +21,8 @@ import java.util.Set;
 import java.util.regex.Pattern;
 import java.util.stream.Collectors;
 import org.apache.commons.lang3.StringUtils;
+import org.openelisglobal.common.documentupload.TemporaryDocumentUploadPayload;
+import org.openelisglobal.common.documentupload.TemporaryDocumentUploadService;
 import org.openelisglobal.common.exception.LIMSRuntimeException;
 import org.openelisglobal.orderadditionalfield.bean.OrderAdditionalFieldFilePayload;
 import org.openelisglobal.orderadditionalfield.bean.OrderAdditionalFieldOptionPayload;
@@ -85,6 +87,9 @@ public class OrderAdditionalFieldServiceImpl implements OrderAdditionalFieldServ
 
     @Autowired
     private SampleOrderAdditionalFieldFileDAO fileDAO;
+
+    @Autowired
+    private TemporaryDocumentUploadService temporaryDocumentUploadService;
 
     @Autowired
     private OrderFixedFieldConfigDAO fixedFieldConfigDAO;
@@ -489,6 +494,35 @@ public class OrderAdditionalFieldServiceImpl implements OrderAdditionalFieldServ
     }
 
     @Override
+    public TemporaryDocumentUploadPayload prepareDocumentUpload(String fieldKey, String fileName, String fileType,
+            long fileSize, byte[] content) {
+        if (StringUtils.isBlank(fieldKey)) {
+            throw new IllegalArgumentException("fieldKey is required");
+        }
+
+        OrderAdditionalFieldDefinition definition = definitionDAO.findByFieldKey(fieldKey)
+                .orElseThrow(() -> new IllegalArgumentException("Field definition not found for key: " + fieldKey));
+        if (parseFieldType(definition.getFieldType()) != FieldType.DOCUMENT) {
+            throw new IllegalArgumentException("Field is not a DOCUMENT field: " + fieldKey);
+        }
+
+        OrderAdditionalFieldPayload payload = mapDefinitionToPayload(definition);
+        OrderAdditionalFieldFilePayload filePayload = new OrderAdditionalFieldFilePayload();
+        filePayload.setFileName(fileName);
+        filePayload.setFileType(fileType);
+        filePayload.setFileSize(fileSize);
+        filePayload.setContent(content);
+        validateDocumentFile(payload, parseFieldMetadata(definition.getMetadataJson()), filePayload);
+
+        TemporaryDocumentUploadPayload temporaryPayload = new TemporaryDocumentUploadPayload();
+        temporaryPayload.setFileName(filePayload.getFileName());
+        temporaryPayload.setFileType(filePayload.getFileType());
+        temporaryPayload.setFileSize(filePayload.getFileSize());
+        temporaryPayload.setContent(filePayload.getContent());
+        return temporaryDocumentUploadService.store("order-additional-field", temporaryPayload);
+    }
+
+    @Override
     @Transactional(readOnly = true)
     public Optional<Integer> findSampleIdBySearchableFieldValue(String searchValue) {
         if (StringUtils.isBlank(searchValue)) {
@@ -874,17 +908,18 @@ public class OrderAdditionalFieldServiceImpl implements OrderAdditionalFieldServ
             existingFile.ifPresent(fileDAO::delete);
         }
 
-        boolean hasNewContent = filePayload != null && filePayload.hasContent();
+        OrderAdditionalFieldFilePayload resolvedPayload = resolveDocumentPayload(filePayload, definition);
+        boolean hasNewContent = resolvedPayload != null && resolvedPayload.hasContent();
         if (hasNewContent) {
-            validateDocumentFile(definition, metadata, filePayload);
+            validateDocumentFile(definition, metadata, resolvedPayload);
             SampleOrderAdditionalFieldFile entity = existingFile.orElseGet(SampleOrderAdditionalFieldFile::new);
             entity.setSampleId(sampleNumericId);
             entity.setFieldDefinitionId(definition.getId());
-            entity.setFileName(filePayload.getFileName());
-            entity.setFileType(filePayload.getFileType());
-            entity.setFileSize(filePayload.getFileSize() != null ? filePayload.getFileSize()
-                    : Long.valueOf(filePayload.getContent().length));
-            entity.setFileContent(filePayload.getContent());
+            entity.setFileName(resolvedPayload.getFileName());
+            entity.setFileType(resolvedPayload.getFileType());
+            entity.setFileSize(resolvedPayload.getFileSize() != null ? resolvedPayload.getFileSize()
+                    : Long.valueOf(resolvedPayload.getContent().length));
+            entity.setFileContent(resolvedPayload.getContent());
             entity.setUploadedAt(new java.sql.Timestamp(System.currentTimeMillis()));
             entity.setSysUserId(currentUserId);
 
@@ -903,6 +938,27 @@ public class OrderAdditionalFieldServiceImpl implements OrderAdditionalFieldServ
                         "Order field is required: " + StringUtils.defaultString(definition.getDisplayName()));
             }
         }
+    }
+
+    private OrderAdditionalFieldFilePayload resolveDocumentPayload(OrderAdditionalFieldFilePayload filePayload,
+            OrderAdditionalFieldPayload definition) {
+        if (filePayload == null || filePayload.hasContent() || StringUtils.isBlank(filePayload.getUploadToken())) {
+            return filePayload;
+        }
+
+        TemporaryDocumentUploadPayload uploaded = temporaryDocumentUploadService
+                .get("order-additional-field", filePayload.getUploadToken())
+                .orElseThrow(() -> new IllegalArgumentException("Uploaded file not found for field: "
+                        + StringUtils.defaultString(definition.getDisplayName(), definition.getFieldKey())));
+
+        OrderAdditionalFieldFilePayload resolved = new OrderAdditionalFieldFilePayload();
+        resolved.setFileName(StringUtils.defaultIfBlank(filePayload.getFileName(), uploaded.getFileName()));
+        resolved.setFileType(StringUtils.defaultIfBlank(filePayload.getFileType(), uploaded.getFileType()));
+        resolved.setFileSize(filePayload.getFileSize() != null ? filePayload.getFileSize() : uploaded.getFileSize());
+        resolved.setContent(uploaded.getContent());
+        resolved.setUploadToken(filePayload.getUploadToken());
+        resolved.setDeleteFile(filePayload.getDeleteFile());
+        return resolved;
     }
 
     private void validateDocumentFile(OrderAdditionalFieldPayload definition, FieldMetadata metadata,

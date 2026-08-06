@@ -2,6 +2,8 @@ package org.openelisglobal.testadditionalfield.service;
 
 import java.util.List;
 import java.util.Map;
+import java.util.Optional;
+import org.openelisglobal.common.documentupload.TemporaryDocumentUploadPayload;
 import org.openelisglobal.testadditionalfield.bean.TestAdditionalFieldOptionPayload;
 import org.openelisglobal.testadditionalfield.bean.TestAdditionalFieldPayload;
 
@@ -17,6 +19,13 @@ public interface TestAdditionalFieldService {
 
     Map<String, String> getAnalysisValuesForFields(String analysisId,
             List<TestAdditionalFieldPayload> fieldDefinitions);
+
+    TemporaryDocumentUploadPayload prepareDocumentUpload(String testId, String fieldKey, String fileName,
+            String fileType, long fileSize, byte[] content);
+
+    Optional<TemporaryDocumentUploadPayload> getTemporaryDocumentUpload(String uploadToken);
+
+    Optional<TemporaryDocumentUploadPayload> getAnalysisDocument(String analysisId, String fieldKey);
 
     void validateAndPersistAnalysisValues(String testId, String analysisId, Map<String, String> fieldValues,
             String currentUserId, Map<String, List<TestAdditionalFieldPayload>> activeFieldsByTestCache,

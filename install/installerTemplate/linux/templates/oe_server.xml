@@ -56,7 +56,8 @@
             SSLEnabled="true" keystoreFile="/run/secrets/client_facing_keystore"
             keystoreType="PKCS12" keystorePass="[% keystore_password %]"
             truststoreFile="/run/secrets/truststore" truststoreType="PKCS12"
-            truststorePass="[% truststore_password %]" URIEncoding="UTF-8" />
+            truststorePass="[% truststore_password %]" URIEncoding="UTF-8"
+            maxPostSize="-1" maxSwallowSize="-1" />
 
         <!-- A "Connector" using the shared thread pool -->
         <!-- <Connector executor="tomcatThreadPool" port="8080" protocol="HTTP/1.1"

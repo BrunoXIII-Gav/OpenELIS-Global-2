@@ -3,6 +3,7 @@ package org.openelisglobal.orderadditionalfield.service;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
+import org.openelisglobal.common.documentupload.TemporaryDocumentUploadPayload;
 import org.openelisglobal.orderadditionalfield.bean.OrderAdditionalFieldFilePayload;
 import org.openelisglobal.orderadditionalfield.bean.OrderAdditionalFieldOptionPayload;
 import org.openelisglobal.orderadditionalfield.bean.OrderAdditionalFieldPayload;
@@ -39,6 +40,9 @@ public interface OrderAdditionalFieldService {
             List<OrderAdditionalFieldPayload> fieldDefinitions);
 
     Optional<OrderAdditionalFieldFilePayload> getSampleFile(String sampleId, String fieldKey);
+
+    TemporaryDocumentUploadPayload prepareDocumentUpload(String fieldKey, String fileName, String fileType,
+            long fileSize, byte[] content);
 
     Optional<Integer> findSampleIdBySearchableFieldValue(String searchValue);
 

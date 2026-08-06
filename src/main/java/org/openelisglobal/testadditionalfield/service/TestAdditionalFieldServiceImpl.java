@@ -23,6 +23,8 @@ import java.util.Set;
 import java.util.regex.Pattern;
 import java.util.stream.Collectors;
 import org.apache.commons.lang3.StringUtils;
+import org.openelisglobal.common.documentupload.TemporaryDocumentUploadPayload;
+import org.openelisglobal.common.documentupload.TemporaryDocumentUploadService;
 import org.openelisglobal.common.exception.LIMSRuntimeException;
 import org.openelisglobal.person.service.PersonService;
 import org.openelisglobal.person.valueholder.Person;
@@ -81,6 +83,9 @@ public class TestAdditionalFieldServiceImpl implements TestAdditionalFieldServic
 
     @Autowired
     private AnalysisAdditionalFieldValueDAO valueDAO;
+
+    @Autowired
+    private TemporaryDocumentUploadService temporaryDocumentUploadService;
 
     @Autowired
     private SystemUserService systemUserService;
@@ -281,6 +286,68 @@ public class TestAdditionalFieldServiceImpl implements TestAdditionalFieldServic
                 continue;
             }
             replaceFieldsForTest(testId, payloads, currentUserId);
+        }
+    }
+
+    @Override
+    public TemporaryDocumentUploadPayload prepareDocumentUpload(String testId, String fieldKey, String fileName,
+            String fileType, long fileSize, byte[] content) {
+        TestAdditionalFieldPayload fieldDefinition = getDocumentFieldDefinition(testId, fieldKey);
+        validateDocumentBytes(fieldDefinition, fileName, fileType, content);
+
+        TemporaryDocumentUploadPayload payload = new TemporaryDocumentUploadPayload();
+        payload.setFileName(StringUtils.trimToNull(fileName));
+        payload.setFileType(StringUtils.trimToNull(fileType));
+        payload.setFileSize(fileSize);
+        payload.setContent(content);
+        return temporaryDocumentUploadService.store("test-additional-field", payload);
+    }
+
+    @Override
+    @Transactional(readOnly = true)
+    public Optional<TemporaryDocumentUploadPayload> getTemporaryDocumentUpload(String uploadToken) {
+        return temporaryDocumentUploadService.get("test-additional-field", uploadToken);
+    }
+
+    @Override
+    @Transactional(readOnly = true)
+    public Optional<TemporaryDocumentUploadPayload> getAnalysisDocument(String analysisId, String fieldKey) {
+        if (StringUtils.isBlank(analysisId) || StringUtils.isBlank(fieldKey)) {
+            return Optional.empty();
+        }
+
+        Integer numericAnalysisId = parseNumericId(analysisId, "analysisId");
+        List<TestAdditionalFieldPayload> definitions = getFieldsForAnalysisDocument(numericAnalysisId);
+        Optional<TestAdditionalFieldPayload> matchingField = definitions.stream()
+                .filter(field -> StringUtils.equals(field.getFieldKey(), fieldKey))
+                .findFirst();
+        if (matchingField.isEmpty()) {
+            return Optional.empty();
+        }
+
+        Optional<AnalysisAdditionalFieldValue> entity = valueDAO.findByAnalysisIdAndFieldDefinitionId(numericAnalysisId,
+                matchingField.get().getId());
+        if (entity.isEmpty()) {
+            return Optional.empty();
+        }
+
+        try {
+            JsonNode root = OBJECT_MAPPER.readTree(StringUtils.defaultString(entity.get().getFieldValue()));
+            String fileName = StringUtils.trimToNull(asText(root, "fileName"));
+            String fileType = StringUtils.trimToNull(asText(root, "fileType"));
+            String base64Content = StringUtils.trimToNull(asText(root, "base64Content"));
+            if (StringUtils.isBlank(fileName) || StringUtils.isBlank(base64Content)) {
+                return Optional.empty();
+            }
+
+            TemporaryDocumentUploadPayload payload = new TemporaryDocumentUploadPayload();
+            payload.setFileName(fileName);
+            payload.setFileType(fileType);
+            payload.setContent(Base64.getDecoder().decode(base64Content));
+            payload.setFileSize(Long.valueOf(payload.getContent().length));
+            return Optional.of(payload);
+        } catch (Exception e) {
+            return Optional.empty();
         }
     }
 
@@ -1040,6 +1107,27 @@ public class TestAdditionalFieldServiceImpl implements TestAdditionalFieldServic
             String fileName = StringUtils.trimToNull(asText(root, "fileName"));
             String fileType = StringUtils.trimToNull(asText(root, "fileType"));
             String base64Content = StringUtils.trimToNull(asText(root, "base64Content"));
+            String uploadToken = StringUtils.trimToNull(asText(root, "uploadToken"));
+
+            if (uploadToken != null) {
+                TemporaryDocumentUploadPayload uploaded = temporaryDocumentUploadService
+                        .get("test-additional-field", uploadToken).orElseThrow(() -> new LIMSRuntimeException(
+                                "Invalid document payload for field: " + fieldDefinition.getDisplayName()));
+
+                fileName = StringUtils.defaultIfBlank(fileName, uploaded.getFileName());
+                fileType = StringUtils.defaultIfBlank(fileType, uploaded.getFileType());
+                byte[] contentBytes = uploaded.getContent();
+                validateDocumentBytes(fieldDefinition, fileName, fileType, contentBytes);
+
+                Map<String, String> normalized = new HashMap<>();
+                normalized.put("fileName", fileName);
+                List<String> allowedMimeTypes = resolveDocumentAcceptedMimeTypes(fieldDefinition.getMetadataJson());
+                normalized.put("fileType",
+                        StringUtils.defaultIfBlank(fileType, allowedMimeTypes.isEmpty() ? DEFAULT_DOCUMENT_MIME_TYPE
+                                : allowedMimeTypes.get(0)));
+                normalized.put("base64Content", Base64.getEncoder().encodeToString(contentBytes));
+                return OBJECT_MAPPER.writeValueAsString(normalized);
+            }
 
             if (fileName == null || base64Content == null) {
                 throw new LIMSRuntimeException(
@@ -1055,8 +1143,10 @@ public class TestAdditionalFieldServiceImpl implements TestAdditionalFieldServic
             }
 
             List<String> allowedMimeTypes = resolveDocumentAcceptedMimeTypes(fieldDefinition.getMetadataJson());
+            final String normalizedFileType = fileType;
             if (StringUtils.isNotBlank(fileType) && !allowedMimeTypes.isEmpty()
-                    && allowedMimeTypes.stream().noneMatch(mime -> StringUtils.equalsIgnoreCase(mime, fileType))) {
+                    && allowedMimeTypes.stream()
+                            .noneMatch(mime -> StringUtils.equalsIgnoreCase(mime, normalizedFileType))) {
                 throw new LIMSRuntimeException("Unsupported file type for field: " + fieldDefinition.getDisplayName());
             }
 
@@ -1120,6 +1210,70 @@ public class TestAdditionalFieldServiceImpl implements TestAdditionalFieldServic
         } catch (Exception e) {
             return DEFAULT_DOCUMENT_MAX_SIZE_MB;
         }
+    }
+
+    private TestAdditionalFieldPayload getDocumentFieldDefinition(String testId, String fieldKey) {
+        if (StringUtils.isBlank(testId)) {
+            throw new IllegalArgumentException("testId is required");
+        }
+        if (StringUtils.isBlank(fieldKey)) {
+            throw new IllegalArgumentException("fieldKey is required");
+        }
+
+        return getFieldsForTest(testId, false).stream()
+                .filter(field -> field != null && StringUtils.equals(field.getFieldKey(), fieldKey))
+                .findFirst()
+                .map(field -> {
+                    if (parseFieldType(field.getFieldType()) != FieldType.DOCUMENT) {
+                        throw new IllegalArgumentException("Field is not a DOCUMENT field: " + fieldKey);
+                    }
+                    return field;
+                })
+                .orElseThrow(() -> new IllegalArgumentException("Field definition not found for key: " + fieldKey));
+    }
+
+    private void validateDocumentBytes(TestAdditionalFieldPayload fieldDefinition, String fileName, String fileType,
+            byte[] contentBytes) {
+        if (StringUtils.isBlank(fileName) || contentBytes == null || contentBytes.length == 0) {
+            throw new IllegalArgumentException("Document file is required for field: " + fieldDefinition.getFieldKey());
+        }
+
+        List<String> allowedMimeTypes = resolveDocumentAcceptedMimeTypes(fieldDefinition.getMetadataJson());
+        if (StringUtils.isNotBlank(fileType) && !allowedMimeTypes.isEmpty()
+                && allowedMimeTypes.stream().noneMatch(mime -> StringUtils.equalsIgnoreCase(mime, fileType))) {
+            throw new IllegalArgumentException("Unsupported file type for field: " + fieldDefinition.getFieldKey());
+        }
+
+        int maxSizeMb = resolveDocumentMaxSizeMb(fieldDefinition.getMetadataJson());
+        long maxBytes = maxSizeMb * 1024L * 1024L;
+        if (contentBytes.length > maxBytes) {
+            throw new IllegalArgumentException(
+                    "File exceeds max size for field: " + StringUtils.defaultString(fieldDefinition.getDisplayName()));
+        }
+    }
+
+    private List<TestAdditionalFieldPayload> getFieldsForAnalysisDocument(Integer analysisId) {
+        List<AnalysisAdditionalFieldValue> analysisValues = valueDAO.findByAnalysisId(analysisId);
+        if (analysisValues == null || analysisValues.isEmpty()) {
+            return Collections.emptyList();
+        }
+
+        Set<Integer> definitionIds = analysisValues.stream().map(AnalysisAdditionalFieldValue::getFieldDefinitionId)
+                .filter(id -> id != null).collect(Collectors.toSet());
+        if (definitionIds.isEmpty()) {
+            return Collections.emptyList();
+        }
+
+        List<TestAdditionalFieldDefinition> definitions = definitionDAO.findByIds(new ArrayList<>(definitionIds));
+        if (definitions == null || definitions.isEmpty()) {
+            return Collections.emptyList();
+        }
+
+        List<Integer> ids = definitions.stream().map(TestAdditionalFieldDefinition::getId).toList();
+        List<TestAdditionalFieldOption> options = optionDAO.findByDefinitionIds(ids, true);
+        return mapDefinitionsToPayload(definitions, options).stream()
+                .filter(field -> parseFieldType(field.getFieldType()) == FieldType.DOCUMENT)
+                .collect(Collectors.toList());
     }
 
     private void validateMaxLength(TestAdditionalFieldPayload fieldDefinition, String value) {

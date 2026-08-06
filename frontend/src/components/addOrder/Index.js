@@ -574,6 +574,18 @@ const Index = () => {
     });
   };
 
+  const sanitizeServerMessage = (message) => {
+    const trimmedMessage = String(message || "").trim();
+    if (
+      !trimmedMessage ||
+      trimmedMessage.startsWith("{") ||
+      trimmedMessage.startsWith("<")
+    ) {
+      return "";
+    }
+    return trimmedMessage;
+  };
+
   const handlePost = async (response) => {
     setIsSubmitting(false);
     if (response.status === 200) {
@@ -583,6 +595,14 @@ const Index = () => {
       );
       setPage(page + 1);
     } else {
+      if (response.status === 413) {
+        showAlertMessage(
+          intl.formatMessage({ id: "server.error.requestTooLarge" }),
+          NotificationKinds.error,
+        );
+        return;
+      }
+
       let detailedMessage =
         response.headers.get("X-OpenELIS-Error-Message") || "";
       if (!detailedMessage) {
@@ -592,9 +612,7 @@ const Index = () => {
           detailedMessage = "";
         }
       }
-      if (detailedMessage && detailedMessage.trim().startsWith("{")) {
-        detailedMessage = "";
-      }
+      detailedMessage = sanitizeServerMessage(detailedMessage);
       const genericMessage = intl.formatMessage({ id: "server.error.msg" });
       const fallbackWithStatus = `${genericMessage} (HTTP ${response.status})`;
       showAlertMessage(

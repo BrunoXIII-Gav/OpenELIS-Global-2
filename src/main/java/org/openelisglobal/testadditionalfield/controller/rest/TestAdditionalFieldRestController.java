@@ -4,7 +4,10 @@ import jakarta.servlet.http.HttpServletRequest;
 import java.util.ArrayList;
 import java.util.Comparator;
 import java.util.List;
+import java.util.Map;
+import java.util.Optional;
 import org.apache.commons.lang3.StringUtils;
+import org.openelisglobal.common.documentupload.TemporaryDocumentUploadPayload;
 import org.openelisglobal.common.rest.BaseRestController;
 import org.openelisglobal.common.services.DisplayListService;
 import org.openelisglobal.common.util.IdValuePair;
@@ -15,6 +18,7 @@ import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.MediaType;
 import org.springframework.http.ResponseEntity;
+import org.springframework.http.HttpHeaders;
 import org.springframework.stereotype.Controller;
 import org.springframework.web.bind.annotation.DeleteMapping;
 import org.springframework.web.bind.annotation.GetMapping;
@@ -26,6 +30,7 @@ import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.ResponseBody;
 import org.springframework.web.server.ResponseStatusException;
+import org.springframework.web.multipart.MultipartFile;
 
 @Controller
 @RequestMapping(value = "/rest/")
@@ -127,5 +132,56 @@ public class TestAdditionalFieldRestController extends BaseRestController {
         } catch (IllegalArgumentException e) {
             throw new ResponseStatusException(HttpStatus.BAD_REQUEST, e.getMessage());
         }
+    }
+
+    @PostMapping(value = "test-additional-fields/files/upload", produces = MediaType.APPLICATION_JSON_VALUE)
+    @ResponseBody
+    public TemporaryDocumentUploadPayload uploadTemporaryFile(@RequestParam("testId") String testId,
+            @RequestParam("fieldKey") String fieldKey, @RequestParam("file") MultipartFile file) {
+        try {
+            if (file == null || file.isEmpty()) {
+                throw new IllegalArgumentException("file is required");
+            }
+            return testAdditionalFieldService.prepareDocumentUpload(testId, fieldKey, file.getOriginalFilename(),
+                    file.getContentType(), file.getSize(), file.getBytes());
+        } catch (IllegalArgumentException e) {
+            throw new ResponseStatusException(HttpStatus.BAD_REQUEST, e.getMessage());
+        } catch (Exception e) {
+            throw new ResponseStatusException(HttpStatus.INTERNAL_SERVER_ERROR, "Unable to upload file");
+        }
+    }
+
+    @GetMapping(value = "test-additional-fields/files/temp/{uploadToken}")
+    @ResponseBody
+    public ResponseEntity<?> openTemporaryFile(@PathVariable String uploadToken,
+            @RequestParam(name = "download", defaultValue = "false") boolean download) {
+        Optional<TemporaryDocumentUploadPayload> file = testAdditionalFieldService.getTemporaryDocumentUpload(uploadToken);
+        return buildFileResponse(file, download, uploadToken);
+    }
+
+    @GetMapping(value = "test-additional-fields/files/{analysisId}/{fieldKey}")
+    @ResponseBody
+    public ResponseEntity<?> openAnalysisFile(@PathVariable String analysisId, @PathVariable String fieldKey,
+            @RequestParam(name = "download", defaultValue = "false") boolean download) {
+        Optional<TemporaryDocumentUploadPayload> file = testAdditionalFieldService.getAnalysisDocument(analysisId,
+                fieldKey);
+        return buildFileResponse(file, download, fieldKey);
+    }
+
+    private ResponseEntity<?> buildFileResponse(Optional<TemporaryDocumentUploadPayload> file, boolean download,
+            String fallbackName) {
+        if (file.isEmpty() || file.get().getContent() == null || file.get().getContent().length == 0) {
+            return ResponseEntity.notFound().build();
+        }
+
+        TemporaryDocumentUploadPayload payload = file.get();
+        String contentType = StringUtils.defaultIfBlank(payload.getFileType(),
+                MediaType.APPLICATION_OCTET_STREAM_VALUE);
+        String fileName = StringUtils.defaultIfBlank(payload.getFileName(), fallbackName + ".bin")
+                .replaceAll("[\\r\\n\"]", "_");
+        String dispositionType = download ? "attachment" : "inline";
+        return ResponseEntity.ok().contentType(MediaType.parseMediaType(contentType))
+                .header(HttpHeaders.CONTENT_DISPOSITION, dispositionType + "; filename=\"" + fileName + "\"")
+                .body(payload.getContent());
     }
 }

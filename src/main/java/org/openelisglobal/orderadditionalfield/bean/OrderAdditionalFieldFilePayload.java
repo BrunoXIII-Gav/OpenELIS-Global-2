@@ -12,6 +12,7 @@ public class OrderAdditionalFieldFilePayload {
     private Long fileSize;
     private Timestamp uploadedAt;
     private String base64Content;
+    private String uploadToken;
     private Boolean deleteFile;
 
     @JsonIgnore
@@ -70,6 +71,14 @@ public class OrderAdditionalFieldFilePayload {
         }
 
         this.content = Base64.getDecoder().decode(base64Content);
+    }
+
+    public String getUploadToken() {
+        return uploadToken;
+    }
+
+    public void setUploadToken(String uploadToken) {
+        this.uploadToken = uploadToken;
     }
 
     public Boolean getDeleteFile() {

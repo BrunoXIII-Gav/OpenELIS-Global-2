@@ -6,6 +6,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.Optional;
 import org.apache.commons.lang3.StringUtils;
+import org.openelisglobal.common.documentupload.TemporaryDocumentUploadPayload;
 import org.openelisglobal.common.rest.BaseRestController;
 import org.openelisglobal.orderadditionalfield.bean.OrderAdditionalFieldFilePayload;
 import org.openelisglobal.orderadditionalfield.bean.OrderAdditionalFieldOptionPayload;
@@ -26,6 +27,7 @@ import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
+import org.springframework.web.multipart.MultipartFile;
 
 @RestController
 @RequestMapping("/rest/order-additional-fields")
@@ -158,6 +160,25 @@ public class OrderAdditionalFieldRestController extends BaseRestController {
                     .body(payload.getContent());
         } catch (IllegalArgumentException e) {
             return badRequest(e.getMessage());
+        }
+    }
+
+    @PostMapping("/files/upload")
+    public ResponseEntity<?> uploadTemporaryFile(@RequestParam("fieldKey") String fieldKey,
+            @RequestParam("file") MultipartFile file) {
+        try {
+            if (file == null || file.isEmpty()) {
+                return badRequest("file is required");
+            }
+
+            TemporaryDocumentUploadPayload payload = orderAdditionalFieldService.prepareDocumentUpload(fieldKey,
+                    file.getOriginalFilename(), file.getContentType(), file.getSize(), file.getBytes());
+            return ResponseEntity.ok(payload);
+        } catch (IllegalArgumentException e) {
+            return badRequest(e.getMessage());
+        } catch (Exception e) {
+            return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR)
+                    .body(Map.of("message", "Unable to upload file"));
         }
     }
 

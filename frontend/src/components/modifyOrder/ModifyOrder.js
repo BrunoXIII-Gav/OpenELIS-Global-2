@@ -16,7 +16,10 @@ import "../addOrder/add-order.scss";
 import { ModifyOrderFormValues } from "../formModel/innitialValues/OrderEntryFormValues";
 import { NotificationContext, ConfigurationContext } from "../layout/Layout";
 import { AlertDialog, NotificationKinds } from "../common/CustomNotification";
-import { postToOpenElisServer, getFromOpenElisServer } from "../utils/Utils";
+import {
+  postToOpenElisServerFullResponse,
+  getFromOpenElisServer,
+} from "../utils/Utils";
 import EditOrderEntryAdditionalQuestions from "./EditOrderEntryAdditionalQuestions";
 import OrderSuccessMessage from "../addOrder/OrderSuccessMessage";
 import { FormattedMessage, useIntl } from "react-intl";
@@ -133,17 +136,49 @@ const ModifyOrder = () => {
     });
   };
 
-  const handlePost = (status) => {
+  const sanitizeServerMessage = (message) => {
+    const trimmedMessage = String(message || "").trim();
+    if (
+      !trimmedMessage ||
+      trimmedMessage.startsWith("{") ||
+      trimmedMessage.startsWith("<")
+    ) {
+      return "";
+    }
+    return trimmedMessage;
+  };
+
+  const handlePost = async (response) => {
     setIsSubmitting(false);
-    if (status === 200) {
+    if (response.status === 200) {
       showAlertMessage(
         <FormattedMessage id="save.order.success.msg" />,
         NotificationKinds.success,
       );
       window.location.assign("/SampleEdit");
     } else {
+      if (response.status === 413) {
+        showAlertMessage(
+          intl.formatMessage({ id: "server.error.requestTooLarge" }),
+          NotificationKinds.error,
+        );
+        return;
+      }
+
+      let detailedMessage = "";
+      try {
+        detailedMessage = await response.text();
+      } catch (error) {
+        detailedMessage = "";
+      }
+      detailedMessage = sanitizeServerMessage(detailedMessage);
+      const genericMessage = intl.formatMessage({ id: "server.error.msg" });
+      const fallbackWithStatus =
+        response.status > 0
+          ? `${genericMessage} (HTTP ${response.status})`
+          : genericMessage;
       showAlertMessage(
-        <FormattedMessage id="server.error.msg" />,
+        detailedMessage || fallbackWithStatus,
         NotificationKinds.error,
       );
     }
@@ -154,20 +189,21 @@ const ModifyOrder = () => {
       return;
     }
     setIsSubmitting(true);
-    orderFormValues.sampleOrderItems.modified = true;
+    const payload = JSON.parse(JSON.stringify(orderFormValues));
+    payload.sampleOrderItems.modified = true;
     //remove display Lists rom the form
-    orderFormValues.sampleOrderItems.priorityList = [];
-    orderFormValues.sampleOrderItems.programList = [];
-    orderFormValues.sampleOrderItems.referringSiteList = [];
-    orderFormValues.initialSampleConditionList = [];
-    orderFormValues.testSectionList = [];
-    orderFormValues.sampleOrderItems.providersList = [];
-    orderFormValues.sampleOrderItems.paymentOptions = [];
-    orderFormValues.sampleOrderItems.testLocationCodeList = [];
-    console.log(JSON.stringify(orderFormValues));
-    postToOpenElisServer(
+    payload.sampleOrderItems.priorityList = [];
+    payload.sampleOrderItems.programList = [];
+    payload.sampleOrderItems.referringSiteList = [];
+    payload.initialSampleConditionList = [];
+    payload.testSectionList = [];
+    payload.sampleOrderItems.providersList = [];
+    payload.sampleOrderItems.paymentOptions = [];
+    payload.sampleOrderItems.testLocationCodeList = [];
+    console.log(JSON.stringify(payload));
+    postToOpenElisServerFullResponse(
       "/rest/SampleEdit",
-      JSON.stringify(orderFormValues),
+      JSON.stringify(payload),
       handlePost,
     );
   };

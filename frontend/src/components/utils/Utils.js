@@ -101,6 +101,7 @@ export const postToOpenElisServer = (
     })
     .catch((error) => {
       console.error(error);
+      callback(0, extraParams);
     });
 };
 
@@ -130,6 +131,14 @@ export const postToOpenElisServerFullResponse = (
     })
     .catch((error) => {
       console.error(error);
+      callback(
+        {
+          status: 0,
+          headers: new Headers(),
+          text: async () => "",
+        },
+        extraParams,
+      );
     });
 };
 
@@ -160,6 +169,59 @@ export const postToOpenElisServerFormData = (
     })
     .catch((error) => {
       console.error(error);
+    });
+};
+
+export const postToOpenElisServerFormDataJsonResponse = (
+  endPoint,
+  formData,
+  callback,
+  extraParams,
+) => {
+  fetch(
+    config.serverBaseUrl + endPoint,
+
+    {
+      credentials: "include",
+      method: "POST",
+      headers: {
+        "X-CSRF-Token": localStorage.getItem("CSRF"),
+      },
+      body: formData,
+    },
+  )
+    .then(async (response) => {
+      notifyIfAccessDenied(response);
+      const contentType = response.headers.get("content-type") || "";
+      let payload = null;
+
+      if (contentType.includes("application/json")) {
+        try {
+          payload = await response.json();
+        } catch (error) {
+          payload = null;
+        }
+      }
+
+      callback(
+        {
+          ok: response.ok,
+          status: response.status,
+          body: payload,
+        },
+        extraParams,
+      );
+    })
+    .catch((error) => {
+      console.error(error);
+      callback(
+        {
+          ok: false,
+          status: 0,
+          body: null,
+        },
+        extraParams,
+      );
     });
 };
 

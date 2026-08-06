@@ -85,7 +85,8 @@
     -->
 
           <Connector port="8443" protocol="org.apache.coyote.http11.Http11NioProtocol"
-               maxThreads="150" SSLEnabled="true">
+               maxThreads="150" SSLEnabled="true" maxPostSize="-1"
+               maxSwallowSize="-1">
                <UpgradeProtocol className="org.apache.coyote.http2.Http2Protocol" />
                <SSLHostConfig truststoreFile="/etc/openelis-global/truststore"
                     truststorePassword="tspass" truststoreType="PKCS12">
