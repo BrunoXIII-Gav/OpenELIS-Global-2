@@ -20,6 +20,9 @@ public class SampleEditItem {
     @SafeHtml(level = SafeHtml.SafeListLevel.NONE, groups = { Default.class, SampleEditForm.SampleEdit.class })
     private String sampleType;
 
+    @Pattern(regexp = ValidationHelper.ID_REGEX, groups = { SampleEditForm.SampleEdit.class })
+    private String sampleTypeId;
+
     @SafeHtml(level = SafeHtml.SafeListLevel.NONE, groups = { Default.class, SampleEditForm.SampleEdit.class })
     private String testName;
 
@@ -88,6 +91,14 @@ public class SampleEditItem {
 
     public void setSampleType(String sampleType) {
         this.sampleType = sampleType;
+    }
+
+    public String getSampleTypeId() {
+        return sampleTypeId;
+    }
+
+    public void setSampleTypeId(String sampleTypeId) {
+        this.sampleTypeId = sampleTypeId;
     }
 
     public String getTestName() {
