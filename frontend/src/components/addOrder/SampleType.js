@@ -541,6 +541,9 @@ const SampleType = (props) => {
   };
 
   const handleTestCheckbox = (e, test) => {
+    if (isTestLocked(test.id)) {
+      return;
+    }
     if (e.currentTarget.checked) {
       addTestToSelectedTests(test);
     } else {
@@ -574,6 +577,15 @@ const SampleType = (props) => {
     return false;
   };
 
+  const isTestLocked = (testId) => {
+    const lockedTestIds = Array.isArray(props.lockedTestIds)
+      ? props.lockedTestIds
+      : [];
+    return lockedTestIds.some(
+      (lockedTestId) => String(lockedTestId) === String(testId),
+    );
+  };
+
   const triggerPanelCheckBoxChange = (isChecked, testIds) => {
     const testIdsList = testIds.split(",").map((id) => id.trim());
     testIdsList.map((testId) => {
@@ -594,6 +606,9 @@ const SampleType = (props) => {
   };
 
   const removedTestFromSelectedTests = (test) => {
+    if (isTestLocked(test?.id)) {
+      return;
+    }
     setSelectedTests((previous) =>
       previous.filter((selectedTest) => selectedTest.id !== test.id),
     );
@@ -1059,6 +1074,7 @@ const SampleType = (props) => {
           }
           name="sampleId"
           labelText=""
+          disabled={props.disableSampleTypeSelection === true}
           onChange={(e) => {
             handleFetchSampleTypeTests(e, index);
           }}
@@ -1324,7 +1340,13 @@ const SampleType = (props) => {
         )}
         {isSampleFieldVisible("tests") && (
           <div className="cds--col">
-            {selectedTests && !selectedTests.length ? "" : <h4>Order Tests</h4>}
+            {selectedTests && !selectedTests.length ? (
+              ""
+            ) : (
+              <h4>
+                <FormattedMessage id="ordertests.title" />
+              </h4>
+            )}
             <div
               className={"searchTestText"}
               style={{ marginBottom: "1.188rem" }}
@@ -1333,9 +1355,13 @@ const SampleType = (props) => {
                 <>
                   {selectedTests.map((test, index) => (
                     <Tag
-                      filter
+                      filter={!isTestLocked(test.id)}
                       key={`testTags_` + index}
-                      onClose={() => handleRemoveSelectedTest(test)}
+                      onClose={
+                        isTestLocked(test.id)
+                          ? undefined
+                          : () => handleRemoveSelectedTest(test)
+                      }
                       style={{ marginRight: "0.5rem" }}
                       type={"red"}
                     >
@@ -1413,6 +1439,7 @@ const SampleType = (props) => {
                     labelText={test.name}
                     id={`test_` + index + "_" + test.id}
                     key={`test_checkBox_` + index + test.id}
+                    disabled={isTestLocked(test.id)}
                     checked={
                       selectedTests.filter((item) => item.id === test.id)
                         .length > 0

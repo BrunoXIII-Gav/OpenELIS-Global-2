@@ -1484,25 +1484,23 @@ public class LogbookResultsRestController extends LogbookResultsBaseController {
                 break;
             }
         }
-        if (!primarySelectorEnabled && GenericValidator.isBlankOrNull(selectorFieldKey)) {
-            return Collections.emptyMap();
-        }
-
         Map<String, String> values = testAdditionalFieldService.getAnalysisValuesForFields(parentAnalysis.getId(), definitions);
         Map<String, AnalysisTubeLabel> persistedLabels = analysisTubeLabelService
                 .getByAnalysisIdGroupedByBlock(parentAnalysis.getId());
+        boolean hasTubeSelector = primarySelectorEnabled || !GenericValidator.isBlankOrNull(selectorFieldKey);
         BigDecimal selectedTubeCount = primarySelectorEnabled
                 ? parsePositiveOptionalBigDecimal(resolvePrimaryResultNumericValue(parentAnalysis))
                 : parsePositiveOptionalBigDecimal(values == null ? null : values.get(selectorFieldKey));
-        if (selectedTubeCount == null) {
+        if (hasTubeSelector && selectedTubeCount == null) {
             return Collections.emptyMap();
         }
 
-        int selectedCount = selectedTubeCount.intValue();
+        Integer selectedCount = selectedTubeCount == null ? null : Integer.valueOf(selectedTubeCount.intValue());
         Map<String, TubeBlockContext> contexts = new LinkedHashMap<>();
         if (primaryMetadata.path("tubeQuantitySource").asBoolean(false)) {
             int primaryActivationCount = getTubeActivationCount(primaryMetadata);
-            if (primaryActivationCount <= 0 || primaryActivationCount <= selectedCount) {
+            if (primaryActivationCount <= 0
+                    || (selectedCount != null && primaryActivationCount <= selectedCount.intValue())) {
                 TubeBlockContext context = new TubeBlockContext();
                 context.blockName = resolvePrimaryResultBlockName(parentAnalysis);
                 context.label = resolveTubeBlockLabel(context.blockName, persistedLabels);
@@ -1518,7 +1516,8 @@ public class LogbookResultsRestController extends LogbookResultsBaseController {
                 continue;
             }
             int activationCount = getTubeActivationCount(definition);
-            if (activationCount > 0 && activationCount > selectedCount) {
+            if (activationCount > 0
+                    && (selectedCount == null || activationCount > selectedCount.intValue())) {
                 continue;
             }
             String blockName = resolveFieldBlockName(definition);

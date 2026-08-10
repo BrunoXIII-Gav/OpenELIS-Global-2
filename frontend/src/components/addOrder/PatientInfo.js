@@ -83,6 +83,36 @@ const PatientInfo = (props) => {
   }, []);
 
   useEffect(() => {
+    const patientProperties = orderFormValues?.patientProperties || {};
+    const updateStatus = String(
+      patientProperties.patientUpdateStatus ||
+        orderFormValues?.patientUpdateStatus ||
+        "",
+    ).toUpperCase();
+    const patientPk = String(patientProperties.patientPK || "").trim();
+
+    if (updateStatus !== "UPDATE" || !patientPk) {
+      return;
+    }
+
+    setSelectedPatient((previous) => {
+      if (String(previous?.patientPK || "").trim() === patientPk) {
+        return previous;
+      }
+      return {
+        ...patientProperties,
+        patientPK: patientPk,
+        id: patientPk,
+      };
+    });
+    handleNewPatientTab();
+  }, [
+    orderFormValues?.patientProperties?.patientPK,
+    orderFormValues?.patientProperties?.patientUpdateStatus,
+    orderFormValues?.patientUpdateStatus,
+  ]);
+
+  useEffect(() => {
     if (
       orderFormValues.patientProperties.guid &&
       !orderFormValues.patientProperties.lastName

@@ -1261,27 +1261,24 @@ public class ResultsLoadUtility {
             }
         }
 
-        if (!primarySelectorEnabled && GenericValidator.isBlankOrNull(selectorFieldKey)) {
-            parentTubeContextCache.put(cacheKey, Collections.emptyMap());
-            return Collections.emptyMap();
-        }
-
         Map<String, String> parentValues = testAdditionalFieldService.getAnalysisValuesForFields(parentAnalysis.getId(),
                 parentFieldDefinitions);
         Map<String, AnalysisTubeLabel> persistedLabels = getPersistedTubeLabelsByBlock(parentAnalysis.getId());
+        boolean hasTubeSelector = primarySelectorEnabled || !GenericValidator.isBlankOrNull(selectorFieldKey);
         BigDecimal selectedTubeCount = primarySelectorEnabled
                 ? parsePositiveBigDecimal(resolvePrimaryResultNumericValue(parentAnalysis))
                 : parsePositiveBigDecimal(parentValues == null ? null : parentValues.get(selectorFieldKey));
-        if (selectedTubeCount == null) {
+        if (hasTubeSelector && selectedTubeCount == null) {
             parentTubeContextCache.put(cacheKey, Collections.emptyMap());
             return Collections.emptyMap();
         }
 
         Map<String, TubeBlockContext> tubeContexts = new LinkedHashMap<>();
-        int selectedCount = selectedTubeCount.intValue();
+        Integer selectedCount = selectedTubeCount == null ? null : Integer.valueOf(selectedTubeCount.intValue());
         if (primaryMetadata.path("tubeQuantitySource").asBoolean(false)) {
             int primaryActivationCount = getTubeActivationCount(primaryMetadata);
-            if (primaryActivationCount <= 0 || selectedCount >= primaryActivationCount) {
+            if (primaryActivationCount <= 0
+                    || (selectedCount != null && selectedCount.intValue() >= primaryActivationCount)) {
                 TubeBlockContext primaryTubeContext = new TubeBlockContext();
                 primaryTubeContext.blockName = getPrimaryResultBlockName(parentAnalysis);
                 primaryTubeContext.label = resolveTubeBlockLabel(primaryTubeContext.blockName, persistedLabels);
@@ -1295,7 +1292,8 @@ public class ResultsLoadUtility {
                 continue;
             }
             int activationCount = getTubeActivationCount(fieldDefinition);
-            if (activationCount > 0 && selectedCount < activationCount) {
+            if (activationCount > 0
+                    && (selectedCount == null || selectedCount.intValue() < activationCount)) {
                 continue;
             }
 

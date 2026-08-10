@@ -23,14 +23,12 @@ import {
 } from "@carbon/react";
 import {
   getFromOpenElisServer,
-  postToOpenElisServerFullResponse,
 } from "../../../utils/Utils.js";
 import { NotificationContext } from "../../../layout/Layout.js";
 import {
   AlertDialog,
   NotificationKinds,
 } from "../../../common/CustomNotification.js";
-import config from "../../../../config.json";
 import { FormattedMessage, useIntl } from "react-intl";
 import PageBreadCrumb from "../../../common/PageBreadCrumb.js";
 import GenericConfigEdit from "../../generalConfig/common/GenericConfigEdit.js";
@@ -46,7 +44,6 @@ function ConfigMenuDisplay(props) {
   const [pageSize, setPageSize] = useState(30);
   const [modifyButton, setModifyButton] = useState(true);
   const [selectedRowId, setSelectedRowId] = useState(null);
-  const [startingRecNo, setStartingRecNo] = useState(1);
   const [formEntryConfigMenuList, setformEntryConfigMenuList] = useState([]);
   const [orderEntryConfigurationList, setOrderEntryConfigurationList] =
     useState([]);
@@ -75,11 +72,69 @@ function ConfigMenuDisplay(props) {
     }
   };
 
+  const fetchMenuPage = (startingRecNo, signal) =>
+    new Promise((resolve) => {
+      getFromOpenElisServer(
+        `/rest/${props.menuType}?startingRecNo=${startingRecNo}`,
+        resolve,
+        signal,
+      );
+    });
+
+  const loadAllMenuItems = async (signal) => {
+    let currentStartingRecNo = 1;
+    let firstResponse = null;
+    const allMenuItems = [];
+    const seenIds = new Set();
+
+    while (!signal?.aborted) {
+      const response = await fetchMenuPage(currentStartingRecNo, signal);
+
+      if (signal?.aborted || !componentMounted.current) {
+        return;
+      }
+
+      if (!response) {
+        handleMenuItems(firstResponse ? { ...firstResponse, menuList: [] } : []);
+        return;
+      }
+
+      if (!firstResponse) {
+        firstResponse = response;
+      }
+
+      const pageItems = response.menuList || [];
+      if (pageItems.length === 0) {
+        break;
+      }
+
+      const uniqueItems = pageItems.filter((item) => {
+        const itemId = item?.id || `${item?.name}-${currentStartingRecNo}`;
+        if (seenIds.has(itemId)) {
+          return false;
+        }
+        seenIds.add(itemId);
+        return true;
+      });
+
+      if (uniqueItems.length === 0) {
+        break;
+      }
+
+      allMenuItems.push(...uniqueItems);
+      currentStartingRecNo += pageItems.length;
+    }
+
+    handleMenuItems({
+      ...(firstResponse || {}),
+      menuList: allMenuItems,
+    });
+  };
+
   const handleLogoResponse = (res, item) => {
     const value = res.value;
     const updatedItem = {
       id: item.id,
-      startingRecNo: startingRecNo,
       name: item.name,
       description: item.description,
       value: value,
@@ -101,9 +156,13 @@ function ConfigMenuDisplay(props) {
 
   useEffect(() => {
     componentMounted.current = true;
-    getFromOpenElisServer(`/rest/${props.menuType}`, handleMenuItems);
+    const controller = new AbortController();
+
+    loadAllMenuItems(controller.signal);
+
     return () => {
       componentMounted.current = false;
+      controller.abort();
     };
   }, []);
 
@@ -128,7 +187,6 @@ function ConfigMenuDisplay(props) {
             }
             return {
               id: item.id,
-              startingRecNo: startingRecNo,
               name: item.name,
               description: item.description,
               value: value,

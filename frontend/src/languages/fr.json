@@ -889,6 +889,8 @@
   "test.dependency.select.parentField": "-- Sélectionnez le champ numérique parent --",
   "test.dependency.parentFieldTubeManaged": "Géré automatiquement par les champs source de quantité de tube configurés dans le test parent.",
   "test.dependency.validation.parentFieldRequired": "Un champ numérique du test parent est requis quand la source est le champ du test parent.",
+  "test.dependency.validation.parentTubeSourceRequired": "Le test parent doit avoir au moins un champ de résultat principal ou supplémentaire actif marqué comme source de quantité de tube.",
+  "test.dependency.validation.childTubeUsageRequired": "Le test enfant doit avoir au moins un bloc de résultat principal ou supplémentaire actif marqué pour participer à l'usage de tube des tests enfants.",
   "result.entry.sampleUsage.remaining.missing": "Les tests enfants dépendants nécessitent une quantité restante valide depuis la source parent configurée.",
   "result.entry.parentSampleUsage": "Quantité d'échantillon utilisée",
   "result.entry.parentSampleUsage.required": "Ce test nécessite une quantité d'échantillon utilisée valide.",

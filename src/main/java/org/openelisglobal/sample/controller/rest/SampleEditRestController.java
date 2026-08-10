@@ -400,6 +400,7 @@ public class SampleEditRestController extends BaseSampleEntryController {
             sampleEditItem.setTestId(analysis.getTest().getId());
             sampleEditItem.setTestName(TestServiceImpl.getUserLocalizedTestName(analysis.getTest()));
             sampleEditItem.setSampleItemId(sampleItem.getId());
+            sampleEditItem.setSampleTypeId(typeOfSample.getId());
             sampleEditItem.setCugCode(sampleItem.getCugCode());
 
             boolean canCancel = allowedToCancelAll || (!SpringContext.getBean(IStatusService.class)
@@ -474,6 +475,7 @@ public class SampleEditRestController extends BaseSampleEntryController {
             if ("Y".equals(test.getIsActive()) && test.getOrderable()) {
                 sampleEditItem.setTestName(TestServiceImpl.getUserLocalizedTestName(test));
                 sampleEditItem.setSampleItemId(sampleItem.getId());
+                sampleEditItem.setSampleTypeId(typeOfSample.getId());
                 sampleEditItem.setSortOrder(test.getSortOrder());
                 typeOfTestSampleItemList.add(sampleEditItem);
             }

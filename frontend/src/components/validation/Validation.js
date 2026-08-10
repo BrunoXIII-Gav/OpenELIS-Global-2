@@ -74,21 +74,54 @@ const parseDocumentFieldValue = (rawValue) => {
       return null;
     }
     const fileName = String(parsed.fileName || "").trim();
+    const fileType = String(parsed.fileType || "").trim();
     const base64Content = String(parsed.base64Content || "").trim();
-    if (!fileName || !base64Content) {
+    const uploadToken = String(parsed.uploadToken || "").trim();
+    const previewUrl = String(parsed.previewUrl || "").trim();
+    if (!fileName || (!base64Content && !uploadToken && !previewUrl)) {
       return null;
     }
     return {
       fileName,
-      fileType: String(parsed.fileType || "").trim(),
+      fileType,
       base64Content,
+      uploadToken,
+      previewUrl,
     };
   } catch (e) {
     return null;
   }
 };
 
-const openAdditionalFieldDocument = (filePayload) => {
+const buildAdditionalFieldPreviewHref = (analysisId, fieldKey, filePayload) => {
+  const previewUrl = String(filePayload?.previewUrl || "").trim();
+  if (previewUrl) {
+    return previewUrl;
+  }
+
+  const uploadToken = String(filePayload?.uploadToken || "").trim();
+  if (uploadToken) {
+    return `${config.serverBaseUrl}/rest/test-additional-fields/files/temp/${uploadToken}?download=false`;
+  }
+
+  if (analysisId && fieldKey) {
+    return `${config.serverBaseUrl}/rest/test-additional-fields/files/${analysisId}/${fieldKey}?download=false`;
+  }
+
+  return "";
+};
+
+const openAdditionalFieldDocument = (analysisId, fieldKey, filePayload) => {
+  const previewHref = buildAdditionalFieldPreviewHref(
+    analysisId,
+    fieldKey,
+    filePayload,
+  );
+  if (previewHref) {
+    window.open(previewHref, "_blank", "noopener,noreferrer");
+    return;
+  }
+
   const fileType = String(filePayload?.fileType || "").trim();
   const base64Content = String(filePayload?.base64Content || "").trim();
   if (!base64Content) {
@@ -819,28 +852,40 @@ const Validation = (props) => {
       return "";
     };
 
-    const normalizeMimePrefix = (fileTypeValue) => {
+    const normalizeMimeSource = (fileTypeValue) => {
       if (!fileTypeValue || typeof fileTypeValue !== "string") {
         return null;
       }
       if (fileTypeValue.startsWith("data:")) {
-        return fileTypeValue;
+        return fileTypeValue.includes(";base64,")
+          ? fileTypeValue
+          : `${fileTypeValue};base64,`;
       }
       if (fileTypeValue.includes(";base64,")) {
-        return fileTypeValue.split(";base64,", 2)[0];
+        return fileTypeValue;
       }
-      return `data:${fileTypeValue}`;
+      return `data:${fileTypeValue};base64,`;
     };
 
     const encodedContent = toBase64(file?.content);
-    const mimePrefix = normalizeMimePrefix(file?.fileType);
+    const mimeSource = normalizeMimeSource(file?.fileType);
 
-    if (!encodedContent || !mimePrefix) {
+    if (!encodedContent || !mimeSource) {
       return;
     }
 
-    const attachmentSource = `${mimePrefix};base64,${encodedContent}`;
-    window.open(attachmentSource, "_blank", "noopener,noreferrer");
+    const attachmentSource = mimeSource.includes(";base64,")
+      ? `${mimeSource}${encodedContent}`
+      : `${mimeSource};base64,${encodedContent}`;
+    const previewWindow = window.open("", "_blank");
+    if (!previewWindow) {
+      return;
+    }
+
+    previewWindow.document.write(
+      `<iframe src="${attachmentSource}" frameborder="0" style="border:0; top:0; left:0; bottom:0; right:0; width:100%; height:100%;" allowfullscreen></iframe>`,
+    );
+    previewWindow.document.close();
   };
 
   const renderExpandedRow = ({ data }) => {
@@ -967,7 +1012,11 @@ const Validation = (props) => {
                               <Link
                                 style={{ cursor: "pointer" }}
                                 onClick={() =>
-                                  openAdditionalFieldDocument(documentValue)
+                                  openAdditionalFieldDocument(
+                                    data?.analysisId || data?.id,
+                                    fieldDefinition?.fieldKey,
+                                    documentValue,
+                                  )
                                 }
                               >
                                 {documentValue.fileName}

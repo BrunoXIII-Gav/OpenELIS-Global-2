@@ -1,12 +1,9 @@
 import React, { useContext, useEffect, useState, useRef } from "react";
-import { useParams } from "react-router-dom";
 import {
   Button,
   ProgressIndicator,
   ProgressStep,
   Stack,
-  Section,
-  Tag,
   Grid,
   Column,
 } from "@carbon/react";
@@ -26,6 +23,10 @@ import { FormattedMessage, useIntl } from "react-intl";
 import PatientHeader from "../common/PatientHeader";
 import PageBreadCrumb from "../common/PageBreadCrumb";
 import ModifyOrderEntryValidationSchema from "../formModel/validationSchema/ModifyOrderEntryValidationSchema";
+import {
+  buildModifyOrderPayload,
+  buildSamplesFromOrder,
+} from "./modifyOrderSamples";
 let breadcrumbs = [
   { label: "home.label", link: "/" },
   { label: "sample.label.search.Order", link: "/SampleEdit" },
@@ -58,6 +59,8 @@ const ModifyOrder = () => {
   const [errors, setErrors] = useState([]);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [patientId, setPatientId] = useState("");
+  const [removedExistingSampleItemIds, setRemovedExistingSampleItemIds] =
+    useState([]);
   const [changed, setChanged] = useState({
     "sampleOrderItems.providerFirstName": false,
     "sampleOrderItems.providerLastName": false,
@@ -120,6 +123,8 @@ const ModifyOrder = () => {
       if (data.sampleOrderItems) {
         data.sampleOrderItems.referringSiteName = "";
         setOrderFormValues(data);
+        setSamples(buildSamplesFromOrder(data));
+        setRemovedExistingSampleItemIds([]);
       }
     }
   };
@@ -189,7 +194,11 @@ const ModifyOrder = () => {
       return;
     }
     setIsSubmitting(true);
-    const payload = JSON.parse(JSON.stringify(orderFormValues));
+    const payload = buildModifyOrderPayload(
+      orderFormValues,
+      samples,
+      removedExistingSampleItemIds,
+    );
     payload.sampleOrderItems.modified = true;
     //remove display Lists rom the form
     payload.sampleOrderItems.priorityList = [];
@@ -200,7 +209,6 @@ const ModifyOrder = () => {
     payload.sampleOrderItems.providersList = [];
     payload.sampleOrderItems.paymentOptions = [];
     payload.sampleOrderItems.testLocationCodeList = [];
-    console.log(JSON.stringify(payload));
     postToOpenElisServerFullResponse(
       "/rest/SampleEdit",
       JSON.stringify(payload),
@@ -218,91 +226,13 @@ const ModifyOrder = () => {
       }
     }
   };
-  useEffect(() => {
-    if (page === samplePageNumber + 1) {
-      attacheSamplesToFormValues();
-    }
-  }, [page]);
-
-  const attacheSamplesToFormValues = () => {
-    let sampleXmlString = "";
-    let referralItems = [];
-    if (samples.length > 0) {
-      if (samples[0].tests.length > 0) {
-        sampleXmlString = '<?xml version="1.0" encoding="utf-8"?>';
-        sampleXmlString += "<samples>";
-        let tests = null;
-        samples.map((sampleItem) => {
-          if (sampleItem.tests.length > 0) {
-            tests = Object.keys(sampleItem.tests)
-              .map(function (i) {
-                return sampleItem.tests[i].id;
-              })
-              .join(",");
-
-            // Extract storage location data if present
-            const storageLocation = sampleItem.sampleXML?.storageLocation;
-            const storageLocationId =
-              storageLocation?.locationId ||
-              storageLocation?.box?.id ||
-              storageLocation?.id ||
-              "";
-            const storageLocationType =
-              storageLocation?.locationType ||
-              (storageLocation?.box?.id ? "box" : storageLocation?.type || "");
-            const storagePositionCoordinate =
-              storageLocation?.positionCoordinate ||
-              storageLocation?.position?.coordinate ||
-              "";
-            const cugCode = sampleItem.sampleXML?.cug || "";
-            const cugReservationToken =
-              sampleItem.sampleXML?.cugReservationToken || "";
-            const cugReservationContextId =
-              sampleItem.sampleXML?.cugReservationContextId || "";
-
-            sampleXmlString += `<sample sampleID='${sampleItem.sampleTypeId}' date='${sampleItem.sampleXML.collectionDate}' time='${sampleItem.sampleXML.collectionTime}' collector='${sampleItem.sampleXML.collector}' tests='${tests}' testSectionMap='' testSampleTypeMap='' panels='' rejected='${sampleItem.sampleXML.rejected}' rejectReasonId='${sampleItem.sampleXML.rejectionReason}' cug='${cugCode}' cugReservationToken='${cugReservationToken}' cugReservationContextId='${cugReservationContextId}' initialConditionIds='' storageLocationId='${storageLocationId}' storageLocationType='${storageLocationType}' storagePositionCoordinate='${storagePositionCoordinate}' />`;
-          }
-          if (sampleItem.referralItems.length > 0) {
-            const referredInstitutes = Object.keys(sampleItem.referralItems)
-              .map(function (i) {
-                return sampleItem.referralItems[i].institute;
-              })
-              .join(",");
-
-            const sentDates = Object.keys(sampleItem.referralItems)
-              .map(function (i) {
-                return sampleItem.referralItems[i].sentDate;
-              })
-              .join(",");
-
-            const referralReasonIds = Object.keys(sampleItem.referralItems)
-              .map(function (i) {
-                return sampleItem.referralItems[i].reasonForReferral;
-              })
-              .join(",");
-
-            const referrers = Object.keys(sampleItem.referralItems)
-              .map(function (i) {
-                return sampleItem.referralItems[i].referrer;
-              })
-              .join(",");
-            referralItems.push({
-              referrer: referrers,
-              referredInstituteId: referredInstitutes,
-              referredTestId: tests,
-              referredSendDate: sentDates,
-              referralReasonId: referralReasonIds,
-            });
-          }
-        });
-        sampleXmlString += "</samples>";
+  const handleExistingSampleRemoved = (sampleItemId) => {
+    setRemovedExistingSampleItemIds((previous) => {
+      const normalizedSampleItemId = String(sampleItemId || "").trim();
+      if (!normalizedSampleItemId || previous.includes(normalizedSampleItemId)) {
+        return previous;
       }
-    }
-    setOrderFormValues({
-      ...orderFormValues,
-      // useReferral: true,
-      sampleXML: sampleXmlString,
-      // referralItems: referralItems,
+      return [...previous, normalizedSampleItemId];
     });
   };
 
@@ -417,11 +347,12 @@ const ModifyOrder = () => {
                   {page === samplePageNumber && (
                     <EditSample
                       orderFormValues={orderFormValues}
-                      setOrderFormValues={setOrderFormValues}
                       setSamples={setSamples}
                       samples={samples}
                       error={elementError}
                       patientId={patientId}
+                      patientNationalId={orderFormValues?.nationalId}
+                      onRemoveExistingSample={handleExistingSampleRemoved}
                     />
                   )}
                   {page === orderPageNumber && (
