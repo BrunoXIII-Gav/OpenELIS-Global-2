@@ -103,6 +103,8 @@ const defaultNewField = {
   documentMaxSizeMb: "5",
   showInSampleReception: false,
   storageAssignmentRequired: false,
+  alternateOrderFlow: false,
+  alternateOrderFlowTriggerValue: "",
 };
 
 const OrderAdditionalFieldsManagement = () => {
@@ -279,6 +281,7 @@ const OrderAdditionalFieldsManagement = () => {
 
     const documentMetadata = metadata?.document || {};
     const sampleReceptionMetadata = metadata?.sampleReception || {};
+    const workflowMetadata = metadata?.workflow || {};
     const optionLines = (field?.options || [])
       .filter((option) => option?.active !== false)
       .sort((left, right) => (left?.sortOrder ?? 0) - (right?.sortOrder ?? 0))
@@ -322,6 +325,12 @@ const OrderAdditionalFieldsManagement = () => {
       storageAssignmentRequired: Boolean(
         metadata?.storage?.requireCheckedForStorageAssignment,
       ),
+      alternateOrderFlow: Boolean(workflowMetadata.alternateOrderFlow),
+      alternateOrderFlowTriggerValue:
+        workflowMetadata.triggerValue !== undefined &&
+        workflowMetadata.triggerValue !== null
+          ? String(workflowMetadata.triggerValue)
+          : "",
     };
   };
 
@@ -461,6 +470,20 @@ const OrderAdditionalFieldsManagement = () => {
         ...(metadata.storage || {}),
         requireCheckedForStorageAssignment: true,
       };
+    }
+
+    if (formValue.alternateOrderFlow) {
+      const triggerValue =
+        String(formValue.fieldType || "").toUpperCase() === "BOOLEAN"
+          ? "true"
+          : String(formValue.alternateOrderFlowTriggerValue || "").trim();
+      metadata.workflow = {
+        ...(metadata.workflow || {}),
+        alternateOrderFlow: true,
+      };
+      if (triggerValue !== "") {
+        metadata.workflow.triggerValue = triggerValue;
+      }
     }
 
     return {
@@ -1183,6 +1206,26 @@ const OrderAdditionalFieldsManagement = () => {
                   }
                 />
               </Column>
+              <Column lg={8} md={4} sm={4}>
+                <Checkbox
+                  id="order-additional-alternate-order-flow"
+                  labelText={intl.formatMessage({
+                    id: "order.additional.fields.alternateOrderFlow",
+                  })}
+                  checked={newField.alternateOrderFlow}
+                  onChange={(_event, { checked }) =>
+                    setNewField((previous) => ({
+                      ...previous,
+                      alternateOrderFlow: checked,
+                      alternateOrderFlowTriggerValue: checked
+                        ? previous.fieldType === "BOOLEAN"
+                          ? "true"
+                          : previous.alternateOrderFlowTriggerValue
+                        : "",
+                    }))
+                  }
+                />
+              </Column>
               {newField.fieldType === "BOOLEAN" ? (
                 <Column lg={8} md={4} sm={4}>
                   <Checkbox
@@ -1195,6 +1238,27 @@ const OrderAdditionalFieldsManagement = () => {
                       setNewField((previous) => ({
                         ...previous,
                         storageAssignmentRequired: checked,
+                      }))
+                    }
+                  />
+                </Column>
+              ) : null}
+              {newField.alternateOrderFlow &&
+              newField.fieldType !== "BOOLEAN" ? (
+                <Column lg={8} md={4} sm={4}>
+                  <TextInput
+                    id="order-additional-alternate-order-flow-trigger-value"
+                    labelText={intl.formatMessage({
+                      id: "order.additional.fields.alternateOrderFlowTriggerValue",
+                    })}
+                    helperText={intl.formatMessage({
+                      id: "order.additional.fields.alternateOrderFlowTriggerValue.helper",
+                    })}
+                    value={newField.alternateOrderFlowTriggerValue}
+                    onChange={(event) =>
+                      setNewField((previous) => ({
+                        ...previous,
+                        alternateOrderFlowTriggerValue: event.target.value,
                       }))
                     }
                   />
@@ -1355,6 +1419,19 @@ const OrderAdditionalFieldsManagement = () => {
                     }
                   })(),
                 ),
+                alternateOrderFlow: Boolean(
+                  (() => {
+                    if (!field?.metadataJson) {
+                      return false;
+                    }
+                    try {
+                      const parsed = JSON.parse(field.metadataJson);
+                      return Boolean(parsed?.workflow?.alternateOrderFlow);
+                    } catch (_error) {
+                      return false;
+                    }
+                  })(),
+                ),
                 options: field.options || [],
               }))}
               headers={[
@@ -1410,6 +1487,12 @@ const OrderAdditionalFieldsManagement = () => {
                   key: "showInSampleReception",
                   header: intl.formatMessage({
                     id: "order.additional.fields.showInSampleReception",
+                  }),
+                },
+                {
+                  key: "alternateOrderFlow",
+                  header: intl.formatMessage({
+                    id: "order.additional.fields.alternateOrderFlow",
                   }),
                 },
                 {
@@ -1535,6 +1618,17 @@ const OrderAdditionalFieldsManagement = () => {
                             </TableCell>
                             <TableCell>
                               {row.cells[8].value ? (
+                                <Tag type="blue">
+                                  <FormattedMessage id="yes.option" />
+                                </Tag>
+                              ) : (
+                                <Tag type="gray">
+                                  <FormattedMessage id="no.option" />
+                                </Tag>
+                              )}
+                            </TableCell>
+                            <TableCell>
+                              {row.cells[9].value ? (
                                 <Tag type="blue">
                                   <FormattedMessage id="yes.option" />
                                 </Tag>

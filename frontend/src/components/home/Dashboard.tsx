@@ -61,6 +61,7 @@ type MetricType =
   | "INCOMING_ORDERS"
   | "AVERAGE_TURN_AROUND_TIME"
   | "DELAYED_TURN_AROUND"
+  | "ALTERNATE_ORDER_FLOW"
   | "ORDERS_FOR_USER";
 
 interface UserSessionDetails {
@@ -89,6 +90,7 @@ const HomeDashBoard: React.FC<DashBoardProps> = () => {
     incomigOrders: 0,
     averageTurnAroudTime: 0,
     delayedTurnAround: 0,
+    alternateOrderFlow: 0,
   });
 
   const [tileVisibility, setTileVisibility] = useState({
@@ -404,6 +406,14 @@ const HomeDashBoard: React.FC<DashBoardProps> = () => {
       type: "DELAYED_TURN_AROUND",
       value: counts.delayedTurnAround,
     },
+    {
+      title: <FormattedMessage id="dashboard.alternate.order.flow.label" />,
+      subTitle: (
+        <FormattedMessage id="dashboard.alternate.order.flow.subtitle.label" />
+      ),
+      type: "ALTERNATE_ORDER_FLOW",
+      value: counts.alternateOrderFlow,
+    },
   ];
 
   const tileList = allTiles.filter((tile) => {
@@ -492,7 +502,9 @@ const HomeDashBoard: React.FC<DashBoardProps> = () => {
   };
 
   const handleMaximizeClick = (tile) => {
+    const requiresSectionAccess = tilesWithTabs.includes(tile.type);
     if (
+      !requiresSectionAccess ||
       testSections?.length > 0 ||
       hasRole(userSessionDetails, "Global Administrator")
     ) {
@@ -559,6 +571,9 @@ const HomeDashBoard: React.FC<DashBoardProps> = () => {
     if (tileType === "ORDERS_READY_FOR_VALIDATION") {
       return "validation?type=order&accessionNumber=" + searchValue;
     }
+    if (tileType === "ALTERNATE_ORDER_FLOW") {
+      return "/ModifyOrder?accessionNumber=" + searchValue;
+    }
     return null;
   };
 
@@ -569,7 +584,8 @@ const HomeDashBoard: React.FC<DashBoardProps> = () => {
         selectedTile.type == "ORDERS_IN_PROGRESS" ||
         selectedTile.type == "AWAITING_SAMPLE" ||
         selectedTile.type == "AWAITING_RESULTS" ||
-        selectedTile.type == "ORDERS_READY_FOR_VALIDATION";
+        selectedTile.type == "ORDERS_READY_FOR_VALIDATION" ||
+        selectedTile.type == "ALTERNATE_ORDER_FLOW";
       return (
         <TableCell key={cell.id}>
           <>
@@ -606,7 +622,8 @@ const HomeDashBoard: React.FC<DashBoardProps> = () => {
         selectedTile.type == "ORDERS_IN_PROGRESS" ||
         selectedTile.type == "AWAITING_SAMPLE" ||
         selectedTile.type == "AWAITING_RESULTS" ||
-        selectedTile.type == "ORDERS_READY_FOR_VALIDATION";
+        selectedTile.type == "ORDERS_READY_FOR_VALIDATION" ||
+        selectedTile.type == "ALTERNATE_ORDER_FLOW";
       return (
         <TableCell key={cell.id}>
           {cell.value ? (
@@ -737,6 +754,25 @@ const HomeDashBoard: React.FC<DashBoardProps> = () => {
           defaultMessage="Tiempo esperando desde la orden"
         />
       ),
+    },
+  ];
+
+  const orderHeadersAlternateOrderFlow = [
+    {
+      key: "priority",
+      header: <FormattedMessage id="eorder.priority" />,
+    },
+    {
+      key: "orderDate",
+      header: <FormattedMessage id="sample.label.orderdate" />,
+    },
+    {
+      key: "patientId",
+      header: <FormattedMessage id="patient.merge.nationalId" />,
+    },
+    {
+      key: "labNumber",
+      header: <FormattedMessage id="eorder.labNumber" />,
     },
   ];
 
@@ -1239,8 +1275,11 @@ const HomeDashBoard: React.FC<DashBoardProps> = () => {
                                   "UN_PRINTED_RESULTS",
                                   "INCOMING_ORDERS",
                                   "DELAYED_TURN_AROUND",
+                                  "ALTERNATE_ORDER_FLOW",
                                 ].includes(selectedTile.type)
-                              ? orderHeadersInProgress
+                              ? selectedTile.type === "ALTERNATE_ORDER_FLOW"
+                                ? orderHeadersAlternateOrderFlow
+                                : orderHeadersInProgress
                               : selectedTile.type ===
                                   "ORDERS_ENTERED_BY_USER_TODAY"
                                 ? userHeaders

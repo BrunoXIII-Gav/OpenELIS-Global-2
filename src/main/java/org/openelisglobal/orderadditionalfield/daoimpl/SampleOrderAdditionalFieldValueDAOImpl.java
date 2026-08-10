@@ -55,6 +55,22 @@ public class SampleOrderAdditionalFieldValueDAOImpl extends BaseDAOImpl<SampleOr
     }
 
     @Override
+    public List<SampleOrderAdditionalFieldValue> findBySampleIdsAndFieldDefinitionIds(List<Integer> sampleIds,
+            List<Integer> fieldDefinitionIds) {
+        if (sampleIds == null || sampleIds.isEmpty() || fieldDefinitionIds == null || fieldDefinitionIds.isEmpty()) {
+            return Collections.emptyList();
+        }
+
+        String hql = "from " + VALUE_ENTITY
+                + " v where v.sampleId in (:sampleIds) and v.fieldDefinitionId in (:fieldDefinitionIds)";
+        Query<SampleOrderAdditionalFieldValue> query = entityManager.unwrap(Session.class).createQuery(hql,
+                SampleOrderAdditionalFieldValue.class);
+        query.setParameterList("sampleIds", sampleIds);
+        query.setParameterList("fieldDefinitionIds", fieldDefinitionIds);
+        return query.list();
+    }
+
+    @Override
     public List<Integer> findDistinctSampleIdsBySearchableFieldValue(String searchValue, boolean uniqueOnly,
             int limit) {
         if (searchValue == null || searchValue.trim().isEmpty() || limit <= 0) {
