@@ -89,7 +89,20 @@ public class TestParentChildDependencyRestController extends BaseRestController 
 
         ParentFieldConfigResponse response = new ParentFieldConfigResponse();
         response.setOptions(options);
-        response.setTubeBasedParent(isTubeBasedParentUsageTest(parentTestId));
+        response.setTubeBasedParent(hasParentTubeQuantitySource(parentTestId));
+        response.setHasTubeQuantitySource(hasParentTubeQuantitySource(parentTestId));
+        return ResponseEntity.ok(response);
+    }
+
+    @GetMapping(value = "/child-test-field-config", produces = MediaType.APPLICATION_JSON_VALUE)
+    @ResponseBody
+    public ResponseEntity<ChildFieldConfigResponse> getChildTestFieldConfig(@RequestParam String childTestId) {
+        if (GenericValidator.isBlankOrNull(childTestId)) {
+            throw new IllegalArgumentException("childTestId is required");
+        }
+
+        ChildFieldConfigResponse response = new ChildFieldConfigResponse();
+        response.setHasChildTubeUsageTarget(hasChildTubeUsageTarget(childTestId));
         return ResponseEntity.ok(response);
     }
 
@@ -133,8 +146,11 @@ public class TestParentChildDependencyRestController extends BaseRestController 
         dependency.setDisplayOrder(form.getDisplayOrder());
         String normalizedSampleUsageSource = normalizeSampleUsageSource(form.getSampleUsageSource());
         dependency.setSampleUsageSource(normalizedSampleUsageSource);
+        if (Boolean.TRUE.equals(dependency.getActive())) {
+            validateDependencyEligibility(parentTestId, childTestId);
+        }
         if (TestParentChildDependency.SAMPLE_USAGE_SOURCE_PARENT_TEST_FIELD.equals(normalizedSampleUsageSource)) {
-            if (isTubeBasedParentUsageTest(parentTestId)) {
+            if (hasParentTubeQuantitySource(parentTestId)) {
                 dependency.setParentResultFieldKey(null);
             } else {
                 String parentResultFieldKey = normalizeParentFieldKey(form.getParentResultFieldKey());
@@ -164,14 +180,14 @@ public class TestParentChildDependencyRestController extends BaseRestController 
 
     @DeleteMapping(value = "/{id}")
     @ResponseBody
-    public ResponseEntity<Void> deleteDependency(@PathVariable String id) {
+    public ResponseEntity<Void> deleteDependency(@PathVariable String id, HttpServletRequest request) {
         TestParentChildDependency dependency = dependencyService.get(id);
         if (dependency == null) {
             return ResponseEntity.notFound().build();
         }
 
         try {
-            dependencyService.delete(dependency);
+            dependencyService.delete(id, getSysUserId(request));
             return ResponseEntity.noContent().build();
         } catch (Exception e) {
             LogEvent.logError(this.getClass().getSimpleName(), "deleteDependency", e.toString());
@@ -240,7 +256,19 @@ public class TestParentChildDependencyRestController extends BaseRestController 
         return "NUMBER".equalsIgnoreCase(field.getFieldType());
     }
 
-    private boolean isTubeBasedParentUsageTest(String parentTestId) {
+    private void validateDependencyEligibility(String parentTestId, String childTestId) {
+        if (!hasParentTubeQuantitySource(parentTestId)) {
+            throw new IllegalArgumentException(
+                    "The parent test must have at least one active primary or additional result field marked as a tube quantity source.");
+        }
+
+        if (!hasChildTubeUsageTarget(childTestId)) {
+            throw new IllegalArgumentException(
+                    "The child test must have at least one active primary or additional result block marked to participate in child tube usage.");
+        }
+    }
+
+    private boolean hasParentTubeQuantitySource(String parentTestId) {
         if (GenericValidator.isBlankOrNull(parentTestId)) {
             return false;
         }
@@ -251,16 +279,35 @@ public class TestParentChildDependencyRestController extends BaseRestController 
         }
 
         JsonNode primaryMetadata = readMetadataNode(parentTest.getResultDisplayConfigJson());
-        if (primaryMetadata.path("tubeSelector").path("enabled").asBoolean(false)
-                || primaryMetadata.path("tubeQuantitySource").asBoolean(false)) {
+        if (primaryMetadata.path("tubeQuantitySource").asBoolean(false)) {
             return true;
         }
 
         List<TestAdditionalFieldPayload> fields = testAdditionalFieldService.getFieldsForTest(parentTestId, false);
         return fields.stream().filter(field -> field != null && !Boolean.FALSE.equals(field.getActive()))
                 .map(field -> readMetadataNode(field.getMetadataJson()))
-                .anyMatch(metadata -> metadata.path("tubeSelector").path("enabled").asBoolean(false)
-                        || metadata.path("tubeQuantitySource").asBoolean(false));
+                .anyMatch(metadata -> metadata.path("tubeQuantitySource").asBoolean(false));
+    }
+
+    private boolean hasChildTubeUsageTarget(String childTestId) {
+        if (GenericValidator.isBlankOrNull(childTestId)) {
+            return false;
+        }
+
+        Test childTest = testService.get(childTestId);
+        if (childTest == null) {
+            return false;
+        }
+
+        JsonNode primaryMetadata = readMetadataNode(childTest.getResultDisplayConfigJson());
+        if (primaryMetadata.path("tubeUsage").path("childBlockEnabled").asBoolean(false)) {
+            return true;
+        }
+
+        List<TestAdditionalFieldPayload> fields = testAdditionalFieldService.getFieldsForTest(childTestId, false);
+        return fields.stream().filter(field -> field != null && !Boolean.FALSE.equals(field.getActive()))
+                .map(field -> readMetadataNode(field.getMetadataJson()))
+                .anyMatch(metadata -> metadata.path("tubeUsage").path("childBlockEnabled").asBoolean(false));
     }
 
     private JsonNode readMetadataNode(String metadataJson) {
@@ -277,6 +324,7 @@ public class TestParentChildDependencyRestController extends BaseRestController 
     public static class ParentFieldConfigResponse {
         private List<ParentFieldOption> options;
         private boolean tubeBasedParent;
+        private boolean hasTubeQuantitySource;
 
         public List<ParentFieldOption> getOptions() {
             return options;
@@ -292,6 +340,26 @@ public class TestParentChildDependencyRestController extends BaseRestController 
 
         public void setTubeBasedParent(boolean tubeBasedParent) {
             this.tubeBasedParent = tubeBasedParent;
+        }
+
+        public boolean isHasTubeQuantitySource() {
+            return hasTubeQuantitySource;
+        }
+
+        public void setHasTubeQuantitySource(boolean hasTubeQuantitySource) {
+            this.hasTubeQuantitySource = hasTubeQuantitySource;
+        }
+    }
+
+    public static class ChildFieldConfigResponse {
+        private boolean hasChildTubeUsageTarget;
+
+        public boolean isHasChildTubeUsageTarget() {
+            return hasChildTubeUsageTarget;
+        }
+
+        public void setHasChildTubeUsageTarget(boolean hasChildTubeUsageTarget) {
+            this.hasChildTubeUsageTarget = hasChildTubeUsageTarget;
         }
     }
 

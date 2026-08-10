@@ -71,6 +71,11 @@ function TestParentChildDependency() {
   const [isLoadingParentFields, setIsLoadingParentFields] = useState(false);
   const [parentTestUsesTubeBlocks, setParentTestUsesTubeBlocks] =
     useState(false);
+  const [parentHasTubeQuantitySource, setParentHasTubeQuantitySource] =
+    useState(false);
+  const [childHasTubeUsageTarget, setChildHasTubeUsageTarget] =
+    useState(false);
+  const [isLoadingChildConfig, setIsLoadingChildConfig] = useState(false);
 
   const testNameById = useMemo(() => {
     const map = {};
@@ -145,12 +150,16 @@ function TestParentChildDependency() {
     setFormState(defaultFormState);
     setParentFieldOptions([]);
     setParentTestUsesTubeBlocks(false);
+    setParentHasTubeQuantitySource(false);
+    setChildHasTubeUsageTarget(false);
+    setIsLoadingChildConfig(false);
   };
 
   const loadParentFieldOptions = (parentTestId) => {
     if (!parentTestId) {
       setParentFieldOptions([]);
       setParentTestUsesTubeBlocks(false);
+      setParentHasTubeQuantitySource(false);
       setIsLoadingParentFields(false);
       return;
     }
@@ -166,7 +175,30 @@ function TestParentChildDependency() {
           Array.isArray(response?.options) ? response.options : [],
         );
         setParentTestUsesTubeBlocks(response?.tubeBasedParent === true);
+        setParentHasTubeQuantitySource(response?.hasTubeQuantitySource === true);
         setIsLoadingParentFields(false);
+      },
+    );
+  };
+
+  const loadChildTestConfig = (childTestId) => {
+    if (!childTestId) {
+      setChildHasTubeUsageTarget(false);
+      setIsLoadingChildConfig(false);
+      return;
+    }
+
+    setIsLoadingChildConfig(true);
+    getFromOpenElisServer(
+      `/rest/test-parent-child-dependencies/child-test-field-config?childTestId=${childTestId}`,
+      (response) => {
+        if (!componentMounted.current) {
+          return;
+        }
+        setChildHasTubeUsageTarget(
+          response?.hasChildTubeUsageTarget === true,
+        );
+        setIsLoadingChildConfig(false);
       },
     );
   };
@@ -226,6 +258,28 @@ function TestParentChildDependency() {
         intl.formatMessage({
           id: "test.dependency.validation.same",
           defaultMessage: "Parent and child tests must be different.",
+        }),
+      );
+      return false;
+    }
+
+    if (formState.active && !parentHasTubeQuantitySource) {
+      notifyError(
+        intl.formatMessage({
+          id: "test.dependency.validation.parentTubeSourceRequired",
+          defaultMessage:
+            "The parent test must have at least one active primary or additional result field marked as a tube quantity source.",
+        }),
+      );
+      return false;
+    }
+
+    if (formState.active && !childHasTubeUsageTarget) {
+      notifyError(
+        intl.formatMessage({
+          id: "test.dependency.validation.childTubeUsageRequired",
+          defaultMessage:
+            "The child test must have at least one active primary or additional result block marked to participate in child tube usage.",
         }),
       );
       return false;
@@ -310,6 +364,7 @@ function TestParentChildDependency() {
       active: dependency.active !== false,
     });
     loadParentFieldOptions(dependency.parentTestId || "");
+    loadChildTestConfig(dependency.childTestId || "");
   };
 
   const onDelete = (dependency) => {
@@ -481,12 +536,14 @@ function TestParentChildDependency() {
                   />
                 }
                 value={formState.childTestId}
-                onChange={(e) =>
+                onChange={(e) => {
+                  const nextChildTestId = e.target.value;
                   setFormState((prev) => ({
                     ...prev,
-                    childTestId: e.target.value,
-                  }))
-                }
+                    childTestId: nextChildTestId,
+                  }));
+                  loadChildTestConfig(nextChildTestId);
+                }}
                 disabled={
                   isLoading || isSaving || isLoadingTests || !selectedSampleType
                 }
@@ -661,6 +718,7 @@ function TestParentChildDependency() {
                     isLoading ||
                     isSaving ||
                     isLoadingTests ||
+                    isLoadingChildConfig ||
                     !selectedSampleType
                   }
                 >

@@ -887,6 +887,8 @@
   "test.dependency.select.parentField": "-- Seleccione campo numérico del padre --",
   "test.dependency.parentFieldTubeManaged": "Se gestiona automáticamente con las fuentes de cantidad de tubo configuradas en la prueba padre.",
   "test.dependency.validation.parentFieldRequired": "Debe seleccionar un campo numérico de la prueba padre cuando el origen sea campo de la prueba padre.",
+  "test.dependency.validation.parentTubeSourceRequired": "La prueba padre debe tener al menos un campo de resultado principal o adicional activo marcado como fuente de cantidad del tubo.",
+  "test.dependency.validation.childTubeUsageRequired": "La prueba hija debe tener al menos un bloque de resultado principal o adicional activo marcado para participar en uso de tubo en pruebas hijas.",
   "result.entry.sampleUsage.remaining.missing": "Las pruebas hijas dependientes requieren una cantidad remanente válida desde la fuente configurada del padre.",
   "result.entry.parentSampleUsage": "Cantidad de muestra usada",
   "result.entry.parentSampleUsage.required": "Esta prueba requiere una cantidad usada de muestra válida.",

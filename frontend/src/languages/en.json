@@ -917,6 +917,8 @@
   "test.dependency.select.parentField": "-- Select parent numeric field --",
   "test.dependency.parentFieldTubeManaged": "Managed automatically by the tube quantity source fields configured on the parent test.",
   "test.dependency.validation.parentFieldRequired": "A parent test numeric field is required when source is parent test field.",
+  "test.dependency.validation.parentTubeSourceRequired": "The parent test must have at least one active primary or additional result field marked as a tube quantity source.",
+  "test.dependency.validation.childTubeUsageRequired": "The child test must have at least one active primary or additional result block marked to participate in child tube usage.",
   "result.entry.sampleUsage.remaining.missing": "Dependent child tests require a valid remaining quantity from the configured parent source.",
   "result.entry.parentSampleUsage": "Sample quantity used",
   "result.entry.parentSampleUsage.required": "This test requires a valid sample usage quantity.",
