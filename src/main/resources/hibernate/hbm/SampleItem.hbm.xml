@@ -58,8 +58,6 @@
 
         <property name="externalId" type="java.lang.String"
             column="external_id" />
-        <property name="cugCode" type="java.lang.String"
-            column="cug_code" />
         <property name="collectionDate" type="java.sql.Timestamp"
             column="collection_date" />
         <property name="statusId" column="status_id"

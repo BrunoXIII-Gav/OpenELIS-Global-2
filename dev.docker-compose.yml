@@ -32,7 +32,7 @@ services:
             aliases:
               - db.openelis.org
         healthcheck:
-            test: [ "CMD", "pg_isready", "-q", "-d", "clinlims", "-U", "clinlims" ]
+            test: [ "CMD", "pg_isready", "-q", "-d", "${OE_DB_NAME:-clinlims}", "-U", "clinlims" ]
             timeout: 45s
             interval: 10s
             retries: 10 
@@ -61,7 +61,7 @@ services:
               # context.xml doesn't seem to be able to pick up environment variables directly, so we are passing them in as CATALINA_OPTS
             - >-
               CATALINA_OPTS=
-              -Ddatasource.url=jdbc:postgresql://db.openelis.org:5432/clinlims
+              -Ddatasource.url=jdbc:postgresql://db.openelis.org:5432/${OE_DB_NAME:-clinlims}
               -Ddatasource.username=clinlims
               -Dspring.liquibase.contexts=test
               -Dorg.itech.login.saml=${OE_SAML_ENABLED:-true}

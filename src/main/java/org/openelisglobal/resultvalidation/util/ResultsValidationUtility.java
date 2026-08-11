@@ -439,7 +439,6 @@ public class ResultsValidationUtility {
 
         testItem.setAccessionNumber(accessionNumber);
         Sample sample = analysis.getSampleItem() == null ? null : analysis.getSampleItem().getSample();
-        testItem.setCugCode(analysis.getSampleItem() == null ? null : analysis.getSampleItem().getCugCode());
         testItem.setReceivedDate(sample == null ? null : sample.getReceivedDateForDisplay());
         testItem.setAnalysis(analysis);
         testItem.setSequenceNumber(sequenceNumber);
@@ -658,7 +657,6 @@ public class ResultsValidationUtility {
         testUnits = augmentUOMWithRange(testUnits, testResultItem.getResult());
 
         analysisResultItem.setAccessionNumber(testResultItem.getAccessionNumber());
-        analysisResultItem.setCugCode(testResultItem.getCugCode());
         analysisResultItem.setReceivedDate(testResultItem.getReceivedDate());
         analysisResultItem.setLowerCritical(
                 testResultItem.getLowerCritical() == Double.NEGATIVE_INFINITY ? 0 : testResultItem.getLowerCritical());

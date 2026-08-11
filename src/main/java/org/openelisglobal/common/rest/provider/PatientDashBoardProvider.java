@@ -397,9 +397,6 @@ public class PatientDashBoardProvider {
                     if (sample != null) {
                         orderBean.setPriority(sample.getPriority() != null ? sample.getPriority().toString() : "");
                         orderBean.setLabNumber(sample.getAccessionNumber() != null ? sample.getAccessionNumber() : "");
-                        orderBean.setCugCode(
-                                analysis.getSampleItem() != null ? analysis.getSampleItem().getCugCode() : "");
-
                         try {
                             orderBean.setPatientId(getDisplayPatientIdentifier(sampleHumanService.getPatientForSample(sample)));
                         } catch (Exception e) {
@@ -408,7 +405,6 @@ public class PatientDashBoardProvider {
                     } else {
                         orderBean.setPriority("");
                         orderBean.setLabNumber("");
-                        orderBean.setCugCode("");
                         orderBean.setPatientId("");
                     }
 
@@ -457,8 +453,6 @@ public class PatientDashBoardProvider {
                 orderBean.setId(sample.getId());
                 orderBean.setPriority(sample.getPriority() != null ? sample.getPriority().toString() : "");
                 orderBean.setLabNumber(labNumber);
-                orderBean.setCugCode(
-                        analysis.getSampleItem().getCugCode() != null ? analysis.getSampleItem().getCugCode() : "");
                 orderBean.setPatientId(getDisplayPatientIdentifier(sampleHumanService.getPatientForSample(sample)));
         
                 orderBean.setOrderDate(resolveOrderCreatedDateTime(sample));
@@ -547,7 +541,6 @@ public class PatientDashBoardProvider {
             Sample sample = sampleService.getSampleByReferringId(eOrder.getExternalId());
             if (sample != null) {
                 orderBean.setLabNumber(sample.getAccessionNumber());
-                orderBean.setCugCode("");
             }
 
             Test test = null;
@@ -599,7 +592,6 @@ public class PatientDashBoardProvider {
                     orderBean.setId(sampleItem.getId());
                     orderBean.setPriority(sample.getPriority() != null ? sample.getPriority().toString() : "");
                     orderBean.setLabNumber(sample.getAccessionNumber() != null ? sample.getAccessionNumber() : "");
-                    orderBean.setCugCode(sampleItem.getCugCode() != null ? sampleItem.getCugCode() : "");
                     orderBean.setPatientId(getDisplayPatientIdentifier(sampleHumanService.getPatientForSample(sample)));
                     
                     orderBean.setOrderDate(resolveOrderCreatedDateTime(sample));

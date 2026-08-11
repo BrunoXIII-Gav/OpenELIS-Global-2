@@ -1090,7 +1090,7 @@ const Validation = (props) => {
     const sampleType = fullTestName.substring(splitIndex);
     switch (column.id) {
       case "sampleInfo": {
-        const sampleCode = row.cugCode || row.accessionNumber;
+        const sampleCode = row.accessionNumber;
         return (
           <>
             <Button

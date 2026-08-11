@@ -120,9 +120,6 @@ public class SamplePatientEntryServiceImpl implements SamplePatientEntryService 
     private SampleTypeAdditionalFieldService sampleTypeAdditionalFieldService;
     @Autowired
     private OrderAdditionalFieldService orderAdditionalFieldService;
-    @Autowired
-    private SampleCugService sampleCugService;
-
     @Transactional
     @Override
     public void persistData(SamplePatientUpdateData updateData, PatientManagementUpdate patientUpdate,
@@ -286,9 +283,6 @@ public class SamplePatientEntryServiceImpl implements SamplePatientEntryService 
                                 ? sampleTest.item.getTypeOfSample().getId()
                                 : null)
                         .filter(Objects::nonNull).distinct().collect(Collectors.toList()));
-
-        sampleCugService.assignMissingCugCodes(updateData.getSampleItemsTests(), updateData.getPatientId(),
-                updateData.getCurrentUserId(), updateData.getSample().getId());
 
         for (SampleTestCollection sampleTestCollection : updateData.getSampleItemsTests()) {
             if (GenericValidator.isBlankOrNull(sampleTestCollection.item.getFhirUuidAsString())) {

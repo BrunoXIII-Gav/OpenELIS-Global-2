@@ -68,7 +68,6 @@ const ORDER_FIXED_FIELD_LABEL_MESSAGE_IDS = {
 };
 
 const SAMPLE_FIXED_FIELD_LABEL_MESSAGE_IDS = {
-  cugCode: "sample.cug.label",
   quantity: "sample.quantity.label",
   uom: "sample.uom.label",
   collector: "collector.label",
@@ -77,7 +76,6 @@ const SAMPLE_FIXED_FIELD_LABEL_MESSAGE_IDS = {
 };
 
 const SAMPLE_MANAGEMENT_EDITABLE_FIXED_FIELD_KEYS = [
-  "cugCode",
   "quantity",
   "uom",
   "collector",
@@ -356,10 +354,12 @@ function SampleResultsTable({
 
   const getInitialLabelValue = useCallback(
     (sampleItem, tubeSequenceBySampleId) => {
-      const cugCode = String(sampleItem?.cugCode || "")
+      const sampleCode = String(
+        sampleItem?.accessionNumber || sampleItem?.externalId || "",
+      )
         .trim()
         .replace(/\.+$/, "");
-      if (!cugCode) {
+      if (!sampleCode) {
         return "";
       }
 
@@ -367,11 +367,11 @@ function SampleResultsTable({
         Array.isArray(sampleItem?.orderedTests) &&
         sampleItem.orderedTests.length > 0;
       if (!hasResultBlocks) {
-        return `${cugCode}.`;
+        return `${sampleCode}.`;
       }
 
       const tubeNumber = tubeSequenceBySampleId?.[sampleItem?.id] || 1;
-      return `${cugCode}.${tubeNumber}`;
+      return `${sampleCode}.${tubeNumber}`;
     },
     [],
   );
@@ -685,13 +685,6 @@ function SampleResultsTable({
         }),
       },
       {
-        key: "cugCode",
-        header: intl.formatMessage({
-          id: "sample.management.table.header.cug",
-          defaultMessage: "CUG",
-        }),
-      },
-      {
         key: "sampleType",
         header: intl.formatMessage({
           id: "sample.management.table.header.sampleType",
@@ -773,8 +766,6 @@ function SampleResultsTable({
         id: item.id,
         externalId: item.externalId || "-",
         sampleAccessionNumber: item.sampleAccessionNumber || "",
-        cugCodeRaw: item.cugCode || "",
-        cugCode: item.cugCode || "-",
         sampleType: item.sampleType || "-",
         sampleTypeId: item.sampleTypeId ? String(item.sampleTypeId) : "",
         quantityRaw: item.quantityDisplay ?? item.quantity ?? "",
@@ -941,7 +932,6 @@ function SampleResultsTable({
       rowLevelDetailsFromCurrentRow ||
       rowDetailsCandidates.find(
         (d) =>
-          d.cugCode !== undefined ||
           d.quantity !== undefined ||
           d.unitOfMeasureId !== undefined ||
           d.collector !== undefined ||
@@ -952,10 +942,6 @@ function SampleResultsTable({
       {};
 
     const sampleLevel = {
-      cugCode:
-        rowLevelDetails.cugCode !== undefined
-          ? rowLevelDetails.cugCode
-          : originalRow?.cugCode || originalRow?.cugCodeRaw || "",
       quantity:
         rowLevelDetails.quantity !== undefined
           ? rowLevelDetails.quantity
@@ -1173,20 +1159,6 @@ function SampleResultsTable({
     const firstTestId = originalRow?.orderedTests?.[0]?.analysisId;
     return firstTestId ? `${rowId}-${firstTestId}` : `${rowId}__sample`;
   }, []);
-
-  const getEditableSampleCugValue = useCallback(
-    (rowId, originalRow) => {
-      const primarySampleRowId = getPrimarySampleRowId(rowId, originalRow);
-      const sampleDetails =
-        currentTestDetailsByKey[`${rowId}__sample`] ||
-        currentTestDetailsByKey[primarySampleRowId] ||
-        {};
-      return sampleDetails.cugCode !== undefined
-        ? sampleDetails.cugCode
-        : originalRow?.cugCodeRaw || originalRow?.cugCode || "";
-    },
-    [currentTestDetailsByKey, getPrimarySampleRowId],
-  );
 
   /**
    * Render expanded row content with test details.
@@ -1706,7 +1678,7 @@ function SampleResultsTable({
               <FormattedMessage id="sample.additional.fields.heading" />
             </h4>
             <div style={{ marginBottom: "0.75rem", fontWeight: 500 }}>
-              {(originalRow.cugCode || originalRow.externalId || "-") +
+              {(originalRow.accessionNumber || originalRow.externalId || "-") +
                 " - " +
                 (originalRow.sampleType || "")}
             </div>
@@ -2053,43 +2025,7 @@ function SampleResultsTable({
                               ? renderHierarchyIndicator(row)
                               : cell.info.header === "tests"
                                 ? renderTestsCount(row)
-                                : cell.info.header === "cugCode"
-                                  ? (() => {
-                                      const editableCugValue =
-                                        getEditableSampleCugValue(
-                                          row.id,
-                                          originalRow,
-                                        );
-                                      const primarySampleRowId =
-                                        getPrimarySampleRowId(
-                                          row.id,
-                                          originalRow,
-                                        );
-                                      return (
-                                        <div
-                                          style={{
-                                            minWidth: "120px",
-                                          }}
-                                          onClick={(e) => e.stopPropagation()}
-                                        >
-                                          <TextInput
-                                            id={`${row.id}-table-cugCode`}
-                                            labelText=""
-                                            hideLabel
-                                            size="sm"
-                                            value={editableCugValue}
-                                            onChange={(e) =>
-                                              handleCurrentTestFieldChange(
-                                                primarySampleRowId,
-                                                "cugCode",
-                                                e.target.value,
-                                              )
-                                            }
-                                          />
-                                        </div>
-                                      );
-                                    })()
-                                  : cell.value}
+                                : cell.value}
                         </TableCell>
                       ))}
                     </TableExpandRow>

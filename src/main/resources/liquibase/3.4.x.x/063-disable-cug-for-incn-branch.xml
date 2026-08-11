@@ -1,0 +1,56 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<databaseChangeLog
+  xmlns="http://www.liquibase.org/xml/ns/dbchangelog"
+  xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+  xsi:schemaLocation="http://www.liquibase.org/xml/ns/dbchangelog http://www.liquibase.org/xml/ns/dbchangelog/dbchangelog-3.8.xsd">
+
+  <changeSet id="063-01-clear-existing-cug-values" author="codex">
+    <preConditions onFail="MARK_RAN">
+      <tableExists tableName="sample_item"/>
+      <columnExists tableName="sample_item" columnName="cug_code"/>
+    </preConditions>
+    <sql>
+      UPDATE sample_item
+      SET cug_code = NULL
+      WHERE cug_code IS NOT NULL;
+    </sql>
+  </changeSet>
+
+  <changeSet id="063-02-drop-cug-unique-index" author="codex">
+    <preConditions onFail="MARK_RAN">
+      <indexExists tableName="sample_item" indexName="idx_sample_item_cug_code_unique"/>
+    </preConditions>
+    <dropIndex tableName="sample_item" indexName="idx_sample_item_cug_code_unique"/>
+  </changeSet>
+
+  <changeSet id="063-03-remove-cug-fixed-field-config" author="codex">
+    <preConditions onFail="MARK_RAN">
+      <tableExists tableName="sample_fixed_field_config"/>
+    </preConditions>
+    <sql>
+      DELETE FROM sample_fixed_field_config
+      WHERE lower(field_key) = 'cug';
+    </sql>
+  </changeSet>
+
+  <changeSet id="063-04-drop-cug-reservation-table" author="codex">
+    <preConditions onFail="MARK_RAN">
+      <tableExists tableName="sample_cug_reservation"/>
+    </preConditions>
+    <dropTable tableName="sample_cug_reservation"/>
+  </changeSet>
+
+  <changeSet id="063-05-drop-cug-reservation-sequence" author="codex">
+    <preConditions onFail="MARK_RAN">
+      <sequenceExists sequenceName="sample_cug_reservation_seq"/>
+    </preConditions>
+    <dropSequence sequenceName="sample_cug_reservation_seq"/>
+  </changeSet>
+
+  <changeSet id="063-06-drop-cug-prefix-sequence" author="codex">
+    <preConditions onFail="MARK_RAN">
+      <sequenceExists sequenceName="sample_cug_prefix_seq"/>
+    </preConditions>
+    <dropSequence sequenceName="sample_cug_prefix_seq"/>
+  </changeSet>
+</databaseChangeLog>

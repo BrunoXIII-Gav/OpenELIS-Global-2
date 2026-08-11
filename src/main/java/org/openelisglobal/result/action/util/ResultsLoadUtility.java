@@ -794,7 +794,6 @@ public class ResultsLoadUtility {
         if (analysis.getSampleItem() != null && analysis.getSampleItem().getId() != null) {
             testItem.setSampleItemId(analysis.getSampleItem().getId());
         }
-        testItem.setCugCode(analysis.getSampleItem() != null ? analysis.getSampleItem().getCugCode() : null);
         testItem.setSampleItemExternalId(
                 analysis.getSampleItem() != null ? analysis.getSampleItem().getExternalId() : null);
         testItem.setSequenceNumber(sequenceNumber);

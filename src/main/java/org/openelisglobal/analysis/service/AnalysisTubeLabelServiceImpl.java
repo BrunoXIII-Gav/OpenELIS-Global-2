@@ -58,12 +58,10 @@ public class AnalysisTubeLabelServiceImpl extends AuditableBaseObjectServiceImpl
         }
 
         SampleItem sampleItem = analysis.getSampleItem();
-        String prefix = StringUtils.trimToNull(sampleItem.getCugCode());
-        if (prefix == null && sampleItem.getSample() != null) {
-            prefix = StringUtils.trimToNull(sampleItem.getSample().getAccessionNumber());
-        }
+        String prefix = sampleItem.getSample() == null ? null
+                : StringUtils.trimToNull(sampleItem.getSample().getAccessionNumber());
         if (prefix == null) {
-            throw new IllegalArgumentException("Tube label generation requires a sample CUG or accession number");
+            throw new IllegalArgumentException("Tube label generation requires a sample accession number");
         }
 
         AnalysisTubeLabel existing = analysisTubeLabelDAO.getByAnalysisIdAndBlockName(analysis.getId(), blockName).orElse(null);

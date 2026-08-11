@@ -401,7 +401,6 @@ public class SampleEditRestController extends BaseSampleEntryController {
             sampleEditItem.setTestName(TestServiceImpl.getUserLocalizedTestName(analysis.getTest()));
             sampleEditItem.setSampleItemId(sampleItem.getId());
             sampleEditItem.setSampleTypeId(typeOfSample.getId());
-            sampleEditItem.setCugCode(sampleItem.getCugCode());
 
             boolean canCancel = allowedToCancelAll || (!SpringContext.getBean(IStatusService.class)
                     .matches(analysis.getStatusId(), AnalysisStatus.Canceled)

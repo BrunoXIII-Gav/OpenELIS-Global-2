@@ -124,7 +124,7 @@ public class SampleServiceImpl extends AuditableBaseObjectServiceImpl<Sample, St
         }
 
         org.openelisglobal.common.log.LogEvent.logInfo(this.getClass().getSimpleName(), "getSampleByAccessionNumber",
-                "Searching sample by accession/CUG value: " + searchValue);
+                "Searching sample by accession value: " + searchValue);
 
         Sample sample = getMatch("accessionNumber", searchValue).orElse(null);
         if (sample != null) {
@@ -139,11 +139,6 @@ public class SampleServiceImpl extends AuditableBaseObjectServiceImpl<Sample, St
                     return sample;
                 }
             }
-        }
-
-        sample = sampleItemDAO.findSampleByCugCode(searchValue);
-        if (sample != null) {
-            return sample;
         }
 
         if (searchValue.contains(".")) {

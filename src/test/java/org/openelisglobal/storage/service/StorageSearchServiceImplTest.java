@@ -86,7 +86,6 @@ public class StorageSearchServiceImplTest {
         sampleItem1.put("id", "1001");
         sampleItem1.put("sampleItemId", "1001");
         sampleItem1.put("sampleItemExternalId", "SI-1001-EXT");
-        sampleItem1.put("cugCode", "1.1");
         sampleItem1.put("sampleAccessionNumber", "TEST-SAMPLE-001");
         sampleItem1.put("type", "Blood");
         sampleItem1.put("status", "active");
@@ -97,7 +96,6 @@ public class StorageSearchServiceImplTest {
         sampleItem2.put("id", "1002");
         sampleItem2.put("sampleItemId", "1002");
         sampleItem2.put("sampleItemExternalId", "SI-1002-EXT");
-        sampleItem2.put("cugCode", "2.1");
         sampleItem2.put("sampleAccessionNumber", "TB-2025-001");
         sampleItem2.put("type", "Serum");
         sampleItem2.put("status", "active");
@@ -108,7 +106,6 @@ public class StorageSearchServiceImplTest {
         sampleItem3.put("id", "1003");
         sampleItem3.put("sampleItemId", "1003");
         sampleItem3.put("sampleItemExternalId", "SI-1003-EXT");
-        sampleItem3.put("cugCode", "3.1");
         sampleItem3.put("sampleAccessionNumber", "S-2025-002");
         sampleItem3.put("type", "Urine");
         sampleItem3.put("status", "active");
@@ -227,26 +224,15 @@ public class StorageSearchServiceImplTest {
     }
 
     @Test
-    public void testSearchSamples_FiltersByCugCode() throws Exception {
-        when(sampleStorageService.getAllSamplesWithAssignments()).thenReturn(mockSamples);
-
-        List<Map<String, Object>> results = searchService.searchSamples("2.1");
-
-        assertNotNull("Results should not be null", results);
-        assertEquals("Should return one matching sample item by CUG code", 1, results.size());
-        assertEquals("Should return sample item with CUG 2.1", "2.1", results.get(0).get("cugCode"));
-    }
-
-    @Test
     public void testSearchSamples_FiltersBySearchableOrderAdditionalField() throws Exception {
         when(sampleStorageService.getAllSamplesWithAssignments()).thenReturn(mockSamples);
-        when(orderAdditionalFieldService.findSampleIdBySearchableFieldValue("CUG-1002")).thenReturn(Optional.of(200));
+        when(orderAdditionalFieldService.findSampleIdBySearchableFieldValue("REF-1002")).thenReturn(Optional.of(200));
 
         Sample sample = new Sample();
         sample.setAccessionNumber("TB-2025-001");
         when(sampleService.get("200")).thenReturn(sample);
 
-        List<Map<String, Object>> results = searchService.searchSamples("CUG-1002");
+        List<Map<String, Object>> results = searchService.searchSamples("REF-1002");
 
         assertNotNull("Results should not be null", results);
         assertEquals("Should return matching sample by searchable order additional field", 1, results.size());

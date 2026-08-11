@@ -10,7 +10,6 @@ public class ConsentPreviewForm {
     private List<String> selectedTests;
     private Map<String, String> orderAdditionalFieldValues;
     private String orderDate;
-    private String cug;
 
     public PatientInfo getPatient() {
         return patient;
@@ -50,14 +49,6 @@ public class ConsentPreviewForm {
 
     public void setOrderDate(String orderDate) {
         this.orderDate = orderDate;
-    }
-
-    public String getCug() {
-        return cug;
-    }
-
-    public void setCug(String cug) {
-        this.cug = cug;
     }
 
     public static class PatientInfo {

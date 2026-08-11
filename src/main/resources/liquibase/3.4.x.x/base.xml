@@ -74,4 +74,5 @@
   <include relativeToChangelogFile="true" file="060-set-order-provider-selection-self-only.xml"/>
   <include relativeToChangelogFile="true" file="061-map-order-permission-to-legacy-order-modules.xml"/>
   <include relativeToChangelogFile="true" file="062-remap-sample-management-route-to-generic-sample-module.xml"/>
+  <include relativeToChangelogFile="true" file="063-disable-cug-for-incn-branch.xml"/>
 </databaseChangeLog>

@@ -176,7 +176,6 @@ public class PatientHistorySummaryServiceImpl implements PatientHistorySummarySe
         record.setAccessionNumber(sample.getAccessionNumber());
         record.setClinicalOrderId(sample.getClinicalOrderId());
         record.setSampleItemExternalId(sampleItem.getExternalId());
-        record.setCugCode(sampleItem.getCugCode());
         record.setSampleType(sampleItem.getTypeOfSample() == null ? "" : sampleItem.getTypeOfSample().getLocalizedName());
         record.setCollectionDate(resolveCollectionDate(sample, sampleItem));
         record.setStatus(statusService.getStatusNameFromId(sampleItem.getStatusId()));
@@ -213,7 +212,6 @@ public class PatientHistorySummaryServiceImpl implements PatientHistorySummarySe
             resultRecord.setId(analysis.getId());
             resultRecord.setAccessionNumber(sample.getAccessionNumber());
             resultRecord.setClinicalOrderId(sample.getClinicalOrderId());
-            resultRecord.setCugCode(sampleItem.getCugCode());
             resultRecord.setSampleType(
                     sampleItem.getTypeOfSample() == null ? "" : sampleItem.getTypeOfSample().getLocalizedName());
             resultRecord.setCollectionDate(resolveCollectionDate(sample, sampleItem));
@@ -363,7 +361,6 @@ public class PatientHistorySummaryServiceImpl implements PatientHistorySummarySe
         addField(fields, "clinicalOrderId", "clinicalOrderId", record.getClinicalOrderId(), "TEXT", "fixed");
         addField(fields, "sampleItemExternalId", "sampleItemExternalId", record.getSampleItemExternalId(), "TEXT",
                 "fixed");
-        addField(fields, "cugCode", "cugCode", record.getCugCode(), "TEXT", "fixed");
         addField(fields, "sampleType", "sampleType", record.getSampleType(), "TEXT", "fixed");
         addField(fields, "collectionDate", "collectionDate", record.getCollectionDate(), "DATE", "fixed");
         addField(fields, "status", "status", record.getStatus(), "TEXT", "fixed");
@@ -412,7 +409,6 @@ public class PatientHistorySummaryServiceImpl implements PatientHistorySummarySe
         List<FieldRecord> fields = new ArrayList<>();
         addField(fields, "accessionNumber", "accessionNumber", record.getAccessionNumber(), "TEXT", "fixed");
         addField(fields, "clinicalOrderId", "clinicalOrderId", record.getClinicalOrderId(), "TEXT", "fixed");
-        addField(fields, "cugCode", "cugCode", record.getCugCode(), "TEXT", "fixed");
         addField(fields, "testName", "testName", record.getTestName(), "TEXT", "fixed");
         addField(fields, "resultStatus", "resultStatus", record.getTestStatus(), "TEXT", "fixed");
         addField(fields, "sampleType", "sampleType", record.getSampleType(), "TEXT", "fixed");

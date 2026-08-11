@@ -13,13 +13,13 @@ import java.util.Map;
 public interface StorageSearchService {
 
     /**
-     * Search SampleItems by SampleItem ID, SampleItem External ID, CUG code, parent
+     * Search SampleItems by SampleItem ID, SampleItem External ID, parent
      * Sample accession number, and assigned location (full hierarchical path).
      * Matches ANY of these fields (OR logic).
      * 
      * @param query Search term (case-insensitive partial match)
      * @return List of matching SampleItems with id, sampleItemId,
-     *         sampleItemExternalId, cugCode, sampleAccessionNumber, type, status,
+     *         sampleItemExternalId, sampleAccessionNumber, type, status,
      *         location, assignedBy, date
      */
     List<Map<String, Object>> searchSamples(String query);

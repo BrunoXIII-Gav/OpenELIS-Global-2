@@ -1721,7 +1721,6 @@ const StorageDashboard = () => {
 
     if (occupied) {
       const sampleCode = sampleInfo?.externalId || sampleInfo?.sampleItemId;
-      const cugCode = sampleInfo?.cugCode || sampleInfo?.cug;
       setAssignSampleId("");
       setAssignNotes("");
       setAssignStatus({
@@ -1730,12 +1729,11 @@ const StorageDashboard = () => {
           {
             id: "storage.boxes.assign.readOnlyOccupied",
             defaultMessage:
-              "Position {coordinate} is occupied by sample {sampleCode}{cugSuffix}. Read-only view.",
+              "Position {coordinate} is occupied by sample {sampleCode}. Read-only view.",
           },
           {
             coordinate,
             sampleCode: sampleCode || "N/A",
-            cugSuffix: cugCode ? ` (CUG: ${cugCode})` : "",
           },
         ),
       });
@@ -1967,13 +1965,6 @@ const StorageDashboard = () => {
       header: intl.formatMessage(
         { id: "storage.sampleitem.id" },
         { defaultMessage: "SampleItem ID" },
-      ),
-    },
-    {
-      key: "cugCode",
-      header: intl.formatMessage(
-        { id: "sample.cug.label" },
-        { defaultMessage: "CUG" },
       ),
     },
     { key: "type", header: intl.formatMessage({ id: "sample.type" }) },
@@ -2883,9 +2874,7 @@ const StorageDashboard = () => {
       const sampleItemExternalId = sampleItem.sampleItemExternalId || null;
       const displayId = sampleItemExternalId || sampleItemId;
 
-      // Secondary context: CUG code for the sample item
       const sampleAccessionNumber = sampleItem.sampleAccessionNumber || "";
-      const cugCode = sampleItem.cugCode || "";
       const isDisposed =
         sampleItem.isDisposed === true ||
         sampleItem.isDisposed === "true" ||
@@ -2895,7 +2884,6 @@ const StorageDashboard = () => {
       return {
         id: sampleItemId, // Use sampleItemId for row ID
         sampleItemId: displayId, // Display: External ID if available, otherwise ID
-        cugCode: cugCode, // Display CUG instead of parent accession number
         type: sampleItem.type || sampleItem.sampleType || "",
         status: isDisposed ? (
           <Tag type="red">
@@ -3073,8 +3061,6 @@ const StorageDashboard = () => {
     selectedCoordinateSampleInfo?.externalId ||
     selectedCoordinateSampleInfo?.sampleItemId ||
     "";
-  const selectedCoordinateSampleCug =
-    selectedCoordinateSampleInfo?.cugCode || selectedCoordinateSampleInfo?.cug;
 
   return (
     <div className="storage-dashboard">
@@ -4828,13 +4814,10 @@ const StorageDashboard = () => {
                           <p className="helper-text">
                             <FormattedMessage
                               id="storage.boxes.assign.occupiedBy"
-                              defaultMessage="Occupied by sample: {sampleCode}{cugSuffix}"
+                              defaultMessage="Occupied by sample: {sampleCode}"
                               values={{
                                 sampleCode:
                                   selectedCoordinateSampleCode || "N/A",
-                                cugSuffix: selectedCoordinateSampleCug
-                                  ? ` (CUG: ${selectedCoordinateSampleCug})`
-                                  : "",
                               }}
                             />
                           </p>

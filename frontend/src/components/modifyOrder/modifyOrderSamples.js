@@ -6,11 +6,6 @@ const createSampleXmlDefaults = () => ({
   rejected: false,
   rejectionReason: "",
   collectionTime: "",
-  cug: "",
-  cugAutoReserved: "",
-  cugValidationMessage: "",
-  cugReservationToken: "",
-  cugReservationContextId: "",
   additionalFieldValues: {},
 });
 
@@ -124,10 +119,6 @@ export const buildSamplesFromOrder = (orderFormValues) => {
     }
     if (!group.sampleTypeId) {
       group.sampleTypeId = resolveSampleTypeId(row);
-    }
-    if (!group.sampleXML.cug && row?.cugCode) {
-      group.sampleXML.cug = normalizeValue(row.cugCode);
-      group.sampleXML.cugAutoReserved = normalizeValue(row.cugCode);
     }
     if (!group.sampleXML.collectionDate && row?.collectionDate) {
       group.sampleXML.collectionDate = normalizeValue(row.collectionDate);
@@ -262,12 +253,6 @@ const buildSampleXml = (samples) => {
     const gpsLongitude = sampleItem.sampleXML?.gpsLongitude || "";
     const gpsAccuracy = sampleItem.sampleXML?.gpsAccuracy || "";
     const gpsCaptureMethod = sampleItem.sampleXML?.gpsCaptureMethod || "";
-    const cugCode = sampleItem.sampleXML?.cug || "";
-    const cugReservationToken =
-      sampleItem.sampleXML?.cugReservationToken || "";
-    const cugReservationContextId =
-      sampleItem.sampleXML?.cugReservationContextId || "";
-
     const additionalFieldValues =
       sampleItem.sampleXML?.additionalFieldValues || {};
     const additionalFieldEntries = Object.entries(additionalFieldValues)
@@ -288,7 +273,7 @@ const buildSampleXml = (samples) => {
       })
       .join("");
 
-    sampleXmlString += `<sample sampleID='${escapeXmlAttribute(sampleItem.sampleTypeId)}' date='${escapeXmlAttribute(sampleItem.sampleXML?.collectionDate)}' time='${escapeXmlAttribute(sampleItem.sampleXML?.collectionTime)}' collector='${escapeXmlAttribute(sampleItem.sampleXML?.collector)}' quantity='${escapeXmlAttribute(sampleItem.sampleXML?.quantity)}' uom='${escapeXmlAttribute(sampleItem.sampleXML?.uom)}' tests='${escapeXmlAttribute(tests)}' testSectionMap='' testSampleTypeMap='' panels='${escapeXmlAttribute(panels)}' rejected='${escapeXmlAttribute(sampleItem.sampleXML?.rejected)}' rejectReasonId='${escapeXmlAttribute(sampleItem.sampleXML?.rejectionReason)}' cug='${escapeXmlAttribute(cugCode)}' cugReservationToken='${escapeXmlAttribute(cugReservationToken)}' cugReservationContextId='${escapeXmlAttribute(cugReservationContextId)}' initialConditionIds='' storageLocationId='${escapeXmlAttribute(storageLocationId)}' storageLocationType='${escapeXmlAttribute(storageLocationType)}' storagePositionCoordinate='${escapeXmlAttribute(storagePositionCoordinate)}' gpsLatitude='${escapeXmlAttribute(gpsLatitude)}' gpsLongitude='${escapeXmlAttribute(gpsLongitude)}' gpsAccuracy='${escapeXmlAttribute(gpsAccuracy)}' gpsCaptureMethod='${escapeXmlAttribute(gpsCaptureMethod)}'>`;
+    sampleXmlString += `<sample sampleID='${escapeXmlAttribute(sampleItem.sampleTypeId)}' date='${escapeXmlAttribute(sampleItem.sampleXML?.collectionDate)}' time='${escapeXmlAttribute(sampleItem.sampleXML?.collectionTime)}' collector='${escapeXmlAttribute(sampleItem.sampleXML?.collector)}' quantity='${escapeXmlAttribute(sampleItem.sampleXML?.quantity)}' uom='${escapeXmlAttribute(sampleItem.sampleXML?.uom)}' tests='${escapeXmlAttribute(tests)}' testSectionMap='' testSampleTypeMap='' panels='${escapeXmlAttribute(panels)}' rejected='${escapeXmlAttribute(sampleItem.sampleXML?.rejected)}' rejectReasonId='${escapeXmlAttribute(sampleItem.sampleXML?.rejectionReason)}' initialConditionIds='' storageLocationId='${escapeXmlAttribute(storageLocationId)}' storageLocationType='${escapeXmlAttribute(storageLocationType)}' storagePositionCoordinate='${escapeXmlAttribute(storagePositionCoordinate)}' gpsLatitude='${escapeXmlAttribute(gpsLatitude)}' gpsLongitude='${escapeXmlAttribute(gpsLongitude)}' gpsAccuracy='${escapeXmlAttribute(gpsAccuracy)}' gpsCaptureMethod='${escapeXmlAttribute(gpsCaptureMethod)}'>`;
     if (additionalFieldEntries !== "") {
       sampleXmlString += `<additionalFields>${additionalFieldEntries}</additionalFields>`;
     }

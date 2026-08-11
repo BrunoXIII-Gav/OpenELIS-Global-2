@@ -910,7 +910,7 @@ const getResultBlockTitles = (data, intl) => {
 };
 
 const getTubeLabelBasePrefix = (data) =>
-  String(data?.cugCode || data?.accessionNumber || "")
+  String(data?.accessionNumber || "")
     .trim()
     .replace(/\.+$/, "");
 
@@ -1048,15 +1048,15 @@ export function SearchResultForm(props) {
           return;
         }
 
-        const normalizedCug = getTubeLabelBasePrefix(item);
-        if (!normalizedCug) {
+        const normalizedLabelPrefix = getTubeLabelBasePrefix(item);
+        if (!normalizedLabelPrefix) {
           return;
         }
 
         const nextTubeLabels = { ...(item.tubeLabels || {}) };
         let hasUpdates = false;
         let nextSuffix = getNextTubeLabelSuffix(
-          normalizedCug,
+          normalizedLabelPrefix,
           getConfiguredTubeLabelMap(item, intl),
         );
         if (!Number.isFinite(nextSuffix)) {
@@ -1080,7 +1080,7 @@ export function SearchResultForm(props) {
                 normalizeBlockIdentifier(title) === normalizedBlockTitle,
             ) || normalizedBlockTitle;
 
-          nextTubeLabels[blockTitle] = `${normalizedCug}.${nextSuffix}`;
+          nextTubeLabels[blockTitle] = `${normalizedLabelPrefix}.${nextSuffix}`;
           nextSuffix += 1;
           hasUpdates = true;
         });
@@ -1847,14 +1847,14 @@ export function SearchResults(props) {
         return row;
       }
 
-      const normalizedCug = getTubeLabelBasePrefix(row);
-      if (!normalizedCug) {
+      const normalizedLabelPrefix = getTubeLabelBasePrefix(row);
+      if (!normalizedLabelPrefix) {
         return row;
       }
 
       const nextTubeLabels = { ...(row.tubeLabels || {}) };
       let nextSuffix = getNextTubeLabelSuffix(
-        normalizedCug,
+        normalizedLabelPrefix,
         getConfiguredTubeLabelMap(row, intl),
       );
       if (!Number.isFinite(nextSuffix)) {
@@ -1879,7 +1879,7 @@ export function SearchResults(props) {
               normalizeBlockIdentifier(title) === normalizedBlockTitle,
           ) || normalizedBlockTitle;
 
-        nextTubeLabels[blockTitle] = `${normalizedCug}.${nextSuffix}`;
+        nextTubeLabels[blockTitle] = `${normalizedLabelPrefix}.${nextSuffix}`;
         nextSuffix += 1;
         rowUpdated = true;
       });
@@ -2090,7 +2090,7 @@ export function SearchResults(props) {
     console.debug("renderCell: index: " + index + ", id: " + id);
     switch (column.id) {
       case "sampleInfo": {
-        const sampleCode = row.cugCode || row.accessionNumber;
+        const sampleCode = row.accessionNumber;
         // return <input id={"results_" + id} type="text" size="6"></input>
         return (
           <>
@@ -2977,7 +2977,7 @@ export function SearchResults(props) {
       return null;
     }
 
-    const normalizedCug = getTubeLabelBasePrefix(data);
+    const normalizedLabelPrefix = getTubeLabelBasePrefix(data);
     const draftValue =
       tubeLabelDraftsByRowId?.[data.id]?.[blockTitle] ??
       data?.tubeLabels?.[blockTitle] ??

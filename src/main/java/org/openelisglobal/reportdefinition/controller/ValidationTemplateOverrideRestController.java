@@ -418,7 +418,6 @@ public class ValidationTemplateOverrideRestController extends BaseRestController
         addSourceOption(options, "foreignId", "Foreigner Card");
         addSourceOption(options, "nationalId", "National ID");
         addSourceOption(options, "subjectNumber", "HC / Subject Number");
-        addSourceOption(options, "sampleCug", "CUG");
         addSourceOption(options, "accessionNumber", "Accession Number");
         addSourceOption(options, "gender", "Gender");
         addSourceOption(options, "dob", "Birth Date");
@@ -619,7 +618,6 @@ public class ValidationTemplateOverrideRestController extends BaseRestController
         fields.add(defaultField("patientName", "PATIENT", "APELLIDOS Y NOMBRES", "patientName", 10));
         fields.add(defaultField("dni", "PATIENT", "DNI", "dni", 20));
         fields.add(defaultField("hc", "PATIENT", "HC", "subjectNumber", 30));
-        fields.add(defaultField("cug", "PATIENT", "CUG", "sampleCug", 40));
         fields.add(defaultField("gender", "PATIENT", "GENERO", "gender", 50));
         fields.add(defaultField("birthDate", "PATIENT", "FECHA DE NACIMIENTO", "dob", 60));
         fields.add(defaultField("contact", "PATIENT", "CONTACTO", "patientSiteNumber", 70));

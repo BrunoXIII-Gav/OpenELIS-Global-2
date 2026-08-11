@@ -363,20 +363,16 @@ public class LogbookResultsRestController extends LogbookResultsBaseController {
             } else if (!GenericValidator.isBlankOrNull(form.getAccessionNumber())
                     || !GenericValidator.isBlankOrNull(patientPK)) {
                 tests.clear();
-                String searchValue = StringUtils.trimToNull(labNumber);
-                SampleItem cugSampleItem = resolveSampleItemByCugCode(searchValue);
                 if (doRange) {
                     tests = resultsLoadUtility.getUnfinishedTestResultItemsByAccession(labNumber,
                             upperRangeAccessionNumber, doRange, finished);
                     if (tests.isEmpty() && StringUtils.isBlank(upperRangeAccessionNumber)
                             && StringUtils.isNotBlank(labNumber)) {
-                        Sample sample = cugSampleItem != null ? cugSampleItem.getSample()
-                                : resolveSampleByAccessionOrSearchableValue(labNumber);
+                        Sample sample = resolveSampleByAccessionOrSearchableValue(labNumber);
                         if (sample != null && !GenericValidator.isBlankOrNull(sample.getId())) {
                             form.setAccessionNumber(sample.getAccessionNumber());
                             patient = getPatient(sample);
                             tests = resultsLoadUtility.getGroupedTestsForSample(sample, patient);
-                            tests = filterTestsBySampleItem(tests, cugSampleItem);
                             if (patient != null) {
                                 patientName = patientService.getLastFirstName(patient);
                                 patientInfo = patient.getNationalId() + ", " + patient.getGender() + ", "
@@ -384,13 +380,11 @@ public class LogbookResultsRestController extends LogbookResultsBaseController {
                             }
                         }
                     }
-                    tests = filterTestsBySampleItem(tests, cugSampleItem);
                 } else {
                     resultsLoadUtility.setLockCurrentResults(modifyResultsRoleBased() && userNotInRole(request));
                     LogEvent.logInfo(this.getClass().getSimpleName(), "getLogbookResults",
                             "Searching for sample with search value: " + labNumber);
-                    Sample sample = cugSampleItem != null ? cugSampleItem.getSample()
-                            : resolveSampleByAccessionOrSearchableValue(labNumber);
+                    Sample sample = resolveSampleByAccessionOrSearchableValue(labNumber);
                     if (sample != null) {
                         LogEvent.logInfo(this.getClass().getSimpleName(), "getLogbookResults", "Found sample: id="
                                 + sample.getId() + ", accessionNumber=" + sample.getAccessionNumber());
@@ -399,7 +393,6 @@ public class LogbookResultsRestController extends LogbookResultsBaseController {
                             patient = getPatient(sample);
 
                             tests = resultsLoadUtility.getGroupedTestsForSample(sample, patient);
-                            tests = filterTestsBySampleItem(tests, cugSampleItem);
                             LogEvent.logInfo(this.getClass().getSimpleName(), "getLogbookResults",
                                     "getGroupedTestsForSample returned " + tests.size() + " tests for sample "
                                             + sample.getId());
@@ -2027,14 +2020,6 @@ public class LogbookResultsRestController extends LogbookResultsBaseController {
 
     private Patient getPatient(Sample sample) {
         return sampleHumanService.getPatientForSample(sample);
-    }
-
-    private SampleItem resolveSampleItemByCugCode(String accessionOrSearchTerm) {
-        String searchValue = accessionOrSearchTerm == null ? null : accessionOrSearchTerm.trim();
-        if (StringUtils.isBlank(searchValue)) {
-            return null;
-        }
-        return sampleItemService.findSampleItemByCugCode(searchValue);
     }
 
     private List<TestResultItem> filterTestsBySampleItem(List<TestResultItem> tests, SampleItem sampleItem) {

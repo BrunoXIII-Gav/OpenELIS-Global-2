@@ -11,8 +11,6 @@ const EditSample = (props) => {
     samples,
     setSamples,
     error,
-    patientId,
-    patientNationalId,
     onRemoveExistingSample,
   } = props;
 
@@ -117,14 +115,6 @@ const EditSample = (props) => {
     };
   }, []);
 
-  const normalizedPatientId = String(patientId || "").trim();
-  const normalizedPatientNationalId = String(patientNationalId || "").trim();
-  const canGenerateCug =
-    normalizedPatientId !== "" && normalizedPatientNationalId !== "";
-  const patientCugKey = [normalizedPatientId, normalizedPatientNationalId].join(
-    "|",
-  );
-
   return (
     <>
       <h3>
@@ -155,15 +145,8 @@ const EditSample = (props) => {
                     sample={sample}
                     sampleTypeObject={sampleTypeObject}
                     error={error}
-                    patientId={normalizedPatientId}
-                    canGenerateCug={canGenerateCug}
-                    patientCugKey={patientCugKey}
                     disableSampleTypeSelection={!!sample?.existingSampleItemId}
                     lockedTestIds={sample?.lockedTestIds || []}
-                    existingCugs={(samples || [])
-                      .filter((_, sampleIndex) => sampleIndex !== index)
-                      .map((entry) => entry?.sampleXML?.cug)
-                      .filter(Boolean)}
                   />
                 </div>
               );

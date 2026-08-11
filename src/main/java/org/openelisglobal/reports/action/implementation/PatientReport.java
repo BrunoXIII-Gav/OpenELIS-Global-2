@@ -1066,8 +1066,6 @@ public abstract class PatientReport extends Report {
             data.setOrderDate(DateUtil
                     .convertTimestampToStringDateAndConfiguredHourTime(sampleService.getOrderedDate(currentSample)));
             data.setSampleId(sampleService.getAccessionNumber(currentSample) + "-" + data.getSampleSortOrder());
-            data.setSampleCug(
-                    currentAnalysis.getSampleItem() == null ? null : currentAnalysis.getSampleItem().getCugCode());
             data.setSampleType(analysisService.getTypeOfSample(currentAnalysis).getLocalizedName());
             data.setCollectionDateTime(DateUtil.convertTimestampToStringDateAndConfiguredHourTime(
                     currentAnalysis.getSampleItem().getCollectionDate()));

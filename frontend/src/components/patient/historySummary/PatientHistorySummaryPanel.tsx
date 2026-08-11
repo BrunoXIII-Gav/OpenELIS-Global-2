@@ -85,7 +85,6 @@ type PatientHistorySample = {
   accessionNumber: string;
   clinicalOrderId: string;
   sampleItemExternalId: string;
-  cugCode: string;
   sampleType: string;
   collectionDate: string;
   status: string;
@@ -109,7 +108,6 @@ type PatientHistoryResult = {
   id: string;
   accessionNumber: string;
   clinicalOrderId: string;
-  cugCode: string;
   sampleType: string;
   collectionDate: string;
   sampleStatus: string;
@@ -183,7 +181,6 @@ const ORDER_FIXED_FIELD_LABEL_MESSAGE_IDS: Record<string, string> = {
 };
 
 const SAMPLE_FIXED_FIELD_LABEL_MESSAGE_IDS: Record<string, string> = {
-  cugCode: "sample.cug.label",
   quantity: "sample.quantity.label",
   uom: "sample.uom.label",
   collector: "collector.label",
@@ -195,7 +192,6 @@ const DETAIL_LABEL_MESSAGE_IDS: Record<string, string> = {
   accessionNumber: "patientHistory.table.accessionNumber",
   clinicalOrderId: "patientHistory.table.clinicalOrderId",
   sampleItemExternalId: "patientHistory.table.sampleIdentifier",
-  cugCode: "patientHistory.table.cugCode",
   sampleType: "patientHistory.table.sampleType",
   collectionDate: "patientHistory.table.collectionDate",
   status: "patientHistory.table.status",
@@ -593,7 +589,6 @@ const PatientHistorySummaryPanel: React.FC<{ patientId: string }> = ({
             sample.accessionNumber,
             sample.clinicalOrderId,
             sample.sampleItemExternalId,
-            sample.cugCode,
             sample.sampleType,
             sample.status,
           ],
@@ -614,7 +609,6 @@ const PatientHistorySummaryPanel: React.FC<{ patientId: string }> = ({
               sample.accessionNumber,
               sample.clinicalOrderId,
               sample.sampleItemExternalId,
-              sample.cugCode,
               sample.sampleType,
               sample.storageLocation,
               sample.storagePositionCoordinate,
@@ -634,7 +628,6 @@ const PatientHistorySummaryPanel: React.FC<{ patientId: string }> = ({
           [
             result.accessionNumber,
             result.clinicalOrderId,
-            result.cugCode,
             result.sampleType,
             result.sampleStatus,
             result.testName,
@@ -752,11 +745,6 @@ const PatientHistorySummaryPanel: React.FC<{ patientId: string }> = ({
   const sampleColumns = useMemo<Column<PatientHistorySample>[]>(
     () => [
       {
-        key: "cugCode",
-        header: intl.formatMessage({ id: "patientHistory.table.cugCode" }),
-        render: (row) => row.cugCode || "-",
-      },
-      {
         key: "accessionNumber",
         header: intl.formatMessage({
           id: "patientHistory.table.accessionNumber",
@@ -799,11 +787,6 @@ const PatientHistorySummaryPanel: React.FC<{ patientId: string }> = ({
         render: (row) => row.accessionNumber || "-",
       },
       {
-        key: "cugCode",
-        header: intl.formatMessage({ id: "patientHistory.table.cugCode" }),
-        render: (row) => row.cugCode || "-",
-      },
-      {
         key: "testName",
         header: intl.formatMessage({ id: "patientHistory.table.testName" }),
         render: (row) => row.testName || "-",
@@ -824,11 +807,6 @@ const PatientHistorySummaryPanel: React.FC<{ patientId: string }> = ({
 
   const storageColumns = useMemo<Column<PatientHistorySample>[]>(
     () => [
-      {
-        key: "cugCode",
-        header: intl.formatMessage({ id: "patientHistory.table.cugCode" }),
-        render: (row) => row.cugCode || "-",
-      },
       {
         key: "accessionNumber",
         header: intl.formatMessage({

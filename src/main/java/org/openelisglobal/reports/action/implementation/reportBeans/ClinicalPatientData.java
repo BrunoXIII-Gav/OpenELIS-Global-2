@@ -37,7 +37,6 @@ public final class ClinicalPatientData {
     private String conclusion;
     private String finishDate;
     private String accessionNumber;
-    private String sampleCug;
     private String receivedDate;
     private String testDate;
     private String referralSentDate;
@@ -119,7 +118,6 @@ public final class ClinicalPatientData {
         conclusion = data.getConclusion();
         finishDate = data.getFinishDate();
         accessionNumber = data.getAccessionNumber();
-        sampleCug = data.getSampleCug();
         receivedDate = data.getReceivedDate();
         testDate = data.getTestDate();
         referralSentDate = data.getReferralSentDate();
@@ -211,14 +209,6 @@ public final class ClinicalPatientData {
 
     public void setAccessionNumber(String accessionNumber) {
         this.accessionNumber = accessionNumber;
-    }
-
-    public String getSampleCug() {
-        return sampleCug;
-    }
-
-    public void setSampleCug(String sampleCug) {
-        this.sampleCug = sampleCug;
     }
 
     public String getPatientName() {

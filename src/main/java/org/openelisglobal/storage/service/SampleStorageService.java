@@ -19,7 +19,7 @@ public interface SampleStorageService {
      * All relationships are eagerly fetched within the service transaction.
      * 
      * @return List of maps, each containing: id, sampleItemId,
-     *         sampleItemExternalId, cugCode, sampleAccessionNumber, type, status,
+     *         sampleItemExternalId, sampleAccessionNumber, type, status,
      *         location, assignedBy, date
      */
     List<Map<String, Object>> getAllSamplesWithAssignments();

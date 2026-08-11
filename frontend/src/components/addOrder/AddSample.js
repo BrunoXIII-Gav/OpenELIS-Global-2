@@ -19,31 +19,10 @@ const buildEmptySample = (index) => ({
 });
 
 const AddSample = (props) => {
-  const { samples, setSamples, error, orderFormValues } = props;
+  const { samples, setSamples, error } = props;
   const componentMounted = useRef(false);
 
   const [rejectSampleReasons, setRejectSampleReasons] = useState([]);
-  const patientUpdateStatus = String(
-    orderFormValues?.patientProperties?.patientUpdateStatus ||
-      orderFormValues?.patientUpdateStatus ||
-      "ADD",
-  ).toUpperCase();
-  const patientProperties = orderFormValues?.patientProperties || {};
-  const patientPk = String(patientProperties?.patientPK || "").trim();
-  const patientNationalId = String(patientProperties?.nationalId || "").trim();
-
-  const canGenerateCug =
-    patientNationalId !== "" &&
-    ((patientUpdateStatus === "UPDATE" && patientPk !== "") ||
-      patientUpdateStatus === "ADD");
-
-  const patientIdForCug =
-    patientUpdateStatus === "UPDATE" && patientPk !== "" ? patientPk : "";
-  const patientCugKey = [
-    patientUpdateStatus,
-    patientPk,
-    patientNationalId,
-  ].join("|");
 
   const handleAddNewSample = () => {
     setSamples((previous) => {
@@ -185,13 +164,6 @@ const AddSample = (props) => {
                     }}
                     sampleTypeObject={sampleTypeObject}
                     error={error}
-                    patientId={patientIdForCug}
-                    canGenerateCug={canGenerateCug}
-                    patientCugKey={patientCugKey}
-                    existingCugs={(samples || [])
-                      .filter((_, sampleIndex) => sampleIndex !== i)
-                      .map((entry) => entry?.sampleXML?.cug)
-                      .filter(Boolean)}
                   />
                 </div>
               );

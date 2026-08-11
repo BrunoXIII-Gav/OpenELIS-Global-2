@@ -140,7 +140,8 @@ public class PatientDmpkReport extends PatientCILNSPClinical_vreduit {
         fixedFieldValues.put("patientName", first == null ? "" : StringUtils.defaultString(first.getPatientName()));
         fixedFieldValues.put("dni", first == null ? "" : StringUtils.defaultString(first.getDni()));
         fixedFieldValues.put("hc", first == null ? "" : StringUtils.defaultString(first.getSubjectNumber()));
-        fixedFieldValues.put("cug", first == null ? "" : StringUtils.defaultString(first.getSampleCug()));
+        fixedFieldValues.put("accessionNumber",
+                first == null ? "" : StringUtils.defaultString(first.getAccessionNumber()));
         fixedFieldValues.put("gender", first == null ? "" : StringUtils.defaultString(first.getGender()));
         fixedFieldValues.put("birthDate", first == null ? "" : formatDateStringForReport(first.getDob()));
         fixedFieldValues.put("contact", first == null ? "" : StringUtils.defaultString(first.getPatientSiteNumber()));
@@ -163,7 +164,7 @@ public class PatientDmpkReport extends PatientCILNSPClinical_vreduit {
         Map<String, String> fixedFieldLabels = new HashMap<>();
         fixedFieldLabels.put("dni", "DNI");
         fixedFieldLabels.put("hc", "HC");
-        fixedFieldLabels.put("cug", "CUG");
+        fixedFieldLabels.put("accessionNumber", "ACC. NUMBER");
         fixedFieldLabels.put("gender", "GENERO");
         fixedFieldLabels.put("birthDate", "FECHA DE NACIMIENTO");
         fixedFieldLabels.put("contact", "CONTACTO");
@@ -184,7 +185,7 @@ public class PatientDmpkReport extends PatientCILNSPClinical_vreduit {
         reportParameters.put("dmpkPatientName", fixedFieldValues.get("patientName"));
         reportParameters.put("dmpkDni", fixedFieldValues.get("dni"));
         reportParameters.put("dmpkHc", fixedFieldValues.get("hc"));
-        reportParameters.put("dmpkCug", fixedFieldValues.get("cug"));
+        reportParameters.put("dmpkAccessionNumber", fixedFieldValues.get("accessionNumber"));
         reportParameters.put("dmpkGender", fixedFieldValues.get("gender"));
         reportParameters.put("dmpkBirthDate", fixedFieldValues.get("birthDate"));
         reportParameters.put("dmpkContact", fixedFieldValues.get("contact"));
@@ -221,7 +222,7 @@ public class PatientDmpkReport extends PatientCILNSPClinical_vreduit {
 
         reportParameters.put("dmpkLabelDni", fixedFieldLabels.get("dni"));
         reportParameters.put("dmpkLabelHc", fixedFieldLabels.get("hc"));
-        reportParameters.put("dmpkLabelCug", fixedFieldLabels.get("cug"));
+        reportParameters.put("dmpkLabelAccessionNumber", fixedFieldLabels.get("accessionNumber"));
         reportParameters.put("dmpkLabelGender", fixedFieldLabels.get("gender"));
         reportParameters.put("dmpkLabelBirthDate", fixedFieldLabels.get("birthDate"));
         reportParameters.put("dmpkLabelContact", fixedFieldLabels.get("contact"));
@@ -257,9 +258,6 @@ public class PatientDmpkReport extends PatientCILNSPClinical_vreduit {
             }
             String normalizedKey = normalizeFixedFieldKey(field.key, field.source);
             String sourceKey = field.source;
-            if ("cug".equalsIgnoreCase(normalizedKey) && "accessionNumber".equalsIgnoreCase(sourceKey)) {
-                sourceKey = "sampleCug";
-            }
             if ("dni".equalsIgnoreCase(normalizedKey) && "subjectNumber".equalsIgnoreCase(sourceKey)) {
                 sourceKey = "nationalId";
             }
@@ -359,9 +357,6 @@ public class PatientDmpkReport extends PatientCILNSPClinical_vreduit {
         }
         if ("subjectNumber".equalsIgnoreCase(normalized)) {
             return first == null ? "" : StringUtils.defaultString(first.getSubjectNumber());
-        }
-        if ("sampleCug".equalsIgnoreCase(normalized)) {
-            return first == null ? "" : StringUtils.defaultString(first.getSampleCug());
         }
         if ("accessionNumber".equalsIgnoreCase(normalized)) {
             return first == null ? "" : StringUtils.defaultString(first.getAccessionNumber());

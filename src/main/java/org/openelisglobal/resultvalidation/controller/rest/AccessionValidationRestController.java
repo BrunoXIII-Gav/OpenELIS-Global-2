@@ -210,15 +210,11 @@ public class AccessionValidationRestController extends BaseResultValidationContr
             if (!(GenericValidator.isBlankOrNull(form.getTestSectionId())
                     && GenericValidator.isBlankOrNull(form.getAccessionNumber())
                     && GenericValidator.isBlankOrNull(form.getTestDate()))) {
-                String searchValue = StringUtils.trimToNull(form.getAccessionNumber());
-                SampleItem cugSampleItem = resolveSampleItemByCugCode(searchValue);
-
                 if (doRange) {
                     resultList = resultsValidationUtility.getResultValidationList(getValidationStatus(),
                             form.getTestSectionId(), form.getAccessionNumber(), form.getTestDate());
                     if (resultList.isEmpty() && StringUtils.isNotBlank(form.getAccessionNumber())) {
-                        Sample sample = cugSampleItem != null ? cugSampleItem.getSample()
-                                : getSample(form.getAccessionNumber());
+                        Sample sample = getSample(form.getAccessionNumber());
                         if (sample != null) {
                             resultList = resultsValidationUtility
                                     .getValidationAnalysisBySampleIncludingValidated(sample, getValidationStatus());
@@ -226,8 +222,7 @@ public class AccessionValidationRestController extends BaseResultValidationContr
                     }
                 } else {
                     if (StringUtils.isNotBlank(form.getAccessionNumber())) {
-                        Sample sample = cugSampleItem != null ? cugSampleItem.getSample()
-                                : getSample(form.getAccessionNumber());
+                        Sample sample = getSample(form.getAccessionNumber());
                         if (sample == null) {
                             setEmptyResults(form);
                             return form;
@@ -237,8 +232,6 @@ public class AccessionValidationRestController extends BaseResultValidationContr
                         }
                     }
                 }
-                resultList = filterAnalysisItemsBySampleItem(resultList, cugSampleItem);
-
                 filteredresultList = filterAnalysisResultsByValidationRoles(currentUserId, resultList);
                 request.setAttribute("pageSize", filteredresultList.size());
                 form.setSearchFinished(true);
@@ -763,33 +756,6 @@ public class AccessionValidationRestController extends BaseResultValidationContr
             sample = sampleService.getSampleByAccessionNumber(searchValue.substring(0, searchValue.indexOf('-')));
         }
         return sample;
-    }
-
-    private SampleItem resolveSampleItemByCugCode(String accessionOrSearchTerm) {
-        String searchValue = accessionOrSearchTerm == null ? null : accessionOrSearchTerm.trim();
-        if (StringUtils.isBlank(searchValue)) {
-            return null;
-        }
-        return sampleItemService.findSampleItemByCugCode(searchValue);
-    }
-
-    private List<AnalysisItem> filterAnalysisItemsBySampleItem(List<AnalysisItem> resultList, SampleItem sampleItem) {
-        if (sampleItem == null || StringUtils.isBlank(sampleItem.getCugCode()) || resultList == null
-                || resultList.isEmpty()) {
-            return resultList;
-        }
-
-        String targetCug = sampleItem.getCugCode().trim();
-        List<AnalysisItem> filtered = new ArrayList<>();
-        for (AnalysisItem item : resultList) {
-            if (item == null) {
-                continue;
-            }
-            if (StringUtils.equalsIgnoreCase(StringUtils.trimToEmpty(item.getCugCode()), targetCug)) {
-                filtered.add(item);
-            }
-        }
-        return filtered;
     }
 
     private Patient getPatient(Sample sample) {

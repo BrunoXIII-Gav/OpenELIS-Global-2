@@ -1,7 +1,6 @@
 package org.openelisglobal.sample.validator;
 
 import java.util.Iterator;
-import java.util.regex.Pattern;
 import org.apache.commons.validator.GenericValidator;
 import org.dom4j.Document;
 import org.dom4j.DocumentException;
@@ -20,8 +19,6 @@ import org.springframework.validation.Validator;
 
 @Component
 public class SampleEditFormValidator implements Validator {
-    private static final Pattern CUG_PATTERN = Pattern.compile("^.+\\.\\d+$");
-
     @Override
     public boolean supports(Class<?> clazz) {
         return SampleEditForm.class.isAssignableFrom(clazz);
@@ -111,15 +108,6 @@ public class SampleEditFormValidator implements Validator {
         ValidationHelper.validateIdField(sampleId, "sampleXML", "sampleXML sampleID", errors, true);
         if (errors.hasErrors()) {
             return;
-        }
-
-        String cugCode = sampleItem.attributeValue("cug");
-        if (GenericValidator.isBlankOrNull(cugCode)) {
-            errors.reject("sample.cug.required");
-            return;
-        }
-        if (!CUG_PATTERN.matcher(cugCode.trim()).matches()) {
-            errors.reject("sample.cug.invalid.format");
         }
     }
 }

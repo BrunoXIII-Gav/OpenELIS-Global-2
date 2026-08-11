@@ -49,7 +49,6 @@ public class ConsentTemplateServiceImpl implements ConsentTemplateService {
     private static final String TEMPLATE_RESOURCE = "reports/consent/consent-template.pdf";
 
     private static final String FIELDS_KEY = "fields";
-    private static final String FIELD_CUG = "cug";
     private static final String FIELD_PATIENT_NAME = "patientName";
     private static final String FIELD_PATIENT_DNI = "patientDni";
     private static final String FIELD_PROVIDER_NAME = "providerName";
@@ -63,21 +62,12 @@ public class ConsentTemplateServiceImpl implements ConsentTemplateService {
     private static final String SOURCE_PROVIDER_DNI = "provider.dni";
     private static final String SOURCE_ORDER_DATE = "order.date";
     private static final String SOURCE_TESTS_SELECTED = "tests.selectedNames";
-    private static final String SOURCE_SAMPLE_CUG = "sample.cug";
     private static final String SOURCE_ORDER_ADDITIONAL_PREFIX = "orderAdditional.";
 
     private static final float SMALL_TEXT_HEIGHT = 7.617357f;
     private static final float SMALL_TEXT_FONT_SIZE = 8f;
     private static final float SMALL_TEXT_CLEAR_WIDTH = 320f;
     private static final float SMALL_TEXT_CLEAR_PADDING = 1.5f;
-
-    private static final float CUG_X = 396.333452f;
-    private static final float CUG_Y_MIN = 69.538726f;
-    private static final float CUG_Y_MAX = 89.126219f;
-    private static final float CUG_FONT_SIZE = 18f;
-    private static final float CUG_CLEAR_WIDTH = 95f;
-    private static final float CUG_CLEAR_PADDING = 2f;
-    private static final BaseColor CUG_CLEAR_COLOR = new BaseColor(217, 217, 217);
 
     private static final float PATIENT_NAME_X = 137.090880f;
     private static final float PATIENT_NAME_Y_MAX = 538.113283f;
@@ -173,8 +163,6 @@ public class ConsentTemplateServiceImpl implements ConsentTemplateService {
             float pageHeight = reader.getPageSize(1).getHeight();
 
             PdfContentByte page1 = stamper.getOverContent(1);
-            clearAndDrawText(page1, baseFont, CUG_FONT_SIZE, CUG_X, CUG_Y_MIN, CUG_Y_MAX, CUG_CLEAR_WIDTH,
-                    CUG_CLEAR_PADDING, CUG_CLEAR_COLOR, pageHeight, values.cug);
             clearAndDrawText(page1, baseFont, SMALL_TEXT_FONT_SIZE, PATIENT_NAME_X,
                     PATIENT_NAME_Y_MAX - SMALL_TEXT_HEIGHT, PATIENT_NAME_Y_MAX, SMALL_TEXT_CLEAR_WIDTH,
                     SMALL_TEXT_CLEAR_PADDING, BaseColor.WHITE, pageHeight, values.patientName);
@@ -272,7 +260,6 @@ public class ConsentTemplateServiceImpl implements ConsentTemplateService {
 
     private Map<String, String> defaultFieldSources() {
         Map<String, String> defaults = new LinkedHashMap<>();
-        defaults.put(FIELD_CUG, SOURCE_ORDER_ADDITIONAL_PREFIX + "cug");
         defaults.put(FIELD_PATIENT_NAME, SOURCE_PATIENT_NAME);
         defaults.put(FIELD_PATIENT_DNI, SOURCE_PATIENT_NATIONAL_ID);
         defaults.put(FIELD_PROVIDER_NAME, SOURCE_PROVIDER_NAME);
@@ -310,7 +297,6 @@ public class ConsentTemplateServiceImpl implements ConsentTemplateService {
     private ResolvedConsentValues resolveValues(Map<String, String> fields, ConsentPreviewForm form) {
         Map<String, String> sources = fields == null ? defaultFieldSources() : fields;
         ResolvedConsentValues values = new ResolvedConsentValues();
-        values.cug = resolveValue(sources.get(FIELD_CUG), form);
         values.patientName = resolveValue(sources.get(FIELD_PATIENT_NAME), form);
         values.patientDni = resolveValue(sources.get(FIELD_PATIENT_DNI), form);
         values.providerName = resolveValue(sources.get(FIELD_PROVIDER_NAME), form);
@@ -338,9 +324,6 @@ public class ConsentTemplateServiceImpl implements ConsentTemplateService {
         }
         if (SOURCE_ORDER_DATE.equals(source)) {
             return formatDate(form.getOrderDate());
-        }
-        if (SOURCE_SAMPLE_CUG.equals(source) || "accessionNumber".equalsIgnoreCase(source)) {
-            return sanitizeValue(form.getCug());
         }
         if (source.startsWith(SOURCE_ORDER_ADDITIONAL_PREFIX)) {
             String key = source.substring(SOURCE_ORDER_ADDITIONAL_PREFIX.length());
@@ -531,7 +514,6 @@ public class ConsentTemplateServiceImpl implements ConsentTemplateService {
     }
 
     private static class ResolvedConsentValues {
-        private String cug;
         private String patientName;
         private String patientDni;
         private String providerName;

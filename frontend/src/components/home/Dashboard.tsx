@@ -600,28 +600,6 @@ const HomeDashBoard: React.FC<DashBoardProps> = () => {
           </>
         </TableCell>
       );
-    } else if (cell.info.header === "cugCode") {
-      const cugHref = buildTileHref(selectedTile.type, cell.value);
-      const shouldLink =
-        selectedTile.type == "ORDERS_IN_PROGRESS" ||
-        selectedTile.type == "AWAITING_SAMPLE" ||
-        selectedTile.type == "AWAITING_RESULTS" ||
-        selectedTile.type == "ORDERS_READY_FOR_VALIDATION";
-      return (
-        <TableCell key={cell.id}>
-          {cell.value ? (
-            shouldLink && cugHref ? (
-              <Link style={{ color: "blue" }} href={cugHref}>
-                <u>{cell.value}</u>
-              </Link>
-            ) : (
-              cell.value
-            )
-          ) : (
-            ""
-          )}
-        </TableCell>
-      );
     } else if (cell.info.header === "countOfOrdersEntered" && cell.value) {
       return (
         <TableCell key={cell.id}>
@@ -686,10 +664,6 @@ const HomeDashBoard: React.FC<DashBoardProps> = () => {
       header: <FormattedMessage id="eorder.labNumber" />,
     },
     {
-      key: "cugCode",
-      header: <FormattedMessage id="sample.management.table.header.cug" />,
-    },
-    {
       key: "testName",
       header: <FormattedMessage id="eorder.test.name" />,
     },
@@ -724,10 +698,6 @@ const HomeDashBoard: React.FC<DashBoardProps> = () => {
     {
       key: "labNumber",
       header: <FormattedMessage id="eorder.labNumber" />,
-    },
-    {
-      key: "cugCode",
-      header: <FormattedMessage id="sample.management.table.header.cug" />,
     },
     {
       key: "waitingCounter",

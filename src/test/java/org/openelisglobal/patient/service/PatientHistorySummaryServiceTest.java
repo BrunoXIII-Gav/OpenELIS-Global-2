@@ -88,7 +88,6 @@ public class PatientHistorySummaryServiceTest {
         SampleItem sampleItem = new SampleItem();
         sampleItem.setId("9001");
         sampleItem.setExternalId("LAB-501-1");
-        sampleItem.setCugCode("123.4");
         sampleItem.setCollectionDate(Timestamp.valueOf("2026-07-09 08:30:00"));
         sampleItem.setStatusId("sample-entered");
 

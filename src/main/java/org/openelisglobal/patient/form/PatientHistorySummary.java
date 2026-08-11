@@ -218,7 +218,6 @@ public class PatientHistorySummary {
         private String accessionNumber;
         private String clinicalOrderId;
         private String sampleItemExternalId;
-        private String cugCode;
         private String sampleType;
         private String collectionDate;
         private String status;
@@ -267,14 +266,6 @@ public class PatientHistorySummary {
 
         public void setSampleItemExternalId(String sampleItemExternalId) {
             this.sampleItemExternalId = sampleItemExternalId;
-        }
-
-        public String getCugCode() {
-            return cugCode;
-        }
-
-        public void setCugCode(String cugCode) {
-            this.cugCode = cugCode;
         }
 
         public String getSampleType() {
@@ -418,7 +409,6 @@ public class PatientHistorySummary {
         private String id;
         private String accessionNumber;
         private String clinicalOrderId;
-        private String cugCode;
         private String sampleType;
         private String collectionDate;
         private String sampleStatus;
@@ -458,14 +448,6 @@ public class PatientHistorySummary {
 
         public void setClinicalOrderId(String clinicalOrderId) {
             this.clinicalOrderId = clinicalOrderId;
-        }
-
-        public String getCugCode() {
-            return cugCode;
-        }
-
-        public void setCugCode(String cugCode) {
-            this.cugCode = cugCode;
         }
 
         public String getSampleType() {

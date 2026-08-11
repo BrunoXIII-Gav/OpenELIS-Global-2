@@ -7,7 +7,7 @@
 	<parameter name="dmpkPatientName" class="java.lang.String"/>
 	<parameter name="dmpkDni" class="java.lang.String"/>
 	<parameter name="dmpkHc" class="java.lang.String"/>
-	<parameter name="dmpkCug" class="java.lang.String"/>
+	<parameter name="dmpkAccessionNumber" class="java.lang.String"/>
 	<parameter name="dmpkGender" class="java.lang.String"/>
 	<parameter name="dmpkBirthDate" class="java.lang.String"/>
 	<parameter name="dmpkContact" class="java.lang.String"/>
@@ -127,14 +127,14 @@
 					<textElement textAlignment="Center" verticalAlignment="Middle">
 						<font size="11.0"/>
 					</textElement>
-					<text><![CDATA[CUG]]></text>
+					<text><![CDATA[ACC. NUMBER]]></text>
 				</staticText>
 				<textField isBlankWhenNull="true">
 					<reportElement x="586" y="144" width="224" height="18" uuid="8e85c8f0-2bdb-4b51-8996-6bb89a5998c5"/>
 					<textElement verticalAlignment="Middle">
 						<font size="11.0"/>
 					</textElement>
-					<textFieldExpression><![CDATA[$P{dmpkCug}]]></textFieldExpression>
+					<textFieldExpression><![CDATA[$P{dmpkAccessionNumber}]]></textFieldExpression>
 				</textField>
 				<staticText>
 					<reportElement x="8" y="168" width="60" height="18" uuid="b49a75d3-eaa0-4f4e-99c6-65515b8aaa5a"/>

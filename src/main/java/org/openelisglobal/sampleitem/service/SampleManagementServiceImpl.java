@@ -24,7 +24,6 @@ import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
 import java.util.stream.Collectors;
-import java.util.regex.Pattern;
 import org.apache.commons.validator.GenericValidator;
 import org.openelisglobal.analysis.service.AnalysisService;
 import org.openelisglobal.analysis.valueholder.Analysis;
@@ -74,8 +73,6 @@ import org.springframework.transaction.annotation.Transactional;
 @Service
 public class SampleManagementServiceImpl implements SampleManagementService {
 
-    private static final Pattern CUG_PATTERN = Pattern.compile("^.+\\.\\d+$");
-
     @Autowired
     private SampleService sampleService;
 
@@ -101,36 +98,20 @@ public class SampleManagementServiceImpl implements SampleManagementService {
     @Transactional(readOnly = true)
     public SearchSamplesResponse searchByAccessionNumber(String accessionNumber, boolean includeTests) {
         String searchValue = accessionNumber == null ? null : accessionNumber.trim();
-        // Step 1: Find sample by accession number (or CUG via SampleService fallback)
         Sample sample = sampleService.getSampleByAccessionNumber(searchValue);
-
-        // Step 2: If no sample found, return empty results
         if (sample == null) {
             return new SearchSamplesResponse(accessionNumber, new ArrayList<>(), 0);
         }
 
-        // If the search term is a CUG, only return that single sample item.
-        SampleItem searchedByCug = sampleItemDAO.findSampleItemByCugCode(searchValue);
-        List<SampleItem> sampleItems;
-        if (searchedByCug != null && searchedByCug.getSample() != null
-                && sample.getId().equals(searchedByCug.getSample().getId())) {
-            sampleItems = new ArrayList<>();
-            sampleItems.add(searchedByCug);
-        } else {
-            sampleItems = sampleItemDAO.getSampleItemsBySampleId(sample.getId());
-        }
+        List<SampleItem> sampleItems = sampleItemDAO.getSampleItemsBySampleId(sample.getId());
 
-        // Step 4: If hierarchy is needed, use getSampleItemsWithHierarchy for eager
-        // loading
         if (!sampleItems.isEmpty()) {
             List<String> sampleItemIds = sampleItems.stream().map(SampleItem::getId).collect(Collectors.toList());
             sampleItems = sampleItemDAO.getSampleItemsWithHierarchy(sampleItemIds);
         }
-        // Step 5: Convert entities to DTOs WITHIN transaction boundary
         List<SampleItemDTO> dtos = sampleItems.stream().map(item -> convertToDTO(item, includeTests))
                 .collect(Collectors.toList());
 
-        // Step 6: Return response with results
         return new SearchSamplesResponse(sample.getAccessionNumber(), dtos, dtos.size());
     }
 
@@ -256,7 +237,6 @@ public class SampleManagementServiceImpl implements SampleManagementService {
         // Basic fields
         dto.setId(sampleItem.getId());
         dto.setExternalId(sampleItem.getExternalId());
-        dto.setCugCode(sampleItem.getCugCode());
         dto.setSampleAccessionNumber(
                 sampleItem.getSample() != null ? sampleItem.getSample().getAccessionNumber() : null);
 
@@ -576,8 +556,6 @@ public class SampleManagementServiceImpl implements SampleManagementService {
     }
 
     private void applySampleItemCoreUpdates(SampleItem sampleItem, SaveSampleManagementChangesForm.SampleUpdate update) {
-        applyCugUpdate(sampleItem, update);
-
         if (GenericValidator.isBlankOrNull(update.getQuantity())) {
             sampleItem.setQuantity(null);
         } else {
@@ -600,27 +578,6 @@ public class SampleManagementServiceImpl implements SampleManagementService {
 
         sampleItem.setCollectionDate(parseCollectionTimestamp(update.getCollectionDate(), update.getCollectionTime()));
     }
-
-    private void applyCugUpdate(SampleItem sampleItem, SaveSampleManagementChangesForm.SampleUpdate update) {
-        String cugCode = GenericValidator.isBlankOrNull(update.getCugCode()) ? null : update.getCugCode().trim();
-        if (GenericValidator.isBlankOrNull(cugCode)) {
-            throw new IllegalArgumentException("CUG is required");
-        }
-        if (!CUG_PATTERN.matcher(cugCode).matches()) {
-            throw new IllegalArgumentException("Invalid CUG format");
-        }
-
-        String currentCugCode = GenericValidator.isBlankOrNull(sampleItem.getCugCode()) ? null
-                : sampleItem.getCugCode().trim();
-        if (currentCugCode == null || !currentCugCode.equalsIgnoreCase(cugCode)) {
-            if (sampleItemDAO.existsByCugCode(cugCode)) {
-                throw new IllegalArgumentException("CUG already exists");
-            }
-        }
-
-        sampleItem.setCugCode(cugCode);
-    }
-
     private Timestamp parseCollectionTimestamp(String dateValue, String timeValue) {
         if (GenericValidator.isBlankOrNull(dateValue)) {
             return null;

@@ -40,7 +40,6 @@ public class AnalysisItem implements Serializable {
 
     @ValidAccessionNumber(groups = { ResultValidationForm.ResultValidation.class })
     private String accessionNumber;
-    private String cugCode;
 
     private String patientName;
 
@@ -269,14 +268,6 @@ public class AnalysisItem implements Serializable {
 
     public String getAccessionNumber() {
         return accessionNumber;
-    }
-
-    public String getCugCode() {
-        return cugCode;
-    }
-
-    public void setCugCode(String cugCode) {
-        this.cugCode = cugCode;
     }
 
     public void setResult(String result) {

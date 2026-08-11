@@ -18,7 +18,6 @@ public class SampleAdditionalFieldServiceImpl implements SampleAdditionalFieldSe
 
     private static final List<FixedFieldDefault> FIXED_FIELD_DEFAULTS = List.of(
             new FixedFieldDefault("rejected", 10, false, false),
-            new FixedFieldDefault("cug", 15, true, true),
             new FixedFieldDefault("quantity", 20, false, false),
             new FixedFieldDefault("uom", 30, false, false),
             new FixedFieldDefault("collectionDate", 40, false, false),

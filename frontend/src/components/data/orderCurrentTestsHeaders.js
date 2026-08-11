@@ -10,10 +10,6 @@ export const OrderCurrentTestsHeaders = [
     header: <FormattedMessage id="sample.type" />,
   },
   {
-    key: "cugCode",
-    header: <FormattedMessage id="sample.cug.label" />,
-  },
-  {
     key: "quantity",
     header: <FormattedMessage id="sample.quantity.label" />,
   },

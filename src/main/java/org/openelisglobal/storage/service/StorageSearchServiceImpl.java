@@ -73,11 +73,6 @@ public class StorageSearchServiceImpl implements StorageSearchService {
             boolean matchesAccessionNumber = sampleAccessionNumber != null && !sampleAccessionNumber.isEmpty()
                     && sampleAccessionNumber.toLowerCase().contains(normalizedQuery);
 
-            // Search by CUG code (sample-level fixed code)
-            String cugCode = (String) sampleItem.get("cugCode");
-            boolean matchesCugCode = cugCode != null && !cugCode.isEmpty()
-                    && cugCode.toLowerCase().contains(normalizedQuery);
-
             // Search by Order Additional Field configured as searchable (exact match
             // semantics
             // from orderAdditionalFieldService) and include all sample items for that
@@ -92,7 +87,7 @@ public class StorageSearchServiceImpl implements StorageSearchService {
 
             // OR logic: matches if ANY field matches
             if (matchesSampleItemId || matchesExternalId || matchesAccessionNumber || matchesLocation
-                    || matchesSearchableOrderField || matchesCugCode) {
+                    || matchesSearchableOrderField) {
                 filtered.add(sampleItem);
             }
         }
