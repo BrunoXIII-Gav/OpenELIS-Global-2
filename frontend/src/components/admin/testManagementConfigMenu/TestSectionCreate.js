@@ -72,7 +72,7 @@ function TestSectionCreate() {
 
   const handleTestSectionCreateList = (res) => {
     if (!res) {
-      setIsLoading(true);
+      setIsLoading(false);
     } else {
       setTestSectionCreateList(res);
     }

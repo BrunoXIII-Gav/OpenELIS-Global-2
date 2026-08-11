@@ -74,7 +74,7 @@ function SampleTypeCreate() {
 
   const handleSampleTypeCreateList = (res) => {
     if (!res) {
-      setIsLoading(true);
+      setIsLoading(false);
     } else {
       setSampleTypeCreateList(res);
     }

@@ -146,8 +146,8 @@ function TestModifyEntry() {
     getFromOpenElisServer(`/rest/TestModifyEntry`, (res) => {
       if (res) {
         setTestModifyList(res);
-        setIsLoading(false);
       }
+      setIsLoading(false);
     });
     return () => {
       componentMounted.current = false;

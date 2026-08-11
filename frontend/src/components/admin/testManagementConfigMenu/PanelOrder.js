@@ -74,7 +74,7 @@ function PanelOrder() {
 
   const handlePanelOrderList = (res) => {
     if (!res) {
-      setIsLoading(true);
+      setIsLoading(false);
     } else {
       setPanelOrderList(res);
     }

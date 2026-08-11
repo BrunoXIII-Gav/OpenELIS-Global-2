@@ -81,7 +81,7 @@ function SampleTypeTestAssign() {
 
   const handleSampleTypeTestAssignList = (res) => {
     if (!res) {
-      setIsLoading(true);
+      setIsLoading(false);
     } else {
       setSampleTypeTestAssign(res);
     }

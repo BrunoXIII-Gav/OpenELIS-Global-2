@@ -77,7 +77,7 @@ function TestRenameEntry() {
 
   const handleTestNames = (res) => {
     if (!res) {
-      setIsLoading(true);
+      setIsLoading(false);
     } else {
       setTestNames(res);
       setTestNamesPost(res);
@@ -100,7 +100,7 @@ function TestRenameEntry() {
 
   const handleTestNamesLangs = (res) => {
     if (!res) {
-      setIsLoading(true);
+      setIsLoading(false);
     } else {
       setTestNamesLangs(res);
       setTestNamesLangsPost(res);

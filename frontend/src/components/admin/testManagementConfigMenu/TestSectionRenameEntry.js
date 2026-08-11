@@ -71,7 +71,7 @@ function TestSectionRenameEntry() {
 
   const handelTestSectionRename = (res) => {
     if (!res) {
-      setIsLoading(true);
+      setIsLoading(false);
     } else {
       setTestSectionName(res);
       setTestSectionPost(res);
@@ -90,7 +90,7 @@ function TestSectionRenameEntry() {
 
   const handelEntityNamesProvider = (res) => {
     if (!res) {
-      setIsLoading(true);
+      setIsLoading(false);
     } else {
       setEntityNamesProvider(res);
       setEntityNamesProviderPost(res);

@@ -222,10 +222,9 @@ public class UserServiceImpl implements UserService {
                 Boolean requireLabUnitAtLogin = ConfigurationProperties.getInstance()
                         .getPropertyValue(Property.REQUIRE_LAB_UNIT_AT_LOGIN).equals("true");
                 UserSessionData usd = (UserSessionData) session.getAttribute("userSessionData");
-                String adminRoleId = roleService.getRoleByName(Constants.ROLE_GLOBAL_ADMIN).getId();
-                Boolean isadmin = userRoleService.getRoleIdsForUser(systemUserId).contains(adminRoleId);
+                boolean hasGlobalTestSectionAccess = hasGlobalTestSectionAccess(systemUserId);
                 TestSection logintestSection = null;
-                if (requireLabUnitAtLogin && !isadmin) {
+                if (requireLabUnitAtLogin && !hasGlobalTestSectionAccess) {
                     if (usd.getLoginLabUnit() != 0) {
                         logintestSection = testSectionService.getTestSectionById(String.valueOf(usd.getLoginLabUnit()));
                         if (logintestSection != null) {
@@ -258,10 +257,11 @@ public class UserServiceImpl implements UserService {
                         "User " + systemUserId + " roleId=" + roleId + ", userLabUnits=" + userLabUnits);
                 List<IdValuePair> allTestSections = DisplayListService.getInstance()
                         .getList(ListType.TEST_SECTION_ACTIVE);
-                if (userLabUnits.contains(UnifiedSystemUserController.ALL_LAB_UNITS)) {
+                if (hasGlobalTestSectionAccess || userLabUnits.contains(UnifiedSystemUserController.ALL_LAB_UNITS)) {
                     org.openelisglobal.common.log.LogEvent.logInfo(this.getClass().getSimpleName(),
                             "getUserTestSections",
-                            "User has AllLabUnits, returning all " + allTestSections.size() + " test sections");
+                            "User has global or AllLabUnits access, returning all " + allTestSections.size()
+                                    + " test sections");
                     return allTestSections;
                 } else {
                     userTestSections = allTestSections.stream()
@@ -316,8 +316,7 @@ public class UserServiceImpl implements UserService {
     }
 
     private List<IdValuePair> getUserTestSectionsFromInternalLabRoles(String systemUserId, String roleId) {
-        String adminRoleId = roleService.getRoleByName(Constants.ROLE_GLOBAL_ADMIN).getId();
-        if (userRoleService.getRoleIdsForUser(systemUserId).contains(adminRoleId)) {
+        if (hasGlobalTestSectionAccess(systemUserId)) {
             return DisplayListService.getInstance().getList(ListType.TEST_SECTION_ACTIVE);
         }
 
@@ -337,6 +336,11 @@ public class UserServiceImpl implements UserService {
         }
         return allTestSections.stream().filter(testSection -> userLabUnits.contains(testSection.getId()))
                 .collect(Collectors.toList());
+    }
+
+    private boolean hasGlobalTestSectionAccess(String systemUserId) {
+        return userPermissionService.hasPermission(systemUserId, SystemPermission.GLOBAL_ADMIN)
+                || userPermissionService.hasPermission(systemUserId, SystemPermission.ADMINISTRATION);
     }
 
     private String normalizeLabScope(String value) {

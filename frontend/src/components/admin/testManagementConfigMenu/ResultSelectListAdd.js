@@ -169,7 +169,7 @@ function ResultSelectListAdd() {
 
   const handleResultSelectTestList = (res) => {
     if (!res) {
-      setIsLoading(true);
+      setIsLoading(false);
     } else {
       setResultSelectListRes(res);
     }
