@@ -53,8 +53,9 @@ const TestCatalog = () => {
   }, []);
 
   const handleCatalog = (res) => {
-    setTestSectionList(res.testSectionList);
-    setData(res.testCatalogList);
+    const payload = res || {};
+    setTestSectionList(payload.testSectionList || []);
+    setData(payload.testCatalogList || []);
   };
 
   const handleToggle = () => {

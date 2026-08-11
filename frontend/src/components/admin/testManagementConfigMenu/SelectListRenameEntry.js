@@ -71,7 +71,7 @@ function SelectListRenameEntry() {
 
   const handleSelectListRename = (res) => {
     if (!res) {
-      setIsLoading(true);
+      setIsLoading(false);
     } else {
       setSelectListRename(res);
       setSelectListRenamePost(res);

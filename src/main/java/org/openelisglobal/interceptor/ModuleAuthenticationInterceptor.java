@@ -50,18 +50,17 @@ public class ModuleAuthenticationInterceptor implements HandlerInterceptor {
     private PermissionModuleService<PermissionModule> permissionModuleService;
     @Autowired
     private ModuleAccessService moduleAccessService;
-    String path;
 
     @Override
     public boolean preHandle(HttpServletRequest request, HttpServletResponse response, Object handler)
             throws IOException {
-        path = request.getRequestURI().substring(request.getContextPath().length());
+        String resolvedPath = resolveRequestPath(request);
         Errors errors = new BaseErrors();
-        if (!hasPermission(errors, request) && !hasSemanticPermissionFallback(request)) {
+        if (!hasPermission(errors, request) && !hasSemanticPermissionFallback(request, resolvedPath)) {
             LogEvent.logInfo("ModuleAuthenticationInterceptor", "preHandle()",
                     "======> NOT ALLOWED ACCESS TO THIS MODULE");
             LogEvent.logInfo(this.getClass().getSimpleName(), "preHandle", "has no permission"); //
-            if (isRestFullPath()) {
+            if (isRestFullPath(resolvedPath)) {
                 response.setStatus(HttpServletResponse.SC_UNAUTHORIZED);
                 response.setContentType("application/json");
                 response.setCharacterEncoding("UTF-8");
@@ -108,7 +107,7 @@ public class ModuleAuthenticationInterceptor implements HandlerInterceptor {
             sysModsByUrl = filterParamMatches(request, sysModsByUrl);
         }
         if (sysModsByUrl.isEmpty() && REQUIRE_MODULE) {
-            if (isRestFullPath()) {
+            if (isRestFullPath(resolveRequestPath(request))) {
                 return true;
             }
             LogEvent.logWarn("ModuleAuthenticationInterceptor", "hasPermissionForUrl()",
@@ -123,15 +122,35 @@ public class ModuleAuthenticationInterceptor implements HandlerInterceptor {
         return false;
     }
 
-    private boolean hasSemanticPermissionFallback(HttpServletRequest request) {
+    private boolean hasSemanticPermissionFallback(HttpServletRequest request, String resolvedPath) {
         if (moduleAccessService == null) {
             return false;
         }
-        String targetUrl = path;
+        String targetUrl = resolvedPath;
         if (request.getQueryString() != null && !request.getQueryString().isBlank()) {
             targetUrl = targetUrl + "?" + request.getQueryString();
         }
         return moduleAccessService.canAccess(targetUrl, request).isAllowed();
+    }
+
+    private String resolveRequestPath(HttpServletRequest request) {
+        String servletPath = request.getServletPath();
+        String pathInfo = request.getPathInfo();
+        String resolvedPath = (servletPath == null ? "" : servletPath) + (pathInfo == null ? "" : pathInfo);
+
+        if (resolvedPath.isBlank()) {
+            resolvedPath = request.getRequestURI();
+            String contextPath = request.getContextPath();
+            if (contextPath != null && !contextPath.isBlank() && resolvedPath.startsWith(contextPath)) {
+                resolvedPath = resolvedPath.substring(contextPath.length());
+            }
+        }
+
+        if (!resolvedPath.startsWith("/")) {
+            resolvedPath = "/" + resolvedPath;
+        }
+
+        return resolvedPath;
     }
 
     private List<SystemModuleUrl> filterParamMatches(HttpServletRequest request, List<SystemModuleUrl> sysModsByUrl) {
@@ -176,8 +195,8 @@ public class ModuleAuthenticationInterceptor implements HandlerInterceptor {
         return usd.getSystemUserId();
     }
 
-    private boolean isRestFullPath() {
-        if (path.startsWith("/rest") || path.startsWith("/Provider")) {
+    private boolean isRestFullPath(String resolvedPath) {
+        if (resolvedPath.startsWith("/rest") || resolvedPath.startsWith("/Provider")) {
             return true;
         }
         return false;

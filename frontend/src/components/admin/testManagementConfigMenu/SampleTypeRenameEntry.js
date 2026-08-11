@@ -69,7 +69,7 @@ function SampleTypeRenameEntry() {
 
   const handelSampleTypeRename = (res) => {
     if (!res) {
-      setIsLoading(true);
+      setIsLoading(false);
     } else {
       setSampleType(res);
       setSampleTypePost(res);
@@ -88,7 +88,7 @@ function SampleTypeRenameEntry() {
 
   const handelEntityNamesProvider = (res) => {
     if (!res) {
-      setIsLoading(true);
+      setIsLoading(false);
     } else {
       setEntityNamesProvider(res);
       setEntityNamesProviderPost(res);

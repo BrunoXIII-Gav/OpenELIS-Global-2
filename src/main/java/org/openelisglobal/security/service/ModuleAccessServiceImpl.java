@@ -100,6 +100,9 @@ public class ModuleAccessServiceImpl implements ModuleAccessService {
         if (normalizedPath.startsWith("/MasterListsPage") || "/admin".equals(normalizedPath)) {
             return SystemPermission.ADMINISTRATION;
         }
+        if (isLegacyAdministrationEndpoint(normalizedPath)) {
+            return SystemPermission.ADMINISTRATION;
+        }
         if (normalizedPath.startsWith("/analyzers")) {
             return SystemPermission.ADMINISTRATION;
         }
@@ -154,6 +157,23 @@ public class ModuleAccessServiceImpl implements ModuleAccessService {
             return SystemPermission.RESULTS;
         }
         return null;
+    }
+
+    private boolean isLegacyAdministrationEndpoint(String normalizedPath) {
+        return List.of("/TestAdd", "/TestModifyEntry", "/TestCatalog", "/TestActivation", "/TestOrderability",
+                "/TestRenameEntry", "/TestSectionCreate", "/TestSectionRenameEntry", "/TestSectionTestAssign",
+                "/TestSectionOrder", "/PanelCreate", "/PanelRenameEntry", "/PanelTestAssign", "/PanelOrder",
+                "/SampleTypeCreate", "/SampleTypeRenameEntry", "/SampleTypeTestAssign", "/SampleTypeUomAssign",
+                "/SampleTypeOrder", "/MethodRenameEntry", "/MethodTestAssign", "/UomCreate", "/UomRenameEntry",
+                "/SelectListRenameEntry", "/ResultSelectListAdd", "/SaveResultSelectList", "/EntityNamesProvider",
+                "/TestNamesProvider", "/UnifiedSystemUserMenu", "/SearchUnifiedSystemUserMenu",
+                "/UnifiedSystemUser", "/DeleteUnifiedSystemUser", "/OrganizationMenu", "/SearchOrganizationMenu",
+                "/Organization", "/DeleteOrganization", "/NextPreviousOrganization", "/CancelOrganization",
+                "/NonConformityConfigurationMenu", "/MenuStatementConfigMenu", "/WorkplanConfigurationMenu",
+                "/PrintedReportsConfigurationMenu", "/SampleEntryConfigMenu", "/ResultConfigurationMenu",
+                "/PatientConfigurationMenu", "/ValidationConfigurationMenu", "/SiteInformationMenu",
+                "/BarcodeConfiguration", "/ResultReportingConfiguration")
+                .contains(normalizedPath);
     }
 
     private boolean isPatientAnalysisReportRequest(String normalizedPath, Map<String, String> targetParams) {
@@ -238,6 +258,7 @@ public class ModuleAccessServiceImpl implements ModuleAccessService {
         if (!raw.startsWith("/")) {
             raw = "/" + raw;
         }
+        raw = stripContextPrefix(raw);
         if (raw.contains(".do") || raw.contains(".html")) {
             raw = raw.substring(0, raw.lastIndexOf('.'));
         }
@@ -247,6 +268,23 @@ public class ModuleAccessServiceImpl implements ModuleAccessService {
                 raw = "/";
             }
         }
+        return raw;
+    }
+
+    private String stripContextPrefix(String raw) {
+        if (GenericValidator.isBlankOrNull(raw)) {
+            return raw;
+        }
+
+        for (String prefix : List.of("/api/OpenELIS-Global", "/OpenELIS-Global")) {
+            if (raw.startsWith(prefix + "/")) {
+                return raw.substring(prefix.length());
+            }
+            if (raw.equals(prefix)) {
+                return "/";
+            }
+        }
+
         return raw;
     }
 

@@ -72,7 +72,7 @@ function TestSectionOrder() {
 
   const handleTestSectionOrderList = (res) => {
     if (!res) {
-      setIsLoading(true);
+      setIsLoading(false);
     } else {
       setTestSectionOrderList(res);
     }

@@ -65,7 +65,7 @@ function PanelRenameEntry() {
 
   const handelPanelRename = (res) => {
     if (!res) {
-      setIsLoading(true);
+      setIsLoading(false);
     } else {
       setPanel(res);
       setPanelPost(res);
@@ -84,7 +84,7 @@ function PanelRenameEntry() {
 
   const handelEntityNamesProvider = (res) => {
     if (!res) {
-      setIsLoading(true);
+      setIsLoading(false);
     } else {
       setEntityNamesProvider(res);
       setEntityNamesProviderPost(res);

@@ -233,7 +233,7 @@ function TestOrderability() {
 
   function handleTestOrderabilityData(res) {
     if (!res) {
-      setIsLoading(true);
+      setIsLoading(false);
     } else {
       setTestOrderabilityData(res);
       setChangedTestOrderabilityData(res);

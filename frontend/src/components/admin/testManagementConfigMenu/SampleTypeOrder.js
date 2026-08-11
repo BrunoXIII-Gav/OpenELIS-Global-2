@@ -74,7 +74,7 @@ function SampleTypeOrder() {
 
   const handleSampleTypeOrderList = (res) => {
     if (!res) {
-      setIsLoading(true);
+      setIsLoading(false);
     } else {
       setSampleTypeOrderList(res);
     }

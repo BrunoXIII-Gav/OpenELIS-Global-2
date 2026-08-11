@@ -68,7 +68,7 @@ function UomRenameEntry() {
 
   const handleUomRename = (res) => {
     if (!res) {
-      setIsLoading(true);
+      setIsLoading(false);
     } else {
       setUomRename(res);
       setUomRenamePost(res);
@@ -87,7 +87,7 @@ function UomRenameEntry() {
 
   const handelEntityNamesProvider = (res) => {
     if (!res) {
-      setIsLoading(true);
+      setIsLoading(false);
     } else {
       setEntityNamesProvider(res);
       setEntityNamesProviderPost(res);
