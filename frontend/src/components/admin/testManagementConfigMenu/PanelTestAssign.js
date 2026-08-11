@@ -129,7 +129,7 @@ function PanelTestAssign() {
 
   const handlePanelTestAssignList = (res) => {
     if (!res) {
-      setIsLoading(true);
+      setIsLoading(false);
     } else {
       setPanelTestList(res);
     }

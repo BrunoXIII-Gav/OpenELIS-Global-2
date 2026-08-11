@@ -265,14 +265,15 @@ export const TestStepForm = ({
     componentMounted.current = true;
     setIsLoading(true);
     getFromOpenElisServer(`/rest/TestAdd`, (res) => {
-      setLabUnitList(res.labUnitList || []);
-      setPanelList(res.panelList || []);
-      setUomList(res.uomList || []);
-      setResultTypeList(res.resultTypeList || []);
-      setSampleTypeList(res.sampleTypeList || []);
-      setGroupedDictionaryList(res.groupedDictionaryList || []);
-      setDictionaryList(res.dictionaryList || []);
-      setAgeRangeList(res.ageRangeList || []);
+      const payload = res || {};
+      setLabUnitList(payload.labUnitList || []);
+      setPanelList(payload.panelList || []);
+      setUomList(payload.uomList || []);
+      setResultTypeList(payload.resultTypeList || []);
+      setSampleTypeList(payload.sampleTypeList || []);
+      setGroupedDictionaryList(payload.groupedDictionaryList || []);
+      setDictionaryList(payload.dictionaryList || []);
+      setAgeRangeList(payload.ageRangeList || []);
       setIsLoading(false);
     });
     getFromOpenElisServer(`/rest/displayList/RESULT_TYPE_CODES`, (res) => {

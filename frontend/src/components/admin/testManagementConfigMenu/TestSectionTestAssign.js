@@ -81,7 +81,7 @@ function TestSectionTestAssign() {
 
   const handleTestSectionTestAssignList = (res) => {
     if (!res) {
-      setIsLoading(true);
+      setIsLoading(false);
     } else {
       setTestSectionTestAssign(res);
     }

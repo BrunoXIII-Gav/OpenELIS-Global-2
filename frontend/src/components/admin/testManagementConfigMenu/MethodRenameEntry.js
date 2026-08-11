@@ -65,7 +65,7 @@ function MethodRenameEntry() {
 
   const handleMethodRename = (res) => {
     if (!res) {
-      setIsLoading(true);
+      setIsLoading(false);
     } else {
       setMethodRename(res);
       setMethodRenamePost(res);
@@ -84,7 +84,7 @@ function MethodRenameEntry() {
 
   const handelEntityNamesProvider = (res) => {
     if (!res) {
-      setIsLoading(true);
+      setIsLoading(false);
     } else {
       setEntityNamesProvider(res);
       setEntityNamesProviderPost(res);

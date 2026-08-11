@@ -74,7 +74,7 @@ function PanelCreate() {
 
   const handlePanelCreateList = (res) => {
     if (!res) {
-      setIsLoading(true);
+      setIsLoading(false);
     } else {
       setPanelCreateList(res);
     }

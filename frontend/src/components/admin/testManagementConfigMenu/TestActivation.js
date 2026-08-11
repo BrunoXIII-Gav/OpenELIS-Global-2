@@ -94,7 +94,7 @@ function TestActivation() {
 
   function handleTestActivationData(res) {
     if (!res) {
-      setIsLoading(true);
+      setIsLoading(false);
     } else {
       setTestActivationData(res);
       setChangedTestActivationData(res);
