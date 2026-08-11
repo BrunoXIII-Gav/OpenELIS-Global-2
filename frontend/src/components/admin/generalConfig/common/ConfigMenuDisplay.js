@@ -132,7 +132,7 @@ function ConfigMenuDisplay(props) {
   };
 
   const handleLogoResponse = (res, item) => {
-    const value = res.value;
+    const value = res?.value || "";
     const updatedItem = {
       id: item.id,
       name: item.name,
