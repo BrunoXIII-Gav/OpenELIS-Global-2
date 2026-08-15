@@ -160,6 +160,32 @@ public class UnifiedSystemUserRestController extends BaseController {
         return idValues;
     }
 
+    @GetMapping(value = "/UnifiedSystemUser/login-name-status")
+    @ResponseBody
+    public Map<String, Object> getLoginNameStatus(
+            @RequestParam(name = "loginName", defaultValue = "") String loginName,
+            @RequestParam(name = "loginUserId", required = false) String loginUserId) {
+        String normalizedLoginName = StringUtils.trimToEmpty(loginName);
+        String normalizedLoginUserId = StringUtils.trimToNull(loginUserId);
+
+        Map<String, Object> response = new HashMap<>();
+        response.put("loginName", normalizedLoginName);
+
+        if (StringUtils.isBlank(normalizedLoginName)) {
+            response.put("available", false);
+            response.put("duplicate", false);
+            return response;
+        }
+
+        LoginUser existingLogin = loginService.getMatch("loginName", normalizedLoginName).orElse(null);
+        boolean duplicate = existingLogin != null
+                && (normalizedLoginUserId == null || !normalizedLoginUserId.equals(String.valueOf(existingLogin.getId())));
+
+        response.put("available", !duplicate);
+        response.put("duplicate", duplicate);
+        return response;
+    }
+
     @GetMapping(value = "/users/professional-profile/{profileCode}")
     @ResponseBody
     public List<IdValuePair> getUsersByProfessionalProfile(

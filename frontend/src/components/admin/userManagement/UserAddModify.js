@@ -30,6 +30,7 @@ import {
 } from "../../layout/Layout.js";
 import {
   getFromOpenElisServer,
+  getFromOpenElisServerV2,
   postToOpenElisServerJsonResponse,
   toBase64,
 } from "../../utils/Utils.js";
@@ -46,7 +47,7 @@ const breadcrumbs = [
 ];
 
 const passwordPatternRegex = /^(?=.*[*$#!])(?=.*[a-zA-Z0-9]).{7,}$/;
-const loginNameRegex = /^[a-zA-Z]+$/;
+const loginNameRegex = /^[a-zA-Z0-9_-]+$/;
 const nameRegex = /^(?=.*[a-zA-Z])[a-zA-Z .'_@-]*$/;
 const ALL_PERMISSIONS_ROLE_NAMES = new Set([
   "reception",
@@ -172,6 +173,11 @@ function UserAddModify() {
   const [passwordTouched, setPasswordTouched] = useState({
     userPassword: false,
     confirmPassword: false,
+  });
+  const [loginNameValidation, setLoginNameValidation] = useState({
+    isChecking: false,
+    isDuplicate: false,
+    lastCheckedValue: "",
   });
 
   const location = useLocation();
@@ -536,7 +542,7 @@ function UserAddModify() {
   }
 
   function userSavePostCallback(res) {
-    if (res) {
+    if (res?.forward === "redirect:/UnifiedSystemUser") {
       setIsLoading(false);
       addNotification({
         title: intl.formatMessage({
@@ -553,18 +559,130 @@ function UserAddModify() {
       }, 200);
     } else {
       setIsLoading(false);
-      addNotification({
-        kind: NotificationKinds.error,
-        title: intl.formatMessage({ id: "notification.title" }),
-        message: intl.formatMessage({ id: "server.error.msg" }),
-      });
+      addNotification(
+        loginNameValidation.isDuplicate
+          ? {
+              kind: NotificationKinds.error,
+              title: intl.formatMessage({ id: "notification.title" }),
+              message: intl.formatMessage({
+                id: "notification.duplicate.loginName",
+              }),
+            }
+          : {
+              kind: NotificationKinds.error,
+              title: intl.formatMessage({ id: "notification.title" }),
+              message: intl.formatMessage({ id: "server.error.msg" }),
+            },
+      );
       setNotificationVisible(true);
     }
+  }
+
+  async function validateLoginNameUniqueness(loginName, notifyDuplicate = true) {
+    const normalizedValue = String(loginName || "").trim();
+
+    if (!normalizedValue || !loginNameRegex.test(normalizedValue)) {
+      setLoginNameValidation({
+        isChecking: false,
+        isDuplicate: false,
+        lastCheckedValue: "",
+      });
+      setValidation((prevValidation) => ({
+        ...prevValidation,
+        loginName: false,
+      }));
+      return false;
+    }
+
+    setLoginNameValidation((prevState) => ({
+      ...prevState,
+      isChecking: true,
+    }));
+
+    try {
+      const response = await getFromOpenElisServerV2(
+        `/rest/UnifiedSystemUser/login-name-status?loginName=${encodeURIComponent(
+          normalizedValue,
+        )}&loginUserId=${encodeURIComponent(
+          String(userDataShow?.loginUserId || ""),
+        )}`,
+      );
+      const isDuplicate = Boolean(response?.duplicate);
+      setLoginNameValidation({
+        isChecking: false,
+        isDuplicate,
+        lastCheckedValue: normalizedValue,
+      });
+      setValidation((prevValidation) => ({
+        ...prevValidation,
+        loginName: !isDuplicate,
+      }));
+
+      if (isDuplicate && notifyDuplicate) {
+        addNotification({
+          title: intl.formatMessage({ id: "notification.title" }),
+          message: intl.formatMessage({
+            id: "notification.duplicate.loginName",
+          }),
+          kind: NotificationKinds.info,
+        });
+        setNotificationVisible(true);
+      }
+
+      return !isDuplicate;
+    } catch (error) {
+      setLoginNameValidation((prevState) => ({
+        ...prevState,
+        isChecking: false,
+      }));
+      return true;
+    }
+  }
+
+  async function handleUserSaveClick() {
+    const loginName = userDataShow?.userLoginName || "";
+    const loginNameIsAvailable = await validateLoginNameUniqueness(
+      loginName,
+      true,
+    );
+    if (!loginNameIsAvailable) {
+      return;
+    }
+
+    userSavePostCall();
+  }
+
+  async function handleUserLoginNameBlur() {
+    const loginName = String(userDataShow?.userLoginName || "").trim();
+    if (!loginName || !loginNameRegex.test(loginName)) {
+      return;
+    }
+
+    await validateLoginNameUniqueness(loginName, true);
+  }
+
+  function getLoginNameInvalidText() {
+    if (loginNameValidation.isDuplicate) {
+      return intl.formatMessage({
+        id: "notification.duplicate.loginName",
+      });
+    }
+
+    return intl.formatMessage({
+      id: "notification.invalid.loginName",
+    });
   }
 
   function handleUserLoginNameChange(e) {
     const value = e.target.value.trim();
     const isValid = loginNameRegex.test(value);
+
+    setLoginNameValidation((prevState) => ({
+      ...prevState,
+      isDuplicate: false,
+      lastCheckedValue:
+        prevState.lastCheckedValue === value ? prevState.lastCheckedValue : "",
+    }));
 
     if (!value || (value && !isValid)) {
       if (!notificationVisible) {
@@ -1208,11 +1326,13 @@ function UserAddModify() {
                         id: "login.login.name",
                       })}
                       invalid={
-                        userDataShow &&
-                        userDataShow.userLoginName &&
-                        !loginNameRegex.test(userDataShow.userLoginName)
+                        Boolean(
+                          userDataShow?.userLoginName &&
+                            (!loginNameRegex.test(userDataShow.userLoginName) ||
+                              loginNameValidation.isDuplicate),
+                        )
                       }
-                      // invalidText={errors.order}
+                      invalidText={getLoginNameInvalidText()}
                       required={true}
                       value={
                         userDataShow && userDataShow.userLoginName
@@ -1220,6 +1340,7 @@ function UserAddModify() {
                           : ""
                       }
                       onChange={(e) => handleUserLoginNameChange(e)}
+                      onBlur={handleUserLoginNameBlur}
                     />
                   </Column>
                 </Grid>
@@ -1980,11 +2101,13 @@ function UserAddModify() {
                 <Grid fullWidth={true}>
                   <Column lg={16} md={8} sm={4}>
                     <Button
-                      disabled={Object.values(validation).some(
-                        (value) => !value,
-                      )}
+                      disabled={
+                        Object.values(validation).some((value) => !value) ||
+                        loginNameValidation.isChecking ||
+                        loginNameValidation.isDuplicate
+                      }
                       data-cy="saveButton"
-                      onClick={userSavePostCall}
+                      onClick={handleUserSaveClick}
                       type="button"
                     >
                       <FormattedMessage id="label.button.save" />
