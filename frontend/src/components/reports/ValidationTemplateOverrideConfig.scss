@@ -2,111 +2,248 @@
   padding: 1rem;
 }
 
+.validation-template-override-page-header {
+  display: flex;
+  justify-content: space-between;
+  gap: 1rem;
+  align-items: flex-start;
+  margin-bottom: 1rem;
+}
+
 .validation-template-override-subtitle {
   margin-top: 0.5rem;
+  max-width: 70rem;
+  color: #525252;
+}
+
+.validation-template-override-alert,
+.validation-template-override-legacy-banner {
   margin-bottom: 1rem;
 }
 
-.validation-template-override-alert {
-  margin-bottom: 1rem;
-}
-
-.validation-template-override-grid {
+.validation-template-override-shell {
   display: grid;
-  grid-template-columns: minmax(22rem, 1fr) minmax(28rem, 1.3fr);
+  grid-template-columns: minmax(18rem, 24rem) minmax(0, 1fr);
   gap: 1rem;
   align-items: start;
 }
 
-.validation-template-override-list,
-.validation-template-override-form {
+.validation-template-override-sidebar,
+.validation-template-override-step {
   border: 1px solid #d9d9d9;
   background: #ffffff;
+}
+
+.validation-template-override-sidebar {
+  position: sticky;
+  top: 1rem;
+}
+
+.validation-template-override-sidebar-header,
+.validation-template-override-step {
   padding: 1rem;
 }
 
-.validation-template-override-section-header {
-  display: flex;
-  justify-content: space-between;
-  align-items: center;
-  margin-bottom: 0.75rem;
+.validation-template-override-sidebar-header h2,
+.validation-template-override-step-header h2 {
+  margin: 0;
 }
 
-.validation-template-override-form-fields {
-  display: grid;
-  gap: 0.75rem;
-}
-
-.validation-template-override-mapping-section {
-  margin-top: 1rem;
-  border-top: 1px solid #ededed;
-  padding-top: 0.75rem;
-}
-
-.validation-template-override-mapping-header {
-  display: flex;
-  justify-content: space-between;
-  align-items: center;
-  margin-bottom: 0.5rem;
-}
-
-.validation-template-override-header-actions {
-  display: flex;
-  gap: 0.5rem;
-}
-
-.validation-template-override-helper {
-  margin: 0 0 0.75rem 0;
+.validation-template-override-sidebar-header p,
+.validation-template-override-step-header p,
+.validation-template-override-parameter-header p {
+  margin: 0.35rem 0 0 0;
   color: #525252;
-  font-size: 0.85rem;
 }
 
-.validation-template-override-logo-upload-grid {
+.validation-template-override-card-list {
   display: grid;
-  grid-template-columns: 1fr 1fr;
   gap: 0.75rem;
-  margin-bottom: 0.75rem;
+  padding: 0 1rem 1rem 1rem;
 }
 
-.validation-template-override-logo-upload-item {
+.validation-template-override-card {
+  width: 100%;
+  border: 1px solid #d9d9d9;
+  background: #f8f8f8;
+  padding: 0.9rem;
+  text-align: left;
+  cursor: pointer;
+  transition: border-color 120ms ease, background 120ms ease;
+}
+
+.validation-template-override-card:hover,
+.validation-template-override-card.is-selected {
+  border-color: #0f62fe;
+  background: #edf5ff;
+}
+
+.validation-template-override-card-top,
+.validation-template-override-card-meta,
+.validation-template-override-step-header,
+.validation-template-override-actions,
+.validation-template-override-chip-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.75rem;
+}
+
+.validation-template-override-card-top {
+  align-items: flex-start;
+}
+
+.validation-template-override-card-meta {
+  flex-wrap: wrap;
+  justify-content: flex-start;
+  margin-top: 0.75rem;
+  font-size: 0.875rem;
+  color: #525252;
+}
+
+.validation-template-override-card-description {
+  margin: 0.75rem 0 0 0;
+  color: #393939;
+  font-size: 0.875rem;
+}
+
+.validation-template-override-main {
+  display: grid;
+  gap: 1rem;
+}
+
+.validation-template-override-step-header {
+  align-items: flex-start;
+  margin-bottom: 1rem;
+}
+
+.validation-template-override-step-header > div:first-child {
+  display: flex;
+  gap: 0.9rem;
+  align-items: flex-start;
+}
+
+.validation-template-override-step-number {
+  display: inline-flex;
+  width: 2rem;
+  height: 2rem;
+  align-items: center;
+  justify-content: center;
+  border-radius: 999px;
+  background: #0f62fe;
+  color: #ffffff;
+  font-weight: 600;
+  flex: 0 0 auto;
+}
+
+.validation-template-override-form-grid,
+.validation-template-override-review-grid {
+  display: grid;
+  gap: 1rem;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+}
+
+.validation-template-override-review-grid {
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  margin-bottom: 1rem;
+}
+
+.validation-template-override-review-item,
+.validation-template-override-template-summary,
+.validation-template-override-empty {
+  border: 1px solid #e0e0e0;
+  background: #f8f8f8;
+  padding: 0.85rem;
+}
+
+.validation-template-override-review-item span,
+.validation-template-override-template-summary span {
+  display: block;
+  color: #525252;
+  margin-bottom: 0.35rem;
+}
+
+.validation-template-override-full-width {
+  grid-column: 1 / -1;
+}
+
+.validation-template-override-upload-control {
   display: grid;
   gap: 0.5rem;
 }
 
-.validation-template-override-logo-upload-item input[type="file"] {
-  font-size: 0.8rem;
+.validation-template-override-parameter-list {
+  display: grid;
+  gap: 0.85rem;
 }
 
-.mapping-row {
-  display: grid;
-  grid-template-columns: 1fr 1fr auto;
-  gap: 0.5rem;
-  align-items: end;
-  margin-bottom: 0.5rem;
+.validation-template-override-parameter-card {
+  border: 1px solid #e0e0e0;
+  background: #f8f8f8;
+  padding: 0.9rem;
 }
 
-.section-field-row {
+.validation-template-override-parameter-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-start;
+  gap: 0.75rem;
+  margin-bottom: 0.9rem;
+}
+
+.validation-template-override-parameter-controls {
   display: grid;
-  grid-template-columns: 0.9fr 0.9fr 1fr 1fr 0.5fr 0.45fr auto;
-  gap: 0.5rem;
-  align-items: end;
-  margin-bottom: 0.5rem;
+  gap: 0.85rem;
+}
+
+.validation-template-override-image-mapping {
+  display: grid;
+  gap: 0.75rem;
+}
+
+.validation-template-override-inline-upload {
+  display: grid;
+  gap: 0.35rem;
+  font-size: 0.875rem;
+}
+
+.validation-template-override-inline-status,
+.validation-template-override-warning-list {
+  margin-top: 0.75rem;
+}
+
+.validation-template-override-chip-row {
+  margin-top: 1rem;
+  justify-content: flex-start;
+  flex-wrap: wrap;
 }
 
 .validation-template-override-actions {
+  justify-content: flex-start;
   margin-top: 1rem;
 }
 
-@media (max-width: 1024px) {
-  .validation-template-override-grid {
+@media (max-width: 1100px) {
+  .validation-template-override-shell {
     grid-template-columns: 1fr;
   }
 
-  .section-field-row {
-    grid-template-columns: 1fr;
+  .validation-template-override-sidebar {
+    position: static;
   }
 
-  .validation-template-override-logo-upload-grid {
+  .validation-template-override-review-grid {
+    grid-template-columns: 1fr;
+  }
+}
+
+@media (max-width: 768px) {
+  .validation-template-override-page-header,
+  .validation-template-override-step-header {
+    flex-direction: column;
+  }
+
+  .validation-template-override-form-grid {
     grid-template-columns: 1fr;
   }
 }
