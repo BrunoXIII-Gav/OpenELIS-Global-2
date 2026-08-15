@@ -543,7 +543,7 @@ function UserAddModify() {
 
   function userSavePostCallback(res) {
     if (res?.forward === "redirect:/UnifiedSystemUser") {
-      setIsLoading(false);
+      setIsLoading(true);
       addNotification({
         title: intl.formatMessage({
           id: "notification.title",
@@ -558,7 +558,7 @@ function UserAddModify() {
         window.location.assign("/MasterListsPage/userManagement");
       }, 200);
     } else {
-      setIsLoading(false);
+      setIsLoading(true);
       addNotification(
         loginNameValidation.isDuplicate
           ? {
@@ -576,6 +576,11 @@ function UserAddModify() {
       );
       setNotificationVisible(true);
     }
+  }
+
+  function handleFormSubmit(e) {
+    e.preventDefault();
+    handleUserSaveClick();
   }
 
   async function validateLoginNameUniqueness(loginName, notifyDuplicate = true) {
@@ -1304,11 +1309,7 @@ function UserAddModify() {
         <div className="orderLegendBody">
           <Grid fullWidth={true}>
             <Column lg={16} md={8} sm={4}>
-              <Form
-              // onSubmit={handleSubmit}
-              // onChange={setSaveButton(false)}
-              // onBlur={handleBlur}
-              >
+              <Form onSubmit={handleFormSubmit} autoComplete="off">
                 <Grid fullWidth={true}>
                   <Column lg={8} md={4} sm={4}>
                     <>
@@ -1321,6 +1322,7 @@ function UserAddModify() {
                       id="login-name"
                       className="defalut"
                       type="text"
+                      autoComplete="off"
                       labelText=""
                       placeholder={intl.formatMessage({
                         id: "login.login.name",
@@ -1383,6 +1385,7 @@ function UserAddModify() {
                       id="login-password"
                       className="defalut"
                       type="password"
+                      autoComplete="new-password"
                       labelText=""
                       placeholder={intl.formatMessage({
                         id: "login.login.password",
@@ -1417,6 +1420,7 @@ function UserAddModify() {
                       id="login-repeat-password"
                       className="defalut"
                       type="password"
+                      autoComplete="new-password"
                       labelText=""
                       placeholder={intl.formatMessage({
                         id: "login.login.repeat.password",
