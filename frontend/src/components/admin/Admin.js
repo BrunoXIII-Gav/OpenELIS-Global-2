@@ -428,7 +428,7 @@ function Admin() {
             >
               <FormattedMessage
                 id="sidenav.label.admin.formEntry.validationTemplateOverrides"
-                defaultMessage="Validation Report Templates"
+                defaultMessage="Jasper Validation Templates"
               />
             </SideNavMenuItem>
             <SideNavMenuItem

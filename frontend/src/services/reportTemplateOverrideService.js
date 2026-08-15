@@ -62,6 +62,38 @@ export const saveValidationTemplateOverride = async (payload) => {
   return body;
 };
 
+export const parseValidationTemplateFile = async (file) => {
+  const formData = new FormData();
+  formData.append("file", file);
+
+  const response = await fetch(
+    config.serverBaseUrl + "/rest/reports/validation-template-overrides/parse-template",
+    {
+      credentials: "include",
+      method: "POST",
+      headers: {
+        "X-CSRF-Token": localStorage.getItem("CSRF"),
+      },
+      body: formData,
+    },
+  );
+
+  const contentType = response.headers.get("content-type") || "";
+  const body = contentType.includes("application/json")
+    ? await response.json()
+    : await response.text();
+
+  if (!response.ok) {
+    const errorMessage =
+      typeof body === "string"
+        ? body
+        : body?.message || body?.error || "Failed to parse Jasper template";
+    throw new Error(errorMessage);
+  }
+
+  return body;
+};
+
 export const uploadValidationTemplateImage = async (file, name = "") => {
   const formData = new FormData();
   formData.append("file", file);
