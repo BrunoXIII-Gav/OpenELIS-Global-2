@@ -1825,7 +1825,7 @@
   "notebook.validation.objective.required": "Objective is required.",
   "notebook.validation.protocol.required": "Protocol ID is required.",
   "notification.invalid.confirm.password": "Your entered password is not same as above password.",
-  "notification.invalid.loginName": "Please enter only letters, numbers, hyphen (-), or underscore (_) without spaces.",
+  "notification.invalid.loginName": "Please enter only letters, numbers, internal spaces, hyphen (-), or underscore (_), with no leading, trailing, or repeated spaces.",
   "notification.duplicate.loginName": "That username is already in use. Please choose another one.",
   "notification.invalid.name": "Please enter Alphanumeric values only.",
   "notification.invalid.password": "Please enter password according to instructions.",

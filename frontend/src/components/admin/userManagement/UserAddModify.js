@@ -47,7 +47,7 @@ const breadcrumbs = [
 ];
 
 const passwordPatternRegex = /^(?=.*[*$#!])(?=.*[a-zA-Z0-9]).{7,}$/;
-const loginNameRegex = /^[a-zA-Z0-9_-]+$/;
+const loginNameRegex = /^[a-zA-Z0-9_-]+(?: [a-zA-Z0-9_-]+)*$/;
 const nameRegex = /^(?=.*[a-zA-Z])[a-zA-Z .'_@-]*$/;
 const ALL_PERMISSIONS_ROLE_NAMES = new Set([
   "reception",
@@ -674,7 +674,7 @@ function UserAddModify() {
   }
 
   function handleUserLoginNameChange(e) {
-    const value = e.target.value.trim();
+    const value = e.target.value;
     const isValid = loginNameRegex.test(value);
 
     setLoginNameValidation((prevState) => ({
