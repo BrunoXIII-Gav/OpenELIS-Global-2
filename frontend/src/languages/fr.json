@@ -1842,7 +1842,7 @@
   "notebook.validation.objective.required": "L'objectif est obligatoire",
   "notebook.validation.protocol.required": "Identifiant du protocole obligatoire",
   "notification.invalid.confirm.password": "Votre mot de passe saisi n'est pas identique au mot de passe ci-dessus.",
-  "notification.invalid.loginName": "Veuillez saisir uniquement des lettres, chiffres, tiret (-) ou tiret bas (_) sans espaces.",
+  "notification.invalid.loginName": "Veuillez saisir uniquement des lettres, chiffres, espaces internes, tiret (-) ou tiret bas (_), sans espace au début, à la fin, ni doublé.",
   "notification.duplicate.loginName": "Ce nom d'utilisateur est déjà utilisé. Veuillez en choisir un autre.",
   "notification.invalid.name": "Veuillez saisir uniquement des caractères alphanumériques.",
   "notification.invalid.password": "Veuillez entrer le mot de passe selon les instructions.",

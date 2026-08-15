@@ -1865,7 +1865,7 @@
   "notebook.validation.objective.required": "Objective is required.",
   "notebook.validation.protocol.required": "Protocol ID is required.",
   "notification.invalid.confirm.password": "La contraseña ingresada no coincide con la contraseña anterior.",
-  "notification.invalid.loginName": "Por favor ingrese solo letras, números, guion (-) o guion bajo (_) sin espacios.",
+  "notification.invalid.loginName": "Por favor ingrese solo letras, números, espacios intermedios, guion (-) o guion bajo (_), sin espacios al inicio, al final ni dobles.",
   "notification.duplicate.loginName": "Ese nombre de usuario ya está en uso. Por favor elige otro.",
   "notification.invalid.name": "Por favor ingrese solo valores alfanuméricos.",
   "notification.invalid.password": "Por favor ingrese una contraseña de acuerdo a las instrucciones.",
