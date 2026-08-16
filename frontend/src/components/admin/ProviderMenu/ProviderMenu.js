@@ -352,6 +352,22 @@ function ProviderMenu() {
     setIsUpdateModalOpen(false);
   };
 
+  const refreshProviderMenu = useCallback(() => {
+    setLoading(true);
+    getFromOpenElisServer(
+      `/rest/ProviderMenu?paging=${paging}&startingRecNo=${startingRecNo}`,
+      handleMenuItems,
+    );
+  }, [paging, startingRecNo]);
+
+  const handleProviderSaveResponse = (response, onSuccess) => {
+    displayStatus(response);
+    if (response?.ok) {
+      onSuccess?.();
+      window.location.reload();
+    }
+  };
+
   const handleAddProvider = () => {
     const newProvider = {
       person: {
@@ -373,11 +389,11 @@ function ProviderMenu() {
     postToOpenElisServerFullResponse(
       "/rest/Provider/FhirUuid?fhirUuid=",
       JSON.stringify(newProvider),
-      displayStatus,
+      (response) =>
+        handleProviderSaveResponse(response, () => {
+          closeAddModal();
+        }),
     );
-
-    closeAddModal();
-    window.location.reload();
   };
 
   const handleUpdateProvider = () => {
@@ -402,11 +418,11 @@ function ProviderMenu() {
     postToOpenElisServerFullResponse(
       "/rest/Provider/FhirUuid?fhirUuid=" + currentProvider.fhirUuid,
       JSON.stringify(updatedProvider),
-      displayStatus,
+      (response) =>
+        handleProviderSaveResponse(response, () => {
+          closeUpdateModal();
+        }),
     );
-
-    closeUpdateModal();
-    window.location.reload();
   };
 
   const handleLastNameChange = (event) => {
@@ -455,7 +471,6 @@ function ProviderMenu() {
           })}
           value={specialty || ""}
           onChange={(event) => setSpecialty(event.target.value)}
-          disabled={isBiologistProfile}
         >
           <SelectItem value="" text="" />
           {providerSpecialtyOptions.map((option) => (
@@ -478,7 +493,6 @@ function ProviderMenu() {
         })}
         value={specialty}
         onChange={(event) => setSpecialty(event.target.value)}
-        disabled={isBiologistProfile}
       />
     );
   };
@@ -487,9 +501,7 @@ function ProviderMenu() {
     if (isBiologistProfile) {
       setCmp("");
       setRne("");
-      setSpecialty("");
     } else {
-      setProfessionalInitials("");
       setCbpCode("");
     }
   }, [isBiologistProfile]);
@@ -747,7 +759,6 @@ function ProviderMenu() {
               })}
               value={professionalInitials}
               onChange={handleProfessionalInitialsChange}
-              disabled={!isBiologistProfile}
             />
             <TextInput
               id="cbpCode"
@@ -868,7 +879,6 @@ function ProviderMenu() {
               })}
               value={professionalInitials}
               onChange={handleProfessionalInitialsChange}
-              disabled={!isBiologistProfile}
             />
             <TextInput
               id="cbpCode-update"

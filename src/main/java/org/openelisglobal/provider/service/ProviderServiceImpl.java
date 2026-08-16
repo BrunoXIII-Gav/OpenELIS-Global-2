@@ -166,7 +166,7 @@ public class ProviderServiceImpl extends AuditableBaseObjectServiceImpl<Provider
             target.setCbpCode(StringUtils.trimToNull(source.getCbpCode()));
             target.setNpi(null);
             target.setExternalId(null);
-            target.setSpecialty(null);
+            target.setSpecialty(StringUtils.trimToNull(source.getSpecialty()));
             target.setDni(StringUtils.trimToNull(source.getDni()));
             return;
         }
@@ -175,7 +175,7 @@ public class ProviderServiceImpl extends AuditableBaseObjectServiceImpl<Provider
         target.setExternalId(StringUtils.trimToNull(source.getExternalId()));
         target.setSpecialty(StringUtils.trimToNull(source.getSpecialty()));
         target.setDni(StringUtils.trimToNull(source.getDni()));
-        target.setProfessionalInitials(null);
+        target.setProfessionalInitials(StringUtils.trimToNull(source.getProfessionalInitials()));
         target.setCbpCode(null);
     }
 }
