@@ -129,3 +129,40 @@ export const uploadValidationTemplateImage = async (file, name = "") => {
 
   return body;
 };
+
+export const downloadValidationTemplateFile = async (id) => {
+  const response = await fetch(
+    config.serverBaseUrl +
+      `/rest/reports/validation-template-overrides/${encodeURIComponent(id)}/download-template`,
+    {
+      credentials: "include",
+      method: "GET",
+      headers: {
+        "X-CSRF-Token": localStorage.getItem("CSRF"),
+      },
+    },
+  );
+
+  if (!response.ok) {
+    const errorText = await response.text();
+    throw new Error(errorText || "Failed to download Jasper template");
+  }
+
+  const blob = await response.blob();
+  const contentDisposition = response.headers.get("Content-Disposition") || "";
+  const filenameMatch =
+    contentDisposition.match(/filename\*=UTF-8''([^;]+)/i) ||
+    contentDisposition.match(/filename="?([^"]+)"?/i);
+  const filename = filenameMatch?.[1]
+    ? decodeURIComponent(filenameMatch[1])
+    : "validation-template.jrxml";
+
+  const objectUrl = window.URL.createObjectURL(blob);
+  const link = document.createElement("a");
+  link.href = objectUrl;
+  link.download = filename;
+  document.body.appendChild(link);
+  link.click();
+  link.remove();
+  window.URL.revokeObjectURL(objectUrl);
+};
