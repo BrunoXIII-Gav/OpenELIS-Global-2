@@ -185,6 +185,7 @@ const Validation = (props) => {
     analysisIds,
     previewValidated = false,
     requestedReport = validationReportName,
+    previewValidationDates = "",
   ) => {
     const query = new URLSearchParams();
     query.set("report", requestedReport);
@@ -193,6 +194,9 @@ const Validation = (props) => {
     if (previewValidated) {
       query.set("previewValidated", "true");
       query.set("previewAnalysisIds", analysisIds.join(","));
+      if (previewValidationDates) {
+        query.set("previewValidationDates", previewValidationDates);
+      }
     }
     return `${config.serverBaseUrl}/ReportPrint?${query.toString()}`;
   };
@@ -359,8 +363,16 @@ const Validation = (props) => {
     setPreviewError("");
     clearPreviewBlobUrl();
     try {
+      const previewValidationDates = buildPreviewValidationDatesParam(
+        choice.analysisIds,
+      );
       const response = await fetch(
-        getReportUrl(choice.analysisIds, true, choice.preferredReport),
+        getReportUrl(
+          choice.analysisIds,
+          true,
+          choice.preferredReport,
+          previewValidationDates,
+        ),
         {
           credentials: "include",
           method: "GET",
@@ -578,21 +590,31 @@ const Validation = (props) => {
   };
 
   const getEligibleAnalysisIdsForDownload = () => {
-    if (savedAnalysisIds.length > 0) {
-      return [...new Set(savedAnalysisIds)];
+    return [
+      ...new Set([
+        ...savedAnalysisIds,
+        ...liveResultList
+          .filter((row) => row?.readOnly && row?.analysisId)
+          .map((row) => row.analysisId),
+      ]),
+    ];
+  };
+
+  const buildPreviewValidationDatesParam = (analysisIds) => {
+    if (!Array.isArray(analysisIds) || analysisIds.length === 0) {
+      return "";
     }
 
-    if (!hasLiveResults) {
-      return [
-        ...new Set(
-          liveResultList
-            .filter((row) => row?.readOnly && row?.analysisId)
-            .map((row) => row.analysisId),
-        ),
-      ];
-    }
-
-    return [];
+    const analysisIdSet = new Set(analysisIds);
+    return liveResultList
+      .filter(
+        (row) =>
+          row?.analysisId &&
+          analysisIdSet.has(row.analysisId) &&
+          getRowValidationDateValue(row),
+      )
+      .map((row) => `${row.analysisId}:${getRowValidationDateValue(row)}`)
+      .join("|");
   };
 
   const buildDownloadChoices = (eligibleAnalysisIds) => {
@@ -1189,7 +1211,6 @@ const Validation = (props) => {
   const liveResultList = props?.results?.resultList || [];
   const pendingLiveResults = liveResultList.filter((row) => !row?.readOnly);
   const hasLiveResults = pendingLiveResults.length > 0;
-  const hasValidatedRows = liveResultList.some((row) => row?.readOnly);
   const displayResultList = liveResultList;
   const validationLocked = !hasLiveResults || !currentUserIsMedicalValidator;
   const acceptedAnalysisCount = getAcceptedAnalysisIds().length;
@@ -1210,8 +1231,7 @@ const Validation = (props) => {
     (acceptedAnalysisCount > 0 || rejectedAnalysisCount > 0) &&
     !hasAcceptedRowsMissingValidationDate &&
     (!requiresMedicalPreview || (hasOpenedPreview && previewConfirmed));
-  const canDownload =
-    savedAnalysisIds.length > 0 || (!hasLiveResults && hasValidatedRows);
+  const canDownload = getEligibleAnalysisIdsForDownload().length > 0;
 
   return (
     <>
