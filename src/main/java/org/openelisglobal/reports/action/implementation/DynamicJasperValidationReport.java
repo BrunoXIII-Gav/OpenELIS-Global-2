@@ -2,16 +2,22 @@ package org.openelisglobal.reports.action.implementation;
 
 import java.io.ByteArrayInputStream;
 import java.io.InputStream;
+import java.math.BigDecimal;
 import java.nio.charset.StandardCharsets;
+import java.util.Base64;
 import java.text.Normalizer;
 import java.util.ArrayList;
 import java.util.Collections;
+import java.util.Comparator;
+import java.util.HashMap;
 import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
 import java.util.Optional;
 import java.util.stream.Collectors;
+import java.util.regex.Matcher;
+import java.util.regex.Pattern;
 import net.sf.jasperreports.engine.JREmptyDataSource;
 import net.sf.jasperreports.engine.JRException;
 import net.sf.jasperreports.engine.JasperCompileManager;
@@ -22,10 +28,19 @@ import org.apache.commons.lang3.StringUtils;
 import org.apache.commons.validator.GenericValidator;
 import org.json.JSONArray;
 import org.json.JSONObject;
+import org.openelisglobal.analysis.valueholder.Analysis;
+import org.openelisglobal.audittrail.valueholder.History;
+import org.openelisglobal.history.service.HistoryService;
 import org.openelisglobal.image.service.ImageService;
 import org.openelisglobal.image.valueholder.Image;
+import org.openelisglobal.person.valueholder.Person;
+import org.openelisglobal.provider.valueholder.Provider;
+import org.openelisglobal.referencetables.service.ReferenceTablesService;
 import org.openelisglobal.reports.action.implementation.reportBeans.ClinicalPatientData;
 import org.openelisglobal.spring.util.SpringContext;
+import org.openelisglobal.systemuser.service.SystemUserService;
+import org.openelisglobal.systemuser.valueholder.SystemUser;
+import org.openelisglobal.testadditionalfield.bean.TestAdditionalFieldPayload;
 
 public class DynamicJasperValidationReport extends PatientCILNSPClinical_vreduit {
 
@@ -34,12 +49,26 @@ public class DynamicJasperValidationReport extends PatientCILNSPClinical_vreduit
     private static final String TEMPLATE_CONTENT_KEY = "templateContent";
     private static final String PARAMETER_DEFINITIONS_KEY = "parameterDefinitions";
     private static final String MAPPINGS_KEY = "mappings";
+    private static final String ANALYSIS_REFERENCE_TABLE = "ANALYSIS";
+    private static final String BIOLOGIST_FIELD_TYPE = "SYSTEM_USER_BIOLOGIST_SELECT";
+    private static final Pattern COLLECTION_DATE_PATTERN = Pattern
+            .compile("(\\b\\d{1,4}[/-]\\d{1,2}[/-]\\d{1,4}\\b)");
+    private static final Pattern ANALYST_SOURCE_PATTERN = Pattern
+            .compile("^biologist(\\d+)(Name|Specialty|CbpCode)$", Pattern.CASE_INSENSITIVE);
 
     private final ImageService imageService = SpringContext.getBean(ImageService.class);
+    private final HistoryService historyService = SpringContext.getBean(HistoryService.class);
+    private final ReferenceTablesService referenceTablesService = SpringContext.getBean(ReferenceTablesService.class);
+    private final SystemUserService systemUserService = SpringContext.getBean(SystemUserService.class);
 
     private JSONObject config = new JSONObject();
     private String templateContent = "";
     private List<TemplateParameterDefinition> parameterDefinitions = Collections.emptyList();
+    private final Map<String, Analysis> analysisById = new HashMap<>();
+    private final Map<String, List<TestAdditionalFieldPayload>> biologistDefinitionsByTestId = new HashMap<>();
+    private final Map<String, ProfessionalInfo> professionalInfoByUserId = new HashMap<>();
+    private List<String> cachedBiologistUserIds;
+    private ProfessionalInfo cachedValidatorInfo;
 
     @Override
     protected String reportFileName() {
@@ -49,6 +78,11 @@ public class DynamicJasperValidationReport extends PatientCILNSPClinical_vreduit
     @Override
     public void initializeReport(org.openelisglobal.reports.form.ReportForm form) {
         super.initializeReport(form);
+        analysisById.clear();
+        biologistDefinitionsByTestId.clear();
+        professionalInfoByUserId.clear();
+        cachedBiologistUserIds = null;
+        cachedValidatorInfo = null;
         config = parseConfig(form);
         templateContent = StringUtils.defaultString(config.optString(TEMPLATE_CONTENT_KEY));
         parameterDefinitions = parseParameterDefinitions(config);
@@ -134,6 +168,8 @@ public class DynamicJasperValidationReport extends PatientCILNSPClinical_vreduit
             Object resolvedValue = resolveMappedValue(mapping, definition.className, first);
             if (resolvedValue != null) {
                 reportParameters.put(definition.name, resolvedValue);
+            } else if (mapping != null && !"java.io.InputStream".equalsIgnoreCase(definition.className)) {
+                reportParameters.put(definition.name, "");
             } else if (!reportParameters.containsKey(definition.name)
                     && !"java.io.InputStream".equalsIgnoreCase(definition.className)) {
                 reportParameters.put(definition.name, "");
@@ -149,6 +185,9 @@ public class DynamicJasperValidationReport extends PatientCILNSPClinical_vreduit
         String type = StringUtils.defaultIfBlank(StringUtils.trimToNull(mapping.optString("type")), "source");
         String value = StringUtils.trimToNull(mapping.optString("value"));
 
+        if ("conditional".equalsIgnoreCase(type)) {
+            return resolveConditionalValue(mapping, className, first);
+        }
         if ("constant".equalsIgnoreCase(type)) {
             return coerceValue(className, value);
         }
@@ -175,17 +214,18 @@ public class DynamicJasperValidationReport extends PatientCILNSPClinical_vreduit
             return Boolean.valueOf(StringUtils.defaultString(value));
         }
         try {
+            BigDecimal parsedNumber = parseNumericValue(value);
             if ("java.lang.Integer".equalsIgnoreCase(className) || "int".equalsIgnoreCase(className)) {
-                return StringUtils.isBlank(value) ? null : Integer.valueOf(value);
+                return parsedNumber == null ? null : parsedNumber.intValueExact();
             }
             if ("java.lang.Long".equalsIgnoreCase(className) || "long".equalsIgnoreCase(className)) {
-                return StringUtils.isBlank(value) ? null : Long.valueOf(value);
+                return parsedNumber == null ? null : parsedNumber.longValueExact();
             }
             if ("java.lang.Double".equalsIgnoreCase(className) || "double".equalsIgnoreCase(className)) {
-                return StringUtils.isBlank(value) ? null : Double.valueOf(value);
+                return parsedNumber == null ? null : parsedNumber.doubleValue();
             }
             if ("java.lang.Float".equalsIgnoreCase(className) || "float".equalsIgnoreCase(className)) {
-                return StringUtils.isBlank(value) ? null : Float.valueOf(value);
+                return parsedNumber == null ? null : parsedNumber.floatValue();
             }
         } catch (Exception e) {
             return null;
@@ -193,11 +233,144 @@ public class DynamicJasperValidationReport extends PatientCILNSPClinical_vreduit
         return value;
     }
 
+    private Object resolveConditionalValue(JSONObject mapping, String className, ClinicalPatientData first) {
+        if (mapping == null) {
+            return null;
+        }
+
+        String conditionSource = StringUtils.trimToNull(mapping.optString("conditionSource"));
+        BigDecimal actualValue = parseNumericValue(resolveSourceValue(conditionSource, first));
+        if (conditionSource == null || actualValue == null) {
+            return null;
+        }
+
+        JSONArray rules = mapping.optJSONArray("rules");
+        if (rules != null && !rules.isEmpty()) {
+            for (int i = 0; i < rules.length(); i++) {
+                JSONObject rule = rules.optJSONObject(i);
+                if (rule == null) {
+                    continue;
+                }
+                BigDecimal comparedValue = parseNumericValue(StringUtils.trimToNull(rule.optString("compareTo")));
+                if (comparedValue == null) {
+                    continue;
+                }
+                if (evaluateNumericCondition(actualValue, rule.optString("operator"), comparedValue)) {
+                    return resolveConditionalBranchValue(
+                            StringUtils.defaultIfBlank(StringUtils.trimToNull(rule.optString("resultType")), "empty"),
+                            StringUtils.trimToNull(rule.optString("resultValue")), className, first);
+                }
+            }
+
+            String fallbackType = StringUtils.defaultIfBlank(StringUtils.trimToNull(mapping.optString("fallbackType")),
+                    "empty");
+            String fallbackValue = StringUtils.trimToNull(mapping.optString("fallbackValue"));
+            return resolveConditionalBranchValue(fallbackType, fallbackValue, className, first);
+        }
+
+        BigDecimal comparedValue = parseNumericValue(StringUtils.trimToNull(mapping.optString("compareTo")));
+        if (comparedValue == null) {
+            return null;
+        }
+
+        boolean matches = evaluateNumericCondition(actualValue, mapping.optString("operator"), comparedValue);
+        String branchTypeKey = matches ? "trueType" : "falseType";
+        String branchValueKey = matches ? "trueValue" : "falseValue";
+        String branchType = StringUtils.defaultIfBlank(StringUtils.trimToNull(mapping.optString(branchTypeKey)), "empty");
+        String branchValue = StringUtils.trimToNull(mapping.optString(branchValueKey));
+        return resolveConditionalBranchValue(branchType, branchValue, className, first);
+    }
+
+    private Object resolveConditionalBranchValue(String branchType, String branchValue, String className,
+            ClinicalPatientData first) {
+        if ("constant".equalsIgnoreCase(branchType)) {
+            return coerceValue(className, branchValue);
+        }
+        if ("source".equalsIgnoreCase(branchType)) {
+            return coerceValue(className, resolveSourceValue(branchValue, first));
+        }
+        return null;
+    }
+
+    static BigDecimal parseNumericValue(String rawValue) {
+        if (StringUtils.isBlank(rawValue)) {
+            return null;
+        }
+
+        String normalized = rawValue.trim().replace(" ", "");
+        if (normalized.contains(",") && normalized.contains(".")) {
+            if (normalized.lastIndexOf(',') > normalized.lastIndexOf('.')) {
+                normalized = normalized.replace(".", "").replace(',', '.');
+            } else {
+                normalized = normalized.replace(",", "");
+            }
+        } else if (normalized.contains(",")) {
+            normalized = normalized.replace(',', '.');
+        }
+
+        try {
+            return new BigDecimal(normalized);
+        } catch (Exception e) {
+            return null;
+        }
+    }
+
+    static boolean evaluateNumericCondition(BigDecimal actualValue, String rawOperator, BigDecimal comparedValue) {
+        if (actualValue == null || comparedValue == null) {
+            return false;
+        }
+
+        int comparison = actualValue.compareTo(comparedValue);
+        String operator = normalizeConditionalOperator(rawOperator);
+        if ("lt".equals(operator)) {
+            return comparison < 0;
+        }
+        if ("lte".equals(operator)) {
+            return comparison <= 0;
+        }
+        if ("eq".equals(operator)) {
+            return comparison == 0;
+        }
+        if ("gte".equals(operator)) {
+            return comparison >= 0;
+        }
+        if ("gt".equals(operator)) {
+            return comparison > 0;
+        }
+        return false;
+    }
+
+    private static String normalizeConditionalOperator(String rawOperator) {
+        if (StringUtils.isBlank(rawOperator)) {
+            return "lt";
+        }
+        String operator = rawOperator.trim();
+        if ("lt".equalsIgnoreCase(operator) || "<".equals(operator)) {
+            return "lt";
+        }
+        if ("lte".equalsIgnoreCase(operator) || "<=".equals(operator)) {
+            return "lte";
+        }
+        if ("eq".equalsIgnoreCase(operator) || "=".equals(operator) || "==".equals(operator)) {
+            return "eq";
+        }
+        if ("gte".equalsIgnoreCase(operator) || ">=".equals(operator)) {
+            return "gte";
+        }
+        if ("gt".equalsIgnoreCase(operator) || ">".equals(operator)) {
+            return "gt";
+        }
+        return "";
+    }
+
     private InputStream resolveImageInputStream(String rawValue) {
         if (StringUtils.isBlank(rawValue)) {
             return null;
         }
         String value = rawValue.trim();
+        if ("validatorSignature".equalsIgnoreCase(value)) {
+            return resolveValidatorInfo().signatureStream;
+        }
         if (StringUtils.startsWithIgnoreCase(value, "imageId:")) {
             String imageId = StringUtils.trimToNull(value.substring("imageId:".length()));
             if (imageId != null) {
@@ -290,8 +463,24 @@ public class DynamicJasperValidationReport extends PatientCILNSPClinical_vreduit
         if ("collectionDateTime".equalsIgnoreCase(normalized)) {
             return first == null ? "" : StringUtils.defaultString(first.getCollectionDateTime());
         }
+        if ("collectionDate".equalsIgnoreCase(normalized)) {
+            return first == null ? "" : extractCollectionDate(first.getCollectionDateTime());
+        }
         if ("sampleType".equalsIgnoreCase(normalized)) {
             return first == null ? "" : StringUtils.defaultString(first.getSampleType());
+        }
+        if ("validationDate".equalsIgnoreCase(normalized)) {
+            return first == null ? "" : StringUtils.defaultString(first.getValidationDate());
+        }
+        if ("validatorName".equalsIgnoreCase(normalized)) {
+            return resolveValidatorInfo().displayName;
+        }
+        if ("validatorSpecialty".equalsIgnoreCase(normalized)) {
+            return resolveValidatorInfo().specialty;
+        }
+        String analystValue = resolveAnalystSourceValue(normalized);
+        if (analystValue != null) {
+            return analystValue;
         }
         if ("orderFinishDate".equalsIgnoreCase(normalized) || "resultDate".equalsIgnoreCase(normalized)) {
             return first == null ? "" : StringUtils.defaultString(first.getOrderFinishDate());
@@ -314,6 +503,283 @@ public class DynamicJasperValidationReport extends PatientCILNSPClinical_vreduit
 
         String fromAdditional = resolveAdditionalValue(normalized);
         return StringUtils.defaultString(fromAdditional);
+    }
+
+    private String resolveAnalystSourceValue(String sourceId) {
+        Matcher matcher = ANALYST_SOURCE_PATTERN.matcher(StringUtils.defaultString(sourceId));
+        if (!matcher.matches()) {
+            return null;
+        }
+
+        int slotNumber;
+        try {
+            slotNumber = Integer.parseInt(matcher.group(1));
+        } catch (NumberFormatException e) {
+            return "";
+        }
+
+        if (slotNumber < 1) {
+            return "";
+        }
+
+        ProfessionalInfo analystInfo = resolveBiologistInfo(slotNumber - 1);
+        String fieldName = StringUtils.defaultString(matcher.group(2));
+        if ("Name".equalsIgnoreCase(fieldName)) {
+            return analystInfo.displayName;
+        }
+        if ("Specialty".equalsIgnoreCase(fieldName)) {
+            return analystInfo.specialty;
+        }
+        if ("CbpCode".equalsIgnoreCase(fieldName)) {
+            return analystInfo.cbpCode;
+        }
+        return "";
+    }
+
+    private ProfessionalInfo resolveBiologistInfo(int slotIndex) {
+        List<String> userIds = resolveBiologistUserIds();
+        if (slotIndex < 0 || slotIndex >= userIds.size()) {
+            return ProfessionalInfo.empty();
+        }
+        return resolveProfessionalInfo(userIds.get(slotIndex));
+    }
+
+    private List<String> resolveBiologistUserIds() {
+        if (cachedBiologistUserIds != null) {
+            return cachedBiologistUserIds;
+        }
+
+        List<String> userIds = new ArrayList<>();
+        if (reportItems == null || reportItems.isEmpty()) {
+            cachedBiologistUserIds = userIds;
+            return cachedBiologistUserIds;
+        }
+
+        for (ClinicalPatientData item : reportItems) {
+            if (item == null || StringUtils.isBlank(item.getAnalysisId())) {
+                continue;
+            }
+
+            Analysis analysis = getAnalysisForReportItem(item);
+            if (analysis == null || analysis.getTest() == null || StringUtils.isBlank(analysis.getTest().getId())) {
+                continue;
+            }
+
+            List<TestAdditionalFieldPayload> definitions = biologistDefinitionsByTestId.computeIfAbsent(
+                    analysis.getTest().getId(), testId -> {
+                        List<TestAdditionalFieldPayload> fetched = testAdditionalFieldService.getFieldsForTest(testId,
+                                false);
+                        return fetched == null ? Collections.emptyList() : new ArrayList<>(fetched);
+                    });
+
+            definitions.stream().filter(this::isBiologistSelectorField)
+                    .sorted(Comparator.comparing((TestAdditionalFieldPayload field) -> field.getSortOrder() == null
+                            ? Integer.MAX_VALUE
+                            : field.getSortOrder()).thenComparing(field -> StringUtils.defaultString(field.getFieldKey()),
+                                    String.CASE_INSENSITIVE_ORDER))
+                    .forEach(field -> {
+                        String selectedUserId = item.getAdditionalFieldValue(field.getFieldKey());
+                        if (StringUtils.isNotBlank(selectedUserId)) {
+                            userIds.add(selectedUserId.trim());
+                        }
+                    });
+        }
+
+        cachedBiologistUserIds = userIds;
+        return cachedBiologistUserIds;
+    }
+
+    private boolean isBiologistSelectorField(TestAdditionalFieldPayload field) {
+        return field != null && Boolean.TRUE.equals(field.getActive())
+                && StringUtils.equalsIgnoreCase(BIOLOGIST_FIELD_TYPE, StringUtils.trimToNull(field.getFieldType()))
+                && StringUtils.isNotBlank(field.getFieldKey());
+    }
+
+    private Analysis getAnalysisForReportItem(ClinicalPatientData item) {
+        if (item == null || StringUtils.isBlank(item.getAnalysisId())) {
+            return null;
+        }
+        return analysisById.computeIfAbsent(item.getAnalysisId(), analysisService::getAnalysisById);
+    }
+
+    private ProfessionalInfo resolveValidatorInfo() {
+        if (cachedValidatorInfo != null) {
+            return cachedValidatorInfo;
+        }
+
+        if (previewValidated && StringUtils.isNotBlank(systemUserId)) {
+            cachedValidatorInfo = resolveProfessionalInfo(systemUserId);
+            return cachedValidatorInfo;
+        }
+
+        String analysisTableId = Optional.ofNullable(referenceTablesService.getReferenceTableByName(ANALYSIS_REFERENCE_TABLE))
+                .map(referenceTable -> referenceTable.getId()).orElse(null);
+        if (StringUtils.isBlank(analysisTableId)) {
+            cachedValidatorInfo = ProfessionalInfo.empty();
+            return cachedValidatorInfo;
+        }
+
+        History latestValidation = null;
+        for (ClinicalPatientData item : reportItems == null ? Collections.<ClinicalPatientData>emptyList() : reportItems) {
+            if (item == null || StringUtils.isBlank(item.getAnalysisId())) {
+                continue;
+            }
+
+            List<History> historyList = historyService.getHistoryByRefIdAndRefTableId(item.getAnalysisId(), analysisTableId);
+            if (historyList == null || historyList.isEmpty()) {
+                continue;
+            }
+
+            History latestStatusChange = null;
+            History latestAnyUpdate = null;
+            for (History history : historyList) {
+                if (history == null || !"U".equals(history.getActivity())) {
+                    continue;
+                }
+                if (latestAnyUpdate == null || isMoreRecent(history, latestAnyUpdate)) {
+                    latestAnyUpdate = history;
+                }
+                if (hasStatusChange(history) && (latestStatusChange == null || isMoreRecent(history, latestStatusChange))) {
+                    latestStatusChange = history;
+                }
+            }
+
+            History selected = latestStatusChange != null ? latestStatusChange : latestAnyUpdate;
+            if (selected != null && (latestValidation == null || isMoreRecent(selected, latestValidation))) {
+                latestValidation = selected;
+            }
+        }
+
+        if (latestValidation == null || StringUtils.isBlank(latestValidation.getSysUserId())) {
+            cachedValidatorInfo = ProfessionalInfo.empty();
+            return cachedValidatorInfo;
+        }
+
+        cachedValidatorInfo = resolveProfessionalInfo(latestValidation.getSysUserId());
+        return cachedValidatorInfo;
+    }
+
+    private ProfessionalInfo resolveProfessionalInfo(String systemUserId) {
+        if (StringUtils.isBlank(systemUserId)) {
+            return ProfessionalInfo.empty();
+        }
+        return professionalInfoByUserId.computeIfAbsent(systemUserId, this::buildProfessionalInfo);
+    }
+
+    private ProfessionalInfo buildProfessionalInfo(String systemUserId) {
+        SystemUser user = systemUserService.getUserById(systemUserId);
+        if (user == null) {
+            return ProfessionalInfo.empty();
+        }
+
+        Provider linkedProvider = resolveLinkedProvider(user);
+        String displayName = resolveProfessionalDisplayName(user, linkedProvider);
+        String specialty = linkedProvider == null ? "" : StringUtils.defaultString(linkedProvider.getSpecialty());
+        String cbpCode = linkedProvider == null ? "" : StringUtils.defaultString(linkedProvider.getCbpCode());
+        ByteArrayInputStream signatureStream = decodeSignatureImage(user.getSignatureImageData());
+        return new ProfessionalInfo(displayName, specialty, cbpCode, signatureStream);
+    }
+
+    private Provider resolveLinkedProvider(SystemUser user) {
+        if (user == null || StringUtils.isBlank(user.getLinkedProviderPersonId())) {
+            return null;
+        }
+        Person linkedPerson = personService.getPersonById(user.getLinkedProviderPersonId());
+        if (linkedPerson == null) {
+            return null;
+        }
+        return providerService.getProviderByPerson(linkedPerson);
+    }
+
+    private String resolveProfessionalDisplayName(SystemUser user, Provider provider) {
+        if (provider != null && provider.getPerson() != null) {
+            String fullName = StringUtils.normalizeSpace(StringUtils.defaultString(provider.getPerson().getFirstName())
+                    + " " + StringUtils.defaultString(provider.getPerson().getLastName()));
+            if (StringUtils.isNotBlank(fullName)) {
+                return fullName;
+            }
+        }
+
+        String userFullName = StringUtils.normalizeSpace(
+                StringUtils.defaultString(user.getFirstName()) + " " + StringUtils.defaultString(user.getLastName()));
+        if (StringUtils.isNotBlank(userFullName)) {
+            return userFullName;
+        }
+
+        return StringUtils.defaultIfBlank(StringUtils.defaultString(user.getDisplayName()),
+                StringUtils.defaultString(user.getLoginName()));
+    }
+
+    private ByteArrayInputStream decodeSignatureImage(String signatureImageData) {
+        String raw = StringUtils.trimToNull(signatureImageData);
+        if (raw == null) {
+            return null;
+        }
+        try {
+            String base64Payload = raw;
+            if (StringUtils.startsWithIgnoreCase(base64Payload, "data:")) {
+                int commaIndex = base64Payload.indexOf(',');
+                if (commaIndex > -1 && commaIndex + 1 < base64Payload.length()) {
+                    base64Payload = base64Payload.substring(commaIndex + 1);
+                }
+            }
+            byte[] decoded = Base64.getDecoder().decode(base64Payload);
+            return decoded.length == 0 ? null : new ByteArrayInputStream(decoded);
+        } catch (IllegalArgumentException decodeError) {
+            return null;
+        }
+    }
+
+    private boolean isMoreRecent(History candidate, History current) {
+        if (candidate == null) {
+            return false;
+        }
+        if (current == null || current.getTimestamp() == null) {
+            return true;
+        }
+        if (candidate.getTimestamp() == null) {
+            return false;
+        }
+        return candidate.getTimestamp().after(current.getTimestamp());
+    }
+
+    private boolean hasStatusChange(History history) {
+        if (history == null || history.getChanges() == null || history.getChanges().length == 0) {
+            return false;
+        }
+        String changes = new String(history.getChanges(), StandardCharsets.UTF_8);
+        return StringUtils.isNotBlank(extractSimpleTag(changes, "statusId"));
+    }
+
+    private String extractSimpleTag(String xmlText, String tagName) {
+        if (StringUtils.isBlank(xmlText) || StringUtils.isBlank(tagName)) {
+            return null;
+        }
+        String startTag = "<" + tagName + ">";
+        int begin = xmlText.indexOf(startTag);
+        if (begin < 0) {
+            return null;
+        }
+        begin += startTag.length();
+        int end = xmlText.indexOf("</" + tagName + ">");
+        if (end < 0 || end < begin) {
+            return null;
+        }
+        return xmlText.substring(begin, end);
+    }
+
+    static String extractCollectionDate(String rawValue) {
+        String normalized = StringUtils.trimToEmpty(rawValue);
+        if (StringUtils.isBlank(normalized)) {
+            return "";
+        }
+
+        Matcher matcher = COLLECTION_DATE_PATTERN.matcher(normalized);
+        if (matcher.find()) {
+            return StringUtils.defaultString(matcher.group(1));
+        }
+
+        return normalized;
     }
 
     private String resolveAnalysisResult(int position) {
@@ -433,6 +899,25 @@ public class DynamicJasperValidationReport extends PatientCILNSPClinical_vreduit
         private TemplateParameterDefinition(String name, String className) {
             this.name = name;
             this.className = className;
+        }
+    }
+
+    private static class ProfessionalInfo {
+        private final String displayName;
+        private final String specialty;
+        private final String cbpCode;
+        private final ByteArrayInputStream signatureStream;
+
+        private ProfessionalInfo(String displayName, String specialty, String cbpCode,
+                ByteArrayInputStream signatureStream) {
+            this.displayName = StringUtils.defaultString(displayName);
+            this.specialty = StringUtils.defaultString(specialty);
+            this.cbpCode = StringUtils.defaultString(cbpCode);
+            this.signatureStream = signatureStream;
+        }
+
+        private static ProfessionalInfo empty() {
+            return new ProfessionalInfo("", "", "", null);
         }
     }
 }
