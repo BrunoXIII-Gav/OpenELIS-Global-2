@@ -102,6 +102,7 @@
         <class>org.openelisglobal.patientadditionalfield.valueholder.PatientAdditionalFieldDefinition</class>
         <class>org.openelisglobal.patientadditionalfield.valueholder.PatientAdditionalFieldOption</class>
         <class>org.openelisglobal.patientadditionalfield.valueholder.PatientAdditionalFieldValue</class>
+        <class>org.openelisglobal.provider.valueholder.ProviderProfileFieldValue</class>
         <class>org.openelisglobal.analysis.valueholder.AnalysisTubeUsage</class>
         <class>org.openelisglobal.analysis.valueholder.AnalysisTubeLabel</class>
 
