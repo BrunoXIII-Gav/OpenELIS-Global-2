@@ -10,7 +10,11 @@ import org.openelisglobal.orderadditionalfield.bean.OrderFixedFieldConfigPayload
 
 public interface OrderAdditionalFieldService {
 
-    List<OrderAdditionalFieldPayload> getFields(boolean includeInactive);
+    default List<OrderAdditionalFieldPayload> getFields(boolean includeInactive) {
+        return getFields(includeInactive, false);
+    }
+
+    List<OrderAdditionalFieldPayload> getFields(boolean includeInactive, boolean resolveUserOptions);
 
     OrderAdditionalFieldPayload createField(OrderAdditionalFieldPayload payload, String currentUserId);
 

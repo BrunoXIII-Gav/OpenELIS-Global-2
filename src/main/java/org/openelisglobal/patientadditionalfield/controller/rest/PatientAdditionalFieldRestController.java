@@ -35,8 +35,9 @@ public class PatientAdditionalFieldRestController extends BaseRestController {
             + "T(org.openelisglobal.common.constants.SystemPermission).ORDER)")
     @ResponseBody
     public List<PatientAdditionalFieldPayload> getFields(
-            @RequestParam(value = "includeInactive", defaultValue = "false") boolean includeInactive) {
-        return patientAdditionalFieldService.getFields(includeInactive);
+            @RequestParam(value = "includeInactive", defaultValue = "false") boolean includeInactive,
+            @RequestParam(value = "resolveUserOptions", defaultValue = "false") boolean resolveUserOptions) {
+        return patientAdditionalFieldService.getFields(includeInactive, resolveUserOptions);
     }
 
     @GetMapping(value = "patient-additional-fields/values", produces = MediaType.APPLICATION_JSON_VALUE)
@@ -44,7 +45,8 @@ public class PatientAdditionalFieldRestController extends BaseRestController {
             + "T(org.openelisglobal.common.constants.SystemPermission).ORDER)")
     @ResponseBody
     public Map<String, String> getValues(@RequestParam("patientId") String patientId) {
-        return patientAdditionalFieldService.getPatientValues(patientId, null);
+        return patientAdditionalFieldService.getPatientValues(patientId,
+                patientAdditionalFieldService.getFields(false, true));
     }
 
     @PostMapping(value = "patient-additional-fields", produces = MediaType.APPLICATION_JSON_VALUE, consumes = MediaType.APPLICATION_JSON_VALUE)

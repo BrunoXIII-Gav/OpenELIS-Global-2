@@ -36,8 +36,9 @@ public class OrderAdditionalFieldRestController extends BaseRestController {
 
     @GetMapping
     public List<OrderAdditionalFieldPayload> getFields(
-            @RequestParam(name = "includeInactive", defaultValue = "false") boolean includeInactive) {
-        return orderAdditionalFieldService.getFields(includeInactive);
+            @RequestParam(name = "includeInactive", defaultValue = "false") boolean includeInactive,
+            @RequestParam(name = "resolveUserOptions", defaultValue = "false") boolean resolveUserOptions) {
+        return orderAdditionalFieldService.getFields(includeInactive, resolveUserOptions);
     }
 
     @PostMapping
@@ -128,7 +129,7 @@ public class OrderAdditionalFieldRestController extends BaseRestController {
     public ResponseEntity<?> getSampleValues(@PathVariable String sampleId,
             @RequestParam(name = "includeInactive", defaultValue = "false") boolean includeInactive) {
         try {
-            List<OrderAdditionalFieldPayload> definitions = orderAdditionalFieldService.getFields(includeInactive);
+            List<OrderAdditionalFieldPayload> definitions = orderAdditionalFieldService.getFields(includeInactive, true);
             Map<String, String> values = orderAdditionalFieldService.getSampleValues(sampleId, definitions);
             return ResponseEntity.ok(values);
         } catch (IllegalArgumentException e) {

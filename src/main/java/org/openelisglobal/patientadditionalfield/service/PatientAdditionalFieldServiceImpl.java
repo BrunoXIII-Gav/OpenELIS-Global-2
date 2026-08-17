@@ -19,6 +19,7 @@ import java.util.regex.Pattern;
 import java.util.stream.Collectors;
 import org.apache.commons.lang3.StringUtils;
 import org.openelisglobal.common.exception.LIMSRuntimeException;
+import org.openelisglobal.common.service.UserFieldOptionResolver;
 import org.openelisglobal.patientadditionalfield.bean.PatientAdditionalFieldOptionPayload;
 import org.openelisglobal.patientadditionalfield.bean.PatientAdditionalFieldPayload;
 import org.openelisglobal.patientadditionalfield.dao.PatientAdditionalFieldDefinitionDAO;
@@ -52,9 +53,12 @@ public class PatientAdditionalFieldServiceImpl implements PatientAdditionalField
     @Autowired
     private PatientAdditionalFieldValueDAO valueDAO;
 
+    @Autowired
+    private UserFieldOptionResolver userFieldOptionResolver;
+
     @Override
     @Transactional(readOnly = true)
-    public List<PatientAdditionalFieldPayload> getFields(boolean includeInactive) {
+    public List<PatientAdditionalFieldPayload> getFields(boolean includeInactive, boolean resolveUserOptions) {
         List<PatientAdditionalFieldDefinition> definitions = definitionDAO.findAll(!includeInactive);
         if (definitions.isEmpty()) {
             return Collections.emptyList();
@@ -62,14 +66,14 @@ public class PatientAdditionalFieldServiceImpl implements PatientAdditionalField
         List<Integer> definitionIds = definitions.stream().map(PatientAdditionalFieldDefinition::getId)
                 .collect(Collectors.toList());
         List<PatientAdditionalFieldOption> options = optionDAO.findByDefinitionIds(definitionIds, !includeInactive);
-        return mapDefinitionsToPayload(definitions, options);
+        return mapDefinitionsToPayload(definitions, options, resolveUserOptions);
     }
 
     @Override
     @Transactional(readOnly = true)
     public Map<String, String> getPatientValues(String patientId, List<PatientAdditionalFieldPayload> fieldDefinitions) {
         Integer numericPatientId = parseNumericId(patientId, "patientId");
-        List<PatientAdditionalFieldPayload> definitions = fieldDefinitions == null ? getFields(false)
+        List<PatientAdditionalFieldPayload> definitions = fieldDefinitions == null ? getFields(false, true)
                 : fieldDefinitions;
         if (definitions.isEmpty()) {
             return Collections.emptyMap();
@@ -266,7 +270,7 @@ public class PatientAdditionalFieldServiceImpl implements PatientAdditionalField
         }
 
         Integer numericPatientId = parseNumericId(patientId, "patientId");
-        List<PatientAdditionalFieldPayload> fieldDefinitions = activeFieldCache == null ? getFields(false)
+        List<PatientAdditionalFieldPayload> fieldDefinitions = activeFieldCache == null ? getFields(false, true)
                 : activeFieldCache;
         if (fieldDefinitions == null || fieldDefinitions.isEmpty()) {
             return;
@@ -301,7 +305,8 @@ public class PatientAdditionalFieldServiceImpl implements PatientAdditionalField
     }
 
     private List<PatientAdditionalFieldPayload> mapDefinitionsToPayload(
-            List<PatientAdditionalFieldDefinition> definitions, List<PatientAdditionalFieldOption> options) {
+            List<PatientAdditionalFieldDefinition> definitions, List<PatientAdditionalFieldOption> options,
+            boolean resolveUserOptions) {
         Map<Integer, List<PatientAdditionalFieldOptionPayload>> optionsByDefinitionId = new HashMap<>();
         for (PatientAdditionalFieldOption option : options) {
             optionsByDefinitionId.computeIfAbsent(option.getFieldDefinitionId(), ignored -> new ArrayList<>())
@@ -311,7 +316,11 @@ public class PatientAdditionalFieldServiceImpl implements PatientAdditionalField
         List<PatientAdditionalFieldPayload> payloads = new ArrayList<>();
         for (PatientAdditionalFieldDefinition definition : definitions) {
             PatientAdditionalFieldPayload payload = mapDefinitionToPayload(definition);
-            payload.setOptions(optionsByDefinitionId.getOrDefault(definition.getId(), Collections.emptyList()));
+            if (resolveUserOptions && isUserFieldType(definition.getFieldType())) {
+                payload.setOptions(resolveUserFieldOptions(definition.getFieldType(), definition.getMetadataJson()));
+            } else {
+                payload.setOptions(optionsByDefinitionId.getOrDefault(definition.getId(), Collections.emptyList()));
+            }
             payloads.add(payload);
         }
         return payloads;
@@ -346,8 +355,12 @@ public class PatientAdditionalFieldServiceImpl implements PatientAdditionalField
         PatientAdditionalFieldDefinition definition = definitionDAO.get(fieldId)
                 .orElseThrow(() -> new IllegalArgumentException("Field definition not found: " + fieldId));
         PatientAdditionalFieldPayload payload = mapDefinitionToPayload(definition);
-        List<PatientAdditionalFieldOption> options = optionDAO.findByDefinitionId(fieldId, includeInactiveOptions);
-        payload.setOptions(options.stream().map(this::mapOptionToPayload).collect(Collectors.toList()));
+        if (isUserFieldType(definition.getFieldType())) {
+            payload.setOptions(Collections.emptyList());
+        } else {
+            List<PatientAdditionalFieldOption> options = optionDAO.findByDefinitionId(fieldId, includeInactiveOptions);
+            payload.setOptions(options.stream().map(this::mapOptionToPayload).collect(Collectors.toList()));
+        }
         return payload;
     }
 
@@ -426,6 +439,10 @@ public class PatientAdditionalFieldServiceImpl implements PatientAdditionalField
 
     private boolean isOptionFieldType(FieldType fieldType) {
         return OPTION_TYPES.contains(fieldType);
+    }
+
+    private boolean isUserFieldType(String fieldType) {
+        return userFieldOptionResolver.isUserFieldType(fieldType);
     }
 
     private Integer getNextSortOrder() {
@@ -516,6 +533,7 @@ public class PatientAdditionalFieldServiceImpl implements PatientAdditionalField
             return trimmedValue.toLowerCase();
         case SELECT:
         case RADIO:
+        case USER:
             validateSingleOption(fieldDefinition, trimmedValue);
             return trimmedValue;
         case MULTISELECT:
@@ -614,5 +632,21 @@ public class PatientAdditionalFieldServiceImpl implements PatientAdditionalField
             normalizedOptions.add(trimmed);
         }
         return normalizedOptions.isEmpty() ? null : String.join(",", normalizedOptions);
+    }
+
+    private List<PatientAdditionalFieldOptionPayload> resolveUserFieldOptions(String fieldType, String metadataJson) {
+        List<PatientAdditionalFieldOptionPayload> payloads = new ArrayList<>();
+        List<UserFieldOptionResolver.ResolvedUserOption> resolvedOptions = userFieldOptionResolver
+                .resolveUserOptions(fieldType, metadataJson);
+        for (int index = 0; index < resolvedOptions.size(); index++) {
+            UserFieldOptionResolver.ResolvedUserOption option = resolvedOptions.get(index);
+            PatientAdditionalFieldOptionPayload payload = new PatientAdditionalFieldOptionPayload();
+            payload.setOptionKey(option.optionKey());
+            payload.setOptionLabel(option.label());
+            payload.setSortOrder(index + 1);
+            payload.setActive(true);
+            payloads.add(payload);
+        }
+        return payloads;
     }
 }
