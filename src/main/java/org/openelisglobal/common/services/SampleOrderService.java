@@ -135,7 +135,7 @@ public class SampleOrderService {
                     DisplayListService.getInstance().getList(DisplayListService.ListType.DICTIONARY_PROGRAM));
         }
 
-        List<OrderAdditionalFieldPayload> additionalFields = orderAdditionalFieldService.getFields(false);
+        List<OrderAdditionalFieldPayload> additionalFields = orderAdditionalFieldService.getFields(false, true);
         orderItems.setAdditionalFields(additionalFields);
         orderItems.setFixedFieldConfigs(orderAdditionalFieldService.getFixedFieldConfigs());
         orderItems.setAdditionalFieldValues(buildDefaultAdditionalFieldValues(additionalFields));
@@ -220,7 +220,7 @@ public class SampleOrderService {
 
             List<OrderAdditionalFieldPayload> additionalFields = sampleOrder.getAdditionalFields();
             if (additionalFields == null) {
-                additionalFields = orderAdditionalFieldService.getFields(false);
+                additionalFields = orderAdditionalFieldService.getFields(false, true);
                 sampleOrder.setAdditionalFields(additionalFields);
             }
             Map<String, String> persistedValues = orderAdditionalFieldService.getSampleValues(sample.getId(),

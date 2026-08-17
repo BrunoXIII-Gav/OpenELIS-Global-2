@@ -10,6 +10,7 @@ import java.io.File;
 import java.io.IOException;
 import java.io.UnsupportedEncodingException;
 import java.lang.reflect.InvocationTargetException;
+import java.net.URLEncoder;
 import java.net.URLDecoder;
 import java.sql.SQLException;
 import java.sql.Timestamp;
@@ -51,6 +52,7 @@ import org.springframework.validation.BindingResult;
 import org.springframework.web.bind.WebDataBinder;
 import org.springframework.web.bind.annotation.InitBinder;
 import org.springframework.web.bind.annotation.ModelAttribute;
+import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RequestMethod;
 import org.springframework.web.bind.annotation.SessionAttributes;
@@ -121,6 +123,37 @@ public class ReportController extends BaseController {
     public ModelAndView showReportPrint(HttpServletRequest request, HttpServletResponse response,
             @ModelAttribute("ReportPrintForm") @Valid ReportForm form, BindingResult result, SessionStatus status)
             throws IllegalAccessException, InvocationTargetException, NoSuchMethodException {
+        return renderReportPrint(request, response, form, result, status);
+    }
+
+    @RequestMapping(value = "/ReportPrintNamed", method = RequestMethod.GET)
+    public ModelAndView showNamedReportPrint(HttpServletRequest request, HttpServletResponse response,
+            @ModelAttribute("ReportPrintForm") @Valid ReportForm form, BindingResult result, SessionStatus status)
+            throws IllegalAccessException, InvocationTargetException, NoSuchMethodException, IOException {
+        if (result.hasErrors()) {
+            saveErrors(result);
+            return findForward(FWD_FAIL, form);
+        }
+
+        normalizeAccessionSearchInputs(form);
+        String resolvedFilename = resolveValidatedDownloadFilename(request, form);
+        String redirectUrl = buildNamedReportRedirectUrl(request, resolvedFilename);
+        response.sendRedirect(redirectUrl);
+        status.setComplete();
+        return null;
+    }
+
+    @RequestMapping(value = "/ReportPrintFile/{filename:.+}", method = RequestMethod.GET)
+    public ModelAndView showReportPrintFile(HttpServletRequest request, HttpServletResponse response,
+            @PathVariable("filename") String filename,
+            @ModelAttribute("ReportPrintForm") @Valid ReportForm form, BindingResult result, SessionStatus status)
+            throws IllegalAccessException, InvocationTargetException, NoSuchMethodException {
+        return renderReportPrint(request, response, form, result, status);
+    }
+
+    private ModelAndView renderReportPrint(HttpServletRequest request, HttpServletResponse response, ReportForm form,
+            BindingResult result, SessionStatus status)
+            throws IllegalAccessException, InvocationTargetException, NoSuchMethodException {
         if (result.hasErrors()) {
             saveErrors(result);
             return findForward(FWD_FAIL, form);
@@ -165,8 +198,11 @@ public class ReportController extends BaseController {
                     && !GenericValidator.isBlankOrNull(responseHeaderContent)) {
                 response.setHeader(responseHeaderName, responseHeaderContent);
             }
+            String resolvedFilename = resolveValidatedDownloadFilename(request, form);
             if ("true".equalsIgnoreCase(request.getParameter("download"))) {
-                response.setHeader("Content-Disposition", "attachment; filename=\"validated-report.pdf\"");
+                response.setHeader("Content-Disposition", buildContentDisposition("attachment", resolvedFilename));
+            } else if (shouldApplyInlineReportFilename(request, form)) {
+                response.setHeader("Content-Disposition", buildContentDisposition("inline", resolvedFilename));
             }
             response.setHeader("X-OpenELIS-Effective-Report", effectiveReportName == null ? "" : effectiveReportName);
 
@@ -434,6 +470,77 @@ public class ReportController extends BaseController {
             sample = sampleService.getSampleByAccessionNumber(searchValue.substring(0, searchValue.indexOf('-')));
         }
         return sample;
+    }
+
+    private String resolveValidatedDownloadFilename(HttpServletRequest request, ReportForm form) {
+        String accessionNumber = resolveValidatedDownloadAccessionNumber(request, form);
+        if (GenericValidator.isBlankOrNull(accessionNumber)) {
+            return "validated-report.pdf";
+        }
+
+        String safeAccessionNumber = accessionNumber.trim().replaceAll("[\\\\/:*?\"<>|\\s]+", "_");
+        if (GenericValidator.isBlankOrNull(safeAccessionNumber)) {
+            return "validated-report.pdf";
+        }
+
+        return safeAccessionNumber + ".pdf";
+    }
+
+    private boolean shouldApplyInlineReportFilename(HttpServletRequest request, ReportForm form) {
+        if (request == null) {
+            return false;
+        }
+
+        if (!"patient".equalsIgnoreCase(request.getParameter("type"))) {
+            return false;
+        }
+
+        if (!GenericValidator.isBlankOrNull(request.getParameter("analysisIds"))) {
+            return true;
+        }
+
+        return form != null && form.getAnalysisIds() != null && !form.getAnalysisIds().isEmpty();
+    }
+
+    private String buildContentDisposition(String dispositionType, String filename) {
+        String safeFilename = GenericValidator.isBlankOrNull(filename) ? "report.pdf" : filename;
+        return dispositionType + "; filename=\"" + safeFilename + "\"";
+    }
+
+    private String buildNamedReportRedirectUrl(HttpServletRequest request, String resolvedFilename)
+            throws UnsupportedEncodingException {
+        String safeFilename = GenericValidator.isBlankOrNull(resolvedFilename) ? "validated-report.pdf" : resolvedFilename;
+        String encodedFilename = URLEncoder.encode(safeFilename, "UTF-8").replace("+", "%20");
+        StringBuilder redirectUrl = new StringBuilder();
+        redirectUrl.append(request.getContextPath()).append("/ReportPrintFile/").append(encodedFilename);
+        if (!GenericValidator.isBlankOrNull(request.getQueryString())) {
+            redirectUrl.append("?").append(request.getQueryString());
+        }
+        return redirectUrl.toString();
+    }
+
+    private String resolveValidatedDownloadAccessionNumber(HttpServletRequest request, ReportForm form) {
+        String analysisIdsParam = request == null ? null : request.getParameter("analysisIds");
+        if (!GenericValidator.isBlankOrNull(analysisIdsParam)) {
+            for (String analysisId : parseDelimitedIds(Collections.singletonList(analysisIdsParam))) {
+                Analysis analysis = analysisService.get(analysisId);
+                if (analysis != null && analysis.getSampleItem() != null && analysis.getSampleItem().getSample() != null
+                        && !GenericValidator.isBlankOrNull(analysis.getSampleItem().getSample().getAccessionNumber())) {
+                    return analysis.getSampleItem().getSample().getAccessionNumber();
+                }
+            }
+        }
+
+        if (form != null && !GenericValidator.isBlankOrNull(form.getAccessionDirect())) {
+            return form.getAccessionDirect();
+        }
+
+        String requestAccession = request == null ? null : request.getParameter("accessionDirect");
+        if (!GenericValidator.isBlankOrNull(requestAccession)) {
+            return requestAccession;
+        }
+
+        return null;
     }
 
     private String getReportPath() {

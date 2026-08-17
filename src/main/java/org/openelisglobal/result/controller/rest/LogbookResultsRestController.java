@@ -551,6 +551,14 @@ public class LogbookResultsRestController extends LogbookResultsBaseController {
 
         List<Result> checkPagedResults = (List<Result>) request.getSession()
                 .getAttribute(IActionConstants.RESULTS_SESSION_CACHE);
+        if (checkPagedResults == null) {
+            LogEvent.logWarn(this.getClass().getSimpleName(), "LogbookResults()",
+                    "Session cache missing — session may have expired. Returning error to client.");
+            Map<String, List<String>> sessionErrorMap = new HashMap<>();
+            sessionErrorMap.put("error", List.of(
+                    "Your session has expired. Please reload the page and try again."));
+            return sessionErrorMap;
+        }
         List<Result> checkResults = (List<Result>) checkPagedResults.get(0);
         if (checkResults.size() == 0) {
             LogEvent.logDebug(this.getClass().getSimpleName(), "LogbookResults()", "Attempted save of stale page.");

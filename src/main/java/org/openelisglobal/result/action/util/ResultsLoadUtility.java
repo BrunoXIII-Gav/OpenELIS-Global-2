@@ -881,7 +881,7 @@ public class ResultsLoadUtility {
             return new ArrayList<>();
         }
         return additionalFieldDefinitionCache.computeIfAbsent(testId,
-                ignored -> testAdditionalFieldService.getFieldsForTest(testId, false));
+                ignored -> testAdditionalFieldService.getFieldsForTest(testId, false, true));
     }
 
     private boolean isReadOnly(boolean isConclusion, boolean isCD4Conclusion) {
