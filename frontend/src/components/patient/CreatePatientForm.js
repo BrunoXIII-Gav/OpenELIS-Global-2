@@ -441,6 +441,7 @@ function CreatePatientForm(props) {
           </Column>
         );
       case "SELECT":
+      case "USER":
         return (
           <Column key={field.fieldKey} lg={8} md={4} sm={4}>
             <Select
@@ -688,7 +689,7 @@ function CreatePatientForm(props) {
           </Column>
         );
       case "SELECT":
-      case "SYSTEM_USER_BIOLOGIST_SELECT":
+      case "USER":
         return (
           <Column key={field.fieldKey} lg={8} md={4} sm={4}>
             <Select
@@ -1306,11 +1307,14 @@ function CreatePatientForm(props) {
       getFromOpenElisServer("/rest/health-regions", fetchHeathRegions);
       getFromOpenElisServer("/rest/education-list", fetchEducationList);
       getFromOpenElisServer("/rest/marital-statuses", fetchMaritalStatuses);
-      getFromOpenElisServer("/rest/patient-additional-fields", (fields) => {
+      getFromOpenElisServer(
+        "/rest/patient-additional-fields?resolveUserOptions=true",
+        (fields) => {
         if (componentMounted.current) {
           setPatientAdditionalFields(Array.isArray(fields) ? fields : []);
         }
-      });
+        },
+      );
     }
   }, [showPatientAdditionalInfoOnOrderEntry]);
 

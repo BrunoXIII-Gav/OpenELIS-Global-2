@@ -186,6 +186,7 @@ const Validation = (props) => {
     previewValidated = false,
     requestedReport = validationReportName,
     previewValidationDates = "",
+    namedInline = false,
   ) => {
     const query = new URLSearchParams();
     query.set("report", requestedReport);
@@ -198,7 +199,8 @@ const Validation = (props) => {
         query.set("previewValidationDates", previewValidationDates);
       }
     }
-    return `${config.serverBaseUrl}/ReportPrint?${query.toString()}`;
+    const endpoint = namedInline ? "ReportPrintNamed" : "ReportPrint";
+    return `${config.serverBaseUrl}/${endpoint}?${query.toString()}`;
   };
 
   useEffect(() => {
@@ -655,7 +657,7 @@ const Validation = (props) => {
     if (!analysisIds || analysisIds.length === 0) {
       return;
     }
-    const reportUrl = getReportUrl(analysisIds, false, requestedReport);
+    const reportUrl = getReportUrl(analysisIds, false, requestedReport, "", true);
     window.open(reportUrl, "_blank", "noopener,noreferrer");
   };
 

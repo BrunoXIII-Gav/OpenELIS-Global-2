@@ -276,7 +276,7 @@ const AdditionalFieldEditor = ({
         />
       );
     case "SELECT":
-    case "SYSTEM_USER_BIOLOGIST_SELECT":
+    case "USER":
       return (
         <Select
           id={inputId}
@@ -4080,6 +4080,4 @@ export function SearchResults(props) {
 }
 
 export default injectIntl(ResultSearchPage);
-
-
 
