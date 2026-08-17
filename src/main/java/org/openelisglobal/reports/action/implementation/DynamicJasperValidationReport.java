@@ -50,7 +50,7 @@ public class DynamicJasperValidationReport extends PatientCILNSPClinical_vreduit
     private static final String PARAMETER_DEFINITIONS_KEY = "parameterDefinitions";
     private static final String MAPPINGS_KEY = "mappings";
     private static final String ANALYSIS_REFERENCE_TABLE = "ANALYSIS";
-    private static final String BIOLOGIST_FIELD_TYPE = "SYSTEM_USER_BIOLOGIST_SELECT";
+    private static final String USER_FIELD_TYPE = "USER";
     private static final Pattern COLLECTION_DATE_PATTERN = Pattern
             .compile("(\\b\\d{1,4}[/-]\\d{1,2}[/-]\\d{1,4}\\b)");
     private static final Pattern ANALYST_SOURCE_PATTERN = Pattern
@@ -60,6 +60,7 @@ public class DynamicJasperValidationReport extends PatientCILNSPClinical_vreduit
     private final HistoryService historyService = SpringContext.getBean(HistoryService.class);
     private final ReferenceTablesService referenceTablesService = SpringContext.getBean(ReferenceTablesService.class);
     private final SystemUserService systemUserService = SpringContext.getBean(SystemUserService.class);
+    private final org.openelisglobal.provider.service.ProviderProfileFieldService providerProfileFieldService = SpringContext.getBean(org.openelisglobal.provider.service.ProviderProfileFieldService.class);
 
     private JSONObject config = new JSONObject();
     private String templateContent = "";
@@ -191,6 +192,9 @@ public class DynamicJasperValidationReport extends PatientCILNSPClinical_vreduit
         if ("constant".equalsIgnoreCase(type)) {
             return coerceValue(className, value);
         }
+        if ("user_field".equalsIgnoreCase(type)) {
+            return resolveUserFieldValue(mapping, className, first);
+        }
         if ("image".equalsIgnoreCase(type)) {
             if (!"java.io.InputStream".equalsIgnoreCase(className)) {
                 return null;
@@ -201,6 +205,276 @@ public class DynamicJasperValidationReport extends PatientCILNSPClinical_vreduit
             return null;
         }
         return coerceValue(className, resolveSourceValue(value, first));
+    }
+
+    /**
+     * Resolve value from user_field mapping type (new cascading system).
+     * Mapping structure: {
+     *   "type": "user_field", 
+     *   "userFieldId": "analyst_1", 
+     *   "userFieldKey": "responsible_analyst", 
+     *   "profileFieldMappings": {
+     *     "BIOLOGIST": "cbpCode",
+     *     "MEDICAL_DOCTOR": "rne",
+     *     "ENGINEER": "cip"
+     *   }
+     * }
+     */
+    private Object resolveUserFieldValue(JSONObject mapping, String className, ClinicalPatientData first) {
+        if (mapping == null || first == null) {
+            return null;
+        }
+
+        String userFieldId = StringUtils.trimToNull(mapping.optString("userFieldId"));
+        String userFieldKey = StringUtils.trimToNull(mapping.optString("userFieldKey"));
+
+        if (userFieldKey == null) {
+            return null;
+        }
+
+        // Special handling for "validator" field
+        if ("validator".equalsIgnoreCase(userFieldId)) {
+            return resolveValidatorFieldValue(mapping, className);
+        }
+
+        // Get systemUserId from the additional field value
+        String systemUserId = StringUtils.trimToNull(first.getAdditionalFieldValue(userFieldKey));
+        if (systemUserId == null) {
+            return null;
+        }
+
+        // Resolve professional info
+        ProfessionalInfo professionalInfo = resolveProfessionalInfo(systemUserId);
+        if (professionalInfo == null) {
+            return null;
+        }
+
+        // Determine which field to use based on profile
+        String profileFieldKey = determineProfileFieldKey(mapping, systemUserId);
+        if (profileFieldKey == null) {
+            return null;
+        }
+
+        // Extract the profile field value
+        return extractProfileFieldValue(professionalInfo, profileFieldKey, className, systemUserId);
+    }
+
+    /**
+     * Determine which profile field to use based on the user's professional profile.
+     * If profileFieldMappings exists, use the mapping for the user's profile.
+     * Otherwise, fall back to the legacy profileFieldKey.
+     */
+    private String determineProfileFieldKey(JSONObject mapping, String systemUserId) {
+        if (mapping == null) {
+            return null;
+        }
+
+        // Check if we have profile-specific mappings
+        JSONObject profileFieldMappings = mapping.optJSONObject("profileFieldMappings");
+        if (profileFieldMappings != null && !profileFieldMappings.isEmpty()) {
+            // Get the user's professional profile code
+            String profileCode = getUserProfessionalProfileCode(systemUserId);
+            if (StringUtils.isNotBlank(profileCode)) {
+                String fieldKey = StringUtils.trimToNull(profileFieldMappings.optString(profileCode));
+                if (fieldKey != null) {
+                    return fieldKey;
+                }
+            }
+        }
+
+        // Fall back to legacy single profileFieldKey (for backward compatibility)
+        return StringUtils.trimToNull(mapping.optString("profileFieldKey"));
+    }
+
+    /**
+     * Get the professional profile code for a system user.
+     */
+    private String getUserProfessionalProfileCode(String systemUserId) {
+        if (StringUtils.isBlank(systemUserId)) {
+            return null;
+        }
+
+        try {
+            SystemUser user = systemUserService.getUserById(systemUserId);
+            if (user == null || StringUtils.isBlank(user.getLinkedProviderPersonId())) {
+                return null;
+            }
+
+            Person linkedPerson = personService.getPersonById(user.getLinkedProviderPersonId());
+            if (linkedPerson == null) {
+                return null;
+            }
+
+            Provider provider = providerService.getProviderByPerson(linkedPerson);
+            if (provider == null) {
+                return null;
+            }
+
+            return StringUtils.trimToNull(provider.getProfessionalProfileCode());
+        } catch (Exception e) {
+            return null;
+        }
+    }
+
+    /**
+     * Resolve validator field value (special case for validator).
+     */
+    private Object resolveValidatorFieldValue(JSONObject mapping, String className) {
+        ProfessionalInfo validatorInfo = resolveValidatorInfo();
+        if (validatorInfo == null) {
+            return null;
+        }
+
+        // For validator, we need to find the systemUserId from the most recent validation history
+        String validatorUserId = null;
+        if (reportItems != null && !reportItems.isEmpty()) {
+            ClinicalPatientData first = getFirstReportItem();
+            if (first != null && StringUtils.isNotBlank(first.getAnalysisId())) {
+                Analysis analysis = getAnalysisForReportItem(first);
+                if (analysis != null) {
+                    History validationHistory = getMostRecentValidationHistory(analysis);
+                    if (validationHistory != null) {
+                        validatorUserId = validationHistory.getSysUserId();
+                    }
+                }
+            }
+        }
+
+        // Determine which field to use based on validator's profile
+        String profileFieldKey = determineProfileFieldKey(mapping, validatorUserId);
+        if (profileFieldKey == null) {
+            return null;
+        }
+
+        return extractProfileFieldValue(validatorInfo, profileFieldKey, className, validatorUserId);
+    }
+
+    /**
+     * Extract specific field value from ProfessionalInfo.
+     */
+    private Object extractProfileFieldValue(ProfessionalInfo info, String profileFieldKey, String className, String systemUserId) {
+        if (info == null || profileFieldKey == null) {
+            return null;
+        }
+
+        // System fields from ProfessionalInfo
+        String stringValue = switch (profileFieldKey.toLowerCase()) {
+            case "name" -> info.displayName;
+            case "specialty" -> {
+                yield info.specialty;
+            }
+            case "cbpcode" -> info.cbpCode;
+            case "signature" -> {
+                if ("java.io.InputStream".equalsIgnoreCase(className)) {
+                    yield null; // Will be handled below
+                }
+                yield null;
+            }
+            default -> resolveCustomProfileField(systemUserId, profileFieldKey);
+        };
+
+        // Special handling for signature image
+        if ("signature".equalsIgnoreCase(profileFieldKey) && "java.io.InputStream".equalsIgnoreCase(className)) {
+            return info.signatureStream;
+        }
+
+        // Handle other system fields from Provider entity
+        if (stringValue == null && systemUserId != null) {
+            SystemUser user = systemUserService.getUserById(systemUserId);
+            if (user != null) {
+                Person linkedPerson = StringUtils.isNotBlank(user.getLinkedProviderPersonId()) 
+                        ? personService.getPersonById(user.getLinkedProviderPersonId()) 
+                        : null;
+                Provider provider = linkedPerson != null ? providerService.getProviderByPerson(linkedPerson) : null;
+
+                if (provider != null) {
+                    stringValue = switch (profileFieldKey.toLowerCase()) {
+                        case "professionalInitials", "professionalinitials" -> provider.getProfessionalInitials();
+                        case "dni" -> provider.getDni();
+                        case "npi" -> provider.getNpi();
+                        default -> null;
+                    };
+                }
+            }
+        }
+
+        return coerceValue(className, stringValue);
+    }
+
+    /**
+     * Resolve custom profile field value from ProviderProfileFieldValue.
+     */
+    private String resolveCustomProfileField(String systemUserId, String fieldKey) {
+        if (systemUserId == null || fieldKey == null) {
+            return null;
+        }
+
+        try {
+            SystemUser user = systemUserService.getUserById(systemUserId);
+            if (user == null || StringUtils.isBlank(user.getLinkedProviderPersonId())) {
+                return null;
+            }
+
+            Person linkedPerson = personService.getPersonById(user.getLinkedProviderPersonId());
+            if (linkedPerson == null) {
+                return null;
+            }
+
+            Provider provider = providerService.getProviderByPerson(linkedPerson);
+            if (provider == null) {
+                return null;
+            }
+
+            // Hydrate profile field values if not already done
+            if (provider.getProfileFieldValues() == null || provider.getProfileFieldValues().isEmpty()) {
+                providerProfileFieldService.hydrateProfileFieldValues(provider);
+            }
+
+            // Get custom field values from provider
+            Map<String, Object> profileFieldValuesObj = provider.getProfileFieldValues();
+            if (profileFieldValuesObj != null && profileFieldValuesObj.containsKey(fieldKey)) {
+                Object fieldValue = profileFieldValuesObj.get(fieldKey);
+                return StringUtils.trimToNull(fieldValue != null ? String.valueOf(fieldValue) : null);
+            }
+
+            return null;
+        } catch (Exception e) {
+            return null;
+        }
+    }
+
+    /**
+     * Get the most recent validation history for an analysis.
+     */
+    private History getMostRecentValidationHistory(Analysis analysis) {
+        if (analysis == null || StringUtils.isBlank(analysis.getId())) {
+            return null;
+        }
+
+        // Get the ANALYSIS table ID
+        String analysisTableId = referenceTablesService.getReferenceTableByName("ANALYSIS").getId();
+        if (StringUtils.isBlank(analysisTableId)) {
+            return null;
+        }
+
+        List<History> histories = historyService.getHistoryByRefIdAndRefTableId(analysis.getId(), analysisTableId);
+        if (histories == null || histories.isEmpty()) {
+            return null;
+        }
+
+        History mostRecent = null;
+        for (History candidate : histories) {
+            if (hasStatusChange(candidate) && isMoreRecent(candidate, mostRecent)) {
+                String statusId = extractSimpleTag(new String(candidate.getChanges(), StandardCharsets.UTF_8), "statusId");
+                // Check if it's a validation status
+                if (StringUtils.isNotBlank(statusId) && 
+                    (statusId.contains("TechnicalAcceptance") || statusId.contains("BiologicalAcceptance") || statusId.contains("Finalized"))) {
+                    mostRecent = candidate;
+                }
+            }
+        }
+
+        return mostRecent;
     }
 
     private Object coerceValue(String className, String value) {
@@ -591,8 +865,13 @@ public class DynamicJasperValidationReport extends PatientCILNSPClinical_vreduit
 
     private boolean isBiologistSelectorField(TestAdditionalFieldPayload field) {
         return field != null && Boolean.TRUE.equals(field.getActive())
-                && StringUtils.equalsIgnoreCase(BIOLOGIST_FIELD_TYPE, StringUtils.trimToNull(field.getFieldType()))
+                && isUserSelectorFieldType(field.getFieldType())
                 && StringUtils.isNotBlank(field.getFieldKey());
+    }
+
+    private boolean isUserSelectorFieldType(String fieldType) {
+        String normalizedFieldType = StringUtils.trimToNull(fieldType);
+        return StringUtils.equalsIgnoreCase(USER_FIELD_TYPE, normalizedFieldType);
     }
 
     private Analysis getAnalysisForReportItem(ClinicalPatientData item) {
