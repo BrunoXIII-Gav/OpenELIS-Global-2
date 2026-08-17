@@ -1,34 +1,41 @@
 package org.openelisglobal.professionalprofile.form;
 
+import java.util.ArrayList;
+import java.util.List;
+
 public class ProfessionalProfileSettingsForm {
 
-    private String orderProviderProfessionalProfileCode;
+    private List<String> orderProviderProfessionalProfileCodes = new ArrayList<>();
 
-    private String sampleCollectorProfessionalProfileCode;
+    private List<String> sampleCollectorProfessionalProfileCodes = new ArrayList<>();
 
-    private String validationInterpreterProfessionalProfileCode;
+    private List<String> validationInterpreterProfessionalProfileCodes = new ArrayList<>();
 
-    public String getOrderProviderProfessionalProfileCode() {
-        return orderProviderProfessionalProfileCode;
+    public List<String> getOrderProviderProfessionalProfileCodes() {
+        return orderProviderProfessionalProfileCodes;
     }
 
-    public void setOrderProviderProfessionalProfileCode(String orderProviderProfessionalProfileCode) {
-        this.orderProviderProfessionalProfileCode = orderProviderProfessionalProfileCode;
+    public void setOrderProviderProfessionalProfileCodes(List<String> orderProviderProfessionalProfileCodes) {
+        this.orderProviderProfessionalProfileCodes = orderProviderProfessionalProfileCodes == null ? new ArrayList<>()
+                : new ArrayList<>(orderProviderProfessionalProfileCodes);
     }
 
-    public String getSampleCollectorProfessionalProfileCode() {
-        return sampleCollectorProfessionalProfileCode;
+    public List<String> getSampleCollectorProfessionalProfileCodes() {
+        return sampleCollectorProfessionalProfileCodes;
     }
 
-    public void setSampleCollectorProfessionalProfileCode(String sampleCollectorProfessionalProfileCode) {
-        this.sampleCollectorProfessionalProfileCode = sampleCollectorProfessionalProfileCode;
+    public void setSampleCollectorProfessionalProfileCodes(List<String> sampleCollectorProfessionalProfileCodes) {
+        this.sampleCollectorProfessionalProfileCodes = sampleCollectorProfessionalProfileCodes == null ? new ArrayList<>()
+                : new ArrayList<>(sampleCollectorProfessionalProfileCodes);
     }
 
-    public String getValidationInterpreterProfessionalProfileCode() {
-        return validationInterpreterProfessionalProfileCode;
+    public List<String> getValidationInterpreterProfessionalProfileCodes() {
+        return validationInterpreterProfessionalProfileCodes;
     }
 
-    public void setValidationInterpreterProfessionalProfileCode(String validationInterpreterProfessionalProfileCode) {
-        this.validationInterpreterProfessionalProfileCode = validationInterpreterProfessionalProfileCode;
+    public void setValidationInterpreterProfessionalProfileCodes(List<String> validationInterpreterProfessionalProfileCodes) {
+        this.validationInterpreterProfessionalProfileCodes = validationInterpreterProfessionalProfileCodes == null
+                ? new ArrayList<>()
+                : new ArrayList<>(validationInterpreterProfessionalProfileCodes);
     }
 }
