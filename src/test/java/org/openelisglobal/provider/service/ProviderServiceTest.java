@@ -108,6 +108,10 @@ public class ProviderServiceTest extends BaseWebContextSensitiveTest {
         Person person1 = personServive.get("3");
 
         provider1.setPerson(person1);
+        provider1.setProfessionalProfileCode("MEDICAL_DOCTOR");
+        provider1.setDni("99999999");
+        provider1.setSpecialty("Medico Genetista");
+        provider1.setProfessionalInitials("HMS");
 
         Provider provider2 = providerService.insertOrUpdateProviderByFhirUuid(FH_UUID1, provider1);
 

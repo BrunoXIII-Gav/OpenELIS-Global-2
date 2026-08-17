@@ -1,6 +1,7 @@
 package org.openelisglobal.provider.service;
 
 import java.util.List;
+import java.util.Map;
 import java.util.Optional;
 import java.util.UUID;
 import org.apache.commons.lang3.StringUtils;
@@ -20,6 +21,8 @@ public class ProviderServiceImpl extends AuditableBaseObjectServiceImpl<Provider
     protected ProviderDAO baseObjectDAO;
     @Autowired
     protected PersonService personService;
+    @Autowired
+    private ProviderProfileFieldService providerProfileFieldService;
 
     ProviderServiceImpl() {
         super(Provider.class);
@@ -120,6 +123,13 @@ public class ProviderServiceImpl extends AuditableBaseObjectServiceImpl<Provider
     @Override
     @Transactional
     public Provider insertOrUpdateProviderByFhirUuid(UUID fhirUuid, Provider provider) {
+        return insertOrUpdateProviderByFhirUuid(fhirUuid, provider, StringUtils.defaultIfBlank(provider.getSysUserId(), "1"));
+    }
+
+    @Override
+    @Transactional
+    public Provider insertOrUpdateProviderByFhirUuid(UUID fhirUuid, Provider provider, String currentUserId) {
+        validateRequiredProviderFields(provider);
         Provider dbProvider = getProviderByFhirId(fhirUuid);
         String normalizedProfileCode = resolveProfessionalProfileCode(provider.getProfessionalProfileCode());
 
@@ -130,7 +140,10 @@ public class ProviderServiceImpl extends AuditableBaseObjectServiceImpl<Provider
             dbProvider.setSpecialty(provider.getSpecialty());
             dbProvider.setDni(provider.getDni());
             dbProvider.setProfessionalProfileCode(normalizedProfileCode);
-            applyProfileSpecificFields(dbProvider, normalizedProfileCode, provider);
+            dbProvider.setProfessionalInitials(provider.getProfessionalInitials());
+            dbProvider.setCbpCode(provider.getCbpCode());
+            dbProvider.setProfileFieldsJson(provider.getProfileFieldsJson());
+            dbProvider.setSysUserId(currentUserId);
             dbProvider.getPerson().setLastName(provider.getPerson().getLastName());
             dbProvider.getPerson().setMiddleName(provider.getPerson().getMiddleName());
             dbProvider.getPerson().setFirstName(provider.getPerson().getFirstName());
@@ -139,6 +152,7 @@ public class ProviderServiceImpl extends AuditableBaseObjectServiceImpl<Provider
             dbProvider.getPerson().setWorkPhone(provider.getPerson().getWorkPhone());
             dbProvider.getPerson().setFax(provider.getPerson().getFax());
             dbProvider.getPerson().setCellPhone(provider.getPerson().getCellPhone());
+            dbProvider.getPerson().setSysUserId(currentUserId);
             dbProvider = save(dbProvider);
         } else {
             if (fhirUuid == null) {
@@ -146,36 +160,45 @@ public class ProviderServiceImpl extends AuditableBaseObjectServiceImpl<Provider
             }
             provider.setFhirUuid(fhirUuid);
             provider.setProfessionalProfileCode(normalizedProfileCode);
-            applyProfileSpecificFields(provider, normalizedProfileCode, provider);
-            provider.getPerson().setSysUserId("1");
+            provider.setSysUserId(currentUserId);
+            provider.getPerson().setSysUserId(currentUserId);
             provider.setPerson(personService.save(provider.getPerson()));
-            provider.setSysUserId("1");
             dbProvider = save(provider);
         }
         return dbProvider;
     }
 
-    private String resolveProfessionalProfileCode(String profileCode) {
-        String normalized = StringUtils.upperCase(StringUtils.trimToNull(profileCode));
-        return normalized == null ? "MEDICAL_DOCTOR" : normalized;
+    @Override
+    @Transactional
+    public Provider insertOrUpdateProviderByFhirUuid(UUID fhirUuid, Provider provider, String currentUserId,
+            Map<String, Object> profileFieldValues) {
+        Provider savedProvider = insertOrUpdateProviderByFhirUuid(fhirUuid, provider, currentUserId);
+        providerProfileFieldService.saveProfileFieldValues(savedProvider, savedProvider.getProfessionalProfileCode(),
+                profileFieldValues);
+        providerProfileFieldService.hydrateProfileFieldValues(savedProvider);
+        return savedProvider;
     }
 
-    private void applyProfileSpecificFields(Provider target, String profileCode, Provider source) {
-        if ("BIOLOGIST".equals(profileCode)) {
-            target.setProfessionalInitials(StringUtils.trimToNull(source.getProfessionalInitials()));
-            target.setCbpCode(StringUtils.trimToNull(source.getCbpCode()));
-            target.setNpi(null);
-            target.setExternalId(null);
-            target.setSpecialty(StringUtils.trimToNull(source.getSpecialty()));
-            target.setDni(StringUtils.trimToNull(source.getDni()));
-            return;
+    private void validateRequiredProviderFields(Provider provider) {
+        if (provider == null) {
+            throw new IllegalArgumentException("Provider is required.");
         }
 
-        target.setNpi(StringUtils.trimToNull(source.getNpi()));
-        target.setExternalId(StringUtils.trimToNull(source.getExternalId()));
-        target.setSpecialty(StringUtils.trimToNull(source.getSpecialty()));
-        target.setDni(StringUtils.trimToNull(source.getDni()));
-        target.setProfessionalInitials(StringUtils.trimToNull(source.getProfessionalInitials()));
-        target.setCbpCode(null);
+        validateRequiredValue("Professional profile", provider.getProfessionalProfileCode());
+        validateRequiredValue("Professional last name", provider.getPerson() == null ? null : provider.getPerson().getLastName());
+        validateRequiredValue("Professional first name", provider.getPerson() == null ? null : provider.getPerson().getFirstName());
+        validateRequiredValue("DNI", provider.getDni());
+        validateRequiredValue("Initials", provider.getProfessionalInitials());
+    }
+
+    private void validateRequiredValue(String label, String value) {
+        if (StringUtils.isBlank(value)) {
+            throw new IllegalArgumentException(label + " is required.");
+        }
+    }
+
+    private String resolveProfessionalProfileCode(String profileCode) {
+        String normalized = StringUtils.upperCase(StringUtils.trimToNull(profileCode));
+        return normalized == null ? "" : normalized;
     }
 }
