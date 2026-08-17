@@ -6,9 +6,8 @@ import {
   Grid,
   Heading,
   Loading,
+  MultiSelect,
   Section,
-  Select,
-  SelectItem,
   Table,
   TableBody,
   TableCell,
@@ -42,9 +41,9 @@ function ProfileManagement() {
   const [loading, setLoading] = useState(true);
   const [profiles, setProfiles] = useState([]);
   const [settings, setSettings] = useState({
-    orderProviderProfessionalProfileCode: "",
-    sampleCollectorProfessionalProfileCode: "",
-    validationInterpreterProfessionalProfileCode: "",
+    orderProviderProfessionalProfileCodes: [],
+    sampleCollectorProfessionalProfileCodes: [],
+    validationInterpreterProfessionalProfileCodes: [],
   });
 
   const breadcrumbs = useMemo(
@@ -71,12 +70,13 @@ function ProfileManagement() {
           : [],
       );
       setSettings({
-        orderProviderProfessionalProfileCode:
-          response?.settings?.orderProviderProfessionalProfileCode || "",
-        sampleCollectorProfessionalProfileCode:
-          response?.settings?.sampleCollectorProfessionalProfileCode || "",
-        validationInterpreterProfessionalProfileCode:
-          response?.settings?.validationInterpreterProfessionalProfileCode || "",
+        orderProviderProfessionalProfileCodes:
+          response?.settings?.orderProviderProfessionalProfileCodes || [],
+        sampleCollectorProfessionalProfileCodes:
+          response?.settings?.sampleCollectorProfessionalProfileCodes || [],
+        validationInterpreterProfessionalProfileCodes:
+          response?.settings?.validationInterpreterProfessionalProfileCodes ||
+          [],
       });
       setLoading(false);
     });
@@ -187,6 +187,9 @@ function ProfileManagement() {
     return <Loading />;
   }
 
+  const getSelectedProfiles = (selectedCodes) =>
+    profiles.filter((profile) => selectedCodes.includes(profile.code));
+
   return (
     <div className="adminPageContent">
       <PageBreadCrumb breadcrumbs={breadcrumbs} />
@@ -203,80 +206,71 @@ function ProfileManagement() {
           <br />
           <Grid fullWidth>
             <Column lg={5} md={4} sm={4}>
-              <Select
+              <MultiSelect
                 id="order-provider-profile"
                 labelText={intl.formatMessage({
                   id: "professionalProfile.settings.orderProvider",
                   defaultMessage: "Order requester profile",
                 })}
-                value={settings.orderProviderProfessionalProfileCode}
-                onChange={(event) =>
+                items={profiles}
+                itemToString={(item) => item?.name || ""}
+                selectedItems={getSelectedProfiles(
+                  settings.orderProviderProfessionalProfileCodes,
+                )}
+                selectionFeedback="top-after-reopen"
+                onChange={({ selectedItems }) =>
                   setSettings((previousSettings) => ({
                     ...previousSettings,
-                    orderProviderProfessionalProfileCode: event.target.value,
+                    orderProviderProfessionalProfileCodes: selectedItems.map(
+                      (item) => item.code,
+                    ),
                   }))
                 }
-              >
-                <SelectItem value="" text="" />
-                {profiles.map((profile) => (
-                  <SelectItem
-                    key={`order-provider-${profile.code}`}
-                    value={profile.code}
-                    text={profile.name}
-                  />
-                ))}
-              </Select>
+              />
             </Column>
             <Column lg={5} md={4} sm={4}>
-              <Select
+              <MultiSelect
                 id="sample-collector-profile"
                 labelText={intl.formatMessage({
                   id: "professionalProfile.settings.sampleCollector",
                   defaultMessage: "Sample collector profile",
                 })}
-                value={settings.sampleCollectorProfessionalProfileCode}
-                onChange={(event) =>
+                items={profiles}
+                itemToString={(item) => item?.name || ""}
+                selectedItems={getSelectedProfiles(
+                  settings.sampleCollectorProfessionalProfileCodes,
+                )}
+                selectionFeedback="top-after-reopen"
+                onChange={({ selectedItems }) =>
                   setSettings((previousSettings) => ({
                     ...previousSettings,
-                    sampleCollectorProfessionalProfileCode: event.target.value,
+                    sampleCollectorProfessionalProfileCodes:
+                      selectedItems.map((item) => item.code),
                   }))
                 }
-              >
-                <SelectItem value="" text="" />
-                {profiles.map((profile) => (
-                  <SelectItem
-                    key={`sample-collector-${profile.code}`}
-                    value={profile.code}
-                    text={profile.name}
-                  />
-                ))}
-              </Select>
+              />
             </Column>
             <Column lg={6} md={8} sm={4}>
-              <Select
+              <MultiSelect
                 id="validation-interpreter-profile"
                 labelText={intl.formatMessage({
                   id: "professionalProfile.settings.validationInterpreter",
                   defaultMessage: "Validation interpreter profile",
                 })}
-                value={settings.validationInterpreterProfessionalProfileCode}
-                onChange={(event) =>
+                items={profiles}
+                itemToString={(item) => item?.name || ""}
+                selectedItems={getSelectedProfiles(
+                  settings.validationInterpreterProfessionalProfileCodes,
+                )}
+                selectionFeedback="top-after-reopen"
+                onChange={({ selectedItems }) =>
                   setSettings((previousSettings) => ({
                     ...previousSettings,
-                    validationInterpreterProfessionalProfileCode:
-                      event.target.value,
+                    validationInterpreterProfessionalProfileCodes:
+                      selectedItems.map((item) => item.code),
                   }))
                 }
-              >
-                <SelectItem value="" text="" />
-                {profiles.map((profile) => (
-                  <SelectItem
-                    key={`validation-interpreter-${profile.code}`}
-                    value={profile.code}
-                    text={profile.name}
-                  />
-                ))}
-              </Select>
+              />
             </Column>
           </Grid>
           <br />
