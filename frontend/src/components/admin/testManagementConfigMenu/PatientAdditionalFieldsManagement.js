@@ -6,6 +6,7 @@ import {
   DataTable,
   Grid,
   Heading,
+  MultiSelect,
   Section,
   Select,
   SelectItem,
@@ -46,7 +47,14 @@ const FIELD_TYPE_OPTIONS = [
   "SELECT",
   "MULTISELECT",
   "RADIO",
+  "USER",
 ];
+
+const LEGACY_USER_FIELD_TYPE = "SYSTEM_USER_BIOLOGIST_SELECT";
+const GENERIC_USER_FIELD_TYPE = "USER";
+const USER_DISPLAY_MODE_INITIALS = "INITIALS";
+const USER_DISPLAY_MODE_NAME = "NAME";
+const USER_DISPLAY_MODE_BOTH = "BOTH";
 
 const breadcrumbs = [
   { label: "home.label", link: "/" },
@@ -71,9 +79,31 @@ const defaultNewField = {
   maxLength: "",
   sortOrder: "",
   optionLines: "",
+  userProfileCodes: [],
+  userDisplayMode: USER_DISPLAY_MODE_BOTH,
 };
 
 const OPTION_FIELD_TYPES = new Set(["SELECT", "MULTISELECT", "RADIO"]);
+
+const normalizeFieldType = (fieldType) =>
+  String(fieldType || "").toUpperCase() === LEGACY_USER_FIELD_TYPE
+    ? GENERIC_USER_FIELD_TYPE
+    : fieldType || "TEXT";
+
+const resolveUserProfileCodes = (fieldType, metadata) => {
+  if (Array.isArray(metadata?.userProfileCodes)) {
+    return metadata.userProfileCodes;
+  }
+  return [];
+};
+
+const resolveUserDisplayMode = (metadata) => {
+  const mode = String(metadata?.userDisplayMode || "").toUpperCase();
+  if (mode === USER_DISPLAY_MODE_INITIALS || mode === USER_DISPLAY_MODE_NAME) {
+    return mode;
+  }
+  return USER_DISPLAY_MODE_BOTH;
+};
 
 const PatientAdditionalFieldsManagement = () => {
   const intl = useIntl();
@@ -81,6 +111,7 @@ const PatientAdditionalFieldsManagement = () => {
     useContext(NotificationContext);
 
   const [fields, setFields] = useState([]);
+  const [professionalProfileOptions, setProfessionalProfileOptions] = useState([]);
   const [newField, setNewField] = useState(defaultNewField);
   const [editingFieldId, setEditingFieldId] = useState(null);
   const [savingField, setSavingField] = useState(false);
@@ -97,7 +128,30 @@ const PatientAdditionalFieldsManagement = () => {
 
   useEffect(() => {
     loadFields();
+    getFromOpenElisServer("/rest/professional-profiles/catalog", (response) => {
+      setProfessionalProfileOptions(
+        Array.isArray(response?.profiles)
+          ? response.profiles.map((profile) => ({
+              id: profile.code,
+              label: profile.label || profile.name || profile.code,
+            }))
+          : [],
+      );
+    });
   }, []);
+
+  const parseFieldMetadata = (metadataJson) => {
+    if (!metadataJson || typeof metadataJson !== "string") {
+      return {};
+    }
+
+    try {
+      const parsed = JSON.parse(metadataJson);
+      return parsed && typeof parsed === "object" ? parsed : {};
+    } catch (_error) {
+      return {};
+    }
+  };
 
   const showNotification = (kind, message) => {
     setNotificationVisible(true);
@@ -152,7 +206,7 @@ const PatientAdditionalFieldsManagement = () => {
     return {
       displayName: field?.displayName || "",
       fieldKey: field?.fieldKey || "",
-      fieldType: field?.fieldType || "TEXT",
+      fieldType: normalizeFieldType(field?.fieldType),
       required: !!field?.required,
       active: field?.active !== false,
       defaultValue: field?.defaultValue || "",
@@ -165,6 +219,13 @@ const PatientAdditionalFieldsManagement = () => {
           ? String(field.sortOrder)
           : "",
       optionLines,
+      userProfileCodes: resolveUserProfileCodes(
+        field?.fieldType,
+        parseFieldMetadata(field?.metadataJson),
+      ),
+      userDisplayMode: resolveUserDisplayMode(
+        parseFieldMetadata(field?.metadataJson),
+      ),
     };
   };
 
@@ -196,6 +257,14 @@ const PatientAdditionalFieldsManagement = () => {
         ? Number.parseInt(newField.maxLength, 10)
         : null,
       sortOrder: normalizeSortOrder(newField.sortOrder),
+      metadataJson:
+        newField.fieldType === "USER"
+          ? JSON.stringify({
+              userProfileCodes: newField.userProfileCodes || [],
+              userDisplayMode:
+                newField.userDisplayMode || USER_DISPLAY_MODE_BOTH,
+            })
+          : null,
       options: OPTION_FIELD_TYPES.has(newField.fieldType)
         ? parseOptions(newField.optionLines)
         : [],
@@ -443,14 +512,19 @@ const PatientAdditionalFieldsManagement = () => {
                   labelText={intl.formatMessage({
                     id: "order.additional.fields.fieldType",
                   })}
-                  value={newField.fieldType}
-                  onChange={(event) =>
-                    setNewField((previous) => ({
-                      ...previous,
-                      fieldType: event.target.value,
-                    }))
-                  }
-                >
+                      value={newField.fieldType}
+                      onChange={(event) =>
+                        setNewField((previous) => ({
+                          ...previous,
+                          fieldType: event.target.value,
+                          userDisplayMode:
+                            event.target.value === "USER"
+                              ? previous.userDisplayMode ||
+                                USER_DISPLAY_MODE_BOTH
+                              : USER_DISPLAY_MODE_BOTH,
+                        }))
+                      }
+                    >
                   {FIELD_TYPE_OPTIONS.map((fieldType) => (
                     <SelectItem
                       key={fieldType}
@@ -475,6 +549,83 @@ const PatientAdditionalFieldsManagement = () => {
                   }
                 />
               </Column>
+              {newField.fieldType === "USER" ? (
+                <>
+                  <Column lg={8} md={4} sm={4}>
+                    <div style={{ marginTop: "1rem" }}>
+                      <label
+                        htmlFor="patient-additional-user-profiles"
+                        style={{ display: "block", marginBottom: "0.5rem" }}
+                      >
+                        {intl.formatMessage({
+                          id: "patient.additional.fields.userProfiles",
+                          defaultMessage: "Allowed professional profiles",
+                        })}
+                      </label>
+                      <MultiSelect
+                        id="patient-additional-user-profiles"
+                        items={professionalProfileOptions}
+                        itemToString={(item) => item?.label || ""}
+                        selectedItems={professionalProfileOptions.filter(
+                          (item) =>
+                            (newField.userProfileCodes || []).includes(item.id),
+                        )}
+                        onChange={({ selectedItems }) =>
+                          setNewField((previous) => ({
+                            ...previous,
+                            userProfileCodes: selectedItems.map(
+                              (item) => item.id,
+                            ),
+                          }))
+                        }
+                        label=""
+                        titleText=""
+                        selectionFeedback="top-after-reopen"
+                      />
+                    </div>
+                  </Column>
+                  <Column lg={8} md={4} sm={4}>
+                    <Select
+                      id="patientAdditionalUserDisplayMode"
+                      labelText={intl.formatMessage({
+                        id: "user.field.display.mode.label",
+                        defaultMessage: "Display user as",
+                      })}
+                      value={
+                        newField.userDisplayMode || USER_DISPLAY_MODE_BOTH
+                      }
+                      onChange={(event) =>
+                        setNewField((previous) => ({
+                          ...previous,
+                          userDisplayMode: event.target.value,
+                        }))
+                      }
+                    >
+                      <SelectItem
+                        value={USER_DISPLAY_MODE_INITIALS}
+                        text={intl.formatMessage({
+                          id: "user.field.display.mode.initials",
+                          defaultMessage: "Initials only",
+                        })}
+                      />
+                      <SelectItem
+                        value={USER_DISPLAY_MODE_NAME}
+                        text={intl.formatMessage({
+                          id: "user.field.display.mode.name",
+                          defaultMessage: "Name only",
+                        })}
+                      />
+                      <SelectItem
+                        value={USER_DISPLAY_MODE_BOTH}
+                        text={intl.formatMessage({
+                          id: "user.field.display.mode.both",
+                          defaultMessage: "Initials and name",
+                        })}
+                      />
+                    </Select>
+                  </Column>
+                </>
+              ) : null}
             </Grid>
             <Grid fullWidth>
               <Column lg={8} md={4} sm={4}>

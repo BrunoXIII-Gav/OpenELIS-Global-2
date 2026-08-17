@@ -9,7 +9,11 @@ import org.openelisglobal.testadditionalfield.bean.TestAdditionalFieldPayload;
 
 public interface TestAdditionalFieldService {
 
-    List<TestAdditionalFieldPayload> getFieldsForTest(String testId, boolean includeInactive);
+    default List<TestAdditionalFieldPayload> getFieldsForTest(String testId, boolean includeInactive) {
+        return getFieldsForTest(testId, includeInactive, false);
+    }
+
+    List<TestAdditionalFieldPayload> getFieldsForTest(String testId, boolean includeInactive, boolean resolveUserOptions);
 
     Map<String, List<TestAdditionalFieldPayload>> getActiveFieldsForTests(List<String> testIds);
 

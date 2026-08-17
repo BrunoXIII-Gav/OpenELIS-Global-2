@@ -271,6 +271,10 @@ public abstract class ConfigurationProperties {
         providerSpecialtyOptions("providerSpecialtyOptions", "text"), // comma-separated provider specialty options
         professionalProfileOptions("professionalProfileOptions", "text"), // comma-separated
                                                                            // CODE|Label options
+        professionalProfileFieldDefinitions("profProfileFieldDefs", "text"), // JSON field definitions grouped by
+                                                                               // profile code
+        professionalProfileSpecialtyOptions("profProfileSpecialtyOpts", "text"), // JSON specialty options grouped by
+                                                                                   // profile code
         orderProviderProfessionalProfileCode("orderProviderProfileCode", "text"), // profile code allowed on order
                                                                                     // requester/provider selector
         sampleCollectorProfessionalProfileCode("sampleCollectorProfileCode", "text"), // profile code for collector

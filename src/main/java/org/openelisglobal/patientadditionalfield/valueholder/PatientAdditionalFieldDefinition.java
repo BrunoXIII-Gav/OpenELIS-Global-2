@@ -16,7 +16,7 @@ import org.openelisglobal.common.valueholder.BaseObject;
 public class PatientAdditionalFieldDefinition extends BaseObject<Integer> {
 
     public enum FieldType {
-        TEXT, NUMBER, DATE, TIME, DATETIME, BOOLEAN, SELECT, MULTISELECT, RADIO, TEXTAREA
+        TEXT, NUMBER, DATE, TIME, DATETIME, BOOLEAN, SELECT, MULTISELECT, RADIO, TEXTAREA, USER
     }
 
     @Id

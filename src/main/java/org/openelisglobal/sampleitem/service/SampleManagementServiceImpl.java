@@ -288,8 +288,8 @@ public class SampleManagementServiceImpl implements SampleManagementService {
         dto.setCollector(sampleItem.getCollector());
 
         if (sampleItem.getTypeOfSample() != null) {
-            dto.setAdditionalFields(
-                    sampleTypeAdditionalFieldService.getFieldsForSampleType(sampleItem.getTypeOfSample().getId(), false));
+            dto.setAdditionalFields(sampleTypeAdditionalFieldService
+                    .getFieldsForSampleType(sampleItem.getTypeOfSample().getId(), false, true));
             dto.setAdditionalFieldValues(sampleTypeAdditionalFieldService
                     .getFieldValuesForSampleItem(sampleItem.getTypeOfSample().getId(), sampleItem.getId()));
         }

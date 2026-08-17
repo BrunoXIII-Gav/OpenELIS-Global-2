@@ -32,12 +32,14 @@ import {
 import { FormattedMessage, useIntl } from "react-intl";
 import PageBreadCrumb from "../../../common/PageBreadCrumb.js";
 import GenericConfigEdit from "../../generalConfig/common/GenericConfigEdit.js";
+import { useHistory } from "react-router-dom";
 
 function ConfigMenuDisplay(props) {
   const { notificationVisible, setNotificationVisible, addNotification } =
     useContext(NotificationContext);
 
   const intl = useIntl();
+  const history = useHistory();
 
   const componentMounted = useRef(false);
   const [page, setPage] = useState(1);
@@ -265,6 +267,28 @@ function ConfigMenuDisplay(props) {
                           id="SampleTypeAdditionalFieldsFromSampleEntry"
                         >
                           <FormattedMessage id="configuration.sampleType.additional.fields" />
+                        </ClickableTile>
+                      </UnorderedList>
+                    </Section>
+                    <br />
+                  </>
+                ) : null}
+                {props.menuType === "ValidationConfigurationMenu" ? (
+                  <>
+                    <Section>
+                      <UnorderedList>
+                        <ClickableTile
+                          href="/MasterListsPage/ValidationTemplateOverrides"
+                          id="ValidationTemplateOverridesFromValidationConfig"
+                          onClick={(event) => {
+                            event.preventDefault();
+                            history.push("/MasterListsPage/ValidationTemplateOverrides");
+                          }}
+                        >
+                          <FormattedMessage
+                            id="sidenav.label.admin.formEntry.validationTemplateOverrides"
+                            defaultMessage="Jasper Validation Templates"
+                          />
                         </ClickableTile>
                       </UnorderedList>
                     </Section>

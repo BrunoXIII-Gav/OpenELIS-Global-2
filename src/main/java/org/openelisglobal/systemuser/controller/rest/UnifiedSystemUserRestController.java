@@ -17,6 +17,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.Objects;
 import java.util.Set;
+import java.util.regex.Pattern;
 import java.util.stream.Collectors;
 import org.apache.commons.lang3.StringUtils;
 import org.apache.commons.validator.GenericValidator;
@@ -81,6 +82,8 @@ public class UnifiedSystemUserRestController extends BaseController {
     // private static final String GLOBAL_ADMIN_ID = "globalAdminId";
     // private static final String ID = "id";
     public static final char DEFAULT_OBFUSCATED_CHARACTER = '@';
+    private static final Pattern LOGIN_NAME_PATTERN = Pattern
+            .compile("^[A-Za-z0-9_-]+(?: [A-Za-z0-9_-]+)*$");
 
     private static final String[] ALLOWED_FIELDS = new String[] { "systemUserId", "loginUserId", "userLoginName",
             "userPassword", "confirmPassword", "userFirstName", "userLastName", "expirationDate", "timeout",
@@ -158,6 +161,41 @@ public class UnifiedSystemUserRestController extends BaseController {
         List<IdValuePair> idValues = users.stream().map(e -> new IdValuePair(e.getId(), e.getDisplayName()))
                 .collect(Collectors.toList());
         return idValues;
+    }
+
+    @GetMapping(value = "/UnifiedSystemUser/login-name-status")
+    @ResponseBody
+    public Map<String, Object> getLoginNameStatus(
+            @RequestParam(name = "loginName", defaultValue = "") String loginName,
+            @RequestParam(name = "loginUserId", required = false) String loginUserId) {
+        String normalizedLoginName = StringUtils.trimToEmpty(loginName);
+        String normalizedLoginUserId = StringUtils.trimToNull(loginUserId);
+
+        Map<String, Object> response = new HashMap<>();
+        response.put("loginName", normalizedLoginName);
+
+        if (StringUtils.isBlank(normalizedLoginName)) {
+            response.put("available", false);
+            response.put("duplicate", false);
+            response.put("invalid", false);
+            return response;
+        }
+
+        if (!isLoginNameFormatValid(normalizedLoginName)) {
+            response.put("available", false);
+            response.put("duplicate", false);
+            response.put("invalid", true);
+            return response;
+        }
+
+        LoginUser existingLogin = loginService.getMatch("loginName", normalizedLoginName).orElse(null);
+        boolean duplicate = existingLogin != null
+                && (normalizedLoginUserId == null || !normalizedLoginUserId.equals(String.valueOf(existingLogin.getId())));
+
+        response.put("available", !duplicate);
+        response.put("duplicate", duplicate);
+        response.put("invalid", false);
+        return response;
     }
 
     @GetMapping(value = "/users/professional-profile/{profileCode}")
@@ -506,12 +544,6 @@ public class UnifiedSystemUserRestController extends BaseController {
         request.setAttribute(PREVIOUS_DISABLED, "false");
         request.setAttribute(NEXT_DISABLED, "false");
 
-        if (form.getUserLoginName() != null) {
-            form.setUserLoginName(form.getUserLoginName().trim());
-        } else {
-            form.setUserLoginName("");
-        }
-
         String forward = validateAndUpdateSystemUser(request, form);
 
         if (forward.equals(FWD_SUCCESS_INSERT)) {
@@ -627,6 +659,8 @@ public class UnifiedSystemUserRestController extends BaseController {
 
         if (GenericValidator.isBlankOrNull(form.getUserLoginName())) {
             errors.reject("errors.loginName.required", "errors.loginName.required");
+        } else if (!isLoginNameFormatValid(form.getUserLoginName())) {
+            errors.reject("errors.loginName.invalid", "errors.loginName.invalid");
         } else if (checkForDuplicateName) {
             LoginUser login = loginService.getMatch("loginName", form.getUserLoginName()).orElse(null);
             if (login != null) {
@@ -673,6 +707,10 @@ public class UnifiedSystemUserRestController extends BaseController {
         } catch (NumberFormatException e) {
             return false;
         }
+    }
+
+    private boolean isLoginNameFormatValid(String loginName) {
+        return StringUtils.isNotBlank(loginName) && LOGIN_NAME_PATTERN.matcher(loginName).matches();
     }
 
     private boolean passwordValid(String password) {

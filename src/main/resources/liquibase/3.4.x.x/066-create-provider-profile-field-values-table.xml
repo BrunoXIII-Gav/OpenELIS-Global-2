@@ -1,0 +1,122 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<databaseChangeLog
+  xmlns="http://www.liquibase.org/xml/ns/dbchangelog"
+  xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+  xsi:schemaLocation="http://www.liquibase.org/xml/ns/dbchangelog http://www.liquibase.org/xml/ns/dbchangelog/dbchangelog-3.8.xsd">
+
+  <changeSet id="066-01-create-provider-profile-field-values-table" author="codex">
+    <preConditions onFail="MARK_RAN">
+      <not>
+        <tableExists tableName="provider_profile_field_value"/>
+      </not>
+    </preConditions>
+
+    <createSequence sequenceName="provider_profile_field_value_seq" startValue="1"/>
+
+    <createTable tableName="provider_profile_field_value">
+      <column name="id" type="INT">
+        <constraints primaryKey="true" nullable="false"/>
+      </column>
+      <column name="provider_id" type="INT">
+        <constraints nullable="false"/>
+      </column>
+      <column name="professional_profile_code" type="VARCHAR(64)">
+        <constraints nullable="false"/>
+      </column>
+      <column name="field_key" type="VARCHAR(80)">
+        <constraints nullable="false"/>
+      </column>
+      <column name="field_value" type="TEXT">
+        <constraints nullable="false"/>
+      </column>
+      <column name="sys_user_id" type="INT">
+        <constraints nullable="false"/>
+      </column>
+      <column name="lastupdated" type="TIMESTAMP" defaultValueComputed="${now}">
+        <constraints nullable="false"/>
+      </column>
+    </createTable>
+
+    <addUniqueConstraint tableName="provider_profile_field_value"
+      columnNames="provider_id, professional_profile_code, field_key"
+      constraintName="uq_provider_profile_field_value"/>
+
+    <createIndex tableName="provider_profile_field_value" indexName="idx_provider_profile_field_value_provider">
+      <column name="provider_id"/>
+    </createIndex>
+
+    <createIndex tableName="provider_profile_field_value" indexName="idx_provider_profile_field_value_profile">
+      <column name="professional_profile_code"/>
+    </createIndex>
+
+    <rollback>
+      <dropTable tableName="provider_profile_field_value"/>
+      <dropSequence sequenceName="provider_profile_field_value_seq"/>
+    </rollback>
+  </changeSet>
+
+  <changeSet id="066-02-migrate-provider-profile-json-values" author="codex">
+    <preConditions onFail="MARK_RAN">
+      <and>
+        <tableExists tableName="provider"/>
+        <tableExists tableName="provider_profile_field_value"/>
+        <columnExists tableName="provider" columnName="profile_fields_json"/>
+      </and>
+    </preConditions>
+
+    <sql>
+      WITH extracted AS (
+        SELECT
+          p.id AS provider_id,
+          upper(profile_entry.key) AS professional_profile_code,
+          field_entry.key AS field_key,
+          CASE
+            WHEN jsonb_typeof(field_entry.value) = 'array' THEN (
+              SELECT string_agg(array_value, '||')
+              FROM jsonb_array_elements_text(field_entry.value) AS array_value
+            )
+            WHEN jsonb_typeof(field_entry.value) = 'string' THEN field_entry.value #&gt;&gt; '{}'
+            WHEN jsonb_typeof(field_entry.value) = 'null' THEN NULL
+            ELSE field_entry.value::text
+          END AS field_value,
+          1 AS sys_user_id
+        FROM clinlims.provider p
+        CROSS JOIN LATERAL jsonb_each(COALESCE(NULLIF(trim(p.profile_fields_json), ''), '{}')::jsonb) AS profile_entry
+        CROSS JOIN LATERAL jsonb_each(profile_entry.value) AS field_entry
+        WHERE NULLIF(trim(p.profile_fields_json), '') IS NOT NULL
+      )
+      INSERT INTO clinlims.provider_profile_field_value (
+        id,
+        provider_id,
+        professional_profile_code,
+        field_key,
+        field_value,
+        sys_user_id,
+        lastupdated
+      )
+      SELECT
+        nextval('clinlims.provider_profile_field_value_seq'),
+        extracted.provider_id,
+        extracted.professional_profile_code,
+        extracted.field_key,
+        extracted.field_value,
+        extracted.sys_user_id,
+        ${now}
+      FROM extracted
+      WHERE extracted.field_value IS NOT NULL
+        AND btrim(extracted.field_value) &lt;&gt; ''
+        AND NOT EXISTS (
+          SELECT 1
+          FROM clinlims.provider_profile_field_value existing
+          WHERE existing.provider_id = extracted.provider_id
+            AND existing.professional_profile_code = extracted.professional_profile_code
+            AND existing.field_key = extracted.field_key
+        );
+    </sql>
+
+    <rollback>
+      <delete tableName="provider_profile_field_value"/>
+    </rollback>
+  </changeSet>
+
+</databaseChangeLog>

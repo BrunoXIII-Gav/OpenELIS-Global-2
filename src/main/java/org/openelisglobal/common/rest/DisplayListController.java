@@ -496,9 +496,27 @@ public class DisplayListController extends BaseRestController {
                 .getPropertyValue(Property.sampleCollectorProfessionalProfileCode));
         configs.put(Property.validationInterpreterProfessionalProfileCode.toString(), ConfigurationProperties
                 .getInstance().getPropertyValue(Property.validationInterpreterProfessionalProfileCode));
+        configs.put("orderProviderProfessionalProfileCodes", parseConfiguredProfessionalProfileCodes(
+                ConfigurationProperties.getInstance().getPropertyValue(Property.orderProviderProfessionalProfileCode)));
+        configs.put("sampleCollectorProfessionalProfileCodes", parseConfiguredProfessionalProfileCodes(
+                ConfigurationProperties.getInstance().getPropertyValue(Property.sampleCollectorProfessionalProfileCode)));
+        configs.put("validationInterpreterProfessionalProfileCodes", parseConfiguredProfessionalProfileCodes(
+                ConfigurationProperties.getInstance().getPropertyValue(Property.validationInterpreterProfessionalProfileCode)));
         configs.put(Property.VALIDATION_MIN_APPROVERS.toString(),
                 ConfigurationProperties.getInstance().getPropertyValue(Property.VALIDATION_MIN_APPROVERS));
         return configs;
+    }
+
+    private List<String> parseConfiguredProfessionalProfileCodes(String rawValue) {
+        if (StringUtils.isBlank(rawValue)) {
+            return Collections.emptyList();
+        }
+
+        return Arrays.stream(StringUtils.split(rawValue, ','))
+                .map(code -> StringUtils.upperCase(StringUtils.trimToNull(code)))
+                .filter(StringUtils::isNotBlank)
+                .distinct()
+                .toList();
     }
 
     @GetMapping(value = "practitioner", produces = MediaType.APPLICATION_JSON_VALUE)

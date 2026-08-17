@@ -721,7 +721,7 @@ public class ResultsValidationUtility {
         if (additionalFieldDefinitionsByTestId.containsKey(testId)) {
             return additionalFieldDefinitionsByTestId.get(testId);
         }
-        List<TestAdditionalFieldPayload> definitions = testAdditionalFieldService.getFieldsForTest(testId, false);
+        List<TestAdditionalFieldPayload> definitions = testAdditionalFieldService.getFieldsForTest(testId, false, true);
         if (definitions == null) {
             definitions = new ArrayList<>();
         }

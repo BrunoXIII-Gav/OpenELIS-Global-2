@@ -3,7 +3,6 @@ import { FormattedMessage, injectIntl, useIntl } from "react-intl";
 import "../Style.css";
 import {
   getFromOpenElisServer,
-  postToOpenElisServerFormDataJsonResponse,
   postToOpenElisServerJsonResponse,
   Roles,
 } from "../utils/Utils";
@@ -67,12 +66,10 @@ const parseDocumentFieldValue = (rawValue) => {
     const fileName = String(parsed.fileName || "").trim();
     const fileType = String(parsed.fileType || "").trim();
     const base64Content = String(parsed.base64Content || "").trim();
-    const uploadToken = String(parsed.uploadToken || "").trim();
-    const previewUrl = String(parsed.previewUrl || "").trim();
-    if (!fileName || (!base64Content && !uploadToken)) {
+    if (!fileName || !base64Content) {
       return null;
     }
-    return { fileName, fileType, base64Content, uploadToken, previewUrl };
+    return { fileName, fileType, base64Content };
   } catch (e) {
     return null;
   }
@@ -86,10 +83,21 @@ const encodeDocumentFieldValue = (filePayload) => {
     fileName: filePayload.fileName || "",
     fileType: filePayload.fileType || "",
     base64Content: filePayload.base64Content || "",
-    uploadToken: filePayload.uploadToken || "",
-    previewUrl: filePayload.previewUrl || "",
   });
 };
+
+const readFileAsBase64 = (file) =>
+  new Promise((resolve, reject) => {
+    const reader = new FileReader();
+    reader.onload = () => {
+      const base64 = String(reader.result || "");
+      const [, content = ""] = base64.split(",", 2);
+      resolve(content);
+    };
+    reader.onerror = () =>
+      reject(new Error("Failed to convert selected file to base64"));
+    reader.readAsDataURL(file);
+  });
 
 const openDocumentFieldValue = (filePayload) => {
   const fileType = String(filePayload?.fileType || "").trim();
@@ -102,33 +110,15 @@ const openDocumentFieldValue = (filePayload) => {
   window.open(source, "_blank", "noopener,noreferrer");
 };
 
-const buildDocumentFieldPreviewHref = (analysisId, fieldKey, filePayload) => {
-  const uploadToken = String(filePayload?.uploadToken || "").trim();
-  if (uploadToken) {
-    return `${config.serverBaseUrl}/rest/test-additional-fields/files/temp/${uploadToken}?download=false`;
-  }
-
-  if (analysisId && fieldKey) {
-    return `${config.serverBaseUrl}/rest/test-additional-fields/files/${analysisId}/${fieldKey}?download=false`;
-  }
-
-  return "";
-};
-
 const AdditionalFieldEditor = ({
   inputId,
-  analysisId,
-  testId,
-  fieldKey,
   fieldLabel,
   fieldType,
   value,
   activeOptions,
   fieldMetadata,
   onCommit,
-  onError,
 }) => {
-  const intl = useIntl();
   const [draftValue, setDraftValue] = useState(value || "");
 
   useEffect(() => {
@@ -139,19 +129,9 @@ const AdditionalFieldEditor = ({
     onCommit(nextValue == null ? "" : nextValue);
   };
 
-  const clearCurrentDocument = () => {
-    setDraftValue("");
-    onCommit("");
-  };
-
   switch (fieldType) {
     case "DOCUMENT": {
       const currentDocument = parseDocumentFieldValue(draftValue);
-      const previewHref = buildDocumentFieldPreviewHref(
-        analysisId,
-        fieldKey,
-        currentDocument,
-      );
       const acceptedMimeTypes = Array.isArray(fieldMetadata?.document?.accept)
         ? fieldMetadata.document.accept
         : [];
@@ -184,63 +164,30 @@ const AdditionalFieldEditor = ({
                 return;
               }
               if (maxBytes != null && file.size > maxBytes) {
-                onError?.(
-                  intl.formatMessage(
-                    { id: "document.upload.maxSizeExceeded" },
-                    { maxSizeMb },
-                  ),
-                );
                 return;
               }
-              const formData = new FormData();
-              formData.append("testId", testId);
-              formData.append("fieldKey", fieldKey);
-              formData.append("file", file);
-              postToOpenElisServerFormDataJsonResponse(
-                "/rest/test-additional-fields/files/upload",
-                formData,
-                (response) => {
-                  if (event?.target) {
-                    event.target.value = "";
-                  }
-                  if (!response?.ok || !response?.body?.uploadToken) {
-                    onError?.(response?.body?.message);
-                    return;
-                  }
-
-                  const nextPayload = {
-                    fileName: response.body.fileName || file.name,
-                    fileType: response.body.fileType || file.type,
-                    fileSize: response.body.fileSize || file.size,
-                    uploadToken: response.body.uploadToken,
-                  };
-                  const encoded = encodeDocumentFieldValue(nextPayload);
-                  setDraftValue(encoded);
-                  commitValue(encoded);
-                },
-              );
+              try {
+                const base64Content = await readFileAsBase64(file);
+                const nextPayload = {
+                  fileName: file.name,
+                  fileType: file.type,
+                  base64Content,
+                };
+                const encoded = encodeDocumentFieldValue(nextPayload);
+                setDraftValue(encoded);
+                commitValue(encoded);
+              } catch (error) {
+                console.error(error);
+              }
             }}
           />
           {currentDocument?.fileName ? (
-            <div style={{ marginTop: "0.5rem" }}>
-              <Link
-                href={previewHref || undefined}
-                target="_blank"
-                rel="noopener noreferrer"
-                style={{ cursor: "pointer" }}
-                onClick={(event) => {
-                  if (!previewHref) {
-                    event.preventDefault();
-                  }
-                }}
-              >
-                {currentDocument.fileName}
-              </Link>
-              {"  "}
-              <Link onClick={clearCurrentDocument}>
-                <FormattedMessage id="label.button.remove" />
-              </Link>
-            </div>
+            <Link
+              style={{ cursor: "pointer" }}
+              onClick={() => openDocumentFieldValue(currentDocument)}
+            >
+              {currentDocument.fileName}
+            </Link>
           ) : null}
         </div>
       );
@@ -329,7 +276,7 @@ const AdditionalFieldEditor = ({
         />
       );
     case "SELECT":
-    case "SYSTEM_USER_BIOLOGIST_SELECT":
+    case "USER":
       return (
         <Select
           id={inputId}
@@ -3027,22 +2974,11 @@ export function SearchResults(props) {
     return (
       <AdditionalFieldEditor
         inputId={inputId}
-        analysisId={data?.analysisId}
-        testId={data?.testId}
-        fieldKey={fieldKey}
         fieldLabel={fieldLabel}
         fieldType={fieldType}
         value={fieldValue || ""}
         activeOptions={activeOptions}
         fieldMetadata={fieldMetadata}
-        onError={(message) => {
-          addNotification({
-            title: intl.formatMessage({ id: "notification.title" }),
-            message: message || intl.formatMessage({ id: "server.error.msg" }),
-            kind: NotificationKinds.error,
-          });
-          setNotificationVisible(true);
-        }}
         onCommit={(nextValue) =>
           handleAdditionalFieldChange(data.id, fieldKey, fieldType, nextValue)
         }
@@ -4144,3 +4080,4 @@ export function SearchResults(props) {
 }
 
 export default injectIntl(ResultSearchPage);
+

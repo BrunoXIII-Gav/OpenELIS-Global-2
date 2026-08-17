@@ -74,4 +74,8 @@
   <include relativeToChangelogFile="true" file="060-set-order-provider-selection-self-only.xml"/>
   <include relativeToChangelogFile="true" file="061-map-order-permission-to-legacy-order-modules.xml"/>
   <include relativeToChangelogFile="true" file="062-remap-sample-management-route-to-generic-sample-module.xml"/>
+  <include relativeToChangelogFile="true" file="063-add-provider-profile-dynamic-fields.xml"/>
+  <include relativeToChangelogFile="true" file="064-expand-site-information-value-for-profile-fields.xml"/>
+  <include relativeToChangelogFile="true" file="065-add-professional-profile-specialty-options-config.xml"/>
+  <include relativeToChangelogFile="true" file="066-create-provider-profile-field-values-table.xml"/>
 </databaseChangeLog>

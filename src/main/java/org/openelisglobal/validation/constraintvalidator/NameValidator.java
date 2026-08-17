@@ -18,6 +18,7 @@ public class NameValidator implements ConstraintValidator<ValidName, String>, Co
 
     private static final SiteInformation DEFAULT_SITE_INFORATION = new SiteInformation();
     private static final String DEFAULT_REGEX = "0-9a-z .'_@-";
+    private static final String USERNAME_REGEX = "^[A-Za-z0-9_-]+(?: [A-Za-z0-9_-]+)*$";
     private static String FIRST_NAME_REGEX;
     private static String LAST_NAME_REGEX;
     private static String USER_NAME_REGEX;
@@ -62,13 +63,17 @@ public class NameValidator implements ConstraintValidator<ValidName, String>, Co
         if (org.apache.commons.validator.GenericValidator.isBlankOrNull(value)) {
             return true;
         }
+        if (nameType == NameType.USERNAME) {
+            return value.matches(USERNAME_REGEX);
+        }
         switch (nameType) {
         case LAST_NAME:
             return "UNKNOWN_".equals(value) || value.matches(getRegex(nameType));
         case FIRST_NAME:
         case FULL_NAME:
-        case USERNAME:
             return value.matches(getRegex(nameType));
+        case USERNAME:
+            return value.matches(USERNAME_REGEX);
         }
         return false;
     }
@@ -88,8 +93,6 @@ public class NameValidator implements ConstraintValidator<ValidName, String>, Co
                 + "]*([ ]*[" + escapeRegexChars(siteInformationService.getMatch("name", "lastNameCharset")
                         .orElse(DEFAULT_SITE_INFORATION).getValue())
                 + "])?$";
-        USER_NAME_REGEX = "(?iu)^[" + escapeRegexChars(
-                siteInformationService.getMatch("name", "userNameCharset").orElse(DEFAULT_SITE_INFORATION).getValue())
-                + "]*$";
+        USER_NAME_REGEX = USERNAME_REGEX;
     }
 }

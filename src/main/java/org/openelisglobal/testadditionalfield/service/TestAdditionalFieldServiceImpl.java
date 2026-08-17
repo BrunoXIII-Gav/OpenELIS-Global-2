@@ -23,15 +23,9 @@ import java.util.Set;
 import java.util.regex.Pattern;
 import java.util.stream.Collectors;
 import org.apache.commons.lang3.StringUtils;
-import org.openelisglobal.common.documentupload.TemporaryDocumentUploadPayload;
-import org.openelisglobal.common.documentupload.TemporaryDocumentUploadService;
+import org.openelisglobal.common.service.UserFieldOptionResolver;
 import org.openelisglobal.common.exception.LIMSRuntimeException;
-import org.openelisglobal.person.service.PersonService;
-import org.openelisglobal.person.valueholder.Person;
-import org.openelisglobal.provider.service.ProviderService;
-import org.openelisglobal.provider.valueholder.Provider;
 import org.openelisglobal.systemuser.service.SystemUserService;
-import org.openelisglobal.systemuser.valueholder.SystemUser;
 import org.openelisglobal.testadditionalfield.bean.TestAdditionalFieldOptionPayload;
 import org.openelisglobal.testadditionalfield.bean.TestAdditionalFieldPayload;
 import org.openelisglobal.testadditionalfield.dao.AnalysisAdditionalFieldValueDAO;
@@ -58,10 +52,9 @@ public class TestAdditionalFieldServiceImpl implements TestAdditionalFieldServic
             .ofPattern("yyyy-MM-dd HH:mm:ss");
 
     private static final Set<FieldType> OPTION_TYPES = Set.of(FieldType.SELECT, FieldType.RADIO, FieldType.MULTISELECT,
-            FieldType.SYSTEM_USER_BIOLOGIST_SELECT);
+            FieldType.USER);
     private static final Set<FieldType> STATIC_OPTION_TYPES = Set.of(FieldType.SELECT, FieldType.RADIO,
             FieldType.MULTISELECT);
-    private static final String BIOLOGIST_PROFILE_CODE = "BIOLOGIST";
     private static final String ENTRY_SCOPE_OFFICIAL = "OFFICIAL";
     private static final String ENTRY_SCOPE_PRELIMINARY = "PRELIMINARY";
     private static final String DEFAULT_RESULT_BLOCK_NAME = "Official";
@@ -85,20 +78,15 @@ public class TestAdditionalFieldServiceImpl implements TestAdditionalFieldServic
     private AnalysisAdditionalFieldValueDAO valueDAO;
 
     @Autowired
-    private TemporaryDocumentUploadService temporaryDocumentUploadService;
-
-    @Autowired
     private SystemUserService systemUserService;
 
     @Autowired
-    private PersonService personService;
-
-    @Autowired
-    private ProviderService providerService;
+    private UserFieldOptionResolver userFieldOptionResolver;
 
     @Override
     @Transactional(readOnly = true)
-    public List<TestAdditionalFieldPayload> getFieldsForTest(String testId, boolean includeInactive) {
+    public List<TestAdditionalFieldPayload> getFieldsForTest(String testId, boolean includeInactive,
+            boolean resolveUserOptions) {
         Integer numericTestId = parseNumericId(testId, "testId");
         List<TestAdditionalFieldDefinition> definitions = collapseDuplicateDefinitions(
                 definitionDAO.findByTestId(numericTestId, includeInactive));
@@ -110,7 +98,7 @@ public class TestAdditionalFieldServiceImpl implements TestAdditionalFieldServic
                 .collect(Collectors.toList());
         List<TestAdditionalFieldOption> options = optionDAO.findByDefinitionIds(definitionIds, !includeInactive);
 
-        return mapDefinitionsToPayload(definitions, options);
+        return mapDefinitionsToPayload(definitions, options, resolveUserOptions);
     }
 
     @Override
@@ -145,8 +133,8 @@ public class TestAdditionalFieldServiceImpl implements TestAdditionalFieldServic
                 .collect(Collectors.toList());
         List<TestAdditionalFieldOption> options = optionDAO.findByDefinitionIds(definitionIds, true);
 
-        Map<Integer, List<TestAdditionalFieldPayload>> byTestId = mapDefinitionsToPayload(definitions, options).stream()
-                .collect(Collectors.groupingBy(payload -> Integer.valueOf(payload.getTestId())));
+        Map<Integer, List<TestAdditionalFieldPayload>> byTestId = mapDefinitionsToPayload(definitions, options, true)
+                .stream().collect(Collectors.groupingBy(payload -> Integer.valueOf(payload.getTestId())));
 
         for (Integer numericId : numericIds) {
             String key = String.valueOf(numericId);
@@ -290,68 +278,6 @@ public class TestAdditionalFieldServiceImpl implements TestAdditionalFieldServic
     }
 
     @Override
-    public TemporaryDocumentUploadPayload prepareDocumentUpload(String testId, String fieldKey, String fileName,
-            String fileType, long fileSize, byte[] content) {
-        TestAdditionalFieldPayload fieldDefinition = getDocumentFieldDefinition(testId, fieldKey);
-        validateDocumentBytes(fieldDefinition, fileName, fileType, content);
-
-        TemporaryDocumentUploadPayload payload = new TemporaryDocumentUploadPayload();
-        payload.setFileName(StringUtils.trimToNull(fileName));
-        payload.setFileType(StringUtils.trimToNull(fileType));
-        payload.setFileSize(fileSize);
-        payload.setContent(content);
-        return temporaryDocumentUploadService.store("test-additional-field", payload);
-    }
-
-    @Override
-    @Transactional(readOnly = true)
-    public Optional<TemporaryDocumentUploadPayload> getTemporaryDocumentUpload(String uploadToken) {
-        return temporaryDocumentUploadService.get("test-additional-field", uploadToken);
-    }
-
-    @Override
-    @Transactional(readOnly = true)
-    public Optional<TemporaryDocumentUploadPayload> getAnalysisDocument(String analysisId, String fieldKey) {
-        if (StringUtils.isBlank(analysisId) || StringUtils.isBlank(fieldKey)) {
-            return Optional.empty();
-        }
-
-        Integer numericAnalysisId = parseNumericId(analysisId, "analysisId");
-        List<TestAdditionalFieldPayload> definitions = getFieldsForAnalysisDocument(numericAnalysisId);
-        Optional<TestAdditionalFieldPayload> matchingField = definitions.stream()
-                .filter(field -> StringUtils.equals(field.getFieldKey(), fieldKey))
-                .findFirst();
-        if (matchingField.isEmpty()) {
-            return Optional.empty();
-        }
-
-        Optional<AnalysisAdditionalFieldValue> entity = valueDAO.findByAnalysisIdAndFieldDefinitionId(numericAnalysisId,
-                matchingField.get().getId());
-        if (entity.isEmpty()) {
-            return Optional.empty();
-        }
-
-        try {
-            JsonNode root = OBJECT_MAPPER.readTree(StringUtils.defaultString(entity.get().getFieldValue()));
-            String fileName = StringUtils.trimToNull(asText(root, "fileName"));
-            String fileType = StringUtils.trimToNull(asText(root, "fileType"));
-            String base64Content = StringUtils.trimToNull(asText(root, "base64Content"));
-            if (StringUtils.isBlank(fileName) || StringUtils.isBlank(base64Content)) {
-                return Optional.empty();
-            }
-
-            TemporaryDocumentUploadPayload payload = new TemporaryDocumentUploadPayload();
-            payload.setFileName(fileName);
-            payload.setFileType(fileType);
-            payload.setContent(Base64.getDecoder().decode(base64Content));
-            payload.setFileSize(Long.valueOf(payload.getContent().length));
-            return Optional.of(payload);
-        } catch (Exception e) {
-            return Optional.empty();
-        }
-    }
-
-    @Override
     @Transactional(readOnly = true)
     public Map<String, String> getAnalysisValuesForFields(String analysisId,
             List<TestAdditionalFieldPayload> fieldDefinitions) {
@@ -396,7 +322,7 @@ public class TestAdditionalFieldServiceImpl implements TestAdditionalFieldServic
         }
 
         if (fieldDefinitions == null) {
-            fieldDefinitions = getFieldsForTest(testId, false);
+            fieldDefinitions = getFieldsForTest(testId, false, true);
         }
 
         if (fieldDefinitions == null || fieldDefinitions.isEmpty()) {
@@ -653,7 +579,7 @@ public class TestAdditionalFieldServiceImpl implements TestAdditionalFieldServic
     }
 
     private List<TestAdditionalFieldPayload> mapDefinitionsToPayload(List<TestAdditionalFieldDefinition> definitions,
-            List<TestAdditionalFieldOption> options) {
+            List<TestAdditionalFieldOption> options, boolean resolveUserOptions) {
 
         Map<Integer, List<TestAdditionalFieldOptionPayload>> optionsByDefinitionId = new HashMap<>();
         for (TestAdditionalFieldOption option : options) {
@@ -664,10 +590,11 @@ public class TestAdditionalFieldServiceImpl implements TestAdditionalFieldServic
         List<TestAdditionalFieldPayload> payloads = new ArrayList<>();
         for (TestAdditionalFieldDefinition definition : definitions) {
             TestAdditionalFieldPayload payload = mapDefinitionToPayload(definition);
-            List<TestAdditionalFieldOptionPayload> resolvedOptions = optionsByDefinitionId
-                    .getOrDefault(definition.getId(), Collections.emptyList());
-            if (isDynamicBiologistField(definition)) {
-                resolvedOptions = buildDynamicBiologistOptions();
+            List<TestAdditionalFieldOptionPayload> resolvedOptions = Collections.emptyList();
+            if (resolveUserOptions && isUserFieldType(definition)) {
+                resolvedOptions = resolveUserFieldOptions(definition.getFieldType(), definition.getMetadataJson());
+            } else {
+                resolvedOptions = optionsByDefinitionId.getOrDefault(definition.getId(), Collections.emptyList());
             }
             payload.setOptions(resolvedOptions);
             payloads.add(payload);
@@ -737,8 +664,8 @@ public class TestAdditionalFieldServiceImpl implements TestAdditionalFieldServic
         TestAdditionalFieldDefinition definition = definitionDAO.get(fieldId)
                 .orElseThrow(() -> new IllegalArgumentException("Field definition not found: " + fieldId));
         TestAdditionalFieldPayload payload = mapDefinitionToPayload(definition);
-        if (isDynamicBiologistField(definition)) {
-            payload.setOptions(buildDynamicBiologistOptions());
+        if (isUserFieldType(definition)) {
+            payload.setOptions(resolveUserFieldOptions(definition.getFieldType(), definition.getMetadataJson()));
             return payload;
         }
         List<TestAdditionalFieldOption> options = optionDAO.findByDefinitionId(fieldId, includeInactiveOptions);
@@ -819,7 +746,11 @@ public class TestAdditionalFieldServiceImpl implements TestAdditionalFieldServic
         }
 
         try {
-            return FieldType.valueOf(fieldType.trim().toUpperCase());
+            String normalizedFieldType = fieldType.trim().toUpperCase();
+            if ("SYSTEM_USER_BIOLOGIST_SELECT".equals(normalizedFieldType)) {
+                return FieldType.USER;
+            }
+            return FieldType.valueOf(normalizedFieldType);
         } catch (IllegalArgumentException e) {
             throw new IllegalArgumentException("Unsupported fieldType: " + fieldType);
         }
@@ -833,64 +764,8 @@ public class TestAdditionalFieldServiceImpl implements TestAdditionalFieldServic
         return STATIC_OPTION_TYPES.contains(fieldType);
     }
 
-    private boolean isDynamicBiologistField(TestAdditionalFieldDefinition definition) {
-        if (definition == null || StringUtils.isBlank(definition.getFieldType())) {
-            return false;
-        }
-        return FieldType.SYSTEM_USER_BIOLOGIST_SELECT.name().equalsIgnoreCase(definition.getFieldType().trim());
-    }
-
-    private List<TestAdditionalFieldOptionPayload> buildDynamicBiologistOptions() {
-        List<SystemUser> allUsers = systemUserService.getAllSystemUsers();
-        if (allUsers == null || allUsers.isEmpty()) {
-            return Collections.emptyList();
-        }
-
-        List<TestAdditionalFieldOptionPayload> options = new ArrayList<>();
-        int order = 1;
-        for (SystemUser user : allUsers) {
-            if (user == null || StringUtils.isBlank(user.getId()) || !isActiveSystemUser(user)) {
-                continue;
-            }
-
-            Provider linkedProvider = resolveLinkedProvider(user);
-            if (linkedProvider == null || !Boolean.TRUE.equals(linkedProvider.getActive())
-                    || !BIOLOGIST_PROFILE_CODE.equalsIgnoreCase(StringUtils.trimToEmpty(linkedProvider.getProfessionalProfileCode()))) {
-                continue;
-            }
-
-            String initials = StringUtils.defaultIfBlank(linkedProvider.getProfessionalInitials(), user.getInitials());
-
-            TestAdditionalFieldOptionPayload optionPayload = new TestAdditionalFieldOptionPayload();
-            optionPayload.setOptionKey(user.getId());
-            optionPayload.setOptionLabel(StringUtils.defaultIfBlank(initials, user.getLoginName()));
-            optionPayload.setSortOrder(order++);
-            optionPayload.setActive(true);
-            options.add(optionPayload);
-        }
-
-        options.sort(Comparator.comparing(option -> StringUtils.defaultString(option.getOptionLabel()),
-                String.CASE_INSENSITIVE_ORDER));
-        for (int i = 0; i < options.size(); i++) {
-            options.get(i).setSortOrder(i + 1);
-        }
-        return options;
-    }
-
-    private boolean isActiveSystemUser(SystemUser user) {
-        String activeFlag = StringUtils.upperCase(StringUtils.trimToEmpty(user.getIsActive()));
-        return "Y".equals(activeFlag) || "YES".equals(activeFlag) || "TRUE".equals(activeFlag);
-    }
-
-    private Provider resolveLinkedProvider(SystemUser user) {
-        if (user == null || StringUtils.isBlank(user.getLinkedProviderPersonId())) {
-            return null;
-        }
-        Person person = personService.getPersonById(user.getLinkedProviderPersonId());
-        if (person == null) {
-            return null;
-        }
-        return providerService.getProviderByPerson(person);
+    private boolean isUserFieldType(TestAdditionalFieldDefinition definition) {
+        return definition != null && userFieldOptionResolver.isUserFieldType(definition.getFieldType());
     }
 
     private Integer getNextSortOrder(Integer testId) {
@@ -1089,7 +964,7 @@ public class TestAdditionalFieldServiceImpl implements TestAdditionalFieldServic
             return trimmedValue.toLowerCase();
         case SELECT:
         case RADIO:
-        case SYSTEM_USER_BIOLOGIST_SELECT:
+        case USER:
             validateSingleOption(fieldDefinition, trimmedValue);
             return trimmedValue;
         case MULTISELECT:
@@ -1107,27 +982,6 @@ public class TestAdditionalFieldServiceImpl implements TestAdditionalFieldServic
             String fileName = StringUtils.trimToNull(asText(root, "fileName"));
             String fileType = StringUtils.trimToNull(asText(root, "fileType"));
             String base64Content = StringUtils.trimToNull(asText(root, "base64Content"));
-            String uploadToken = StringUtils.trimToNull(asText(root, "uploadToken"));
-
-            if (uploadToken != null) {
-                TemporaryDocumentUploadPayload uploaded = temporaryDocumentUploadService
-                        .get("test-additional-field", uploadToken).orElseThrow(() -> new LIMSRuntimeException(
-                                "Invalid document payload for field: " + fieldDefinition.getDisplayName()));
-
-                fileName = StringUtils.defaultIfBlank(fileName, uploaded.getFileName());
-                fileType = StringUtils.defaultIfBlank(fileType, uploaded.getFileType());
-                byte[] contentBytes = uploaded.getContent();
-                validateDocumentBytes(fieldDefinition, fileName, fileType, contentBytes);
-
-                Map<String, String> normalized = new HashMap<>();
-                normalized.put("fileName", fileName);
-                List<String> allowedMimeTypes = resolveDocumentAcceptedMimeTypes(fieldDefinition.getMetadataJson());
-                normalized.put("fileType",
-                        StringUtils.defaultIfBlank(fileType, allowedMimeTypes.isEmpty() ? DEFAULT_DOCUMENT_MIME_TYPE
-                                : allowedMimeTypes.get(0)));
-                normalized.put("base64Content", Base64.getEncoder().encodeToString(contentBytes));
-                return OBJECT_MAPPER.writeValueAsString(normalized);
-            }
 
             if (fileName == null || base64Content == null) {
                 throw new LIMSRuntimeException(
@@ -1143,10 +997,8 @@ public class TestAdditionalFieldServiceImpl implements TestAdditionalFieldServic
             }
 
             List<String> allowedMimeTypes = resolveDocumentAcceptedMimeTypes(fieldDefinition.getMetadataJson());
-            final String normalizedFileType = fileType;
             if (StringUtils.isNotBlank(fileType) && !allowedMimeTypes.isEmpty()
-                    && allowedMimeTypes.stream()
-                            .noneMatch(mime -> StringUtils.equalsIgnoreCase(mime, normalizedFileType))) {
+                    && allowedMimeTypes.stream().noneMatch(mime -> StringUtils.equalsIgnoreCase(mime, fileType))) {
                 throw new LIMSRuntimeException("Unsupported file type for field: " + fieldDefinition.getDisplayName());
             }
 
@@ -1210,70 +1062,6 @@ public class TestAdditionalFieldServiceImpl implements TestAdditionalFieldServic
         } catch (Exception e) {
             return DEFAULT_DOCUMENT_MAX_SIZE_MB;
         }
-    }
-
-    private TestAdditionalFieldPayload getDocumentFieldDefinition(String testId, String fieldKey) {
-        if (StringUtils.isBlank(testId)) {
-            throw new IllegalArgumentException("testId is required");
-        }
-        if (StringUtils.isBlank(fieldKey)) {
-            throw new IllegalArgumentException("fieldKey is required");
-        }
-
-        return getFieldsForTest(testId, false).stream()
-                .filter(field -> field != null && StringUtils.equals(field.getFieldKey(), fieldKey))
-                .findFirst()
-                .map(field -> {
-                    if (parseFieldType(field.getFieldType()) != FieldType.DOCUMENT) {
-                        throw new IllegalArgumentException("Field is not a DOCUMENT field: " + fieldKey);
-                    }
-                    return field;
-                })
-                .orElseThrow(() -> new IllegalArgumentException("Field definition not found for key: " + fieldKey));
-    }
-
-    private void validateDocumentBytes(TestAdditionalFieldPayload fieldDefinition, String fileName, String fileType,
-            byte[] contentBytes) {
-        if (StringUtils.isBlank(fileName) || contentBytes == null || contentBytes.length == 0) {
-            throw new IllegalArgumentException("Document file is required for field: " + fieldDefinition.getFieldKey());
-        }
-
-        List<String> allowedMimeTypes = resolveDocumentAcceptedMimeTypes(fieldDefinition.getMetadataJson());
-        if (StringUtils.isNotBlank(fileType) && !allowedMimeTypes.isEmpty()
-                && allowedMimeTypes.stream().noneMatch(mime -> StringUtils.equalsIgnoreCase(mime, fileType))) {
-            throw new IllegalArgumentException("Unsupported file type for field: " + fieldDefinition.getFieldKey());
-        }
-
-        int maxSizeMb = resolveDocumentMaxSizeMb(fieldDefinition.getMetadataJson());
-        long maxBytes = maxSizeMb * 1024L * 1024L;
-        if (contentBytes.length > maxBytes) {
-            throw new IllegalArgumentException(
-                    "File exceeds max size for field: " + StringUtils.defaultString(fieldDefinition.getDisplayName()));
-        }
-    }
-
-    private List<TestAdditionalFieldPayload> getFieldsForAnalysisDocument(Integer analysisId) {
-        List<AnalysisAdditionalFieldValue> analysisValues = valueDAO.findByAnalysisId(analysisId);
-        if (analysisValues == null || analysisValues.isEmpty()) {
-            return Collections.emptyList();
-        }
-
-        Set<Integer> definitionIds = analysisValues.stream().map(AnalysisAdditionalFieldValue::getFieldDefinitionId)
-                .filter(id -> id != null).collect(Collectors.toSet());
-        if (definitionIds.isEmpty()) {
-            return Collections.emptyList();
-        }
-
-        List<TestAdditionalFieldDefinition> definitions = definitionDAO.findByIds(new ArrayList<>(definitionIds));
-        if (definitions == null || definitions.isEmpty()) {
-            return Collections.emptyList();
-        }
-
-        List<Integer> ids = definitions.stream().map(TestAdditionalFieldDefinition::getId).toList();
-        List<TestAdditionalFieldOption> options = optionDAO.findByDefinitionIds(ids, true);
-        return mapDefinitionsToPayload(definitions, options).stream()
-                .filter(field -> parseFieldType(field.getFieldType()) == FieldType.DOCUMENT)
-                .collect(Collectors.toList());
     }
 
     private void validateMaxLength(TestAdditionalFieldPayload fieldDefinition, String value) {
@@ -1430,6 +1218,15 @@ public class TestAdditionalFieldServiceImpl implements TestAdditionalFieldServic
     }
 
     private void validateSingleOption(TestAdditionalFieldPayload fieldDefinition, String value) {
+        // For USER fields, options are resolved dynamically from active system users
+        // and are not stored in the database. Validating against the in-memory options
+        // list is unreliable at save time (the list may be empty or the user may have
+        // been deactivated between page load and save). Instead, we accept any non-blank
+        // value — the system-user ID is stored as-is and resolved at display time.
+        if (userFieldOptionResolver.isUserFieldType(fieldDefinition.getFieldType())) {
+            return;
+        }
+
         Set<String> validOptions = fieldDefinition.getOptions().stream()
                 .filter(option -> Boolean.TRUE.equals(option.getActive()))
                 .map(TestAdditionalFieldOptionPayload::getOptionKey).collect(Collectors.toSet());
@@ -1437,6 +1234,22 @@ public class TestAdditionalFieldServiceImpl implements TestAdditionalFieldServic
         if (!validOptions.contains(value)) {
             throw new LIMSRuntimeException("Invalid option selected for field: " + fieldDefinition.getDisplayName());
         }
+    }
+
+    private List<TestAdditionalFieldOptionPayload> resolveUserFieldOptions(String fieldType, String metadataJson) {
+        List<TestAdditionalFieldOptionPayload> payloads = new ArrayList<>();
+        List<UserFieldOptionResolver.ResolvedUserOption> resolvedOptions = userFieldOptionResolver
+                .resolveUserOptions(fieldType, metadataJson);
+        for (int i = 0; i < resolvedOptions.size(); i++) {
+            UserFieldOptionResolver.ResolvedUserOption option = resolvedOptions.get(i);
+            TestAdditionalFieldOptionPayload payload = new TestAdditionalFieldOptionPayload();
+            payload.setOptionKey(option.optionKey());
+            payload.setOptionLabel(option.label());
+            payload.setSortOrder(i + 1);
+            payload.setActive(true);
+            payloads.add(payload);
+        }
+        return payloads;
     }
 
     private String normalizeAndValidateMultiSelect(TestAdditionalFieldPayload fieldDefinition, String value) {

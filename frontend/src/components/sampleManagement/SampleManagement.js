@@ -634,7 +634,7 @@ const resolveCustomFieldDisplayValue = (field, valuesByKey, filesByKey) => {
   if (
     fieldType === "SELECT" ||
     fieldType === "RADIO" ||
-    fieldType === "SYSTEM_USER_BIOLOGIST_SELECT"
+    fieldType === "USER"
   ) {
     const selected = options.find(
       (option) => String(option?.optionKey || "") === String(rawValue),

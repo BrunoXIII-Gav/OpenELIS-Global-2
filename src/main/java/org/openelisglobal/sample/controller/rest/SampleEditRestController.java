@@ -382,7 +382,8 @@ public class SampleEditRestController extends BaseSampleEntryController {
             String accessionNumber, boolean allowedToCancelAll) {
 
         TypeOfSample typeOfSample = typeOfSampleService.get(sampleItem.getTypeOfSampleId());
-        var additionalFields = sampleTypeAdditionalFieldService.getFieldsForSampleType(typeOfSample.getId(), false);
+        var additionalFields = sampleTypeAdditionalFieldService.getFieldsForSampleType(typeOfSample.getId(), false,
+                true);
         var additionalFieldValues = sampleTypeAdditionalFieldService.getFieldValuesForSampleItem(typeOfSample.getId(),
                 sampleItem.getId());
 

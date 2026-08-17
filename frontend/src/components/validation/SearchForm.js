@@ -285,7 +285,11 @@ const SearchForm = (props) => {
                       <Field name="accessionNumber">
                         {({ field }) => (
                           <CustomLabNumberInput
-                            placeholder={"Enter Lab No"}
+                            placeholder={intl.formatMessage({
+                              id: "validation.search.input.placeholder",
+                              defaultMessage:
+                                "Enter CUG or order/lab number",
+                            })}
                             name={field.name}
                             id={field.name}
                             value={values[field.name]}
@@ -294,10 +298,19 @@ const SearchForm = (props) => {
                             }}
                             labelText={
                               searchBy == "order" ? (
-                                <FormattedMessage id="search.label.accession" />
+                                <FormattedMessage id="validation.search.input.label" />
                               ) : (
                                 <FormattedMessage id="search.label.loadnext" />
                               )
+                            }
+                            helperText={
+                              searchBy == "order"
+                                ? intl.formatMessage({
+                                    id: "validation.search.input.helper",
+                                    defaultMessage:
+                                      "You can search using CUG or the real order/laboratory number.",
+                                  })
+                                : undefined
                             }
                           />
                         )}

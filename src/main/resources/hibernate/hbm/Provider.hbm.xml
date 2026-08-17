@@ -47,6 +47,9 @@
         <property name="cbpCode" type="java.lang.String">
             <column name="CBP_CODE" length="32" />
         </property>
+        <property name="profileFieldsJson" type="java.lang.String">
+            <column name="PROFILE_FIELDS_JSON" sql-type="text" />
+        </property>
         <property name="fhirUuid" column="fhir_uuid"
             type="java.util.UUID" />
         <property name="active" column="active"

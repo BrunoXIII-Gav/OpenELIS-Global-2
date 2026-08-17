@@ -7,7 +7,11 @@ import org.openelisglobal.patientadditionalfield.bean.PatientAdditionalFieldPayl
 
 public interface PatientAdditionalFieldService {
 
-    List<PatientAdditionalFieldPayload> getFields(boolean includeInactive);
+    default List<PatientAdditionalFieldPayload> getFields(boolean includeInactive) {
+        return getFields(includeInactive, false);
+    }
+
+    List<PatientAdditionalFieldPayload> getFields(boolean includeInactive, boolean resolveUserOptions);
 
     Map<String, String> getPatientValues(String patientId, List<PatientAdditionalFieldPayload> fieldDefinitions);
 

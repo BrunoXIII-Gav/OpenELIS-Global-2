@@ -18,12 +18,15 @@ package org.openelisglobal.localization.valueholder;
 
 import com.fasterxml.jackson.annotation.JsonIgnore;
 import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.Collections;
 import java.util.Comparator;
 import java.util.HashMap;
+import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
+import java.util.Set;
 import org.apache.commons.validator.GenericValidator;
 import org.openelisglobal.common.valueholder.BaseObject;
 import org.openelisglobal.localization.service.LocalizationService;
@@ -109,14 +112,33 @@ public class Localization extends BaseObject<String> {
     }
 
     public String getLocalizedValue(Locale locale) {
-        Locale secondaryLocale = Locale.forLanguageTag(locale.getLanguage());
-        if (localeValues.containsKey(locale)) {
-            return localeValues.get(locale);
-        } else if (localeValues.containsKey(secondaryLocale)) {
-            return localeValues.get(secondaryLocale);
-        } else {
+        if (localeValues == null || localeValues.isEmpty()) {
             return "";
         }
+
+        Set<Locale> candidates = new LinkedHashSet<>();
+        if (locale != null) {
+            candidates.add(locale);
+            if (!GenericValidator.isBlankOrNull(locale.getLanguage())) {
+                candidates.add(Locale.forLanguageTag(locale.getLanguage()));
+            }
+        }
+        candidates.addAll(Arrays.asList(Locale.US, Locale.ENGLISH, Locale.FRANCE, Locale.FRENCH));
+
+        for (Locale candidate : candidates) {
+            String value = localeValues.get(candidate);
+            if (!GenericValidator.isBlankOrNull(value)) {
+                return value;
+            }
+        }
+
+        for (String value : localeValues.values()) {
+            if (!GenericValidator.isBlankOrNull(value)) {
+                return value;
+            }
+        }
+
+        return "";
     }
 
     public void setLocalizedValue(Locale locale, String value) {
