@@ -5,6 +5,7 @@ import {
   Grid,
   Heading,
   Loading,
+  MultiSelect,
   Section,
   Select,
   SelectItem,
@@ -54,6 +55,11 @@ const buildBreadcrumbs = (fromSampleEntryConfig) => [
 ];
 
 const OPTION_BASED_TYPES = new Set(["SELECT", "RADIO", "MULTISELECT"]);
+const LEGACY_USER_FIELD_TYPE = "SYSTEM_USER_BIOLOGIST_SELECT";
+const GENERIC_USER_FIELD_TYPE = "USER";
+const USER_DISPLAY_MODE_INITIALS = "INITIALS";
+const USER_DISPLAY_MODE_NAME = "NAME";
+const USER_DISPLAY_MODE_BOTH = "BOTH";
 
 const initialFormState = {
   fieldKey: "",
@@ -65,6 +71,8 @@ const initialFormState = {
   defaultValue: "",
   maxLength: "",
   optionLines: "",
+  userProfileCodes: [],
+  userDisplayMode: USER_DISPLAY_MODE_BOTH,
 };
 
 const SampleTypeAdditionalFields = () => {
@@ -76,6 +84,7 @@ const SampleTypeAdditionalFields = () => {
 
   const [loading, setLoading] = useState(true);
   const [sampleTypes, setSampleTypes] = useState([]);
+  const [professionalProfileOptions, setProfessionalProfileOptions] = useState([]);
   const [selectedSampleTypeId, setSelectedSampleTypeId] = useState("");
   const [fields, setFields] = useState([]);
   const [formState, setFormState] = useState(initialFormState);
@@ -85,6 +94,41 @@ const SampleTypeAdditionalFields = () => {
   const breadcrumbs = buildBreadcrumbs(fromSampleEntryConfig);
 
   const optionsRequired = OPTION_BASED_TYPES.has(formState.fieldType);
+
+  const parseFieldMetadata = (metadataJson) => {
+    if (!metadataJson || typeof metadataJson !== "string") {
+      return {};
+    }
+    try {
+      const parsed = JSON.parse(metadataJson);
+      return parsed && typeof parsed === "object" ? parsed : {};
+    } catch (_error) {
+      return {};
+    }
+  };
+
+  const normalizeFieldType = (fieldType) =>
+    String(fieldType || "").toUpperCase() === LEGACY_USER_FIELD_TYPE
+      ? GENERIC_USER_FIELD_TYPE
+      : fieldType || "TEXT";
+
+  const resolveUserProfileCodes = (fieldType, metadata) => {
+    if (Array.isArray(metadata?.userProfileCodes)) {
+      return metadata.userProfileCodes;
+    }
+    return [];
+  };
+
+  const resolveUserDisplayMode = (metadata) => {
+    const mode = String(metadata?.userDisplayMode || "").toUpperCase();
+    if (
+      mode === USER_DISPLAY_MODE_INITIALS ||
+      mode === USER_DISPLAY_MODE_NAME
+    ) {
+      return mode;
+    }
+    return USER_DISPLAY_MODE_BOTH;
+  };
 
   const showNotification = (kind, message) => {
     addNotification({
@@ -157,10 +201,11 @@ const SampleTypeAdditionalFields = () => {
     }
 
     setEditingFieldId(field.id);
+    const metadata = parseFieldMetadata(field?.metadataJson);
     setFormState({
       fieldKey: field.fieldKey || "",
       displayName: field.displayName || "",
-      fieldType: field.fieldType || "TEXT",
+      fieldType: normalizeFieldType(field.fieldType),
       required: !!field.required,
       displaySection: field.displaySection || "RECEPTION",
       sortOrder:
@@ -173,6 +218,8 @@ const SampleTypeAdditionalFields = () => {
           ? String(field.maxLength)
           : "",
       optionLines: toOptionLines(field.options),
+      userProfileCodes: resolveUserProfileCodes(field.fieldType, metadata),
+      userDisplayMode: resolveUserDisplayMode(metadata),
     });
   };
 
@@ -234,6 +281,14 @@ const SampleTypeAdditionalFields = () => {
       maxLength:
         formState.maxLength && formState.maxLength !== ""
           ? Number(formState.maxLength)
+          : null,
+      metadataJson:
+        formState.fieldType === "USER"
+          ? JSON.stringify({
+              userProfileCodes: formState.userProfileCodes || [],
+              userDisplayMode:
+                formState.userDisplayMode || USER_DISPLAY_MODE_BOTH,
+            })
           : null,
       options,
     };
@@ -401,6 +456,19 @@ const SampleTypeAdditionalFields = () => {
         setLoading(false);
       },
     );
+    getFromOpenElisServer("/rest/professional-profiles/catalog", (response) => {
+      if (!componentMounted.current) {
+        return;
+      }
+      setProfessionalProfileOptions(
+        Array.isArray(response?.profiles)
+          ? response.profiles.map((profile) => ({
+              id: profile.code,
+              label: profile.label || profile.name || profile.code,
+            }))
+          : [],
+      );
+    });
 
     return () => {
       componentMounted.current = false;
@@ -518,6 +586,11 @@ const SampleTypeAdditionalFields = () => {
                             )
                               ? previous.optionLines
                               : "",
+                            userDisplayMode:
+                              event.target.value === "USER"
+                                ? previous.userDisplayMode ||
+                                  USER_DISPLAY_MODE_BOTH
+                                : USER_DISPLAY_MODE_BOTH,
                           }))
                         }
                       >
@@ -531,12 +604,92 @@ const SampleTypeAdditionalFields = () => {
                         <SelectItem value="SELECT" text="SELECT" />
                         <SelectItem value="MULTISELECT" text="MULTISELECT" />
                         <SelectItem value="RADIO" text="RADIO" />
-                        <SelectItem
-                          value="SYSTEM_USER_BIOLOGIST_SELECT"
-                          text="SYSTEM_USER_BIOLOGIST_SELECT"
-                        />
+                        <SelectItem value="USER" text="USER" />
                       </Select>
                     </Column>
+                    {formState.fieldType === "USER" ? (
+                      <>
+                        <Column lg={8} md={4} sm={4}>
+                          <div style={{ marginTop: "1rem" }}>
+                            <label
+                              htmlFor="sample-additional-user-profiles"
+                              style={{
+                                display: "block",
+                                marginBottom: "0.5rem",
+                              }}
+                            >
+                              {intl.formatMessage({
+                                id: "sample.additional.fields.userProfiles",
+                                defaultMessage: "Allowed professional profiles",
+                              })}
+                            </label>
+                            <MultiSelect
+                              id="sample-additional-user-profiles"
+                              items={professionalProfileOptions}
+                              itemToString={(item) => item?.label || ""}
+                              selectedItems={professionalProfileOptions.filter(
+                                (item) =>
+                                  (formState.userProfileCodes || []).includes(
+                                    item.id,
+                                  ),
+                              )}
+                              onChange={({ selectedItems }) =>
+                                setFormState((previous) => ({
+                                  ...previous,
+                                  userProfileCodes: selectedItems.map(
+                                    (item) => item.id,
+                                  ),
+                                }))
+                              }
+                              label=""
+                              titleText=""
+                              selectionFeedback="top-after-reopen"
+                            />
+                          </div>
+                        </Column>
+                        <Column lg={4} md={4} sm={4}>
+                          <Select
+                            id="sampleAdditionalUserDisplayMode"
+                            labelText={intl.formatMessage({
+                              id: "user.field.display.mode.label",
+                              defaultMessage: "Display user as",
+                            })}
+                            value={
+                              formState.userDisplayMode ||
+                              USER_DISPLAY_MODE_BOTH
+                            }
+                            onChange={(event) =>
+                              setFormState((previous) => ({
+                                ...previous,
+                                userDisplayMode: event.target.value,
+                              }))
+                            }
+                          >
+                            <SelectItem
+                              value={USER_DISPLAY_MODE_INITIALS}
+                              text={intl.formatMessage({
+                                id: "user.field.display.mode.initials",
+                                defaultMessage: "Initials only",
+                              })}
+                            />
+                            <SelectItem
+                              value={USER_DISPLAY_MODE_NAME}
+                              text={intl.formatMessage({
+                                id: "user.field.display.mode.name",
+                                defaultMessage: "Name only",
+                              })}
+                            />
+                            <SelectItem
+                              value={USER_DISPLAY_MODE_BOTH}
+                              text={intl.formatMessage({
+                                id: "user.field.display.mode.both",
+                                defaultMessage: "Initials and name",
+                              })}
+                            />
+                          </Select>
+                        </Column>
+                      </>
+                    ) : null}
                     <Column lg={4} md={4} sm={4}>
                       <Select
                         id="sampleAdditionalFieldRequired"

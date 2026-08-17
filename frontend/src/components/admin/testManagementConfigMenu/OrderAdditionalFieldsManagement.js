@@ -6,6 +6,7 @@ import {
   DataTable,
   Grid,
   Heading,
+  MultiSelect,
   Section,
   Select,
   SelectItem,
@@ -47,7 +48,14 @@ const FIELD_TYPE_OPTIONS = [
   "MULTISELECT",
   "RADIO",
   "DOCUMENT",
+  "USER",
 ];
+
+const LEGACY_USER_FIELD_TYPE = "SYSTEM_USER_BIOLOGIST_SELECT";
+const GENERIC_USER_FIELD_TYPE = "USER";
+const USER_DISPLAY_MODE_INITIALS = "INITIALS";
+const USER_DISPLAY_MODE_NAME = "NAME";
+const USER_DISPLAY_MODE_BOTH = "BOTH";
 
 const CONDITION_LOGIC_OPTIONS = ["ALL", "ANY"];
 
@@ -103,6 +111,28 @@ const defaultNewField = {
   documentMaxSizeMb: "5",
   showInSampleReception: false,
   storageAssignmentRequired: false,
+  userProfileCodes: [],
+  userDisplayMode: USER_DISPLAY_MODE_BOTH,
+};
+
+const normalizeFieldType = (fieldType) =>
+  String(fieldType || "").toUpperCase() === LEGACY_USER_FIELD_TYPE
+    ? GENERIC_USER_FIELD_TYPE
+    : fieldType || "TEXT";
+
+const resolveUserProfileCodes = (fieldType, metadata) => {
+  if (Array.isArray(metadata?.userProfileCodes)) {
+    return metadata.userProfileCodes;
+  }
+  return [];
+};
+
+const resolveUserDisplayMode = (metadata) => {
+  const mode = String(metadata?.userDisplayMode || "").toUpperCase();
+  if (mode === USER_DISPLAY_MODE_INITIALS || mode === USER_DISPLAY_MODE_NAME) {
+    return mode;
+  }
+  return USER_DISPLAY_MODE_BOTH;
 };
 
 const OrderAdditionalFieldsManagement = () => {
@@ -119,6 +149,7 @@ const OrderAdditionalFieldsManagement = () => {
   const [savingSortFieldId, setSavingSortFieldId] = useState(null);
   const [sampleFixedConfigs, setSampleFixedConfigs] = useState([]);
   const [savingSampleFixed, setSavingSampleFixed] = useState(false);
+  const [professionalProfileOptions, setProfessionalProfileOptions] = useState([]);
 
   const loadFields = () => {
     getFromOpenElisServer(
@@ -145,6 +176,16 @@ const OrderAdditionalFieldsManagement = () => {
     loadFields();
     loadFixedConfigs();
     loadSampleFixedConfigs();
+    getFromOpenElisServer("/rest/professional-profiles/catalog", (response) => {
+      setProfessionalProfileOptions(
+        Array.isArray(response?.profiles)
+          ? response.profiles.map((profile) => ({
+              id: profile.code,
+              label: profile.label || profile.name || profile.code,
+            }))
+          : [],
+      );
+    });
   }, []);
 
   const sampleFixedRows = useMemo(
@@ -293,7 +334,7 @@ const OrderAdditionalFieldsManagement = () => {
     return {
       displayName: field?.displayName || "",
       fieldKey: field?.fieldKey || "",
-      fieldType: field?.fieldType || "TEXT",
+      fieldType: normalizeFieldType(field?.fieldType),
       required: !!field?.required,
       searchable: !!field?.searchable,
       searchUnique: !!field?.searchUnique,
@@ -322,6 +363,8 @@ const OrderAdditionalFieldsManagement = () => {
       storageAssignmentRequired: Boolean(
         metadata?.storage?.requireCheckedForStorageAssignment,
       ),
+      userProfileCodes: resolveUserProfileCodes(field?.fieldType, metadata),
+      userDisplayMode: resolveUserDisplayMode(metadata),
     };
   };
 
@@ -461,6 +504,19 @@ const OrderAdditionalFieldsManagement = () => {
         ...(metadata.storage || {}),
         requireCheckedForStorageAssignment: true,
       };
+    }
+
+    if (String(formValue.fieldType || "").toUpperCase() === "USER") {
+      metadata.userProfileCodes = Array.isArray(formValue.userProfileCodes)
+        ? formValue.userProfileCodes.filter(Boolean)
+        : [];
+      metadata.userDisplayMode =
+        formValue.userDisplayMode || USER_DISPLAY_MODE_BOTH;
+    } else if (metadata.userProfileCodes) {
+      delete metadata.userProfileCodes;
+      delete metadata.userDisplayMode;
+    } else if (metadata.userDisplayMode) {
+      delete metadata.userDisplayMode;
     }
 
     return {
@@ -1222,6 +1278,80 @@ const OrderAdditionalFieldsManagement = () => {
                 }
               />
             )}
+            {newField.fieldType === "USER" ? (
+              <Grid fullWidth condensed>
+                <Column lg={8} md={4} sm={4}>
+                  <div style={{ maxWidth: "32rem" }}>
+                    <label
+                      htmlFor="order-additional-user-profiles"
+                      style={{ display: "block", marginBottom: "0.5rem" }}
+                    >
+                      {intl.formatMessage({
+                        id: "order.additional.fields.userProfiles",
+                        defaultMessage: "Allowed professional profiles",
+                      })}
+                    </label>
+                    <MultiSelect
+                      id="order-additional-user-profiles"
+                      items={professionalProfileOptions}
+                      itemToString={(item) => item?.label || ""}
+                      selectedItems={professionalProfileOptions.filter((item) =>
+                        (newField.userProfileCodes || []).includes(item.id),
+                      )}
+                      onChange={({ selectedItems }) =>
+                        setNewField((previous) => ({
+                          ...previous,
+                          userProfileCodes: selectedItems.map(
+                            (item) => item.id,
+                          ),
+                        }))
+                      }
+                      label=""
+                      titleText=""
+                      selectionFeedback="top-after-reopen"
+                    />
+                  </div>
+                </Column>
+                <Column lg={4} md={4} sm={4}>
+                  <Select
+                    id="orderAdditionalUserDisplayMode"
+                    labelText={intl.formatMessage({
+                      id: "user.field.display.mode.label",
+                      defaultMessage: "Display user as",
+                    })}
+                    value={newField.userDisplayMode || USER_DISPLAY_MODE_BOTH}
+                    onChange={(event) =>
+                      setNewField((previous) => ({
+                        ...previous,
+                        userDisplayMode: event.target.value,
+                      }))
+                    }
+                  >
+                    <SelectItem
+                      value={USER_DISPLAY_MODE_INITIALS}
+                      text={intl.formatMessage({
+                        id: "user.field.display.mode.initials",
+                        defaultMessage: "Initials only",
+                      })}
+                    />
+                    <SelectItem
+                      value={USER_DISPLAY_MODE_NAME}
+                      text={intl.formatMessage({
+                        id: "user.field.display.mode.name",
+                        defaultMessage: "Name only",
+                      })}
+                    />
+                    <SelectItem
+                      value={USER_DISPLAY_MODE_BOTH}
+                      text={intl.formatMessage({
+                        id: "user.field.display.mode.both",
+                        defaultMessage: "Initials and name",
+                      })}
+                    />
+                  </Select>
+                </Column>
+              </Grid>
+            ) : null}
             <Stack gap={5}>
               <Heading>
                 <FormattedMessage id="order.additional.fields.rules.title" />

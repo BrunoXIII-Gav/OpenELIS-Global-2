@@ -19,6 +19,7 @@ import {
   RadioButton,
   ClickableTile,
   Loading,
+  MultiSelect,
 } from "@carbon/react";
 import { NotificationKinds } from "../../../common/CustomNotification.js";
 import { FormattedMessage, useIntl } from "react-intl";
@@ -28,6 +29,32 @@ import { CustomCommonSortableOrderList } from "./../sortableListComponent/Sortab
 import { getFromOpenElisServer } from "../../../utils/Utils.js";
 import { NotificationContext } from "../../../layout/Layout.js";
 import { extractAgeRangeParts } from "./TestFormData.js";
+
+const LEGACY_USER_FIELD_TYPE = "SYSTEM_USER_BIOLOGIST_SELECT";
+const GENERIC_USER_FIELD_TYPE = "USER";
+const USER_DISPLAY_MODE_INITIALS = "INITIALS";
+const USER_DISPLAY_MODE_NAME = "NAME";
+const USER_DISPLAY_MODE_BOTH = "BOTH";
+
+const normalizeUserFieldType = (fieldType) =>
+  String(fieldType || "").toUpperCase() === LEGACY_USER_FIELD_TYPE
+    ? GENERIC_USER_FIELD_TYPE
+    : fieldType || "TEXT";
+
+const resolveUserProfileCodes = (fieldType, metadata) => {
+  if (Array.isArray(metadata?.userProfileCodes)) {
+    return metadata.userProfileCodes;
+  }
+  return [];
+};
+
+const resolveUserDisplayMode = (metadata) => {
+  const mode = String(metadata?.userDisplayMode || "").toUpperCase();
+  if (mode === USER_DISPLAY_MODE_INITIALS || mode === USER_DISPLAY_MODE_NAME) {
+    return mode;
+  }
+  return USER_DISPLAY_MODE_BOTH;
+};
 
 export const TestStepForm = ({
   initialData,
@@ -77,6 +104,9 @@ export const TestStepForm = ({
   );
   const [multiSelectDictionaryListTag, setMultiSelectDictionaryListTag] =
     useState([]);
+  const [professionalProfileOptions, setProfessionalProfileOptions] = useState(
+    [],
+  );
   const [currentStep, setCurrentStep] = useState(0);
   const [ageRangeFields, setAgeRangeFields] = useState([0]);
   const [ageRanges, setAgeRanges] = useState([{ raw: "Infinity", unit: "Y" }]);
@@ -238,6 +268,16 @@ export const TestStepForm = ({
     });
     getFromOpenElisServer(`/rest/displayList/RESULT_TYPE_CODES`, (res) => {
       setResultTypeCodes(res || []);
+    });
+    getFromOpenElisServer("/rest/professional-profiles/catalog", (response) => {
+      setProfessionalProfileOptions(
+        Array.isArray(response?.profiles)
+          ? response.profiles.map((profile) => ({
+              id: profile.code,
+              label: profile.label || profile.name || profile.code,
+            }))
+          : [],
+      );
     });
     return () => {
       componentMounted.current = false;
@@ -681,6 +721,7 @@ export const TestStepForm = ({
       resultTypeList={resultTypeList}
       resultTypeCodes={resultTypeCodes}
       setSelectedResultTypeList={setSelectedResultTypeList}
+      professionalProfileOptions={professionalProfileOptions}
     />,
     <StepFourSelectSampleTypeAndTestDisplayOrder
       key="step-4"
@@ -1299,6 +1340,7 @@ export const StepThreeTestResultTypeAndLoinc = ({
   resultTypeList,
   resultTypeCodes,
   setSelectedResultTypeList,
+  professionalProfileOptions = [],
 }) => {
   const intl = useIntl();
   const { setNotificationVisible, addNotification } =
@@ -1313,7 +1355,7 @@ export const StepThreeTestResultTypeAndLoinc = ({
     "DATETIME",
     "BOOLEAN",
     "SELECT",
-    "SYSTEM_USER_BIOLOGIST_SELECT",
+    "USER",
     "MULTISELECT",
     "RADIO",
     "DOCUMENT",
@@ -1431,6 +1473,10 @@ export const StepThreeTestResultTypeAndLoinc = ({
       field.tubeActivationCount ?? tubeBlockMetadata.activationCount,
       10,
     );
+    const userProfileCodes = resolveUserProfileCodes(
+      field.fieldType,
+      parsedMetadata,
+    );
 
     return {
       blockName,
@@ -1462,6 +1508,8 @@ export const StepThreeTestResultTypeAndLoinc = ({
       childTubeUsageBlockEnabled:
         field.childTubeUsageBlockEnabled === true ||
         parsedMetadata?.tubeUsage?.childBlockEnabled === true,
+      userProfileCodes,
+      userDisplayMode: resolveUserDisplayMode(parsedMetadata),
     };
   };
 
@@ -1588,6 +1636,19 @@ export const StepThreeTestResultTypeAndLoinc = ({
       };
     } else if (metadata.tubeUsage) {
       delete metadata.tubeUsage;
+    }
+
+    if (String(field.fieldType || "").toUpperCase() === "USER") {
+      metadata.userProfileCodes = Array.isArray(field.userProfileCodes)
+        ? field.userProfileCodes.filter(Boolean)
+        : [];
+      metadata.userDisplayMode =
+        field.userDisplayMode || USER_DISPLAY_MODE_BOTH;
+    } else if (metadata.userProfileCodes) {
+      delete metadata.userProfileCodes;
+      delete metadata.userDisplayMode;
+    } else if (metadata.userDisplayMode) {
+      delete metadata.userDisplayMode;
     }
 
     return JSON.stringify({
@@ -1733,6 +1794,7 @@ export const StepThreeTestResultTypeAndLoinc = ({
       const documentSettings = resolveDocumentSettings(field);
       return {
         ...field,
+        fieldType: normalizeUserFieldType(field?.fieldType),
         ...resolved,
         ...documentSettings,
       };
@@ -2212,6 +2274,19 @@ export const StepThreeTestResultTypeAndLoinc = ({
             }
             if (key === "fieldType" && !optionBasedTypes.has(newValue)) {
               target.options = [];
+            }
+            if (
+              key === "fieldType" &&
+              String(newValue || "").toUpperCase() !== "USER"
+            ) {
+              target.userProfileCodes = [];
+              target.userDisplayMode = USER_DISPLAY_MODE_BOTH;
+            } else if (
+              key === "fieldType" &&
+              String(newValue || "").toUpperCase() === "USER" &&
+              !target.userDisplayMode
+            ) {
+              target.userDisplayMode = USER_DISPLAY_MODE_BOTH;
             }
             if (
               key === "fieldType" &&
@@ -3014,6 +3089,104 @@ export const StepThreeTestResultTypeAndLoinc = ({
                                           }
                                         />
                                       </Column>
+                                      {fieldType === "USER" ? (
+                                        <>
+                                          <Column lg={8} md={4} sm={4}>
+                                            <div style={{ marginTop: "1rem" }}>
+                                              <label
+                                                htmlFor={`additional-field-user-profiles-${fieldIndex}`}
+                                                style={{
+                                                  display: "block",
+                                                  marginBottom: "0.5rem",
+                                                }}
+                                              >
+                                                {intl.formatMessage({
+                                                  id: "test.additionalFields.userProfiles",
+                                                  defaultMessage:
+                                                    "Allowed professional profiles",
+                                                })}
+                                              </label>
+                                              <MultiSelect
+                                                id={`additional-field-user-profiles-${fieldIndex}`}
+                                                items={professionalProfileOptions}
+                                                itemToString={(item) =>
+                                                  item?.label || ""
+                                                }
+                                                selectedItems={professionalProfileOptions.filter(
+                                                  (item) =>
+                                                    (
+                                                      field?.userProfileCodes ||
+                                                      []
+                                                    ).includes(item.id),
+                                                )}
+                                                onChange={({
+                                                  selectedItems,
+                                                }) =>
+                                                  handleAdditionalFieldChange(
+                                                    fieldIndex,
+                                                    "userProfileCodes",
+                                                    selectedItems.map(
+                                                      (item) => item.id,
+                                                    ),
+                                                  )
+                                                }
+                                                label=""
+                                                titleText=""
+                                                selectionFeedback="top-after-reopen"
+                                                disabled={!isEditable}
+                                              />
+                                            </div>
+                                          </Column>
+                                          <Column lg={4} md={4} sm={4}>
+                                            <Select
+                                              id={`additional-field-user-display-mode-${fieldIndex}`}
+                                              labelText={intl.formatMessage({
+                                                id: "user.field.display.mode.label",
+                                                defaultMessage:
+                                                  "Display user as",
+                                              })}
+                                              value={
+                                                field?.userDisplayMode ||
+                                                USER_DISPLAY_MODE_BOTH
+                                              }
+                                              disabled={!isEditable}
+                                              onChange={(event) =>
+                                                handleAdditionalFieldChange(
+                                                  fieldIndex,
+                                                  "userDisplayMode",
+                                                  event.target.value,
+                                                )
+                                              }
+                                            >
+                                              <SelectItem
+                                                value={
+                                                  USER_DISPLAY_MODE_INITIALS
+                                                }
+                                                text={intl.formatMessage({
+                                                  id: "user.field.display.mode.initials",
+                                                  defaultMessage:
+                                                    "Initials only",
+                                                })}
+                                              />
+                                              <SelectItem
+                                                value={USER_DISPLAY_MODE_NAME}
+                                                text={intl.formatMessage({
+                                                  id: "user.field.display.mode.name",
+                                                  defaultMessage: "Name only",
+                                                })}
+                                              />
+                                              <SelectItem
+                                                value={USER_DISPLAY_MODE_BOTH}
+                                                text={intl.formatMessage({
+                                                  id: "user.field.display.mode.both",
+                                                  defaultMessage:
+                                                    "Initials and name",
+                                                })}
+                                              />
+                                            </Select>
+                                          </Column>
+                                        </>
+                                      ) : null}
                                     </Grid>
                                   </div>
                                 </Column>
