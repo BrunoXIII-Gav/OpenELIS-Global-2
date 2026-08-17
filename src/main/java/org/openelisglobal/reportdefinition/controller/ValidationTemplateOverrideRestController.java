@@ -90,7 +90,7 @@ public class ValidationTemplateOverrideRestController extends BaseRestController
     private static final String DATA_TYPE_TEXT = "text";
     private static final String DATA_TYPE_NUMBER = "number";
     private static final String DATA_TYPE_IMAGE = "image";
-    private static final String BIOLOGIST_FIELD_TYPE = "SYSTEM_USER_BIOLOGIST_SELECT";
+    private static final String USER_FIELD_TYPE = "USER";
     private static final List<String> VALIDATION_REPORT_CANDIDATES = Arrays.asList("patientCILNSP_vreduit",
             "patientDMPK", "patientCILNSP", "patientHaitiClinical", "patientHaitiLNSP", "TBPatientReport");
     private static final List<String> DMPK_SECTIONS = Arrays.asList("PATIENT", "REQUESTING_PHYSICIAN", "SAMPLE",
@@ -108,6 +108,10 @@ public class ValidationTemplateOverrideRestController extends BaseRestController
     private TypeOfSampleService typeOfSampleService;
     @Autowired
     private ImageService imageService;
+    @Autowired
+    private org.openelisglobal.professionalprofile.service.ProfessionalProfileFieldConfigService professionalProfileFieldConfigService;
+    @Autowired
+    private org.openelisglobal.common.util.ConfigurationProperties configurationProperties;
 
     @GetMapping
     public ResponseEntity<?> getOverrides() {
@@ -156,6 +160,22 @@ public class ValidationTemplateOverrideRestController extends BaseRestController
             logger.error("Error retrieving validation template field options", e);
             return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR)
                     .body("Error retrieving validation template field options");
+        }
+    }
+
+    @GetMapping("/user-field-options")
+    public ResponseEntity<?> getUserFieldOptions(@RequestParam(value = "testIds", required = false) List<String> testIds) {
+        try {
+            List<String> sanitizedTestIds = sanitizeList(testIds);
+            JSONObject payload = new JSONObject();
+            payload.put("userFields", new JSONArray(buildUserFieldOptions(sanitizedTestIds)));
+            payload.put("validatorProfiles", new JSONArray(getValidatorProfileCodes()));
+            payload.put("profileFieldsByProfile", new JSONObject(buildProfileFieldsByProfile()));
+            return ResponseEntity.ok(payload.toMap());
+        } catch (Exception e) {
+            logger.error("Error retrieving user field options", e);
+            return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR)
+                    .body("Error retrieving user field options");
         }
     }
 
@@ -511,6 +531,216 @@ public class ValidationTemplateOverrideRestController extends BaseRestController
                 .collect(Collectors.toList());
     }
 
+    /**
+     * Build list of USER field options from test configuration.
+     * Each USER field represents an analyst/technician selector in result entry.
+     */
+    private List<Map<String, Object>> buildUserFieldOptions(List<String> testIds) {
+        if (testIds == null || testIds.isEmpty()) {
+            return Collections.emptyList();
+        }
+
+        List<Map<String, Object>> userFields = new ArrayList<>();
+        int fieldCounter = 1;
+
+        for (String testId : testIds) {
+            if (GenericValidator.isBlankOrNull(testId)) {
+                continue;
+            }
+
+            List<TestAdditionalFieldPayload> fields = testAdditionalFieldService.getFieldsForTest(testId, false);
+            if (fields == null || fields.isEmpty()) {
+                continue;
+            }
+
+            for (TestAdditionalFieldPayload field : fields) {
+                if (!isAnalystSelectorField(field)) {
+                    continue;
+                }
+
+                Map<String, Object> userField = new LinkedHashMap<>();
+                userField.put("fieldId", "analyst_" + fieldCounter);
+                userField.put("fieldKey", field.getFieldKey());
+                userField.put("displayName", field.getDisplayName());
+                userField.put("testId", testId);
+                userField.put("profileCodes", extractProfileCodes(field.getMetadataJson()));
+                userField.put("includeInValidation", Boolean.TRUE.equals(field.getIncludeInValidation()));
+                userField.put("isValidatorField", false);
+
+                userFields.add(userField);
+                fieldCounter++;
+            }
+        }
+
+        // Add special validator field
+        List<String> validatorProfiles = getValidatorProfileCodes();
+        if (!validatorProfiles.isEmpty()) {
+            Map<String, Object> validatorField = new LinkedHashMap<>();
+            validatorField.put("fieldId", "validator");
+            validatorField.put("fieldKey", "validator");
+            validatorField.put("displayName", "Validator");
+            validatorField.put("testId", null);
+            validatorField.put("profileCodes", validatorProfiles);
+            validatorField.put("includeInValidation", true);
+            validatorField.put("isValidatorField", true);
+            userFields.add(validatorField);
+        }
+
+        return userFields;
+    }
+
+    /**
+     * Extract profile codes from metadataJson field.
+     */
+    private List<String> extractProfileCodes(String metadataJson) {
+        if (StringUtils.isBlank(metadataJson)) {
+            return Collections.emptyList();
+        }
+
+        try {
+            JSONObject metadata = new JSONObject(metadataJson);
+            JSONArray codes = metadata.optJSONArray("userProfileCodes");
+            if (codes == null) {
+                return Collections.emptyList();
+            }
+
+            List<String> profileCodes = new ArrayList<>();
+            for (int i = 0; i < codes.length(); i++) {
+                String code = codes.optString(i);
+                if (StringUtils.isNotBlank(code)) {
+                    profileCodes.add(code.trim().toUpperCase());
+                }
+            }
+            return profileCodes;
+        } catch (Exception e) {
+            logger.warn("Failed to parse metadataJson for profile codes", e);
+            return Collections.emptyList();
+        }
+    }
+
+    /**
+     * Get list of professional profile codes allowed for validators.
+     */
+    private List<String> getValidatorProfileCodes() {
+        String rawValue = org.openelisglobal.common.util.ConfigurationProperties.getInstance()
+                .getPropertyValue(org.openelisglobal.common.util.ConfigurationProperties.Property.validationInterpreterProfessionalProfileCode);
+
+        if (StringUtils.isBlank(rawValue)) {
+            return Collections.emptyList();
+        }
+
+        return Arrays.stream(rawValue.split(","))
+                .map(String::trim)
+                .map(String::toUpperCase)
+                .filter(StringUtils::isNotBlank)
+                .distinct()
+                .collect(Collectors.toList());
+    }
+
+    /**
+     * Build map of profile fields grouped by professional profile code.
+     */
+    private Map<String, List<Map<String, Object>>> buildProfileFieldsByProfile() {
+        Map<String, List<Map<String, Object>>> result = new LinkedHashMap<>();
+
+        // Get all unique profile codes from user fields and validators
+        Set<String> allProfileCodes = new LinkedHashSet<>();
+        allProfileCodes.addAll(getValidatorProfileCodes());
+
+        // Add profile codes from configured professional profiles
+        String rawProfiles = org.openelisglobal.common.util.ConfigurationProperties.getInstance()
+                .getPropertyValue(org.openelisglobal.common.util.ConfigurationProperties.Property.professionalProfileOptions);
+        if (StringUtils.isNotBlank(rawProfiles)) {
+            Arrays.stream(rawProfiles.split(","))
+                    .map(part -> part.contains("|") ? part.split("\\|")[0].trim() : part.trim())
+                    .map(String::toUpperCase)
+                    .filter(StringUtils::isNotBlank)
+                    .forEach(allProfileCodes::add);
+        }
+
+        // Build fields for each profile
+        for (String profileCode : allProfileCodes) {
+            List<Map<String, Object>> fields = buildFieldsForProfile(profileCode);
+            if (!fields.isEmpty()) {
+                result.put(profileCode, fields);
+            }
+        }
+
+        return result;
+    }
+
+    /**
+     * Build list of available fields for a specific professional profile.
+     */
+    private List<Map<String, Object>> buildFieldsForProfile(String profileCode) {
+        List<Map<String, Object>> fields = new ArrayList<>();
+
+        // Add system fields (from Provider entity)
+        fields.add(buildProfileField("name", "Name", "text", true, null));
+        fields.add(buildProfileField("specialty", "Specialty", "text", true, "specialty"));
+        fields.add(buildProfileField("cbpCode", "CBP Code", "text", true, "cbpCode"));
+        fields.add(buildProfileField("professionalInitials", "Professional Initials", "text", true, "professionalInitials"));
+        fields.add(buildProfileField("dni", "DNI", "text", true, "dni"));
+        fields.add(buildProfileField("npi", "NPI", "text", true, "npi"));
+        fields.add(buildProfileField("signature", "Signature", "image", true, null));
+
+        // Add custom fields configured for this profile
+        try {
+            List<org.openelisglobal.professionalprofile.form.ProfessionalProfileFieldDefinitionForm> customFields = 
+                    professionalProfileFieldConfigService.getFieldsForProfile(profileCode, false);
+
+            for (org.openelisglobal.professionalprofile.form.ProfessionalProfileFieldDefinitionForm customField : customFields) {
+                if (Boolean.TRUE.equals(customField.getActive()) && !Boolean.TRUE.equals(customField.getSystemField())) {
+                    String dataType = mapFieldTypeToDataType(customField.getFieldType());
+                    fields.add(buildProfileField(
+                            customField.getFieldKey(),
+                            customField.getDisplayName(),
+                            dataType,
+                            false,
+                            null
+                    ));
+                }
+            }
+        } catch (Exception e) {
+            logger.warn("Failed to load custom fields for profile: " + profileCode, e);
+        }
+
+        return fields;
+    }
+
+    /**
+     * Build a single profile field map.
+     */
+    private Map<String, Object> buildProfileField(String fieldKey, String displayName, String dataType, 
+                                                    boolean isSystemField, String legacyBinding) {
+        Map<String, Object> field = new LinkedHashMap<>();
+        field.put("fieldKey", fieldKey);
+        field.put("displayName", displayName);
+        field.put("dataType", dataType);
+        field.put("isSystemField", isSystemField);
+        field.put("legacyBinding", legacyBinding);
+        return field;
+    }
+
+    /**
+     * Map field type from ProfessionalProfileFieldDefinition to simple data type.
+     */
+    private String mapFieldTypeToDataType(String fieldType) {
+        if (StringUtils.isBlank(fieldType)) {
+            return "text";
+        }
+
+        String normalized = fieldType.trim().toUpperCase();
+        return switch (normalized) {
+            case "NUMBER", "DECIMAL" -> "number";
+            case "BOOLEAN", "CHECKBOX" -> "boolean";
+            case "DATE" -> "date";
+            case "DATETIME" -> "datetime";
+            case "IMAGE", "FILE" -> "image";
+            default -> "text";
+        };
+    }
+
     private List<Map<String, Object>> buildSourceOptions(List<String> testIds) {
         List<Map<String, Object>> options = new ArrayList<>();
         addSourceOption(options, "patientName", "Patient Name");
@@ -590,8 +820,13 @@ public class ValidationTemplateOverrideRestController extends BaseRestController
 
     private boolean isAnalystSelectorField(TestAdditionalFieldPayload field) {
         return field != null && Boolean.TRUE.equals(field.getActive())
-                && StringUtils.equalsIgnoreCase(BIOLOGIST_FIELD_TYPE, StringUtils.trimToNull(field.getFieldType()))
+                && isUserSelectorFieldType(field.getFieldType())
                 && StringUtils.isNotBlank(field.getFieldKey());
+    }
+
+    private boolean isUserSelectorFieldType(String fieldType) {
+        String normalizedFieldType = StringUtils.trimToNull(fieldType);
+        return StringUtils.equalsIgnoreCase(USER_FIELD_TYPE, normalizedFieldType);
     }
 
     private List<Map<String, Object>> buildImageOptions() {
