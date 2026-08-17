@@ -312,3 +312,26 @@
     grid-template-columns: 1fr;
   }
 }
+
+.validation-template-override-profile-mappings {
+  margin-top: 1rem;
+  padding: 1rem;
+  background-color: #f4f4f4;
+  border-radius: 4px;
+
+  .validation-template-override-mapping-hint {
+    margin-bottom: 1rem;
+    font-size: 0.875rem;
+    color: #525252;
+    font-weight: 500;
+  }
+
+  .cds--select {
+    margin-bottom: 1rem;
+  }
+
+  .cds--label {
+    font-weight: 600;
+    color: #161616;
+  }
+}

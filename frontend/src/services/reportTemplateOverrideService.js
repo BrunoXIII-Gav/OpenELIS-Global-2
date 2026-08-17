@@ -26,6 +26,17 @@ export const getValidationFieldOptions = (testIds = [], callback) => {
   );
 };
 
+export const getUserFieldOptions = (testIds = [], callback) => {
+  const params =
+    Array.isArray(testIds) && testIds.length > 0
+      ? `?${testIds.map((id) => `testIds=${encodeURIComponent(id)}`).join("&")}`
+      : "";
+  getFromOpenElisServer(
+    `/rest/reports/validation-template-overrides/user-field-options${params}`,
+    callback,
+  );
+};
+
 export const getAllTests = (callback) => {
   getFromOpenElisServer("/rest/tests", callback);
 };

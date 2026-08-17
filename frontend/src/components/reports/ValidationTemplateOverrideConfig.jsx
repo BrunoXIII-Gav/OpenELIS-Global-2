@@ -17,6 +17,7 @@ import { FormattedMessage, useIntl } from "react-intl";
 import {
   getAllTests,
   getValidationFieldOptions,
+  getUserFieldOptions,
   getValidationTemplateOverrides,
   parseValidationTemplateFile,
   saveValidationTemplateOverride,
@@ -144,7 +145,9 @@ const normalizeMappings = (mappings) => {
     if (!parameter) {
       return acc;
     }
-    if (String(mapping?.type || "").trim() === CONDITIONAL_MAPPING_TYPE) {
+    const mappingType = String(mapping?.type || "").trim();
+    
+    if (mappingType === CONDITIONAL_MAPPING_TYPE) {
       acc[parameter] = {
         type: CONDITIONAL_MAPPING_TYPE,
         value: "",
@@ -162,8 +165,31 @@ const normalizeMappings = (mappings) => {
       };
       return acc;
     }
+    
+    if (mappingType === "user_field") {
+      const profileFieldMappings = mapping?.profileFieldMappings || {};
+      const cleanedMappings = typeof profileFieldMappings === "object" && profileFieldMappings !== null
+        ? Object.entries(profileFieldMappings)
+            .filter(([_, fieldKey]) => String(fieldKey || "").trim())
+            .reduce((obj, [profileCode, fieldKey]) => {
+              obj[String(profileCode).trim()] = String(fieldKey).trim();
+              return obj;
+            }, {})
+        : {};
+      
+      acc[parameter] = {
+        type: "user_field",
+        userFieldId: String(mapping?.userFieldId || "").trim(),
+        userFieldKey: String(mapping?.userFieldKey || "").trim(),
+        profileFieldKey: String(mapping?.profileFieldKey || "").trim(), // Legacy
+        profileFieldMappings: cleanedMappings,
+        value: String(mapping?.profileFieldKey || "").trim(), // For backward compatibility
+      };
+      return acc;
+    }
+    
     acc[parameter] = {
-      type: String(mapping?.type || "source").trim(),
+      type: mappingType || "source",
       value: String(mapping?.value || "").trim(),
     };
     return acc;
@@ -476,6 +502,11 @@ const ValidationTemplateOverrideConfig = () => {
   const intl = useIntl();
   const [tests, setTests] = useState([]);
   const [sourceOptions, setSourceOptions] = useState([]);
+  const [userFieldOptions, setUserFieldOptions] = useState({
+    userFields: [],
+    validatorProfiles: [],
+    profileFieldsByProfile: {},
+  });
   const [imageOptions, setImageOptions] = useState(defaultImageOptions);
   const [overrides, setOverrides] = useState([]);
   const [form, setForm] = useState({
@@ -580,6 +611,15 @@ const ValidationTemplateOverrideConfig = () => {
           nextSourceOptions,
         ),
       }));
+    });
+
+    // Load user field options for cascading dropdowns
+    getUserFieldOptions(form.testIds, (data) => {
+      setUserFieldOptions({
+        userFields: Array.isArray(data?.userFields) ? data.userFields : [],
+        validatorProfiles: Array.isArray(data?.validatorProfiles) ? data.validatorProfiles : [],
+        profileFieldsByProfile: data?.profileFieldsByProfile || {},
+      });
     });
   }, [form.testIds]);
 
@@ -1041,6 +1081,45 @@ const ValidationTemplateOverrideConfig = () => {
           };
           return acc;
         }
+        if (type === "user_field") {
+          const userFieldId = String(mapping?.userFieldId || "").trim();
+          const profileFieldMappings = mapping?.profileFieldMappings || {};
+          
+          // Validate that we have at least one profile mapping or legacy profileFieldKey
+          const hasProfileMappings = Object.keys(profileFieldMappings).length > 0;
+          const legacyProfileFieldKey = String(mapping?.profileFieldKey || "").trim();
+          
+          if (!userFieldId || (!hasProfileMappings && !legacyProfileFieldKey)) {
+            return acc;
+          }
+          
+          acc[parameter] = {
+            type: "user_field",
+            userFieldId,
+            userFieldKey: String(mapping?.userFieldKey || "").trim(),
+          };
+          
+          // Add profile-specific mappings
+          if (hasProfileMappings) {
+            const cleanedMappings = Object.entries(profileFieldMappings)
+              .filter(([_, fieldKey]) => String(fieldKey || "").trim())
+              .reduce((obj, [profileCode, fieldKey]) => {
+                obj[profileCode] = String(fieldKey).trim();
+                return obj;
+              }, {});
+            
+            if (Object.keys(cleanedMappings).length > 0) {
+              acc[parameter].profileFieldMappings = cleanedMappings;
+            }
+          }
+          
+          // Keep legacy profileFieldKey for backward compatibility
+          if (legacyProfileFieldKey) {
+            acc[parameter].profileFieldKey = legacyProfileFieldKey;
+          }
+          
+          return acc;
+        }
         if (type !== "empty" && !value) {
           return acc;
         }
@@ -1310,6 +1389,15 @@ const ValidationTemplateOverrideConfig = () => {
                 })}
               />
             )}
+            {!isImageParameter && userFieldOptions.userFields.length > 0 && (
+              <SelectItem
+                value="user_field"
+                text={intl.formatMessage({
+                  id: "validation.template.override.mapping.type.user_field",
+                  defaultMessage: "Professional field (analyst/validator)",
+                })}
+              />
+            )}
             {!isImageParameter && (
               <SelectItem
                 value="constant"
@@ -1363,6 +1451,106 @@ const ValidationTemplateOverrideConfig = () => {
               <SelectItem key={option.id} value={option.id} text={option.label} />
             ))}
           </Select>
+        )}
+
+        {!hasConditionalRule && mapping.type === "user_field" && (
+          <div className="validation-template-override-user-field-cascade">
+            {/* Level 1: Select USER field */}
+            <Select
+              id={`mapping-user-field-${parameter.name}`}
+              labelText={intl.formatMessage({
+                id: "validation.template.override.mapping.user_field",
+                defaultMessage: "User field (analyst/validator)",
+              })}
+              value={mapping.userFieldId || ""}
+              onChange={(event) => {
+                const selectedField = userFieldOptions.userFields.find(
+                  (f) => f.fieldId === event.target.value
+                );
+                updateParameterMapping(parameter.name, {
+                  userFieldId: event.target.value,
+                  userFieldKey: selectedField?.fieldKey || "",
+                  profileFieldKey: "", // Reset Level 2 when Level 1 changes
+                  value: "", // Legacy compatibility
+                });
+              }}
+            >
+              <SelectItem
+                value=""
+                text={intl.formatMessage({
+                  id: "validation.template.override.mapping.user_field.placeholder",
+                  defaultMessage: "Select a user field",
+                })}
+              />
+              {userFieldOptions.userFields.map((field) => (
+                <SelectItem
+                  key={field.fieldId}
+                  value={field.fieldId}
+                  text={`${field.displayName} (${field.profileCodes.join(", ")})`}
+                />
+              ))}
+            </Select>
+
+            {/* Level 2: Select profile field for each profile code */}
+            {mapping.userFieldId && (() => {
+              const selectedUserField = userFieldOptions.userFields.find(
+                (f) => f.fieldId === mapping.userFieldId
+              );
+              if (!selectedUserField) return null;
+
+              // Get all unique profile codes for this user field
+              const profileCodes = selectedUserField.profileCodes || [];
+              
+              // Initialize profileFieldMappings if not exists
+              const profileFieldMappings = mapping.profileFieldMappings || {};
+
+              return (
+                <div className="validation-template-override-profile-mappings">
+                  <p className="validation-template-override-mapping-hint">
+                    <FormattedMessage
+                      id="validation.template.override.mapping.profile_mappings.hint"
+                      defaultMessage="Select which field to use for each professional profile:"
+                    />
+                  </p>
+                  {profileCodes.map((profileCode) => {
+                    const profileFields = userFieldOptions.profileFieldsByProfile[profileCode] || [];
+                    return (
+                      <Select
+                        key={`${parameter.name}-${profileCode}`}
+                        id={`mapping-profile-field-${parameter.name}-${profileCode}`}
+                        labelText={`${profileCode} → Field`}
+                        value={profileFieldMappings[profileCode] || ""}
+                        onChange={(event) => {
+                          const newMappings = {
+                            ...profileFieldMappings,
+                            [profileCode]: event.target.value,
+                          };
+                          updateParameterMapping(parameter.name, {
+                            profileFieldMappings: newMappings,
+                          });
+                        }}
+                      >
+                        <SelectItem
+                          value=""
+                          text={intl.formatMessage({
+                            id: "validation.template.override.mapping.profile_field.placeholder",
+                            defaultMessage: "Select a field",
+                          })}
+                        />
+                        {profileFields.map((field) => (
+                          <SelectItem
+                            key={field.fieldKey}
+                            value={field.fieldKey}
+                            text={`${field.displayName}${field.isSystemField ? "" : " (custom)"}`}
+                          />
+                        ))}
+                      </Select>
+                    );
+                  })}
+                </div>
+              );
+            })()}
+          </div>
         )}
 
         {!hasConditionalRule && mapping.type === "constant" && (
