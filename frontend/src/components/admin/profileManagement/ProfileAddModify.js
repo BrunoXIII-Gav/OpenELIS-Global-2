@@ -518,13 +518,6 @@ function ProfileAddModify() {
                     ))
                   )}
                 </div>
-                <p style={{ marginTop: "0.75rem", marginBottom: 0 }}>
-                  {intl.formatMessage({
-                    id: "professionalProfile.specialty.options.helper",
-                    defaultMessage:
-                      "These options are used only by the fixed Specialty field for this professional profile.",
-                  })}
-                </p>
               </Column>
             </Grid>
 

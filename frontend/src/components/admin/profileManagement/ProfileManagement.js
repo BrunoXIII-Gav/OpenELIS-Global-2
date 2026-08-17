@@ -208,6 +208,10 @@ function ProfileManagement() {
             <Column lg={5} md={4} sm={4}>
               <MultiSelect
                 id="order-provider-profile"
+                titleText={intl.formatMessage({
+                  id: "professionalProfile.settings.orderProvider",
+                  defaultMessage: "Order requester profile",
+                })}
                 labelText={intl.formatMessage({
                   id: "professionalProfile.settings.orderProvider",
                   defaultMessage: "Order requester profile",
@@ -231,6 +235,10 @@ function ProfileManagement() {
             <Column lg={5} md={4} sm={4}>
               <MultiSelect
                 id="sample-collector-profile"
+                titleText={intl.formatMessage({
+                  id: "professionalProfile.settings.sampleCollector",
+                  defaultMessage: "Sample collector profile",
+                })}
                 labelText={intl.formatMessage({
                   id: "professionalProfile.settings.sampleCollector",
                   defaultMessage: "Sample collector profile",
@@ -253,6 +261,10 @@ function ProfileManagement() {
             <Column lg={6} md={8} sm={4}>
               <MultiSelect
                 id="validation-interpreter-profile"
+                titleText={intl.formatMessage({
+                  id: "professionalProfile.settings.validationInterpreter",
+                  defaultMessage: "Validation interpreter profile",
+                })}
                 labelText={intl.formatMessage({
                   id: "professionalProfile.settings.validationInterpreter",
                   defaultMessage: "Validation interpreter profile",
