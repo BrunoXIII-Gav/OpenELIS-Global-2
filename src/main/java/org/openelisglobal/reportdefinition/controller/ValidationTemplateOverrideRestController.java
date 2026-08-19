@@ -3,6 +3,7 @@ package org.openelisglobal.reportdefinition.controller;
 import jakarta.servlet.http.HttpServletRequest;
 import java.awt.image.BufferedImage;
 import java.io.ByteArrayInputStream;
+import java.math.BigDecimal;
 import java.nio.charset.StandardCharsets;
 import java.sql.Timestamp;
 import java.time.Instant;
@@ -48,7 +49,9 @@ import org.openelisglobal.typeofsample.valueholder.TypeOfSample;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.http.HttpHeaders;
 import org.springframework.http.HttpStatus;
+import org.springframework.http.MediaType;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PathVariable;
@@ -80,8 +83,14 @@ public class ValidationTemplateOverrideRestController extends BaseRestController
     private static final String CONFIG_MODE_DYNAMIC_JASPER = "jasper_dynamic";
     private static final String TEMPLATE_NAME_KEY = "templateName";
     private static final String TEMPLATE_CONTENT_KEY = "templateContent";
+    private static final String TEMPLATE_FILENAME_KEY = "templateOriginalFilename";
     private static final String PARAMETER_DEFINITIONS_KEY = "parameterDefinitions";
     private static final String WARNING_MESSAGES_KEY = "warningMessages";
+    private static final String MAPPINGS_KEY = "mappings";
+    private static final String DATA_TYPE_TEXT = "text";
+    private static final String DATA_TYPE_NUMBER = "number";
+    private static final String DATA_TYPE_IMAGE = "image";
+    private static final String USER_FIELD_TYPE = "USER";
     private static final List<String> VALIDATION_REPORT_CANDIDATES = Arrays.asList("patientCILNSP_vreduit",
             "patientDMPK", "patientCILNSP", "patientHaitiClinical", "patientHaitiLNSP", "TBPatientReport");
     private static final List<String> DMPK_SECTIONS = Arrays.asList("PATIENT", "REQUESTING_PHYSICIAN", "SAMPLE",
@@ -99,6 +108,10 @@ public class ValidationTemplateOverrideRestController extends BaseRestController
     private TypeOfSampleService typeOfSampleService;
     @Autowired
     private ImageService imageService;
+    @Autowired
+    private org.openelisglobal.professionalprofile.service.ProfessionalProfileFieldConfigService professionalProfileFieldConfigService;
+    @Autowired
+    private org.openelisglobal.common.util.ConfigurationProperties configurationProperties;
 
     @GetMapping
     public ResponseEntity<?> getOverrides() {
@@ -150,6 +163,22 @@ public class ValidationTemplateOverrideRestController extends BaseRestController
         }
     }
 
+    @GetMapping("/user-field-options")
+    public ResponseEntity<?> getUserFieldOptions(@RequestParam(value = "testIds", required = false) List<String> testIds) {
+        try {
+            List<String> sanitizedTestIds = sanitizeList(testIds);
+            JSONObject payload = new JSONObject();
+            payload.put("userFields", new JSONArray(buildUserFieldOptions(sanitizedTestIds)));
+            payload.put("validatorProfiles", new JSONArray(getValidatorProfileCodes()));
+            payload.put("profileFieldsByProfile", new JSONObject(buildProfileFieldsByProfile()));
+            return ResponseEntity.ok(payload.toMap());
+        } catch (Exception e) {
+            logger.error("Error retrieving user field options", e);
+            return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR)
+                    .body("Error retrieving user field options");
+        }
+    }
+
     @PostMapping("/parse-template")
     public ResponseEntity<?> parseTemplate(@RequestParam("file") MultipartFile file) {
         try {
@@ -174,6 +203,45 @@ public class ValidationTemplateOverrideRestController extends BaseRestController
     public ResponseEntity<?> createOverride(HttpServletRequest request,
             @RequestBody ValidationTemplateOverrideForm form) {
         return saveOverride(request, null, form);
+    }
+
+    @GetMapping("/{id}/download-template")
+    public ResponseEntity<?> downloadTemplate(@PathVariable String id) {
+        try {
+            if (GenericValidator.isBlankOrNull(id)) {
+                return ResponseEntity.badRequest().body("Template id is required");
+            }
+
+            ReportDefinition definition = reportDefinitionService.get(id);
+            if (definition == null) {
+                return ResponseEntity.status(HttpStatus.NOT_FOUND).body("Template override not found");
+            }
+
+            ValidationTemplateOverrideForm form = toForm(definition);
+            Map<String, Object> config = form == null ? null : form.getConfig();
+            String templateContent = readString(config == null ? null : config.get(TEMPLATE_CONTENT_KEY));
+            if (GenericValidator.isBlankOrNull(templateContent)) {
+                return ResponseEntity.status(HttpStatus.NOT_FOUND).body("JRXML template content not found");
+            }
+
+            String filename = sanitize(readString(config == null ? null : config.get(TEMPLATE_FILENAME_KEY)));
+            if (GenericValidator.isBlankOrNull(filename)) {
+                filename = sanitize(readString(config == null ? null : config.get(TEMPLATE_NAME_KEY)));
+            }
+            if (GenericValidator.isBlankOrNull(filename)) {
+                filename = "validation-template.jrxml";
+            } else if (!filename.toLowerCase().endsWith(".jrxml")) {
+                filename = filename + ".jrxml";
+            }
+
+            return ResponseEntity.ok()
+                    .contentType(MediaType.APPLICATION_OCTET_STREAM)
+                    .header(HttpHeaders.CONTENT_DISPOSITION, "attachment; filename=\"" + filename + "\"")
+                    .body(templateContent.getBytes(StandardCharsets.UTF_8));
+        } catch (Exception e) {
+            logger.error("Error downloading Jasper template", e);
+            return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR).body("Error downloading Jasper template");
+        }
     }
 
     @PostMapping("/upload-image")
@@ -232,6 +300,10 @@ public class ValidationTemplateOverrideRestController extends BaseRestController
             }
             if (dynamicJasperTemplate && !hasDynamicTemplateContent(normalizedConfig)) {
                 return ResponseEntity.badRequest().body("Upload a JRXML template before saving");
+            }
+            String configValidationError = validateDynamicConfig(normalizedConfig, testIds);
+            if (configValidationError != null) {
+                return ResponseEntity.badRequest().body(configValidationError);
             }
 
             String targetId = !GenericValidator.isBlankOrNull(pathId) ? pathId : sanitize(form.getId());
@@ -459,8 +531,250 @@ public class ValidationTemplateOverrideRestController extends BaseRestController
                 .collect(Collectors.toList());
     }
 
-    private List<Map<String, String>> buildSourceOptions(List<String> testIds) {
-        List<Map<String, String>> options = new ArrayList<>();
+    /**
+     * Build list of USER field options from test configuration.
+     * Each USER field represents an analyst/technician selector in result entry.
+     */
+    private List<Map<String, Object>> buildUserFieldOptions(List<String> testIds) {
+        if (testIds == null || testIds.isEmpty()) {
+            List<Map<String, Object>> userFields = new ArrayList<>();
+            addRequesterUserFieldOption(userFields);
+            addValidatorUserFieldOption(userFields);
+            return userFields;
+        }
+
+        List<Map<String, Object>> userFields = new ArrayList<>();
+        int fieldCounter = 1;
+
+        for (String testId : testIds) {
+            if (GenericValidator.isBlankOrNull(testId)) {
+                continue;
+            }
+
+            List<TestAdditionalFieldPayload> fields = testAdditionalFieldService.getFieldsForTest(testId, false);
+            if (fields == null || fields.isEmpty()) {
+                continue;
+            }
+
+            for (TestAdditionalFieldPayload field : fields) {
+                if (!isAnalystSelectorField(field)) {
+                    continue;
+                }
+
+                Map<String, Object> userField = new LinkedHashMap<>();
+                userField.put("fieldId", "analyst_" + fieldCounter);
+                userField.put("fieldKey", field.getFieldKey());
+                userField.put("displayName", field.getDisplayName());
+                userField.put("testId", testId);
+                userField.put("profileCodes", extractProfileCodes(field.getMetadataJson()));
+                userField.put("includeInValidation", Boolean.TRUE.equals(field.getIncludeInValidation()));
+                userField.put("isValidatorField", false);
+
+                userFields.add(userField);
+                fieldCounter++;
+            }
+        }
+
+        addRequesterUserFieldOption(userFields);
+        addValidatorUserFieldOption(userFields);
+
+        return userFields;
+    }
+
+    private void addRequesterUserFieldOption(List<Map<String, Object>> userFields) {
+        List<String> requesterProfiles = getOrderProviderProfileCodes();
+        if (requesterProfiles.isEmpty()) {
+            return;
+        }
+
+        Map<String, Object> requesterField = new LinkedHashMap<>();
+        requesterField.put("fieldId", "requester");
+        requesterField.put("fieldKey", "requester");
+        requesterField.put("displayName", "Solicitante");
+        requesterField.put("testId", null);
+        requesterField.put("profileCodes", requesterProfiles);
+        requesterField.put("includeInValidation", true);
+        requesterField.put("isValidatorField", false);
+        userFields.add(requesterField);
+    }
+
+    private void addValidatorUserFieldOption(List<Map<String, Object>> userFields) {
+        List<String> validatorProfiles = getValidatorProfileCodes();
+        if (validatorProfiles.isEmpty()) {
+            return;
+        }
+
+        Map<String, Object> validatorField = new LinkedHashMap<>();
+        validatorField.put("fieldId", "validator");
+        validatorField.put("fieldKey", "validator");
+        validatorField.put("displayName", "Validator");
+        validatorField.put("testId", null);
+        validatorField.put("profileCodes", validatorProfiles);
+        validatorField.put("includeInValidation", true);
+        validatorField.put("isValidatorField", true);
+        userFields.add(validatorField);
+    }
+
+    /**
+     * Extract profile codes from metadataJson field.
+     */
+    private List<String> extractProfileCodes(String metadataJson) {
+        if (StringUtils.isBlank(metadataJson)) {
+            return Collections.emptyList();
+        }
+
+        try {
+            JSONObject metadata = new JSONObject(metadataJson);
+            JSONArray codes = metadata.optJSONArray("userProfileCodes");
+            if (codes == null) {
+                return Collections.emptyList();
+            }
+
+            List<String> profileCodes = new ArrayList<>();
+            for (int i = 0; i < codes.length(); i++) {
+                String code = codes.optString(i);
+                if (StringUtils.isNotBlank(code)) {
+                    profileCodes.add(code.trim().toUpperCase());
+                }
+            }
+            return profileCodes;
+        } catch (Exception e) {
+            logger.warn("Failed to parse metadataJson for profile codes", e);
+            return Collections.emptyList();
+        }
+    }
+
+    /**
+     * Get list of professional profile codes allowed for validators.
+     */
+    private List<String> getValidatorProfileCodes() {
+        return getConfiguredProfessionalProfileCodes(
+                org.openelisglobal.common.util.ConfigurationProperties.Property.validationInterpreterProfessionalProfileCode);
+    }
+
+    private List<String> getOrderProviderProfileCodes() {
+        return getConfiguredProfessionalProfileCodes(
+                org.openelisglobal.common.util.ConfigurationProperties.Property.orderProviderProfessionalProfileCode);
+    }
+
+    private List<String> getConfiguredProfessionalProfileCodes(
+            org.openelisglobal.common.util.ConfigurationProperties.Property property) {
+        String rawValue = org.openelisglobal.common.util.ConfigurationProperties.getInstance().getPropertyValue(property);
+        if (StringUtils.isBlank(rawValue)) {
+            return Collections.emptyList();
+        }
+
+        return Arrays.stream(rawValue.split(",")).map(String::trim).map(String::toUpperCase)
+                .filter(StringUtils::isNotBlank).distinct().collect(Collectors.toList());
+    }
+
+    /**
+     * Build map of profile fields grouped by professional profile code.
+     */
+    private Map<String, List<Map<String, Object>>> buildProfileFieldsByProfile() {
+        Map<String, List<Map<String, Object>>> result = new LinkedHashMap<>();
+
+        // Get all unique profile codes from user fields and validators
+        Set<String> allProfileCodes = new LinkedHashSet<>();
+        allProfileCodes.addAll(getValidatorProfileCodes());
+        allProfileCodes.addAll(getOrderProviderProfileCodes());
+
+        // Add profile codes from configured professional profiles
+        String rawProfiles = org.openelisglobal.common.util.ConfigurationProperties.getInstance()
+                .getPropertyValue(org.openelisglobal.common.util.ConfigurationProperties.Property.professionalProfileOptions);
+        if (StringUtils.isNotBlank(rawProfiles)) {
+            Arrays.stream(rawProfiles.split(","))
+                    .map(part -> part.contains("|") ? part.split("\\|")[0].trim() : part.trim())
+                    .map(String::toUpperCase)
+                    .filter(StringUtils::isNotBlank)
+                    .forEach(allProfileCodes::add);
+        }
+
+        // Build fields for each profile
+        for (String profileCode : allProfileCodes) {
+            List<Map<String, Object>> fields = buildFieldsForProfile(profileCode);
+            if (!fields.isEmpty()) {
+                result.put(profileCode, fields);
+            }
+        }
+
+        return result;
+    }
+
+    /**
+     * Build list of available fields for a specific professional profile.
+     */
+    private List<Map<String, Object>> buildFieldsForProfile(String profileCode) {
+        List<Map<String, Object>> fields = new ArrayList<>();
+
+        // Add system fields (from Provider entity)
+        fields.add(buildProfileField("name", "Name", "text", true, null));
+        fields.add(buildProfileField("specialty", "Specialty", "text", true, "specialty"));
+        fields.add(buildProfileField("cbpCode", "CBP Code", "text", true, "cbpCode"));
+        fields.add(buildProfileField("professionalInitials", "Professional Initials", "text", true, "professionalInitials"));
+        fields.add(buildProfileField("dni", "DNI", "text", true, "dni"));
+        fields.add(buildProfileField("npi", "NPI", "text", true, "npi"));
+        fields.add(buildProfileField("signature", "Signature", "image", true, null));
+
+        // Add custom fields configured for this profile
+        try {
+            List<org.openelisglobal.professionalprofile.form.ProfessionalProfileFieldDefinitionForm> customFields = 
+                    professionalProfileFieldConfigService.getFieldsForProfile(profileCode, false);
+
+            for (org.openelisglobal.professionalprofile.form.ProfessionalProfileFieldDefinitionForm customField : customFields) {
+                if (Boolean.TRUE.equals(customField.getActive()) && !Boolean.TRUE.equals(customField.getSystemField())) {
+                    String dataType = mapFieldTypeToDataType(customField.getFieldType());
+                    fields.add(buildProfileField(
+                            customField.getFieldKey(),
+                            customField.getDisplayName(),
+                            dataType,
+                            false,
+                            null
+                    ));
+                }
+            }
+        } catch (Exception e) {
+            logger.warn("Failed to load custom fields for profile: " + profileCode, e);
+        }
+
+        return fields;
+    }
+
+    /**
+     * Build a single profile field map.
+     */
+    private Map<String, Object> buildProfileField(String fieldKey, String displayName, String dataType, 
+                                                    boolean isSystemField, String legacyBinding) {
+        Map<String, Object> field = new LinkedHashMap<>();
+        field.put("fieldKey", fieldKey);
+        field.put("displayName", displayName);
+        field.put("dataType", dataType);
+        field.put("isSystemField", isSystemField);
+        field.put("legacyBinding", legacyBinding);
+        return field;
+    }
+
+    /**
+     * Map field type from ProfessionalProfileFieldDefinition to simple data type.
+     */
+    private String mapFieldTypeToDataType(String fieldType) {
+        if (StringUtils.isBlank(fieldType)) {
+            return "text";
+        }
+
+        String normalized = fieldType.trim().toUpperCase();
+        return switch (normalized) {
+            case "NUMBER", "DECIMAL" -> "number";
+            case "BOOLEAN", "CHECKBOX" -> "boolean";
+            case "DATE" -> "date";
+            case "DATETIME" -> "datetime";
+            case "IMAGE", "FILE" -> "image";
+            default -> "text";
+        };
+    }
+
+    private List<Map<String, Object>> buildSourceOptions(List<String> testIds) {
+        List<Map<String, Object>> options = new ArrayList<>();
         addSourceOption(options, "patientName", "Patient Name");
         addSourceOption(options, "dni", "DNI");
         addSourceOption(options, "passportNumber", "Passport");
@@ -481,13 +795,18 @@ public class ValidationTemplateOverrideRestController extends BaseRestController
         addSourceOption(options, "requesterRne", "Requester RNE");
         addSourceOption(options, "requesterSpecialty", "Requester Specialty");
         addSourceOption(options, "siteInfo", "Referring Site");
+        addSourceOption(options, "collectionDate", "Collection Date");
         addSourceOption(options, "collectionDateTime", "Collection Date/Time");
         addSourceOption(options, "sampleType", "Sample Source");
+        addSourceOption(options, "validationDate", "Validation Date");
+        addSourceOption(options, "validatorName", "Validator Name");
+        addSourceOption(options, "validatorSpecialty", "Validator Specialty");
+        addAnalystSourceOptions(options, testIds);
         addSourceOption(options, "orderDate", "Order Date");
         addSourceOption(options, "orderFinishDate", "Order Finish Date");
         addSourceOption(options, "testDate", "Test Date");
-        addSourceOption(options, "analysisResult1", "Analysis Result #1");
-        addSourceOption(options, "analysisResult2", "Analysis Result #2");
+        addSourceOption(options, "analysisResult1", "Analysis Result #1", DATA_TYPE_NUMBER);
+        addSourceOption(options, "analysisResult2", "Analysis Result #2", DATA_TYPE_NUMBER);
         addAdditionalFieldSourceOptions(options, testIds);
         addOrderAdditionalFieldSourceOptions(options);
         addSampleAdditionalFieldSourceOptions(options, testIds);
@@ -497,11 +816,57 @@ public class ValidationTemplateOverrideRestController extends BaseRestController
         return options;
     }
 
-    private List<Map<String, String>> buildImageOptions() {
-        List<Map<String, String>> options = new ArrayList<>();
-        addSourceOption(options, "headerLeftImage", "Site Header Left Logo");
-        addSourceOption(options, "headerRightImage", "Site Header Right Logo");
-        addSourceOption(options, "labDirectorSignature", "Lab Director Signature");
+    private void addAnalystSourceOptions(List<Map<String, Object>> options, List<String> testIds) {
+        int analystSlotCount = resolveAnalystSlotCount(testIds);
+        for (int slotIndex = 1; slotIndex <= analystSlotCount; slotIndex++) {
+            addSourceOption(options, "biologist" + slotIndex + "Name", "Analyst #" + slotIndex + " Name");
+            addSourceOption(options, "biologist" + slotIndex + "Specialty",
+                    "Analyst #" + slotIndex + " Specialty");
+            addSourceOption(options, "biologist" + slotIndex + "CbpCode", "Analyst #" + slotIndex + " CBP Code");
+        }
+    }
+
+    private int resolveAnalystSlotCount(List<String> testIds) {
+        if (testIds == null || testIds.isEmpty()) {
+            return 0;
+        }
+
+        int maxSlotCount = 0;
+        for (String testId : testIds) {
+            if (GenericValidator.isBlankOrNull(testId)) {
+                continue;
+            }
+
+            List<TestAdditionalFieldPayload> fields = testAdditionalFieldService.getFieldsForTest(testId, false);
+            if (fields == null || fields.isEmpty()) {
+                continue;
+            }
+
+            int slotCount = (int) fields.stream().filter(this::isAnalystSelectorField).count();
+            if (slotCount > maxSlotCount) {
+                maxSlotCount = slotCount;
+            }
+        }
+        return maxSlotCount;
+    }
+
+    private boolean isAnalystSelectorField(TestAdditionalFieldPayload field) {
+        return field != null && Boolean.TRUE.equals(field.getActive())
+                && isUserSelectorFieldType(field.getFieldType())
+                && StringUtils.isNotBlank(field.getFieldKey());
+    }
+
+    private boolean isUserSelectorFieldType(String fieldType) {
+        String normalizedFieldType = StringUtils.trimToNull(fieldType);
+        return StringUtils.equalsIgnoreCase(USER_FIELD_TYPE, normalizedFieldType);
+    }
+
+    private List<Map<String, Object>> buildImageOptions() {
+        List<Map<String, Object>> options = new ArrayList<>();
+        addSourceOption(options, "headerLeftImage", "Site Header Left Logo", DATA_TYPE_IMAGE);
+        addSourceOption(options, "headerRightImage", "Site Header Right Logo", DATA_TYPE_IMAGE);
+        addSourceOption(options, "labDirectorSignature", "Lab Director Signature", DATA_TYPE_IMAGE);
+        addSourceOption(options, "validatorSignature", "Validator Signature", DATA_TYPE_IMAGE);
         return options;
     }
 
@@ -520,6 +885,7 @@ public class ValidationTemplateOverrideRestController extends BaseRestController
         JSONObject payload = new JSONObject();
         payload.put(TEMPLATE_CONTENT_KEY, templateContent);
         payload.put(TEMPLATE_NAME_KEY, resolveTemplateName(filename, root));
+        payload.put(TEMPLATE_FILENAME_KEY, StringUtils.defaultString(filename));
 
         JSONArray parameterDefinitions = new JSONArray();
         NodeList parameters = root.getElementsByTagName("parameter");
@@ -571,6 +937,76 @@ public class ValidationTemplateOverrideRestController extends BaseRestController
     }
 
     @SuppressWarnings("unchecked")
+    private String validateDynamicConfig(Map<String, Object> config, List<String> testIds) {
+        if (!isDynamicJasperConfig(config)) {
+            return null;
+        }
+        Object mappingsObject = config.get(MAPPINGS_KEY);
+        if (!(mappingsObject instanceof Map<?, ?>)) {
+            return null;
+        }
+
+        Map<String, Map<String, Object>> sourceOptionsById = buildSourceOptions(testIds).stream()
+                .filter(option -> !GenericValidator.isBlankOrNull(readString(option.get("id"))))
+                .collect(Collectors.toMap(option -> readString(option.get("id")), option -> option, (left, right) -> left,
+                        LinkedHashMap::new));
+
+        Map<String, Object> mappings = (Map<String, Object>) mappingsObject;
+        for (Map.Entry<String, Object> entry : mappings.entrySet()) {
+            String parameterName = sanitize(entry.getKey());
+            if (!(entry.getValue() instanceof Map<?, ?>)) {
+                continue;
+            }
+            Map<String, Object> mapping = (Map<String, Object>) entry.getValue();
+            String type = readString(mapping.get("type"));
+            if (!"conditional".equalsIgnoreCase(type)) {
+                continue;
+            }
+
+            String conditionSource = readString(mapping.get("conditionSource"));
+            if (GenericValidator.isBlankOrNull(conditionSource)) {
+                return "Conditional mapping for " + parameterName + " requires a numeric source";
+            }
+
+            Map<String, Object> sourceMeta = sourceOptionsById.get(conditionSource);
+            if (sourceMeta == null || !isNumericDataType(readString(sourceMeta.get("dataType")))) {
+                return "Conditional mapping for " + parameterName + " must depend on a numeric source";
+            }
+
+            List<Map<String, Object>> rules = extractConditionalRules(mapping);
+            if (rules.isEmpty()) {
+                return "Conditional mapping for " + parameterName + " requires at least one rule";
+            }
+            for (Map<String, Object> rule : rules) {
+                if (normalizeConditionalOperator(readString(rule.get("operator"))) == null) {
+                    return "Conditional mapping for " + parameterName + " has an unsupported operator";
+                }
+                if (parseDecimal(readString(rule.get("compareTo"))) == null) {
+                    return "Conditional mapping for " + parameterName
+                            + " requires a valid numeric comparison value";
+                }
+                String branchError = validateConditionalBranch(parameterName, "rule", readString(rule.get("resultType")),
+                        readString(rule.get("resultValue")), sourceOptionsById);
+                if (branchError != null) {
+                    return branchError;
+                }
+            }
+
+            String fallbackType = StringUtils.defaultIfBlank(readString(mapping.get("fallbackType")),
+                    StringUtils.defaultIfBlank(readString(mapping.get("falseType")), "empty"));
+            String fallbackValue = StringUtils.defaultIfBlank(readString(mapping.get("fallbackValue")),
+                    readString(mapping.get("falseValue")));
+            String fallbackError = validateConditionalBranch(parameterName, "fallback", fallbackType, fallbackValue,
+                    sourceOptionsById);
+            if (fallbackError != null) {
+                return fallbackError;
+            }
+        }
+
+        return null;
+    }
+
+    @SuppressWarnings("unchecked")
     private Map<String, Object> normalizeConfig(Map<String, Object> config) {
         if (config == null || config.isEmpty()) {
             return config;
@@ -591,6 +1027,125 @@ public class ValidationTemplateOverrideRestController extends BaseRestController
 
     private String readString(Object value) {
         return value == null ? null : String.valueOf(value).trim();
+    }
+
+    private String validateConditionalBranch(String parameterName, String branchName, String branchType,
+            String branchValue, Map<String, Map<String, Object>> sourceOptionsById) {
+        if (GenericValidator.isBlankOrNull(branchType)) {
+            return "Conditional mapping for " + parameterName + " is missing the " + branchName + " branch type";
+        }
+
+        if ("empty".equalsIgnoreCase(branchType)) {
+            return null;
+        }
+
+        if ("constant".equalsIgnoreCase(branchType)) {
+            return GenericValidator.isBlankOrNull(branchValue)
+                    ? "Conditional mapping for " + parameterName + " requires a value for the " + branchName
+                            + " branch"
+                    : null;
+        }
+
+        if (!"source".equalsIgnoreCase(branchType)) {
+            return "Conditional mapping for " + parameterName + " has an unsupported " + branchName + " branch type";
+        }
+
+        if (GenericValidator.isBlankOrNull(branchValue)) {
+            return "Conditional mapping for " + parameterName + " requires a source for the " + branchName + " branch";
+        }
+
+        Map<String, Object> sourceMeta = sourceOptionsById.get(branchValue);
+        if (sourceMeta == null || DATA_TYPE_IMAGE.equalsIgnoreCase(readString(sourceMeta.get("dataType")))) {
+            return "Conditional mapping for " + parameterName + " must use a valid value source for the " + branchName
+                    + " branch";
+        }
+        return null;
+    }
+
+    @SuppressWarnings("unchecked")
+    private List<Map<String, Object>> extractConditionalRules(Map<String, Object> mapping) {
+        Object rulesObject = mapping.get("rules");
+        if (rulesObject instanceof List<?>) {
+            List<Map<String, Object>> rules = new ArrayList<>();
+            for (Object ruleObject : (List<Object>) rulesObject) {
+                if (ruleObject instanceof Map<?, ?>) {
+                    rules.add((Map<String, Object>) ruleObject);
+                }
+            }
+            if (!rules.isEmpty()) {
+                return rules;
+            }
+        }
+
+        String compareTo = readString(mapping.get("compareTo"));
+        String operator = readString(mapping.get("operator"));
+        String resultType = readString(mapping.get("trueType"));
+        String resultValue = readString(mapping.get("trueValue"));
+        if (GenericValidator.isBlankOrNull(compareTo) && GenericValidator.isBlankOrNull(operator)
+                && GenericValidator.isBlankOrNull(resultType) && GenericValidator.isBlankOrNull(resultValue)) {
+            return Collections.emptyList();
+        }
+
+        Map<String, Object> legacyRule = new LinkedHashMap<>();
+        legacyRule.put("operator", operator);
+        legacyRule.put("compareTo", compareTo);
+        legacyRule.put("resultType", resultType);
+        legacyRule.put("resultValue", resultValue);
+        return Collections.singletonList(legacyRule);
+    }
+
+    private String normalizeConditionalOperator(String operator) {
+        if (GenericValidator.isBlankOrNull(operator)) {
+            return null;
+        }
+        String trimmed = operator.trim();
+        if ("lt".equalsIgnoreCase(trimmed) || "<".equals(trimmed)) {
+            return "lt";
+        }
+        if ("lte".equalsIgnoreCase(trimmed) || "<=".equals(trimmed)) {
+            return "lte";
+        }
+        if ("eq".equalsIgnoreCase(trimmed) || "=".equals(trimmed) || "==".equals(trimmed)) {
+            return "eq";
+        }
+        if ("gte".equalsIgnoreCase(trimmed) || ">=".equals(trimmed)) {
+            return "gte";
+        }
+        if ("gt".equalsIgnoreCase(trimmed) || ">".equals(trimmed)) {
+            return "gt";
+        }
+        return null;
+    }
+
+    private BigDecimal parseDecimal(String rawValue) {
+        if (GenericValidator.isBlankOrNull(rawValue)) {
+            return null;
+        }
+        String normalized = rawValue.trim().replace(" ", "");
+        if (normalized.contains(",") && normalized.contains(".")) {
+            if (normalized.lastIndexOf(',') > normalized.lastIndexOf('.')) {
+                normalized = normalized.replace(".", "").replace(',', '.');
+            } else {
+                normalized = normalized.replace(",", "");
+            }
+        } else if (normalized.contains(",")) {
+            normalized = normalized.replace(',', '.');
+        }
+        try {
+            return new BigDecimal(normalized);
+        } catch (Exception e) {
+            return null;
+        }
+    }
+
+    private boolean isNumericDataType(String dataType) {
+        if (GenericValidator.isBlankOrNull(dataType)) {
+            return false;
+        }
+        String normalized = dataType.trim().toUpperCase();
+        return DATA_TYPE_NUMBER.equalsIgnoreCase(normalized) || "NUMBER".equals(normalized) || "DECIMAL".equals(normalized)
+                || "DOUBLE".equals(normalized) || "FLOAT".equals(normalized) || "INTEGER".equals(normalized)
+                || "LONG".equals(normalized) || "SHORT".equals(normalized) || "BIGDECIMAL".equals(normalized);
     }
 
     private boolean isSupportedImage(MultipartFile file) {
@@ -618,7 +1173,7 @@ public class ValidationTemplateOverrideRestController extends BaseRestController
         return "validation-template-override:" + normalized + ":" + System.currentTimeMillis();
     }
 
-    private void addAdditionalFieldSourceOptions(List<Map<String, String>> options, List<String> testIds) {
+    private void addAdditionalFieldSourceOptions(List<Map<String, Object>> options, List<String> testIds) {
         if (testIds == null || testIds.isEmpty()) {
             return;
         }
@@ -648,12 +1203,13 @@ public class ValidationTemplateOverrideRestController extends BaseRestController
                             displayName = fieldKey;
                         }
                         addSourceOption(options, sourceId,
-                                "Additional: " + displayName + " (" + fieldKey + ") [Test " + testId + "]");
+                                "Additional: " + displayName + " (" + fieldKey + ") [Test " + testId + "]",
+                                resolveFieldDataType(field.getFieldType()));
                     });
         });
     }
 
-    private void addOrderAdditionalFieldSourceOptions(List<Map<String, String>> options) {
+    private void addOrderAdditionalFieldSourceOptions(List<Map<String, Object>> options) {
         List<OrderAdditionalFieldPayload> fields = orderAdditionalFieldService.getFields(false);
         if (fields == null || fields.isEmpty()) {
             return;
@@ -669,11 +1225,12 @@ public class ValidationTemplateOverrideRestController extends BaseRestController
                         displayName = fieldKey;
                     }
                     addSourceOption(options, "orderAdditional." + fieldKey,
-                            "Order Additional: " + displayName + " (" + fieldKey + ")");
+                            "Order Additional: " + displayName + " (" + fieldKey + ")",
+                            resolveFieldDataType(field.getFieldType()));
                 });
     }
 
-    private void addSampleAdditionalFieldSourceOptions(List<Map<String, String>> options, List<String> testIds) {
+    private void addSampleAdditionalFieldSourceOptions(List<Map<String, Object>> options, List<String> testIds) {
         Set<String> addedKeys = new HashSet<>();
 
         // New sample type additional fields (configured in "Manage Sample Type
@@ -727,7 +1284,8 @@ public class ValidationTemplateOverrideRestController extends BaseRestController
                                         displayName = fieldKey;
                                     }
                                     addSourceOption(options, sourceId, "Sample Additional: " + displayName + " ("
-                                            + fieldKey + ") [" + sampleTypeName + "]");
+                                            + fieldKey + ") [" + sampleTypeName + "]",
+                                            resolveFieldDataType(field.getFieldType()));
                                 });
                     });
                 }
@@ -775,7 +1333,7 @@ public class ValidationTemplateOverrideRestController extends BaseRestController
         fields.add(
                 defaultField("requesterSpecialty", "REQUESTING_PHYSICIAN", "ESPECIALIDAD", "requesterSpecialty", 40));
         fields.add(defaultField("referenceCenter", "REQUESTING_PHYSICIAN", "CENTRO DE REFERENCIA", "siteInfo", 50));
-        fields.add(defaultField("collectionDate", "SAMPLE", "Fecha de toma de muestra:", "collectionDateTime", 10));
+        fields.add(defaultField("collectionDate", "SAMPLE", "Fecha de toma de muestra:", "collectionDate", 10));
         fields.add(defaultField("sampleStatus", "SAMPLE", "Estado de la muestra:", "sampleStatus", 20));
         fields.add(defaultField("sampleSource", "SAMPLE", "Fuente:", "sampleType", 30));
         fields.add(defaultField("allele1", "MOLECULAR_RESULT", "ALELO 1:", "orderAdditional.<field_key>", 10));
@@ -796,10 +1354,19 @@ public class ValidationTemplateOverrideRestController extends BaseRestController
         return row;
     }
 
-    private void addSourceOption(List<Map<String, String>> options, String id, String label) {
-        Map<String, String> option = new LinkedHashMap<>();
+    private String resolveFieldDataType(String fieldType) {
+        return isNumericDataType(fieldType) ? DATA_TYPE_NUMBER : DATA_TYPE_TEXT;
+    }
+
+    private void addSourceOption(List<Map<String, Object>> options, String id, String label) {
+        addSourceOption(options, id, label, DATA_TYPE_TEXT);
+    }
+
+    private void addSourceOption(List<Map<String, Object>> options, String id, String label, String dataType) {
+        Map<String, Object> option = new LinkedHashMap<>();
         option.put("id", id);
         option.put("value", label);
+        option.put("dataType", StringUtils.defaultIfBlank(sanitize(dataType), DATA_TYPE_TEXT));
         options.add(option);
     }
 }

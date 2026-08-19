@@ -964,7 +964,7 @@ const SampleType = (props) => {
     if (
       fieldType === "SELECT" ||
       fieldType === "RADIO" ||
-      fieldType === "SYSTEM_USER_BIOLOGIST_SELECT"
+      fieldType === "USER"
     ) {
       return (
         <Select

@@ -109,4 +109,17 @@ public class SampleOrderAdditionalFieldValueDAOImpl extends BaseDAOImpl<SampleOr
         Long count = query.uniqueResult();
         return count != null && count > 0;
     }
+
+    @Override
+    public long countByFieldDefinitionId(Integer fieldDefinitionId) {
+        if (fieldDefinitionId == null) {
+            return 0L;
+        }
+
+        String hql = "select count(v.id) from " + VALUE_ENTITY + " v where v.fieldDefinitionId = :fieldDefinitionId";
+        Query<Long> query = entityManager.unwrap(Session.class).createQuery(hql, Long.class);
+        query.setParameter("fieldDefinitionId", fieldDefinitionId);
+        Long count = query.uniqueResult();
+        return count == null ? 0L : count;
+    }
 }

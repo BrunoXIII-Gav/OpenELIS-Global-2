@@ -5,6 +5,7 @@ import {
   Grid,
   Heading,
   Loading,
+  MultiSelect,
   Section,
   Select,
   SelectItem,
@@ -16,9 +17,8 @@ import {
   TableHead,
   TableHeader,
   TableRow,
-  TextInput,
-  TextArea,
   Tag,
+  TextInput,
 } from "@carbon/react";
 import {
   deleteFromOpenElisServer,
@@ -33,6 +33,16 @@ import {
   AlertDialog,
   NotificationKinds,
 } from "../../common/CustomNotification";
+import AdditionalFieldOptionsEditor from "./customComponents/AdditionalFieldOptionsEditor";
+import {
+  createEmptyOption,
+  FIELD_TYPE_OPTIONS,
+  getAdditionalFieldTypeLabel,
+  normalizeOptionForUi,
+  normalizeOptionsForPayload,
+  OPTION_FIELD_TYPES,
+  toCodeCandidate,
+} from "./additionalFieldOptionUtils";
 import { NotificationContext } from "../../layout/Layout";
 
 const buildBreadcrumbs = (fromSampleEntryConfig) => [
@@ -53,18 +63,25 @@ const buildBreadcrumbs = (fromSampleEntryConfig) => [
   },
 ];
 
-const OPTION_BASED_TYPES = new Set(["SELECT", "RADIO", "MULTISELECT"]);
+const LEGACY_USER_FIELD_TYPE = "SYSTEM_USER_BIOLOGIST_SELECT";
+const GENERIC_USER_FIELD_TYPE = "USER";
+const USER_DISPLAY_MODE_INITIALS = "INITIALS";
+const USER_DISPLAY_MODE_NAME = "NAME";
+const USER_DISPLAY_MODE_BOTH = "BOTH";
 
 const initialFormState = {
   fieldKey: "",
   displayName: "",
   fieldType: "TEXT",
+  hasSavedValues: false,
   required: false,
   displaySection: "RECEPTION",
   sortOrder: "",
   defaultValue: "",
   maxLength: "",
-  optionLines: "",
+  options: [],
+  userProfileCodes: [],
+  userDisplayMode: USER_DISPLAY_MODE_BOTH,
 };
 
 const SampleTypeAdditionalFields = () => {
@@ -76,15 +93,52 @@ const SampleTypeAdditionalFields = () => {
 
   const [loading, setLoading] = useState(true);
   const [sampleTypes, setSampleTypes] = useState([]);
+  const [professionalProfileOptions, setProfessionalProfileOptions] = useState([]);
   const [selectedSampleTypeId, setSelectedSampleTypeId] = useState("");
   const [fields, setFields] = useState([]);
   const [formState, setFormState] = useState(initialFormState);
   const [editingFieldId, setEditingFieldId] = useState(null);
+  const structureLocked = editingFieldId !== null && formState.hasSavedValues;
   const fromSampleEntryConfig =
     new URLSearchParams(location.search).get("source") === "sampleEntryConfig";
   const breadcrumbs = buildBreadcrumbs(fromSampleEntryConfig);
 
-  const optionsRequired = OPTION_BASED_TYPES.has(formState.fieldType);
+  const optionsRequired = OPTION_FIELD_TYPES.has(formState.fieldType);
+
+  const parseFieldMetadata = (metadataJson) => {
+    if (!metadataJson || typeof metadataJson !== "string") {
+      return {};
+    }
+    try {
+      const parsed = JSON.parse(metadataJson);
+      return parsed && typeof parsed === "object" ? parsed : {};
+    } catch (_error) {
+      return {};
+    }
+  };
+
+  const normalizeFieldType = (fieldType) =>
+    String(fieldType || "").toUpperCase() === LEGACY_USER_FIELD_TYPE
+      ? GENERIC_USER_FIELD_TYPE
+      : fieldType || "TEXT";
+
+  const resolveUserProfileCodes = (fieldType, metadata) => {
+    if (Array.isArray(metadata?.userProfileCodes)) {
+      return metadata.userProfileCodes;
+    }
+    return [];
+  };
+
+  const resolveUserDisplayMode = (metadata) => {
+    const mode = String(metadata?.userDisplayMode || "").toUpperCase();
+    if (
+      mode === USER_DISPLAY_MODE_INITIALS ||
+      mode === USER_DISPLAY_MODE_NAME
+    ) {
+      return mode;
+    }
+    return USER_DISPLAY_MODE_BOTH;
+  };
 
   const showNotification = (kind, message) => {
     addNotification({
@@ -116,51 +170,18 @@ const SampleTypeAdditionalFields = () => {
     );
   };
 
-  const parseOptionLines = (optionLines) => {
-    return optionLines
-      .split("\n")
-      .map((line) => line.trim())
-      .filter((line) => line !== "")
-      .map((line, index) => {
-        const [optionKeyPart, ...labelParts] = line.split("|");
-        const hasExplicitKey = labelParts.length > 0;
-        const optionLabel = hasExplicitKey
-          ? labelParts.join("|").trim()
-          : optionKeyPart.trim();
-        const optionKey = hasExplicitKey ? optionKeyPart.trim() : "";
-
-        return {
-          optionKey,
-          optionLabel,
-          sortOrder: index + 1,
-          active: true,
-        };
-      })
-      .filter((option) => option.optionLabel !== "");
-  };
-
-  const toOptionLines = (options) =>
-    (Array.isArray(options) ? options : [])
-      .filter((option) => option?.active !== false)
-      .sort((left, right) => (left?.sortOrder ?? 0) - (right?.sortOrder ?? 0))
-      .map((option) =>
-        option?.optionKey
-          ? `${option.optionKey}|${option.optionLabel || option.optionKey}`
-          : option?.optionLabel || "",
-      )
-      .filter(Boolean)
-      .join("\n");
-
   const startEditingField = (field) => {
     if (!field?.id) {
       return;
     }
 
     setEditingFieldId(field.id);
+    const metadata = parseFieldMetadata(field?.metadataJson);
     setFormState({
       fieldKey: field.fieldKey || "",
       displayName: field.displayName || "",
-      fieldType: field.fieldType || "TEXT",
+      fieldType: normalizeFieldType(field.fieldType),
+      hasSavedValues: field?.hasSavedValues === true,
       required: !!field.required,
       displaySection: field.displaySection || "RECEPTION",
       sortOrder:
@@ -172,13 +193,61 @@ const SampleTypeAdditionalFields = () => {
         field.maxLength !== null && field.maxLength !== undefined
           ? String(field.maxLength)
           : "",
-      optionLines: toOptionLines(field.options),
+      options: Array.isArray(field?.options)
+        ? field.options
+            .filter((option) => option?.active !== false)
+            .map((option, index) => normalizeOptionForUi(option, index))
+        : [],
+      userProfileCodes: resolveUserProfileCodes(field.fieldType, metadata),
+      userDisplayMode: resolveUserDisplayMode(metadata),
     });
   };
 
   const resetForm = () => {
     setEditingFieldId(null);
     setFormState(initialFormState);
+  };
+
+  const addOption = () => {
+    setFormState((previous) => ({
+      ...previous,
+      options: [
+        ...(previous.options || []),
+        createEmptyOption((previous.options || []).length + 1),
+      ],
+    }));
+  };
+
+  const updateOptionLabel = (optionIndex, nextLabel) => {
+    setFormState((previous) => ({
+      ...previous,
+      options: (previous.options || []).map((option, index) => {
+        if (index !== optionIndex) {
+          return option;
+        }
+
+        const nextGeneratedKey = toCodeCandidate(nextLabel);
+        return {
+          ...option,
+          optionLabel: nextLabel,
+          optionKey: option.isAutoGeneratedKey
+            ? nextGeneratedKey
+            : option.optionKey,
+        };
+      }),
+    }));
+  };
+
+  const removeOption = (optionIndex) => {
+    setFormState((previous) => ({
+      ...previous,
+      options: (previous.options || [])
+        .filter((_, index) => index !== optionIndex)
+        .map((option, index) => ({
+          ...option,
+          sortOrder: index + 1,
+        })),
+    }));
   };
 
   const handleSaveField = (event) => {
@@ -205,7 +274,7 @@ const SampleTypeAdditionalFields = () => {
     }
 
     const options = optionsRequired
-      ? parseOptionLines(formState.optionLines)
+      ? normalizeOptionsForPayload(formState.options)
       : [];
 
     if (optionsRequired && options.length === 0) {
@@ -216,8 +285,6 @@ const SampleTypeAdditionalFields = () => {
       return;
     }
 
-    const sourceField = fields.find((field) => field.id === editingFieldId);
-
     const payload = {
       sampleTypeId: selectedSampleTypeId,
       fieldKey: formState.fieldKey,
@@ -225,7 +292,9 @@ const SampleTypeAdditionalFields = () => {
       fieldType: formState.fieldType,
       required: formState.required,
       displaySection: formState.displaySection,
-      active: sourceField ? sourceField.active : true,
+      active: editingFieldId
+        ? fields.find((field) => field.id === editingFieldId)?.active
+        : true,
       sortOrder:
         formState.sortOrder && formState.sortOrder !== ""
           ? Number(formState.sortOrder)
@@ -235,18 +304,16 @@ const SampleTypeAdditionalFields = () => {
         formState.maxLength && formState.maxLength !== ""
           ? Number(formState.maxLength)
           : null,
+      metadataJson:
+        formState.fieldType === "USER"
+          ? JSON.stringify({
+              userProfileCodes: formState.userProfileCodes || [],
+              userDisplayMode:
+                formState.userDisplayMode || USER_DISPLAY_MODE_BOTH,
+            })
+          : null,
       options,
     };
-
-    if (sourceField && optionsRequired) {
-      const existingOptionsByKey = new Map(
-        (sourceField.options || []).map((option) => [option.optionKey, option]),
-      );
-      payload.options = payload.options.map((option) => {
-        const existing = existingOptionsByKey.get(option.optionKey);
-        return existing ? { ...option, id: existing.id } : option;
-      });
-    }
 
     const onSaveSuccess = () => {
       showNotification(
@@ -401,6 +468,19 @@ const SampleTypeAdditionalFields = () => {
         setLoading(false);
       },
     );
+    getFromOpenElisServer("/rest/professional-profiles/catalog", (response) => {
+      if (!componentMounted.current) {
+        return;
+      }
+      setProfessionalProfileOptions(
+        Array.isArray(response?.profiles)
+          ? response.profiles.map((profile) => ({
+              id: profile.code,
+              label: profile.label || profile.name || profile.code,
+            }))
+          : [],
+      );
+    });
 
     return () => {
       componentMounted.current = false;
@@ -509,34 +589,116 @@ const SampleTypeAdditionalFields = () => {
                           id: "sample.additional.fields.field.type",
                         })}
                         value={formState.fieldType}
+                        disabled={structureLocked}
                         onChange={(event) =>
                           setFormState((previous) => ({
                             ...previous,
                             fieldType: event.target.value,
-                            optionLines: OPTION_BASED_TYPES.has(
-                              event.target.value,
-                            )
-                              ? previous.optionLines
-                              : "",
+                            userDisplayMode:
+                              event.target.value === "USER"
+                                ? previous.userDisplayMode ||
+                                  USER_DISPLAY_MODE_BOTH
+                                : USER_DISPLAY_MODE_BOTH,
                           }))
                         }
                       >
-                        <SelectItem value="TEXT" text="TEXT" />
-                        <SelectItem value="TEXTAREA" text="TEXTAREA" />
-                        <SelectItem value="NUMBER" text="NUMBER" />
-                        <SelectItem value="DATE" text="DATE" />
-                        <SelectItem value="TIME" text="TIME" />
-                        <SelectItem value="DATETIME" text="DATETIME" />
-                        <SelectItem value="BOOLEAN" text="BOOLEAN" />
-                        <SelectItem value="SELECT" text="SELECT" />
-                        <SelectItem value="MULTISELECT" text="MULTISELECT" />
-                        <SelectItem value="RADIO" text="RADIO" />
-                        <SelectItem
-                          value="SYSTEM_USER_BIOLOGIST_SELECT"
-                          text="SYSTEM_USER_BIOLOGIST_SELECT"
-                        />
+                        {FIELD_TYPE_OPTIONS.filter(
+                          (option) => option.value !== "DOCUMENT",
+                        ).map((option) => (
+                          <SelectItem
+                            key={option.value}
+                            value={option.value}
+                            text={intl.formatMessage({
+                              id: option.labelId,
+                              defaultMessage: option.defaultMessage,
+                            })}
+                          />
+                        ))}
                       </Select>
                     </Column>
+                    {formState.fieldType === "USER" ? (
+                      <>
+                        <Column lg={8} md={4} sm={4}>
+                          <div style={{ marginTop: "1rem" }}>
+                            <label
+                              htmlFor="sample-additional-user-profiles"
+                              style={{
+                                display: "block",
+                                marginBottom: "0.5rem",
+                              }}
+                            >
+                              {intl.formatMessage({
+                                id: "sample.additional.fields.userProfiles",
+                                defaultMessage: "Allowed professional profiles",
+                              })}
+                            </label>
+                            <MultiSelect
+                              id="sample-additional-user-profiles"
+                              items={professionalProfileOptions}
+                              itemToString={(item) => item?.label || ""}
+                              selectedItems={professionalProfileOptions.filter(
+                                (item) =>
+                                  (formState.userProfileCodes || []).includes(
+                                    item.id,
+                                  ),
+                              )}
+                              onChange={({ selectedItems }) =>
+                                setFormState((previous) => ({
+                                  ...previous,
+                                  userProfileCodes: selectedItems.map(
+                                    (item) => item.id,
+                                  ),
+                                }))
+                              }
+                              label=""
+                              titleText=""
+                              selectionFeedback="top-after-reopen"
+                            />
+                          </div>
+                        </Column>
+                        <Column lg={4} md={4} sm={4}>
+                          <Select
+                            id="sampleAdditionalUserDisplayMode"
+                            labelText={intl.formatMessage({
+                              id: "user.field.display.mode.label",
+                              defaultMessage: "Display user as",
+                            })}
+                            value={
+                              formState.userDisplayMode ||
+                              USER_DISPLAY_MODE_BOTH
+                            }
+                            onChange={(event) =>
+                              setFormState((previous) => ({
+                                ...previous,
+                                userDisplayMode: event.target.value,
+                              }))
+                            }
+                          >
+                            <SelectItem
+                              value={USER_DISPLAY_MODE_INITIALS}
+                              text={intl.formatMessage({
+                                id: "user.field.display.mode.initials",
+                                defaultMessage: "Initials only",
+                              })}
+                            />
+                            <SelectItem
+                              value={USER_DISPLAY_MODE_NAME}
+                              text={intl.formatMessage({
+                                id: "user.field.display.mode.name",
+                                defaultMessage: "Name only",
+                              })}
+                            />
+                            <SelectItem
+                              value={USER_DISPLAY_MODE_BOTH}
+                              text={intl.formatMessage({
+                                id: "user.field.display.mode.both",
+                                defaultMessage: "Initials and name",
+                              })}
+                            />
+                          </Select>
+                        </Column>
+                      </>
+                    ) : null}
                     <Column lg={4} md={4} sm={4}>
                       <Select
                         id="sampleAdditionalFieldRequired"
@@ -646,24 +808,16 @@ const SampleTypeAdditionalFields = () => {
                       />
                     </Column>
                     <Column lg={8} md={8} sm={4}>
-                      <TextArea
-                        id="sampleAdditionalFieldOptions"
-                        rows={4}
-                        labelText={intl.formatMessage({
-                          id: "sample.additional.fields.options",
-                        })}
-                        helperText={intl.formatMessage({
-                          id: "sample.additional.fields.options.helper",
-                        })}
-                        disabled={!optionsRequired}
-                        value={formState.optionLines}
-                        onChange={(event) =>
-                          setFormState((previous) => ({
-                            ...previous,
-                            optionLines: event.target.value,
-                          }))
-                        }
-                      />
+                      {optionsRequired ? (
+                        <AdditionalFieldOptionsEditor
+                          idPrefix="sample-additional"
+                          options={formState.options || []}
+                          locked={structureLocked}
+                          onAddOption={addOption}
+                          onOptionLabelChange={updateOptionLabel}
+                          onRemoveOption={removeOption}
+                        />
+                      ) : null}
                     </Column>
                   </Grid>
 
@@ -746,7 +900,12 @@ const SampleTypeAdditionalFields = () => {
                           <TableRow key={`sample_additional_field_${field.id}`}>
                             <TableCell>{field.displayName}</TableCell>
                             <TableCell>{field.fieldKey}</TableCell>
-                            <TableCell>{field.fieldType}</TableCell>
+                            <TableCell>
+                              {getAdditionalFieldTypeLabel(
+                                intl,
+                                field.fieldType,
+                              )}
+                            </TableCell>
                             <TableCell>
                               {field.required ? (
                                 <FormattedMessage id="label.yes" />

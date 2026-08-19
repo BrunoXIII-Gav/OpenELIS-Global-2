@@ -13,6 +13,9 @@
  */
 package org.openelisglobal.provider.valueholder;
 
+import com.fasterxml.jackson.annotation.JsonIgnore;
+import java.util.LinkedHashMap;
+import java.util.Map;
 import java.util.UUID;
 import org.openelisglobal.common.DesynchronousCapable;
 import org.openelisglobal.common.valueholder.BaseObject;
@@ -41,6 +44,10 @@ public class Provider extends BaseObject<String> implements DesynchronousCapable
     private String professionalInitials;
 
     private String cbpCode;
+
+    private String profileFieldsJson;
+
+    private Map<String, Object> profileFieldValues = new LinkedHashMap<>();
 
     private ValueHolderInterface person;
 
@@ -127,6 +134,23 @@ public class Provider extends BaseObject<String> implements DesynchronousCapable
 
     public void setCbpCode(String cbpCode) {
         this.cbpCode = cbpCode;
+    }
+
+    @JsonIgnore
+    public String getProfileFieldsJson() {
+        return profileFieldsJson;
+    }
+
+    public void setProfileFieldsJson(String profileFieldsJson) {
+        this.profileFieldsJson = profileFieldsJson;
+    }
+
+    public Map<String, Object> getProfileFieldValues() {
+        return profileFieldValues;
+    }
+
+    public void setProfileFieldValues(Map<String, Object> profileFieldValues) {
+        this.profileFieldValues = profileFieldValues == null ? new LinkedHashMap<>() : new LinkedHashMap<>(profileFieldValues);
     }
 
     public Person getPerson() {

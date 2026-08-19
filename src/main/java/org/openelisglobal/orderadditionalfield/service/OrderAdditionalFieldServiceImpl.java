@@ -24,6 +24,7 @@ import org.apache.commons.lang3.StringUtils;
 import org.openelisglobal.common.documentupload.TemporaryDocumentUploadPayload;
 import org.openelisglobal.common.documentupload.TemporaryDocumentUploadService;
 import org.openelisglobal.common.exception.LIMSRuntimeException;
+import org.openelisglobal.common.service.UserFieldOptionResolver;
 import org.openelisglobal.orderadditionalfield.bean.OrderAdditionalFieldFilePayload;
 import org.openelisglobal.orderadditionalfield.bean.OrderAdditionalFieldOptionPayload;
 import org.openelisglobal.orderadditionalfield.bean.OrderAdditionalFieldPayload;
@@ -67,12 +68,11 @@ public class OrderAdditionalFieldServiceImpl implements OrderAdditionalFieldServ
             new FixedFieldDefault("referringSiteDepartmentId", 80),
             new FixedFieldDefault("provisionalClinicalDiagnosis", 90),
             new FixedFieldDefault("providerFirstName", 100), new FixedFieldDefault("providerLastName", 110),
-            new FixedFieldDefault("providerCmp", 120), new FixedFieldDefault("providerRne", 130),
-            new FixedFieldDefault("providerDni", 140), new FixedFieldDefault("providerSpecialty", 150),
-            new FixedFieldDefault("providerWorkPhone", 160), new FixedFieldDefault("providerFax", 170),
-            new FixedFieldDefault("providerEmail", 180), new FixedFieldDefault("paymentOptionSelection", 190),
-            new FixedFieldDefault("testLocationCode", 200), new FixedFieldDefault("otherLocationCode", 210),
-            new FixedFieldDefault("rememberSiteAndRequester", 220));
+            new FixedFieldDefault("providerDni", 120), new FixedFieldDefault("providerSpecialty", 130),
+            new FixedFieldDefault("providerWorkPhone", 140), new FixedFieldDefault("providerFax", 150),
+            new FixedFieldDefault("providerEmail", 160), new FixedFieldDefault("paymentOptionSelection", 170),
+            new FixedFieldDefault("testLocationCode", 180), new FixedFieldDefault("otherLocationCode", 190),
+            new FixedFieldDefault("rememberSiteAndRequester", 200));
     private static final Set<String> FIXED_FIELD_KEYS = FIXED_FIELD_DEFAULTS.stream().map(f -> f.fieldKey.toLowerCase())
             .collect(Collectors.toSet());
 
@@ -94,9 +94,12 @@ public class OrderAdditionalFieldServiceImpl implements OrderAdditionalFieldServ
     @Autowired
     private OrderFixedFieldConfigDAO fixedFieldConfigDAO;
 
+    @Autowired
+    private UserFieldOptionResolver userFieldOptionResolver;
+
     @Override
     @Transactional(readOnly = true)
-    public List<OrderAdditionalFieldPayload> getFields(boolean includeInactive) {
+    public List<OrderAdditionalFieldPayload> getFields(boolean includeInactive, boolean resolveUserOptions) {
         List<OrderAdditionalFieldDefinition> definitions = definitionDAO.findAll(!includeInactive);
         if (definitions.isEmpty()) {
             return Collections.emptyList();
@@ -106,7 +109,7 @@ public class OrderAdditionalFieldServiceImpl implements OrderAdditionalFieldServ
                 .collect(Collectors.toList());
         List<OrderAdditionalFieldOption> options = optionDAO.findByDefinitionIds(definitionIds, !includeInactive);
 
-        return mapDefinitionsToPayload(definitions, options);
+        return mapDefinitionsToPayload(definitions, options, resolveUserOptions);
     }
 
     @Override
@@ -153,6 +156,20 @@ public class OrderAdditionalFieldServiceImpl implements OrderAdditionalFieldServ
 
         OrderAdditionalFieldDefinition definition = definitionDAO.get(fieldId)
                 .orElseThrow(() -> new IllegalArgumentException("Field definition not found: " + fieldId));
+        boolean hasSavedValues = hasSavedValues(fieldId);
+        FieldType existingFieldType = parseFieldType(definition.getFieldType());
+        FieldType requestedFieldType = payload.getFieldType() == null ? existingFieldType
+                : parseFieldType(payload.getFieldType());
+
+        if (hasSavedValues && requestedFieldType != existingFieldType) {
+            throw new IllegalStateException(
+                    "This field already has saved data and its type cannot be changed.");
+        }
+        if (hasSavedValues && payload.getOptions() != null && isOptionFieldType(requestedFieldType)
+                && haveOptionsChanged(fieldId, payload.getOptions())) {
+            throw new IllegalStateException(
+                    "This field already has saved data and its options cannot be changed.");
+        }
 
         if (StringUtils.isNotBlank(payload.getDisplayName())) {
             definition.setDisplayName(payload.getDisplayName().trim());
@@ -199,7 +216,8 @@ public class OrderAdditionalFieldServiceImpl implements OrderAdditionalFieldServ
         definition.setSysUserId(currentUserId);
         definitionDAO.update(definition);
 
-        if (payload.getOptions() != null && isOptionFieldType(parseFieldType(definition.getFieldType()))) {
+        if (payload.getOptions() != null && isOptionFieldType(parseFieldType(definition.getFieldType()))
+                && !hasSavedValues) {
             upsertOptionsForDefinition(definition.getId(), payload.getOptions(), currentUserId);
         }
 
@@ -351,7 +369,7 @@ public class OrderAdditionalFieldServiceImpl implements OrderAdditionalFieldServ
             List<OrderAdditionalFieldPayload> activeFieldCache) {
         List<OrderAdditionalFieldPayload> activeFields = activeFieldCache;
         if (activeFields == null) {
-            activeFields = getFields(false);
+            activeFields = getFields(false, true);
         }
 
         if (activeFields == null || activeFields.isEmpty()) {
@@ -545,7 +563,7 @@ public class OrderAdditionalFieldServiceImpl implements OrderAdditionalFieldServ
             return Optional.empty();
         }
 
-        List<OrderAdditionalFieldPayload> gatedBooleanFields = getFields(false).stream().filter(field -> field != null)
+        List<OrderAdditionalFieldPayload> gatedBooleanFields = getFields(false, true).stream().filter(field -> field != null)
                 .filter(field -> parseFieldType(field.getFieldType()) == FieldType.BOOLEAN)
                 .filter(field -> parseFieldMetadata(field.getMetadataJson()).requiresCheckedForStorageAssignment)
                 .collect(Collectors.toList());
@@ -633,7 +651,7 @@ public class OrderAdditionalFieldServiceImpl implements OrderAdditionalFieldServ
     }
 
     private List<OrderAdditionalFieldPayload> mapDefinitionsToPayload(List<OrderAdditionalFieldDefinition> definitions,
-            List<OrderAdditionalFieldOption> options) {
+            List<OrderAdditionalFieldOption> options, boolean resolveUserOptions) {
         Map<Integer, List<OrderAdditionalFieldOptionPayload>> optionsByDefinitionId = new HashMap<>();
         for (OrderAdditionalFieldOption option : options) {
             optionsByDefinitionId.computeIfAbsent(option.getFieldDefinitionId(), ignored -> new ArrayList<>())
@@ -643,7 +661,11 @@ public class OrderAdditionalFieldServiceImpl implements OrderAdditionalFieldServ
         List<OrderAdditionalFieldPayload> payloads = new ArrayList<>();
         for (OrderAdditionalFieldDefinition definition : definitions) {
             OrderAdditionalFieldPayload payload = mapDefinitionToPayload(definition);
-            payload.setOptions(optionsByDefinitionId.getOrDefault(definition.getId(), Collections.emptyList()));
+            if (resolveUserOptions && isUserFieldType(definition.getFieldType())) {
+                payload.setOptions(resolveUserFieldOptions(definition.getFieldType(), definition.getMetadataJson()));
+            } else {
+                payload.setOptions(optionsByDefinitionId.getOrDefault(definition.getId(), Collections.emptyList()));
+            }
             payloads.add(payload);
         }
         return payloads;
@@ -663,6 +685,7 @@ public class OrderAdditionalFieldServiceImpl implements OrderAdditionalFieldServ
         payload.setMetadataJson(definition.getMetadataJson());
         payload.setSearchable(definition.getSearchable());
         payload.setSearchUnique(definition.getSearchUnique());
+        payload.setHasSavedValues(hasSavedValues(definition.getId()));
         return payload;
     }
 
@@ -789,6 +812,15 @@ public class OrderAdditionalFieldServiceImpl implements OrderAdditionalFieldServ
         return OPTION_TYPES.contains(fieldType);
     }
 
+    private boolean hasSavedValues(Integer fieldId) {
+        return fieldId != null
+                && (valueDAO.countByFieldDefinitionId(fieldId) > 0 || fileDAO.countByFieldDefinitionId(fieldId) > 0);
+    }
+
+    private boolean isUserFieldType(String fieldType) {
+        return userFieldOptionResolver.isUserFieldType(fieldType);
+    }
+
     private Integer getNextSortOrder() {
         List<OrderAdditionalFieldDefinition> existing = definitionDAO.findAll(false);
         return existing.stream().map(OrderAdditionalFieldDefinition::getSortOrder).filter(value -> value != null)
@@ -876,6 +908,28 @@ public class OrderAdditionalFieldServiceImpl implements OrderAdditionalFieldServ
                 optionDAO.update(existingOption);
             }
         }
+    }
+
+    private boolean haveOptionsChanged(Integer fieldId, List<OrderAdditionalFieldOptionPayload> requestedOptions) {
+        List<String> existing = optionDAO.findByDefinitionId(fieldId, true).stream().filter(option -> option != null)
+                .filter(option -> option.getActive() == null || option.getActive()).sorted((left, right) -> Integer
+                        .compare(left.getSortOrder() == null ? Integer.MAX_VALUE : left.getSortOrder(),
+                                right.getSortOrder() == null ? Integer.MAX_VALUE : right.getSortOrder()))
+                .map(option -> option.getOptionKey() + "|" + StringUtils.trimToEmpty(option.getOptionLabel()))
+                .collect(Collectors.toList());
+
+        List<String> requested = requestedOptions == null ? Collections.emptyList()
+                : requestedOptions.stream().filter(option -> option != null)
+                        .filter(option -> StringUtils.isNotBlank(option.getOptionLabel()))
+                        .filter(option -> !Boolean.FALSE.equals(option.getActive()))
+                        .sorted((left, right) -> Integer.compare(
+                                left.getSortOrder() == null ? Integer.MAX_VALUE : left.getSortOrder(),
+                                right.getSortOrder() == null ? Integer.MAX_VALUE : right.getSortOrder()))
+                        .map(option -> normalizeOptionKey(option.getOptionKey(), option.getOptionLabel()) + "|"
+                                + StringUtils.trimToEmpty(option.getOptionLabel()))
+                        .collect(Collectors.toList());
+
+        return !existing.equals(requested);
     }
 
     private void deactivateAllOptions(Integer fieldId, String currentUserId) {
@@ -1183,6 +1237,7 @@ public class OrderAdditionalFieldServiceImpl implements OrderAdditionalFieldServ
             return trimmedValue.toLowerCase();
         case SELECT:
         case RADIO:
+        case USER:
             validateSingleOption(definition, trimmedValue);
             return trimmedValue;
         case MULTISELECT:
@@ -1192,6 +1247,22 @@ public class OrderAdditionalFieldServiceImpl implements OrderAdditionalFieldServ
         default:
             throw new IllegalArgumentException("Unsupported fieldType: " + definition.getFieldType());
         }
+    }
+
+    private List<OrderAdditionalFieldOptionPayload> resolveUserFieldOptions(String fieldType, String metadataJson) {
+        List<OrderAdditionalFieldOptionPayload> payloads = new ArrayList<>();
+        List<UserFieldOptionResolver.ResolvedUserOption> resolvedOptions = userFieldOptionResolver
+                .resolveUserOptions(fieldType, metadataJson);
+        for (int index = 0; index < resolvedOptions.size(); index++) {
+            UserFieldOptionResolver.ResolvedUserOption option = resolvedOptions.get(index);
+            OrderAdditionalFieldOptionPayload payload = new OrderAdditionalFieldOptionPayload();
+            payload.setOptionKey(option.optionKey());
+            payload.setOptionLabel(option.label());
+            payload.setSortOrder(index + 1);
+            payload.setActive(true);
+            payloads.add(payload);
+        }
+        return payloads;
     }
 
     private void enforceSearchUniqueness(OrderAdditionalFieldPayload definition, Integer sampleNumericId,

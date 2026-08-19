@@ -164,8 +164,8 @@ public class SampleEntryTestsForTypeProviderRestController extends BaseRestContr
         if (GenericValidator.isBlankOrNull(sampleType)) {
             sampleEntryTests.setAdditionalFields(new ArrayList<>());
         } else {
-            sampleEntryTests
-                    .setAdditionalFields(sampleTypeAdditionalFieldService.getFieldsForSampleType(sampleType, false));
+            sampleEntryTests.setAdditionalFields(
+                    sampleTypeAdditionalFieldService.getFieldsForSampleType(sampleType, false, true));
         }
 
         return sampleEntryTests;

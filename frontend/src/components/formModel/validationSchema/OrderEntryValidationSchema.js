@@ -181,10 +181,10 @@ const hasRequiredDynamicFieldValue = (field, sampleOrderItems) => {
 
 const OrderEntryValidationSchema = Yup.object().shape({
   sampleXML: Yup.string().required("Sample is required"),
-  patientProperties: CreatePatientValidationSchema,
+  patientProperties: CreatePatientValidationSchema(),
   sampleOrderItems: Yup.object()
     .shape({
-      labNo: Yup.string().required("Sample Lab Number is required"),
+      labNo: Yup.string().required("El número de laboratorio es obligatorio"),
       referringSiteName: Yup.string(),
       referringSiteId: Yup.string(),
       providerId: Yup.string(),

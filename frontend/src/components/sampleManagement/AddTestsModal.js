@@ -48,6 +48,7 @@ function AddTestsModal({
   selectedSampleIds = [],
   selectedSamples = [],
   onSuccess,
+  isReadOnly = false,
 }) {
   const intl = useIntl();
 
@@ -288,6 +289,10 @@ function AddTestsModal({
    * Handle form submission.
    */
   const handleSubmit = useCallback(() => {
+    if (isReadOnly) {
+      return;
+    }
+
     // Validate selection
     if (selectedTests.length === 0) {
       setError(
@@ -350,7 +355,14 @@ function AddTestsModal({
         }
       },
     );
-  }, [selectedTests, eligibleSamples, onSuccess, onClose, intl]);
+  }, [
+    selectedTests,
+    eligibleSamples,
+    onSuccess,
+    onClose,
+    intl,
+    isReadOnly,
+  ]);
 
   /**
    * Clear error notification.
@@ -453,6 +465,7 @@ function AddTestsModal({
                   id: "sample.management.addTests.modal.selectSampleType",
                 })}
                 value={selectedSampleTypeId}
+                disabled={isReadOnly}
                 onChange={handleSampleTypeChange}
               >
                 <SelectItem
@@ -505,6 +518,7 @@ function AddTestsModal({
                                   id={`panel-${panel.id}`}
                                   labelText={panel.name}
                                   checked={isPanelSelected(panel.id)}
+                                  disabled={isReadOnly}
                                   onChange={(e) =>
                                     handlePanelCheckbox(e, panel)
                                   }
@@ -528,6 +542,7 @@ function AddTestsModal({
                             id: "sample.management.addTests.modal.searchTestsPlaceholder",
                           })}
                           value={testSearchTerm}
+                          disabled={isReadOnly}
                           onChange={handleTestSearchChange}
                           size="sm"
                           style={{ marginBottom: "0.5rem" }}
@@ -551,6 +566,7 @@ function AddTestsModal({
                                 id={`test-${test.id}`}
                                 labelText={test.name}
                                 checked={isTestSelected(test.id)}
+                                disabled={isReadOnly}
                                 onChange={(e) => handleTestCheckbox(e, test)}
                               />
                             ))
@@ -596,7 +612,11 @@ function AddTestsModal({
                               key={test.id}
                               type="blue"
                               filter
-                              onClose={() => handleRemoveTest(test.id)}
+                              onClose={
+                                isReadOnly
+                                  ? undefined
+                                  : () => handleRemoveTest(test.id)
+                              }
                             >
                               {test.name}
                             </Tag>
@@ -647,6 +667,7 @@ function AddTestsModal({
           kind="primary"
           onClick={handleSubmit}
           disabled={
+            isReadOnly ||
             loading ||
             loadingTests ||
             selectedTests.length === 0 ||

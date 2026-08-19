@@ -111,25 +111,32 @@ function SampleResultsTable({
   onTestRemoved,
   currentTestsVisibleBySampleId = {},
   onPersistResult,
+  isReadOnly = false,
 }) {
   const intl = useIntl();
 
-  const normalizeProfileCode = (rawValue) => {
-    const normalized = String(rawValue || "")
+  const normalizeProfileCode = (rawValue) =>
+    String(rawValue || "")
       .trim()
       .toUpperCase();
-    if (!normalized) return "";
-    if (normalized === "BIOLOGO" || normalized === "BIOLOGISTA") {
-      return "BIOLOGIST";
-    }
-    if (
-      normalized === "MEDICO" ||
-      normalized === "MÉDICO" ||
-      normalized === "DOCTOR"
-    ) {
-      return "MEDICAL_DOCTOR";
-    }
-    return normalized;
+
+  const parseConfiguredProfileCodes = (config) => {
+    const configuredCodes = Array.isArray(
+      config?.sampleCollectorProfessionalProfileCodes,
+    )
+      ? config.sampleCollectorProfessionalProfileCodes
+      : String(config?.sampleCollectorProfessionalProfileCode || "")
+          .split(",")
+          .map((entry) => entry.trim())
+          .filter(Boolean);
+
+    return Array.from(
+      new Set(
+        configuredCodes
+          .map((code) => normalizeProfileCode(code))
+          .filter(Boolean),
+      ),
+    );
   };
 
   // Track which tests are being cancelled (loading state)
@@ -447,36 +454,68 @@ function SampleResultsTable({
       setUomAssignmentsBySampleType(res || {});
     });
 
-    const fetchCollectorUsers = (profileCode) => {
-      const normalizedCode = normalizeProfileCode(profileCode);
-      if (!normalizedCode) {
+    const fetchCollectorUsers = (profileCodes) => {
+      const normalizedCodes = Array.from(
+        new Set((profileCodes || []).map(normalizeProfileCode).filter(Boolean)),
+      );
+      if (normalizedCodes.length === 0) {
         if (componentMounted.current) {
           setCollectorUsers([]);
         }
         return;
       }
-      getFromOpenElisServer(
-        `/rest/users/professional-profile/${encodeURIComponent(
-          normalizedCode,
-        )}?activeOnly=true&requireEmail=false`,
-        (usersResponse) => {
-          if (!componentMounted.current) return;
-          const options = Array.isArray(usersResponse)
-            ? usersResponse.map((item) => ({
-                id: item.id,
-                value: item.value,
-              }))
-            : [];
-          setCollectorUsers(options);
-        },
-      );
+
+      const mergedOptions = new Map();
+      let pendingRequests = normalizedCodes.length;
+
+      normalizedCodes.forEach((profileCode) => {
+        getFromOpenElisServer(
+          `/rest/users/professional-profile/${encodeURIComponent(
+            profileCode,
+          )}?activeOnly=true&requireEmail=false`,
+          (usersResponse) => {
+            if (!componentMounted.current) return;
+
+            const options = Array.isArray(usersResponse)
+              ? usersResponse
+                  .map((item) => ({
+                    id: item.id,
+                    value: item.value,
+                  }))
+                  .filter((item) => String(item.value || "").trim())
+              : [];
+
+            options.forEach((option) => {
+              const dedupeKey =
+                String(option.id || "").trim() ||
+                String(option.value || "").trim();
+              if (dedupeKey && !mergedOptions.has(dedupeKey)) {
+                mergedOptions.set(dedupeKey, option);
+              }
+            });
+
+            pendingRequests -= 1;
+            if (pendingRequests === 0) {
+              setCollectorUsers(
+                Array.from(mergedOptions.values()).sort((left, right) =>
+                  String(left.value || "").localeCompare(
+                    String(right.value || ""),
+                    undefined,
+                    {
+                      sensitivity: "base",
+                    },
+                  ),
+                ),
+              );
+            }
+          },
+        );
+      });
     };
 
     getFromOpenElisServer("/rest/open-configuration-properties", (config) => {
       if (!componentMounted.current) return;
-      const collectorProfileCode =
-        config?.sampleCollectorProfessionalProfileCode || "BIOLOGIST";
-      fetchCollectorUsers(normalizeProfileCode(collectorProfileCode));
+      fetchCollectorUsers(parseConfiguredProfileCodes(config));
     });
 
     return () => {
@@ -1005,6 +1044,10 @@ function SampleResultsTable({
   };
 
   const handleSaveSampleChanges = (sampleId, originalRow, additionalFields) => {
+    if (isReadOnly) {
+      return;
+    }
+
     const payload = buildSampleSavePayload(
       sampleId,
       originalRow,
@@ -1048,6 +1091,10 @@ function SampleResultsTable({
    */
   const handleCancelTest = useCallback(
     (sampleItemId, analysisId, testName) => {
+      if (isReadOnly) {
+        return;
+      }
+
       // Set loading state for this specific test
       setCancellingTests((prev) => ({ ...prev, [analysisId]: true }));
 
@@ -1074,7 +1121,7 @@ function SampleResultsTable({
         },
       );
     },
-    [onTestRemoved],
+    [isReadOnly, onTestRemoved],
   );
 
   /**
@@ -1300,7 +1347,7 @@ function SampleResultsTable({
                         resolveTestName(test, originalRow.sampleTypeId),
                       )
                     }
-                    disabled={!canCancelTest(test.status)}
+                    disabled={isReadOnly || !canCancelTest(test.status)}
                     tooltipPosition="left"
                   />
                 )}
@@ -1368,7 +1415,7 @@ function SampleResultsTable({
                     </div>
                     <div className="sample-mgmt-grid">
                       {editableSampleFieldDefinitions.map((field) => {
-                        const disabled = field.readonly;
+                        const disabled = isReadOnly || field.readonly;
                         switch (field.fieldKey) {
                           case "quantity":
                             return (
@@ -1513,6 +1560,7 @@ function SampleResultsTable({
                               id={fieldId}
                               labelText={fieldLabel}
                               checked={fieldValue === "true"}
+                              disabled={isReadOnly}
                               onChange={(e) =>
                                 updateAdditionalFieldValue(
                                   row.id,
@@ -1527,7 +1575,7 @@ function SampleResultsTable({
                         if (
                           fieldType === "SELECT" ||
                           fieldType === "RADIO" ||
-                          fieldType === "SYSTEM_USER_BIOLOGIST_SELECT"
+                          fieldType === "USER"
                         ) {
                           return (
                             <Select
@@ -1535,6 +1583,7 @@ function SampleResultsTable({
                               id={fieldId}
                               labelText={fieldLabel}
                               value={fieldValue}
+                              disabled={isReadOnly}
                               onChange={(e) =>
                                 updateAdditionalFieldValue(
                                   row.id,
@@ -1583,6 +1632,7 @@ function SampleResultsTable({
                                   id={`${fieldId}_multi_${optionIdx}`}
                                   labelText={option.optionLabel}
                                   checked={selectedValues.has(option.optionKey)}
+                                  disabled={isReadOnly}
                                   onChange={(e) =>
                                     updateAdditionalMultiSelectOption(
                                       row.id,
@@ -1605,6 +1655,7 @@ function SampleResultsTable({
                               labelText={fieldLabel}
                               style={{ gridColumn: "1 / -1" }}
                               value={fieldValue}
+                              disabled={isReadOnly}
                               onChange={(e) =>
                                 updateAdditionalFieldValue(
                                   row.id,
@@ -1636,6 +1687,7 @@ function SampleResultsTable({
                             size="lg"
                             style={{ minHeight: "52px" }}
                             value={fieldValue}
+                            disabled={isReadOnly}
                             onChange={(e) =>
                               updateAdditionalFieldValue(
                                 row.id,
@@ -1731,6 +1783,7 @@ function SampleResultsTable({
                       id={fieldId}
                       labelText={fieldLabel}
                       checked={fieldValue === "true"}
+                      disabled={isReadOnly}
                       onChange={(e) =>
                         updateAdditionalFieldValue(
                           row.id,
@@ -1745,7 +1798,7 @@ function SampleResultsTable({
                 if (
                   fieldType === "SELECT" ||
                   fieldType === "RADIO" ||
-                  fieldType === "SYSTEM_USER_BIOLOGIST_SELECT"
+                  fieldType === "USER"
                 ) {
                   return (
                     <Select
@@ -1753,6 +1806,7 @@ function SampleResultsTable({
                       id={fieldId}
                       labelText={fieldLabel}
                       value={fieldValue}
+                      disabled={isReadOnly}
                       onChange={(e) =>
                         updateAdditionalFieldValue(
                           row.id,
@@ -1794,6 +1848,7 @@ function SampleResultsTable({
                           id={`${fieldId}_multi_${optionIdx}`}
                           labelText={option.optionLabel}
                           checked={selectedValues.has(option.optionKey)}
+                          disabled={isReadOnly}
                           onChange={(e) =>
                             updateAdditionalMultiSelectOption(
                               row.id,
@@ -1816,6 +1871,7 @@ function SampleResultsTable({
                       labelText={fieldLabel}
                       style={{ gridColumn: "1 / -1" }}
                       value={fieldValue}
+                      disabled={isReadOnly}
                       onChange={(e) =>
                         updateAdditionalFieldValue(
                           row.id,
@@ -1847,6 +1903,7 @@ function SampleResultsTable({
                     size="lg"
                     style={{ minHeight: "52px" }}
                     value={fieldValue}
+                    disabled={isReadOnly}
                     onChange={(e) =>
                       updateAdditionalFieldValue(
                         row.id,
@@ -1868,7 +1925,7 @@ function SampleResultsTable({
               onClick={() =>
                 handleSaveSampleChanges(row.id, originalRow, additionalFields)
               }
-              disabled={Boolean(savingBySampleId[row.id])}
+              disabled={isReadOnly || Boolean(savingBySampleId[row.id])}
             >
               {savingBySampleId[row.id]
                 ? intl.formatMessage({ id: "sample.management.search.loading" })

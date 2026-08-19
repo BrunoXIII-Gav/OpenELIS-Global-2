@@ -1,4 +1,4 @@
-import React, { useEffect, useMemo, useState } from "react";
+import React, { useEffect, useMemo, useRef, useState } from "react";
 import {
   Button,
   Checkbox,
@@ -17,9 +17,11 @@ import { FormattedMessage, useIntl } from "react-intl";
 import {
   getAllTests,
   getValidationFieldOptions,
+  getUserFieldOptions,
   getValidationTemplateOverrides,
   parseValidationTemplateFile,
   saveValidationTemplateOverride,
+  downloadValidationTemplateFile,
   uploadValidationTemplateImage,
 } from "../../services/reportTemplateOverrideService";
 import "./ValidationTemplateOverrideConfig.scss";
@@ -27,6 +29,16 @@ import "./ValidationTemplateOverrideConfig.scss";
 const DYNAMIC_TEMPLATE_MODE = "jasper_dynamic";
 const LEGACY_TEMPLATE_MODE = "legacy";
 const DYNAMIC_TEMPLATE_REPORT = "dynamicJasperValidation";
+const CONDITIONAL_MAPPING_TYPE = "conditional";
+const DEFAULT_CONDITIONAL_OPERATOR = "lt";
+
+const conditionalOperatorOptions = [
+  { id: "lt", label: "<" },
+  { id: "lte", label: "<=" },
+  { id: "eq", label: "=" },
+  { id: "gte", label: ">=" },
+  { id: "gt", label: ">" },
+];
 
 const defaultImageOptions = [
   { id: "headerLeftImage", label: "Site Header Left Logo" },
@@ -44,6 +56,7 @@ const emptyForm = {
   testCodesText: "",
   mode: DYNAMIC_TEMPLATE_MODE,
   templateName: "",
+  templateOriginalFilename: "",
   templateContent: "",
   parameterDefinitions: [],
   parameterMappings: {},
@@ -61,9 +74,47 @@ const csvToArray = (raw) =>
 const arrayToCsv = (values) =>
   Array.isArray(values) && values.length > 0 ? values.join(", ") : "";
 
+const normalizeDataType = (value) =>
+  String(value || "text")
+    .trim()
+    .toLowerCase() || "text";
+
+const isNumericDataType = (value) =>
+  [
+    "number",
+    "decimal",
+    "double",
+    "float",
+    "integer",
+    "long",
+    "short",
+    "bigdecimal",
+  ].includes(normalizeDataType(value));
+
+const normalizeNumericInput = (value) => {
+  const rawValue = String(value || "").trim().replace(/\s+/g, "");
+  if (!rawValue) {
+    return "";
+  }
+
+  if (rawValue.includes(",") && rawValue.includes(".")) {
+    return rawValue.lastIndexOf(",") > rawValue.lastIndexOf(".")
+      ? rawValue.replace(/\./g, "").replace(",", ".")
+      : rawValue.replace(/,/g, "");
+  }
+
+  return rawValue.includes(",") ? rawValue.replace(",", ".") : rawValue;
+};
+
+const isValidNumericInput = (value) => {
+  const normalized = normalizeNumericInput(value);
+  return normalized ? !Number.isNaN(Number(normalized)) : false;
+};
+
 const normalizeOption = (option) => ({
   id: String(option?.id || ""),
   label: String(option?.label || option?.value || option?.id || ""),
+  dataType: normalizeDataType(option?.dataType),
 });
 
 const normalizeImageOptions = (imageOptions) => {
@@ -94,8 +145,51 @@ const normalizeMappings = (mappings) => {
     if (!parameter) {
       return acc;
     }
+    const mappingType = String(mapping?.type || "").trim();
+    
+    if (mappingType === CONDITIONAL_MAPPING_TYPE) {
+      acc[parameter] = {
+        type: CONDITIONAL_MAPPING_TYPE,
+        value: "",
+        defaultType: String(mapping?.defaultType || "source").trim(),
+        defaultValue: String(mapping?.defaultValue || "").trim(),
+        conditionSource: String(mapping?.conditionSource || "").trim(),
+        operator: String(
+          mapping?.operator || DEFAULT_CONDITIONAL_OPERATOR,
+        ).trim(),
+        compareTo: String(mapping?.compareTo || "").trim(),
+        trueType: String(mapping?.trueType || "constant").trim(),
+        trueValue: String(mapping?.trueValue || "").trim(),
+        falseType: String(mapping?.falseType || "constant").trim(),
+        falseValue: String(mapping?.falseValue || "").trim(),
+      };
+      return acc;
+    }
+    
+    if (mappingType === "user_field") {
+      const profileFieldMappings = mapping?.profileFieldMappings || {};
+      const cleanedMappings = typeof profileFieldMappings === "object" && profileFieldMappings !== null
+        ? Object.entries(profileFieldMappings)
+            .filter(([_, fieldKey]) => String(fieldKey || "").trim())
+            .reduce((obj, [profileCode, fieldKey]) => {
+              obj[String(profileCode).trim()] = String(fieldKey).trim();
+              return obj;
+            }, {})
+        : {};
+      
+      acc[parameter] = {
+        type: "user_field",
+        userFieldId: String(mapping?.userFieldId || "").trim(),
+        userFieldKey: String(mapping?.userFieldKey || "").trim(),
+        profileFieldKey: String(mapping?.profileFieldKey || "").trim(), // Legacy
+        profileFieldMappings: cleanedMappings,
+        value: String(mapping?.profileFieldKey || "").trim(), // For backward compatibility
+      };
+      return acc;
+    }
+    
     acc[parameter] = {
-      type: String(mapping?.type || "source").trim(),
+      type: mappingType || "source",
       value: String(mapping?.value || "").trim(),
     };
     return acc;
@@ -189,6 +283,82 @@ const buildOptionIndex = (options) =>
     return acc;
   }, {});
 
+const buildConditionalMapping = (
+  current,
+  fallbackType,
+  fallbackValue,
+  numericSourceOptions,
+) => {
+  const normalizedRules = Array.isArray(current?.rules)
+    ? current.rules
+        .map((rule) => ({
+          operator: String(
+            rule?.operator || DEFAULT_CONDITIONAL_OPERATOR,
+          ).trim(),
+          compareTo: String(rule?.compareTo || "").trim(),
+          resultType: String(rule?.resultType || "constant").trim(),
+          resultValue: String(rule?.resultValue || "").trim(),
+        }))
+        .filter(
+          (rule) => rule.operator || rule.compareTo || rule.resultType || rule.resultValue,
+        )
+    : [];
+
+  const legacyRule =
+    normalizedRules.length === 0 &&
+    (current?.operator ||
+      current?.compareTo ||
+      current?.trueType ||
+      current?.trueValue)
+      ? [
+          {
+            operator: String(
+              current?.operator || DEFAULT_CONDITIONAL_OPERATOR,
+            ).trim(),
+            compareTo: String(current?.compareTo || "").trim(),
+            resultType: String(current?.trueType || "constant").trim(),
+            resultValue: String(current?.trueValue || "").trim(),
+          },
+        ]
+      : [];
+
+  return {
+    type: CONDITIONAL_MAPPING_TYPE,
+    value: "",
+    defaultType: String(current?.defaultType || fallbackType || "source").trim(),
+    defaultValue: String(current?.defaultValue || fallbackValue || "").trim(),
+    conditionSource: String(
+      current?.conditionSource || numericSourceOptions[0]?.id || "",
+    ).trim(),
+    rules:
+      normalizedRules.length > 0
+        ? normalizedRules
+        : legacyRule.length > 0
+          ? legacyRule
+          : [
+              {
+                operator: DEFAULT_CONDITIONAL_OPERATOR,
+                compareTo: "",
+                resultType: "constant",
+                resultValue: "",
+              },
+            ],
+    fallbackType: String(
+      current?.fallbackType || current?.falseType || "empty",
+    ).trim(),
+    fallbackValue: String(
+      current?.fallbackValue || current?.falseValue || "",
+    ).trim(),
+  };
+};
+
+const createEmptyConditionalRule = () => ({
+  operator: DEFAULT_CONDITIONAL_OPERATOR,
+  compareTo: "",
+  resultType: "constant",
+  resultValue: "",
+});
+
 const inferMappingForParameter = (parameter, sourceOptions, imageOptions) => {
   const normalizedName = normalizeToken(parameter?.name);
   if (!normalizedName) {
@@ -250,6 +420,19 @@ const ensureMappingsForParameters = (
       sourceOptions,
       imageOptions,
     );
+    const numericSourceOptions = (sourceOptions || []).filter((option) =>
+      isNumericDataType(option?.dataType),
+    );
+
+    if (current?.type === CONDITIONAL_MAPPING_TYPE) {
+      acc[parameter.name] = buildConditionalMapping(
+        current,
+        current?.defaultType || suggested?.type || "source",
+        current?.defaultValue || suggested?.value || "",
+        numericSourceOptions,
+      );
+      return acc;
+    }
 
     if (current?.type && (current.type === "empty" || current.value)) {
       acc[parameter.name] = current;
@@ -303,6 +486,7 @@ const toFormState = (override, imageOptions, sourceOptions = []) => {
     testCodesText: arrayToCsv(override?.testCodes),
     mode: getTemplateMode(override),
     templateName: override?.config?.templateName || "",
+    templateOriginalFilename: override?.config?.templateOriginalFilename || "",
     templateContent: override?.config?.templateContent || "",
     parameterDefinitions,
     parameterMappings,
@@ -318,6 +502,11 @@ const ValidationTemplateOverrideConfig = () => {
   const intl = useIntl();
   const [tests, setTests] = useState([]);
   const [sourceOptions, setSourceOptions] = useState([]);
+  const [userFieldOptions, setUserFieldOptions] = useState({
+    userFields: [],
+    validatorProfiles: [],
+    profileFieldsByProfile: {},
+  });
   const [imageOptions, setImageOptions] = useState(defaultImageOptions);
   const [overrides, setOverrides] = useState([]);
   const [form, setForm] = useState({
@@ -329,6 +518,11 @@ const ValidationTemplateOverrideConfig = () => {
   const [parsingTemplate, setParsingTemplate] = useState(false);
   const [uploadingParameter, setUploadingParameter] = useState("");
   const [message, setMessage] = useState(null);
+  const templateFileInputRef = useRef(null);
+  const numericSourceOptions = useMemo(
+    () => (sourceOptions || []).filter((option) => isNumericDataType(option?.dataType)),
+    [sourceOptions],
+  );
 
   const testItems = useMemo(
     () =>
@@ -356,7 +550,7 @@ const ValidationTemplateOverrideConfig = () => {
     [overrides],
   );
 
-  const loadData = () => {
+  const loadData = (selectedOverrideId = "") => {
     setLoading(true);
     getAllTests((testData) => {
       setTests(Array.isArray(testData) ? testData : []);
@@ -371,9 +565,11 @@ const ValidationTemplateOverrideConfig = () => {
           const parsed = Array.isArray(overrideData) ? overrideData : [];
           setOverrides(parsed);
           setForm((prev) =>
-            prev?.id
+            selectedOverrideId || prev?.id
               ? toFormState(
-                  parsed.find((item) => item.id === prev.id) || prev,
+                  parsed.find(
+                    (item) => item.id === (selectedOverrideId || prev.id),
+                  ) || prev,
                   nextImageOptions,
                   nextSourceOptions,
                 )
@@ -416,6 +612,15 @@ const ValidationTemplateOverrideConfig = () => {
         ),
       }));
     });
+
+    // Load user field options for cascading dropdowns
+    getUserFieldOptions(form.testIds, (data) => {
+      setUserFieldOptions({
+        userFields: Array.isArray(data?.userFields) ? data.userFields : [],
+        validatorProfiles: Array.isArray(data?.validatorProfiles) ? data.validatorProfiles : [],
+        profileFieldsByProfile: data?.profileFieldsByProfile || {},
+      });
+    });
   }, [form.testIds]);
 
   const onCreateNew = () => {
@@ -453,6 +658,219 @@ const ValidationTemplateOverrideConfig = () => {
     }));
   };
 
+  const setParameterMapping = (parameterName, mapping) => {
+    setForm((prev) => ({
+      ...prev,
+      parameterMappings: {
+        ...(prev.parameterMappings || {}),
+        [parameterName]: mapping,
+      },
+    }));
+  };
+
+  const toggleConditionalMapping = (parameter) => {
+    const current = form.parameterMappings?.[parameter.name] || {};
+    const suggested = inferMappingForParameter(parameter, sourceOptions, imageOptions);
+    const isImageParameter = parameter.className === "java.io.InputStream";
+
+    if (current?.type === CONDITIONAL_MAPPING_TYPE) {
+      const fallbackType = String(
+        current?.defaultType || suggested?.type || (isImageParameter ? "image" : "source"),
+      ).trim();
+      const fallbackValue =
+        fallbackType === "empty"
+          ? ""
+          : String(
+              current?.defaultValue ||
+                (fallbackType === "image"
+                  ? imageOptions[0]?.id || ""
+                  : suggested?.value || ""),
+            ).trim();
+
+      setParameterMapping(parameter.name, {
+        type: fallbackType,
+        value: fallbackValue,
+      });
+      return;
+    }
+
+    setParameterMapping(
+      parameter.name,
+      buildConditionalMapping(
+        current,
+        current?.type || suggested?.type || "source",
+        current?.value || suggested?.value || "",
+        numericSourceOptions,
+      ),
+    );
+  };
+
+  const updateConditionalRule = (parameterName, index, patch) => {
+    setForm((prev) => {
+      const current = prev.parameterMappings?.[parameterName] || {};
+      const rules = Array.isArray(current.rules) ? [...current.rules] : [];
+      rules[index] = {
+        ...(rules[index] || createEmptyConditionalRule()),
+        ...patch,
+      };
+
+      return {
+        ...prev,
+        parameterMappings: {
+          ...(prev.parameterMappings || {}),
+          [parameterName]: {
+            ...current,
+            rules,
+          },
+        },
+      };
+    });
+  };
+
+  const addConditionalRule = (parameterName) => {
+    setForm((prev) => {
+      const current = prev.parameterMappings?.[parameterName] || {};
+      const rules = Array.isArray(current.rules) ? [...current.rules] : [];
+      rules.push(createEmptyConditionalRule());
+
+      return {
+        ...prev,
+        parameterMappings: {
+          ...(prev.parameterMappings || {}),
+          [parameterName]: {
+            ...current,
+            rules,
+          },
+        },
+      };
+    });
+  };
+
+  const removeConditionalRule = (parameterName, index) => {
+    setForm((prev) => {
+      const current = prev.parameterMappings?.[parameterName] || {};
+      const rules = Array.isArray(current.rules) ? [...current.rules] : [];
+      const nextRules = rules.filter((_, ruleIndex) => ruleIndex !== index);
+
+      return {
+        ...prev,
+        parameterMappings: {
+          ...(prev.parameterMappings || {}),
+          [parameterName]: {
+            ...current,
+            rules:
+              nextRules.length > 0 ? nextRules : [createEmptyConditionalRule()],
+          },
+        },
+      };
+    });
+  };
+
+  const validateConditionalMappings = () => {
+    for (const parameter of form.parameterDefinitions || []) {
+      const mapping = form.parameterMappings?.[parameter.name];
+      if (mapping?.type !== CONDITIONAL_MAPPING_TYPE) {
+        continue;
+      }
+
+      const selectedSource = numericSourceOptions.find(
+        (option) => option.id === mapping.conditionSource,
+      );
+      if (!selectedSource) {
+        return intl.formatMessage(
+          {
+            id: "validation.template.override.conditional.error.source",
+            defaultMessage:
+              "{parameter} must depend on a numeric OpenELIS source.",
+          },
+          { parameter: parameter.name },
+        );
+      }
+
+      const rules = Array.isArray(mapping.rules) ? mapping.rules : [];
+      if (rules.length === 0) {
+        return intl.formatMessage(
+          {
+            id: "validation.template.override.conditional.error.rules",
+            defaultMessage:
+              "{parameter} requires at least one conditional rule.",
+          },
+          { parameter: parameter.name },
+        );
+      }
+
+      for (const rule of rules) {
+        const normalizedCompareTo = String(rule?.compareTo || "").trim();
+        if (!normalizedCompareTo || !isValidNumericInput(normalizedCompareTo)) {
+          return intl.formatMessage(
+            {
+              id: "validation.template.override.conditional.error.compareTo",
+              defaultMessage:
+                "{parameter} needs a valid numeric comparison value.",
+            },
+            { parameter: parameter.name },
+          );
+        }
+
+        const branchType = String(rule?.resultType || "").trim();
+        const branchValue = String(rule?.resultValue || "").trim();
+        if (
+          branchType === "source" &&
+          !sourceOptions.some((option) => option.id === branchValue)
+        ) {
+          return intl.formatMessage(
+            {
+              id: "validation.template.override.conditional.error.branchSource",
+              defaultMessage:
+                "{parameter} must use valid OpenELIS sources for conditional outcomes.",
+            },
+            { parameter: parameter.name },
+          );
+        }
+
+        if (branchType === "constant" && !branchValue) {
+          return intl.formatMessage(
+            {
+              id: "validation.template.override.conditional.error.branchValue",
+              defaultMessage:
+                "{parameter} requires values for all conditional outcomes.",
+            },
+            { parameter: parameter.name },
+          );
+        }
+      }
+
+      const fallbackType = String(mapping?.fallbackType || "").trim();
+      const fallbackValue = String(mapping?.fallbackValue || "").trim();
+      if (
+        fallbackType === "source" &&
+        !sourceOptions.some((option) => option.id === fallbackValue)
+      ) {
+        return intl.formatMessage(
+          {
+            id: "validation.template.override.conditional.error.branchSource",
+            defaultMessage:
+              "{parameter} must use valid OpenELIS sources for conditional outcomes.",
+          },
+          { parameter: parameter.name },
+        );
+      }
+
+      if (fallbackType === "constant" && !fallbackValue) {
+        return intl.formatMessage(
+          {
+            id: "validation.template.override.conditional.error.branchValue",
+            defaultMessage:
+              "{parameter} requires values for all conditional outcomes.",
+          },
+          { parameter: parameter.name },
+        );
+      }
+    }
+
+    return null;
+  };
+
   const applyParsedTemplate = (parsedTemplate) => {
     const parameterDefinitions = normalizeParameterDefinitions(
       parsedTemplate?.parameterDefinitions,
@@ -464,6 +882,9 @@ const ValidationTemplateOverrideConfig = () => {
       report: DYNAMIC_TEMPLATE_REPORT,
       templateName:
         String(parsedTemplate?.templateName || "").trim() || prev.templateName,
+      templateOriginalFilename:
+        String(parsedTemplate?.templateOriginalFilename || "").trim() ||
+        prev.templateOriginalFilename,
       templateContent: String(parsedTemplate?.templateContent || ""),
       parameterDefinitions,
       warningMessages: Array.isArray(parsedTemplate?.warningMessages)
@@ -481,6 +902,9 @@ const ValidationTemplateOverrideConfig = () => {
         mode: DYNAMIC_TEMPLATE_MODE,
         templateName:
           String(parsedTemplate?.templateName || "").trim() || prev.templateName,
+        templateOriginalFilename:
+          String(parsedTemplate?.templateOriginalFilename || "").trim() ||
+          prev.templateOriginalFilename,
         templateContent: String(parsedTemplate?.templateContent || ""),
         parameterDefinitions,
         warningMessages: Array.isArray(parsedTemplate?.warningMessages)
@@ -544,6 +968,34 @@ const ValidationTemplateOverrideConfig = () => {
     }
   };
 
+  const onClickSelectTemplateFile = () => {
+    templateFileInputRef.current?.click();
+  };
+
+  const onDownloadTemplateFile = async () => {
+    if (!form.id) {
+      return;
+    }
+
+    try {
+      await downloadValidationTemplateFile(form.id);
+    } catch (error) {
+      setMessage({
+        kind: "error",
+        title: intl.formatMessage({
+          id: "validation.template.override.template.download.error.title",
+          defaultMessage: "Unable to download template",
+        }),
+        subtitle:
+          error?.message ||
+          intl.formatMessage({
+            id: "validation.template.override.template.download.error.subtitle",
+            defaultMessage: "The JRXML file could not be downloaded.",
+          }),
+      });
+    }
+  };
+
   const onUploadParameterImage = async (parameterName, file) => {
     if (!file) {
       return;
@@ -595,6 +1047,7 @@ const ValidationTemplateOverrideConfig = () => {
   const buildDynamicConfig = () => ({
     mode: DYNAMIC_TEMPLATE_MODE,
     templateName: form.templateName?.trim(),
+    templateOriginalFilename: form.templateOriginalFilename?.trim(),
     templateContent: form.templateContent,
     parameterDefinitions: form.parameterDefinitions.map((parameter) => ({
       name: parameter.name,
@@ -604,7 +1057,70 @@ const ValidationTemplateOverrideConfig = () => {
       (acc, [parameter, mapping]) => {
         const type = String(mapping?.type || "").trim();
         const value = String(mapping?.value || "").trim();
-        if (!type || (type !== "empty" && !value)) {
+        if (!type) {
+          return acc;
+        }
+        if (type === CONDITIONAL_MAPPING_TYPE) {
+          acc[parameter] = {
+            type,
+            defaultType: String(mapping?.defaultType || "source").trim(),
+            defaultValue: String(mapping?.defaultValue || "").trim(),
+            conditionSource: String(mapping?.conditionSource || "").trim(),
+            rules: (Array.isArray(mapping?.rules) ? mapping.rules : []).map(
+              (rule) => ({
+                operator: String(
+                  rule?.operator || DEFAULT_CONDITIONAL_OPERATOR,
+                ).trim(),
+                compareTo: String(rule?.compareTo || "").trim(),
+                resultType: String(rule?.resultType || "constant").trim(),
+                resultValue: String(rule?.resultValue || "").trim(),
+              }),
+            ),
+            fallbackType: String(mapping?.fallbackType || "empty").trim(),
+            fallbackValue: String(mapping?.fallbackValue || "").trim(),
+          };
+          return acc;
+        }
+        if (type === "user_field") {
+          const userFieldId = String(mapping?.userFieldId || "").trim();
+          const profileFieldMappings = mapping?.profileFieldMappings || {};
+          
+          // Validate that we have at least one profile mapping or legacy profileFieldKey
+          const hasProfileMappings = Object.keys(profileFieldMappings).length > 0;
+          const legacyProfileFieldKey = String(mapping?.profileFieldKey || "").trim();
+          
+          if (!userFieldId || (!hasProfileMappings && !legacyProfileFieldKey)) {
+            return acc;
+          }
+          
+          acc[parameter] = {
+            type: "user_field",
+            userFieldId,
+            userFieldKey: String(mapping?.userFieldKey || "").trim(),
+          };
+          
+          // Add profile-specific mappings
+          if (hasProfileMappings) {
+            const cleanedMappings = Object.entries(profileFieldMappings)
+              .filter(([_, fieldKey]) => String(fieldKey || "").trim())
+              .reduce((obj, [profileCode, fieldKey]) => {
+                obj[profileCode] = String(fieldKey).trim();
+                return obj;
+              }, {});
+            
+            if (Object.keys(cleanedMappings).length > 0) {
+              acc[parameter].profileFieldMappings = cleanedMappings;
+            }
+          }
+          
+          // Keep legacy profileFieldKey for backward compatibility
+          if (legacyProfileFieldKey) {
+            acc[parameter].profileFieldKey = legacyProfileFieldKey;
+          }
+          
+          return acc;
+        }
+        if (type !== "empty" && !value) {
           return acc;
         }
         acc[parameter] = { type, value };
@@ -665,6 +1181,19 @@ const ValidationTemplateOverrideConfig = () => {
         });
         return;
       }
+
+      const conditionalValidationError = validateConditionalMappings();
+      if (conditionalValidationError) {
+        setMessage({
+          kind: "error",
+          title: intl.formatMessage({
+            id: "validation.template.override.save.error.title",
+            defaultMessage: "Validation Error",
+          }),
+          subtitle: conditionalValidationError,
+        });
+        return;
+      }
     }
 
     const payload = {
@@ -684,7 +1213,7 @@ const ValidationTemplateOverrideConfig = () => {
 
     try {
       setSaving(true);
-      await saveValidationTemplateOverride(payload);
+      const savedOverride = await saveValidationTemplateOverride(payload);
       setMessage({
         kind: "success",
         title: intl.formatMessage({
@@ -696,7 +1225,7 @@ const ValidationTemplateOverrideConfig = () => {
           defaultMessage: "Template override saved successfully.",
         }),
       });
-      loadData();
+      loadData(savedOverride?.id || form.id || "");
     } catch (error) {
       setMessage({
         kind: "error",
@@ -722,63 +1251,182 @@ const ValidationTemplateOverrideConfig = () => {
       value: "",
     };
     const isImageParameter = parameter.className === "java.io.InputStream";
+    const hasConditionalRule = mapping.type === CONDITIONAL_MAPPING_TYPE;
 
-    return (
-      <div className="validation-template-override-parameter-controls">
+    const renderConditionalResultControl = (branchLabelId, branchLabel, typeKey, valueKey) => (
+      <div className="validation-template-override-conditional-branch">
         <Select
-          id={`mapping-type-${parameter.name}`}
+          id={`${parameter.name}-${typeKey}`}
           labelText={intl.formatMessage({
-            id: "validation.template.override.mapping.type",
-            defaultMessage: "Mapping type",
+            id: branchLabelId,
+            defaultMessage: branchLabel,
           })}
-          value={mapping.type}
+          value={mapping[typeKey] || "constant"}
           onChange={(event) =>
             updateParameterMapping(parameter.name, {
-              type: event.target.value,
-              value:
-                event.target.value === "image"
-                  ? imageOptions[0]?.id || ""
-                  : "",
+              [typeKey]: event.target.value,
+              [valueKey]:
+                event.target.value === "empty" ? "" : mapping[valueKey] || "",
             })
           }
         >
-          {!isImageParameter && (
-            <SelectItem
-              value="source"
-              text={intl.formatMessage({
-                id: "validation.template.override.mapping.type.source",
-                defaultMessage: "System data",
-              })}
-            />
-          )}
-          {!isImageParameter && (
-            <SelectItem
-              value="constant"
-              text={intl.formatMessage({
-                id: "validation.template.override.mapping.type.constant",
-                defaultMessage: "Fixed text",
-              })}
-            />
-          )}
-          {isImageParameter && (
-            <SelectItem
-              value="image"
-              text={intl.formatMessage({
-                id: "validation.template.override.mapping.type.image",
-                defaultMessage: "Image",
-              })}
-            />
-          )}
+          <SelectItem
+            value="constant"
+            text={intl.formatMessage({
+              id: "validation.template.override.conditional.result.constant",
+              defaultMessage: "Fixed value",
+            })}
+          />
+          <SelectItem
+            value="source"
+            text={intl.formatMessage({
+              id: "validation.template.override.conditional.result.source",
+              defaultMessage: "System data",
+            })}
+          />
           <SelectItem
             value="empty"
             text={intl.formatMessage({
-              id: "validation.template.override.mapping.type.empty",
+              id: "validation.template.override.conditional.result.empty",
               defaultMessage: "Leave empty",
             })}
           />
         </Select>
 
-        {mapping.type === "source" && (
+        {mapping[typeKey] === "constant" && (
+          <TextInput
+            id={`${parameter.name}-${valueKey}`}
+            labelText={intl.formatMessage({
+              id: "validation.template.override.conditional.result.value",
+              defaultMessage: "Result value",
+            })}
+            value={mapping[valueKey] || ""}
+            onChange={(event) =>
+              updateParameterMapping(parameter.name, {
+                [valueKey]: event.target.value,
+              })
+            }
+          />
+        )}
+
+        {mapping[typeKey] === "source" && (
+          <Select
+            id={`${parameter.name}-${valueKey}`}
+            labelText={intl.formatMessage({
+              id: "validation.template.override.conditional.result.source.label",
+              defaultMessage: "Result source",
+            })}
+            value={mapping[valueKey] || ""}
+            onChange={(event) =>
+              updateParameterMapping(parameter.name, {
+                [valueKey]: event.target.value,
+              })
+            }
+          >
+            <SelectItem
+              value=""
+              text={intl.formatMessage({
+                id: "validation.template.override.mapping.source.placeholder",
+                defaultMessage: "Select a source",
+              })}
+            />
+            {sourceOptions.map((option) => (
+              <SelectItem key={option.id} value={option.id} text={option.label} />
+            ))}
+          </Select>
+        )}
+      </div>
+    );
+
+    return (
+      <div className="validation-template-override-parameter-controls">
+        {!isImageParameter && (
+          <Checkbox
+            id={`mapping-conditional-${parameter.name}`}
+            labelText={intl.formatMessage({
+              id: "validation.template.override.conditional.toggle",
+              defaultMessage: "Use conditional rule",
+            })}
+            checked={hasConditionalRule}
+            disabled={numericSourceOptions.length === 0 && !hasConditionalRule}
+            onChange={() => toggleConditionalMapping(parameter)}
+          />
+        )}
+
+        {!isImageParameter && numericSourceOptions.length === 0 && (
+          <p className="validation-template-override-inline-status">
+            <FormattedMessage
+              id="validation.template.override.conditional.disabled"
+              defaultMessage="No numeric OpenELIS sources are available for conditional rules with the selected tests."
+            />
+          </p>
+        )}
+
+        {!hasConditionalRule && (
+          <Select
+            id={`mapping-type-${parameter.name}`}
+            labelText={intl.formatMessage({
+              id: "validation.template.override.mapping.type",
+              defaultMessage: "Mapping type",
+            })}
+            value={mapping.type}
+            onChange={(event) =>
+              updateParameterMapping(parameter.name, {
+                type: event.target.value,
+                value:
+                  event.target.value === "image"
+                    ? imageOptions[0]?.id || ""
+                    : "",
+              })
+            }
+          >
+            {!isImageParameter && (
+              <SelectItem
+                value="source"
+                text={intl.formatMessage({
+                  id: "validation.template.override.mapping.type.source",
+                  defaultMessage: "System data",
+                })}
+              />
+            )}
+            {!isImageParameter && userFieldOptions.userFields.length > 0 && (
+              <SelectItem
+                value="user_field"
+                text={intl.formatMessage({
+                  id: "validation.template.override.mapping.type.user_field",
+                  defaultMessage: "Professional field (requester/analyst/validator)",
+                })}
+              />
+            )}
+            {!isImageParameter && (
+              <SelectItem
+                value="constant"
+                text={intl.formatMessage({
+                  id: "validation.template.override.mapping.type.constant",
+                  defaultMessage: "Fixed text",
+                })}
+              />
+            )}
+            {isImageParameter && (
+              <SelectItem
+                value="image"
+                text={intl.formatMessage({
+                  id: "validation.template.override.mapping.type.image",
+                  defaultMessage: "Image",
+                })}
+              />
+            )}
+            <SelectItem
+              value="empty"
+              text={intl.formatMessage({
+                id: "validation.template.override.mapping.type.empty",
+                defaultMessage: "Leave empty",
+              })}
+            />
+          </Select>
+        )}
+
+        {!hasConditionalRule && mapping.type === "source" && (
           <Select
             id={`mapping-source-${parameter.name}`}
             labelText={intl.formatMessage({
@@ -805,7 +1453,107 @@ const ValidationTemplateOverrideConfig = () => {
           </Select>
         )}
 
-        {mapping.type === "constant" && (
+        {!hasConditionalRule && mapping.type === "user_field" && (
+          <div className="validation-template-override-user-field-cascade">
+            {/* Level 1: Select USER field */}
+            <Select
+              id={`mapping-user-field-${parameter.name}`}
+              labelText={intl.formatMessage({
+                id: "validation.template.override.mapping.user_field",
+                defaultMessage: "Professional source (requester/analyst/validator)",
+              })}
+              value={mapping.userFieldId || ""}
+              onChange={(event) => {
+                const selectedField = userFieldOptions.userFields.find(
+                  (f) => f.fieldId === event.target.value
+                );
+                updateParameterMapping(parameter.name, {
+                  userFieldId: event.target.value,
+                  userFieldKey: selectedField?.fieldKey || "",
+                  profileFieldKey: "", // Reset Level 2 when Level 1 changes
+                  value: "", // Legacy compatibility
+                });
+              }}
+            >
+                <SelectItem
+                  value=""
+                  text={intl.formatMessage({
+                    id: "validation.template.override.mapping.user_field.placeholder",
+                    defaultMessage: "Select a professional source",
+                  })}
+                />
+              {userFieldOptions.userFields.map((field) => (
+                <SelectItem
+                  key={field.fieldId}
+                  value={field.fieldId}
+                  text={`${field.displayName} (${field.profileCodes.join(", ")})`}
+                />
+              ))}
+            </Select>
+
+            {/* Level 2: Select profile field for each profile code */}
+            {mapping.userFieldId && (() => {
+              const selectedUserField = userFieldOptions.userFields.find(
+                (f) => f.fieldId === mapping.userFieldId
+              );
+              if (!selectedUserField) return null;
+
+              // Get all unique profile codes for this user field
+              const profileCodes = selectedUserField.profileCodes || [];
+              
+              // Initialize profileFieldMappings if not exists
+              const profileFieldMappings = mapping.profileFieldMappings || {};
+
+              return (
+                <div className="validation-template-override-profile-mappings">
+                  <p className="validation-template-override-mapping-hint">
+                    <FormattedMessage
+                      id="validation.template.override.mapping.profile_mappings.hint"
+                      defaultMessage="Select which field to use for each professional profile:"
+                    />
+                  </p>
+                  {profileCodes.map((profileCode) => {
+                    const profileFields = userFieldOptions.profileFieldsByProfile[profileCode] || [];
+                    return (
+                      <Select
+                        key={`${parameter.name}-${profileCode}`}
+                        id={`mapping-profile-field-${parameter.name}-${profileCode}`}
+                        labelText={`${profileCode} → Field`}
+                        value={profileFieldMappings[profileCode] || ""}
+                        onChange={(event) => {
+                          const newMappings = {
+                            ...profileFieldMappings,
+                            [profileCode]: event.target.value,
+                          };
+                          updateParameterMapping(parameter.name, {
+                            profileFieldMappings: newMappings,
+                          });
+                        }}
+                      >
+                        <SelectItem
+                          value=""
+                          text={intl.formatMessage({
+                            id: "validation.template.override.mapping.profile_field.placeholder",
+                            defaultMessage: "Select a field",
+                          })}
+                        />
+                        {profileFields.map((field) => (
+                          <SelectItem
+                            key={field.fieldKey}
+                            value={field.fieldKey}
+                            text={`${field.displayName}${field.isSystemField ? "" : " (custom)"}`}
+                          />
+                        ))}
+                      </Select>
+                    );
+                  })}
+                </div>
+              );
+            })()}
+          </div>
+        )}
+
+        {!hasConditionalRule && mapping.type === "constant" && (
           <TextInput
             id={`mapping-constant-${parameter.name}`}
             labelText={intl.formatMessage({
@@ -821,7 +1569,7 @@ const ValidationTemplateOverrideConfig = () => {
           />
         )}
 
-        {mapping.type === "image" && (
+        {!hasConditionalRule && mapping.type === "image" && (
           <div className="validation-template-override-image-mapping">
             <Select
               id={`mapping-image-${parameter.name}`}
@@ -866,6 +1614,217 @@ const ValidationTemplateOverrideConfig = () => {
                 }}
               />
             </div>
+          </div>
+        )}
+
+        {hasConditionalRule && (
+          <div className="validation-template-override-conditional-box">
+            <Select
+              id={`mapping-conditional-source-${parameter.name}`}
+              labelText={intl.formatMessage({
+                id: "validation.template.override.conditional.dependsOn",
+                defaultMessage: "Depends on",
+              })}
+              value={mapping.conditionSource || ""}
+              onChange={(event) =>
+                updateParameterMapping(parameter.name, {
+                  conditionSource: event.target.value,
+                })
+              }
+            >
+              <SelectItem
+                value=""
+                text={intl.formatMessage({
+                  id: "validation.template.override.conditional.dependsOn.placeholder",
+                  defaultMessage: "Select a numeric source",
+                })}
+              />
+              {numericSourceOptions.map((option) => (
+                <SelectItem key={option.id} value={option.id} text={option.label} />
+              ))}
+            </Select>
+
+            <div className="validation-template-override-conditional-rules">
+              {(Array.isArray(mapping.rules) ? mapping.rules : []).map(
+                (rule, index) => (
+                  <div
+                    key={`${parameter.name}-rule-${index}`}
+                    className="validation-template-override-conditional-rule-row"
+                  >
+                    <div className="validation-template-override-conditional-grid">
+                      <Select
+                        id={`mapping-conditional-operator-${parameter.name}-${index}`}
+                        labelText={intl.formatMessage({
+                          id: "validation.template.override.conditional.operator",
+                          defaultMessage: "Operator",
+                        })}
+                        value={rule.operator || DEFAULT_CONDITIONAL_OPERATOR}
+                        onChange={(event) =>
+                          updateConditionalRule(parameter.name, index, {
+                            operator: event.target.value,
+                          })
+                        }
+                      >
+                        {conditionalOperatorOptions.map((option) => (
+                          <SelectItem
+                            key={option.id}
+                            value={option.id}
+                            text={option.label}
+                          />
+                        ))}
+                      </Select>
+
+                      <TextInput
+                        id={`mapping-conditional-compareTo-${parameter.name}-${index}`}
+                        labelText={intl.formatMessage({
+                          id: "validation.template.override.conditional.compareTo",
+                          defaultMessage: "Compare against",
+                        })}
+                        value={rule.compareTo || ""}
+                        onChange={(event) =>
+                          updateConditionalRule(parameter.name, index, {
+                            compareTo: event.target.value,
+                          })
+                        }
+                      />
+                    </div>
+
+                    <div className="validation-template-override-conditional-branch">
+                      <Select
+                        id={`mapping-conditional-result-type-${parameter.name}-${index}`}
+                        labelText={intl.formatMessage({
+                          id: "validation.template.override.conditional.ruleResult",
+                          defaultMessage: "If this rule matches",
+                        })}
+                        value={rule.resultType || "constant"}
+                        onChange={(event) =>
+                          updateConditionalRule(parameter.name, index, {
+                            resultType: event.target.value,
+                            resultValue:
+                              event.target.value === "empty"
+                                ? ""
+                                : rule.resultValue || "",
+                          })
+                        }
+                      >
+                        <SelectItem
+                          value="constant"
+                          text={intl.formatMessage({
+                            id: "validation.template.override.conditional.result.constant",
+                            defaultMessage: "Fixed value",
+                          })}
+                        />
+                        <SelectItem
+                          value="source"
+                          text={intl.formatMessage({
+                            id: "validation.template.override.conditional.result.source",
+                            defaultMessage: "System data",
+                          })}
+                        />
+                        <SelectItem
+                          value="empty"
+                          text={intl.formatMessage({
+                            id: "validation.template.override.conditional.result.empty",
+                            defaultMessage: "Leave empty",
+                          })}
+                        />
+                      </Select>
+
+                      {rule.resultType === "constant" && (
+                        <TextInput
+                          id={`mapping-conditional-result-value-${parameter.name}-${index}`}
+                          labelText={intl.formatMessage({
+                            id: "validation.template.override.conditional.result.value",
+                            defaultMessage: "Result value",
+                          })}
+                          value={rule.resultValue || ""}
+                          onChange={(event) =>
+                            updateConditionalRule(parameter.name, index, {
+                              resultValue: event.target.value,
+                            })
+                          }
+                        />
+                      )}
+
+                      {rule.resultType === "source" && (
+                        <Select
+                          id={`mapping-conditional-result-source-${parameter.name}-${index}`}
+                          labelText={intl.formatMessage({
+                            id: "validation.template.override.conditional.result.source.label",
+                            defaultMessage: "Result source",
+                          })}
+                          value={rule.resultValue || ""}
+                          onChange={(event) =>
+                            updateConditionalRule(parameter.name, index, {
+                              resultValue: event.target.value,
+                            })
+                          }
+                        >
+                          <SelectItem
+                            value=""
+                            text={intl.formatMessage({
+                              id: "validation.template.override.mapping.source.placeholder",
+                              defaultMessage: "Select a source",
+                            })}
+                          />
+                          {sourceOptions.map((option) => (
+                            <SelectItem
+                              key={option.id}
+                              value={option.id}
+                              text={option.label}
+                            />
+                          ))}
+                        </Select>
+                      )}
+                    </div>
+
+                    <div className="validation-template-override-conditional-rule-actions">
+                      <Button
+                        kind="ghost"
+                        size="sm"
+                        onClick={() => removeConditionalRule(parameter.name, index)}
+                      >
+                        <FormattedMessage
+                          id="validation.template.override.conditional.removeRule"
+                          defaultMessage="Remove rule"
+                        />
+                      </Button>
+                    </div>
+                  </div>
+                ),
+              )}
+            </div>
+
+            <Button
+              kind="tertiary"
+              size="sm"
+              onClick={() => addConditionalRule(parameter.name)}
+            >
+              <FormattedMessage
+                id="validation.template.override.conditional.addRule"
+                defaultMessage="Add range rule"
+              />
+            </Button>
+
+            {renderConditionalResultControl(
+              "validation.template.override.conditional.fallback",
+              "If no rule matches",
+              "fallbackType",
+              "fallbackValue",
+            )}
+
+            <p className="validation-template-override-inline-status">
+              <FormattedMessage
+                id="validation.template.override.conditional.emptyBehavior"
+                defaultMessage="If the numeric source is empty or not a valid number, this parameter will also stay empty."
+              />
+            </p>
+            <p className="validation-template-override-inline-status">
+              <FormattedMessage
+                id="validation.template.override.conditional.orderHint"
+                defaultMessage="Rules are evaluated from top to bottom. The first matching rule wins."
+              />
+            </p>
           </div>
         )}
       </div>
@@ -1077,13 +2036,51 @@ const ValidationTemplateOverrideConfig = () => {
                       defaultMessage="JRXML template"
                     />
                   </label>
-                  <input
-                    id="jasper-template-upload"
-                    type="file"
-                    accept=".jrxml"
-                    onChange={onTemplateFileSelected}
-                    disabled={parsingTemplate}
-                  />
+                  <div className="validation-template-override-file-row">
+                    <input
+                      ref={templateFileInputRef}
+                      id="jasper-template-upload"
+                      type="file"
+                      accept=".jrxml"
+                      onChange={onTemplateFileSelected}
+                      disabled={parsingTemplate}
+                      style={{ display: "none" }}
+                    />
+                    <Button
+                      type="button"
+                      kind="secondary"
+                      size="sm"
+                      onClick={onClickSelectTemplateFile}
+                      disabled={parsingTemplate}
+                    >
+                      <FormattedMessage
+                        id="validation.template.override.template.select"
+                        defaultMessage="Select file"
+                      />
+                    </Button>
+                    {form.templateOriginalFilename ? (
+                      form.id ? (
+                        <button
+                          type="button"
+                          className="validation-template-override-file-link"
+                          onClick={onDownloadTemplateFile}
+                        >
+                          {form.templateOriginalFilename}
+                        </button>
+                      ) : (
+                        <span className="validation-template-override-file-name">
+                          {form.templateOriginalFilename}
+                        </span>
+                      )
+                    ) : (
+                      <span className="validation-template-override-file-name is-empty">
+                        {intl.formatMessage({
+                          id: "validation.template.override.template.file.none",
+                          defaultMessage: "No file selected",
+                        })}
+                      </span>
+                    )}
+                  </div>
                 </div>
                 <div className="validation-template-override-full-width">
                   <MultiSelect

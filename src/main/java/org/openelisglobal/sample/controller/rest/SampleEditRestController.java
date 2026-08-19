@@ -123,6 +123,8 @@ public class SampleEditRestController extends BaseSampleEntryController {
     private OrderAdditionalFieldService orderAdditionalFieldService;
     @Autowired
     private SampleTypeAdditionalFieldService sampleTypeAdditionalFieldService;
+    @Autowired
+    private org.openelisglobal.common.service.ProfessionalProfilePermissionService profilePermissionService;
 
     @GetMapping(value = "SampleEdit", produces = MediaType.APPLICATION_JSON_VALUE)
     @ResponseBody
@@ -246,6 +248,18 @@ public class SampleEditRestController extends BaseSampleEntryController {
     public void saveSampleEdit(HttpServletRequest request,
             @Validated(SampleEdit.class) @RequestBody SampleEditForm form, BindingResult result)
             throws InvocationTargetException, NoSuchMethodException, IllegalAccessException {
+        
+        // Validate professional profile permission for sample editing
+        String sysUserId = getSysUserId(request);
+        if (!profilePermissionService.hasSampleCollectionPermission(sysUserId)) {
+            LogEvent.logWarn(this.getClass().getSimpleName(), "saveSampleEdit",
+                    "User " + sysUserId + " does not have required professional profile for sample editing");
+            result.reject("professionalProfile.sample.permission.denied",
+                    "You do not have the required professional profile to edit samples");
+            saveErrors(result);
+            return;
+        }
+        
         formValidator.validate(form, result);
         if (result.hasErrors()) {
             saveErrors(result);
@@ -382,7 +396,8 @@ public class SampleEditRestController extends BaseSampleEntryController {
             String accessionNumber, boolean allowedToCancelAll) {
 
         TypeOfSample typeOfSample = typeOfSampleService.get(sampleItem.getTypeOfSampleId());
-        var additionalFields = sampleTypeAdditionalFieldService.getFieldsForSampleType(typeOfSample.getId(), false);
+        var additionalFields = sampleTypeAdditionalFieldService.getFieldsForSampleType(typeOfSample.getId(), false,
+                true);
         var additionalFieldValues = sampleTypeAdditionalFieldService.getFieldValuesForSampleItem(typeOfSample.getId(),
                 sampleItem.getId());
 

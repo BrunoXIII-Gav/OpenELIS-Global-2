@@ -27,6 +27,7 @@ import org.apache.commons.validator.GenericValidator;
 import org.openelisglobal.address.service.AddressHierarchyConfigurationHandler;
 import org.openelisglobal.analyzer.service.AnalyzerService;
 import org.openelisglobal.analyzer.valueholder.Analyzer;
+import org.openelisglobal.common.log.LogEvent;
 import org.openelisglobal.common.util.ConfigurationProperties;
 import org.openelisglobal.common.util.ConfigurationProperties.Property;
 import org.openelisglobal.common.util.IdValuePair;
@@ -675,23 +676,39 @@ public class DisplayListService implements LocaleChangeListener {
     }
 
     private List<IdValuePair> createActivePractitionerPersonsList() {
-        return createActivePractitionerPersonsList(null);
+        return createActivePractitionerPersonsList(Collections.emptyList());
     }
 
     private List<IdValuePair> createActiveOrderProviderPersonsList() {
-        String configuredProfileCode = ConfigurationProperties.getInstance()
-                .getPropertyValue(Property.orderProviderProfessionalProfileCode);
-        String normalizedProfileCode = StringUtils.trimToNull(configuredProfileCode);
-        return createActivePractitionerPersonsList(normalizedProfileCode);
+        String rawPropertyValue = ConfigurationProperties.getInstance().getPropertyValue(Property.orderProviderProfessionalProfileCode);
+        LogEvent.logInfo(this.getClass().getSimpleName(), "createActiveOrderProviderPersonsList", 
+                "Loading ORDER_PROVIDER_PERSONS with orderProviderProfessionalProfileCode: '" + rawPropertyValue + "'");
+        List<String> configuredProfileCodes = parseConfiguredProfessionalProfileCodes(rawPropertyValue);
+        LogEvent.logInfo(this.getClass().getSimpleName(), "createActiveOrderProviderPersonsList", 
+                "Parsed profile codes: " + configuredProfileCodes);
+        List<IdValuePair> result = createActivePractitionerPersonsList(configuredProfileCodes);
+        LogEvent.logInfo(this.getClass().getSimpleName(), "createActiveOrderProviderPersonsList", 
+                "Returning " + result.size() + " providers");
+        return result;
     }
 
     private List<IdValuePair> createActivePractitionerPersonsList(String requiredProfileCode) {
+        return createActivePractitionerPersonsList(StringUtils.isBlank(requiredProfileCode) ? Collections.emptyList()
+                : List.of(requiredProfileCode));
+    }
+
+    private List<IdValuePair> createActivePractitionerPersonsList(List<String> requiredProfileCodes) {
         List<IdValuePair> providerDisplayList = new ArrayList<>();
-        String normalizedRequiredProfileCode = StringUtils.upperCase(StringUtils.trimToNull(requiredProfileCode));
+        List<String> normalizedRequiredProfileCodes = requiredProfileCodes == null ? Collections.emptyList()
+                : requiredProfileCodes.stream()
+                        .map(code -> StringUtils.upperCase(StringUtils.trimToNull(code)))
+                        .filter(StringUtils::isNotBlank)
+                        .distinct()
+                        .toList();
 
         List<Provider> providerList = providerService.getAllActiveProviders();
-        if (normalizedRequiredProfileCode != null) {
-            providerList = providerList.stream().filter(provider -> normalizedRequiredProfileCode.equals(
+        if (!normalizedRequiredProfileCodes.isEmpty()) {
+            providerList = providerList.stream().filter(provider -> normalizedRequiredProfileCodes.contains(
                     StringUtils.upperCase(StringUtils.trimToEmpty(provider.getProfessionalProfileCode()))))
                     .collect(Collectors.toList());
         }
@@ -716,6 +733,18 @@ public class DisplayListService implements LocaleChangeListener {
         }
 
         return providerDisplayList;
+    }
+
+    private List<String> parseConfiguredProfessionalProfileCodes(String rawValue) {
+        if (StringUtils.isBlank(rawValue)) {
+            return Collections.emptyList();
+        }
+
+        return Arrays.stream(StringUtils.split(rawValue, ','))
+                .map(code -> StringUtils.upperCase(StringUtils.trimToNull(code)))
+                .filter(StringUtils::isNotBlank)
+                .distinct()
+                .toList();
     }
 
     private List<IdValuePair> createReferringClinicList() {

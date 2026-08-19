@@ -131,7 +131,7 @@ public class ModuleAccessServiceImpl implements ModuleAccessService {
                 || normalizedPath.startsWith("/reports")) {
             return SystemPermission.REPORTS;
         }
-        if ("/ReportPrint".equals(normalizedPath)) {
+        if (isReportPrintPath(normalizedPath)) {
             if (isPatientAnalysisReportRequest(normalizedPath, targetParams)) {
                 return SystemPermission.VALIDATION;
             }
@@ -177,7 +177,7 @@ public class ModuleAccessServiceImpl implements ModuleAccessService {
     }
 
     private boolean isPatientAnalysisReportRequest(String normalizedPath, Map<String, String> targetParams) {
-        if (!"/ReportPrint".equals(normalizedPath)) {
+        if (!isReportPrintPath(normalizedPath)) {
             return false;
         }
         if (!"patient".equalsIgnoreCase(targetParams.getOrDefault("type", ""))) {
@@ -185,6 +185,14 @@ public class ModuleAccessServiceImpl implements ModuleAccessService {
         }
         return !GenericValidator.isBlankOrNull(targetParams.get("analysisIds"))
                 || !GenericValidator.isBlankOrNull(targetParams.get("previewAnalysisIds"));
+    }
+
+    private boolean isReportPrintPath(String normalizedPath) {
+        if (GenericValidator.isBlankOrNull(normalizedPath)) {
+            return false;
+        }
+        return "/ReportPrint".equals(normalizedPath) || "/ReportPrintNamed".equals(normalizedPath)
+                || normalizedPath.startsWith("/ReportPrintFile/");
     }
 
     @SuppressWarnings("unchecked")

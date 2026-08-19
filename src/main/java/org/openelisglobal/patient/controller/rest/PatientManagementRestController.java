@@ -7,6 +7,7 @@ import org.hibernate.StaleObjectStateException;
 import org.openelisglobal.common.exception.LIMSRuntimeException;
 import org.openelisglobal.common.log.LogEvent;
 import org.openelisglobal.common.rest.BaseRestController;
+import org.openelisglobal.common.service.ProfessionalProfilePermissionService;
 import org.openelisglobal.dataexchange.fhir.exception.FhirPersistanceException;
 import org.openelisglobal.dataexchange.fhir.exception.FhirTransformationException;
 import org.openelisglobal.dataexchange.fhir.service.FhirTransformService;
@@ -23,6 +24,7 @@ import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.http.MediaType;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.access.prepost.PreAuthorize;
+import org.springframework.security.access.AccessDeniedException;
 import org.springframework.stereotype.Controller;
 import org.springframework.validation.BindException;
 import org.springframework.validation.BindingResult;
@@ -49,12 +51,19 @@ public class PatientManagementRestController extends BaseRestController {
     FhirTransformService fhirTransformService;
     @Autowired
     PatientPhotoService photoService;
+    @Autowired
+    ProfessionalProfilePermissionService profilePermissionService;
 
     @PostMapping(value = "PatientManagement", produces = MediaType.APPLICATION_JSON_VALUE)
     @ResponseBody
     public void savepatient(HttpServletRequest request,
             @Validated(SamplePatientEntryForm.SamplePatientEntry.class) @RequestBody PatientManagementInfo patientInfo,
             BindingResult bindingResult) throws Exception {
+        String sysUserId = getSysUserId(request);
+        if (!profilePermissionService.hasPatientEntryPermission(sysUserId)) {
+            throw new AccessDeniedException(
+                    "User " + sysUserId + " does not have required professional profile for patient management");
+        }
 
         if (StringUtils.isNotBlank(patientInfo.getPatientPK())) {
             patientInfo.setPatientUpdateStatus(PatientUpdateStatus.UPDATE);
@@ -74,7 +83,7 @@ public class PatientManagementRestController extends BaseRestController {
                 }
             }
             try {
-                patientService.persistPatientData(patientInfo, patient, getSysUserId(request));
+                patientService.persistPatientData(patientInfo, patient, sysUserId);
                 fhirTransformService.transformPersistPatient(patientInfo,
                         (patientInfo.getPatientUpdateStatus() == PatientUpdateStatus.ADD));
                 photoService.savePhoto(patient.getId(), patientInfo.getPhoto());

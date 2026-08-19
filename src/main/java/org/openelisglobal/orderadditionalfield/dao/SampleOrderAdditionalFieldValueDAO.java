@@ -20,4 +20,6 @@ public interface SampleOrderAdditionalFieldValueDAO extends BaseDAO<SampleOrderA
 
     boolean existsByFieldDefinitionIdAndFieldValueIgnoreCaseAndSampleIdNot(Integer fieldDefinitionId, String fieldValue,
             Integer excludedSampleId);
+
+    long countByFieldDefinitionId(Integer fieldDefinitionId);
 }

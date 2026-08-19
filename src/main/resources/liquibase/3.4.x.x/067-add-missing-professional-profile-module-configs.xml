@@ -1,0 +1,97 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<databaseChangeLog
+  xmlns="http://www.liquibase.org/xml/ns/dbchangelog"
+  xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+  xsi:schemaLocation="http://www.liquibase.org/xml/ns/dbchangelog http://www.liquibase.org/xml/ns/dbchangelog/dbchangelog-3.8.xsd">
+
+  <!-- Add order provider profile code config (missing from 042) -->
+  <changeSet id="067-01-add-order-provider-profile-config" author="openelis">
+    <preConditions onFail="MARK_RAN">
+      <sqlCheck expectedResult="1">
+        SELECT CASE WHEN EXISTS (
+          SELECT 1 FROM clinlims.site_information_domain WHERE name = 'sampleEntryConfig'
+        ) THEN 1 ELSE 0 END
+      </sqlCheck>
+      <sqlCheck expectedResult="0">SELECT count(*) FROM clinlims.site_information WHERE name = 'orderProviderProfileCode'</sqlCheck>
+    </preConditions>
+
+    <insert schemaName="clinlims" tableName="site_information">
+      <column name="id" valueSequenceNext="site_information_seq" />
+      <column name="name" value="orderProviderProfileCode" />
+      <column name="lastupdated" valueComputed="${now}" />
+      <column name="description" value="Professional profile code(s) allowed to create/edit orders (comma-separated)" />
+      <column name="value" value="" />
+      <column name="encrypted" value="false" />
+      <column name="domain_id" valueComputed="(SELECT id FROM site_information_domain WHERE name = 'sampleEntryConfig')" />
+      <column name="value_type" value="text" />
+      <column name="group" value="0" />
+    </insert>
+
+    <rollback>
+      <delete schemaName="clinlims" tableName="site_information">
+        <where>name = 'orderProviderProfileCode'</where>
+      </delete>
+    </rollback>
+  </changeSet>
+
+  <!-- Add patient entry profile code config (missing from 042) -->
+  <changeSet id="067-02-add-patient-entry-profile-config" author="openelis">
+    <preConditions onFail="MARK_RAN">
+      <sqlCheck expectedResult="1">
+        SELECT CASE WHEN EXISTS (
+          SELECT 1 FROM clinlims.site_information_domain WHERE name = 'sampleEntryConfig'
+        ) THEN 1 ELSE 0 END
+      </sqlCheck>
+      <sqlCheck expectedResult="0">SELECT count(*) FROM clinlims.site_information WHERE name = 'patientEntryProfileCode'</sqlCheck>
+    </preConditions>
+
+    <insert schemaName="clinlims" tableName="site_information">
+      <column name="id" valueSequenceNext="site_information_seq" />
+      <column name="name" value="patientEntryProfileCode" />
+      <column name="lastupdated" valueComputed="${now}" />
+      <column name="description" value="Professional profile code(s) allowed to create/edit patient records (comma-separated)" />
+      <column name="value" value="" />
+      <column name="encrypted" value="false" />
+      <column name="domain_id" valueComputed="(SELECT id FROM site_information_domain WHERE name = 'sampleEntryConfig')" />
+      <column name="value_type" value="text" />
+      <column name="group" value="0" />
+    </insert>
+
+    <rollback>
+      <delete schemaName="clinlims" tableName="site_information">
+        <where>name = 'patientEntryProfileCode'</where>
+      </delete>
+    </rollback>
+  </changeSet>
+
+  <!-- Add result entry profile code config (missing from 042) -->
+  <changeSet id="067-03-add-result-entry-profile-config" author="openelis">
+    <preConditions onFail="MARK_RAN">
+      <sqlCheck expectedResult="1">
+        SELECT CASE WHEN EXISTS (
+          SELECT 1 FROM clinlims.site_information_domain WHERE name = 'sampleEntryConfig'
+        ) THEN 1 ELSE 0 END
+      </sqlCheck>
+      <sqlCheck expectedResult="0">SELECT count(*) FROM clinlims.site_information WHERE name = 'resultEntryProfileCode'</sqlCheck>
+    </preConditions>
+
+    <insert schemaName="clinlims" tableName="site_information">
+      <column name="id" valueSequenceNext="site_information_seq" />
+      <column name="name" value="resultEntryProfileCode" />
+      <column name="lastupdated" valueComputed="${now}" />
+      <column name="description" value="Professional profile code(s) allowed to enter/edit results (comma-separated)" />
+      <column name="value" value="" />
+      <column name="encrypted" value="false" />
+      <column name="domain_id" valueComputed="(SELECT id FROM site_information_domain WHERE name = 'sampleEntryConfig')" />
+      <column name="value_type" value="text" />
+      <column name="group" value="0" />
+    </insert>
+
+    <rollback>
+      <delete schemaName="clinlims" tableName="site_information">
+        <where>name = 'resultEntryProfileCode'</where>
+      </delete>
+    </rollback>
+  </changeSet>
+
+</databaseChangeLog>

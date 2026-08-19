@@ -172,6 +172,36 @@
   gap: 0.5rem;
 }
 
+.validation-template-override-file-row {
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+  flex-wrap: wrap;
+}
+
+.validation-template-override-file-name,
+.validation-template-override-file-link {
+  font-size: 0.875rem;
+}
+
+.validation-template-override-file-name {
+  color: #393939;
+}
+
+.validation-template-override-file-name.is-empty {
+  color: #6f6f6f;
+}
+
+.validation-template-override-file-link {
+  border: 0;
+  background: transparent;
+  color: #0f62fe;
+  cursor: pointer;
+  padding: 0;
+  text-align: left;
+  text-decoration: underline;
+}
+
 .validation-template-override-parameter-list {
   display: grid;
   gap: 0.85rem;
@@ -199,6 +229,37 @@
 .validation-template-override-image-mapping {
   display: grid;
   gap: 0.75rem;
+}
+
+.validation-template-override-conditional-box,
+.validation-template-override-conditional-branch,
+.validation-template-override-conditional-grid,
+.validation-template-override-conditional-rules {
+  display: grid;
+  gap: 0.75rem;
+}
+
+.validation-template-override-conditional-box {
+  border: 1px solid #d9d9d9;
+  background: #ffffff;
+  padding: 0.85rem;
+}
+
+.validation-template-override-conditional-grid {
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+}
+
+.validation-template-override-conditional-rule-row {
+  border: 1px solid #e0e0e0;
+  background: #f8f8f8;
+  padding: 0.75rem;
+  display: grid;
+  gap: 0.75rem;
+}
+
+.validation-template-override-conditional-rule-actions {
+  display: flex;
+  justify-content: flex-end;
 }
 
 .validation-template-override-inline-upload {
@@ -245,5 +306,32 @@
 
   .validation-template-override-form-grid {
     grid-template-columns: 1fr;
+  }
+
+  .validation-template-override-conditional-grid {
+    grid-template-columns: 1fr;
+  }
+}
+
+.validation-template-override-profile-mappings {
+  margin-top: 1rem;
+  padding: 1rem;
+  background-color: #f4f4f4;
+  border-radius: 4px;
+
+  .validation-template-override-mapping-hint {
+    margin-bottom: 1rem;
+    font-size: 0.875rem;
+    color: #525252;
+    font-weight: 500;
+  }
+
+  .cds--select {
+    margin-bottom: 1rem;
+  }
+
+  .cds--label {
+    font-weight: 600;
+    color: #161616;
   }
 }

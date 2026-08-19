@@ -19,6 +19,7 @@ import {
   RadioButton,
   ClickableTile,
   Loading,
+  MultiSelect,
 } from "@carbon/react";
 import { NotificationKinds } from "../../../common/CustomNotification.js";
 import { FormattedMessage, useIntl } from "react-intl";
@@ -28,34 +29,39 @@ import { CustomCommonSortableOrderList } from "./../sortableListComponent/Sortab
 import { getFromOpenElisServer } from "../../../utils/Utils.js";
 import { NotificationContext } from "../../../layout/Layout.js";
 import { extractAgeRangeParts } from "./TestFormData.js";
+import AdditionalFieldOptionsEditor from "./AdditionalFieldOptionsEditor.js";
+import {
+  createEmptyOption,
+  FIELD_TYPE_OPTIONS,
+  getAdditionalFieldTypeLabel,
+  OPTION_FIELD_TYPES,
+  toCodeCandidate,
+} from "../additionalFieldOptionUtils.js";
 
-const resolveCheckboxChecked = (checkedOrEvent, stateOrEvent) => {
-  if (typeof checkedOrEvent === "boolean") {
-    return checkedOrEvent;
+const LEGACY_USER_FIELD_TYPE = "SYSTEM_USER_BIOLOGIST_SELECT";
+const GENERIC_USER_FIELD_TYPE = "USER";
+const USER_DISPLAY_MODE_INITIALS = "INITIALS";
+const USER_DISPLAY_MODE_NAME = "NAME";
+const USER_DISPLAY_MODE_BOTH = "BOTH";
+
+const normalizeUserFieldType = (fieldType) =>
+  String(fieldType || "").toUpperCase() === LEGACY_USER_FIELD_TYPE
+    ? GENERIC_USER_FIELD_TYPE
+    : fieldType || "TEXT";
+
+const resolveUserProfileCodes = (fieldType, metadata) => {
+  if (Array.isArray(metadata?.userProfileCodes)) {
+    return metadata.userProfileCodes;
   }
-  if (typeof stateOrEvent?.checked === "boolean") {
-    return stateOrEvent.checked;
-  }
-  if (typeof checkedOrEvent?.checked === "boolean") {
-    return checkedOrEvent.checked;
-  }
-  if (typeof stateOrEvent?.target?.checked === "boolean") {
-    return stateOrEvent.target.checked;
-  }
-  if (typeof checkedOrEvent?.target?.checked === "boolean") {
-    return checkedOrEvent.target.checked;
-  }
-  return false;
+  return [];
 };
 
-const resolveBooleanPreference = (fieldValue, metadataValue) => {
-  if (typeof fieldValue === "boolean") {
-    return fieldValue;
+const resolveUserDisplayMode = (metadata) => {
+  const mode = String(metadata?.userDisplayMode || "").toUpperCase();
+  if (mode === USER_DISPLAY_MODE_INITIALS || mode === USER_DISPLAY_MODE_NAME) {
+    return mode;
   }
-  if (typeof metadataValue === "boolean") {
-    return metadataValue;
-  }
-  return false;
+  return USER_DISPLAY_MODE_BOTH;
 };
 
 export const TestStepForm = ({
@@ -106,6 +112,9 @@ export const TestStepForm = ({
   );
   const [multiSelectDictionaryListTag, setMultiSelectDictionaryListTag] =
     useState([]);
+  const [professionalProfileOptions, setProfessionalProfileOptions] = useState(
+    [],
+  );
   const [currentStep, setCurrentStep] = useState(0);
   const [ageRangeFields, setAgeRangeFields] = useState([0]);
   const [ageRanges, setAgeRanges] = useState([{ raw: "Infinity", unit: "Y" }]);
@@ -156,7 +165,6 @@ export const TestStepForm = ({
     const normalizedData = normalizeResultTypeId(newData || {});
     const previousData = formDataRef.current || {};
     const mergedData = { ...previousData, ...normalizedData };
-    const isActiveTest = mergedData.resultActive !== false;
     const isAdditionalFieldsEditStep = currentStep === 2;
     if (!isAdditionalFieldsEditStep) {
       mergedData.additionalFields = Array.isArray(previousData.additionalFields)
@@ -183,10 +191,6 @@ export const TestStepForm = ({
 
     setCurrentStep((prev) => {
       if (prev === 3) {
-        if (!isActiveTest) {
-          return 6;
-        }
-
         if (freeResultList.includes(selectedResultTypeId)) {
           return prev + 3;
         }
@@ -215,7 +219,6 @@ export const TestStepForm = ({
   const handlePreviousStep = (newData) => {
     const previousData = formDataRef.current || {};
     const mergedData = { ...previousData, ...(newData || {}) };
-    const isActiveTest = mergedData.resultActive !== false;
     const isAdditionalFieldsEditStep = currentStep === 2;
     if (!isAdditionalFieldsEditStep) {
       mergedData.additionalFields = Array.isArray(previousData.additionalFields)
@@ -236,10 +239,6 @@ export const TestStepForm = ({
 
     setCurrentStep((prevStep) => {
       if (prevStep === 6) {
-        if (!isActiveTest) {
-          return 3;
-        }
-
         if (freeResultList.includes(selectedResultTypeId)) {
           return prevStep - 3;
         }
@@ -265,19 +264,28 @@ export const TestStepForm = ({
     componentMounted.current = true;
     setIsLoading(true);
     getFromOpenElisServer(`/rest/TestAdd`, (res) => {
-      const payload = res || {};
-      setLabUnitList(payload.labUnitList || []);
-      setPanelList(payload.panelList || []);
-      setUomList(payload.uomList || []);
-      setResultTypeList(payload.resultTypeList || []);
-      setSampleTypeList(payload.sampleTypeList || []);
-      setGroupedDictionaryList(payload.groupedDictionaryList || []);
-      setDictionaryList(payload.dictionaryList || []);
-      setAgeRangeList(payload.ageRangeList || []);
+      setLabUnitList(res.labUnitList || []);
+      setPanelList(res.panelList || []);
+      setUomList(res.uomList || []);
+      setResultTypeList(res.resultTypeList || []);
+      setSampleTypeList(res.sampleTypeList || []);
+      setGroupedDictionaryList(res.groupedDictionaryList || []);
+      setDictionaryList(res.dictionaryList || []);
+      setAgeRangeList(res.ageRangeList || []);
       setIsLoading(false);
     });
     getFromOpenElisServer(`/rest/displayList/RESULT_TYPE_CODES`, (res) => {
       setResultTypeCodes(res || []);
+    });
+    getFromOpenElisServer("/rest/professional-profiles/catalog", (response) => {
+      setProfessionalProfileOptions(
+        Array.isArray(response?.profiles)
+          ? response.profiles.map((profile) => ({
+              id: profile.code,
+              label: profile.label || profile.name || profile.code,
+            }))
+          : [],
+      );
     });
     return () => {
       componentMounted.current = false;
@@ -721,6 +729,7 @@ export const TestStepForm = ({
       resultTypeList={resultTypeList}
       resultTypeCodes={resultTypeCodes}
       setSelectedResultTypeList={setSelectedResultTypeList}
+      professionalProfileOptions={professionalProfileOptions}
     />,
     <StepFourSelectSampleTypeAndTestDisplayOrder
       key="step-4"
@@ -824,12 +833,6 @@ export const TestStepForm = ({
     />,
   ];
 
-  const shouldBypassResultSpecificConfiguration =
-    formData?.resultActive === false && currentStep >= 4 && currentStep <= 5;
-  const visibleStepIndex = shouldBypassResultSpecificConfiguration
-    ? 6
-    : currentStep;
-
   if (isLoading) {
     return (
       <>
@@ -845,7 +848,7 @@ export const TestStepForm = ({
           <br />
           <hr />
           <br />
-          <div>{steps[visibleStepIndex]}</div>
+          <div>{steps[currentStep]}</div>
           <br />
           <hr />
           <br />
@@ -1345,27 +1348,14 @@ export const StepThreeTestResultTypeAndLoinc = ({
   resultTypeList,
   resultTypeCodes,
   setSelectedResultTypeList,
+  professionalProfileOptions = [],
 }) => {
   const intl = useIntl();
   const { setNotificationVisible, addNotification } =
     useContext(NotificationContext);
   const additionalFieldsEndRef = useRef(null);
-  const additionalFieldTypeOptions = [
-    "TEXT",
-    "TEXTAREA",
-    "NUMBER",
-    "DATE",
-    "TIME",
-    "DATETIME",
-    "BOOLEAN",
-    "SELECT",
-    "SYSTEM_USER_BIOLOGIST_SELECT",
-    "MULTISELECT",
-    "RADIO",
-    "DOCUMENT",
-  ];
   const entryScopeOptions = ["OFFICIAL", "PRELIMINARY"];
-  const optionBasedTypes = new Set(["SELECT", "MULTISELECT", "RADIO"]);
+  const optionBasedTypes = OPTION_FIELD_TYPES;
   const defaultOfficialBlock = intl.formatMessage({
     id: "test.additionalFields.block.defaultOfficial",
     defaultMessage: "Official",
@@ -1477,6 +1467,10 @@ export const StepThreeTestResultTypeAndLoinc = ({
       field.tubeActivationCount ?? tubeBlockMetadata.activationCount,
       10,
     );
+    const userProfileCodes = resolveUserProfileCodes(
+      field.fieldType,
+      parsedMetadata,
+    );
 
     return {
       blockName,
@@ -1484,10 +1478,9 @@ export const StepThreeTestResultTypeAndLoinc = ({
       includeInValidation,
       blockSortOrder,
       fieldSortOrder,
-      tubeSelectorEnabled: resolveBooleanPreference(
-        field.tubeSelectorEnabled,
-        parsedMetadata?.tubeSelector?.enabled,
-      ),
+      tubeSelectorEnabled:
+        field.tubeSelectorEnabled === true ||
+        parsedMetadata?.tubeSelector?.enabled === true,
       tubeSelectorMin:
         Number.isFinite(tubeSelectorMin) && tubeSelectorMin > 0
           ? String(tubeSelectorMin)
@@ -1500,18 +1493,17 @@ export const StepThreeTestResultTypeAndLoinc = ({
         Number.isFinite(tubeActivationCount) && tubeActivationCount > 0
           ? String(tubeActivationCount)
           : "",
-      tubeQuantitySource: resolveBooleanPreference(
-        field.tubeQuantitySource,
-        parsedMetadata?.tubeQuantitySource,
-      ),
-      tubeLabelEnabled: resolveBooleanPreference(
-        field.tubeLabelEnabled,
-        parsedMetadata?.tubeLabel?.enabled,
-      ),
-      childTubeUsageBlockEnabled: resolveBooleanPreference(
-        field.childTubeUsageBlockEnabled,
-        parsedMetadata?.tubeUsage?.childBlockEnabled,
-      ),
+      tubeQuantitySource:
+        field.tubeQuantitySource === true ||
+        parsedMetadata?.tubeQuantitySource === true,
+      tubeLabelEnabled:
+        field.tubeLabelEnabled === true ||
+        parsedMetadata?.tubeLabel?.enabled === true,
+      childTubeUsageBlockEnabled:
+        field.childTubeUsageBlockEnabled === true ||
+        parsedMetadata?.tubeUsage?.childBlockEnabled === true,
+      userProfileCodes,
+      userDisplayMode: resolveUserDisplayMode(parsedMetadata),
     };
   };
 
@@ -1638,6 +1630,19 @@ export const StepThreeTestResultTypeAndLoinc = ({
       };
     } else if (metadata.tubeUsage) {
       delete metadata.tubeUsage;
+    }
+
+    if (String(field.fieldType || "").toUpperCase() === "USER") {
+      metadata.userProfileCodes = Array.isArray(field.userProfileCodes)
+        ? field.userProfileCodes.filter(Boolean)
+        : [];
+      metadata.userDisplayMode =
+        field.userDisplayMode || USER_DISPLAY_MODE_BOTH;
+    } else if (metadata.userProfileCodes) {
+      delete metadata.userProfileCodes;
+      delete metadata.userDisplayMode;
+    } else if (metadata.userDisplayMode) {
+      delete metadata.userDisplayMode;
     }
 
     return JSON.stringify({
@@ -1783,6 +1788,7 @@ export const StepThreeTestResultTypeAndLoinc = ({
       const documentSettings = resolveDocumentSettings(field);
       return {
         ...field,
+        fieldType: normalizeUserFieldType(field?.fieldType),
         ...resolved,
         ...documentSettings,
       };
@@ -2095,33 +2101,37 @@ export const StepThreeTestResultTypeAndLoinc = ({
             }
           };
 
-          const handleIsActive = (_event, state) => {
+          const handleAntimicrobialResistance = (e) => {
             setFieldValue(
-              "active",
-              resolveCheckboxChecked(_event, state) ? "Y" : "N",
+              "antimicrobialResistance",
+              e.target.checked ? "Y" : "N",
             );
           };
-          const handleResultActive = (_event, state) => {
-            setFieldValue("resultActive", resolveCheckboxChecked(_event, state));
+          const handleIsActive = (e) => {
+            setFieldValue("active", e.target.checked ? "Y" : "N");
           };
-          const handleOrderable = (_event, state) => {
-            setFieldValue(
-              "orderable",
-              resolveCheckboxChecked(_event, state) ? "Y" : "N",
-            );
+          const handleOrderable = (e) => {
+            setFieldValue("orderable", e.target.checked ? "Y" : "N");
           };
-          const handleDirectSampleUsage = (_event, state) => {
+          const handleDirectSampleUsage = (e) => {
             setFieldValue(
               "directSampleUsageEnabled",
-              resolveCheckboxChecked(_event, state) ? "Y" : "N",
+              e.target.checked ? "Y" : "N",
             );
           };
-          const handleSkipValidationWhenParentComplete = (_event, state) => {
+          const handleSkipValidationWhenParentComplete = (e) => {
             setFieldValue(
               "skipValidationWhenParentComplete",
-              resolveCheckboxChecked(_event, state) ? "Y" : "N",
+              e.target.checked ? "Y" : "N",
             );
           };
+          const handleNotifyPatientofResults = (e) => {
+            setFieldValue("notifyResults", e.target.checked ? "Y" : "N");
+          };
+          const handleInLabOnly = (e) => {
+            setFieldValue("inLabOnly", e.target.checked ? "Y" : "N");
+          };
+
           const normalizedAdditionalFields =
             normalizeAdditionalFieldsForDisplay(values.additionalFields);
           const activeAdditionalFields = sortAdditionalFieldEntries(
@@ -2258,6 +2268,19 @@ export const StepThreeTestResultTypeAndLoinc = ({
             }
             if (key === "fieldType" && !optionBasedTypes.has(newValue)) {
               target.options = [];
+            }
+            if (
+              key === "fieldType" &&
+              String(newValue || "").toUpperCase() !== "USER"
+            ) {
+              target.userProfileCodes = [];
+              target.userDisplayMode = USER_DISPLAY_MODE_BOTH;
+            } else if (
+              key === "fieldType" &&
+              String(newValue || "").toUpperCase() === "USER" &&
+              !target.userDisplayMode
+            ) {
+              target.userDisplayMode = USER_DISPLAY_MODE_BOTH;
             }
             if (
               key === "fieldType" &&
@@ -2403,15 +2426,13 @@ export const StepThreeTestResultTypeAndLoinc = ({
           const handleAddFieldOption = (fieldIndex) => {
             const nextFields = [...normalizedAdditionalFields];
             const target = { ...(nextFields[fieldIndex] || {}) };
+            if (target.hasSavedValues === true) {
+              return;
+            }
             const options = Array.isArray(target.options) ? target.options : [];
             target.options = [
               ...options,
-              {
-                optionKey: "",
-                optionLabel: "",
-                sortOrder: options.length + 1,
-                active: true,
-              },
+              createEmptyOption(options.length + 1),
             ];
             nextFields[fieldIndex] = target;
             setFieldValue("additionalFields", nextFields);
@@ -2420,6 +2441,9 @@ export const StepThreeTestResultTypeAndLoinc = ({
           const handleRemoveFieldOption = (fieldIndex, optionIndex) => {
             const nextFields = [...normalizedAdditionalFields];
             const target = { ...(nextFields[fieldIndex] || {}) };
+            if (target.hasSavedValues === true) {
+              return;
+            }
             const options = Array.isArray(target.options) ? target.options : [];
             target.options = options
               .filter((_, index) => index !== optionIndex)
@@ -2436,11 +2460,17 @@ export const StepThreeTestResultTypeAndLoinc = ({
           ) => {
             const nextFields = [...normalizedAdditionalFields];
             const target = { ...(nextFields[fieldIndex] || {}) };
+            if (target.hasSavedValues === true) {
+              return;
+            }
             const options = Array.isArray(target.options)
               ? [...target.options]
               : [];
             const option = { ...(options[optionIndex] || {}) };
             option[key] = newValue;
+            if (key === "optionLabel" && option.isAutoGeneratedKey) {
+              option.optionKey = toCodeCandidate(newValue);
+            }
             options[optionIndex] = option;
             target.options = options;
             nextFields[fieldIndex] = target;
@@ -2529,7 +2559,9 @@ export const StepThreeTestResultTypeAndLoinc = ({
                           defaultMessage: "Active",
                         })}
                         checked={values.resultActive !== false}
-                        onChange={handleResultActive}
+                        onChange={(event) =>
+                          setFieldValue("resultActive", event.target.checked)
+                        }
                       />
                     </div>
                     <Grid condensed fullWidth style={{ marginTop: "0.75rem" }}>
@@ -2629,10 +2661,10 @@ export const StepThreeTestResultTypeAndLoinc = ({
                               id: "test.additionalFields.tubeSelector",
                             })}
                             checked={values.resultTubeSelectorEnabled === true}
-                            onChange={(_event, state) =>
+                            onChange={(event) =>
                               setFieldValue(
                                 "resultTubeSelectorEnabled",
-                                resolveCheckboxChecked(_event, state),
+                                event.target.checked,
                               )
                             }
                           />
@@ -2642,10 +2674,10 @@ export const StepThreeTestResultTypeAndLoinc = ({
                               id: "test.additionalFields.tubeQuantitySource",
                             })}
                             checked={values.resultTubeQuantitySource === true}
-                            onChange={(_event, state) =>
+                            onChange={(event) =>
                               setFieldValue(
                                 "resultTubeQuantitySource",
-                                resolveCheckboxChecked(_event, state),
+                                event.target.checked,
                               )
                             }
                           />
@@ -2656,10 +2688,10 @@ export const StepThreeTestResultTypeAndLoinc = ({
                               defaultMessage: "Generate tube label",
                             })}
                             checked={values.resultTubeLabelEnabled === true}
-                            onChange={(_event, state) =>
+                            onChange={(event) =>
                               setFieldValue(
                                 "resultTubeLabelEnabled",
-                                resolveCheckboxChecked(_event, state),
+                                event.target.checked,
                               )
                             }
                           />
@@ -2673,10 +2705,10 @@ export const StepThreeTestResultTypeAndLoinc = ({
                             checked={
                               values.resultChildTubeUsageBlockEnabled === true
                             }
-                            onChange={(_event, state) =>
+                            onChange={(event) =>
                               setFieldValue(
                                 "resultChildTubeUsageBlockEnabled",
-                                resolveCheckboxChecked(_event, state),
+                                event.target.checked,
                               )
                             }
                           />
@@ -2744,6 +2776,8 @@ export const StepThreeTestResultTypeAndLoinc = ({
                         const fieldType = field?.fieldType || "TEXT";
                         const supportsOptions = optionBasedTypes.has(fieldType);
                         const isEditable = isFieldEditable(fieldIndex, field);
+                        const structureLockedByData =
+                          field?.hasSavedValues === true;
                         const blockName =
                           field?.blockName || defaultOfficialBlock || "-";
                         const previousBlockName = isDraftField
@@ -2894,7 +2928,12 @@ export const StepThreeTestResultTypeAndLoinc = ({
                                       gap: "0.5rem",
                                     }}
                                   >
-                                    <Tag type="blue">{fieldType}</Tag>
+                                    <Tag type="blue">
+                                      {getAdditionalFieldTypeLabel(
+                                        intl,
+                                        fieldType,
+                                      )}
+                                    </Tag>
                                     <Tag type="cool-gray">{blockName}</Tag>
                                     <Tag type="purple">{entryScopeLabel}</Tag>
                                     <Tag
@@ -3020,7 +3059,10 @@ export const StepThreeTestResultTypeAndLoinc = ({
                                             id: "test.additionalFields.fieldType",
                                           })}
                                           value={fieldType}
-                                          disabled={!isEditable}
+                                          disabled={
+                                            !isEditable ||
+                                            structureLockedByData
+                                          }
                                           onChange={(event) =>
                                             handleAdditionalFieldChange(
                                               fieldIndex,
@@ -3029,12 +3071,16 @@ export const StepThreeTestResultTypeAndLoinc = ({
                                             )
                                           }
                                         >
-                                          {additionalFieldTypeOptions.map(
+                                          {FIELD_TYPE_OPTIONS.map(
                                             (typeOption) => (
                                               <SelectItem
-                                                key={`${fieldIndex}-${typeOption}`}
-                                                value={typeOption}
-                                                text={typeOption}
+                                                key={`${fieldIndex}-${typeOption.value}`}
+                                                value={typeOption.value}
+                                                text={intl.formatMessage({
+                                                  id: typeOption.labelId,
+                                                  defaultMessage:
+                                                    typeOption.defaultMessage,
+                                                })}
                                               />
                                             ),
                                           )}
@@ -3058,6 +3104,104 @@ export const StepThreeTestResultTypeAndLoinc = ({
                                           }
                                         />
                                       </Column>
+                                      {fieldType === "USER" ? (
+                                        <>
+                                          <Column lg={8} md={4} sm={4}>
+                                            <div style={{ marginTop: "1rem" }}>
+                                              <label
+                                                htmlFor={`additional-field-user-profiles-${fieldIndex}`}
+                                                style={{
+                                                  display: "block",
+                                                  marginBottom: "0.5rem",
+                                                }}
+                                              >
+                                                {intl.formatMessage({
+                                                  id: "test.additionalFields.userProfiles",
+                                                  defaultMessage:
+                                                    "Allowed professional profiles",
+                                                })}
+                                              </label>
+                                              <MultiSelect
+                                                id={`additional-field-user-profiles-${fieldIndex}`}
+                                                items={professionalProfileOptions}
+                                                itemToString={(item) =>
+                                                  item?.label || ""
+                                                }
+                                                selectedItems={professionalProfileOptions.filter(
+                                                  (item) =>
+                                                    (
+                                                      field?.userProfileCodes ||
+                                                      []
+                                                    ).includes(item.id),
+                                                )}
+                                                onChange={({
+                                                  selectedItems,
+                                                }) =>
+                                                  handleAdditionalFieldChange(
+                                                    fieldIndex,
+                                                    "userProfileCodes",
+                                                    selectedItems.map(
+                                                      (item) => item.id,
+                                                    ),
+                                                  )
+                                                }
+                                                label=""
+                                                titleText=""
+                                                selectionFeedback="top-after-reopen"
+                                                disabled={!isEditable}
+                                              />
+                                            </div>
+                                          </Column>
+                                          <Column lg={4} md={4} sm={4}>
+                                            <Select
+                                              id={`additional-field-user-display-mode-${fieldIndex}`}
+                                              labelText={intl.formatMessage({
+                                                id: "user.field.display.mode.label",
+                                                defaultMessage:
+                                                  "Display user as",
+                                              })}
+                                              value={
+                                                field?.userDisplayMode ||
+                                                USER_DISPLAY_MODE_BOTH
+                                              }
+                                              disabled={!isEditable}
+                                              onChange={(event) =>
+                                                handleAdditionalFieldChange(
+                                                  fieldIndex,
+                                                  "userDisplayMode",
+                                                  event.target.value,
+                                                )
+                                              }
+                                            >
+                                              <SelectItem
+                                                value={
+                                                  USER_DISPLAY_MODE_INITIALS
+                                                }
+                                                text={intl.formatMessage({
+                                                  id: "user.field.display.mode.initials",
+                                                  defaultMessage:
+                                                    "Initials only",
+                                                })}
+                                              />
+                                              <SelectItem
+                                                value={USER_DISPLAY_MODE_NAME}
+                                                text={intl.formatMessage({
+                                                  id: "user.field.display.mode.name",
+                                                  defaultMessage: "Name only",
+                                                })}
+                                              />
+                                              <SelectItem
+                                                value={USER_DISPLAY_MODE_BOTH}
+                                                text={intl.formatMessage({
+                                                  id: "user.field.display.mode.both",
+                                                  defaultMessage:
+                                                    "Initials and name",
+                                                })}
+                                              />
+                                            </Select>
+                                          </Column>
+                                        </>
+                                      ) : null}
                                     </Grid>
                                   </div>
                                 </Column>
@@ -3300,14 +3444,11 @@ export const StepThreeTestResultTypeAndLoinc = ({
                                         })}
                                         checked={field?.required === true}
                                         disabled={!isEditable}
-                                        onChange={(_event, state) =>
+                                        onChange={(event) =>
                                           handleAdditionalFieldChange(
                                             fieldIndex,
                                             "required",
-                                            resolveCheckboxChecked(
-                                              _event,
-                                              state,
-                                            ),
+                                            event.target.checked,
                                           )
                                         }
                                       />
@@ -3325,14 +3466,11 @@ export const StepThreeTestResultTypeAndLoinc = ({
                                           !isEditable ||
                                           field?.entryScope === "PRELIMINARY"
                                         }
-                                        onChange={(_event, state) =>
+                                        onChange={(event) =>
                                           handleAdditionalFieldChange(
                                             fieldIndex,
                                             "includeInValidation",
-                                            resolveCheckboxChecked(
-                                              _event,
-                                              state,
-                                            ),
+                                            event.target.checked,
                                           )
                                         }
                                       />
@@ -3350,14 +3488,11 @@ export const StepThreeTestResultTypeAndLoinc = ({
                                               true
                                             }
                                             disabled={!isEditable}
-                                            onChange={(_event, state) =>
+                                            onChange={(event) =>
                                               handleAdditionalFieldChange(
                                                 fieldIndex,
                                                 "tubeSelectorEnabled",
-                                                resolveCheckboxChecked(
-                                                  _event,
-                                                  state,
-                                                ),
+                                                event.target.checked,
                                               )
                                             }
                                           />
@@ -3372,14 +3507,11 @@ export const StepThreeTestResultTypeAndLoinc = ({
                                               field?.tubeQuantitySource === true
                                             }
                                             disabled={!isEditable}
-                                            onChange={(_event, state) =>
+                                            onChange={(event) =>
                                               handleAdditionalFieldChange(
                                                 fieldIndex,
                                                 "tubeQuantitySource",
-                                                resolveCheckboxChecked(
-                                                  _event,
-                                                  state,
-                                                ),
+                                                event.target.checked,
                                               )
                                             }
                                           />
@@ -3397,14 +3529,11 @@ export const StepThreeTestResultTypeAndLoinc = ({
                                           true
                                         }
                                         disabled={!isEditable}
-                                        onChange={(_event, state) =>
+                                        onChange={(event) =>
                                           handleAdditionalFieldChange(
                                             fieldIndex,
                                             "childTubeUsageBlockEnabled",
-                                            resolveCheckboxChecked(
-                                              _event,
-                                              state,
-                                            ),
+                                            event.target.checked,
                                           )
                                         }
                                       />
@@ -3418,14 +3547,11 @@ export const StepThreeTestResultTypeAndLoinc = ({
                                           field?.tubeLabelEnabled === true
                                         }
                                         disabled={!isEditable}
-                                        onChange={(_event, state) =>
+                                        onChange={(event) =>
                                           handleAdditionalFieldChange(
                                             fieldIndex,
                                             "tubeLabelEnabled",
-                                            resolveCheckboxChecked(
-                                              _event,
-                                              state,
-                                            ),
+                                            event.target.checked,
                                           )
                                         }
                                       />
@@ -3492,110 +3618,34 @@ export const StepThreeTestResultTypeAndLoinc = ({
                                 {supportsOptions && (
                                   <Column lg={16} md={8} sm={4}>
                                     <div style={cardSectionStyle}>
-                                      <p style={cardSectionTitleStyle}>
-                                        <FormattedMessage id="test.additionalFields.options" />
-                                      </p>
-                                      {(field?.options || []).map(
-                                        (option, optionIndex) => (
-                                          <Grid
-                                            key={`field-${fieldIndex}-option-${optionIndex}`}
-                                            condensed
-                                            fullWidth
-                                            style={{ marginTop: "0.5rem" }}
-                                          >
-                                            <Column lg={5} md={4} sm={4}>
-                                              <TextInput
-                                                id={`additional-field-option-label-${fieldIndex}-${optionIndex}`}
-                                                labelText={intl.formatMessage({
-                                                  id: "test.additionalFields.optionLabel",
-                                                })}
-                                                value={
-                                                  option?.optionLabel || ""
-                                                }
-                                                readOnly={!isEditable}
-                                                onChange={(event) =>
-                                                  handleFieldOptionChange(
-                                                    fieldIndex,
-                                                    optionIndex,
-                                                    "optionLabel",
-                                                    event.target.value,
-                                                  )
-                                                }
-                                              />
-                                            </Column>
-                                            <Column lg={5} md={4} sm={4}>
-                                              <TextInput
-                                                id={`additional-field-option-key-${fieldIndex}-${optionIndex}`}
-                                                labelText={intl.formatMessage({
-                                                  id: "test.additionalFields.optionKey",
-                                                })}
-                                                value={option?.optionKey || ""}
-                                                readOnly={!isEditable}
-                                                onChange={(event) =>
-                                                  handleFieldOptionChange(
-                                                    fieldIndex,
-                                                    optionIndex,
-                                                    "optionKey",
-                                                    event.target.value,
-                                                  )
-                                                }
-                                              />
-                                            </Column>
-                                            <Column lg={3} md={2} sm={2}>
-                                              <Checkbox
-                                                id={`additional-field-option-active-${fieldIndex}-${optionIndex}`}
-                                                labelText={intl.formatMessage({
-                                                  id: "test.additionalFields.active",
-                                                })}
-                                                checked={
-                                                  option?.active !== false
-                                                }
-                                                disabled={!isEditable}
-                                                onChange={(_event, state) =>
-                                                  handleFieldOptionChange(
-                                                    fieldIndex,
-                                                    optionIndex,
-                                                    "active",
-                                                    resolveCheckboxChecked(
-                                                      _event,
-                                                      state,
-                                                    ),
-                                                  )
-                                                }
-                                              />
-                                            </Column>
-                                            <Column lg={3} md={2} sm={2}>
-                                              <Button
-                                                kind="danger--tertiary"
-                                                size="sm"
-                                                type="button"
-                                                disabled={!isEditable}
-                                                style={{ marginTop: "1.45rem" }}
-                                                onClick={() =>
-                                                  handleRemoveFieldOption(
-                                                    fieldIndex,
-                                                    optionIndex,
-                                                  )
-                                                }
-                                              >
-                                                <FormattedMessage id="test.additionalFields.removeOption" />
-                                              </Button>
-                                            </Column>
-                                          </Grid>
-                                        ),
-                                      )}
-                                      <Button
-                                        kind="tertiary"
-                                        size="sm"
-                                        type="button"
-                                        style={{ marginTop: "0.5rem" }}
-                                        disabled={!isEditable}
-                                        onClick={() =>
+                                      <AdditionalFieldOptionsEditor
+                                        idPrefix={`additional-field-${fieldIndex}`}
+                                        options={field?.options || []}
+                                        locked={
+                                          !isEditable ||
+                                          structureLockedByData
+                                        }
+                                        onAddOption={() =>
                                           handleAddFieldOption(fieldIndex)
                                         }
-                                      >
-                                        <FormattedMessage id="test.additionalFields.addOption" />
-                                      </Button>
+                                        onOptionLabelChange={(
+                                          optionIndex,
+                                          nextLabel,
+                                        ) =>
+                                          handleFieldOptionChange(
+                                            fieldIndex,
+                                            optionIndex,
+                                            "optionLabel",
+                                            nextLabel,
+                                          )
+                                        }
+                                        onRemoveOption={(optionIndex) =>
+                                          handleRemoveFieldOption(
+                                            fieldIndex,
+                                            optionIndex,
+                                          )
+                                        }
+                                      />
                                     </div>
                                   </Column>
                                 )}
@@ -3694,6 +3744,15 @@ export const StepThreeTestResultTypeAndLoinc = ({
                   <div>
                     <Checkbox
                       labelText={
+                        <FormattedMessage id="test.antimicrobialResistance" />
+                      }
+                      id="antimicrobial-resistance"
+                      name="antimicrobialResistance"
+                      onChange={handleAntimicrobialResistance}
+                      checked={values?.antimicrobialResistance === "Y"}
+                    />
+                    <Checkbox
+                      labelText={
                         <FormattedMessage id="dictionary.category.isActive" />
                       }
                       id="is-active"
@@ -3748,6 +3807,20 @@ export const StepThreeTestResultTypeAndLoinc = ({
                         <FormattedMessage id="test.skipValidationWhenParentComplete.disabledForNonParent" />
                       </p>
                     )}
+                    <Checkbox
+                      labelText={<FormattedMessage id="test.notifyResults" />}
+                      id="notify-patient-of-results"
+                      name="notifyResults"
+                      onChange={handleNotifyPatientofResults}
+                      checked={values?.notifyResults === "Y"}
+                    />
+                    <Checkbox
+                      labelText={<FormattedMessage id="test.inLabOnly" />}
+                      id="in-lab-only"
+                      name="inLabOnly"
+                      onChange={handleInLabOnly}
+                      checked={values?.inLabOnly === "Y"}
+                    />
                   </div>
                 </Column>
               </Grid>
@@ -5167,7 +5240,7 @@ export const StepSixSelectRangeAgeRangeAndSignificantDigits = ({
                               checked={
                                 values.resultLimits?.[index]?.gender || false
                               }
-                              onChange={(_event, state) => {
+                              onChange={(e) => {
                                 if (!values.resultLimits?.[index]) {
                                   const updatedLimits = [
                                     ...(values.resultLimits || []),
@@ -5178,7 +5251,7 @@ export const StepSixSelectRangeAgeRangeAndSignificantDigits = ({
                                 handleRangeChange(
                                   index,
                                   "gender",
-                                  resolveCheckboxChecked(_event, state),
+                                  e.target.checked,
                                 );
                               }}
                             />
@@ -5842,27 +5915,29 @@ export const StepSevenFinalDisplayAndSaveConfirmation = ({
   };
   return (
     <>
-      <Formik
-        initialValues={formData}
-        enableReinitialize={true}
-        validateOnChange={true}
-        validateOnBlur={true}
-        onSubmit={(values, actions) => {
-          handleSubmit(values);
-          actions.setSubmitting(false);
-        }}
-      >
-        {({
-          values,
-          handleChange,
-          handleBlur,
-          touched,
-          errors,
-          setFieldValue,
-        }) => {
-          return (
-            <Form>
-              <Grid fullWidth={true}>
+      {currentStep === 7 - 1 ? (
+        <>
+          <Formik
+            initialValues={formData}
+            enableReinitialize={true}
+            validateOnChange={true}
+            validateOnBlur={true}
+            onSubmit={(values, actions) => {
+              handleSubmit(values);
+              actions.setSubmitting(false);
+            }}
+          >
+            {({
+              values,
+              handleChange,
+              handleBlur,
+              touched,
+              errors,
+              setFieldValue,
+            }) => {
+              return (
+                <Form>
+                  <Grid fullWidth={true}>
                     <Column lg={6} md={8} sm={4}>
                       <Section>
                         <Section>
@@ -5937,6 +6012,11 @@ export const StepSevenFinalDisplayAndSaveConfirmation = ({
                       {selectedResultTypeList.value}
                       <br />
                       <br />
+                      <FormattedMessage id="test.antimicrobialResistance" />
+                      {" : "}
+                      {values?.antimicrobialResistance}
+                      <br />
+                      <br />
                       <FormattedMessage id="dictionary.category.isActive" />
                       {" : "}
                       {values?.active}
@@ -5956,6 +6036,15 @@ export const StepSevenFinalDisplayAndSaveConfirmation = ({
                       {" : "}
                       {values?.skipValidationWhenParentComplete}
                       <br />
+                      <br />
+                      <FormattedMessage id="test.notifyResults" />
+                      {" : "}
+                      {values?.notifyResults}
+                      <br />
+                      <br />
+                      <FormattedMessage id="test.inLabOnly" />
+                      {" : "}
+                      {values?.inLabOnly}
                       <br />
                     </Column>
                     <Column lg={10} md={8} sm={4}>
@@ -6029,26 +6118,30 @@ export const StepSevenFinalDisplayAndSaveConfirmation = ({
                       {" : "}
                       {values?.defaultTestResult}
                     </Column>
-              </Grid>
-              <br />
-              <Grid fullWidth={true}>
-                <Column lg={16} md={8} sm={4}>
-                  <Button type="submit">
-                    <FormattedMessage id="accept.action.button" />
-                  </Button>{" "}
-                  <Button
-                    onClick={() => handlePreviousStep(values)}
-                    kind="tertiary"
-                    type="button"
-                  >
-                    <FormattedMessage id="back.action.button" />
-                  </Button>
-                </Column>
-              </Grid>
-            </Form>
-          );
-        }}
-      </Formik>
+                  </Grid>
+                  <br />
+                  <Grid fullWidth={true}>
+                    <Column lg={16} md={8} sm={4}>
+                      <Button type="submit">
+                        <FormattedMessage id="accept.action.button" />
+                      </Button>{" "}
+                      <Button
+                        onClick={() => handlePreviousStep(values)}
+                        kind="tertiary"
+                        type="button"
+                      >
+                        <FormattedMessage id="back.action.button" />
+                      </Button>
+                    </Column>
+                  </Grid>
+                </Form>
+              );
+            }}
+          </Formik>
+        </>
+      ) : (
+        <></>
+      )}
     </>
   );
 };

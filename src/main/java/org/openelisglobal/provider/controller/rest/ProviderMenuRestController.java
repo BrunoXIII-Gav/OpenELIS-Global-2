@@ -12,6 +12,7 @@ import org.openelisglobal.common.form.AdminOptionMenuForm;
 import org.openelisglobal.common.log.LogEvent;
 import org.openelisglobal.common.util.ConfigurationProperties;
 import org.openelisglobal.provider.form.ProviderMenuForm;
+import org.openelisglobal.provider.service.ProviderProfileFieldService;
 import org.openelisglobal.provider.service.ProviderService;
 import org.openelisglobal.provider.valueholder.Provider;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -48,6 +49,8 @@ public class ProviderMenuRestController extends BaseMenuController<Provider> {
 
     @Autowired
     private ProviderService providerService;
+    @Autowired
+    private ProviderProfileFieldService providerProfileFieldService;
 
     @InitBinder
     public void initBinder(WebDataBinder binder) {
@@ -133,6 +136,7 @@ public class ProviderMenuRestController extends BaseMenuController<Provider> {
         form.setToRecordCount(String.valueOf(endingRecNo));
         form.setFromRecordCount(String.valueOf(startingRecNo));
         form.setTotalRecordCount(String.valueOf(String.valueOf(providerService.getCount())));
+        providerProfileFieldService.hydrateProfileFieldValues(providers);
 
         return providers;
     }

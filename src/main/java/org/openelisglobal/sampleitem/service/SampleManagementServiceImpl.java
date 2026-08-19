@@ -288,8 +288,8 @@ public class SampleManagementServiceImpl implements SampleManagementService {
         dto.setCollector(sampleItem.getCollector());
 
         if (sampleItem.getTypeOfSample() != null) {
-            dto.setAdditionalFields(
-                    sampleTypeAdditionalFieldService.getFieldsForSampleType(sampleItem.getTypeOfSample().getId(), false));
+            dto.setAdditionalFields(sampleTypeAdditionalFieldService
+                    .getFieldsForSampleType(sampleItem.getTypeOfSample().getId(), false, true));
             dto.setAdditionalFieldValues(sampleTypeAdditionalFieldService
                     .getFieldValuesForSampleItem(sampleItem.getTypeOfSample().getId(), sampleItem.getId()));
         }
@@ -578,15 +578,12 @@ public class SampleManagementServiceImpl implements SampleManagementService {
     private void applySampleItemCoreUpdates(SampleItem sampleItem, SaveSampleManagementChangesForm.SampleUpdate update) {
         applyCugUpdate(sampleItem, update);
 
-        if (GenericValidator.isBlankOrNull(update.getQuantity())) {
-            sampleItem.setQuantity(null);
-        } else {
-            try {
-                sampleItem.setQuantity(Double.valueOf(update.getQuantity()));
-            } catch (NumberFormatException e) {
-                throw new IllegalArgumentException("Invalid quantity: " + update.getQuantity());
-            }
-        }
+        BigDecimal previousQuantity = sampleItem.getQuantity() == null ? null : BigDecimal.valueOf(sampleItem.getQuantity());
+        BigDecimal previousRemainingQuantity = sampleItem.getRemainingQuantity();
+        BigDecimal nextQuantity = parseQuantityValue(update.getQuantity());
+
+        sampleItem.setQuantity(nextQuantity == null ? null : nextQuantity.doubleValue());
+        reconcileRemainingQuantityAfterQuantityEdit(sampleItem, previousQuantity, previousRemainingQuantity, nextQuantity);
 
         if (GenericValidator.isBlankOrNull(update.getUnitOfMeasureId())) {
             sampleItem.setUnitOfMeasure(null);
@@ -599,6 +596,47 @@ public class SampleManagementServiceImpl implements SampleManagementService {
                 .setCollector(GenericValidator.isBlankOrNull(update.getCollector()) ? null : update.getCollector().trim());
 
         sampleItem.setCollectionDate(parseCollectionTimestamp(update.getCollectionDate(), update.getCollectionTime()));
+    }
+
+    private BigDecimal parseQuantityValue(String rawQuantity) {
+        if (GenericValidator.isBlankOrNull(rawQuantity)) {
+            return null;
+        }
+
+        try {
+            return new BigDecimal(rawQuantity.trim());
+        } catch (NumberFormatException e) {
+            throw new IllegalArgumentException("Invalid quantity: " + rawQuantity);
+        }
+    }
+
+    private void reconcileRemainingQuantityAfterQuantityEdit(SampleItem sampleItem, BigDecimal previousQuantity,
+            BigDecimal previousRemainingQuantity, BigDecimal nextQuantity) {
+        if (previousRemainingQuantity == null) {
+            return;
+        }
+
+        if (nextQuantity == null) {
+            sampleItem.setRemainingQuantity(null);
+            return;
+        }
+
+        BigDecimal baselineQuantity = previousQuantity == null ? previousRemainingQuantity : previousQuantity;
+        BigDecimal delta = nextQuantity.subtract(baselineQuantity);
+        BigDecimal nextRemainingQuantity = previousRemainingQuantity.add(delta);
+
+        if (nextRemainingQuantity.compareTo(BigDecimal.ZERO) < 0) {
+            BigDecimal alreadyConsumed = baselineQuantity.subtract(previousRemainingQuantity);
+            if (alreadyConsumed.compareTo(BigDecimal.ZERO) < 0) {
+                alreadyConsumed = BigDecimal.ZERO;
+            }
+            throw new IllegalArgumentException(String.format(
+                    "Updated quantity (%s) cannot be less than the amount already used (%s).",
+                    nextQuantity.stripTrailingZeros().toPlainString(),
+                    alreadyConsumed.stripTrailingZeros().toPlainString()));
+        }
+
+        sampleItem.setRemainingQuantity(nextRemainingQuantity);
     }
 
     private void applyCugUpdate(SampleItem sampleItem, SaveSampleManagementChangesForm.SampleUpdate update) {

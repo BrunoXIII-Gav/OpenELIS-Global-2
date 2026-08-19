@@ -16,6 +16,7 @@ import {
   Heading,
   Form,
   FormLabel,
+  InlineNotification,
   TextInput,
   TextArea,
   Checkbox,
@@ -35,6 +36,7 @@ import AddressSearch from "./AddressSearch";
 import { Formik, Field, ErrorMessage } from "formik";
 import CreatePatientFormValues from "../formModel/innitialValues/CreatePatientFormValues";
 import PatientFormObserver from "./PatientFormObserver";
+import { sanitizePatientProperties } from "./patientPropertiesSanitizer";
 import { AlertDialog, NotificationKinds } from "../common/CustomNotification";
 import { NotificationContext, ConfigurationContext } from "../layout/Layout";
 import CreatePatientValidationSchema from "../formModel/validationSchema/CreatePatientValidationShema";
@@ -62,6 +64,7 @@ const PRIMARY_IDENTIFIER_OPTIONS = [
 function CreatePatientForm(props) {
   const componentMounted = useRef(false);
   const selectedPatient = props.selectedPatient || {};
+  const isOrderEntryPatientStep = props.isOrderEntryPatientStep === true;
 
   const { notificationVisible, setNotificationVisible, addNotification } =
     useContext(NotificationContext);
@@ -108,6 +111,9 @@ function CreatePatientForm(props) {
   });
 
   const [isSubmitting, setIsSubmitting] = useState(false);
+  const [hasPatientPermission, setHasPatientPermission] = useState(true);
+  const [hasOrderPermission, setHasOrderPermission] = useState(true);
+  const [permissionsLoaded, setPermissionsLoaded] = useState(false);
   const [phoneValidation, setPhoneValidation] = useState({
     primaryPhone: { body: "", status: true },
     contactPhone: { body: "", status: true },
@@ -116,38 +122,9 @@ function CreatePatientForm(props) {
   const [showPassportField, setShowPassportField] = useState(false);
   const [showForeignIdField, setShowForeignIdField] = useState(false);
 
-  const getPersistedPatientContext = () => {
-    const selectedPatientPk = String(props.selectedPatient?.patientPK || "").trim();
-    if (selectedPatientPk) {
-      return props.selectedPatient;
-    }
-    return props.orderFormValues?.patientProperties || {};
-  };
-
-  const isExistingPatientIdentifier = (numberValue) => {
-    const normalizedNumberValue = String(numberValue || "").trim();
-    if (!normalizedNumberValue) {
-      return false;
-    }
-
-    const persistedPatient = getPersistedPatientContext();
-    const patientPk = String(persistedPatient?.patientPK || "").trim();
-    if (!patientPk) {
-      return false;
-    }
-
-    const persistedIdentifiers = [
-      persistedPatient?.subjectNumber,
-      persistedPatient?.nationalId,
-      persistedPatient?.dni,
-      persistedPatient?.passportNumber,
-      persistedPatient?.foreignId,
-    ]
-      .map((value) => String(value || "").trim())
-      .filter(Boolean);
-
-    return persistedIdentifiers.includes(normalizedNumberValue);
-  };
+  const canEditPatientInCurrentContext = isOrderEntryPatientStep
+    ? hasOrderPermission
+    : hasPatientPermission;
 
   const getIdentifierValueByType = (values, type) => {
     switch (type) {
@@ -292,8 +269,26 @@ function CreatePatientForm(props) {
       : [];
   };
 
+  const filterPatientAdditionalFieldValues = (fieldValues = {}) => {
+    const allowedFieldKeys = new Set(
+      getPatientAdditionalFields()
+        .map((field) => field?.fieldKey)
+        .filter(Boolean),
+    );
+
+    if (allowedFieldKeys.size === 0) {
+      return { ...(fieldValues || {}) };
+    }
+
+    return Object.fromEntries(
+      Object.entries(fieldValues || {}).filter(([fieldKey]) =>
+        allowedFieldKeys.has(fieldKey),
+      ),
+    );
+  };
+
   const normalizePatientAdditionalFieldValues = (fieldValues = {}) => {
-    const normalized = { ...(fieldValues || {}) };
+    const normalized = filterPatientAdditionalFieldValues(fieldValues);
     getPatientAdditionalFields().forEach((field) => {
       if (
         normalized[field.fieldKey] === undefined ||
@@ -317,20 +312,21 @@ function CreatePatientForm(props) {
     if (props.setOrderFormValues && props.orderFormValues) {
       props.setOrderFormValues((previous) => ({
         ...(previous || props.orderFormValues),
-        patientProperties: {
+        patientProperties: sanitizePatientProperties({
           ...((previous || props.orderFormValues)?.patientProperties || {}),
           patientAdditionalFieldValues: {
             ...(((previous || props.orderFormValues)?.patientProperties || {})
               ?.patientAdditionalFieldValues || {}),
             [fieldKey]: value,
           },
-        },
+        }),
       }));
     }
   };
 
   const renderPatientAdditionalField = (field, values, setFieldValue) => {
     const fieldType = (field.fieldType || "TEXT").toUpperCase();
+    const isReadOnly = !permissionsLoaded || !canEditPatientInCurrentContext;
     const currentValue = values.patientAdditionalFieldValues?.[field.fieldKey];
     const value =
       currentValue !== undefined && currentValue !== null
@@ -355,6 +351,8 @@ function CreatePatientForm(props) {
               id={`patient-dynamic-${field.fieldKey}`}
               labelText={label}
               value={value}
+              disabled={isReadOnly}
+              readOnly={isReadOnly}
               onChange={(event) =>
                 handlePatientAdditionalFieldValueChange(
                   setFieldValue,
@@ -374,6 +372,8 @@ function CreatePatientForm(props) {
               labelText={label}
               type="number"
               value={value}
+              disabled={isReadOnly}
+              readOnly={isReadOnly}
               onChange={(event) =>
                 handlePatientAdditionalFieldValueChange(
                   setFieldValue,
@@ -392,6 +392,8 @@ function CreatePatientForm(props) {
               labelText={label}
               type="date"
               value={value}
+              disabled={isReadOnly}
+              readOnly={isReadOnly}
               onChange={(event) =>
                 handlePatientAdditionalFieldValueChange(
                   setFieldValue,
@@ -410,6 +412,8 @@ function CreatePatientForm(props) {
               labelText={label}
               type="time"
               value={value}
+              disabled={isReadOnly}
+              readOnly={isReadOnly}
               onChange={(event) =>
                 handlePatientAdditionalFieldValueChange(
                   setFieldValue,
@@ -428,6 +432,8 @@ function CreatePatientForm(props) {
               labelText={label}
               type="datetime-local"
               value={value}
+              disabled={isReadOnly}
+              readOnly={isReadOnly}
               onChange={(event) =>
                 handlePatientAdditionalFieldValueChange(
                   setFieldValue,
@@ -445,6 +451,7 @@ function CreatePatientForm(props) {
               id={`patient-dynamic-${field.fieldKey}`}
               labelText={field.displayName}
               checked={String(value).toLowerCase() === "true"}
+              disabled={isReadOnly}
               onChange={(_event, { checked }) =>
                 handlePatientAdditionalFieldValueChange(
                   setFieldValue,
@@ -456,12 +463,14 @@ function CreatePatientForm(props) {
           </Column>
         );
       case "SELECT":
+      case "USER":
         return (
           <Column key={field.fieldKey} lg={8} md={4} sm={4}>
             <Select
               id={`patient-dynamic-${field.fieldKey}`}
               labelText={label}
               value={value}
+              disabled={isReadOnly}
               onChange={(event) =>
                 handlePatientAdditionalFieldValueChange(
                   setFieldValue,
@@ -502,6 +511,7 @@ function CreatePatientForm(props) {
                   id={`patient-dynamic-${field.fieldKey}-${option.optionKey}`}
                   labelText={option.optionLabel}
                   value={option.optionKey}
+                  disabled={isReadOnly}
                 />
               ))}
             </RadioButtonGroup>
@@ -524,6 +534,7 @@ function CreatePatientForm(props) {
                   id={`patient-dynamic-${field.fieldKey}-${option.optionKey}`}
                   labelText={option.optionLabel}
                   checked={selectedValues.has(option.optionKey)}
+                  disabled={isReadOnly}
                   onChange={(_event, { checked }) => {
                     const nextValues = new Set(selectedValues);
                     if (checked) {
@@ -550,6 +561,8 @@ function CreatePatientForm(props) {
               id={`patient-dynamic-${field.fieldKey}`}
               labelText={label}
               value={value}
+              disabled={isReadOnly}
+              readOnly={isReadOnly}
               onChange={(event) =>
                 handlePatientAdditionalFieldValueChange(
                   setFieldValue,
@@ -833,6 +846,33 @@ function CreatePatientForm(props) {
     fetchChildrenForDefaultLevel(0);
   };
 
+  const translatePhoneValidation = (validation) => {
+    if (validation?.status !== false || !validation?.body) {
+      return validation;
+    }
+
+    if (
+      validation.body.includes("Phone number must be in the form of") ||
+      validation.body.includes("Numéro de téléphone doit être")
+    ) {
+      return {
+        ...validation,
+        body: intl.formatMessage(
+          {
+            id: "patient.validation.phone.invalid",
+            defaultMessage:
+              "Phone number must be in the form of {PHONE_FORMAT} plus an optional extension",
+          },
+          {
+            PHONE_FORMAT: configurationProperties.PHONE_FORMAT,
+          },
+        ),
+      };
+    }
+
+    return validation;
+  };
+
   const handlePhoneValidation = (e) => {
     const { id, value } = e.target;
     getFromOpenElisServer(
@@ -840,7 +880,7 @@ function CreatePatientForm(props) {
         encodeURIComponent(value),
       (resp) => {
         const validation = { ...phoneValidation };
-        validation[id] = resp;
+        validation[id] = translatePhoneValidation(resp);
         setPhoneValidation(validation);
       },
     );
@@ -929,7 +969,7 @@ function CreatePatientForm(props) {
         setHealthDistricts([]);
       }
       //merge objects together to avoid "A component is changing a controlled input to be uncontrolled"
-      let patient = { ...selectedPatient };
+      let patient = sanitizePatientProperties({ ...selectedPatient });
       patient.patientUpdateStatus = "UPDATE";
       patient.photo = "";
       //merge objects together to avoid "A component is changing a controlled input to be uncontrolled"
@@ -949,7 +989,7 @@ function CreatePatientForm(props) {
           flattenedAddressHierarchy[key] = value;
         });
       }
-      patient = {
+      patient = sanitizePatientProperties({
         ...patientDetails,
         ...patient,
         ...flattenedAddressHierarchy,
@@ -958,7 +998,7 @@ function CreatePatientForm(props) {
           ...(patient.patientAdditionalFieldValues || {}),
         }),
         patientContact: patientContact,
-      };
+      });
       patientIdentifierRef.current = {
         nationalId: patient.nationalId || "",
         subjectNumber: patient.subjectNumber || "",
@@ -968,7 +1008,7 @@ function CreatePatientForm(props) {
         inferPrimaryIdentifierType(patient);
       syncOptionalIdentityVisibility(patient);
       setPatientDetails({
-        ...patientDetails,
+        ...sanitizePatientProperties(patientDetails),
         ...patient,
         ...flattenedAddressHierarchy,
         patientAdditionalFieldValues: normalizePatientAdditionalFieldValues({
@@ -1033,7 +1073,9 @@ function CreatePatientForm(props) {
         props.orderFormValues.patientProperties.guid !== ""
       ) {
         // Flatten addressHierarchy map into top-level form fields
-        const patient = props.orderFormValues.patientProperties;
+        const patient = sanitizePatientProperties(
+          props.orderFormValues.patientProperties,
+        );
         const flattenedAddressHierarchy = {};
         if (patient.addressHierarchy) {
           Object.entries(patient.addressHierarchy).forEach(([key, value]) => {
@@ -1043,6 +1085,9 @@ function CreatePatientForm(props) {
         setPatientDetails({
           ...patient,
           ...flattenedAddressHierarchy,
+          patientAdditionalFieldValues: normalizePatientAdditionalFieldValues(
+            patient.patientAdditionalFieldValues || {},
+          ),
         });
         patientIdentifierRef.current = {
           nationalId: patient.nationalId || "",
@@ -1052,14 +1097,6 @@ function CreatePatientForm(props) {
           patient.primaryPatientIdentifierType ||
           inferPrimaryIdentifierType(patient);
         syncOptionalIdentityVisibility(patient);
-        const isExistingPatient =
-          String(
-            patient.patientUpdateStatus ||
-              props.orderFormValues.patientUpdateStatus ||
-              "",
-          ).toUpperCase() === "UPDATE" ||
-          String(patient.patientPK || "").trim() !== "";
-        setFormAction(isExistingPatient ? "UPDATE" : "ADD");
         getYearsMonthsDaysFromDOB(
           props.orderFormValues.patientProperties.birthDateForDisplay,
         );
@@ -1070,6 +1107,16 @@ function CreatePatientForm(props) {
   useEffect(() => {
     componentMounted.current = true;
     repopulatePatientInfo();
+
+    // Check professional profile permissions
+    getFromOpenElisServer("/rest/professional-profile-permissions", (response) => {
+      if (response) {
+        setHasPatientPermission(response.hasPatientEntryPermission !== false);
+        setHasOrderPermission(response.hasOrderPermission !== false);
+      }
+      setPermissionsLoaded(true);
+    });
+
     return () => {
       componentMounted.current = false;
     };
@@ -1080,11 +1127,14 @@ function CreatePatientForm(props) {
       getFromOpenElisServer("/rest/health-regions", fetchHeathRegions);
       getFromOpenElisServer("/rest/education-list", fetchEducationList);
       getFromOpenElisServer("/rest/marital-statuses", fetchMaritalStatuses);
-      getFromOpenElisServer("/rest/patient-additional-fields", (fields) => {
+      getFromOpenElisServer(
+        "/rest/patient-additional-fields?resolveUserOptions=true",
+        (fields) => {
         if (componentMounted.current) {
           setPatientAdditionalFields(Array.isArray(fields) ? fields : []);
         }
-      });
+        },
+      );
     }
   }, [showPatientAdditionalInfoOnOrderEntry]);
 
@@ -1092,12 +1142,31 @@ function CreatePatientForm(props) {
     if (patientAdditionalFields.length === 0) {
       return;
     }
-    setPatientDetails((current) => ({
-      ...current,
-      patientAdditionalFieldValues: normalizePatientAdditionalFieldValues(
+    setPatientDetails((current) => {
+      const normalizedValues = normalizePatientAdditionalFieldValues(
         current.patientAdditionalFieldValues || {},
-      ),
-    }));
+      );
+      return {
+        ...current,
+        patientAdditionalFieldValues: normalizedValues,
+      };
+    });
+    if (props.setOrderFormValues) {
+      props.setOrderFormValues((previous) => {
+        if (!previous?.patientProperties) {
+          return previous;
+        }
+        return {
+          ...previous,
+          patientProperties: sanitizePatientProperties({
+            ...previous.patientProperties,
+            patientAdditionalFieldValues: normalizePatientAdditionalFieldValues(
+              previous.patientProperties.patientAdditionalFieldValues || {},
+            ),
+          }),
+        };
+      });
+    }
   }, [patientAdditionalFields]);
 
   // Fetch address hierarchy levels when configurationProperties changes
@@ -1186,7 +1255,12 @@ function CreatePatientForm(props) {
 
   const accessionNumberValidationResponse = (res, numberType, numberValue) => {
     let error;
-    if (res.status === false && !isExistingPatientIdentifier(numberValue)) {
+    if (
+      res.status === false &&
+      (selectedPatient.nationalId !== patientIdentifierRef.current.nationalId ||
+        selectedPatient.subjectNumber !==
+          patientIdentifierRef.current.subjectNumber)
+    ) {
       setNotificationVisible(true);
       addNotification({
         kind: NotificationKinds.error,
@@ -1231,8 +1305,16 @@ function CreatePatientForm(props) {
   };
 
   const handleSubmit = async (values, { resetForm }) => {
+    if (isOrderEntryPatientStep) {
+      return;
+    }
+
     // Prevent multiple submissions.
-    if (isSubmitting) {
+    if (
+      isSubmitting ||
+      !permissionsLoaded ||
+      !canEditPatientInCurrentContext
+    ) {
       return;
     }
 
@@ -1306,10 +1388,18 @@ function CreatePatientForm(props) {
   return (
     <>
       {notificationVisible === true ? <AlertDialog /> : ""}
+      {!isOrderEntryPatientStep && permissionsLoaded && !hasPatientPermission && (
+        <InlineNotification
+          kind="warning"
+          title={intl.formatMessage({ id: "professionalProfile.permission.denied.patient" })}
+          hideCloseButton={true}
+          lowContrast={true}
+        />
+      )}
       <Formik
         initialValues={patientDetails}
         enableReinitialize
-        validationSchema={CreatePatientValidationSchema}
+        validationSchema={CreatePatientValidationSchema(intl)}
         validate={validatePatientIdentifiers}
         validateOnChange={false}
         validateOnBlur={true}
@@ -1325,20 +1415,24 @@ function CreatePatientForm(props) {
           handleBlur,
           handleSubmit,
           setFieldValue,
-        }) => (
-          <Form
-            onSubmit={handleSubmit}
-            onChange={handleChange}
-            onBlur={handleBlur}
-          >
-            {props.orderFormValues && (
+        }) => {
+          const patientEditingDisabled =
+            !permissionsLoaded || !canEditPatientInCurrentContext;
+
+          return (
+            <Form
+              onSubmit={handleSubmit}
+              onChange={handleChange}
+              onBlur={handleBlur}
+            >
+              {props.orderFormValues && (
               <PatientFormObserver
                 orderFormValues={props.orderFormValues}
                 setOrderFormValues={props.setOrderFormValues}
                 formAction={formAction}
               />
-            )}
-            <Grid>
+              )}
+              <Grid>
               <Column lg={16} md={8} sm={4}>
                 <FormLabel>
                   <Section>
@@ -1365,6 +1459,7 @@ function CreatePatientForm(props) {
                         handlePhotoChange(photo, setFieldValue)
                       }
                       required={false}
+                      disabled={patientEditingDisabled}
                     />
                   </Column>
                 </>
@@ -1401,6 +1496,7 @@ function CreatePatientForm(props) {
                           );
                           handleBlur(event);
                         }}
+                        disabled={patientEditingDisabled}
                         placeholder={intl.formatMessage({
                           id: "patient.information.healthid",
                         })}
@@ -1422,6 +1518,7 @@ function CreatePatientForm(props) {
                         })}
                         id={field.name}
                         readOnly
+                        disabled={patientEditingDisabled}
                         invalid={isNationalIdInvalid(
                           errors.nationalId,
                           touched.nationalId,
@@ -1443,6 +1540,7 @@ function CreatePatientForm(props) {
                       labelText={intl.formatMessage({
                         id: "patient.identifier.dni",
                       })}
+                      disabled={patientEditingDisabled}
                       checked={showDniField}
                       onChange={(_event, { checked }) => {
                         const isChecked = Boolean(checked);
@@ -1475,6 +1573,7 @@ function CreatePatientForm(props) {
                       labelText={intl.formatMessage({
                         id: "patient.identifier.passport",
                       })}
+                      disabled={patientEditingDisabled}
                       checked={showPassportField}
                       onChange={(_event, { checked }) => {
                         const isChecked = Boolean(checked);
@@ -1512,6 +1611,7 @@ function CreatePatientForm(props) {
                       labelText={intl.formatMessage({
                         id: "patient.identifier.foreign.card",
                       })}
+                      disabled={patientEditingDisabled}
                       checked={showForeignIdField}
                       onChange={(_event, { checked }) => {
                         const isChecked = Boolean(checked);
@@ -1558,6 +1658,7 @@ function CreatePatientForm(props) {
                           labelText={intl.formatMessage({
                             id: "patient.identifier.primary",
                           })}
+                          disabled={patientEditingDisabled}
                           value={values.primaryPatientIdentifierType || ""}
                           invalid={
                             errors.primaryPatientIdentifierType &&
@@ -1613,6 +1714,7 @@ function CreatePatientForm(props) {
                           id: "patient.identifier.dni",
                         })}
                         id={field.name}
+                        disabled={patientEditingDisabled}
                         invalid={errors.dni && touched.dni}
                         invalidText={errors.dni}
                         onMouseOut={() => {
@@ -1652,6 +1754,7 @@ function CreatePatientForm(props) {
                             id: "patient.identifier.passport",
                           })}
                           id={field.name}
+                          disabled={patientEditingDisabled}
                           invalid={
                             errors.passportNumber && touched.passportNumber
                           }
@@ -1695,6 +1798,7 @@ function CreatePatientForm(props) {
                             id: "patient.identifier.foreign.card",
                           })}
                           id={field.name}
+                          disabled={patientEditingDisabled}
                           invalid={errors.foreignId && touched.foreignId}
                           invalidText={errors.foreignId}
                           onMouseOut={() => {
@@ -1739,6 +1843,7 @@ function CreatePatientForm(props) {
                         id: "patient.last.name",
                       })}
                       id={field.name}
+                      disabled={patientEditingDisabled}
                       invalid={errors.lastName && touched.lastName}
                       invalidText={errors.lastName}
                       placeholder={intl.formatMessage({
@@ -1759,6 +1864,7 @@ function CreatePatientForm(props) {
                         id: "patient.first.name",
                       })}
                       id={field.name}
+                      disabled={patientEditingDisabled}
                       invalid={errors.firstName && touched.firstName}
                       invalidText={errors.firstName}
                       placeholder={intl.formatMessage({
@@ -1790,6 +1896,7 @@ function CreatePatientForm(props) {
                         },
                         { PHONE_FORMAT: configurationProperties.PHONE_FORMAT },
                       )}
+                      disabled={patientEditingDisabled}
                       invalid={!phoneValidation.primaryPhone.status}
                       invalidText={
                         phoneValidation.primaryPhone.status
@@ -1817,6 +1924,7 @@ function CreatePatientForm(props) {
                         {},
                       )}
                       id={field.name}
+                      disabled={patientEditingDisabled}
                       invalid={errors.email && touched.email}
                       invalidText={errors.email}
                       placeholder={intl.formatMessage({
@@ -1852,16 +1960,19 @@ function CreatePatientForm(props) {
                       invalid={errors.gender && touched.gender}
                       invalidText={errors.gender}
                       id="create_patient_gender"
+                      readOnly={patientEditingDisabled}
                     >
                       <RadioButton
                         id="radio-1"
                         labelText={intl.formatMessage({ id: "patient.male" })}
                         value="M"
+                        disabled={patientEditingDisabled}
                       />
                       <RadioButton
                         id="radio-2"
                         labelText={intl.formatMessage({ id: "patient.female" })}
                         value="F"
+                        disabled={patientEditingDisabled}
                       />
                     </RadioButtonGroup>
                   )}
@@ -1898,6 +2009,7 @@ function CreatePatientForm(props) {
                       name={field.name}
                       disallowFutureDate={true}
                       updateStateValue={true}
+                      disabled={patientEditingDisabled}
                     />
                   )}
                 </Field>
@@ -1912,6 +2024,7 @@ function CreatePatientForm(props) {
                   id="years"
                   type="number"
                   min="0"
+                  disabled={patientEditingDisabled}
                   onChange={(e) => handleYearsChange(e, values)}
                   placeholder={intl.formatMessage({
                     id: "patient.information.age",
@@ -1925,6 +2038,7 @@ function CreatePatientForm(props) {
                   labelText={intl.formatMessage({ id: "patient.age.months" })}
                   type="number"
                   min="0"
+                  disabled={patientEditingDisabled}
                   onChange={(e) => handleMonthsChange(e, values)}
                   id="months"
                   placeholder={intl.formatMessage({
@@ -1938,6 +2052,7 @@ function CreatePatientForm(props) {
                   name="days"
                   type="number"
                   min="0"
+                  disabled={patientEditingDisabled}
                   onChange={(e) => handleDaysChange(e, values)}
                   labelText={intl.formatMessage({ id: "patient.age.days" })}
                   id="days"
@@ -1981,6 +2096,7 @@ function CreatePatientForm(props) {
                                     id: "patientcontact.person.lastname",
                                   })}
                                   id={field.name}
+                                  disabled={patientEditingDisabled}
                                   onChange={(e) =>
                                     handleLastContactNameChange(e)
                                   }
@@ -2004,6 +2120,7 @@ function CreatePatientForm(props) {
                                     id: "patientcontact.person.firstname",
                                   })}
                                   id={field.name}
+                                  disabled={patientEditingDisabled}
                                   onChange={(e) =>
                                     handleFirstContactNameChange(e)
                                   }
@@ -2030,6 +2147,7 @@ function CreatePatientForm(props) {
                                     id: "patientcontact.person.email",
                                   })}
                                   id={field.name}
+                                  disabled={patientEditingDisabled}
                                   placeholder={intl.formatMessage({
                                     id: "patient.emergency.email",
                                   })}
@@ -2065,6 +2183,7 @@ function CreatePatientForm(props) {
                                         configurationProperties.PHONE_FORMAT,
                                     },
                                   )}
+                                  disabled={patientEditingDisabled}
                                   invalid={!phoneValidation.contactPhone.status}
                                   invalidText={
                                     phoneValidation.contactPhone.status
@@ -2110,6 +2229,7 @@ function CreatePatientForm(props) {
                                         id: "patient.address.town",
                                       })}
                                       id={field.name}
+                                      disabled={patientEditingDisabled}
                                       placeholder={intl.formatMessage({
                                         id: "patient.emergency.additional.town",
                                       })}
@@ -2127,6 +2247,7 @@ function CreatePatientForm(props) {
                                         id: "patient.address.street",
                                       })}
                                       id={field.name}
+                                      disabled={patientEditingDisabled}
                                       placeholder={intl.formatMessage({
                                         id: "patient.emergency.additional.street",
                                       })}
@@ -2148,6 +2269,7 @@ function CreatePatientForm(props) {
                                         id: "patient.address.camp",
                                       })}
                                       id={field.name}
+                                      disabled={patientEditingDisabled}
                                       placeholder={intl.formatMessage({
                                         id: "patient.emergency.additional.camp",
                                       })}
@@ -2167,6 +2289,7 @@ function CreatePatientForm(props) {
                             addressHierarchyLevels.length > 0 && (
                               <Column lg={16} md={8} sm={4}>
                                 <AddressSearch
+                                  disabled={patientEditingDisabled}
                                   onAddressSelect={(levels) =>
                                     handleAddressSearchSelect(
                                       levels,
@@ -2194,6 +2317,7 @@ function CreatePatientForm(props) {
                                           `addressHierarchy_${levelIndex}`
                                         ] || ""
                                       }
+                                      disabled={patientEditingDisabled}
                                       name={field.name}
                                       labelText={level.typeName}
                                       onChange={(e) => {
@@ -2246,6 +2370,7 @@ function CreatePatientForm(props) {
                                     <Select
                                       id="health_region"
                                       value={values.healthRegion || ""}
+                                      disabled={patientEditingDisabled}
                                       name={field.name}
                                       labelText={intl.formatMessage({
                                         id: "patient.address.healthregion",
@@ -2276,6 +2401,7 @@ function CreatePatientForm(props) {
                                     <Select
                                       id="health_district"
                                       value={values.healthDistrict || ""}
+                                      disabled={patientEditingDisabled}
                                       name={field.name}
                                       labelText={intl.formatMessage({
                                         id: "patient.address.healthdistrict",
@@ -2311,6 +2437,7 @@ function CreatePatientForm(props) {
                                 <Select
                                   id="education"
                                   value={values.education || ""}
+                                  disabled={patientEditingDisabled}
                                   name={field.name}
                                   labelText={intl.formatMessage({
                                     id: "patient.eduction",
@@ -2338,6 +2465,7 @@ function CreatePatientForm(props) {
                                 <Select
                                   id="maritialStatus"
                                   value={values.maritialStatus || ""}
+                                  disabled={patientEditingDisabled}
                                   name={field.name}
                                   labelText={intl.formatMessage({
                                     id: "patient.maritalstatus",
@@ -2369,6 +2497,7 @@ function CreatePatientForm(props) {
                                 <Select
                                   id="nationality"
                                   value={values.nationality || ""}
+                                  disabled={patientEditingDisabled}
                                   name={field.name}
                                   labelText={intl.formatMessage({
                                     id: "patient.nationality",
@@ -2400,6 +2529,7 @@ function CreatePatientForm(props) {
                                     id: "patient.nationality.other",
                                   })}
                                   id={field.name}
+                                  disabled={patientEditingDisabled}
                                   placeholder={intl.formatMessage({
                                     id: "patient.emergency.additional.othernationality",
                                   })}
@@ -2424,6 +2554,7 @@ function CreatePatientForm(props) {
                       type="submit"
                       id="submit"
                       disabled={
+                        patientEditingDisabled ||
                         isSubmitting ||
                         Object.values(phoneValidation).some(
                           (item) => item.status === false,
@@ -2437,7 +2568,7 @@ function CreatePatientForm(props) {
                     <Button
                       id="clear"
                       kind="danger"
-                      disabled={isSubmitting}
+                      disabled={patientEditingDisabled || isSubmitting}
                       onClick={() => {
                         resetForm({ values: CreatePatientFormValues });
                         setHealthDistricts([]);
@@ -2453,9 +2584,10 @@ function CreatePatientForm(props) {
                   </Column>
                 </>
               )}
-            </Grid>
-          </Form>
-        )}
+              </Grid>
+            </Form>
+          );
+        }}
       </Formik>
     </>
   );

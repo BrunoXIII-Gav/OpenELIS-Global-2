@@ -19,6 +19,9 @@ const OrderSuccessMessage = (props) => {
     const siteId = orderFormValues.sampleOrderItems.referringSiteId;
     const siteName = orderFormValues.sampleOrderItems.referringSiteName;
     const providerId = orderFormValues.sampleOrderItems.providerId;
+    const providerPersonId = orderFormValues.sampleOrderItems.providerPersonId;
+    const providerProfessionalProfileCode =
+      orderFormValues.sampleOrderItems.providerProfessionalProfileCode;
     const providerFirstName =
       orderFormValues.sampleOrderItems.providerFirstName;
     const providerLastName = orderFormValues.sampleOrderItems.providerLastName;
@@ -31,6 +34,10 @@ const OrderSuccessMessage = (props) => {
     const providerDni = orderFormValues.sampleOrderItems.providerDni;
     const providerSpecialty =
       orderFormValues.sampleOrderItems.providerSpecialty;
+    const providerProfileFields =
+      orderFormValues.sampleOrderItems.providerProfileFields || [];
+    const providerProfileFieldValues =
+      orderFormValues.sampleOrderItems.providerProfileFieldValues || {};
 
     const emptyOrderForm = createSampleOrderFormValues();
     setOrderFormValues({
@@ -41,6 +48,8 @@ const OrderSuccessMessage = (props) => {
         referringSiteId: siteId,
         referringSiteName: siteName,
         providerId: providerId,
+        providerPersonId: providerPersonId,
+        providerProfessionalProfileCode: providerProfessionalProfileCode,
         providerFirstName: providerFirstName,
         providerLastName: providerLastName,
         providerWorkPhone: providerWorkPhone,
@@ -50,6 +59,8 @@ const OrderSuccessMessage = (props) => {
         providerRne: providerRne,
         providerDni: providerDni,
         providerSpecialty: providerSpecialty,
+        providerProfileFields: providerProfileFields,
+        providerProfileFieldValues: providerProfileFieldValues,
       },
     });
     setPage(0);

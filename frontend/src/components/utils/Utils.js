@@ -1,8 +1,8 @@
 import config from "../../config.json";
 import { emitAccessDeniedEvent } from "../security/accessDenied";
 
-const notifyIfAccessDenied = (response) => {
-  if (response?.status === 403) {
+const notifyIfAccessDenied = (response, options = {}) => {
+  if (response?.status === 403 && !options?.suppressAccessDeniedDialog) {
     emitAccessDeniedEvent();
   }
 };
@@ -77,6 +77,7 @@ export const postToOpenElisServer = (
   payLoad,
   callback,
   extraParams,
+  options = {},
 ) => {
   fetch(
     config.serverBaseUrl + endPoint,
@@ -93,7 +94,7 @@ export const postToOpenElisServer = (
     },
   )
     .then((response) => {
-      notifyIfAccessDenied(response);
+      notifyIfAccessDenied(response, options);
       return response.status;
     })
     .then((status) => {

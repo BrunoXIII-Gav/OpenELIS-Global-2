@@ -344,10 +344,14 @@ public class DefaultConfigurationProperties extends ConfigurationProperties {
         properties.setPropertyValue(Property.GPS_TIMEOUT_SECONDS, "10");
         properties.setPropertyValue(Property.ENABLED_ORDER_PRIORITIES, "ROUTINE,ASAP,STAT,TIMED,FUTURE_STAT");
         properties.setPropertyValue(Property.USE_NEW_ADDRESS_HIERARCHY, "true"); // Default to new address hierarchy
-        properties.setPropertyValue(Property.professionalProfileOptions, "BIOLOGIST|Biólogo,MEDICAL_DOCTOR|Médico");
-        properties.setPropertyValue(Property.orderProviderProfessionalProfileCode, "MEDICAL_DOCTOR");
-        properties.setPropertyValue(Property.sampleCollectorProfessionalProfileCode, "BIOLOGIST");
-        properties.setPropertyValue(Property.validationInterpreterProfessionalProfileCode, "MEDICAL_DOCTOR");
+        properties.setPropertyValue(Property.professionalProfileOptions, "");
+        properties.setPropertyValue(Property.professionalProfileFieldDefinitions, "");
+        properties.setPropertyValue(Property.professionalProfileSpecialtyOptions, "");
+        properties.setPropertyValue(Property.orderProviderProfessionalProfileCode, "");
+        properties.setPropertyValue(Property.sampleCollectorProfessionalProfileCode, "");
+        properties.setPropertyValue(Property.patientEntryProfessionalProfileCode, "");
+        properties.setPropertyValue(Property.resultEntryProfessionalProfileCode, "");
+        properties.setPropertyValue(Property.validationInterpreterProfessionalProfileCode, "");
         return properties;
     }
 

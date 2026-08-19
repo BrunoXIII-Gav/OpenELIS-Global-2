@@ -202,6 +202,8 @@ public class SamplePatientEntryRestController extends BaseSampleEntryController 
 
     @Autowired
     private ApplicationEventPublisher eventPublisher;
+    @Autowired
+    private org.openelisglobal.common.service.ProfessionalProfilePermissionService profilePermissionService;
 
     @InitBinder
     public void initBinder(WebDataBinder binder) {
@@ -264,6 +266,14 @@ public class SamplePatientEntryRestController extends BaseSampleEntryController 
             throws IllegalAccessException, InvocationTargetException, NoSuchMethodException {
 
         enforceSelfOnlyProviderPolicy(request, form, result);
+
+        // Validate professional profile permission for order creation
+        String sysUserId = getSysUserId(request);
+        if (!profilePermissionService.hasOrderPermission(sysUserId)) {
+            result.reject("professionalProfile.order.permission.denied",
+                    "User does not have required professional profile for order creation");
+            return buildErrorResponse(form, result, HttpStatus.FORBIDDEN);
+        }
 
         formValidator.validate(form, result);
         if (result.hasErrors()) {
@@ -468,6 +478,13 @@ public class SamplePatientEntryRestController extends BaseSampleEntryController 
 
         String sysUserId = getSysUserId(request);
         if (isProviderPolicyOverrideUser(sysUserId)) {
+            return null;
+        }
+
+        // Check if user has required professional profile for order
+        if (!profilePermissionService.hasOrderPermission(sysUserId)) {
+            LogEvent.logWarn(this.getClass().getSimpleName(), "getLinkedProviderIfSelfOnlyApplies",
+                    "User " + sysUserId + " does not have required professional profile for order creation");
             return null;
         }
 

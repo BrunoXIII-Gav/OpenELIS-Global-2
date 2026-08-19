@@ -17,6 +17,7 @@ public class OrderAdditionalFieldPayload {
     private String metadataJson;
     private Boolean searchable;
     private Boolean searchUnique;
+    private Boolean hasSavedValues;
     private List<OrderAdditionalFieldOptionPayload> options = new ArrayList<>();
 
     public Integer getId() {
@@ -113,6 +114,14 @@ public class OrderAdditionalFieldPayload {
 
     public void setSearchUnique(Boolean searchUnique) {
         this.searchUnique = searchUnique;
+    }
+
+    public Boolean getHasSavedValues() {
+        return hasSavedValues;
+    }
+
+    public void setHasSavedValues(Boolean hasSavedValues) {
+        this.hasSavedValues = hasSavedValues;
     }
 
     public List<OrderAdditionalFieldOptionPayload> getOptions() {
