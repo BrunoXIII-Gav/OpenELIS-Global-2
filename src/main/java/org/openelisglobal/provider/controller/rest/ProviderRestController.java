@@ -100,7 +100,7 @@ public class ProviderRestController extends BaseRestController {
     public ResponseEntity<?> insertOrUpdateProviderByFhirUuid(HttpServletRequest request,
             @RequestParam(required = false) UUID fhirUuid, @RequestBody ProviderUpsertForm form) {
         try {
-            String dni = StringUtils.trimToEmpty(provider.getDni());
+            String dni = StringUtils.trimToEmpty(form.getDni());
             if (!dni.matches("\\d{1,8}")) {
                 return ResponseEntity.status(HttpStatus.BAD_REQUEST)
                         .body("DNI is required and must be at most 8 digits.");

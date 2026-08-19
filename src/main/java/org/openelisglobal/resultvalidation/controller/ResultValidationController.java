@@ -83,6 +83,8 @@ public class ResultValidationController extends BaseResultValidationController {
     private UserService userService;
     @Autowired
     private RoleService roleService;
+    @Autowired
+    private org.openelisglobal.common.service.ProfessionalProfilePermissionService profilePermissionService;
 
     private static final String[] ALLOWED_FIELDS = new String[] { "testSectionId", "paging.currentPage", "testSection",
             "testName", "resultList*.accessionNumber", "resultList*.analysisId", "resultList*.testId",
@@ -216,6 +218,17 @@ public class ResultValidationController extends BaseResultValidationController {
             @ModelAttribute("form") @Validated(ResultValidationForm.ResultValidation.class) ResultValidationForm form,
             BindingResult result, RedirectAttributes redirectAttributes)
             throws IllegalAccessException, InvocationTargetException, NoSuchMethodException {
+        
+        // Validate professional profile permission for validation
+        String sysUserId = getSysUserId(request);
+        if (!profilePermissionService.hasValidationPermission(sysUserId)) {
+            LogEvent.logWarn(this.getClass().getSimpleName(), "showResultValidationSave",
+                    "User " + sysUserId + " does not have required professional profile for validation");
+            result.reject("professionalProfile.validation.permission.denied",
+                    "You do not have the required professional profile to validate results");
+            return findForward(FWD_FAIL_INSERT, form);
+        }
+        
         if ("true".equals(request.getParameter("pageResults"))) {
             return getResultValidation(request, form);
         }

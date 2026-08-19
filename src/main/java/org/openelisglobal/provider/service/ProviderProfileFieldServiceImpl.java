@@ -51,8 +51,10 @@ public class ProviderProfileFieldServiceImpl implements ProviderProfileFieldServ
             copy.setSortOrder(field.getSortOrder());
             copy.setLegacyBinding(field.getLegacyBinding());
             copy.setSystemField(field.getSystemField());
+            copy.setShowInOrderEntry(field.getShowInOrderEntry());
             copy.setOptions(new ArrayList<>(field.getOptions()));
             copy.setCurrentValue(currentValues.get(field.getFieldKey()));
+            copy.setHasSavedValues(field.getHasSavedValues());
             return copy;
         }).collect(Collectors.toList());
     }

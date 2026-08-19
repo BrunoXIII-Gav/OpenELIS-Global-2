@@ -18,6 +18,7 @@ import org.openelisglobal.common.action.IActionConstants;
 import org.openelisglobal.common.constants.Constants;
 import org.openelisglobal.common.exception.LIMSRuntimeException;
 import org.openelisglobal.common.log.LogEvent;
+import org.openelisglobal.common.service.ProfessionalProfilePermissionService;
 import org.openelisglobal.common.services.DisplayListService;
 import org.openelisglobal.common.services.DisplayListService.ListType;
 import org.openelisglobal.common.services.IResultSaveService;
@@ -84,6 +85,8 @@ public class AccessionValidationRangeController extends BaseResultValidationCont
     private UserService userService;
     @Autowired
     private RoleService roleService;
+    @Autowired
+    private ProfessionalProfilePermissionService profilePermissionService;
 
     private static final String[] ALLOWED_FIELDS = new String[] { "testSectionId", "paging.currentPage", "testSection",
             "testName", "resultList*.accessionNumber", "resultList*.analysisId", "resultList*.testId",
@@ -221,6 +224,15 @@ public class AccessionValidationRangeController extends BaseResultValidationCont
             @ModelAttribute("form") @Validated(ResultValidationForm.ResultValidation.class) ResultValidationForm form,
             BindingResult result, RedirectAttributes redirectAttributes)
             throws IllegalAccessException, InvocationTargetException, NoSuchMethodException {
+        String sysUserId = getSysUserId(request);
+        if (!profilePermissionService.hasValidationPermission(sysUserId)) {
+            LogEvent.logWarn(this.getClass().getSimpleName(), "showAccessionValidationRangeSave",
+                    "User " + sysUserId + " does not have required professional profile for validation");
+            result.reject("professionalProfile.validation.permission.denied",
+                    "You do not have the required professional profile to validate results");
+            saveErrors(result);
+            return findForward(FWD_FAIL_INSERT, form);
+        }
         if ("true".equals(request.getParameter("pageResults"))) {
             return getResultValidation(request, form);
         }
@@ -287,7 +299,7 @@ public class AccessionValidationRangeController extends BaseResultValidationCont
 
         try {
             resultValidationService.persistdata(deletableList, analysisUpdateList, resultUpdateList, resultItemList,
-                    sampleUpdateList, noteUpdateList, resultSaveService, updaters, getSysUserId(request));
+                    sampleUpdateList, noteUpdateList, resultSaveService, updaters, sysUserId);
 
             try {
                 fhirTransformService.transformPersistResultValidationFhirObjects(deletableList, analysisUpdateList,

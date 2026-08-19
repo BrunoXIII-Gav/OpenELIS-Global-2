@@ -43,6 +43,8 @@ function ProfileManagement() {
   const [settings, setSettings] = useState({
     orderProviderProfessionalProfileCodes: [],
     sampleCollectorProfessionalProfileCodes: [],
+    patientEntryProfessionalProfileCodes: [],
+    resultEntryProfessionalProfileCodes: [],
     validationInterpreterProfessionalProfileCodes: [],
   });
 
@@ -74,6 +76,10 @@ function ProfileManagement() {
           response?.settings?.orderProviderProfessionalProfileCodes || [],
         sampleCollectorProfessionalProfileCodes:
           response?.settings?.sampleCollectorProfessionalProfileCodes || [],
+        patientEntryProfessionalProfileCodes:
+          response?.settings?.patientEntryProfessionalProfileCodes || [],
+        resultEntryProfessionalProfileCodes:
+          response?.settings?.resultEntryProfessionalProfileCodes || [],
         validationInterpreterProfessionalProfileCodes:
           response?.settings?.validationInterpreterProfessionalProfileCodes ||
           [],
@@ -253,6 +259,58 @@ function ProfileManagement() {
                   setSettings((previousSettings) => ({
                     ...previousSettings,
                     sampleCollectorProfessionalProfileCodes:
+                      selectedItems.map((item) => item.code),
+                  }))
+                }
+              />
+            </Column>
+            <Column lg={5} md={4} sm={4}>
+              <MultiSelect
+                id="patient-entry-profile"
+                titleText={intl.formatMessage({
+                  id: "professionalProfile.settings.patientEntry",
+                  defaultMessage: "Patient manager profile",
+                })}
+                labelText={intl.formatMessage({
+                  id: "professionalProfile.settings.patientEntry",
+                  defaultMessage: "Patient manager profile",
+                })}
+                items={profiles}
+                itemToString={(item) => item?.name || ""}
+                selectedItems={getSelectedProfiles(
+                  settings.patientEntryProfessionalProfileCodes,
+                )}
+                selectionFeedback="top-after-reopen"
+                onChange={({ selectedItems }) =>
+                  setSettings((previousSettings) => ({
+                    ...previousSettings,
+                    patientEntryProfessionalProfileCodes:
+                      selectedItems.map((item) => item.code),
+                  }))
+                }
+              />
+            </Column>
+            <Column lg={5} md={4} sm={4}>
+              <MultiSelect
+                id="result-entry-profile"
+                titleText={intl.formatMessage({
+                  id: "professionalProfile.settings.resultEntry",
+                  defaultMessage: "Result entry profile",
+                })}
+                labelText={intl.formatMessage({
+                  id: "professionalProfile.settings.resultEntry",
+                  defaultMessage: "Result entry profile",
+                })}
+                items={profiles}
+                itemToString={(item) => item?.name || ""}
+                selectedItems={getSelectedProfiles(
+                  settings.resultEntryProfessionalProfileCodes,
+                )}
+                selectionFeedback="top-after-reopen"
+                onChange={({ selectedItems }) =>
+                  setSettings((previousSettings) => ({
+                    ...previousSettings,
+                    resultEntryProfessionalProfileCodes:
                       selectedItems.map((item) => item.code),
                   }))
                 }

@@ -145,6 +145,7 @@ public class ProfessionalProfileFieldConfigServiceImpl implements ProfessionalPr
         normalized.setSortOrder(field.getSortOrder() == null ? fallbackSortOrder : field.getSortOrder());
         normalized.setLegacyBinding(null);
         normalized.setSystemField(Boolean.FALSE);
+        normalized.setShowInOrderEntry(Boolean.TRUE.equals(field.getShowInOrderEntry()));
         normalized.setOptions(normalizeFieldOptions(fieldType, field.getOptions()));
         return normalized;
     }
@@ -214,7 +215,9 @@ public class ProfessionalProfileFieldConfigServiceImpl implements ProfessionalPr
         copy.setSortOrder(source.getSortOrder());
         copy.setLegacyBinding(source.getLegacyBinding());
         copy.setSystemField(source.getSystemField());
+        copy.setShowInOrderEntry(source.getShowInOrderEntry());
         copy.setCurrentValue(source.getCurrentValue());
+        copy.setHasSavedValues(source.getHasSavedValues());
         copy.setOptions(source.getOptions().stream().filter(Objects::nonNull).map(option -> {
             ProfessionalProfileFieldOptionForm copyOption = new ProfessionalProfileFieldOptionForm();
             copyOption.setOptionKey(option.getOptionKey());

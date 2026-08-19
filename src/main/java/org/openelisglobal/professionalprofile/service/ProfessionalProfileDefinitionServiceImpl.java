@@ -8,18 +8,23 @@ import java.text.Normalizer;
 import java.util.ArrayList;
 import java.util.Comparator;
 import java.util.LinkedHashMap;
+import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
 import java.util.Objects;
+import java.util.Set;
 import java.util.stream.Collectors;
 import org.apache.commons.lang3.StringUtils;
+import org.openelisglobal.common.services.DisplayListService;
 import org.openelisglobal.common.util.ConfigurationProperties;
 import org.openelisglobal.common.util.ConfigurationProperties.Property;
 import org.openelisglobal.notification.valueholder.NotificationConfigOption;
 import org.openelisglobal.professionalprofile.form.ProfessionalProfileDefinitionForm;
+import org.openelisglobal.professionalprofile.form.ProfessionalProfileFieldDefinitionForm;
 import org.openelisglobal.professionalprofile.form.ProfessionalProfileFieldOptionForm;
 import org.openelisglobal.professionalprofile.form.ProfessionalProfileSettingsForm;
+import org.openelisglobal.provider.dao.ProviderProfileFieldValueDAO;
 import org.openelisglobal.provider.service.ProviderService;
 import org.openelisglobal.provider.valueholder.Provider;
 import org.openelisglobal.siteinformation.service.SiteInformationService;
@@ -50,6 +55,8 @@ public class ProfessionalProfileDefinitionServiceImpl implements ProfessionalPro
     private ProviderService providerService;
     @Autowired
     private ProfessionalProfileFieldConfigService professionalProfileFieldConfigService;
+    @Autowired
+    private ProviderProfileFieldValueDAO providerProfileFieldValueDAO;
 
     @PersistenceContext
     private EntityManager entityManager;
@@ -74,7 +81,8 @@ public class ProfessionalProfileDefinitionServiceImpl implements ProfessionalPro
         if (profile == null) {
             return null;
         }
-        profile.setFields(professionalProfileFieldConfigService.getFieldsForProfile(normalizedCode, true));
+        profile.setFields(annotateFieldUsage(normalizedCode,
+                professionalProfileFieldConfigService.getFieldsForProfile(normalizedCode, true)));
         profile.setSpecialtyOptions(getSpecialtyOptions(normalizedCode));
         return profile;
     }
@@ -121,6 +129,7 @@ public class ProfessionalProfileDefinitionServiceImpl implements ProfessionalPro
             throw new IllegalArgumentException("Professional profile was not found.");
         }
         saveProfiles(profiles, currentUserId);
+        validateRemovedFieldsCanBeDeleted(normalizedCode, form == null ? List.of() : form.getFields());
         professionalProfileFieldConfigService.saveFieldsForProfile(normalizedCode, form.getFields(), currentUserId);
         saveSpecialtyOptions(normalizedCode, form.getSpecialtyOptions(), currentUserId);
         return new ProfessionalProfileDefinitionForm(normalizedCode, normalizedForm.getName(),
@@ -157,6 +166,10 @@ public class ProfessionalProfileDefinitionServiceImpl implements ProfessionalPro
                 ConfigurationProperties.getInstance().getPropertyValue(Property.orderProviderProfessionalProfileCode)));
         form.setSampleCollectorProfessionalProfileCodes(parseConfiguredCodes(
                 ConfigurationProperties.getInstance().getPropertyValue(Property.sampleCollectorProfessionalProfileCode)));
+        form.setPatientEntryProfessionalProfileCodes(parseConfiguredCodes(
+                ConfigurationProperties.getInstance().getPropertyValue(Property.patientEntryProfessionalProfileCode)));
+        form.setResultEntryProfessionalProfileCodes(parseConfiguredCodes(
+                ConfigurationProperties.getInstance().getPropertyValue(Property.resultEntryProfessionalProfileCode)));
         form.setValidationInterpreterProfessionalProfileCodes(parseConfiguredCodes(
                 ConfigurationProperties.getInstance().getPropertyValue(Property.validationInterpreterProfessionalProfileCode)));
         return form;
@@ -169,14 +182,25 @@ public class ProfessionalProfileDefinitionServiceImpl implements ProfessionalPro
                 form.getOrderProviderProfessionalProfileCodes(), availableCodes, "Order requester profiles"));
         String sampleCollectorCodes = serializeConfiguredCodes(normalizeOptionalConfiguredCodes(
                 form.getSampleCollectorProfessionalProfileCodes(), availableCodes, "Sample collector profiles"));
+        String patientEntryCodes = serializeConfiguredCodes(normalizeOptionalConfiguredCodes(
+                form.getPatientEntryProfessionalProfileCodes(), availableCodes, "Patient entry profiles"));
+        String resultEntryCodes = serializeConfiguredCodes(normalizeOptionalConfiguredCodes(
+                form.getResultEntryProfessionalProfileCodes(), availableCodes, "Result entry profiles"));
         String validationInterpreterCodes = serializeConfiguredCodes(normalizeOptionalConfiguredCodes(
                 form.getValidationInterpreterProfessionalProfileCodes(), availableCodes, "Validation interpreter profiles"));
 
         updateSiteInformation(Property.orderProviderProfessionalProfileCode, orderProviderCodes, currentUserId);
         updateSiteInformation(Property.sampleCollectorProfessionalProfileCode, sampleCollectorCodes, currentUserId);
+        updateSiteInformation(Property.patientEntryProfessionalProfileCode, patientEntryCodes, currentUserId);
+        updateSiteInformation(Property.resultEntryProfessionalProfileCode, resultEntryCodes, currentUserId);
         updateSiteInformation(Property.validationInterpreterProfessionalProfileCode, validationInterpreterCodes,
                 currentUserId);
         ConfigurationProperties.loadDBValuesIntoConfiguration();
+        
+        // Refresh DisplayListService cache to apply new professional profile filters immediately
+        DisplayListService.getInstance().refreshList(DisplayListService.ListType.ORDER_PROVIDER_PERSONS);
+        DisplayListService.getInstance().refreshList(DisplayListService.ListType.PRACTITIONER_PERSONS);
+        
         return getSettings();
     }
 
@@ -252,6 +276,118 @@ public class ProfessionalProfileDefinitionServiceImpl implements ProfessionalPro
 
         updateSiteInformation(Property.professionalProfileOptions, serializedProfiles, currentUserId);
         ConfigurationProperties.loadDBValuesIntoConfiguration();
+    }
+
+    private void validateRemovedFieldsCanBeDeleted(String profileCode,
+            List<ProfessionalProfileFieldDefinitionForm> submittedFields) {
+        Map<String, ProfessionalProfileFieldDefinitionForm> currentFieldsByKey = professionalProfileFieldConfigService
+                .getFieldsForProfile(profileCode, true).stream()
+                .collect(Collectors.toMap(ProfessionalProfileFieldDefinitionForm::getFieldKey, field -> field,
+                        (left, _right) -> left, LinkedHashMap::new));
+
+        Set<String> submittedFieldKeys = (submittedFields == null ? List.<ProfessionalProfileFieldDefinitionForm>of() : submittedFields)
+                .stream()
+                .filter(Objects::nonNull)
+                .map(ProfessionalProfileFieldDefinitionForm::getFieldKey)
+                .map(key -> StringUtils.upperCase(StringUtils.trimToEmpty(key)).replaceAll("[^A-Z0-9_]", "_"))
+                .filter(StringUtils::isNotBlank)
+                .collect(Collectors.toCollection(LinkedHashSet::new));
+
+        for (Map.Entry<String, ProfessionalProfileFieldDefinitionForm> entry : currentFieldsByKey.entrySet()) {
+            String existingFieldKey = entry.getKey();
+            ProfessionalProfileFieldDefinitionForm existingField = entry.getValue();
+            ProfessionalProfileFieldDefinitionForm submittedField = (submittedFields == null ? List.<ProfessionalProfileFieldDefinitionForm>of() : submittedFields)
+                    .stream()
+                    .filter(Objects::nonNull)
+                    .filter(field -> existingFieldKey.equals(StringUtils.upperCase(StringUtils.trimToEmpty(field.getFieldKey()))
+                            .replaceAll("[^A-Z0-9_]", "_")))
+                    .findFirst()
+                    .orElse(null);
+
+            if (submittedField == null) {
+                ensureFieldHasNoStoredValues(profileCode, existingField,
+                        "cannot be deleted because professional records already have saved values. Deactivate it instead.");
+                continue;
+            }
+
+            validateFieldTypeChange(profileCode, existingField, submittedField);
+            validateFieldOptionChanges(profileCode, existingField, submittedField);
+        }
+    }
+
+    private void validateFieldTypeChange(String profileCode, ProfessionalProfileFieldDefinitionForm existingField,
+            ProfessionalProfileFieldDefinitionForm submittedField) {
+        String existingFieldType = StringUtils.upperCase(StringUtils.trimToEmpty(existingField.getFieldType()));
+        String submittedFieldType = StringUtils.upperCase(StringUtils.trimToEmpty(submittedField.getFieldType()));
+        if (Objects.equals(existingFieldType, submittedFieldType)) {
+            return;
+        }
+
+        ensureFieldHasNoStoredValues(profileCode, existingField,
+                "cannot change type because professional records already have saved values.");
+    }
+
+    private void validateFieldOptionChanges(String profileCode, ProfessionalProfileFieldDefinitionForm existingField,
+            ProfessionalProfileFieldDefinitionForm submittedField) {
+        String existingFieldType = StringUtils.upperCase(StringUtils.trimToEmpty(existingField.getFieldType()));
+        if (!"SELECT".equals(existingFieldType) && !"MULTISELECT".equals(existingFieldType)) {
+            return;
+        }
+
+        List<String> existingOptions = normalizeFieldOptionsForComparison(existingField.getOptions());
+        List<String> submittedOptions = normalizeFieldOptionsForComparison(submittedField.getOptions());
+        if (existingOptions.equals(submittedOptions)) {
+            return;
+        }
+
+        ensureFieldHasNoStoredValues(profileCode, existingField,
+                "cannot change options because professional records already have saved values.");
+    }
+
+    private List<String> normalizeFieldOptionsForComparison(List<ProfessionalProfileFieldOptionForm> options) {
+        return (options == null ? List.<ProfessionalProfileFieldOptionForm>of() : options).stream()
+                .filter(Objects::nonNull)
+                .map(option -> StringUtils.trimToEmpty(option.getOptionKey()).toUpperCase(Locale.ROOT) + "|"
+                        + StringUtils.trimToEmpty(option.getOptionLabel()))
+                .filter(token -> !token.equals("|"))
+                .toList();
+    }
+
+    private void ensureFieldHasNoStoredValues(String profileCode, ProfessionalProfileFieldDefinitionForm field,
+            String reason) {
+        if (field == null) {
+            return;
+        }
+
+        long storedValueCount = providerProfileFieldValueDAO.countByProfessionalProfileCodeAndFieldKey(profileCode,
+                field.getFieldKey());
+        if (storedValueCount <= 0) {
+            return;
+        }
+
+        String fieldName = StringUtils.defaultIfBlank(field.getDisplayName(), field.getFieldKey());
+        throw new IllegalStateException("The field \"" + fieldName + "\" " + reason);
+    }
+
+    private List<ProfessionalProfileFieldDefinitionForm> annotateFieldUsage(String profileCode,
+            List<ProfessionalProfileFieldDefinitionForm> fields) {
+        return (fields == null ? List.<ProfessionalProfileFieldDefinitionForm>of() : fields).stream().map(field -> {
+            ProfessionalProfileFieldDefinitionForm copy = new ProfessionalProfileFieldDefinitionForm();
+            copy.setFieldKey(field.getFieldKey());
+            copy.setDisplayName(field.getDisplayName());
+            copy.setFieldType(field.getFieldType());
+            copy.setRequired(field.getRequired());
+            copy.setActive(field.getActive());
+            copy.setSortOrder(field.getSortOrder());
+            copy.setLegacyBinding(field.getLegacyBinding());
+            copy.setSystemField(field.getSystemField());
+            copy.setShowInOrderEntry(field.getShowInOrderEntry());
+            copy.setCurrentValue(field.getCurrentValue());
+            copy.setOptions(field.getOptions());
+            copy.setHasSavedValues(
+                    providerProfileFieldValueDAO.countByProfessionalProfileCodeAndFieldKey(profileCode, field.getFieldKey()) > 0);
+            return copy;
+        }).toList();
     }
 
     private void updateSiteInformation(Property property, String value, String currentUserId) {

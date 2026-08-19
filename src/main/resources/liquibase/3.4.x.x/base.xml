@@ -78,4 +78,5 @@
   <include relativeToChangelogFile="true" file="064-expand-site-information-value-for-profile-fields.xml"/>
   <include relativeToChangelogFile="true" file="065-add-professional-profile-specialty-options-config.xml"/>
   <include relativeToChangelogFile="true" file="066-create-provider-profile-field-values-table.xml"/>
+  <include relativeToChangelogFile="true" file="067-add-missing-professional-profile-module-configs.xml"/>
 </databaseChangeLog>

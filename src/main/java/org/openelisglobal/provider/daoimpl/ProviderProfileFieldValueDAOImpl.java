@@ -52,6 +52,25 @@ public class ProviderProfileFieldValueDAOImpl extends BaseDAOImpl<ProviderProfil
     }
 
     @Override
+    @Transactional(readOnly = true)
+    public long countByProfessionalProfileCodeAndFieldKey(String profileCode, String fieldKey) {
+        String normalizedProfileCode = profileCode == null ? null : profileCode.trim().toUpperCase();
+        String normalizedFieldKey = fieldKey == null ? null : fieldKey.trim().toUpperCase();
+        if (normalizedProfileCode == null || normalizedProfileCode.isEmpty() || normalizedFieldKey == null
+                || normalizedFieldKey.isEmpty()) {
+            return 0L;
+        }
+
+        String hql = "SELECT COUNT(v) FROM " + ENTITY_NAME
+                + " v WHERE v.professionalProfileCode = :profileCode AND v.fieldKey = :fieldKey";
+        Query<Long> query = entityManager.unwrap(Session.class).createQuery(hql, Long.class);
+        query.setParameter("profileCode", normalizedProfileCode);
+        query.setParameter("fieldKey", normalizedFieldKey);
+        Long count = query.uniqueResult();
+        return count == null ? 0L : count;
+    }
+
+    @Override
     public void deleteByProviderId(Integer providerId) {
         if (providerId == null) {
             return;

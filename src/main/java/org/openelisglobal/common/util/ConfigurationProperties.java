@@ -278,6 +278,8 @@ public abstract class ConfigurationProperties {
         orderProviderProfessionalProfileCode("orderProviderProfileCode", "text"), // profile code allowed on order
                                                                                     // requester/provider selector
         sampleCollectorProfessionalProfileCode("sampleCollectorProfileCode", "text"), // profile code for collector
+        patientEntryProfessionalProfileCode("patientEntryProfileCode", "text"), // profile code for patient entry/edit
+        resultEntryProfessionalProfileCode("resultEntryProfileCode", "text"), // profile code for result entry/edit
         validationInterpreterProfessionalProfileCode("validationInterpreterProfileCode", "text"), // profile code for
                                                                                                    // interpreter
         USE_NEW_ADDRESS_HIERARCHY("useNewAddressHierarchy", "text"); // if true, use new configurable address hierarchy

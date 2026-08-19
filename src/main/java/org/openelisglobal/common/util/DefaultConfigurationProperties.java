@@ -349,6 +349,8 @@ public class DefaultConfigurationProperties extends ConfigurationProperties {
         properties.setPropertyValue(Property.professionalProfileSpecialtyOptions, "");
         properties.setPropertyValue(Property.orderProviderProfessionalProfileCode, "");
         properties.setPropertyValue(Property.sampleCollectorProfessionalProfileCode, "");
+        properties.setPropertyValue(Property.patientEntryProfessionalProfileCode, "");
+        properties.setPropertyValue(Property.resultEntryProfessionalProfileCode, "");
         properties.setPropertyValue(Property.validationInterpreterProfessionalProfileCode, "");
         return properties;
     }

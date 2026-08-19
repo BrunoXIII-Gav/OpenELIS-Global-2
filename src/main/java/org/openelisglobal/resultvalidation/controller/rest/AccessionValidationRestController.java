@@ -13,6 +13,7 @@ import org.openelisglobal.common.constants.Constants;
 import org.openelisglobal.common.constants.SystemPermission;
 import org.openelisglobal.common.exception.LIMSRuntimeException;
 import org.openelisglobal.common.log.LogEvent;
+import org.openelisglobal.common.service.ProfessionalProfilePermissionService;
 import org.openelisglobal.common.services.DisplayListService;
 import org.openelisglobal.common.services.DisplayListService.ListType;
 import org.openelisglobal.common.services.IResultSaveService;
@@ -70,6 +71,7 @@ import org.openelisglobal.typeoftestresult.service.TypeOfTestResultServiceImpl;
 import org.openelisglobal.userrole.service.UserRoleService;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.http.MediaType;
+import org.springframework.security.access.AccessDeniedException;
 import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.stereotype.Controller;
 import org.springframework.validation.BindingResult;
@@ -99,6 +101,8 @@ public class AccessionValidationRestController extends BaseResultValidationContr
     private UserPermissionService userPermissionService;
     @Autowired
     private SampleItemService sampleItemService;
+    @Autowired
+    private ProfessionalProfilePermissionService profilePermissionService;
 
     private static final String[] ALLOWED_FIELDS = new String[] { "testSectionId", "paging.currentPage", "testSection",
             "testName", "resultList*.accessionNumber", "resultList*.analysisId", "resultList*.testId",
@@ -338,6 +342,11 @@ public class AccessionValidationRestController extends BaseResultValidationContr
     public ResultValidationForm showAccessionValidationRangeSave(HttpServletRequest request,
             @Validated(ResultValidationForm.ResultValidation.class) @RequestBody ResultValidationForm form,
             BindingResult result) throws IllegalAccessException, InvocationTargetException, NoSuchMethodException {
+        String sysUserId = getSysUserId(request);
+        if (!profilePermissionService.hasValidationPermission(sysUserId)) {
+            throw new AccessDeniedException(
+                    "User " + sysUserId + " does not have required professional profile for validation");
+        }
 
         if ("true".equals(request.getParameter("pageResults"))) {
             return getResultValidation(request, form, false);
@@ -397,7 +406,7 @@ public class AccessionValidationRestController extends BaseResultValidationContr
         // }
         try {
             resultValidationService.persistdata(deletableList, analysisUpdateList, resultUpdateList, resultItemList,
-                    sampleUpdateList, noteUpdateList, resultSaveService, updaters, getSysUserId(request));
+                    sampleUpdateList, noteUpdateList, resultSaveService, updaters, sysUserId);
 
             try {
                 fhirTransformService.transformPersistResultValidationFhirObjects(deletableList, analysisUpdateList,

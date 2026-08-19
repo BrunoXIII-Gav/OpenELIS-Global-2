@@ -6,6 +6,7 @@ import {
   Column,
   Form,
   Grid,
+  InlineNotification,
   Modal,
   Pagination,
   RadioButton,
@@ -18,7 +19,7 @@ import DataTable from "react-data-table-component";
 import { FormattedMessage, useIntl } from "react-intl";
 import ValidationSearchFormValues from "../formModel/innitialValues/ValidationSearchFormValues";
 import { NotificationKinds } from "../common/CustomNotification";
-import { postToOpenElisServer } from "../utils/Utils";
+import { getFromOpenElisServer, postToOpenElisServer } from "../utils/Utils";
 import { NotificationContext } from "../layout/Layout";
 import { ConfigurationContext } from "../layout/Layout";
 import config from "../../config.json";
@@ -144,6 +145,8 @@ const Validation = (props) => {
   const [page, setPage] = useState(1);
   const [pageSize, setPageSize] = useState(100);
   const [isSubmitting, setIsSubmitting] = useState(false);
+  const [hasValidationPermission, setHasValidationPermission] = useState(false);
+  const [permissionsLoaded, setPermissionsLoaded] = useState(false);
   const [hasOpenedPreview, setHasOpenedPreview] = useState(false);
   const [previewConfirmed, setPreviewConfirmed] = useState(false);
   const [savedAnalysisIds, setSavedAnalysisIds] = useState([]);
@@ -238,6 +241,15 @@ const Validation = (props) => {
 
   useEffect(() => {
     componentMounted.current = true;
+
+    // Keep permission lookup aligned with the configured OpenELIS backend base URL.
+    getFromOpenElisServer("/rest/professional-profile-permissions", (data) => {
+      if (componentMounted.current) {
+        setHasValidationPermission(Boolean(data?.hasValidationPermission));
+        setPermissionsLoaded(true);
+      }
+    });
+
     return () => {
       clearPreviewBlobUrl();
       componentMounted.current = false;
@@ -524,21 +536,33 @@ const Validation = (props) => {
   };
 
   const handleSave = (values) => {
-    if (validationLocked) {
-      if (!currentUserIsMedicalValidator) {
-        addNotification({
-          kind: NotificationKinds.warning,
-          title: intl.formatMessage({ id: "notification.title" }),
-          message: intl.formatMessage({
-            id: "validation.medical.only",
-            defaultMessage: "Only medical validators can validate results.",
-          }),
-        });
-        setNotificationVisible(true);
-      }
+    if (!permissionsLoaded || isSubmitting) {
       return;
     }
-    if (isSubmitting) {
+    if (!hasValidationPermission) {
+      addNotification({
+        kind: NotificationKinds.warning,
+        title: intl.formatMessage({ id: "notification.title" }),
+        message: intl.formatMessage({
+          id: "professionalProfile.permission.denied.validation",
+        }),
+      });
+      setNotificationVisible(true);
+      return;
+    }
+    if (!currentUserIsMedicalValidator) {
+      addNotification({
+        kind: NotificationKinds.warning,
+        title: intl.formatMessage({ id: "notification.title" }),
+        message: intl.formatMessage({
+          id: "validation.medical.only",
+          defaultMessage: "Only medical validators can validate results.",
+        }),
+      });
+      setNotificationVisible(true);
+      return;
+    }
+    if (validationLocked) {
       return;
     }
     const acceptedAnalysisIds = getAcceptedAnalysisIds();
@@ -599,6 +623,7 @@ const Validation = (props) => {
       JSON.stringify(props.results),
       handleResponse,
       acceptedAnalysisIds,
+      { suppressAccessDeniedDialog: true },
     );
   };
 
@@ -711,7 +736,12 @@ const Validation = (props) => {
     let message = intl.formatMessage({ id: "validation.save.error" });
     let kind = NotificationKinds.error;
     setIsSubmitting(false);
-    if (status == 200) {
+    if (status === 403) {
+      message = intl.formatMessage({
+        id: "professionalProfile.permission.denied.validation",
+      });
+      kind = NotificationKinds.warning;
+    } else if (status == 200) {
       message = intl.formatMessage({ id: "validation.save.success" });
       kind = NotificationKinds.success;
       const successfulSavedIds =
@@ -1263,7 +1293,11 @@ const Validation = (props) => {
   const pendingLiveResults = liveResultList.filter((row) => !row?.readOnly);
   const hasLiveResults = pendingLiveResults.length > 0;
   const displayResultList = liveResultList;
-  const validationLocked = !hasLiveResults || !currentUserIsMedicalValidator;
+  const validationLocked =
+    !permissionsLoaded ||
+    !hasValidationPermission ||
+    !hasLiveResults ||
+    !currentUserIsMedicalValidator;
   const acceptedAnalysisCount = getAcceptedAnalysisIds().length;
   const acceptedRowsMissingValidationDate = liveResultList.filter(
     (row) =>
@@ -1286,6 +1320,15 @@ const Validation = (props) => {
 
   return (
     <>
+      {permissionsLoaded && !hasValidationPermission && (
+        <InlineNotification
+          kind="warning"
+          title={intl.formatMessage({ id: "professionalProfile.permission.denied.validation" })}
+          hideCloseButton={true}
+          lowContrast={true}
+          style={{ marginBottom: "1rem" }}
+        />
+      )}
       {hasLiveResults && (
         <Grid style={{ marginTop: "20px" }} className="gridBoundary">
           <Column lg={5} md={4} sm={4}>
@@ -1453,7 +1496,12 @@ const Validation = (props) => {
                   id="submit"
                   style={{ marginRight: "0.75rem", marginBottom: "0.75rem" }}
                   data-testid="Save-btn"
-                  disabled={!canSave || isSubmitting}
+                  disabled={
+                    !permissionsLoaded ||
+                    !hasValidationPermission ||
+                    !canSave ||
+                    isSubmitting
+                  }
                 >
                   <FormattedMessage id="label.button.save" />
                 </Button>

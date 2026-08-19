@@ -23,7 +23,11 @@ public class ProfessionalProfileFieldDefinitionForm {
 
     private Boolean systemField;
 
+    private Boolean showInOrderEntry;
+
     private Object currentValue;
+
+    private Boolean hasSavedValues;
 
     public String getFieldKey() {
         return fieldKey;
@@ -97,11 +101,27 @@ public class ProfessionalProfileFieldDefinitionForm {
         this.systemField = systemField;
     }
 
+    public Boolean getShowInOrderEntry() {
+        return showInOrderEntry;
+    }
+
+    public void setShowInOrderEntry(Boolean showInOrderEntry) {
+        this.showInOrderEntry = showInOrderEntry;
+    }
+
     public Object getCurrentValue() {
         return currentValue;
     }
 
     public void setCurrentValue(Object currentValue) {
         this.currentValue = currentValue;
+    }
+
+    public Boolean getHasSavedValues() {
+        return hasSavedValues;
+    }
+
+    public void setHasSavedValues(Boolean hasSavedValues) {
+        this.hasSavedValues = hasSavedValues;
     }
 }

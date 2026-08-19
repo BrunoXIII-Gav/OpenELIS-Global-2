@@ -9,6 +9,10 @@ public class ProfessionalProfileSettingsForm {
 
     private List<String> sampleCollectorProfessionalProfileCodes = new ArrayList<>();
 
+    private List<String> patientEntryProfessionalProfileCodes = new ArrayList<>();
+
+    private List<String> resultEntryProfessionalProfileCodes = new ArrayList<>();
+
     private List<String> validationInterpreterProfessionalProfileCodes = new ArrayList<>();
 
     public List<String> getOrderProviderProfessionalProfileCodes() {
@@ -27,6 +31,24 @@ public class ProfessionalProfileSettingsForm {
     public void setSampleCollectorProfessionalProfileCodes(List<String> sampleCollectorProfessionalProfileCodes) {
         this.sampleCollectorProfessionalProfileCodes = sampleCollectorProfessionalProfileCodes == null ? new ArrayList<>()
                 : new ArrayList<>(sampleCollectorProfessionalProfileCodes);
+    }
+
+    public List<String> getPatientEntryProfessionalProfileCodes() {
+        return patientEntryProfessionalProfileCodes;
+    }
+
+    public void setPatientEntryProfessionalProfileCodes(List<String> patientEntryProfessionalProfileCodes) {
+        this.patientEntryProfessionalProfileCodes = patientEntryProfessionalProfileCodes == null ? new ArrayList<>()
+                : new ArrayList<>(patientEntryProfessionalProfileCodes);
+    }
+
+    public List<String> getResultEntryProfessionalProfileCodes() {
+        return resultEntryProfessionalProfileCodes;
+    }
+
+    public void setResultEntryProfessionalProfileCodes(List<String> resultEntryProfessionalProfileCodes) {
+        this.resultEntryProfessionalProfileCodes = resultEntryProfessionalProfileCodes == null ? new ArrayList<>()
+                : new ArrayList<>(resultEntryProfessionalProfileCodes);
     }
 
     public List<String> getValidationInterpreterProfessionalProfileCodes() {

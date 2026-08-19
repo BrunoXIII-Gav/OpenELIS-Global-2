@@ -10,5 +10,7 @@ public interface ProviderProfileFieldValueDAO extends BaseDAO<ProviderProfileFie
 
     List<ProviderProfileFieldValue> findByProviderIds(List<Integer> providerIds);
 
+    long countByProfessionalProfileCodeAndFieldKey(String profileCode, String fieldKey);
+
     void deleteByProviderId(Integer providerId);
 }
