@@ -19,6 +19,7 @@ const CompactLocationView = ({
   onExpand,
   showQuickFind = false,
   onLocationSelect,
+  readOnly = false,
 }) => {
   const intl = useIntl();
 
@@ -34,7 +35,7 @@ const CompactLocationView = ({
           {displayText}
         </span>
       </div>
-      {showQuickFind && (
+      {showQuickFind && !readOnly && (
         <div
           className="quick-find-container"
           data-testid="quick-find-container"
@@ -46,6 +47,7 @@ const CompactLocationView = ({
         kind="ghost"
         size="sm"
         onClick={onExpand}
+        disabled={readOnly}
         data-testid="expand-button"
       >
         Expand

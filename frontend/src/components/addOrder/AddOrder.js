@@ -2,6 +2,7 @@ import React, { useContext, useEffect, useRef, useState } from "react";
 import {
   Checkbox,
   FileUploader,
+  InlineNotification,
   Link,
   RadioButton,
   RadioButtonGroup,
@@ -39,23 +40,23 @@ const DEFAULT_FIXED_FIELD_ORDER = [
   { fieldKey: "provisionalClinicalDiagnosis", sortOrder: 90 },
   { fieldKey: "providerFirstName", sortOrder: 100 },
   { fieldKey: "providerLastName", sortOrder: 110 },
-  { fieldKey: "providerCmp", sortOrder: 120 },
-  { fieldKey: "providerRne", sortOrder: 130 },
-  { fieldKey: "providerDni", sortOrder: 140 },
-  { fieldKey: "providerSpecialty", sortOrder: 150 },
-  { fieldKey: "providerWorkPhone", sortOrder: 160 },
-  { fieldKey: "providerFax", sortOrder: 170 },
-  { fieldKey: "providerEmail", sortOrder: 180 },
-  { fieldKey: "paymentOptionSelection", sortOrder: 190 },
-  { fieldKey: "testLocationCode", sortOrder: 200 },
-  { fieldKey: "otherLocationCode", sortOrder: 210 },
-  { fieldKey: "rememberSiteAndRequester", sortOrder: 220 },
+  { fieldKey: "providerDni", sortOrder: 120 },
+  { fieldKey: "providerSpecialty", sortOrder: 130 },
+  { fieldKey: "providerWorkPhone", sortOrder: 140 },
+  { fieldKey: "providerFax", sortOrder: 150 },
+  { fieldKey: "providerEmail", sortOrder: 160 },
+  { fieldKey: "paymentOptionSelection", sortOrder: 170 },
+  { fieldKey: "testLocationCode", sortOrder: 180 },
+  { fieldKey: "otherLocationCode", sortOrder: 190 },
+  { fieldKey: "rememberSiteAndRequester", sortOrder: 200 },
 ];
 
 const DEFAULT_CONDITION_OPERATOR = "equals";
 const DEFAULT_CONDITION_LOGIC = "ALL";
 const DEFAULT_DOCUMENT_MAX_SIZE_MB = 5;
 const BYTES_PER_MEGABYTE = 1024 * 1024;
+const RETIRED_PROVIDER_FIXED_FIELDS = new Set(["providercmp", "providerrne"]);
+const REQUESTER_PROFILE_FIELD_SORT_ORDER_BASE = 160;
 const DEFAULT_ORDER_PRIORITIES = [
   { id: "ROUTINE", value: "ROUTINE" },
   { id: "ASAP", value: "ASAP" },
@@ -89,6 +90,52 @@ const resolveDocumentMaxSizeMb = (documentConfig) => {
     : DEFAULT_DOCUMENT_MAX_SIZE_MB;
 };
 
+const normalizeProviderProfileFieldValue = (value) => {
+  if (Array.isArray(value)) {
+    return value.join(",");
+  }
+  if (value === null || value === undefined) {
+    return "";
+  }
+  return String(value);
+};
+
+const isLegacyProviderProfileFieldMatch = (field, expectedKey) => {
+  const normalizedExpectedKey = String(expectedKey || "").trim().toUpperCase();
+  const normalizedFieldKey = String(field?.fieldKey || "").trim().toUpperCase();
+  const normalizedDisplayName = String(field?.displayName || "")
+    .trim()
+    .toUpperCase()
+    .replace(/[^A-Z0-9]/g, "");
+  return (
+    normalizedFieldKey === normalizedExpectedKey ||
+    normalizedDisplayName === normalizedExpectedKey
+  );
+};
+
+const buildLegacyProviderFieldPatch = (fields, values) => {
+  const result = {};
+
+  (fields || []).forEach((field) => {
+    const currentValue = normalizeProviderProfileFieldValue(
+      values?.[field?.fieldKey],
+    );
+
+    if (!currentValue) {
+      return;
+    }
+
+    if (isLegacyProviderProfileFieldMatch(field, "CMP")) {
+      result.providerCmp = currentValue;
+    }
+    if (isLegacyProviderProfileFieldMatch(field, "RNE")) {
+      result.providerRne = currentValue;
+    }
+  });
+
+  return result;
+};
+
 const AddOrder = (props) => {
   const { setNotificationVisible, addNotification } =
     useContext(NotificationContext);
@@ -101,6 +148,8 @@ const AddOrder = (props) => {
 
   const componentMounted = useRef(false);
   const additionalFieldPreviewUrlsRef = useRef({});
+  const loadedProviderProfileConfigKeyRef = useRef("");
+  const preloadedProviderPersonIdRef = useRef("");
 
   const {
     orderFormValues,
@@ -111,6 +160,11 @@ const AddOrder = (props) => {
     changed,
     setChanged,
   } = props;
+
+  // Professional profile permission check
+  const [hasOrderPermission, setHasOrderPermission] = useState(true);
+  const [permissionsLoaded, setPermissionsLoaded] = useState(false);
+
   const [otherSamplingVisible, setOtherSamplingVisible] = useState(false);
   const [providers, setProviders] = useState([]);
   const [paymentOptions, setPaymentOptions] = useState([]);
@@ -130,8 +184,159 @@ const AddOrder = (props) => {
   const hasLoadedFixedFieldConfig =
     Array.isArray(orderFormValues?.sampleOrderItems?.fixedFieldConfigs) &&
     orderFormValues.sampleOrderItems.fixedFieldConfigs.length > 0;
+  const isOrderReadOnly = !permissionsLoaded || !hasOrderPermission;
+
+  const updateOrderFormValues = (updater) => {
+    setOrderFormValues((previous) => {
+      const current = previous || orderFormValues || {};
+      return typeof updater === "function"
+        ? updater(current)
+        : {
+            ...current,
+            ...updater,
+          };
+    });
+  };
+
+  const updateSampleOrderItems = (updater) => {
+    updateOrderFormValues((current) => {
+      const currentSampleOrderItems = current.sampleOrderItems || {};
+      const nextSampleOrderItems =
+        typeof updater === "function"
+          ? updater(currentSampleOrderItems, current)
+          : {
+              ...currentSampleOrderItems,
+              ...updater,
+            };
+
+      return {
+        ...current,
+        sampleOrderItems: nextSampleOrderItems,
+      };
+    });
+  };
+
+  const isRetiredProviderFixedField = (fieldKey) =>
+    RETIRED_PROVIDER_FIXED_FIELDS.has(String(fieldKey || "").toLowerCase());
+
+  const clearRequesterProfileFields = () => {
+    loadedProviderProfileConfigKeyRef.current = "";
+    updateSampleOrderItems((currentSampleOrderItems) => ({
+      ...currentSampleOrderItems,
+      providerProfessionalProfileCode: "",
+      providerProfileFields: [],
+      providerProfileFieldValues: {},
+    }));
+  };
+
+  const handleProviderProfileFieldValueChange = (fieldKey, value) => {
+    updateSampleOrderItems((currentSampleOrderItems) => {
+      const nextValues = {
+        ...(currentSampleOrderItems.providerProfileFieldValues || {}),
+        [fieldKey]: value,
+      };
+
+      return {
+        ...currentSampleOrderItems,
+        providerProfileFieldValues: nextValues,
+        ...buildLegacyProviderFieldPatch(
+          currentSampleOrderItems.providerProfileFields,
+          nextValues,
+        ),
+      };
+    });
+  };
+
+  const handleProviderProfileMultiSelectOption = (
+    fieldKey,
+    optionKey,
+    checked,
+  ) => {
+    const currentValuesRaw =
+      orderFormValues.sampleOrderItems.providerProfileFieldValues?.[fieldKey] ||
+      "";
+    const selectedValues = new Set(
+      currentValuesRaw
+        .split(",")
+        .map((value) => value.trim())
+        .filter(Boolean),
+    );
+
+    if (checked) {
+      selectedValues.add(optionKey);
+    } else {
+      selectedValues.delete(optionKey);
+    }
+
+    handleProviderProfileFieldValueChange(
+      fieldKey,
+      Array.from(selectedValues).join(","),
+    );
+  };
+
+  const fetchProviderProfileConfig = (response, providerId, profileCode) => {
+    if (!componentMounted.current) {
+      return;
+    }
+
+    const fields = Array.isArray(response?.fields)
+      ? response.fields.filter(
+          (field) =>
+            field &&
+            field.active !== false &&
+            field.fieldKey &&
+            field.systemField !== true &&
+            field.showInOrderEntry === true,
+        )
+      : [];
+    const values = fields.reduce((accumulator, field) => {
+      accumulator[field.fieldKey] = normalizeProviderProfileFieldValue(
+        field.currentValue,
+      );
+      return accumulator;
+    }, {});
+
+    loadedProviderProfileConfigKeyRef.current = `${providerId}|${profileCode}`;
+    updateSampleOrderItems((currentSampleOrderItems) => ({
+      ...currentSampleOrderItems,
+      providerProfessionalProfileCode: profileCode || "",
+      providerProfileFields: fields,
+      providerProfileFieldValues: values,
+      ...buildLegacyProviderFieldPatch(fields, values),
+    }));
+  };
+
+  const loadProviderProfileConfig = (providerId, profileCode) => {
+    const normalizedProviderId = String(providerId || "").trim();
+    const normalizedProfileCode = String(profileCode || "").trim().toUpperCase();
+
+    if (!normalizedProviderId || !normalizedProfileCode) {
+      clearRequesterProfileFields();
+      return;
+    }
+
+    const requestKey = `${normalizedProviderId}|${normalizedProfileCode}`;
+    if (loadedProviderProfileConfigKeyRef.current === requestKey) {
+      return;
+    }
+
+    getFromOpenElisServer(
+      `/rest/providers/form-config?profileCode=${encodeURIComponent(
+        normalizedProfileCode,
+      )}&providerId=${encodeURIComponent(normalizedProviderId)}`,
+      (response) =>
+        fetchProviderProfileConfig(
+          response,
+          normalizedProviderId,
+          normalizedProfileCode,
+        ),
+    );
+  };
 
   const getFixedFieldConfig = (fieldKey) => {
+    if (isRetiredProviderFixedField(fieldKey)) {
+      return null;
+    }
     const configs = orderFormValues?.sampleOrderItems?.fixedFieldConfigs || [];
     return (
       configs.find(
@@ -141,6 +346,9 @@ const AddOrder = (props) => {
   };
 
   const isFieldVisible = (fieldKey) => {
+    if (isRetiredProviderFixedField(fieldKey)) {
+      return false;
+    }
     if (waitingForFixedFieldConfig && !hasLoadedFixedFieldConfig) {
       return false;
     }
@@ -154,6 +362,7 @@ const AddOrder = (props) => {
   };
 
   const isFieldReadonly = (fieldKey) => {
+    if (isOrderReadOnly) return true;
     const config = getFixedFieldConfig(fieldKey);
     return config ? config.readonly === true : false;
   };
@@ -210,6 +419,7 @@ const AddOrder = (props) => {
     const sampleOrderItems = orderFormValues?.sampleOrderItems || {};
     return {
       ...(sampleOrderItems.additionalFieldValues || {}),
+      ...(sampleOrderItems.providerProfileFieldValues || {}),
       priority: sampleOrderItems.priority,
       requestDate: sampleOrderItems.requestDate,
       requestTime: sampleOrderItems.requestTime,
@@ -877,9 +1087,170 @@ const AddOrder = (props) => {
   const getEffectiveFixedFieldConfigs = () => {
     const configs = orderFormValues?.sampleOrderItems?.fixedFieldConfigs;
     if (Array.isArray(configs) && configs.length > 0) {
-      return configs;
+      return configs.filter(
+        (config) => !isRetiredProviderFixedField(config?.fieldKey),
+      );
     }
-    return DEFAULT_FIXED_FIELD_ORDER;
+    return DEFAULT_FIXED_FIELD_ORDER.filter(
+      (config) => !isRetiredProviderFixedField(config?.fieldKey),
+    );
+  };
+
+  const renderProviderProfileField = (field) => {
+    if (!field || field.active === false || field.systemField === true) {
+      return null;
+    }
+
+    const fieldType = (field.fieldType || "TEXT").toUpperCase();
+    const currentValue =
+      orderFormValues.sampleOrderItems.providerProfileFieldValues?.[
+        field.fieldKey
+      ];
+    const value =
+      currentValue !== undefined && currentValue !== null
+        ? currentValue
+        : normalizeProviderProfileFieldValue(field.currentValue);
+    const options = (field.options || []).filter((option) => option.active);
+    const required = field.required === true;
+    const readonly = isProviderFieldLocked(field.fieldKey);
+    const label = (
+      <>
+        {field.displayName}
+        {required ? <span className="requiredlabel">*</span> : null}
+      </>
+    );
+
+    switch (fieldType) {
+      case "NUMBER":
+        return (
+          <Column key={field.fieldKey} lg={8} md={4} sm={4}>
+            <TextInput
+              id={`requester-profile-${field.fieldKey}`}
+              labelText={label}
+              type="number"
+              value={value}
+              onChange={(event) =>
+                handleProviderProfileFieldValueChange(
+                  field.fieldKey,
+                  event.target.value,
+                )
+              }
+              readOnly={readonly}
+            />
+          </Column>
+        );
+      case "DATE":
+        return (
+          <Column key={field.fieldKey} lg={8} md={4} sm={4}>
+            <TextInput
+              id={`requester-profile-${field.fieldKey}`}
+              labelText={label}
+              type="date"
+              value={value}
+              onChange={(event) =>
+                handleProviderProfileFieldValueChange(
+                  field.fieldKey,
+                  event.target.value,
+                )
+              }
+              readOnly={readonly}
+            />
+          </Column>
+        );
+      case "BOOLEAN":
+        return (
+          <Column key={field.fieldKey} lg={8} md={4} sm={4}>
+            <Checkbox
+              id={`requester-profile-${field.fieldKey}`}
+              labelText={field.displayName}
+              checked={String(value).toLowerCase() === "true"}
+              onChange={(_event, { checked }) =>
+                handleProviderProfileFieldValueChange(
+                  field.fieldKey,
+                  checked ? "true" : "false",
+                )
+              }
+              disabled={readonly}
+            />
+          </Column>
+        );
+      case "SELECT":
+        return (
+          <Column key={field.fieldKey} lg={8} md={4} sm={4}>
+            <Select
+              id={`requester-profile-${field.fieldKey}`}
+              labelText={label}
+              value={value}
+              onChange={(event) =>
+                handleProviderProfileFieldValueChange(
+                  field.fieldKey,
+                  event.target.value,
+                )
+              }
+              disabled={readonly}
+            >
+              <SelectItem value="" text="" />
+              {options.map((option) => (
+                <SelectItem
+                  key={`${field.fieldKey}-${option.optionKey}`}
+                  value={option.optionKey}
+                  text={option.optionLabel}
+                />
+              ))}
+            </Select>
+          </Column>
+        );
+      case "MULTISELECT": {
+        const selectedValues = new Set(
+          String(value)
+            .split(",")
+            .map((entry) => entry.trim())
+            .filter(Boolean),
+        );
+
+        return (
+          <Column key={field.fieldKey} lg={8} md={4} sm={4}>
+            <label htmlFor={`requester-profile-${field.fieldKey}`}>{label}</label>
+            <div id={`requester-profile-${field.fieldKey}`}>
+              {options.map((option) => (
+                <Checkbox
+                  key={`${field.fieldKey}-${option.optionKey}`}
+                  id={`requester-profile-${field.fieldKey}-${option.optionKey}`}
+                  labelText={option.optionLabel}
+                  checked={selectedValues.has(option.optionKey)}
+                  onChange={(_event, { checked }) =>
+                    handleProviderProfileMultiSelectOption(
+                      field.fieldKey,
+                      option.optionKey,
+                      checked,
+                    )
+                  }
+                  disabled={readonly}
+                />
+              ))}
+            </div>
+          </Column>
+        );
+      }
+      case "TEXT":
+      default:
+        return (
+          <Column key={field.fieldKey} lg={8} md={4} sm={4}>
+            <TextInput
+              id={`requester-profile-${field.fieldKey}`}
+              labelText={label}
+              value={value}
+              onChange={(event) =>
+                handleProviderProfileFieldValueChange(
+                  field.fieldKey,
+                  event.target.value,
+                )
+              }
+              readOnly={readonly}
+            />
+          </Column>
+        );
+    }
   };
 
   const getOrderedOrderFieldDescriptors = () => {
@@ -907,6 +1278,24 @@ const AddOrder = (props) => {
         sortOrder: Number(field?.sortOrder ?? 0),
       }));
 
+    const requesterProfileFields = (
+      orderFormValues?.sampleOrderItems?.providerProfileFields || []
+    )
+      .filter(
+        (field) =>
+          field &&
+          field.active !== false &&
+          field.systemField !== true &&
+          field.showInOrderEntry === true &&
+          field.fieldKey,
+      )
+      .map((field, index) => ({
+        type: "requesterProfile",
+        field,
+        sortOrder:
+          REQUESTER_PROFILE_FIELD_SORT_ORDER_BASE + (index + 1) / 100,
+      }));
+
     const staticFields = [
       { type: "static", fieldKey: "requesterSearch", sortOrder: 75 },
     ];
@@ -914,10 +1303,16 @@ const AddOrder = (props) => {
     const typeRank = {
       fixed: 0,
       static: 1,
+      requesterProfile: 2,
       custom: 2,
     };
 
-    return [...fixedFields, ...staticFields, ...customFields].sort(
+    return [
+      ...fixedFields,
+      ...staticFields,
+      ...requesterProfileFields,
+      ...customFields,
+    ].sort(
       (left, right) => {
         if (left.sortOrder !== right.sortOrder) {
           return left.sortOrder - right.sortOrder;
@@ -930,9 +1325,13 @@ const AddOrder = (props) => {
         }
 
         const leftKey =
-          left.type === "custom" ? left.field.fieldKey : left.fieldKey;
+          left.type === "custom" || left.type === "requesterProfile"
+            ? left.field.fieldKey
+            : left.fieldKey;
         const rightKey =
-          right.type === "custom" ? right.field.fieldKey : right.fieldKey;
+          right.type === "custom" || right.type === "requesterProfile"
+            ? right.field.fieldKey
+            : right.fieldKey;
         return String(leftKey || "").localeCompare(String(rightKey || ""));
       },
     );
@@ -949,8 +1348,8 @@ const AddOrder = (props) => {
         value={buildRequesterDisplayValue()}
         onSelect={handleProviderSelectOptions}
         onChange={clearProviderId}
-        disabled={isProviderSelectionLocked}
-        readOnly={isProviderSelectionLocked}
+        disabled={isOrderReadOnly || isProviderSelectionLocked}
+        readOnly={isOrderReadOnly || isProviderSelectionLocked}
         label={
           <>
             <FormattedMessage id="order.search.requester.label" />
@@ -1013,6 +1412,7 @@ const AddOrder = (props) => {
               }
               disallowFutureDate={true}
               onChange={(date) => handleDatePickerChange("requestDate", date)}
+              disabled={isFieldReadonly("requestDate")}
             />
           </Column>
         );
@@ -1046,6 +1446,7 @@ const AddOrder = (props) => {
               }
               disallowFutureDate={true}
               onChange={(date) => handleDatePickerChange("receivedDate", date)}
+              disabled={isFieldReadonly("receivedDateForDisplay")}
             />
           </Column>
         );
@@ -1077,6 +1478,7 @@ const AddOrder = (props) => {
               autofillDate={false}
               disallowPastDate={true}
               onChange={(date) => handleDatePickerChange("nextVisitDate", date)}
+              disabled={isFieldReadonly("nextVisitDate")}
             />
           </Column>
         );
@@ -1099,6 +1501,8 @@ const AddOrder = (props) => {
               }
               onChange={handleSiteName}
               onSelect={handleAutoCompleteSiteName}
+              disabled={isFieldReadonly("referringSiteName")}
+              readOnly={isFieldReadonly("referringSiteName")}
               label={
                 <>
                   <FormattedMessage id="order.search.site.name" />{" "}
@@ -1462,6 +1866,9 @@ const AddOrder = (props) => {
     if (descriptor.type === "custom") {
       return renderDynamicField(descriptor.field);
     }
+    if (descriptor.type === "requesterProfile") {
+      return renderProviderProfileField(descriptor.field);
+    }
     if (descriptor.type === "static") {
       return renderRequesterSearchField();
     }
@@ -1488,6 +1895,15 @@ const AddOrder = (props) => {
     componentMounted.current = true;
     getFromOpenElisServer("/rest/SamplePatientEntry", getSampleEntryPreform);
     getFromOpenElisServer("/rest/priorities", loadPriorityOptions);
+
+    // Check professional profile permissions
+    getFromOpenElisServer("/rest/professional-profile-permissions", (response) => {
+      if (response) {
+        setHasOrderPermission(response.hasOrderPermission !== false);
+      }
+      setPermissionsLoaded(true);
+    });
+
     window.scrollTo(0, 0);
     return () => {
       Object.values(additionalFieldPreviewUrlsRef.current || {}).forEach(
@@ -1707,6 +2123,9 @@ const AddOrder = (props) => {
     if (e) {
       e.preventDefault();
     }
+    if (isOrderReadOnly) {
+      return;
+    }
     getFromOpenElisServer(
       "/rest/SampleEntryGenerateScanProvider",
       fetchGeneratedAccessionNo,
@@ -1745,24 +2164,24 @@ const AddOrder = (props) => {
 
   function fetchPractitioner(data) {
     const person = data?.person || {};
-    setOrderFormValues({
-      ...orderFormValues,
-      sampleOrderItems: {
-        ...orderFormValues.sampleOrderItems,
-        providerFirstName: person.firstName || "",
-        providerLastName: person.lastName || "",
-        providerWorkPhone: person.workPhone || "",
-        providerEmail: person.email || "",
-        providerFax: person.fax || "",
-        providerCmp: data?.npi || "",
-        providerRne: data?.externalId || "",
-        providerDni: data?.dni || "",
-        providerSpecialty: data?.specialty || "",
-        providerId: data?.id || "",
-        providerPersonId: person.id || "",
-        referringSiteName: "",
-      },
-    });
+    updateSampleOrderItems((currentSampleOrderItems) => ({
+      ...currentSampleOrderItems,
+      providerProfessionalProfileCode: data?.professionalProfileCode || "",
+      providerFirstName: person.firstName || "",
+      providerLastName: person.lastName || "",
+      providerWorkPhone: person.workPhone || "",
+      providerEmail: person.email || "",
+      providerFax: person.fax || "",
+      providerCmp: data?.npi || "",
+      providerRne: data?.externalId || "",
+      providerDni: data?.dni || "",
+      providerSpecialty: data?.specialty || "",
+      providerId: data?.id || "",
+      providerPersonId: person.id || "",
+      providerProfileFields: [],
+      providerProfileFieldValues: {},
+      referringSiteName: "",
+    }));
   }
 
   function handleRequesterDept(e) {
@@ -1792,6 +2211,7 @@ const AddOrder = (props) => {
     if (isProviderSelectionLocked) {
       return;
     }
+    preloadedProviderPersonIdRef.current = "";
     handleChange("sampleOrderItems.providerId");
     setOrderFormValues({
       ...orderFormValues,
@@ -1799,12 +2219,16 @@ const AddOrder = (props) => {
         ...orderFormValues.sampleOrderItems,
         providerId: "",
         providerPersonId: "",
+        providerProfessionalProfileCode: "",
         providerCmp: "",
         providerRne: "",
         providerDni: "",
         providerSpecialty: "",
+        providerProfileFields: [],
+        providerProfileFieldValues: {},
       },
     });
+    loadedProviderProfileConfigKeyRef.current = "";
   }
 
   function handleAutoCompleteSiteName(siteId) {
@@ -1890,22 +2314,35 @@ const AddOrder = (props) => {
 
   useEffect(() => {
     if (!innitialized) {
-      setOrderFormValues({
-        ...orderFormValues,
-        sampleOrderItems: {
-          ...orderFormValues.sampleOrderItems,
-          requestDate: configurationProperties.currentDateAsText,
-          requestTime: configurationProperties.currentTimeAsText,
-          receivedDateForDisplay: configurationProperties.currentDateAsText,
-          nextVisitDate: configurationProperties.currentDateAsText,
-          receivedTime: configurationProperties.currentTimeAsText,
-        },
-      });
+      updateSampleOrderItems((currentSampleOrderItems) => ({
+        ...currentSampleOrderItems,
+        requestDate: configurationProperties.currentDateAsText,
+        requestTime: configurationProperties.currentTimeAsText,
+        receivedDateForDisplay: configurationProperties.currentDateAsText,
+        nextVisitDate: configurationProperties.currentDateAsText,
+        receivedTime: configurationProperties.currentTimeAsText,
+      }));
     }
     if (orderFormValues.sampleOrderItems.requestDate != "") {
       setInnitialized(true);
     }
   }, [orderFormValues]);
+
+  useEffect(() => {
+    const providerId = orderFormValues?.sampleOrderItems?.providerId;
+    const profileCode =
+      orderFormValues?.sampleOrderItems?.providerProfessionalProfileCode;
+
+    if (!providerId || !profileCode) {
+      loadedProviderProfileConfigKeyRef.current = "";
+      return;
+    }
+
+    loadProviderProfileConfig(providerId, profileCode);
+  }, [
+    orderFormValues?.sampleOrderItems?.providerId,
+    orderFormValues?.sampleOrderItems?.providerProfessionalProfileCode,
+  ]);
 
   useEffect(() => {
     getFromOpenElisServer(
@@ -1928,17 +2365,12 @@ const AddOrder = (props) => {
   function fetchGeneratedAccessionNo(res) {
     if (res.status) {
       if (isModifyOrder) {
-        setOrderFormValues({
-          ...orderFormValues,
+        updateOrderFormValues({
           newAccessionNumber: res.body,
         });
       } else {
-        setOrderFormValues({
-          ...orderFormValues,
-          sampleOrderItems: {
-            ...orderFormValues.sampleOrderItems,
-            labNo: res.body,
-          },
+        updateSampleOrderItems({
+          labNo: res.body,
         });
       }
 
@@ -1962,6 +2394,9 @@ const AddOrder = (props) => {
         response?.sampleOrderItems?.fixedFieldConfigs || [];
       const responseAdditionalFieldFiles =
         response?.sampleOrderItems?.additionalFieldFiles || {};
+      const shouldPreloadProviderFromResponse =
+        responseOrderItems.providerSelectionLocked === true ||
+        !orderFormValues?.sampleOrderItems?.providerPersonId;
 
       setOrderFormValues((previous) => {
         if (!previous?.sampleOrderItems) {
@@ -2018,6 +2453,9 @@ const AddOrder = (props) => {
             providerPersonId: shouldApplyProviderFromResponse
               ? responseOrderItems.providerPersonId || ""
               : previous.sampleOrderItems.providerPersonId,
+            providerProfessionalProfileCode: shouldApplyProviderFromResponse
+              ? responseOrderItems.providerProfessionalProfileCode || ""
+              : previous.sampleOrderItems.providerProfessionalProfileCode,
             providerFirstName: shouldApplyProviderFromResponse
               ? responseOrderItems.providerFirstName || ""
               : previous.sampleOrderItems.providerFirstName,
@@ -2045,9 +2483,27 @@ const AddOrder = (props) => {
             providerSpecialty: shouldApplyProviderFromResponse
               ? responseOrderItems.providerSpecialty || ""
               : previous.sampleOrderItems.providerSpecialty,
+            providerProfileFields: shouldApplyProviderFromResponse
+              ? previous.sampleOrderItems.providerProfileFields || []
+              : previous.sampleOrderItems.providerProfileFields,
+            providerProfileFieldValues: shouldApplyProviderFromResponse
+              ? previous.sampleOrderItems.providerProfileFieldValues || {}
+              : previous.sampleOrderItems.providerProfileFieldValues,
           },
         };
       });
+      if (
+        shouldPreloadProviderFromResponse &&
+        responseOrderItems.providerPersonId &&
+        !responseOrderItems.providerProfessionalProfileCode &&
+        preloadedProviderPersonIdRef.current !== responseOrderItems.providerPersonId
+      ) {
+        preloadedProviderPersonIdRef.current = responseOrderItems.providerPersonId;
+        getFromOpenElisServer(
+          "/rest/practitioner?providerId=" + responseOrderItems.providerPersonId,
+          fetchPractitioner,
+        );
+      }
       setWaitingForFixedFieldConfig(false);
       return;
     }
@@ -2066,6 +2522,14 @@ const AddOrder = (props) => {
   return (
     <>
       <Stack gap={10}>
+        {permissionsLoaded && !hasOrderPermission && (
+          <InlineNotification
+            kind="warning"
+            title={intl.formatMessage({ id: "professionalProfile.permission.denied.order" })}
+            hideCloseButton={true}
+            lowContrast={true}
+          />
+        )}
         <div className="orderLegendBody">
           <Grid>
             <Column lg={16} md={8} sm={4}>
@@ -2110,6 +2574,8 @@ const AddOrder = (props) => {
                   onClick={() => handleChange("sampleOrderItems.labNo")}
                   onChange={handleLabNo}
                   onKeyPress={handleKeyPress}
+                  disabled={isOrderReadOnly}
+                  readOnly={isOrderReadOnly}
                   labelText={
                     <>
                       <FormattedMessage
@@ -2130,13 +2596,24 @@ const AddOrder = (props) => {
                 />
                 <div>
                   <FormattedMessage id="label.order.scan.text" />{" "}
-                  <Link
-                    data-cy="generate-labNumber"
-                    href="#"
-                    onClick={(e) => handleLabNoGeneration(e)}
-                  >
-                    <FormattedMessage id="sample.label.labnumber.generate" />
-                  </Link>
+                  {isOrderReadOnly ? (
+                    <span
+                      style={{
+                        color: "var(--cds-text-disabled, #c6c6c6)",
+                        cursor: "not-allowed",
+                      }}
+                    >
+                      <FormattedMessage id="sample.label.labnumber.generate" />
+                    </span>
+                  ) : (
+                    <Link
+                      data-cy="generate-labNumber"
+                      href="#"
+                      onClick={(e) => handleLabNoGeneration(e)}
+                    >
+                      <FormattedMessage id="sample.label.labnumber.generate" />
+                    </Link>
+                  )}
                 </div>
               </div>
             </Column>

@@ -1,12 +1,14 @@
 import { useEffect } from "react";
 import { useFormikContext } from "formik";
+import { sanitizePatientProperties } from "./patientPropertiesSanitizer";
 
 const PatientFormObserver = (props) => {
   const { values } = useFormikContext();
   const { setOrderFormValues, formAction } = props;
+  const sanitizedValues = sanitizePatientProperties(values);
   const syncKey = JSON.stringify({
     patientUpdateStatus: formAction,
-    patientProperties: values,
+    patientProperties: sanitizedValues,
   });
 
   useEffect(() => {
@@ -14,7 +16,7 @@ const PatientFormObserver = (props) => {
       ...(previous || {}),
       patientUpdateStatus: formAction,
       patientProperties: {
-        ...values,
+        ...sanitizedValues,
       },
     }));
   }, [formAction, setOrderFormValues, syncKey]);

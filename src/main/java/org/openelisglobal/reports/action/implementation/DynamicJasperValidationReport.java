@@ -237,6 +237,10 @@ public class DynamicJasperValidationReport extends PatientCILNSPClinical_vreduit
             return resolveValidatorFieldValue(mapping, className);
         }
 
+        if ("requester".equalsIgnoreCase(userFieldId)) {
+            return resolveRequesterFieldValue(mapping, className, first);
+        }
+
         // Get systemUserId from the additional field value
         String systemUserId = StringUtils.trimToNull(first.getAdditionalFieldValue(userFieldKey));
         if (systemUserId == null) {
@@ -259,6 +263,22 @@ public class DynamicJasperValidationReport extends PatientCILNSPClinical_vreduit
         return extractProfileFieldValue(professionalInfo, profileFieldKey, className, systemUserId);
     }
 
+    private Object resolveRequesterFieldValue(JSONObject mapping, String className, ClinicalPatientData first) {
+        Provider requesterProvider = resolveRequesterProvider(first);
+        if (requesterProvider == null) {
+            return null;
+        }
+
+        String profileFieldKey = determineProfileFieldKeyForProfileCode(mapping,
+                StringUtils.trimToNull(requesterProvider.getProfessionalProfileCode()));
+        if (profileFieldKey == null) {
+            return null;
+        }
+
+        ProfessionalInfo requesterInfo = buildRequesterProfessionalInfo(requesterProvider, first);
+        return extractProfileFieldValue(requesterInfo, profileFieldKey, className, null, requesterProvider);
+    }
+
     /**
      * Determine which profile field to use based on the user's professional profile.
      * If profileFieldMappings exists, use the mapping for the user's profile.
@@ -272,18 +292,27 @@ public class DynamicJasperValidationReport extends PatientCILNSPClinical_vreduit
         // Check if we have profile-specific mappings
         JSONObject profileFieldMappings = mapping.optJSONObject("profileFieldMappings");
         if (profileFieldMappings != null && !profileFieldMappings.isEmpty()) {
-            // Get the user's professional profile code
-            String profileCode = getUserProfessionalProfileCode(systemUserId);
-            if (StringUtils.isNotBlank(profileCode)) {
-                String fieldKey = StringUtils.trimToNull(profileFieldMappings.optString(profileCode));
-                if (fieldKey != null) {
-                    return fieldKey;
-                }
+            String fieldKey = determineProfileFieldKeyForProfileCode(mapping, getUserProfessionalProfileCode(systemUserId));
+            if (fieldKey != null) {
+                return fieldKey;
             }
         }
 
         // Fall back to legacy single profileFieldKey (for backward compatibility)
         return StringUtils.trimToNull(mapping.optString("profileFieldKey"));
+    }
+
+    private String determineProfileFieldKeyForProfileCode(JSONObject mapping, String profileCode) {
+        if (mapping == null || StringUtils.isBlank(profileCode)) {
+            return null;
+        }
+
+        JSONObject profileFieldMappings = mapping.optJSONObject("profileFieldMappings");
+        if (profileFieldMappings == null || profileFieldMappings.isEmpty()) {
+            return null;
+        }
+
+        return StringUtils.trimToNull(profileFieldMappings.optString(profileCode));
     }
 
     /**
@@ -353,6 +382,11 @@ public class DynamicJasperValidationReport extends PatientCILNSPClinical_vreduit
      * Extract specific field value from ProfessionalInfo.
      */
     private Object extractProfileFieldValue(ProfessionalInfo info, String profileFieldKey, String className, String systemUserId) {
+        return extractProfileFieldValue(info, profileFieldKey, className, systemUserId, null);
+    }
+
+    private Object extractProfileFieldValue(ProfessionalInfo info, String profileFieldKey, String className,
+            String systemUserId, Provider provider) {
         if (info == null || profileFieldKey == null) {
             return null;
         }
@@ -370,7 +404,8 @@ public class DynamicJasperValidationReport extends PatientCILNSPClinical_vreduit
                 }
                 yield null;
             }
-            default -> resolveCustomProfileField(systemUserId, profileFieldKey);
+            default -> provider != null ? resolveCustomProfileField(provider, profileFieldKey)
+                    : resolveCustomProfileField(systemUserId, profileFieldKey);
         };
 
         // Special handling for signature image
@@ -379,26 +414,69 @@ public class DynamicJasperValidationReport extends PatientCILNSPClinical_vreduit
         }
 
         // Handle other system fields from Provider entity
-        if (stringValue == null && systemUserId != null) {
+        Provider resolvedProvider = provider;
+        if (stringValue == null && resolvedProvider == null && systemUserId != null) {
             SystemUser user = systemUserService.getUserById(systemUserId);
-            if (user != null) {
-                Person linkedPerson = StringUtils.isNotBlank(user.getLinkedProviderPersonId()) 
-                        ? personService.getPersonById(user.getLinkedProviderPersonId()) 
-                        : null;
-                Provider provider = linkedPerson != null ? providerService.getProviderByPerson(linkedPerson) : null;
-
-                if (provider != null) {
-                    stringValue = switch (profileFieldKey.toLowerCase()) {
-                        case "professionalInitials", "professionalinitials" -> provider.getProfessionalInitials();
-                        case "dni" -> provider.getDni();
-                        case "npi" -> provider.getNpi();
-                        default -> null;
-                    };
-                }
-            }
+            resolvedProvider = user == null ? null : resolveLinkedProvider(user);
+        }
+        if (stringValue == null && resolvedProvider != null) {
+            stringValue = switch (profileFieldKey.toLowerCase()) {
+                case "professionalInitials", "professionalinitials" -> resolvedProvider.getProfessionalInitials();
+                case "dni" -> resolvedProvider.getDni();
+                case "npi" -> resolvedProvider.getNpi();
+                default -> null;
+            };
         }
 
         return coerceValue(className, stringValue);
+    }
+
+    private Provider resolveRequesterProvider(ClinicalPatientData first) {
+        Analysis analysis = getAnalysisForReportItem(first);
+        if (analysis == null || analysis.getSampleItem() == null || analysis.getSampleItem().getSample() == null) {
+            return null;
+        }
+        return sampleHumanService.getProviderForSample(analysis.getSampleItem().getSample());
+    }
+
+    private ProfessionalInfo buildRequesterProfessionalInfo(Provider provider, ClinicalPatientData first) {
+        if (provider == null) {
+            return ProfessionalInfo.empty();
+        }
+
+        Person person = provider.getPerson();
+        String displayName = "";
+        if (person != null) {
+            displayName = StringUtils.normalizeSpace(
+                    StringUtils.defaultString(person.getFirstName()) + " " + StringUtils.defaultString(person.getLastName()));
+        }
+        if (StringUtils.isBlank(displayName) && first != null) {
+            displayName = StringUtils.defaultIfBlank(first.getPrescriber(), first.getContactInfo());
+        }
+        return new ProfessionalInfo(displayName, StringUtils.defaultString(provider.getSpecialty()),
+                StringUtils.defaultString(provider.getCbpCode()), null);
+    }
+
+    private String resolveCustomProfileField(Provider provider, String fieldKey) {
+        if (provider == null || fieldKey == null) {
+            return null;
+        }
+
+        try {
+            if (provider.getProfileFieldValues() == null || provider.getProfileFieldValues().isEmpty()) {
+                providerProfileFieldService.hydrateProfileFieldValues(provider);
+            }
+
+            Map<String, Object> profileFieldValuesObj = provider.getProfileFieldValues();
+            if (profileFieldValuesObj != null && profileFieldValuesObj.containsKey(fieldKey)) {
+                Object fieldValue = profileFieldValuesObj.get(fieldKey);
+                return StringUtils.trimToNull(fieldValue != null ? String.valueOf(fieldValue) : null);
+            }
+
+            return null;
+        } catch (Exception e) {
+            return null;
+        }
     }
 
     /**

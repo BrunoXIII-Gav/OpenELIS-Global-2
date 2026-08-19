@@ -68,6 +68,8 @@ const Index = () => {
   const [errors, setErrors] = useState([]);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [isConsentDownloading, setIsConsentDownloading] = useState(false);
+  const [hasOrderPermission, setHasOrderPermission] = useState(true);
+  const [permissionsLoaded, setPermissionsLoaded] = useState(false);
   const [phoneValidation, setPhoneValidation] = useState({
     primaryPhone: { body: "", status: true },
     contactPhone: { body: "", status: true },
@@ -83,6 +85,8 @@ const Index = () => {
 
   const { notificationVisible, setNotificationVisible, addNotification } =
     useContext(NotificationContext);
+
+  const isOrderReadOnly = !permissionsLoaded || !hasOrderPermission;
 
   useEffect(() => {
     if (configurationProperties.ACCEPT_EXTERNAL_ORDERS === "true") {
@@ -103,6 +107,30 @@ const Index = () => {
   useEffect(() => {
     checkOrderReferral(orderFormValues.sampleOrderItems.externalOrderNumber);
   }, [orderFormValues.sampleOrderItems.externalOrderNumber]);
+
+  useEffect(() => {
+    getFromOpenElisServer("/rest/professional-profile-permissions", (response) => {
+      if (response) {
+        setHasOrderPermission(response.hasOrderPermission !== false);
+      }
+      setPermissionsLoaded(true);
+    });
+  }, []);
+
+  useEffect(() => {
+    if (!permissionsLoaded || hasOrderPermission) {
+      return;
+    }
+    if (page === samplePageNumber) {
+      setPage(orderPageNumber);
+    }
+  }, [
+    hasOrderPermission,
+    orderPageNumber,
+    page,
+    permissionsLoaded,
+    samplePageNumber,
+  ]);
 
   const checkOrderReferral = (externalOrderNumber) => {
     if (externalOrderNumber) {
@@ -257,17 +285,22 @@ const Index = () => {
       newOrderFormValues.sampleOrderItems = {
         ...newOrderFormValues.sampleOrderItems,
         providerId: providerId,
+        providerProfessionalProfileCode: "",
+        providerProfileFields: [],
+        providerProfileFieldValues: {},
       };
       getFromOpenElisServer(
         "/rest/practitioner?providerId=" + providerId,
         (data) => {
           const person = data?.person || {};
-          setOrderFormValues({
-            ...orderFormValues,
+          setOrderFormValues((previous) => ({
+            ...(previous || {}),
             sampleOrderItems: {
-              ...orderFormValues.sampleOrderItems,
+              ...((previous || {}).sampleOrderItems || {}),
               providerId: data?.id || "",
               providerPersonId: person.id || "",
+              providerProfessionalProfileCode:
+                data?.professionalProfileCode || "",
               providerFirstName: person.firstName || "",
               providerLastName: person.lastName || "",
               providerWorkPhone: person.workPhone || "",
@@ -278,7 +311,7 @@ const Index = () => {
               providerDni: data?.dni || "",
               providerSpecialty: data?.specialty || "",
             },
-          });
+          }));
         },
       );
     } else {
@@ -293,6 +326,9 @@ const Index = () => {
         providerRne: requester.rne || "",
         providerDni: requester.dni || "",
         providerSpecialty: requester.specialty || "",
+        providerProfessionalProfileCode: "",
+        providerProfileFields: [],
+        providerProfileFieldValues: {},
       };
     }
   };
@@ -874,7 +910,11 @@ const Index = () => {
 
   const navigateForward = () => {
     if (page < lastPageNumber && page >= firstPageNumber) {
-      setPage(page + 1);
+      let nextPage = page + 1;
+      if (!hasOrderPermission && nextPage === samplePageNumber) {
+        nextPage = orderPageNumber;
+      }
+      setPage(nextPage);
     }
   };
 
@@ -884,6 +924,9 @@ const Index = () => {
     }
   };
   const handleTabClickHandler = (e) => {
+    if (!hasOrderPermission && e === samplePageNumber) {
+      return;
+    }
     setPage(e);
   };
 
@@ -1022,6 +1065,7 @@ const Index = () => {
                       label={intl.formatMessage({
                         id: "order.step.add.request",
                       })}
+                      disabled={isOrderReadOnly}
                     />
                     <ProgressStep
                       label={intl.formatMessage({ id: "order.label.add" })}
@@ -1044,6 +1088,7 @@ const Index = () => {
                       label={intl.formatMessage({
                         id: "order.step.add.request",
                       })}
+                      disabled={isOrderReadOnly}
                     />
                     <ProgressStep
                       label={intl.formatMessage({ id: "order.label.add" })}
@@ -1125,6 +1170,7 @@ const Index = () => {
                     kind="primary"
                     className="forwardButton"
                     disabled={
+                      isOrderReadOnly ||
                       isSubmitting ||
                       Object.values(phoneValidation).some(
                         (item) => item.status === false,

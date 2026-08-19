@@ -31,8 +31,14 @@ import {
   OrderPossibleTestsHeaders,
 } from "../data/orderCurrentTestsHeaders";
 const EditSample = (props) => {
-  const { samples, setSamples, orderFormValues, setOrderFormValues, error } =
-    props;
+  const {
+    samples,
+    setSamples,
+    orderFormValues,
+    setOrderFormValues,
+    error,
+    hideExistingSamplesSections = false,
+  } = props;
 
   const componentMounted = useRef(false);
 
@@ -782,118 +788,121 @@ const EditSample = (props) => {
 
   return (
     <>
-      <div className="orderLegendBody">
-        <Column lg={16}>
-          <DataTable
-            rows={formatTestsObject(orderFormValues.existingTests)}
-            headers={OrderCurrentTestsHeaders}
-            isSortable
-          >
-            {({ rows, headers, getHeaderProps, getTableProps }) => (
-              <TableContainer
-                title={intl.formatMessage({ id: "currentests.title" })}
-              >
-                <Table {...getTableProps()}>
-                  <TableHead>
-                    <TableRow>
-                      {headers.map((header) => (
-                        <TableHeader
-                          key={header.key}
-                          {...getHeaderProps({ header })}
-                        >
-                          {header.header}
-                        </TableHeader>
-                      ))}
-                    </TableRow>
-                  </TableHead>
-                  <TableBody>
-                    <>
-                      {rows
-                        .slice((page - 1) * pageSize)
-                        .slice(0, pageSize)
-                        .map((row) => (
-                          <TableRow key={row.id}>
-                            {row.cells.map((cell) => renderCell(cell, row))}
-                          </TableRow>
-                        ))}
-                    </>
-                  </TableBody>
-                </Table>
-              </TableContainer>
-            )}
-          </DataTable>
-          <Pagination
-            onChange={handlePageChange}
-            page={page}
-            pageSize={pageSize}
-            pageSizes={[5, 10, 20, 30]}
-            totalItems={orderFormValues.existingTests.length}
-            forwardText={intl.formatMessage({ id: "pagination.forward" })}
-            backwardText={intl.formatMessage({ id: "pagination.backward" })}
-            itemRangeText={(min, max, total) =>
-              intl.formatMessage(
-                { id: "pagination.item-range" },
-                { min: min, max: max, total: total },
-              )
-            }
-            itemsPerPageText={intl.formatMessage({
-              id: "pagination.items-per-page",
-            })}
-            itemText={(min, max) =>
-              intl.formatMessage(
-                { id: "pagination.item" },
-                { min: min, max: max },
-              )
-            }
-            pageNumberText={intl.formatMessage({
-              id: "pagination.page-number",
-            })}
-            pageRangeText={(_current, total) =>
-              intl.formatMessage(
-                { id: "pagination.page-range" },
-                { total: total },
-              )
-            }
-            pageText={(page, pagesUnknown) =>
-              intl.formatMessage(
-                { id: "pagination.page" },
-                { page: pagesUnknown ? "" : page },
-              )
-            }
-          />
-        </Column>
-      </div>
-      {existingSamplesWithAdditionalFields.length > 0 && (
+      {!hideExistingSamplesSections && (
         <div className="orderLegendBody">
           <Column lg={16}>
-            <h3>
-              <FormattedMessage id="sample.additional.fields.heading" />
-            </h3>
-            {existingSamplesWithAdditionalFields.map((sample) => (
-              <div
-                className="sampleType"
-                key={`existing_sample_additional_fields_${sample.sampleItemId}`}
-              >
-                <h4>
-                  {sample.accessionNumber || sample.sampleItemId}{" "}
-                  {sample.sampleType ? `- ${sample.sampleType}` : ""}
-                </h4>
-                <div className="inlineDiv">
-                  {sample.additionalFields.map((field, fieldIndex) => (
-                    <div
-                      key={`existing_sample_additional_field_${sample.sampleItemId}_${field.fieldKey}_${fieldIndex}`}
-                      className="inputText"
-                      style={{ width: "100%" }}
-                    >
-                      {renderExistingSampleAdditionalField(sample, field)}
-                    </div>
-                  ))}
-                </div>
-              </div>
-            ))}
+            <DataTable
+              rows={formatTestsObject(orderFormValues.existingTests)}
+              headers={OrderCurrentTestsHeaders}
+              isSortable
+            >
+              {({ rows, headers, getHeaderProps, getTableProps }) => (
+                <TableContainer
+                  title={intl.formatMessage({ id: "currentests.title" })}
+                >
+                  <Table {...getTableProps()}>
+                    <TableHead>
+                      <TableRow>
+                        {headers.map((header) => (
+                          <TableHeader
+                            key={header.key}
+                            {...getHeaderProps({ header })}
+                          >
+                            {header.header}
+                          </TableHeader>
+                        ))}
+                      </TableRow>
+                    </TableHead>
+                    <TableBody>
+                      <>
+                        {rows
+                          .slice((page - 1) * pageSize)
+                          .slice(0, pageSize)
+                          .map((row) => (
+                            <TableRow key={row.id}>
+                              {row.cells.map((cell) => renderCell(cell, row))}
+                            </TableRow>
+                          ))}
+                      </>
+                    </TableBody>
+                  </Table>
+                </TableContainer>
+              )}
+            </DataTable>
+            <Pagination
+              onChange={handlePageChange}
+              page={page}
+              pageSize={pageSize}
+              pageSizes={[5, 10, 20, 30]}
+              totalItems={orderFormValues.existingTests.length}
+              forwardText={intl.formatMessage({ id: "pagination.forward" })}
+              backwardText={intl.formatMessage({ id: "pagination.backward" })}
+              itemRangeText={(min, max, total) =>
+                intl.formatMessage(
+                  { id: "pagination.item-range" },
+                  { min: min, max: max, total: total },
+                )
+              }
+              itemsPerPageText={intl.formatMessage({
+                id: "pagination.items-per-page",
+              })}
+              itemText={(min, max) =>
+                intl.formatMessage(
+                  { id: "pagination.item" },
+                  { min: min, max: max },
+                )
+              }
+              pageNumberText={intl.formatMessage({
+                id: "pagination.page-number",
+              })}
+              pageRangeText={(_current, total) =>
+                intl.formatMessage(
+                  { id: "pagination.page-range" },
+                  { total: total },
+                )
+              }
+              pageText={(page, pagesUnknown) =>
+                intl.formatMessage(
+                  { id: "pagination.page" },
+                  { page: pagesUnknown ? "" : page },
+                )
+              }
+            />
           </Column>
         </div>
       )}
+      {!hideExistingSamplesSections &&
+        existingSamplesWithAdditionalFields.length > 0 && (
+          <div className="orderLegendBody">
+            <Column lg={16}>
+              <h3>
+                <FormattedMessage id="sample.additional.fields.heading" />
+              </h3>
+              {existingSamplesWithAdditionalFields.map((sample) => (
+                <div
+                  className="sampleType"
+                  key={`existing_sample_additional_fields_${sample.sampleItemId}`}
+                >
+                  <h4>
+                    {sample.accessionNumber || sample.sampleItemId}{" "}
+                    {sample.sampleType ? `- ${sample.sampleType}` : ""}
+                  </h4>
+                  <div className="inlineDiv">
+                    {sample.additionalFields.map((field, fieldIndex) => (
+                      <div
+                        key={`existing_sample_additional_field_${sample.sampleItemId}_${field.fieldKey}_${fieldIndex}`}
+                        className="inputText"
+                        style={{ width: "100%" }}
+                      >
+                        {renderExistingSampleAdditionalField(sample, field)}
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              ))}
+            </Column>
+          </div>
+        )}
       {false && (
         <div className="orderLegendBody">
           <Column lg={16}>

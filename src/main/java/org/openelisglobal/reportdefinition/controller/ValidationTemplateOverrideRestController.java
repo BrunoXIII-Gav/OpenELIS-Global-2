@@ -537,7 +537,10 @@ public class ValidationTemplateOverrideRestController extends BaseRestController
      */
     private List<Map<String, Object>> buildUserFieldOptions(List<String> testIds) {
         if (testIds == null || testIds.isEmpty()) {
-            return Collections.emptyList();
+            List<Map<String, Object>> userFields = new ArrayList<>();
+            addRequesterUserFieldOption(userFields);
+            addValidatorUserFieldOption(userFields);
+            return userFields;
         }
 
         List<Map<String, Object>> userFields = new ArrayList<>();
@@ -572,21 +575,44 @@ public class ValidationTemplateOverrideRestController extends BaseRestController
             }
         }
 
-        // Add special validator field
-        List<String> validatorProfiles = getValidatorProfileCodes();
-        if (!validatorProfiles.isEmpty()) {
-            Map<String, Object> validatorField = new LinkedHashMap<>();
-            validatorField.put("fieldId", "validator");
-            validatorField.put("fieldKey", "validator");
-            validatorField.put("displayName", "Validator");
-            validatorField.put("testId", null);
-            validatorField.put("profileCodes", validatorProfiles);
-            validatorField.put("includeInValidation", true);
-            validatorField.put("isValidatorField", true);
-            userFields.add(validatorField);
-        }
+        addRequesterUserFieldOption(userFields);
+        addValidatorUserFieldOption(userFields);
 
         return userFields;
+    }
+
+    private void addRequesterUserFieldOption(List<Map<String, Object>> userFields) {
+        List<String> requesterProfiles = getOrderProviderProfileCodes();
+        if (requesterProfiles.isEmpty()) {
+            return;
+        }
+
+        Map<String, Object> requesterField = new LinkedHashMap<>();
+        requesterField.put("fieldId", "requester");
+        requesterField.put("fieldKey", "requester");
+        requesterField.put("displayName", "Solicitante");
+        requesterField.put("testId", null);
+        requesterField.put("profileCodes", requesterProfiles);
+        requesterField.put("includeInValidation", true);
+        requesterField.put("isValidatorField", false);
+        userFields.add(requesterField);
+    }
+
+    private void addValidatorUserFieldOption(List<Map<String, Object>> userFields) {
+        List<String> validatorProfiles = getValidatorProfileCodes();
+        if (validatorProfiles.isEmpty()) {
+            return;
+        }
+
+        Map<String, Object> validatorField = new LinkedHashMap<>();
+        validatorField.put("fieldId", "validator");
+        validatorField.put("fieldKey", "validator");
+        validatorField.put("displayName", "Validator");
+        validatorField.put("testId", null);
+        validatorField.put("profileCodes", validatorProfiles);
+        validatorField.put("includeInValidation", true);
+        validatorField.put("isValidatorField", true);
+        userFields.add(validatorField);
     }
 
     /**
@@ -622,19 +648,24 @@ public class ValidationTemplateOverrideRestController extends BaseRestController
      * Get list of professional profile codes allowed for validators.
      */
     private List<String> getValidatorProfileCodes() {
-        String rawValue = org.openelisglobal.common.util.ConfigurationProperties.getInstance()
-                .getPropertyValue(org.openelisglobal.common.util.ConfigurationProperties.Property.validationInterpreterProfessionalProfileCode);
+        return getConfiguredProfessionalProfileCodes(
+                org.openelisglobal.common.util.ConfigurationProperties.Property.validationInterpreterProfessionalProfileCode);
+    }
 
+    private List<String> getOrderProviderProfileCodes() {
+        return getConfiguredProfessionalProfileCodes(
+                org.openelisglobal.common.util.ConfigurationProperties.Property.orderProviderProfessionalProfileCode);
+    }
+
+    private List<String> getConfiguredProfessionalProfileCodes(
+            org.openelisglobal.common.util.ConfigurationProperties.Property property) {
+        String rawValue = org.openelisglobal.common.util.ConfigurationProperties.getInstance().getPropertyValue(property);
         if (StringUtils.isBlank(rawValue)) {
             return Collections.emptyList();
         }
 
-        return Arrays.stream(rawValue.split(","))
-                .map(String::trim)
-                .map(String::toUpperCase)
-                .filter(StringUtils::isNotBlank)
-                .distinct()
-                .collect(Collectors.toList());
+        return Arrays.stream(rawValue.split(",")).map(String::trim).map(String::toUpperCase)
+                .filter(StringUtils::isNotBlank).distinct().collect(Collectors.toList());
     }
 
     /**
@@ -646,6 +677,7 @@ public class ValidationTemplateOverrideRestController extends BaseRestController
         // Get all unique profile codes from user fields and validators
         Set<String> allProfileCodes = new LinkedHashSet<>();
         allProfileCodes.addAll(getValidatorProfileCodes());
+        allProfileCodes.addAll(getOrderProviderProfileCodes());
 
         // Add profile codes from configured professional profiles
         String rawProfiles = org.openelisglobal.common.util.ConfigurationProperties.getInstance()

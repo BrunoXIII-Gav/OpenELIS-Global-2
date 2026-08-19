@@ -2,6 +2,7 @@ import React, { useEffect, useRef, useState } from "react";
 import { Button, Stack, Grid, Column } from "@carbon/react";
 import SearchPatientForm from "../patient/SearchPatientForm";
 import CreatePatientForm from "../patient/CreatePatientForm";
+import { sanitizePatientProperties } from "../patient/patientPropertiesSanitizer";
 import { FormattedMessage } from "react-intl";
 import { getFromOpenElisServer } from "../utils/Utils";
 import { createSampleOrderFormValues } from "../formModel/innitialValues/OrderEntryFormValues";
@@ -29,10 +30,10 @@ const PatientInfo = (props) => {
   const getSelectedPatient = (patient) => {
     setSelectedPatient(patient);
     if (orderFormValues) {
-      const patientWithStatus = {
+      const patientWithStatus = sanitizePatientProperties({
         ...patient,
         patientUpdateStatus: "UPDATE",
-      };
+      });
       setOrderFormValues({
         ...orderFormValues,
         patientUpdateStatus: "UPDATE",

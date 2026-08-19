@@ -6,6 +6,7 @@ import java.util.HashMap;
 import java.util.Map;
 import org.openelisglobal.common.controller.BaseController;
 import org.openelisglobal.common.log.LogEvent;
+import org.openelisglobal.common.service.ProfessionalProfilePermissionService;
 import org.openelisglobal.genericsample.form.GenericSampleImportResult;
 import org.openelisglobal.genericsample.form.GenericSampleOrderForm;
 import org.openelisglobal.genericsample.service.GenericSampleOrderService;
@@ -32,6 +33,8 @@ public class GenericSampleOrderRestController extends BaseController {
 
     @Autowired
     private GenericSampleOrderService genericSampleOrderService;
+    @Autowired
+    private ProfessionalProfilePermissionService profilePermissionService;
 
     @Override
     protected String getPageTitleKey() {
@@ -55,6 +58,9 @@ public class GenericSampleOrderRestController extends BaseController {
             @RequestBody GenericSampleOrderForm form) {
         try {
             String sysUserId = getSysUserId(request);
+            if (!profilePermissionService.hasOrderPermission(sysUserId)) {
+                return forbiddenOrderProfileResponse();
+            }
             Map<String, Object> result = genericSampleOrderService.saveGenericSampleOrder(form, sysUserId);
             return ResponseEntity.ok(result);
         } catch (Exception e) {
@@ -91,6 +97,9 @@ public class GenericSampleOrderRestController extends BaseController {
             @PathVariable("accessionNumber") String accessionNumber, @RequestBody GenericSampleOrderForm form) {
         try {
             String sysUserId = getSysUserId(request);
+            if (!profilePermissionService.hasOrderPermission(sysUserId)) {
+                return forbiddenOrderProfileResponse();
+            }
             Map<String, Object> result = genericSampleOrderService.updateGenericSampleOrder(accessionNumber, form,
                     sysUserId);
             return ResponseEntity.ok(result);
@@ -135,6 +144,9 @@ public class GenericSampleOrderRestController extends BaseController {
             }
 
             String sysUserId = getSysUserId(request);
+            if (!profilePermissionService.hasOrderPermission(sysUserId)) {
+                return forbiddenOrderProfileResponse();
+            }
             InputStream inputStream = file.getInputStream();
             Map<String, Object> result = genericSampleOrderService.importSamplesFromFile(inputStream,
                     file.getOriginalFilename(), file.getContentType(), sysUserId);
@@ -146,5 +158,11 @@ public class GenericSampleOrderRestController extends BaseController {
             errorResponse.put("error", "Failed to import samples from file: " + e.getMessage());
             return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR).body(errorResponse);
         }
+    }
+
+    private ResponseEntity<Map<String, String>> forbiddenOrderProfileResponse() {
+        Map<String, String> errorResponse = new HashMap<>();
+        errorResponse.put("error", "You do not have the required professional profile to manage orders");
+        return ResponseEntity.status(HttpStatus.FORBIDDEN).body(errorResponse);
     }
 }

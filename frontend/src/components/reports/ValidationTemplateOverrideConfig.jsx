@@ -1394,7 +1394,7 @@ const ValidationTemplateOverrideConfig = () => {
                 value="user_field"
                 text={intl.formatMessage({
                   id: "validation.template.override.mapping.type.user_field",
-                  defaultMessage: "Professional field (analyst/validator)",
+                  defaultMessage: "Professional field (requester/analyst/validator)",
                 })}
               />
             )}
@@ -1460,7 +1460,7 @@ const ValidationTemplateOverrideConfig = () => {
               id={`mapping-user-field-${parameter.name}`}
               labelText={intl.formatMessage({
                 id: "validation.template.override.mapping.user_field",
-                defaultMessage: "User field (analyst/validator)",
+                defaultMessage: "Professional source (requester/analyst/validator)",
               })}
               value={mapping.userFieldId || ""}
               onChange={(event) => {
@@ -1475,13 +1475,13 @@ const ValidationTemplateOverrideConfig = () => {
                 });
               }}
             >
-              <SelectItem
-                value=""
-                text={intl.formatMessage({
-                  id: "validation.template.override.mapping.user_field.placeholder",
-                  defaultMessage: "Select a user field",
-                })}
-              />
+                <SelectItem
+                  value=""
+                  text={intl.formatMessage({
+                    id: "validation.template.override.mapping.user_field.placeholder",
+                    defaultMessage: "Select a professional source",
+                  })}
+                />
               {userFieldOptions.userFields.map((field) => (
                 <SelectItem
                   key={field.fieldId}

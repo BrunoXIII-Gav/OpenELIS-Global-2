@@ -11,6 +11,7 @@ import org.openelisglobal.address.service.PersonAddressService;
 import org.openelisglobal.common.controller.BaseController;
 import org.openelisglobal.common.exception.LIMSRuntimeException;
 import org.openelisglobal.common.log.LogEvent;
+import org.openelisglobal.common.service.ProfessionalProfilePermissionService;
 import org.openelisglobal.dataexchange.fhir.exception.FhirPersistanceException;
 import org.openelisglobal.dataexchange.fhir.exception.FhirTransformationException;
 import org.openelisglobal.dataexchange.fhir.service.FhirTransformService;
@@ -82,6 +83,8 @@ public class PatientManagementController extends BaseController {
     SearchResultsService searchService;
     @Autowired
     protected FhirTransformService fhirTransformService;
+    @Autowired
+    private ProfessionalProfilePermissionService profilePermissionService;
 
     @InitBinder
     public void initBinder(WebDataBinder binder) {
@@ -103,6 +106,15 @@ public class PatientManagementController extends BaseController {
             @ModelAttribute("form") @Validated(SamplePatientEntryForm.SamplePatientEntry.class) SamplePatientEntryForm form,
             BindingResult result, RedirectAttributes redirectAttributes)
             throws IllegalAccessException, InvocationTargetException, NoSuchMethodException {
+        String sysUserId = getSysUserId(request);
+        if (!profilePermissionService.hasPatientEntryPermission(sysUserId)) {
+            LogEvent.logWarn(this.getClass().getSimpleName(), "showPatientManagementUpdate",
+                    "User " + sysUserId + " does not have required professional profile for patient management");
+            result.reject("professionalProfile.patient.permission.denied",
+                    "You do not have the required professional profile to manage patients");
+            saveErrors(result);
+            return findForward(FWD_FAIL_INSERT, form);
+        }
 
         form.setPatientSearch(new PatientSearch());
         formValidator.validate(form, result);
@@ -124,7 +136,7 @@ public class PatientManagementController extends BaseController {
                 return findForward(FWD_FAIL_INSERT, form);
             }
             try {
-                patientService.persistPatientData(patientInfo, patient, getSysUserId(request));
+                patientService.persistPatientData(patientInfo, patient, sysUserId);
                 fhirTransformService.transformPersistPatient(patientInfo,
                         (patientInfo.getPatientUpdateStatus() == PatientUpdateStatus.ADD));
             } catch (LIMSRuntimeException e) {

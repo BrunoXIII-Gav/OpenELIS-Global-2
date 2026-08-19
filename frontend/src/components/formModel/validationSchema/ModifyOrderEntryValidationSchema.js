@@ -180,7 +180,7 @@ const hasRequiredDynamicFieldValue = (field, sampleOrderItems) => {
 
 const sampleOrderItemsSchema = Yup.object()
   .shape({
-    labNo: Yup.string().required("Sample Lab Number is required"),
+    labNo: Yup.string().required("El número de laboratorio es obligatorio"),
     referringSiteName: Yup.string(),
     referringSiteId: Yup.string(),
     providerId: Yup.string(),
