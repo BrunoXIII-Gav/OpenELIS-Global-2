@@ -47,4 +47,17 @@ public class SampleOrderAdditionalFieldFileDAOImpl extends BaseDAOImpl<SampleOrd
         query.setParameterList("fieldDefinitionIds", fieldDefinitionIds);
         return query.list();
     }
+
+    @Override
+    public long countByFieldDefinitionId(Integer fieldDefinitionId) {
+        if (fieldDefinitionId == null) {
+            return 0L;
+        }
+
+        String hql = "select count(f.id) from SampleOrderAdditionalFieldFile f where f.fieldDefinitionId = :fieldDefinitionId";
+        Query<Long> query = entityManager.unwrap(Session.class).createQuery(hql, Long.class);
+        query.setParameter("fieldDefinitionId", fieldDefinitionId);
+        Long count = query.uniqueResult();
+        return count == null ? 0L : count;
+    }
 }

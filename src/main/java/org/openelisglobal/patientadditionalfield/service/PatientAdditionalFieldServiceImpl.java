@@ -129,6 +129,20 @@ public class PatientAdditionalFieldServiceImpl implements PatientAdditionalField
         }
         PatientAdditionalFieldDefinition definition = definitionDAO.get(fieldId)
                 .orElseThrow(() -> new IllegalArgumentException("Field definition not found: " + fieldId));
+        boolean hasSavedValues = hasSavedValues(fieldId);
+        FieldType existingFieldType = parseFieldType(definition.getFieldType());
+        FieldType requestedFieldType = payload.getFieldType() == null ? existingFieldType
+                : parseFieldType(payload.getFieldType());
+
+        if (hasSavedValues && requestedFieldType != existingFieldType) {
+            throw new IllegalStateException(
+                    "This field already has saved data and its type cannot be changed.");
+        }
+        if (hasSavedValues && payload.getOptions() != null && isOptionFieldType(requestedFieldType)
+                && haveOptionsChanged(fieldId, payload.getOptions())) {
+            throw new IllegalStateException(
+                    "This field already has saved data and its options cannot be changed.");
+        }
 
         if (StringUtils.isNotBlank(payload.getFieldKey())) {
             String normalizedFieldKey = normalizeFieldKey(payload.getFieldKey(), payload.getDisplayName());
@@ -173,7 +187,7 @@ public class PatientAdditionalFieldServiceImpl implements PatientAdditionalField
         definitionDAO.update(definition);
 
         FieldType currentType = parseFieldType(definition.getFieldType());
-        if (payload.getOptions() != null && isOptionFieldType(currentType)) {
+        if (payload.getOptions() != null && isOptionFieldType(currentType) && !hasSavedValues) {
             replaceOptionsForDefinition(fieldId, payload.getOptions(), currentUserId);
         }
         return getFieldById(fieldId, true);
@@ -338,6 +352,7 @@ public class PatientAdditionalFieldServiceImpl implements PatientAdditionalField
         payload.setDefaultValue(definition.getDefaultValue());
         payload.setMaxLength(definition.getMaxLength());
         payload.setMetadataJson(definition.getMetadataJson());
+        payload.setHasSavedValues(hasSavedValues(definition.getId()));
         return payload;
     }
 
@@ -441,6 +456,10 @@ public class PatientAdditionalFieldServiceImpl implements PatientAdditionalField
         return OPTION_TYPES.contains(fieldType);
     }
 
+    private boolean hasSavedValues(Integer fieldId) {
+        return fieldId != null && valueDAO.countByFieldDefinitionId(fieldId) > 0;
+    }
+
     private boolean isUserFieldType(String fieldType) {
         return userFieldOptionResolver.isUserFieldType(fieldType);
     }
@@ -493,6 +512,28 @@ public class PatientAdditionalFieldServiceImpl implements PatientAdditionalField
         }
         saveOptionsForDefinition(fieldId, options, parseFieldType(definitionDAO.get(fieldId).get().getFieldType()),
                 currentUserId);
+    }
+
+    private boolean haveOptionsChanged(Integer fieldId, List<PatientAdditionalFieldOptionPayload> requestedOptions) {
+        List<String> existing = optionDAO.findByDefinitionId(fieldId, true).stream().filter(option -> option != null)
+                .filter(option -> option.getActive() == null || option.getActive()).sorted((left, right) -> Integer
+                        .compare(left.getSortOrder() == null ? Integer.MAX_VALUE : left.getSortOrder(),
+                                right.getSortOrder() == null ? Integer.MAX_VALUE : right.getSortOrder()))
+                .map(option -> option.getOptionKey() + "|" + StringUtils.trimToEmpty(option.getOptionLabel()))
+                .collect(Collectors.toList());
+
+        List<String> requested = requestedOptions == null ? Collections.emptyList()
+                : requestedOptions.stream().filter(option -> option != null)
+                        .filter(option -> StringUtils.isNotBlank(option.getOptionLabel()))
+                        .filter(option -> !Boolean.FALSE.equals(option.getActive()))
+                        .sorted((left, right) -> Integer.compare(
+                                left.getSortOrder() == null ? Integer.MAX_VALUE : left.getSortOrder(),
+                                right.getSortOrder() == null ? Integer.MAX_VALUE : right.getSortOrder()))
+                        .map(option -> normalizeOptionKey(option.getOptionKey(), option.getOptionLabel()) + "|"
+                                + StringUtils.trimToEmpty(option.getOptionLabel()))
+                        .collect(Collectors.toList());
+
+        return !existing.equals(requested);
     }
 
     private void deactivateAllOptions(Integer fieldId, String currentUserId) {

@@ -17,9 +17,8 @@ import {
   TableHead,
   TableHeader,
   TableRow,
-  TextInput,
-  TextArea,
   Tag,
+  TextInput,
 } from "@carbon/react";
 import {
   deleteFromOpenElisServer,
@@ -34,6 +33,16 @@ import {
   AlertDialog,
   NotificationKinds,
 } from "../../common/CustomNotification";
+import AdditionalFieldOptionsEditor from "./customComponents/AdditionalFieldOptionsEditor";
+import {
+  createEmptyOption,
+  FIELD_TYPE_OPTIONS,
+  getAdditionalFieldTypeLabel,
+  normalizeOptionForUi,
+  normalizeOptionsForPayload,
+  OPTION_FIELD_TYPES,
+  toCodeCandidate,
+} from "./additionalFieldOptionUtils";
 import { NotificationContext } from "../../layout/Layout";
 
 const buildBreadcrumbs = (fromSampleEntryConfig) => [
@@ -54,7 +63,6 @@ const buildBreadcrumbs = (fromSampleEntryConfig) => [
   },
 ];
 
-const OPTION_BASED_TYPES = new Set(["SELECT", "RADIO", "MULTISELECT"]);
 const LEGACY_USER_FIELD_TYPE = "SYSTEM_USER_BIOLOGIST_SELECT";
 const GENERIC_USER_FIELD_TYPE = "USER";
 const USER_DISPLAY_MODE_INITIALS = "INITIALS";
@@ -65,12 +73,13 @@ const initialFormState = {
   fieldKey: "",
   displayName: "",
   fieldType: "TEXT",
+  hasSavedValues: false,
   required: false,
   displaySection: "RECEPTION",
   sortOrder: "",
   defaultValue: "",
   maxLength: "",
-  optionLines: "",
+  options: [],
   userProfileCodes: [],
   userDisplayMode: USER_DISPLAY_MODE_BOTH,
 };
@@ -89,11 +98,12 @@ const SampleTypeAdditionalFields = () => {
   const [fields, setFields] = useState([]);
   const [formState, setFormState] = useState(initialFormState);
   const [editingFieldId, setEditingFieldId] = useState(null);
+  const structureLocked = editingFieldId !== null && formState.hasSavedValues;
   const fromSampleEntryConfig =
     new URLSearchParams(location.search).get("source") === "sampleEntryConfig";
   const breadcrumbs = buildBreadcrumbs(fromSampleEntryConfig);
 
-  const optionsRequired = OPTION_BASED_TYPES.has(formState.fieldType);
+  const optionsRequired = OPTION_FIELD_TYPES.has(formState.fieldType);
 
   const parseFieldMetadata = (metadataJson) => {
     if (!metadataJson || typeof metadataJson !== "string") {
@@ -160,41 +170,6 @@ const SampleTypeAdditionalFields = () => {
     );
   };
 
-  const parseOptionLines = (optionLines) => {
-    return optionLines
-      .split("\n")
-      .map((line) => line.trim())
-      .filter((line) => line !== "")
-      .map((line, index) => {
-        const [optionKeyPart, ...labelParts] = line.split("|");
-        const hasExplicitKey = labelParts.length > 0;
-        const optionLabel = hasExplicitKey
-          ? labelParts.join("|").trim()
-          : optionKeyPart.trim();
-        const optionKey = hasExplicitKey ? optionKeyPart.trim() : "";
-
-        return {
-          optionKey,
-          optionLabel,
-          sortOrder: index + 1,
-          active: true,
-        };
-      })
-      .filter((option) => option.optionLabel !== "");
-  };
-
-  const toOptionLines = (options) =>
-    (Array.isArray(options) ? options : [])
-      .filter((option) => option?.active !== false)
-      .sort((left, right) => (left?.sortOrder ?? 0) - (right?.sortOrder ?? 0))
-      .map((option) =>
-        option?.optionKey
-          ? `${option.optionKey}|${option.optionLabel || option.optionKey}`
-          : option?.optionLabel || "",
-      )
-      .filter(Boolean)
-      .join("\n");
-
   const startEditingField = (field) => {
     if (!field?.id) {
       return;
@@ -206,6 +181,7 @@ const SampleTypeAdditionalFields = () => {
       fieldKey: field.fieldKey || "",
       displayName: field.displayName || "",
       fieldType: normalizeFieldType(field.fieldType),
+      hasSavedValues: field?.hasSavedValues === true,
       required: !!field.required,
       displaySection: field.displaySection || "RECEPTION",
       sortOrder:
@@ -217,7 +193,11 @@ const SampleTypeAdditionalFields = () => {
         field.maxLength !== null && field.maxLength !== undefined
           ? String(field.maxLength)
           : "",
-      optionLines: toOptionLines(field.options),
+      options: Array.isArray(field?.options)
+        ? field.options
+            .filter((option) => option?.active !== false)
+            .map((option, index) => normalizeOptionForUi(option, index))
+        : [],
       userProfileCodes: resolveUserProfileCodes(field.fieldType, metadata),
       userDisplayMode: resolveUserDisplayMode(metadata),
     });
@@ -226,6 +206,48 @@ const SampleTypeAdditionalFields = () => {
   const resetForm = () => {
     setEditingFieldId(null);
     setFormState(initialFormState);
+  };
+
+  const addOption = () => {
+    setFormState((previous) => ({
+      ...previous,
+      options: [
+        ...(previous.options || []),
+        createEmptyOption((previous.options || []).length + 1),
+      ],
+    }));
+  };
+
+  const updateOptionLabel = (optionIndex, nextLabel) => {
+    setFormState((previous) => ({
+      ...previous,
+      options: (previous.options || []).map((option, index) => {
+        if (index !== optionIndex) {
+          return option;
+        }
+
+        const nextGeneratedKey = toCodeCandidate(nextLabel);
+        return {
+          ...option,
+          optionLabel: nextLabel,
+          optionKey: option.isAutoGeneratedKey
+            ? nextGeneratedKey
+            : option.optionKey,
+        };
+      }),
+    }));
+  };
+
+  const removeOption = (optionIndex) => {
+    setFormState((previous) => ({
+      ...previous,
+      options: (previous.options || [])
+        .filter((_, index) => index !== optionIndex)
+        .map((option, index) => ({
+          ...option,
+          sortOrder: index + 1,
+        })),
+    }));
   };
 
   const handleSaveField = (event) => {
@@ -252,7 +274,7 @@ const SampleTypeAdditionalFields = () => {
     }
 
     const options = optionsRequired
-      ? parseOptionLines(formState.optionLines)
+      ? normalizeOptionsForPayload(formState.options)
       : [];
 
     if (optionsRequired && options.length === 0) {
@@ -263,8 +285,6 @@ const SampleTypeAdditionalFields = () => {
       return;
     }
 
-    const sourceField = fields.find((field) => field.id === editingFieldId);
-
     const payload = {
       sampleTypeId: selectedSampleTypeId,
       fieldKey: formState.fieldKey,
@@ -272,7 +292,9 @@ const SampleTypeAdditionalFields = () => {
       fieldType: formState.fieldType,
       required: formState.required,
       displaySection: formState.displaySection,
-      active: sourceField ? sourceField.active : true,
+      active: editingFieldId
+        ? fields.find((field) => field.id === editingFieldId)?.active
+        : true,
       sortOrder:
         formState.sortOrder && formState.sortOrder !== ""
           ? Number(formState.sortOrder)
@@ -292,16 +314,6 @@ const SampleTypeAdditionalFields = () => {
           : null,
       options,
     };
-
-    if (sourceField && optionsRequired) {
-      const existingOptionsByKey = new Map(
-        (sourceField.options || []).map((option) => [option.optionKey, option]),
-      );
-      payload.options = payload.options.map((option) => {
-        const existing = existingOptionsByKey.get(option.optionKey);
-        return existing ? { ...option, id: existing.id } : option;
-      });
-    }
 
     const onSaveSuccess = () => {
       showNotification(
@@ -577,15 +589,11 @@ const SampleTypeAdditionalFields = () => {
                           id: "sample.additional.fields.field.type",
                         })}
                         value={formState.fieldType}
+                        disabled={structureLocked}
                         onChange={(event) =>
                           setFormState((previous) => ({
                             ...previous,
                             fieldType: event.target.value,
-                            optionLines: OPTION_BASED_TYPES.has(
-                              event.target.value,
-                            )
-                              ? previous.optionLines
-                              : "",
                             userDisplayMode:
                               event.target.value === "USER"
                                 ? previous.userDisplayMode ||
@@ -594,17 +602,18 @@ const SampleTypeAdditionalFields = () => {
                           }))
                         }
                       >
-                        <SelectItem value="TEXT" text="TEXT" />
-                        <SelectItem value="TEXTAREA" text="TEXTAREA" />
-                        <SelectItem value="NUMBER" text="NUMBER" />
-                        <SelectItem value="DATE" text="DATE" />
-                        <SelectItem value="TIME" text="TIME" />
-                        <SelectItem value="DATETIME" text="DATETIME" />
-                        <SelectItem value="BOOLEAN" text="BOOLEAN" />
-                        <SelectItem value="SELECT" text="SELECT" />
-                        <SelectItem value="MULTISELECT" text="MULTISELECT" />
-                        <SelectItem value="RADIO" text="RADIO" />
-                        <SelectItem value="USER" text="USER" />
+                        {FIELD_TYPE_OPTIONS.filter(
+                          (option) => option.value !== "DOCUMENT",
+                        ).map((option) => (
+                          <SelectItem
+                            key={option.value}
+                            value={option.value}
+                            text={intl.formatMessage({
+                              id: option.labelId,
+                              defaultMessage: option.defaultMessage,
+                            })}
+                          />
+                        ))}
                       </Select>
                     </Column>
                     {formState.fieldType === "USER" ? (
@@ -799,24 +808,16 @@ const SampleTypeAdditionalFields = () => {
                       />
                     </Column>
                     <Column lg={8} md={8} sm={4}>
-                      <TextArea
-                        id="sampleAdditionalFieldOptions"
-                        rows={4}
-                        labelText={intl.formatMessage({
-                          id: "sample.additional.fields.options",
-                        })}
-                        helperText={intl.formatMessage({
-                          id: "sample.additional.fields.options.helper",
-                        })}
-                        disabled={!optionsRequired}
-                        value={formState.optionLines}
-                        onChange={(event) =>
-                          setFormState((previous) => ({
-                            ...previous,
-                            optionLines: event.target.value,
-                          }))
-                        }
-                      />
+                      {optionsRequired ? (
+                        <AdditionalFieldOptionsEditor
+                          idPrefix="sample-additional"
+                          options={formState.options || []}
+                          locked={structureLocked}
+                          onAddOption={addOption}
+                          onOptionLabelChange={updateOptionLabel}
+                          onRemoveOption={removeOption}
+                        />
+                      ) : null}
                     </Column>
                   </Grid>
 
@@ -899,7 +900,12 @@ const SampleTypeAdditionalFields = () => {
                           <TableRow key={`sample_additional_field_${field.id}`}>
                             <TableCell>{field.displayName}</TableCell>
                             <TableCell>{field.fieldKey}</TableCell>
-                            <TableCell>{field.fieldType}</TableCell>
+                            <TableCell>
+                              {getAdditionalFieldTypeLabel(
+                                intl,
+                                field.fieldType,
+                              )}
+                            </TableCell>
                             <TableCell>
                               {field.required ? (
                                 <FormattedMessage id="label.yes" />

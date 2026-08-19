@@ -68,12 +68,11 @@ public class OrderAdditionalFieldServiceImpl implements OrderAdditionalFieldServ
             new FixedFieldDefault("referringSiteDepartmentId", 80),
             new FixedFieldDefault("provisionalClinicalDiagnosis", 90),
             new FixedFieldDefault("providerFirstName", 100), new FixedFieldDefault("providerLastName", 110),
-            new FixedFieldDefault("providerCmp", 120), new FixedFieldDefault("providerRne", 130),
-            new FixedFieldDefault("providerDni", 140), new FixedFieldDefault("providerSpecialty", 150),
-            new FixedFieldDefault("providerWorkPhone", 160), new FixedFieldDefault("providerFax", 170),
-            new FixedFieldDefault("providerEmail", 180), new FixedFieldDefault("paymentOptionSelection", 190),
-            new FixedFieldDefault("testLocationCode", 200), new FixedFieldDefault("otherLocationCode", 210),
-            new FixedFieldDefault("rememberSiteAndRequester", 220));
+            new FixedFieldDefault("providerDni", 120), new FixedFieldDefault("providerSpecialty", 130),
+            new FixedFieldDefault("providerWorkPhone", 140), new FixedFieldDefault("providerFax", 150),
+            new FixedFieldDefault("providerEmail", 160), new FixedFieldDefault("paymentOptionSelection", 170),
+            new FixedFieldDefault("testLocationCode", 180), new FixedFieldDefault("otherLocationCode", 190),
+            new FixedFieldDefault("rememberSiteAndRequester", 200));
     private static final Set<String> FIXED_FIELD_KEYS = FIXED_FIELD_DEFAULTS.stream().map(f -> f.fieldKey.toLowerCase())
             .collect(Collectors.toSet());
 
@@ -157,6 +156,20 @@ public class OrderAdditionalFieldServiceImpl implements OrderAdditionalFieldServ
 
         OrderAdditionalFieldDefinition definition = definitionDAO.get(fieldId)
                 .orElseThrow(() -> new IllegalArgumentException("Field definition not found: " + fieldId));
+        boolean hasSavedValues = hasSavedValues(fieldId);
+        FieldType existingFieldType = parseFieldType(definition.getFieldType());
+        FieldType requestedFieldType = payload.getFieldType() == null ? existingFieldType
+                : parseFieldType(payload.getFieldType());
+
+        if (hasSavedValues && requestedFieldType != existingFieldType) {
+            throw new IllegalStateException(
+                    "This field already has saved data and its type cannot be changed.");
+        }
+        if (hasSavedValues && payload.getOptions() != null && isOptionFieldType(requestedFieldType)
+                && haveOptionsChanged(fieldId, payload.getOptions())) {
+            throw new IllegalStateException(
+                    "This field already has saved data and its options cannot be changed.");
+        }
 
         if (StringUtils.isNotBlank(payload.getDisplayName())) {
             definition.setDisplayName(payload.getDisplayName().trim());
@@ -203,7 +216,8 @@ public class OrderAdditionalFieldServiceImpl implements OrderAdditionalFieldServ
         definition.setSysUserId(currentUserId);
         definitionDAO.update(definition);
 
-        if (payload.getOptions() != null && isOptionFieldType(parseFieldType(definition.getFieldType()))) {
+        if (payload.getOptions() != null && isOptionFieldType(parseFieldType(definition.getFieldType()))
+                && !hasSavedValues) {
             upsertOptionsForDefinition(definition.getId(), payload.getOptions(), currentUserId);
         }
 
@@ -671,6 +685,7 @@ public class OrderAdditionalFieldServiceImpl implements OrderAdditionalFieldServ
         payload.setMetadataJson(definition.getMetadataJson());
         payload.setSearchable(definition.getSearchable());
         payload.setSearchUnique(definition.getSearchUnique());
+        payload.setHasSavedValues(hasSavedValues(definition.getId()));
         return payload;
     }
 
@@ -797,6 +812,11 @@ public class OrderAdditionalFieldServiceImpl implements OrderAdditionalFieldServ
         return OPTION_TYPES.contains(fieldType);
     }
 
+    private boolean hasSavedValues(Integer fieldId) {
+        return fieldId != null
+                && (valueDAO.countByFieldDefinitionId(fieldId) > 0 || fileDAO.countByFieldDefinitionId(fieldId) > 0);
+    }
+
     private boolean isUserFieldType(String fieldType) {
         return userFieldOptionResolver.isUserFieldType(fieldType);
     }
@@ -888,6 +908,28 @@ public class OrderAdditionalFieldServiceImpl implements OrderAdditionalFieldServ
                 optionDAO.update(existingOption);
             }
         }
+    }
+
+    private boolean haveOptionsChanged(Integer fieldId, List<OrderAdditionalFieldOptionPayload> requestedOptions) {
+        List<String> existing = optionDAO.findByDefinitionId(fieldId, true).stream().filter(option -> option != null)
+                .filter(option -> option.getActive() == null || option.getActive()).sorted((left, right) -> Integer
+                        .compare(left.getSortOrder() == null ? Integer.MAX_VALUE : left.getSortOrder(),
+                                right.getSortOrder() == null ? Integer.MAX_VALUE : right.getSortOrder()))
+                .map(option -> option.getOptionKey() + "|" + StringUtils.trimToEmpty(option.getOptionLabel()))
+                .collect(Collectors.toList());
+
+        List<String> requested = requestedOptions == null ? Collections.emptyList()
+                : requestedOptions.stream().filter(option -> option != null)
+                        .filter(option -> StringUtils.isNotBlank(option.getOptionLabel()))
+                        .filter(option -> !Boolean.FALSE.equals(option.getActive()))
+                        .sorted((left, right) -> Integer.compare(
+                                left.getSortOrder() == null ? Integer.MAX_VALUE : left.getSortOrder(),
+                                right.getSortOrder() == null ? Integer.MAX_VALUE : right.getSortOrder()))
+                        .map(option -> normalizeOptionKey(option.getOptionKey(), option.getOptionLabel()) + "|"
+                                + StringUtils.trimToEmpty(option.getOptionLabel()))
+                        .collect(Collectors.toList());
+
+        return !existing.equals(requested);
     }
 
     private void deactivateAllOptions(Integer fieldId, String currentUserId) {

@@ -1,3 +1,5 @@
+import { normalizeOptionForUi } from "../additionalFieldOptionUtils.js";
+
 export const TestFormData = {
   testNameEnglish: "",
   testNameFrench: "",
@@ -292,6 +294,7 @@ export const mapTestCatBeanToFormData = (test) => {
               typeof field.sortOrder === "number" ? field.sortOrder : index + 1;
             return {
               id: field.id ?? undefined,
+              hasSavedValues: field.hasSavedValues === true,
               fieldKey: field.fieldKey || "",
               displayName: field.displayName || "",
               fieldType: field.fieldType || "TEXT",
@@ -311,16 +314,9 @@ export const mapTestCatBeanToFormData = (test) => {
               options: Array.isArray(field.options)
                 ? field.options
                     .filter((option) => option?.optionLabel)
-                    .map((option, optionIndex) => ({
-                      id: option.id ?? undefined,
-                      optionKey: option.optionKey || "",
-                      optionLabel: option.optionLabel || "",
-                      sortOrder:
-                        typeof option.sortOrder === "number"
-                          ? option.sortOrder
-                          : optionIndex + 1,
-                      active: option.active !== false,
-                    }))
+                    .map((option, optionIndex) =>
+                      normalizeOptionForUi(option, optionIndex),
+                    )
                 : [],
             };
           })

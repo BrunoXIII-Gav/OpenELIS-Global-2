@@ -18,6 +18,7 @@ import jakarta.validation.Valid;
 import jakarta.validation.constraints.NotBlank;
 import org.openelisglobal.common.log.LogEvent;
 import org.openelisglobal.common.rest.BaseRestController;
+import org.openelisglobal.common.service.ProfessionalProfilePermissionService;
 import org.openelisglobal.sampleitem.dto.AddTestsResponse;
 import org.openelisglobal.sampleitem.dto.CancelTestResponse;
 import org.openelisglobal.sampleitem.dto.CreateAliquotResponse;
@@ -32,6 +33,7 @@ import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.MediaType;
 import org.springframework.http.ResponseEntity;
+import org.springframework.security.access.AccessDeniedException;
 import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.validation.annotation.Validated;
 import org.springframework.web.bind.annotation.ExceptionHandler;
@@ -63,6 +65,8 @@ public class SampleManagementRestController extends BaseRestController {
 
     @Autowired
     private SampleManagementService sampleManagementService;
+    @Autowired
+    private ProfessionalProfilePermissionService profilePermissionService;
 
     /**
      * Search for sample items by accession number.
@@ -134,6 +138,7 @@ public class SampleManagementRestController extends BaseRestController {
             if (sysUserId == null) {
                 throw new IllegalStateException("User not authenticated");
             }
+            ensureSampleCollectionPermission(sysUserId);
 
             LogEvent.logInfo(this.getClass().getName(), "createAliquot", "Creating aliquot from parent: "
                     + form.getParentSampleItemId() + ", quantity: " + form.getQuantityToTransfer());
@@ -185,6 +190,7 @@ public class SampleManagementRestController extends BaseRestController {
             if (sysUserId == null) {
                 throw new IllegalStateException("User not authenticated");
             }
+            ensureSampleCollectionPermission(sysUserId);
 
             LogEvent.logInfo(this.getClass().getName(), "addTestsToSamples",
                     String.format("Adding %d test(s) to %d sample item(s)", form.getTestIds().size(),
@@ -239,6 +245,7 @@ public class SampleManagementRestController extends BaseRestController {
             if (sysUserId == null) {
                 throw new IllegalStateException("User not authenticated");
             }
+            ensureSampleCollectionPermission(sysUserId);
 
             LogEvent.logInfo(this.getClass().getName(), "cancelTest",
                     String.format("Cancelling test - analysisId: %s, sampleItemId: %s", form.getAnalysisId(),
@@ -271,10 +278,18 @@ public class SampleManagementRestController extends BaseRestController {
         if (sysUserId == null) {
             throw new IllegalStateException("User not authenticated");
         }
+        ensureSampleCollectionPermission(sysUserId);
 
         SaveSampleManagementChangesResponse response = sampleManagementService.saveSampleManagementChanges(form,
                 sysUserId);
         return ResponseEntity.ok(response);
+    }
+
+    private void ensureSampleCollectionPermission(String sysUserId) {
+        if (!profilePermissionService.hasSampleCollectionPermission(sysUserId)) {
+            throw new AccessDeniedException(
+                    "User " + sysUserId + " does not have required professional profile for sample management");
+        }
     }
 
     /**

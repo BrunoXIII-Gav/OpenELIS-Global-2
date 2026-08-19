@@ -27,6 +27,7 @@ import org.apache.commons.validator.GenericValidator;
 import org.openelisglobal.address.service.AddressHierarchyConfigurationHandler;
 import org.openelisglobal.analyzer.service.AnalyzerService;
 import org.openelisglobal.analyzer.valueholder.Analyzer;
+import org.openelisglobal.common.log.LogEvent;
 import org.openelisglobal.common.util.ConfigurationProperties;
 import org.openelisglobal.common.util.ConfigurationProperties.Property;
 import org.openelisglobal.common.util.IdValuePair;
@@ -679,9 +680,16 @@ public class DisplayListService implements LocaleChangeListener {
     }
 
     private List<IdValuePair> createActiveOrderProviderPersonsList() {
-        List<String> configuredProfileCodes = parseConfiguredProfessionalProfileCodes(
-                ConfigurationProperties.getInstance().getPropertyValue(Property.orderProviderProfessionalProfileCode));
-        return createActivePractitionerPersonsList(configuredProfileCodes);
+        String rawPropertyValue = ConfigurationProperties.getInstance().getPropertyValue(Property.orderProviderProfessionalProfileCode);
+        LogEvent.logInfo(this.getClass().getSimpleName(), "createActiveOrderProviderPersonsList", 
+                "Loading ORDER_PROVIDER_PERSONS with orderProviderProfessionalProfileCode: '" + rawPropertyValue + "'");
+        List<String> configuredProfileCodes = parseConfiguredProfessionalProfileCodes(rawPropertyValue);
+        LogEvent.logInfo(this.getClass().getSimpleName(), "createActiveOrderProviderPersonsList", 
+                "Parsed profile codes: " + configuredProfileCodes);
+        List<IdValuePair> result = createActivePractitionerPersonsList(configuredProfileCodes);
+        LogEvent.logInfo(this.getClass().getSimpleName(), "createActiveOrderProviderPersonsList", 
+                "Returning " + result.size() + " providers");
+        return result;
     }
 
     private List<IdValuePair> createActivePractitionerPersonsList(String requiredProfileCode) {

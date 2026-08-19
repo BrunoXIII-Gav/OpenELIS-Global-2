@@ -27,10 +27,11 @@ interface CompactFileInputProps {
   };
   results: Results;
   setResultForm: (updated: Results) => void;
+  disabled?: boolean;
 }
 
 const CompactFileInput: React.FC<CompactFileInputProps> = memo(
-  ({ data, results, setResultForm }) => {
+  ({ data, results, setResultForm, disabled = false }) => {
     const [uploadedFile, setUploadedFile] = useState<
       Record<string, ResultFile | null>
     >({});
@@ -41,6 +42,7 @@ const CompactFileInput: React.FC<CompactFileInputProps> = memo(
     const handleUpload = async (
       e: ChangeEvent<HTMLInputElement>,
     ): Promise<void> => {
+      if (disabled) return;
       const file = e.target.files?.[0];
       if (!file) return;
 
@@ -100,6 +102,7 @@ const CompactFileInput: React.FC<CompactFileInputProps> = memo(
         filenameStatus={currentFile ? "complete" : ""}
         accept={["image/jpeg", "image/png", "application/pdf"]}
         multiple={false}
+        disabled={disabled}
         onChange={handleUpload}
         filename={currentFile?.fileName}
       />

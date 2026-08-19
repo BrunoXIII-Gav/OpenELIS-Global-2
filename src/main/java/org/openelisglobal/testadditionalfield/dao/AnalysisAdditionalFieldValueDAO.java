@@ -14,4 +14,6 @@ public interface AnalysisAdditionalFieldValueDAO extends BaseDAO<AnalysisAdditio
 
     Optional<AnalysisAdditionalFieldValue> findByAnalysisIdAndFieldDefinitionId(Integer analysisId,
             Integer fieldDefinitionId);
+
+    long countByFieldDefinitionId(Integer fieldDefinitionId);
 }

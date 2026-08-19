@@ -232,6 +232,9 @@ public class LogbookResultsRestController extends LogbookResultsBaseController {
     @Autowired
     private AnalysisTubeLabelService analysisTubeLabelService;
 
+    @Autowired
+    private org.openelisglobal.common.service.ProfessionalProfilePermissionService profilePermissionService;
+
     private final String RESULT_SUBJECT = "Result Note";
     private final String REFERRAL_CONFORMATION_ID;
     private static final String REFLEX_ACCESSIONS = "reflex_accessions";
@@ -531,6 +534,16 @@ public class LogbookResultsRestController extends LogbookResultsBaseController {
     public Map<String, List<String>> showReactLogbookResultsUpdate(HttpServletRequest request,
             @Validated(LogbookResultsForm.LogbookResults.class) @RequestBody LogbookResultsForm form,
             BindingResult result) throws IllegalAccessException, InvocationTargetException, NoSuchMethodException {
+
+        // Validate professional profile permission for result entry
+        String sysUserId = getSysUserId(request);
+        if (!profilePermissionService.hasResultEntryPermission(sysUserId)) {
+            LogEvent.logWarn(this.getClass().getSimpleName(), "showReactLogbookResultsUpdate",
+                    "User " + sysUserId + " does not have required professional profile for result entry");
+            Map<String, List<String>> errorMap = new HashMap<>();
+            errorMap.put("error", List.of("You do not have the required professional profile to enter results"));
+            return errorMap;
+        }
 
         boolean useTechnicianName = ConfigurationProperties.getInstance()
                 .isPropertyValueEqual(Property.resultTechnicianName, "true");

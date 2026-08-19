@@ -1,4 +1,4 @@
-import React, { useContext, useState } from "react";
+import React, { useContext, useEffect, useState } from "react";
 import {
   Grid,
   Column,
@@ -54,6 +54,9 @@ export default function SampleManagement() {
   const [selectedSampleIds, setSelectedSampleIds] = useState([]);
   const [currentTestsVisibleBySampleId, setCurrentTestsVisibleBySampleId] =
     useState({});
+  const [hasSampleCollectionPermission, setHasSampleCollectionPermission] =
+    useState(true);
+  const [permissionsLoaded, setPermissionsLoaded] = useState(false);
 
   // Modal state for aliquoting
   const [isAliquotModalOpen, setIsAliquotModalOpen] = useState(false);
@@ -68,6 +71,25 @@ export default function SampleManagement() {
           (item) => item.id === selectedSampleIds[0],
         )
       : null;
+
+  useEffect(() => {
+    let cancelled = false;
+
+    getFromOpenElisServer("/rest/professional-profile-permissions", (data) => {
+      if (cancelled) {
+        return;
+      }
+
+      setHasSampleCollectionPermission(
+        data?.hasSampleCollectionPermission !== false,
+      );
+      setPermissionsLoaded(true);
+    });
+
+    return () => {
+      cancelled = true;
+    };
+  }, []);
 
   /**
    * Handle search results callback from SampleSearch component.
@@ -398,6 +420,19 @@ export default function SampleManagement() {
             onSearchResults={handleSearchResults}
             includeTests={true}
           />
+
+          {permissionsLoaded && !hasSampleCollectionPermission ? (
+            <div style={{ marginTop: "1rem" }}>
+              <InlineNotification
+                kind="warning"
+                lowContrast
+                hideCloseButton
+                title={intl.formatMessage({
+                  id: "professionalProfile.permission.denied.sample",
+                })}
+              />
+            </div>
+          ) : null}
         </div>
 
         {/* Empty State (when search has been performed but no results) */}
@@ -465,6 +500,7 @@ export default function SampleManagement() {
                     onTestRemoved={handleTestRemoved}
                     currentTestsVisibleBySampleId={currentTestsVisibleBySampleId}
                     onPersistResult={handlePersistResult}
+                    isReadOnly={!hasSampleCollectionPermission}
                   />
                 </div>
               </div>
@@ -479,6 +515,7 @@ export default function SampleManagement() {
           onClose={handleCloseAliquotModal}
           parentSample={selectedSample}
           onSuccess={handleAliquotSuccess}
+          isReadOnly={!hasSampleCollectionPermission}
         />
       )}
 
@@ -493,6 +530,7 @@ export default function SampleManagement() {
           ) || []
         }
         onSuccess={handleAddTestsSuccess}
+        isReadOnly={!hasSampleCollectionPermission}
       />
     </>
   );

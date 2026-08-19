@@ -23,6 +23,8 @@ import java.util.Set;
 import java.util.regex.Pattern;
 import java.util.stream.Collectors;
 import org.apache.commons.lang3.StringUtils;
+import org.openelisglobal.common.documentupload.TemporaryDocumentUploadPayload;
+import org.openelisglobal.common.documentupload.TemporaryDocumentUploadService;
 import org.openelisglobal.common.service.UserFieldOptionResolver;
 import org.openelisglobal.common.exception.LIMSRuntimeException;
 import org.openelisglobal.systemuser.service.SystemUserService;
@@ -82,6 +84,9 @@ public class TestAdditionalFieldServiceImpl implements TestAdditionalFieldServic
 
     @Autowired
     private UserFieldOptionResolver userFieldOptionResolver;
+
+    @Autowired
+    private TemporaryDocumentUploadService temporaryDocumentUploadService;
 
     @Override
     @Transactional(readOnly = true)
@@ -196,6 +201,19 @@ public class TestAdditionalFieldServiceImpl implements TestAdditionalFieldServic
 
             FieldType fieldType = parseFieldType(
                     StringUtils.defaultIfBlank(payload.getFieldType(), FieldType.TEXT.name()));
+            boolean hasSavedValues = definition.getId() != null && hasSavedValues(definition.getId());
+            if (hasSavedValues) {
+                FieldType existingFieldType = parseFieldType(definition.getFieldType());
+                if (fieldType != existingFieldType) {
+                    throw new IllegalStateException(
+                            "This field already has saved data and its type cannot be changed.");
+                }
+                if (payload.getOptions() != null && isStaticOptionFieldType(fieldType)
+                        && haveOptionsChanged(definition.getId(), payload.getOptions())) {
+                    throw new IllegalStateException(
+                            "This field already has saved data and its options cannot be changed.");
+                }
+            }
             definition.setFieldKey(normalizedFieldKey);
             definition.setDisplayName(payload.getDisplayName().trim());
             definition.setFieldType(fieldType.name());
@@ -242,9 +260,9 @@ public class TestAdditionalFieldServiceImpl implements TestAdditionalFieldServic
                 definitionDAO.update(definition);
             }
 
-            if (isStaticOptionFieldType(fieldType)) {
+            if (isStaticOptionFieldType(fieldType) && !hasSavedValues) {
                 upsertOptionsForDefinition(definition.getId(), payload.getOptions(), currentUserId);
-            } else {
+            } else if (!isStaticOptionFieldType(fieldType)) {
                 deactivateAllOptions(definition.getId(), currentUserId);
             }
 
@@ -431,6 +449,20 @@ public class TestAdditionalFieldServiceImpl implements TestAdditionalFieldServic
 
         TestAdditionalFieldDefinition definition = definitionDAO.get(fieldId)
                 .orElseThrow(() -> new IllegalArgumentException("Field definition not found: " + fieldId));
+        boolean hasSavedValues = hasSavedValues(fieldId);
+        FieldType existingFieldType = parseFieldType(definition.getFieldType());
+        FieldType requestedFieldType = payload.getFieldType() == null ? existingFieldType
+                : parseFieldType(payload.getFieldType());
+
+        if (hasSavedValues && requestedFieldType != existingFieldType) {
+            throw new IllegalStateException(
+                    "This field already has saved data and its type cannot be changed.");
+        }
+        if (hasSavedValues && payload.getOptions() != null && isStaticOptionFieldType(requestedFieldType)
+                && haveOptionsChanged(fieldId, payload.getOptions())) {
+            throw new IllegalStateException(
+                    "This field already has saved data and its options cannot be changed.");
+        }
 
         if (StringUtils.isNotBlank(payload.getDisplayName())) {
             definition.setDisplayName(payload.getDisplayName().trim());
@@ -468,7 +500,7 @@ public class TestAdditionalFieldServiceImpl implements TestAdditionalFieldServic
         definitionDAO.update(definition);
 
         if (payload.getOptions() != null && !payload.getOptions().isEmpty()
-                && isStaticOptionFieldType(parseFieldType(definition.getFieldType()))) {
+                && isStaticOptionFieldType(parseFieldType(definition.getFieldType())) && !hasSavedValues) {
             upsertOptionsForDefinition(definition.getId(), payload.getOptions(), currentUserId);
         }
 
@@ -615,6 +647,7 @@ public class TestAdditionalFieldServiceImpl implements TestAdditionalFieldServic
         payload.setDefaultValue(definition.getDefaultValue());
         payload.setMaxLength(definition.getMaxLength());
         payload.setMetadataJson(definition.getMetadataJson());
+        payload.setHasSavedValues(hasSavedValues(definition.getId()));
         applyResultEntryMetadata(payload);
         return payload;
     }
@@ -762,6 +795,10 @@ public class TestAdditionalFieldServiceImpl implements TestAdditionalFieldServic
 
     private boolean isStaticOptionFieldType(FieldType fieldType) {
         return STATIC_OPTION_TYPES.contains(fieldType);
+    }
+
+    private boolean hasSavedValues(Integer fieldId) {
+        return fieldId != null && valueDAO.countByFieldDefinitionId(fieldId) > 0;
     }
 
     private boolean isUserFieldType(TestAdditionalFieldDefinition definition) {
@@ -923,6 +960,28 @@ public class TestAdditionalFieldServiceImpl implements TestAdditionalFieldServic
                 optionDAO.update(existingOption);
             }
         }
+    }
+
+    private boolean haveOptionsChanged(Integer fieldId, List<TestAdditionalFieldOptionPayload> requestedOptions) {
+        List<String> existing = optionDAO.findByDefinitionId(fieldId, true).stream().filter(option -> option != null)
+                .filter(option -> option.getActive() == null || option.getActive()).sorted((left, right) -> Integer
+                        .compare(left.getSortOrder() == null ? Integer.MAX_VALUE : left.getSortOrder(),
+                                right.getSortOrder() == null ? Integer.MAX_VALUE : right.getSortOrder()))
+                .map(option -> option.getOptionKey() + "|" + StringUtils.trimToEmpty(option.getOptionLabel()))
+                .collect(Collectors.toList());
+
+        List<String> requested = requestedOptions == null ? Collections.emptyList()
+                : requestedOptions.stream().filter(option -> option != null)
+                        .filter(option -> StringUtils.isNotBlank(option.getOptionLabel()))
+                        .filter(option -> !Boolean.FALSE.equals(option.getActive()))
+                        .sorted((left, right) -> Integer.compare(
+                                left.getSortOrder() == null ? Integer.MAX_VALUE : left.getSortOrder(),
+                                right.getSortOrder() == null ? Integer.MAX_VALUE : right.getSortOrder()))
+                        .map(option -> normalizeOptionKey(option.getOptionKey(), option.getOptionLabel()) + "|"
+                                + StringUtils.trimToEmpty(option.getOptionLabel()))
+                        .collect(Collectors.toList());
+
+        return !existing.equals(requested);
     }
 
     private void deactivateAllOptions(Integer definitionId, String currentUserId) {
@@ -1272,5 +1331,40 @@ public class TestAdditionalFieldServiceImpl implements TestAdditionalFieldServic
         }
 
         return normalizedOptions.isEmpty() ? null : String.join(",", normalizedOptions);
+    }
+
+    @Override
+    @Transactional
+    public TemporaryDocumentUploadPayload prepareDocumentUpload(String testId, String fieldKey, String fileName,
+            String fileType, long fileSize, byte[] content) {
+        if (StringUtils.isBlank(fieldKey)) {
+            throw new IllegalArgumentException("fieldKey is required");
+        }
+
+        Integer numericTestId = parseNumericId(testId, "testId");
+        TestAdditionalFieldDefinition definition = definitionDAO.findByTestIdAndFieldKey(numericTestId, fieldKey)
+                .orElseThrow(() -> new IllegalArgumentException("Field definition not found for key: " + fieldKey));
+        if (parseFieldType(definition.getFieldType()) != FieldType.DOCUMENT) {
+            throw new IllegalArgumentException("Field is not a DOCUMENT field: " + fieldKey);
+        }
+
+        TemporaryDocumentUploadPayload temporaryPayload = new TemporaryDocumentUploadPayload();
+        temporaryPayload.setFileName(fileName);
+        temporaryPayload.setFileType(fileType);
+        temporaryPayload.setFileSize(fileSize);
+        temporaryPayload.setContent(content);
+        return temporaryDocumentUploadService.store("test-additional-field", temporaryPayload);
+    }
+
+    @Override
+    @Transactional(readOnly = true)
+    public Optional<TemporaryDocumentUploadPayload> getTemporaryDocumentUpload(String uploadToken) {
+        return temporaryDocumentUploadService.get("test-additional-field", uploadToken);
+    }
+
+    @Override
+    @Transactional(readOnly = true)
+    public Optional<TemporaryDocumentUploadPayload> getAnalysisDocument(String analysisId, String fieldKey) {
+        return temporaryDocumentUploadService.get("test-additional-field", analysisId + "-" + fieldKey);
     }
 }

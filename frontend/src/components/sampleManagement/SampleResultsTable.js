@@ -111,6 +111,7 @@ function SampleResultsTable({
   onTestRemoved,
   currentTestsVisibleBySampleId = {},
   onPersistResult,
+  isReadOnly = false,
 }) {
   const intl = useIntl();
 
@@ -1043,6 +1044,10 @@ function SampleResultsTable({
   };
 
   const handleSaveSampleChanges = (sampleId, originalRow, additionalFields) => {
+    if (isReadOnly) {
+      return;
+    }
+
     const payload = buildSampleSavePayload(
       sampleId,
       originalRow,
@@ -1086,6 +1091,10 @@ function SampleResultsTable({
    */
   const handleCancelTest = useCallback(
     (sampleItemId, analysisId, testName) => {
+      if (isReadOnly) {
+        return;
+      }
+
       // Set loading state for this specific test
       setCancellingTests((prev) => ({ ...prev, [analysisId]: true }));
 
@@ -1112,7 +1121,7 @@ function SampleResultsTable({
         },
       );
     },
-    [onTestRemoved],
+    [isReadOnly, onTestRemoved],
   );
 
   /**
@@ -1338,7 +1347,7 @@ function SampleResultsTable({
                         resolveTestName(test, originalRow.sampleTypeId),
                       )
                     }
-                    disabled={!canCancelTest(test.status)}
+                    disabled={isReadOnly || !canCancelTest(test.status)}
                     tooltipPosition="left"
                   />
                 )}
@@ -1406,7 +1415,7 @@ function SampleResultsTable({
                     </div>
                     <div className="sample-mgmt-grid">
                       {editableSampleFieldDefinitions.map((field) => {
-                        const disabled = field.readonly;
+                        const disabled = isReadOnly || field.readonly;
                         switch (field.fieldKey) {
                           case "quantity":
                             return (
@@ -1551,6 +1560,7 @@ function SampleResultsTable({
                               id={fieldId}
                               labelText={fieldLabel}
                               checked={fieldValue === "true"}
+                              disabled={isReadOnly}
                               onChange={(e) =>
                                 updateAdditionalFieldValue(
                                   row.id,
@@ -1573,6 +1583,7 @@ function SampleResultsTable({
                               id={fieldId}
                               labelText={fieldLabel}
                               value={fieldValue}
+                              disabled={isReadOnly}
                               onChange={(e) =>
                                 updateAdditionalFieldValue(
                                   row.id,
@@ -1621,6 +1632,7 @@ function SampleResultsTable({
                                   id={`${fieldId}_multi_${optionIdx}`}
                                   labelText={option.optionLabel}
                                   checked={selectedValues.has(option.optionKey)}
+                                  disabled={isReadOnly}
                                   onChange={(e) =>
                                     updateAdditionalMultiSelectOption(
                                       row.id,
@@ -1643,6 +1655,7 @@ function SampleResultsTable({
                               labelText={fieldLabel}
                               style={{ gridColumn: "1 / -1" }}
                               value={fieldValue}
+                              disabled={isReadOnly}
                               onChange={(e) =>
                                 updateAdditionalFieldValue(
                                   row.id,
@@ -1674,6 +1687,7 @@ function SampleResultsTable({
                             size="lg"
                             style={{ minHeight: "52px" }}
                             value={fieldValue}
+                            disabled={isReadOnly}
                             onChange={(e) =>
                               updateAdditionalFieldValue(
                                 row.id,
@@ -1769,6 +1783,7 @@ function SampleResultsTable({
                       id={fieldId}
                       labelText={fieldLabel}
                       checked={fieldValue === "true"}
+                      disabled={isReadOnly}
                       onChange={(e) =>
                         updateAdditionalFieldValue(
                           row.id,
@@ -1791,6 +1806,7 @@ function SampleResultsTable({
                       id={fieldId}
                       labelText={fieldLabel}
                       value={fieldValue}
+                      disabled={isReadOnly}
                       onChange={(e) =>
                         updateAdditionalFieldValue(
                           row.id,
@@ -1832,6 +1848,7 @@ function SampleResultsTable({
                           id={`${fieldId}_multi_${optionIdx}`}
                           labelText={option.optionLabel}
                           checked={selectedValues.has(option.optionKey)}
+                          disabled={isReadOnly}
                           onChange={(e) =>
                             updateAdditionalMultiSelectOption(
                               row.id,
@@ -1854,6 +1871,7 @@ function SampleResultsTable({
                       labelText={fieldLabel}
                       style={{ gridColumn: "1 / -1" }}
                       value={fieldValue}
+                      disabled={isReadOnly}
                       onChange={(e) =>
                         updateAdditionalFieldValue(
                           row.id,
@@ -1885,6 +1903,7 @@ function SampleResultsTable({
                     size="lg"
                     style={{ minHeight: "52px" }}
                     value={fieldValue}
+                    disabled={isReadOnly}
                     onChange={(e) =>
                       updateAdditionalFieldValue(
                         row.id,
@@ -1906,7 +1925,7 @@ function SampleResultsTable({
               onClick={() =>
                 handleSaveSampleChanges(row.id, originalRow, additionalFields)
               }
-              disabled={Boolean(savingBySampleId[row.id])}
+              disabled={isReadOnly || Boolean(savingBySampleId[row.id])}
             >
               {savingBySampleId[row.id]
                 ? intl.formatMessage({ id: "sample.management.search.loading" })

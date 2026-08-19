@@ -492,12 +492,20 @@ public class DisplayListController extends BaseRestController {
                 ConfigurationProperties.getInstance().getPropertyValue(Property.professionalProfileOptions));
         configs.put(Property.orderProviderProfessionalProfileCode.toString(), ConfigurationProperties.getInstance()
                 .getPropertyValue(Property.orderProviderProfessionalProfileCode));
+        configs.put(Property.patientEntryProfessionalProfileCode.toString(), ConfigurationProperties.getInstance()
+                .getPropertyValue(Property.patientEntryProfessionalProfileCode));
+        configs.put(Property.resultEntryProfessionalProfileCode.toString(), ConfigurationProperties.getInstance()
+                .getPropertyValue(Property.resultEntryProfessionalProfileCode));
         configs.put(Property.sampleCollectorProfessionalProfileCode.toString(), ConfigurationProperties.getInstance()
                 .getPropertyValue(Property.sampleCollectorProfessionalProfileCode));
         configs.put(Property.validationInterpreterProfessionalProfileCode.toString(), ConfigurationProperties
                 .getInstance().getPropertyValue(Property.validationInterpreterProfessionalProfileCode));
         configs.put("orderProviderProfessionalProfileCodes", parseConfiguredProfessionalProfileCodes(
                 ConfigurationProperties.getInstance().getPropertyValue(Property.orderProviderProfessionalProfileCode)));
+        configs.put("patientEntryProfessionalProfileCodes", parseConfiguredProfessionalProfileCodes(
+                ConfigurationProperties.getInstance().getPropertyValue(Property.patientEntryProfessionalProfileCode)));
+        configs.put("resultEntryProfessionalProfileCodes", parseConfiguredProfessionalProfileCodes(
+                ConfigurationProperties.getInstance().getPropertyValue(Property.resultEntryProfessionalProfileCode)));
         configs.put("sampleCollectorProfessionalProfileCodes", parseConfiguredProfessionalProfileCodes(
                 ConfigurationProperties.getInstance().getPropertyValue(Property.sampleCollectorProfessionalProfileCode)));
         configs.put("validationInterpreterProfessionalProfileCodes", parseConfiguredProfessionalProfileCodes(

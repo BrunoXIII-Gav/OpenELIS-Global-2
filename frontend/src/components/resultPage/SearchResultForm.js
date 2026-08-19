@@ -21,6 +21,7 @@ import {
   Loading,
   Link,
   FileUploader,
+  InlineNotification,
   RadioButtonGroup,
   RadioButton,
 } from "@carbon/react";
@@ -118,6 +119,7 @@ const AdditionalFieldEditor = ({
   activeOptions,
   fieldMetadata,
   onCommit,
+  disabled = false,
 }) => {
   const [draftValue, setDraftValue] = useState(value || "");
 
@@ -151,6 +153,7 @@ const AdditionalFieldEditor = ({
           </label>
           <FileUploader
             id={inputId}
+            disabled={disabled}
             buttonLabel={<FormattedMessage id="label.button.uploadfile" />}
             filenameStatus={currentDocument ? "complete" : ""}
             accept={
@@ -159,6 +162,9 @@ const AdditionalFieldEditor = ({
             multiple={false}
             filename={currentDocument?.fileName}
             onChange={async (event) => {
+              if (disabled) {
+                return;
+              }
               const file = event.target.files?.[0];
               if (!file) {
                 return;
@@ -199,6 +205,7 @@ const AdditionalFieldEditor = ({
           labelText={fieldLabel}
           rows={2}
           value={draftValue}
+          disabled={disabled}
           onChange={(event) => {
             const nextValue = event.target.value;
             setDraftValue(nextValue);
@@ -213,6 +220,7 @@ const AdditionalFieldEditor = ({
           labelText={fieldLabel}
           type="number"
           value={draftValue}
+          disabled={disabled}
           onChange={(event) => {
             const nextValue = event.target.value;
             setDraftValue(nextValue);
@@ -227,6 +235,7 @@ const AdditionalFieldEditor = ({
           labelText={fieldLabel}
           type="date"
           value={draftValue}
+          disabled={disabled}
           onChange={(event) => {
             const nextValue = event.target.value;
             setDraftValue(nextValue);
@@ -241,6 +250,7 @@ const AdditionalFieldEditor = ({
           labelText={fieldLabel}
           type="time"
           value={draftValue}
+          disabled={disabled}
           onChange={(event) => {
             const nextValue = event.target.value;
             setDraftValue(nextValue);
@@ -255,6 +265,7 @@ const AdditionalFieldEditor = ({
           labelText={fieldLabel}
           type="datetime-local"
           value={draftValue}
+          disabled={disabled}
           onChange={(event) => {
             const nextValue = event.target.value;
             setDraftValue(nextValue);
@@ -268,6 +279,7 @@ const AdditionalFieldEditor = ({
           id={inputId}
           labelText={fieldLabel}
           checked={draftValue === "true"}
+          disabled={disabled}
           onChange={(event) => {
             const nextValue = event.target.checked ? "true" : "false";
             setDraftValue(nextValue);
@@ -282,6 +294,7 @@ const AdditionalFieldEditor = ({
           id={inputId}
           labelText={fieldLabel}
           value={draftValue}
+          disabled={disabled}
           onChange={(event) => {
             const nextValue = event.target.value;
             setDraftValue(nextValue);
@@ -309,6 +322,7 @@ const AdditionalFieldEditor = ({
             legendText=""
             name={inputId}
             valueSelected={draftValue}
+            disabled={disabled}
             onChange={(valueSelected) => {
               setDraftValue(valueSelected);
               commitValue(valueSelected);
@@ -343,6 +357,7 @@ const AdditionalFieldEditor = ({
             id={inputId}
             multiple
             value={selectedValues}
+            disabled={disabled}
             onChange={(event) => {
               const values = Array.from(event.target.selectedOptions).map(
                 (option) => option.value,
@@ -371,6 +386,7 @@ const AdditionalFieldEditor = ({
           id={inputId}
           labelText={fieldLabel}
           value={draftValue}
+          disabled={disabled}
           onChange={(event) => {
             const nextValue = event.target.value;
             setDraftValue(nextValue);
@@ -389,6 +405,7 @@ const InlineResultEditor = ({
   style,
   onCommit,
   onPostCommit,
+  disabled = false,
 }) => {
   const [draftValue, setDraftValue] = useState(value || "");
 
@@ -413,6 +430,7 @@ const InlineResultEditor = ({
         type="number"
         value={draftValue}
         style={style}
+        disabled={disabled}
         onChange={(event) => {
           setDraftValue(event.target.value);
         }}
@@ -428,6 +446,7 @@ const InlineResultEditor = ({
       rows={1}
       labelText=""
       value={draftValue}
+      disabled={disabled}
       onChange={(event) => {
         setDraftValue(event.target.value);
       }}
@@ -958,6 +977,10 @@ export function SearchResultForm(props) {
   const { notificationVisible, setNotificationVisible, addNotification } =
     useContext(NotificationContext);
 
+  // Professional profile permission check
+  const [hasResultPermission, setHasResultPermission] = useState(true);
+  const [permissionsLoaded, setPermissionsLoaded] = useState(false);
+
   const [tests, setTests] = useState([]);
   const [analysisStatusTypes, setAnalysisStatusTypes] = useState([]);
   const [sampleStatusTypes, setSampleStatusTypes] = useState([]);
@@ -1201,6 +1224,14 @@ export function SearchResultForm(props) {
 
   useEffect(() => {
     componentMounted.current = true;
+
+    // Check professional profile permission for result entry
+    getFromOpenElisServer("/rest/professional-profile-permissions", (response) => {
+      if (response) {
+        setHasResultPermission(response.hasResultEntryPermission !== false);
+      }
+      setPermissionsLoaded(true);
+    });
     let testId = new URLSearchParams(window.location.search).get(
       "selectedTest",
     );
@@ -1361,6 +1392,18 @@ export function SearchResultForm(props) {
   return (
     <>
       {notificationVisible === true ? <AlertDialog /> : ""}
+      {permissionsLoaded && !hasResultPermission && (
+        <InlineNotification
+          kind="warning"
+          title={intl.formatMessage({
+            id: "professionalProfile.permission.denied.result",
+            defaultMessage:
+              "You do not have the required professional profile to enter results.",
+          })}
+          hideCloseButton={true}
+          lowContrast={true}
+        />
+      )}
       {loading && <Loading></Loading>}
       <Formik
         initialValues={searchFormValues}
@@ -1717,8 +1760,10 @@ export function SearchResults(props) {
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [sampleLocations, setSampleLocations] = useState({}); // Track location by analysisId
   const [tubeLabelDraftsByRowId, setTubeLabelDraftsByRowId] = useState({});
+  const [hasResultPermission, setHasResultPermission] = useState(true);
 
   const componentMounted = useRef(false);
+  const resultEntryLocked = !hasResultPermission;
 
   useEffect(() => {
     componentMounted.current = true;
@@ -1734,6 +1779,14 @@ export function SearchResults(props) {
     getFromOpenElisServer(
       "/rest/displayList/REJECTION_REASONS",
       loadRejectReasons,
+    );
+    getFromOpenElisServer(
+      "/rest/professional-profile-permissions",
+      (response) => {
+        if (componentMounted.current && response) {
+          setHasResultPermission(response.hasResultEntryPermission !== false);
+        }
+      },
     );
     if (props.results.testResult.length > 0) {
       var defaultRejectedItems = {};
@@ -2113,6 +2166,7 @@ export function SearchResults(props) {
                   id={"testResult" + row.id + ".forceTechApproval"}
                   name={"testResult[" + row.id + "].forceTechApproval"}
                   labelText=""
+                  disabled={resultEntryLocked}
                   //defaultChecked={acceptAsIs}
                   onChange={(e) => handleAcceptAsIsChange(e, row.id)}
                 />
@@ -2130,6 +2184,7 @@ export function SearchResults(props) {
                   id={"testResult" + row.id + ".rejected"}
                   name={"testResult[" + row.id + "].rejected"}
                   labelText=""
+                  disabled={resultEntryLocked}
                   onChange={(e) => handleRejectCheckBoxChange(e, row.id)}
                 />
               )}
@@ -2141,6 +2196,7 @@ export function SearchResults(props) {
                 name={"testResult[" + row.id + "].rejectReasonId"}
                 //noLabel={true}
                 labelText={"Reason"}
+                disabled={resultEntryLocked}
                 onChange={(e) => handleChange(e, row.id)}
               >
                 {/* {...updateShadowResult(e, this, param.rowId)} */}
@@ -2165,7 +2221,7 @@ export function SearchResults(props) {
                 id={"testResult" + row.id + ".note"}
                 name={"testResult[" + row.id + "].note"}
                 //value={props.results.testResult[row.id]?.pastNotes}
-                disabled={false}
+                disabled={resultEntryLocked}
                 type="text"
                 labelText=""
                 rows={1}
@@ -2188,6 +2244,7 @@ export function SearchResults(props) {
                 id={"resultValue" + row.id}
                 name={"testResult[" + row.id + "].resultValue"}
                 noLabel={true}
+                disabled={resultEntryLocked}
                 onChange={(e) => validateResults(e, row.id)}
                 value={row.resultValue}
               >
@@ -2213,6 +2270,7 @@ export function SearchResults(props) {
                 dictionaryValues={row.dictionaryResults}
                 value={row.multiSelectResultValues}
                 onChange={(e) => handleChange(e, row.id)}
+                disabled={resultEntryLocked}
               />
             );
 
@@ -2224,6 +2282,7 @@ export function SearchResults(props) {
                 dictionaryValues={row.dictionaryResults}
                 value={row.multiSelectResultValues}
                 onChange={(e) => handleChange(e, row.id)}
+                disabled={resultEntryLocked}
               />
             );
 
@@ -2235,6 +2294,7 @@ export function SearchResults(props) {
                 fieldType={row.resultType}
                 value={row.resultValue}
                 style={validationState[row.id]?.style}
+                disabled={resultEntryLocked}
                 onCommit={(nextValue) =>
                   commitRowFieldValue(
                     row.id,
@@ -2263,24 +2323,6 @@ export function SearchResults(props) {
                       },
                     },
                   }));
-                  if (
-                    validation.isInvalid &&
-                    configurationProperties.ALERT_FOR_INVALID_RESULTS
-                  ) {
-                    addNotification({
-                      title: intl.formatMessage({ id: "notification.title" }),
-                      message:
-                        intl.formatMessage({
-                          id: "result.outOfValidRange.msg",
-                        }) +
-                        " " +
-                        row.testName +
-                        " : " +
-                        nextValue,
-                      kind: NotificationKinds.error,
-                    });
-                    setNotificationVisible(true);
-                  }
                 }}
               />
             );
@@ -2292,6 +2334,7 @@ export function SearchResults(props) {
                 fieldName={"testResult[" + row.id + "].resultValue"}
                 fieldType={row.resultType}
                 value={row.resultValue}
+                disabled={resultEntryLocked}
                 onCommit={(nextValue) =>
                   commitRowFieldValue(
                     row.id,
@@ -2309,6 +2352,7 @@ export function SearchResults(props) {
                 fieldName={"testResult[" + row.id + "].resultValue"}
                 fieldType={row.resultType}
                 value={row.resultValue}
+                disabled={resultEntryLocked}
                 onCommit={(nextValue) =>
                   commitRowFieldValue(
                     row.id,
@@ -2386,7 +2430,7 @@ export function SearchResults(props) {
                   defaultMessage: "Tube",
                 })}
                 value={row.parentUsageBlockName || ""}
-                disabled={row.sampleUsageLocked === true}
+                disabled={resultEntryLocked || row.sampleUsageLocked === true}
                 onChange={(event) =>
                   handleParentTubeSelectionChange(row.id, event.target.value)
                 }
@@ -2419,7 +2463,7 @@ export function SearchResults(props) {
               step="0.001"
               min="0"
               value={row.sampleUsageQuantity || ""}
-              disabled={row.sampleUsageLocked === true}
+              disabled={resultEntryLocked || row.sampleUsageLocked === true}
               onCommit={(nextValue) =>
                 handleChange(
                   {
@@ -2457,7 +2501,9 @@ export function SearchResults(props) {
               step="0.001"
               min="0"
               value={row.parentSampleUsageQuantity || ""}
-              disabled={row.parentSampleUsageLocked === true}
+              disabled={
+                resultEntryLocked || row.parentSampleUsageLocked === true
+              }
               onCommit={(nextValue) =>
                 handleChange(
                   {
@@ -2521,6 +2567,9 @@ export function SearchResults(props) {
     analysisId,
     sampleItemId,
   ) => {
+    if (resultEntryLocked) {
+      return;
+    }
     // locationData format: { sample, newLocation, reason?, conditionNotes?, positionCoordinate? }
     const newLocation = locationData?.newLocation || locationData;
 
@@ -2620,6 +2669,9 @@ export function SearchResults(props) {
     fieldType,
     nextValue,
   ) => {
+    if (resultEntryLocked) {
+      return;
+    }
     const form = {
       ...props.results,
       testResult: [...props.results.testResult],
@@ -2668,6 +2720,9 @@ export function SearchResults(props) {
   };
 
   const handleParentTubeSelectionChange = (rowId, nextBlockName) => {
+    if (resultEntryLocked) {
+      return;
+    }
     const form = {
       ...props.results,
       testResult: [...props.results.testResult],
@@ -2686,6 +2741,9 @@ export function SearchResults(props) {
   };
 
   const handleTubeLabelChange = (rowId, blockTitle, nextValue) => {
+    if (resultEntryLocked) {
+      return;
+    }
     const normalizedValue = nextValue == null ? "" : `${nextValue}`;
 
     setTubeLabelDraftsByRowId((prev) => {
@@ -2765,6 +2823,9 @@ export function SearchResults(props) {
   };
 
   const updateBlockTubeUsageRow = (rowId, updater) => {
+    if (resultEntryLocked) {
+      return;
+    }
     const form = {
       ...props.results,
       testResult: [...props.results.testResult],
@@ -2869,7 +2930,7 @@ export function SearchResults(props) {
               defaultMessage: "Tube",
             })}
             value={resolvedBlockUsage.parentTubeBlockName || ""}
-            disabled={resolvedBlockUsage.locked === true}
+            disabled={resultEntryLocked || resolvedBlockUsage.locked === true}
             onChange={(event) =>
               handleBlockTubeSelectionChange(
                 data.id,
@@ -2908,7 +2969,7 @@ export function SearchResults(props) {
             step="0.001"
             min="0"
             value={resolvedBlockUsage.usedQuantity || ""}
-            disabled={resolvedBlockUsage.locked === true}
+            disabled={resultEntryLocked || resolvedBlockUsage.locked === true}
             onCommit={(nextValue) =>
               handleBlockTubeUsageQuantityChange(data.id, blockTitle, nextValue)
             }
@@ -2944,6 +3005,7 @@ export function SearchResults(props) {
             defaultMessage: "Etiqueta",
           })}
           value={draftValue}
+          disabled={resultEntryLocked}
           onCommit={(nextValue) =>
             handleTubeLabelChange(data.id, blockTitle, nextValue)
           }
@@ -2979,6 +3041,7 @@ export function SearchResults(props) {
         value={fieldValue || ""}
         activeOptions={activeOptions}
         fieldMetadata={fieldMetadata}
+        disabled={resultEntryLocked}
         onCommit={(nextValue) =>
           handleAdditionalFieldChange(data.id, fieldKey, fieldType, nextValue)
         }
@@ -3021,6 +3084,7 @@ export function SearchResults(props) {
                 })}
                 onChange={(e) => handleChange(e, data.id)}
                 value={data.testMethod}
+                disabled={resultEntryLocked}
               >
                 <SelectItem text="" value="" />
                 {rowMethods.map((method, method_index) => (
@@ -3039,6 +3103,7 @@ export function SearchResults(props) {
                 data={data}
                 results={props.results}
                 setResultForm={props.setResultForm}
+                disabled={resultEntryLocked}
               />
 
               {data.resultFile && data.resultFile.fileName && (
@@ -3065,7 +3130,7 @@ export function SearchResults(props) {
                   name={"testResult[" + data.id + "].refer"}
                   id={"testResult[" + data.id + "].refer"}
                   checked={data.refer === "true"}
-                  disabled={data.referredOut}
+                  disabled={resultEntryLocked || data.referredOut}
                   data-cy="referalcheckbox"
                   onChange={(e) => {
                     e.target.value = e.target.checked;
@@ -3085,7 +3150,7 @@ export function SearchResults(props) {
                   })}
                   onChange={(e) => handleChange(e, data.id)}
                   value={data?.referralItem?.referralReasonId}
-                  disabled={!referTest[data.id]}
+                  disabled={resultEntryLocked || !referTest[data.id]}
                 >
                   {/* {...updateShadowResult(e, this, param.rowId)} */}
                   <SelectItem text="" value="" />
@@ -3112,7 +3177,7 @@ export function SearchResults(props) {
                   })}
                   onChange={(e) => handleChange(e, data.id)}
                   value={data?.referralItem?.referredInstituteId}
-                  disabled={!referTest[data.id]}
+                  disabled={resultEntryLocked || !referTest[data.id]}
                 >
                   {/* {...updateShadowResult(e, this, param.rowId)} */}
 
@@ -3138,7 +3203,7 @@ export function SearchResults(props) {
                   })}
                   onChange={(e) => handleChange(e, data.id)}
                   value={data?.referralItem?.referredTestId}
-                  disabled={!referTest[data.id]}
+                  disabled={resultEntryLocked || !referTest[data.id]}
                 >
                   {/* {...updateShadowResult(e, this, param.rowId)} */}
 
@@ -3156,7 +3221,7 @@ export function SearchResults(props) {
                     "testResult[" + data.id + "].referralItem.referredSendDate"
                   }
                   value={data?.referralItem?.referredSendDate}
-                  disabled={!referTest[data.id]}
+                  disabled={resultEntryLocked || !referTest[data.id]}
                   disallowFutureDate={true}
                 />
               </Column>
@@ -3377,6 +3442,7 @@ export function SearchResults(props) {
                 <StorageLocationSelector
                   workflow="results"
                   showQuickFind={true}
+                  readOnly={resultEntryLocked}
                   sampleInfo={{
                     sampleItemId: sampleItemId || null,
                     sampleItemExternalId:
@@ -3411,6 +3477,9 @@ export function SearchResults(props) {
   };
 
   const commitRowFieldValue = (rowId, fieldName, nextValue) => {
+    if (resultEntryLocked) {
+      return;
+    }
     const form = { ...props.results };
     const jp = require("jsonpath");
     jp.value(form, fieldName, nextValue);
@@ -3535,6 +3604,9 @@ export function SearchResults(props) {
   };
 
   const handleChange = (e, rowId) => {
+    if (resultEntryLocked) {
+      return;
+    }
     const { name, id, value } = e.target;
     console.debug(
       "handleChange:" + id + ":" + name + ":" + value + ":" + rowId,
@@ -3581,6 +3653,9 @@ export function SearchResults(props) {
   };
 
   const handleRejectCheckBoxChange = (e, rowId) => {
+    if (resultEntryLocked) {
+      return;
+    }
     const { name, checked } = e.target;
     var form = props.results;
     var jp = require("jsonpath");
@@ -3605,6 +3680,9 @@ export function SearchResults(props) {
   };
 
   const handleDatePickerChange = (date, rowId) => {
+    if (resultEntryLocked) {
+      return;
+    }
     var form = { ...props.results };
     if (form.testResult[rowId].referralItem) {
       if (form.testResult[rowId].referralItem.referredSendDate != date) {
@@ -3623,6 +3701,9 @@ export function SearchResults(props) {
   };
 
   const handleAcceptAsIsChange = (e, rowId) => {
+    if (resultEntryLocked) {
+      return;
+    }
     console.debug("handleAcceptAsIsChange:" + acceptAsIs[rowId]);
     handleChange(e, rowId);
     if (acceptAsIs[rowId] == undefined) {
@@ -3641,7 +3722,7 @@ export function SearchResults(props) {
 
   const handleSave = (values) => {
     console.debug("handleSave:" + values);
-    if (isSubmitting) {
+    if (resultEntryLocked || isSubmitting) {
       return;
     }
 
@@ -4067,7 +4148,7 @@ export function SearchResults(props) {
                 id="saveResults"
                 onClick={handleSave}
                 style={{ marginTop: "16px" }}
-                disabled={isSubmitting}
+                disabled={resultEntryLocked || isSubmitting}
               >
                 <FormattedMessage id="label.button.save" />
               </Button>
@@ -4080,4 +4161,3 @@ export function SearchResults(props) {
 }
 
 export default injectIntl(ResultSearchPage);
-
