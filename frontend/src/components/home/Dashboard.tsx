@@ -41,6 +41,8 @@ import { AlertDialog, NotificationKinds } from "../common/CustomNotification";
 
 interface DashBoardProps {}
 
+type WaitingTagType = "red" | "yellow" | "green" | "gray";
+
 interface Tile {
   title: string | JSX.Element;
   subTitle: string | JSX.Element;
@@ -73,6 +75,11 @@ interface Notification {
   addNotification: any;
 }
 
+interface WaitingThresholds {
+  yellowThresholdDays: number;
+  redThresholdDays: number;
+}
+
 const HomeDashBoard: React.FC<DashBoardProps> = () => {
   const intl = useIntl();
 
@@ -98,6 +105,12 @@ const HomeDashBoard: React.FC<DashBoardProps> = () => {
     UN_PRINTED_RESULTS: true,
     INCOMING_ORDERS: true,
   });
+  const [waitingThresholds, setWaitingThresholds] = useState<WaitingThresholds>(
+    {
+      yellowThresholdDays: 5,
+      redThresholdDays: 10,
+    },
+  );
 
   const [startDate, setStartDate] = useState("");
   const [endDate, setEndDate] = useState("");
@@ -177,16 +190,34 @@ const HomeDashBoard: React.FC<DashBoardProps> = () => {
   }, []);
 
   useEffect(() => {
-    getFromOpenElisServer(
-      `/rest/home-dashboard/metrics?startDate=${startDate}&endDate=${endDate}`,
-      loadCount,
-    );
-
     getFromOpenElisServer(`/rest/home-dashboard/visibility-config`, (data) => {
       if (data) {
         setTileVisibility(data);
       }
     });
+
+    getFromOpenElisServer(`/rest/home-dashboard/waiting-time-config`, (data) => {
+      if (data) {
+        setWaitingThresholds({
+          yellowThresholdDays: normalizeThresholdValue(
+            data.yellowThresholdDays,
+            5,
+          ),
+          redThresholdDays: normalizeThresholdValue(data.redThresholdDays, 10),
+        });
+      }
+    });
+
+    return () => {
+      componentMounted.current = false;
+    };
+  }, []);
+
+  useEffect(() => {
+    getFromOpenElisServer(
+      `/rest/home-dashboard/metrics?startDate=${startDate}&endDate=${endDate}`,
+      loadCount,
+    );
 
     return () => {
       componentMounted.current = false;
@@ -636,10 +667,13 @@ const HomeDashBoard: React.FC<DashBoardProps> = () => {
         cell.value || `${Number.MAX_SAFE_INTEGER}|gray|Sin fecha`,
       ).split("|");
       const label = labelParts.join("|");
+      const { carbonTagType, className } = getWaitingTagPresentation(
+        tagType as WaitingTagType,
+      );
 
       return (
         <TableCell key={cell.id}>
-          <Tag type={tagType as any} className="awaiting-results-counter-tag">
+          <Tag type={carbonTagType} className={className}>
             {label}
           </Tag>
         </TableCell>
@@ -800,6 +834,28 @@ const HomeDashBoard: React.FC<DashBoardProps> = () => {
     return parsedDate;
   };
 
+  const normalizeThresholdValue = (value, fallbackValue: number) => {
+    const parsedValue = Number.parseInt(String(value ?? ""), 10);
+    return Number.isNaN(parsedValue) || parsedValue < 0
+      ? fallbackValue
+      : parsedValue;
+  };
+
+  const getWaitingTagPresentation = (tagType: WaitingTagType) => {
+    if (tagType === "yellow") {
+      return {
+        carbonTagType: "warm-gray" as const,
+        className:
+          "awaiting-results-counter-tag awaiting-results-counter-tag--yellow",
+      };
+    }
+
+    return {
+      carbonTagType: tagType,
+      className: "awaiting-results-counter-tag",
+    };
+  };
+
   const getWaitingInfo = (waitingStartDate?: string) => {
     const parsedOrderDate = parseOrderDateTime(waitingStartDate);
 
@@ -809,7 +865,7 @@ const HomeDashBoard: React.FC<DashBoardProps> = () => {
           id: "dashboard.awaitingResults.waiting.noDate",
           defaultMessage: "Sin fecha",
         }),
-        tagType: "gray",
+        tagType: "gray" as WaitingTagType,
         waitingMs: -1,
       };
     }
@@ -838,11 +894,11 @@ const HomeDashBoard: React.FC<DashBoardProps> = () => {
             { count: totalDays },
           );
 
-    let tagType = "green";
+    let tagType: WaitingTagType = "green";
 
-    if (totalDays >= 10) {
+    if (totalDays >= waitingThresholds.redThresholdDays) {
       tagType = "red";
-    } else if (totalDays >= 5) {
+    } else if (totalDays >= waitingThresholds.yellowThresholdDays) {
       tagType = "yellow";
     }
 

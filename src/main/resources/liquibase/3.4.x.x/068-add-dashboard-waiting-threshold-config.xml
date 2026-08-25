@@ -1,0 +1,62 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<databaseChangeLog
+  xmlns="http://www.liquibase.org/xml/ns/dbchangelog"
+  xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+  xsi:schemaLocation="http://www.liquibase.org/xml/ns/dbchangelog http://www.liquibase.org/xml/ns/dbchangelog/dbchangelog-3.8.xsd">
+
+  <property name="now" value="now()" dbms="postgresql"/>
+
+  <changeSet id="068-01-add-dashboard-waiting-yellow-threshold-config" author="codex">
+    <preConditions onFail="MARK_RAN">
+      <sqlCheck expectedResult="0">SELECT count(*) FROM clinlims.site_information WHERE name = 'dash_waiting_yellow_days'</sqlCheck>
+    </preConditions>
+
+    <comment>Add configurable yellow waiting threshold for dashboard waiting-time tags</comment>
+    <insert schemaName="clinlims" tableName="site_information">
+      <column name="id" valueSequenceNext="site_information_seq" />
+      <column name="name" value="dash_waiting_yellow_days" />
+      <column name="lastupdated" valueComputed="${now}" />
+      <column name="description" value="Days since waiting time should turn yellow" />
+      <column name="value" value="5" />
+      <column name="encrypted" value="false" />
+      <column name="domain_id"
+        valueComputed="(SELECT id FROM site_information_domain WHERE name = 'siteIdentity')" />
+      <column name="value_type" value="text" />
+      <column name="tag" value="numericOnly" />
+      <column name="group" value="0" />
+    </insert>
+
+    <rollback>
+      <delete schemaName="clinlims" tableName="site_information">
+        <where>name = 'dash_waiting_yellow_days'</where>
+      </delete>
+    </rollback>
+  </changeSet>
+
+  <changeSet id="068-02-add-dashboard-waiting-red-threshold-config" author="codex">
+    <preConditions onFail="MARK_RAN">
+      <sqlCheck expectedResult="0">SELECT count(*) FROM clinlims.site_information WHERE name = 'dash_waiting_red_days'</sqlCheck>
+    </preConditions>
+
+    <comment>Add configurable red waiting threshold for dashboard waiting-time tags</comment>
+    <insert schemaName="clinlims" tableName="site_information">
+      <column name="id" valueSequenceNext="site_information_seq" />
+      <column name="name" value="dash_waiting_red_days" />
+      <column name="lastupdated" valueComputed="${now}" />
+      <column name="description" value="Days since waiting time should turn red" />
+      <column name="value" value="10" />
+      <column name="encrypted" value="false" />
+      <column name="domain_id"
+        valueComputed="(SELECT id FROM site_information_domain WHERE name = 'siteIdentity')" />
+      <column name="value_type" value="text" />
+      <column name="tag" value="numericOnly" />
+      <column name="group" value="0" />
+    </insert>
+
+    <rollback>
+      <delete schemaName="clinlims" tableName="site_information">
+        <where>name = 'dash_waiting_red_days'</where>
+      </delete>
+    </rollback>
+  </changeSet>
+</databaseChangeLog>

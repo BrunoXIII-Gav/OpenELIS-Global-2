@@ -63,6 +63,11 @@ import org.springframework.web.bind.annotation.RequestParam;
 @RequestMapping(value = "/rest/")
 public class PatientDashBoardProvider {
 
+    private static final String DASH_WAITING_YELLOW_DAYS = "dash_waiting_yellow_days";
+    private static final String DASH_WAITING_RED_DAYS = "dash_waiting_red_days";
+    private static final int DEFAULT_DASH_WAITING_YELLOW_DAYS = 5;
+    private static final int DEFAULT_DASH_WAITING_RED_DAYS = 10;
+
     @Autowired
     AnalysisService analysisService;
 
@@ -1000,6 +1005,17 @@ public class PatientDashBoardProvider {
         return timeBean;
     }
 
+    @GetMapping(value = "home-dashboard/waiting-time-config", produces = MediaType.APPLICATION_JSON_VALUE)
+    @ResponseBody
+    public Map<String, Integer> getDashboardWaitingTimeConfig() {
+        Map<String, Integer> waitingTimeConfig = new HashMap<>();
+        waitingTimeConfig.put("yellowThresholdDays",
+                getSiteInformationIntValue(DASH_WAITING_YELLOW_DAYS, DEFAULT_DASH_WAITING_YELLOW_DAYS));
+        waitingTimeConfig.put("redThresholdDays",
+                getSiteInformationIntValue(DASH_WAITING_RED_DAYS, DEFAULT_DASH_WAITING_RED_DAYS));
+        return waitingTimeConfig;
+    }
+
     @GetMapping(value = "home-dashboard/visibility-config", produces = MediaType.APPLICATION_JSON_VALUE)
     @ResponseBody
     public Map<String, Boolean> getDashboardVisibilityConfig() {
@@ -1020,5 +1036,18 @@ public class PatientDashBoardProvider {
             }
         }
         return visibilityMap;
+    }
+
+    private int getSiteInformationIntValue(String siteInformationName, int defaultValue) {
+        try {
+            String dbValue = siteInformationService.getSiteInformationByName(siteInformationName).getValue();
+            if (StringUtils.isBlank(dbValue)) {
+                return defaultValue;
+            }
+            int parsedValue = Integer.parseInt(dbValue.trim());
+            return parsedValue < 0 ? defaultValue : parsedValue;
+        } catch (Exception e) {
+            return defaultValue;
+        }
     }
 }
