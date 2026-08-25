@@ -5,7 +5,10 @@ import jakarta.servlet.http.HttpSession;
 import java.util.ArrayList;
 import java.util.HashSet;
 import java.util.List;
+import java.util.LinkedHashMap;
+import java.util.LinkedHashSet;
 import java.util.Map;
+import java.util.Objects;
 import java.util.Set;
 import java.util.stream.Collectors;
 import org.apache.commons.lang3.ObjectUtils;
@@ -59,6 +62,16 @@ import org.springframework.web.context.request.ServletRequestAttributes;
 
 @Service
 public class UserServiceImpl implements UserService {
+
+    private static final Map<String, List<String>> LAB_ROLE_GROUPS = Map.of(
+            Constants.ROLE_GENERIC_SAMPLE, List.of(Constants.ROLE_SAMPLE_MANAGEMENT),
+            Constants.ROLE_ORDER, List.of(Constants.ROLE_ORDER_ADD, Constants.ROLE_ORDER_EDIT),
+            Constants.ROLE_PATIENT, List.of(Constants.ROLE_PATIENT_MANAGEMENT, Constants.ROLE_PATIENT_HISTORY),
+            Constants.ROLE_STORAGE, List.of(Constants.ROLE_STORAGE_MANAGEMENT),
+            Constants.ROLE_RESULTS,
+            List.of(Constants.ROLE_RESULTS_BY_UNIT, Constants.ROLE_RESULTS_BY_PATIENT,
+                    Constants.ROLE_RESULTS_BY_ORDER),
+            Constants.ROLE_VALIDATION, List.of(Constants.ROLE_VALIDATION_ROUTINE, Constants.ROLE_VALIDATION_BY_ORDER));
 
     @Autowired
     private LoginUserService loginService;
@@ -125,11 +138,12 @@ public class UserServiceImpl implements UserService {
         Set<String> labUnitRoles = new HashSet<>();
         for (String labUnit : selectedLabUnitRolesMap.keySet()) {
             if (StringUtils.isNotEmpty(labUnit)) {
+                Set<String> normalizedLabRoles = normalizeGroupedLabRoleIds(selectedLabUnitRolesMap.get(labUnit));
                 LabUnitRoleMap labUnitRoleMap = new LabUnitRoleMap();
                 labUnitRoleMap.setLabUnit(labUnit);
-                labUnitRoleMap.setRoles(selectedLabUnitRolesMap.get(labUnit));
+                labUnitRoleMap.setRoles(normalizedLabRoles);
                 labUnitRoleMaps.add(labUnitRoleMap);
-                for (String role : selectedLabUnitRolesMap.get(labUnit)) {
+                for (String role : normalizedLabRoles) {
                     labUnitRoles.add(role);
                 }
             }
@@ -206,6 +220,33 @@ public class UserServiceImpl implements UserService {
         }
 
         return labRolesGroup.getId().equals(role.getGroupingParent());
+    }
+
+    private Set<String> normalizeGroupedLabRoleIds(Set<String> roleIds) {
+        if (roleIds == null || roleIds.isEmpty()) {
+            return new LinkedHashSet<>();
+        }
+
+        Set<String> normalizedIds = new LinkedHashSet<>(roleIds.stream().filter(StringUtils::isNotBlank)
+                .map(StringUtils::trim).collect(Collectors.toCollection(LinkedHashSet::new)));
+
+        Map<String, String> roleIdByName = normalizedIds.stream().map(roleService::getRoleById).filter(Objects::nonNull)
+                .filter(role -> StringUtils.isNotBlank(role.getName()) && StringUtils.isNotBlank(role.getId()))
+                .collect(Collectors.toMap(role -> StringUtils.trim(role.getName()), Role::getId, (left, right) -> left,
+                        LinkedHashMap::new));
+
+        LAB_ROLE_GROUPS.forEach((parentRoleName, childRoleNames) -> {
+            boolean hasSelectedChild = childRoleNames.stream().map(roleIdByName::get).filter(Objects::nonNull)
+                    .anyMatch(normalizedIds::contains);
+            if (hasSelectedChild) {
+                String parentRoleId = roleIdByName.get(parentRoleName);
+                if (StringUtils.isNotBlank(parentRoleId)) {
+                    normalizedIds.remove(parentRoleId);
+                }
+            }
+        });
+
+        return normalizedIds;
     }
 
     @Override
@@ -414,7 +455,7 @@ public class UserServiceImpl implements UserService {
                 continue;
             }
             for (TypeOfSample type : sampleTypes) {
-                if (type == null || StringUtils.isBlank(type.getId())) {
+                if (type == null || StringUtils.isBlank(type.getId()) || !type.getIsActive()) {
                     continue;
                 }
                 sampleTypeById.putIfAbsent(type.getId(), resolveSampleTypeDisplayName(type));

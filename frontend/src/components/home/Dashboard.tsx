@@ -710,10 +710,6 @@ const HomeDashBoard: React.FC<DashBoardProps> = () => {
       header: <FormattedMessage id="sample.label.orderdate" />,
     },
     {
-      key: "patientId",
-      header: <FormattedMessage id="patient.merge.nationalId" />,
-    },
-    {
       key: "labNumber",
       header: <FormattedMessage id="eorder.labNumber" />,
     },
@@ -727,10 +723,6 @@ const HomeDashBoard: React.FC<DashBoardProps> = () => {
     {
       key: "orderDate",
       header: <FormattedMessage id="sample.label.orderdate" />,
-    },
-    {
-      key: "patientId",
-      header: <FormattedMessage id="patient.merge.nationalId" />,
     },
     {
       key: "labNumber",
@@ -767,10 +759,6 @@ const HomeDashBoard: React.FC<DashBoardProps> = () => {
     {
       key: "orderDate",
       header: <FormattedMessage id="sample.label.orderdate" />,
-    },
-    {
-      key: "patientId",
-      header: <FormattedMessage id="patient.merge.nationalId" />,
     },
     {
       key: "labNumber",

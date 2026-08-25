@@ -17,11 +17,15 @@ const CreatePatientValidationSchema = (intl) =>
         "Patient Email Must Be Valid",
       ),
     ),
-    birthDateForDisplay: Yup.string()
-      .required("Patient Birth date Required")
-      .test("valid-date", "Invalid date format", function (value) {
+    birthDateForDisplay: Yup.string().test(
+      "valid-date",
+      "Invalid date format",
+      function (value) {
+        if (!value) {
+          return true;
+        }
         const dateFormat = /^\d{2}\/\d{2}\/\d{4}$/;
-        if (!value || !value.match(dateFormat)) {
+        if (!value.match(dateFormat)) {
           return false;
         }
         const [day, month, year] = value.split("/");
@@ -32,7 +36,8 @@ const CreatePatientValidationSchema = (intl) =>
         const validDate2 = date2 instanceof Date && !isNaN(date2);
 
         return validDate1 || validDate2;
-      }),
+      },
+    ),
     patientContact: Yup.object().shape({
       person: Yup.object().shape({
         email: Yup.string().email(
@@ -44,7 +49,7 @@ const CreatePatientValidationSchema = (intl) =>
         ),
       }),
     }),
-    gender: Yup.string().required("Gender is Required"),
+    gender: Yup.string(),
   });
 
 export default CreatePatientValidationSchema;

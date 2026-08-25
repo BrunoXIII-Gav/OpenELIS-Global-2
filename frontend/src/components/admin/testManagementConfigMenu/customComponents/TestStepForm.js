@@ -188,9 +188,14 @@ export const TestStepForm = ({
     const selectedResultTypeId = String(
       normalizedData?.resultType || mergedData.resultType || "",
     );
+    const isResultFieldActive = mergedData.resultActive !== false;
 
     setCurrentStep((prev) => {
       if (prev === 3) {
+        if (!isResultFieldActive) {
+          return prev + 3;
+        }
+
         if (freeResultList.includes(selectedResultTypeId)) {
           return prev + 3;
         }
@@ -236,9 +241,14 @@ export const TestStepForm = ({
     const selectedResultTypeId = String(
       newData?.resultType || formData.resultType || "",
     );
+    const isResultFieldActive = mergedData.resultActive !== false;
 
     setCurrentStep((prevStep) => {
       if (prevStep === 6) {
+        if (!isResultFieldActive) {
+          return prevStep - 3;
+        }
+
         if (freeResultList.includes(selectedResultTypeId)) {
           return prevStep - 3;
         }
@@ -1366,6 +1376,7 @@ export const StepThreeTestResultTypeAndLoinc = ({
   });
   const [editingAdditionalFieldIndexes, setEditingAdditionalFieldIndexes] =
     useState([]);
+  const hideUncheckedStatusToggles = Boolean(formData?.testId);
 
   useEffect(() => {
     setEditingAdditionalFieldIndexes([]);
@@ -1415,6 +1426,9 @@ export const StepThreeTestResultTypeAndLoinc = ({
       ? parsedValue
       : fallbackValue;
   };
+
+  const resolveBooleanOverride = (fieldValue, metadataValue) =>
+    typeof fieldValue === "boolean" ? fieldValue : metadataValue === true;
 
   const resolveFieldMetadata = (field = {}, fallbackOrders = {}) => {
     const parsedMetadata = parseFieldMetadata(field.metadataJson);
@@ -1478,9 +1492,10 @@ export const StepThreeTestResultTypeAndLoinc = ({
       includeInValidation,
       blockSortOrder,
       fieldSortOrder,
-      tubeSelectorEnabled:
-        field.tubeSelectorEnabled === true ||
-        parsedMetadata?.tubeSelector?.enabled === true,
+      tubeSelectorEnabled: resolveBooleanOverride(
+        field.tubeSelectorEnabled,
+        parsedMetadata?.tubeSelector?.enabled,
+      ),
       tubeSelectorMin:
         Number.isFinite(tubeSelectorMin) && tubeSelectorMin > 0
           ? String(tubeSelectorMin)
@@ -1493,15 +1508,18 @@ export const StepThreeTestResultTypeAndLoinc = ({
         Number.isFinite(tubeActivationCount) && tubeActivationCount > 0
           ? String(tubeActivationCount)
           : "",
-      tubeQuantitySource:
-        field.tubeQuantitySource === true ||
-        parsedMetadata?.tubeQuantitySource === true,
-      tubeLabelEnabled:
-        field.tubeLabelEnabled === true ||
-        parsedMetadata?.tubeLabel?.enabled === true,
-      childTubeUsageBlockEnabled:
-        field.childTubeUsageBlockEnabled === true ||
-        parsedMetadata?.tubeUsage?.childBlockEnabled === true,
+      tubeQuantitySource: resolveBooleanOverride(
+        field.tubeQuantitySource,
+        parsedMetadata?.tubeQuantitySource,
+      ),
+      tubeLabelEnabled: resolveBooleanOverride(
+        field.tubeLabelEnabled,
+        parsedMetadata?.tubeLabel?.enabled,
+      ),
+      childTubeUsageBlockEnabled: resolveBooleanOverride(
+        field.childTubeUsageBlockEnabled,
+        parsedMetadata?.tubeUsage?.childBlockEnabled,
+      ),
       userProfileCodes,
       userDisplayMode: resolveUserDisplayMode(parsedMetadata),
     };
@@ -1688,6 +1706,7 @@ export const StepThreeTestResultTypeAndLoinc = ({
     };
     if (values.resultActive === false) {
       metadata.active = false;
+      return JSON.stringify(metadata);
     }
     if (values.resultTubeSelectorEnabled === true) {
       metadata.tubeSelector = {
@@ -1855,20 +1874,25 @@ export const StepThreeTestResultTypeAndLoinc = ({
       <Formik
         initialValues={formData}
         validationSchema={Yup.object({
-          resultType: Yup.string()
-            .notOneOf(
-              ["0", ""],
-              intl.formatMessage({
-                id: "test.resultType.required",
-                defaultMessage: "Result Type is required",
-              }),
-            )
-            .required(
-              intl.formatMessage({
-                id: "test.resultType.required",
-                defaultMessage: "Result Type is required",
-              }),
-            ),
+          resultType: Yup.string().when("resultActive", {
+            is: (resultActive) => resultActive !== false,
+            then: (schema) =>
+              schema
+                .notOneOf(
+                  ["0", ""],
+                  intl.formatMessage({
+                    id: "test.resultType.required",
+                    defaultMessage: "Result Type is required",
+                  }),
+                )
+                .required(
+                  intl.formatMessage({
+                    id: "test.resultType.required",
+                    defaultMessage: "Result Type is required",
+                  }),
+                ),
+            otherwise: (schema) => schema.notRequired(),
+          }),
           additionalFields: Yup.array()
             .of(
               Yup.object().shape({
@@ -1954,7 +1978,10 @@ export const StepThreeTestResultTypeAndLoinc = ({
                 );
                 const selectorCount =
                   enabledSelectors.length +
-                  (parentValues?.resultTubeSelectorEnabled === true ? 1 : 0);
+                  (parentValues?.resultActive !== false &&
+                  parentValues?.resultTubeSelectorEnabled === true
+                    ? 1
+                    : 0);
                 if (selectorCount > 1) {
                   return this.createError({
                     path: "resultTubeSelectorEnabled",
@@ -1975,6 +2002,7 @@ export const StepThreeTestResultTypeAndLoinc = ({
                   parentValues?.resultType,
                 );
                 if (
+                  parentValues?.resultActive !== false &&
                   resultTypeCode === "N" &&
                   parentValues?.resultTubeQuantitySource === true
                 ) {
@@ -2144,6 +2172,7 @@ export const StepThreeTestResultTypeAndLoinc = ({
           const inactiveAdditionalFields = normalizedAdditionalFields
             .map((field, index) => ({ field, fieldIndex: index }))
             .filter(({ field }) => field?.active === false);
+          const isResultFieldActive = values.resultActive !== false;
 
           const handleAddAdditionalField = () => {
             const lastVisibleEntry =
@@ -2481,6 +2510,19 @@ export const StepThreeTestResultTypeAndLoinc = ({
             <Form>
               <Grid fullWidth={true}>
                 <Column lg={16} md={8} sm={4}>
+                  <div style={{ marginBottom: "0.75rem" }}>
+                    <Checkbox
+                      id="result-active"
+                      labelText={intl.formatMessage({
+                        id: "label.active",
+                        defaultMessage: "Active",
+                      })}
+                      checked={isResultFieldActive}
+                      onChange={(event) =>
+                        setFieldValue("resultActive", event.target.checked)
+                      }
+                    />
+                  </div>
                   <div>
                     <>
                       <FormattedMessage id="field.resultType" />
@@ -2551,205 +2593,202 @@ export const StepThreeTestResultTypeAndLoinc = ({
                       invalid={touched.resultName && !!errors.resultName}
                       invalidText={touched.resultName && errors.resultName}
                     />
-                    <div style={{ marginTop: "0.75rem" }}>
-                      <Checkbox
-                        id="result-active"
-                        labelText={intl.formatMessage({
-                          id: "label.active",
-                          defaultMessage: "Active",
-                        })}
-                        checked={values.resultActive !== false}
-                        onChange={(event) =>
-                          setFieldValue("resultActive", event.target.checked)
-                        }
-                      />
-                    </div>
-                    <Grid condensed fullWidth style={{ marginTop: "0.75rem" }}>
-                      <Column lg={4} md={4} sm={4}>
-                        <TextInput
-                          id="result-block-name"
-                          name="resultBlockName"
-                          labelText={intl.formatMessage({
-                            id: "test.additionalFields.blockName",
-                            defaultMessage: "Block",
-                          })}
-                          value={values.resultBlockName || ""}
-                          onChange={handleChange}
-                        />
-                      </Column>
-                      <Column lg={4} md={4} sm={4}>
-                        <Select
-                          id="result-entry-scope"
-                          name="resultEntryScope"
-                          labelText={intl.formatMessage({
-                            id: "test.additionalFields.entryScope",
-                            defaultMessage: "Entry Scope",
-                          })}
-                          value={values.resultEntryScope || "OFFICIAL"}
-                          onChange={handleChange}
-                        >
-                          {entryScopeOptions.map((scopeOption) => (
-                            <SelectItem
-                              key={`result-scope-${scopeOption}`}
-                              value={scopeOption}
-                              text={intl.formatMessage({
-                                id:
-                                  scopeOption === "OFFICIAL"
-                                    ? "test.additionalFields.entryScope.official"
-                                    : "test.additionalFields.entryScope.preliminary",
-                              })}
-                            />
-                          ))}
-                        </Select>
-                      </Column>
-                      <Column lg={4} md={4} sm={4}>
-                        <TextInput
-                          id="result-block-sort-order"
-                          name="resultBlockSortOrder"
-                          type="number"
-                          min="1"
-                          labelText={intl.formatMessage({
-                            id: "test.additionalFields.blockSortOrder",
-                            defaultMessage: "Block Order",
-                          })}
-                          value={values.resultBlockSortOrder || "1"}
-                          onChange={handleChange}
-                        />
-                      </Column>
-                      <Column lg={4} md={4} sm={4}>
-                        <TextInput
-                          id="result-field-sort-order"
-                          name="resultFieldSortOrder"
-                          type="number"
-                          min="1"
-                          labelText={intl.formatMessage({
-                            id: "test.additionalFields.fieldSortOrder",
-                            defaultMessage: "Field Order",
-                          })}
-                          value={values.resultFieldSortOrder || "1"}
-                          onChange={handleChange}
-                        />
-                      </Column>
-                      <Column lg={4} md={4} sm={4}>
-                        <TextInput
-                          id="result-tube-activation-count"
-                          name="resultTubeActivationCount"
-                          type="number"
-                          min="1"
-                          labelText={intl.formatMessage({
-                            id: "test.additionalFields.tubeActivationCount",
-                          })}
-                          value={values.resultTubeActivationCount || ""}
-                          onChange={handleChange}
-                        />
-                      </Column>
-                    </Grid>
-                    {resolveResultTypeCode(values.resultType) === "N" && (
-                      <>
-                        <div
-                          style={{
-                            display: "flex",
-                            gap: "1rem",
-                            alignItems: "center",
-                            marginTop: "0.75rem",
-                            flexWrap: "wrap",
-                          }}
-                        >
-                          <Checkbox
-                            id="result-tube-selector-enabled"
-                            labelText={intl.formatMessage({
-                              id: "test.additionalFields.tubeSelector",
-                            })}
-                            checked={values.resultTubeSelectorEnabled === true}
-                            onChange={(event) =>
-                              setFieldValue(
-                                "resultTubeSelectorEnabled",
-                                event.target.checked,
-                              )
-                            }
-                          />
-                          <Checkbox
-                            id="result-tube-quantity-source"
-                            labelText={intl.formatMessage({
-                              id: "test.additionalFields.tubeQuantitySource",
-                            })}
-                            checked={values.resultTubeQuantitySource === true}
-                            onChange={(event) =>
-                              setFieldValue(
-                                "resultTubeQuantitySource",
-                                event.target.checked,
-                              )
-                            }
-                          />
-                          <Checkbox
-                            id="result-tube-label-enabled"
-                            labelText={intl.formatMessage({
-                              id: "test.additionalFields.tubeLabel",
-                              defaultMessage: "Generate tube label",
-                            })}
-                            checked={values.resultTubeLabelEnabled === true}
-                            onChange={(event) =>
-                              setFieldValue(
-                                "resultTubeLabelEnabled",
-                                event.target.checked,
-                              )
-                            }
-                          />
-                          <Checkbox
-                            id="result-child-tube-usage-block-enabled"
-                            labelText={intl.formatMessage({
-                              id: "test.additionalFields.childTubeUsageBlock",
-                              defaultMessage:
-                                "Participates in child tube usage",
-                            })}
-                            checked={
-                              values.resultChildTubeUsageBlockEnabled === true
-                            }
-                            onChange={(event) =>
-                              setFieldValue(
-                                "resultChildTubeUsageBlockEnabled",
-                                event.target.checked,
-                              )
-                            }
-                          />
-                        </div>
-                        {values.resultTubeSelectorEnabled === true && (
-                          <Grid
-                            condensed
-                            fullWidth
-                            style={{ marginTop: "0.75rem" }}
-                          >
-                            <Column lg={4} md={4} sm={4}>
-                              <TextInput
-                                id="result-tube-selector-min"
-                                name="resultTubeSelectorMin"
-                                type="number"
-                                min="1"
-                                labelText={intl.formatMessage({
-                                  id: "test.additionalFields.tubeSelectorMin",
-                                })}
-                                value={values.resultTubeSelectorMin || "1"}
-                                onChange={handleChange}
-                              />
-                            </Column>
-                            <Column lg={4} md={4} sm={4}>
-                              <TextInput
-                                id="result-tube-selector-max"
-                                name="resultTubeSelectorMax"
-                                type="number"
-                                min="1"
-                                labelText={intl.formatMessage({
-                                  id: "test.additionalFields.tubeSelectorMax",
-                                })}
-                                value={values.resultTubeSelectorMax || "2"}
-                                onChange={handleChange}
-                              />
-                            </Column>
-                          </Grid>
-                        )}
-                      </>
-                    )}
                   </div>
+                  {isResultFieldActive && (
+                    <>
+                      <div>
+                        <Grid
+                          condensed
+                          fullWidth
+                          style={{ marginTop: "0.75rem" }}
+                        >
+                          <Column lg={4} md={4} sm={4}>
+                            <TextInput
+                              id="result-block-name"
+                              name="resultBlockName"
+                              labelText={intl.formatMessage({
+                                id: "test.additionalFields.blockName",
+                                defaultMessage: "Block",
+                              })}
+                              value={values.resultBlockName || ""}
+                              onChange={handleChange}
+                            />
+                          </Column>
+                          <Column lg={4} md={4} sm={4}>
+                            <Select
+                              id="result-entry-scope"
+                              name="resultEntryScope"
+                              labelText={intl.formatMessage({
+                                id: "test.additionalFields.entryScope",
+                                defaultMessage: "Entry Scope",
+                              })}
+                              value={values.resultEntryScope || "OFFICIAL"}
+                              onChange={handleChange}
+                            >
+                              {entryScopeOptions.map((scopeOption) => (
+                                <SelectItem
+                                  key={`result-scope-${scopeOption}`}
+                                  value={scopeOption}
+                                  text={intl.formatMessage({
+                                    id:
+                                      scopeOption === "OFFICIAL"
+                                        ? "test.additionalFields.entryScope.official"
+                                        : "test.additionalFields.entryScope.preliminary",
+                                  })}
+                                />
+                              ))}
+                            </Select>
+                          </Column>
+                          <Column lg={4} md={4} sm={4}>
+                            <TextInput
+                              id="result-block-sort-order"
+                              name="resultBlockSortOrder"
+                              type="number"
+                              min="1"
+                              labelText={intl.formatMessage({
+                                id: "test.additionalFields.blockSortOrder",
+                                defaultMessage: "Block Order",
+                              })}
+                              value={values.resultBlockSortOrder || "1"}
+                              onChange={handleChange}
+                            />
+                          </Column>
+                          <Column lg={4} md={4} sm={4}>
+                            <TextInput
+                              id="result-field-sort-order"
+                              name="resultFieldSortOrder"
+                              type="number"
+                              min="1"
+                              labelText={intl.formatMessage({
+                                id: "test.additionalFields.fieldSortOrder",
+                                defaultMessage: "Field Order",
+                              })}
+                              value={values.resultFieldSortOrder || "1"}
+                              onChange={handleChange}
+                            />
+                          </Column>
+                          <Column lg={4} md={4} sm={4}>
+                            <TextInput
+                              id="result-tube-activation-count"
+                              name="resultTubeActivationCount"
+                              type="number"
+                              min="1"
+                              labelText={intl.formatMessage({
+                                id: "test.additionalFields.tubeActivationCount",
+                              })}
+                              value={values.resultTubeActivationCount || ""}
+                              onChange={handleChange}
+                            />
+                          </Column>
+                        </Grid>
+                        {resolveResultTypeCode(values.resultType) === "N" && (
+                          <>
+                            <div
+                              style={{
+                                display: "flex",
+                                gap: "1rem",
+                                alignItems: "center",
+                                marginTop: "0.75rem",
+                                flexWrap: "wrap",
+                              }}
+                            >
+                              <Checkbox
+                                id="result-tube-selector-enabled"
+                                labelText={intl.formatMessage({
+                                  id: "test.additionalFields.tubeSelector",
+                                })}
+                                checked={values.resultTubeSelectorEnabled === true}
+                                onChange={(event) =>
+                                  setFieldValue(
+                                    "resultTubeSelectorEnabled",
+                                    event.target.checked,
+                                  )
+                                }
+                              />
+                              <Checkbox
+                                id="result-tube-quantity-source"
+                                labelText={intl.formatMessage({
+                                  id: "test.additionalFields.tubeQuantitySource",
+                                })}
+                                checked={values.resultTubeQuantitySource === true}
+                                onChange={(event) =>
+                                  setFieldValue(
+                                    "resultTubeQuantitySource",
+                                    event.target.checked,
+                                  )
+                                }
+                              />
+                              <Checkbox
+                                id="result-tube-label-enabled"
+                                labelText={intl.formatMessage({
+                                  id: "test.additionalFields.tubeLabel",
+                                  defaultMessage: "Generate tube label",
+                                })}
+                                checked={values.resultTubeLabelEnabled === true}
+                                onChange={(event) =>
+                                  setFieldValue(
+                                    "resultTubeLabelEnabled",
+                                    event.target.checked,
+                                  )
+                                }
+                              />
+                              <Checkbox
+                                id="result-child-tube-usage-block-enabled"
+                                labelText={intl.formatMessage({
+                                  id: "test.additionalFields.childTubeUsageBlock",
+                                  defaultMessage:
+                                    "Participates in child tube usage",
+                                })}
+                                checked={
+                                  values.resultChildTubeUsageBlockEnabled === true
+                                }
+                                onChange={(event) =>
+                                  setFieldValue(
+                                    "resultChildTubeUsageBlockEnabled",
+                                    event.target.checked,
+                                  )
+                                }
+                              />
+                            </div>
+                            {values.resultTubeSelectorEnabled === true && (
+                              <Grid
+                                condensed
+                                fullWidth
+                                style={{ marginTop: "0.75rem" }}
+                              >
+                                <Column lg={4} md={4} sm={4}>
+                                  <TextInput
+                                    id="result-tube-selector-min"
+                                    name="resultTubeSelectorMin"
+                                    type="number"
+                                    min="1"
+                                    labelText={intl.formatMessage({
+                                      id: "test.additionalFields.tubeSelectorMin",
+                                    })}
+                                    value={values.resultTubeSelectorMin || "1"}
+                                    onChange={handleChange}
+                                  />
+                                </Column>
+                                <Column lg={4} md={4} sm={4}>
+                                  <TextInput
+                                    id="result-tube-selector-max"
+                                    name="resultTubeSelectorMax"
+                                    type="number"
+                                    min="1"
+                                    labelText={intl.formatMessage({
+                                      id: "test.additionalFields.tubeSelectorMax",
+                                    })}
+                                    value={values.resultTubeSelectorMax || "2"}
+                                    onChange={handleChange}
+                                  />
+                                </Column>
+                              </Grid>
+                            )}
+                          </>
+                        )}
+                      </div>
+                    </>
+                  )}
                   <br />
                   <div>
                     <Heading level={5} size="compact-01">
@@ -3742,85 +3781,108 @@ export const StepThreeTestResultTypeAndLoinc = ({
                   </div>
                   <br />
                   <div>
-                    <Checkbox
-                      labelText={
-                        <FormattedMessage id="test.antimicrobialResistance" />
-                      }
-                      id="antimicrobial-resistance"
-                      name="antimicrobialResistance"
-                      onChange={handleAntimicrobialResistance}
-                      checked={values?.antimicrobialResistance === "Y"}
-                    />
-                    <Checkbox
-                      labelText={
-                        <FormattedMessage id="dictionary.category.isActive" />
-                      }
-                      id="is-active"
-                      name="active"
-                      onChange={handleIsActive}
-                      checked={values?.active === "Y"}
-                    />
-                    <Checkbox
-                      labelText={<FormattedMessage id="label.orderable" />}
-                      id="orderable"
-                      name="orderable"
-                      onChange={handleOrderable}
-                      checked={values?.orderable === "Y"}
-                    />
-                    <Checkbox
-                      labelText={
-                        <FormattedMessage id="test.directSampleUsage" />
-                      }
-                      id="direct-sample-usage-enabled"
-                      name="directSampleUsageEnabled"
-                      onChange={handleDirectSampleUsage}
-                      checked={values?.directSampleUsageEnabled === "Y"}
-                      disabled={values?.activeChildDependency === true}
-                    />
-                    {values?.activeChildDependency === true && (
-                      <p
-                        style={{
-                          marginTop: "0.25rem",
-                          marginBottom: "0.5rem",
-                        }}
-                      >
-                        <FormattedMessage id="test.directSampleUsage.disabledForChild" />
-                      </p>
+                    {(!hideUncheckedStatusToggles ||
+                      values?.antimicrobialResistance === "Y") && (
+                      <Checkbox
+                        labelText={
+                          <FormattedMessage id="test.antimicrobialResistance" />
+                        }
+                        id="antimicrobial-resistance"
+                        name="antimicrobialResistance"
+                        onChange={handleAntimicrobialResistance}
+                        checked={values?.antimicrobialResistance === "Y"}
+                      />
                     )}
-                    <Checkbox
-                      labelText={
-                        <FormattedMessage id="test.skipValidationWhenParentComplete" />
-                      }
-                      id="skip-validation-when-parent-complete"
-                      name="skipValidationWhenParentComplete"
-                      onChange={handleSkipValidationWhenParentComplete}
-                      checked={values?.skipValidationWhenParentComplete === "Y"}
-                      disabled={values?.activeParentDependency !== true}
-                    />
-                    {values?.activeParentDependency !== true && (
-                      <p
-                        style={{
-                          marginTop: "0.25rem",
-                          marginBottom: "0.5rem",
-                        }}
-                      >
-                        <FormattedMessage id="test.skipValidationWhenParentComplete.disabledForNonParent" />
-                      </p>
+                    {(!hideUncheckedStatusToggles || values?.active === "Y") && (
+                      <Checkbox
+                        labelText={
+                          <FormattedMessage id="dictionary.category.isActive" />
+                        }
+                        id="is-active"
+                        name="active"
+                        onChange={handleIsActive}
+                        checked={values?.active === "Y"}
+                      />
                     )}
-                    <Checkbox
-                      labelText={<FormattedMessage id="test.notifyResults" />}
-                      id="notify-patient-of-results"
-                      name="notifyResults"
-                      onChange={handleNotifyPatientofResults}
-                      checked={values?.notifyResults === "Y"}
-                    />
-                    <Checkbox
-                      labelText={<FormattedMessage id="test.inLabOnly" />}
-                      id="in-lab-only"
-                      name="inLabOnly"
-                      onChange={handleInLabOnly}
-                      checked={values?.inLabOnly === "Y"}
-                    />
+                    {(!hideUncheckedStatusToggles ||
+                      values?.orderable === "Y") && (
+                      <Checkbox
+                        labelText={<FormattedMessage id="label.orderable" />}
+                        id="orderable"
+                        name="orderable"
+                        onChange={handleOrderable}
+                        checked={values?.orderable === "Y"}
+                      />
+                    )}
+                    {(!hideUncheckedStatusToggles ||
+                      values?.directSampleUsageEnabled === "Y") && (
+                      <>
+                        <Checkbox
+                          labelText={
+                            <FormattedMessage id="test.directSampleUsage" />
+                          }
+                          id="direct-sample-usage-enabled"
+                          name="directSampleUsageEnabled"
+                          onChange={handleDirectSampleUsage}
+                          checked={values?.directSampleUsageEnabled === "Y"}
+                          disabled={values?.activeChildDependency === true}
+                        />
+                        {values?.activeChildDependency === true && (
+                          <p
+                            style={{
+                              marginTop: "0.25rem",
+                              marginBottom: "0.5rem",
+                            }}
+                          >
+                            <FormattedMessage id="test.directSampleUsage.disabledForChild" />
+                          </p>
+                        )}
+                      </>
+                    )}
+                    <>
+                      <Checkbox
+                        labelText={
+                          <FormattedMessage id="test.skipValidationWhenParentComplete" />
+                        }
+                        id="skip-validation-when-parent-complete"
+                        name="skipValidationWhenParentComplete"
+                        onChange={handleSkipValidationWhenParentComplete}
+                        checked={
+                          values?.skipValidationWhenParentComplete === "Y"
+                        }
+                        disabled={values?.activeParentDependency !== true}
+                      />
+                      {values?.activeParentDependency !== true && (
+                        <p
+                          style={{
+                            marginTop: "0.25rem",
+                            marginBottom: "0.5rem",
+                          }}
+                        >
+                          <FormattedMessage id="test.skipValidationWhenParentComplete.disabledForNonParent" />
+                        </p>
+                      )}
+                    </>
+                    {(!hideUncheckedStatusToggles ||
+                      values?.notifyResults === "Y") && (
+                      <Checkbox
+                        labelText={<FormattedMessage id="test.notifyResults" />}
+                        id="notify-patient-of-results"
+                        name="notifyResults"
+                        onChange={handleNotifyPatientofResults}
+                        checked={values?.notifyResults === "Y"}
+                      />
+                    )}
+                    {(!hideUncheckedStatusToggles ||
+                      values?.inLabOnly === "Y") && (
+                      <Checkbox
+                        labelText={<FormattedMessage id="test.inLabOnly" />}
+                        id="in-lab-only"
+                        name="inLabOnly"
+                        onChange={handleInLabOnly}
+                        checked={values?.inLabOnly === "Y"}
+                      />
+                    )}
                   </div>
                 </Column>
               </Grid>
@@ -4148,7 +4210,9 @@ export const StepFiveSelectListOptionsAndResultOrder = ({
     selectedResultTypeList?.code || fallbackResultTypeCode;
   return (
     <>
-      {currentStep === 4 && ["D", "M", "C"].includes(selectedResultTypeCode) ? (
+      {currentStep === 4 &&
+      formData?.resultActive !== false &&
+      ["D", "M", "C"].includes(selectedResultTypeCode) ? (
         <>
           <Formik
             initialValues={formData}
@@ -4741,7 +4805,9 @@ export const StepSixSelectRangeAgeRangeAndSignificantDigits = ({
 
   return (
     <>
-      {currentStep === 5 && selectedResultTypeList?.code === "N" ? (
+      {currentStep === 5 &&
+      formData?.resultActive !== false &&
+      selectedResultTypeList?.code === "N" ? (
         <>
           <Formik
             initialValues={formData}

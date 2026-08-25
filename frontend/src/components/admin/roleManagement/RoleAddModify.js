@@ -1,5 +1,7 @@
 import React, { useContext, useEffect, useMemo, useState } from "react";
 import {
+  Accordion,
+  AccordionItem,
   Button,
   Checkbox,
   Column,
@@ -27,12 +29,129 @@ import {
 } from "../../utils/Utils.js";
 
 const HIDDEN_GLOBAL_PERMISSION_NAMES = new Set([
+  "Audit Trail",
+  "User Account Administrator",
   "Analyser Import",
   "Cytopathologist",
   "Pathologist",
 ]);
 
-const HIDDEN_LAB_PERMISSION_NAMES = new Set(["Aliquot"]);
+const HIDDEN_LAB_PERMISSION_NAMES = new Set(["Aliquot", "Reports"]);
+const HIDDEN_APPLICABLE_LAB_UNIT_NAMES = new Set([
+  "Biochemistry",
+  "Cytology",
+  "Hematology",
+  "Hemato-Immunology",
+  "Histopathology",
+  "Immunohistochemistry",
+  "Immunology",
+  "Microbiology",
+  "Molecular Biology",
+  "Parasitology",
+  "Pathology",
+  "Serology",
+  "Serology-Immunology",
+  "Urinalysis",
+  "Virology",
+]);
+
+const LAB_PERMISSION_GROUPS = [
+  { parentName: "Generic Sample", childNames: ["Sample Management"] },
+  { parentName: "Order", childNames: ["Order Add", "Order Edit"] },
+  {
+    parentName: "Patient",
+    childNames: ["Patient Management", "Patient History"],
+  },
+  { parentName: "Storage", childNames: ["Storage Management"] },
+  {
+    parentName: "Results",
+    childNames: ["Results By Unit", "Results By Patient", "Results By Order"],
+  },
+  {
+    parentName: "Validation",
+    childNames: ["Validation Routine", "Validation By Order"],
+  },
+  { parentName: "Reports", childNames: [] },
+];
+
+const LAB_PERMISSION_LABELS = {
+  Administration: {
+    id: "customRole.globalPermission.administration",
+    defaultMessage: "Administration",
+  },
+  "Generic Sample": {
+    id: "customRole.labPermission.genericSample",
+    defaultMessage: "Generic Sample",
+  },
+  "Sample Management": {
+    id: "customRole.labPermission.sampleManagement",
+    defaultMessage: "Sample Management",
+  },
+  Order: {
+    id: "customRole.labPermission.order",
+    defaultMessage: "Order",
+  },
+  "Order Add": {
+    id: "customRole.labPermission.orderAdd",
+    defaultMessage: "Order Add",
+  },
+  "Order Edit": {
+    id: "customRole.labPermission.orderEdit",
+    defaultMessage: "Order Edit",
+  },
+  Patient: {
+    id: "customRole.labPermission.patient",
+    defaultMessage: "Patient",
+  },
+  "Patient Management": {
+    id: "customRole.labPermission.patientManagement",
+    defaultMessage: "Patient Management",
+  },
+  "Patient History": {
+    id: "customRole.labPermission.patientHistory",
+    defaultMessage: "Patient History",
+  },
+  Storage: {
+    id: "customRole.labPermission.storage",
+    defaultMessage: "Storage",
+  },
+  "Storage Management": {
+    id: "customRole.labPermission.storageManagement",
+    defaultMessage: "Storage Management",
+  },
+  Results: {
+    id: "customRole.labPermission.results",
+    defaultMessage: "Results",
+  },
+  "Results By Unit": {
+    id: "customRole.labPermission.resultsByUnit",
+    defaultMessage: "Results By Unit",
+  },
+  "Results By Patient": {
+    id: "customRole.labPermission.resultsByPatient",
+    defaultMessage: "Results By Patient",
+  },
+  "Results By Order": {
+    id: "customRole.labPermission.resultsByOrder",
+    defaultMessage: "Results By Order",
+  },
+  Validation: {
+    id: "customRole.labPermission.validation",
+    defaultMessage: "Validation",
+  },
+  "Validation Routine": {
+    id: "customRole.labPermission.validationRoutine",
+    defaultMessage: "Validation Routine",
+  },
+  "Validation By Order": {
+    id: "customRole.labPermission.validationByOrder",
+    defaultMessage: "Validation By Order",
+  },
+  Reports: {
+    id: "customRole.labPermission.reports",
+    defaultMessage: "Reports",
+  },
+};
 
 function RoleAddModify() {
   const history = useHistory();
@@ -72,6 +191,25 @@ function RoleAddModify() {
     },
   ];
 
+  const getLabPermissionLabel = (roleName) => {
+    const normalizedRoleName = String(roleName || "").trim();
+    const translation = LAB_PERMISSION_LABELS[normalizedRoleName];
+    return translation
+      ? intl.formatMessage(translation)
+      : normalizedRoleName || roleName;
+  };
+
+  const isParentGroupChecked = (parentRole, childRoles = []) => {
+    if (!parentRole) {
+      return false;
+    }
+
+    return (
+      formData.permissionRoleIds.includes(parentRole.id) ||
+      childRoles.some((childRole) => formData.permissionRoleIds.includes(childRole.id))
+    );
+  };
+
   useEffect(() => {
     setLoading(true);
     getFromOpenElisServer("/rest/custom-roles/catalog", (response) => {
@@ -109,9 +247,107 @@ function RoleAddModify() {
 
   const updatePermissionRole = (permissionRoleId) => {
     setFormData((previousFormData) => {
-      const exists = previousFormData.permissionRoleIds.includes(
-        permissionRoleId,
+      const selectedRoleIds = new Set(previousFormData.permissionRoleIds);
+      const exists = selectedRoleIds.has(permissionRoleId);
+      const clickedRole = visibleLabPermissionRoles.find(
+        (permissionRole) => permissionRole.id === permissionRoleId,
       );
+
+      if (!clickedRole) {
+        return {
+          ...previousFormData,
+          permissionRoleIds: exists
+            ? previousFormData.permissionRoleIds.filter(
+                (role) => role !== permissionRoleId,
+              )
+            : [...previousFormData.permissionRoleIds, permissionRoleId],
+        };
+      }
+
+      const clickedRoleName = String(clickedRole?.name || "").trim();
+      const parentGroup = LAB_PERMISSION_GROUPS.find(
+        ({ parentName }) => parentName === clickedRoleName,
+      );
+
+      if (parentGroup) {
+        const isParentGroupSelected =
+          selectedRoleIds.has(permissionRoleId) ||
+          parentGroup.childNames
+            .map((roleName) =>
+              visibleLabPermissionRoles.find(
+                (permissionRole) =>
+                  String(permissionRole?.name || "").trim() === roleName,
+              ),
+            )
+            .filter(Boolean)
+            .some((permissionRole) => selectedRoleIds.has(permissionRole.id));
+        const relatedRoles = [parentGroup.parentName, ...parentGroup.childNames]
+          .map((roleName) =>
+            visibleLabPermissionRoles.find(
+              (permissionRole) =>
+                String(permissionRole?.name || "").trim() === roleName,
+            ),
+          )
+          .filter(Boolean);
+
+        if (isParentGroupSelected) {
+          relatedRoles.forEach((permissionRole) =>
+            selectedRoleIds.delete(permissionRole.id),
+          );
+        } else {
+          relatedRoles.forEach((permissionRole) =>
+            selectedRoleIds.add(permissionRole.id),
+          );
+        }
+
+        return {
+          ...previousFormData,
+          permissionRoleIds: Array.from(selectedRoleIds),
+        };
+      }
+
+      const childGroup = LAB_PERMISSION_GROUPS.find(({ childNames }) =>
+        childNames.includes(clickedRoleName),
+      );
+
+      if (childGroup) {
+        const parentRole = visibleLabPermissionRoles.find(
+          (permissionRole) =>
+            String(permissionRole?.name || "").trim() === childGroup.parentName,
+        );
+        const siblingRoles = childGroup.childNames
+          .map((roleName) =>
+            visibleLabPermissionRoles.find(
+              (permissionRole) =>
+                String(permissionRole?.name || "").trim() === roleName,
+            ),
+          )
+          .filter(Boolean);
+
+        if (exists) {
+          selectedRoleIds.delete(permissionRoleId);
+          const hasAnotherSelectedSibling = siblingRoles.some(
+            (permissionRole) =>
+              permissionRole.id !== permissionRoleId &&
+              selectedRoleIds.has(permissionRole.id),
+          );
+
+          if (!hasAnotherSelectedSibling && parentRole) {
+            selectedRoleIds.delete(parentRole.id);
+          }
+        } else {
+          if (parentRole) {
+            selectedRoleIds.add(parentRole.id);
+          }
+          selectedRoleIds.add(permissionRoleId);
+        }
+
+        return {
+          ...previousFormData,
+          permissionRoleIds: Array.from(selectedRoleIds),
+        };
+      }
+
       return {
         ...previousFormData,
         permissionRoleIds: exists
@@ -147,6 +383,52 @@ function RoleAddModify() {
     (permissionRole) =>
       !HIDDEN_LAB_PERMISSION_NAMES.has(String(permissionRole?.name || "").trim()),
   );
+  const visibleApplicableLabUnits = catalog.labUnits.filter(
+    (labUnit) =>
+      !HIDDEN_APPLICABLE_LAB_UNIT_NAMES.has(String(labUnit?.name || "").trim()),
+  );
+  const groupedLabPermissionRoles = useMemo(() => {
+    const roleByName = new Map(
+      visibleLabPermissionRoles.map((permissionRole) => [
+        String(permissionRole?.name || "").trim(),
+        permissionRole,
+      ]),
+    );
+    const consumedRoleIds = new Set();
+
+    const groupedRoles = LAB_PERMISSION_GROUPS.map(
+      ({ parentName, childNames }) => {
+        const parentRole = roleByName.get(parentName) || null;
+        const childRoles = childNames
+          .map((childName) => roleByName.get(childName) || null)
+          .filter(Boolean);
+
+        if (!parentRole && childRoles.length === 0) {
+          return null;
+        }
+
+        if (parentRole) {
+          consumedRoleIds.add(parentRole.id);
+        }
+        childRoles.forEach((childRole) => consumedRoleIds.add(childRole.id));
+
+        return {
+          key: parentName,
+          parentRole,
+          childRoles,
+        };
+      },
+    ).filter(Boolean);
+
+    const ungroupedRoles = visibleLabPermissionRoles.filter(
+      (permissionRole) => !consumedRoleIds.has(permissionRole.id),
+    );
+
+    return {
+      groupedRoles,
+      ungroupedRoles,
+    };
+  }, [visibleLabPermissionRoles]);
 
   const showError = async (response) => {
     let message = intl.formatMessage({ id: "server.error.msg" });
@@ -301,28 +583,37 @@ function RoleAddModify() {
             </Grid>
             <br />
             <Grid fullWidth>
-              <Column lg={8} md={4} sm={4}>
-                <Heading>
-                  <FormattedMessage
-                    id="customRole.permissions.global"
-                    defaultMessage="Global permissions"
-                  />
-                </Heading>
-                <FormGroup legendId="custom-role-global-permissions" legendText="">
-                  {visibleGlobalPermissionRoles.map((permissionRole) => (
-                    <Checkbox
-                      key={`global-${permissionRole.id}`}
-                      id={`global-${permissionRole.id}`}
-                      labelText={permissionRole.name}
-                      checked={formData.permissionRoleIds.includes(
-                        permissionRole.id,
-                      )}
-                      onChange={() => updatePermissionRole(permissionRole.id)}
+              {visibleGlobalPermissionRoles.length > 0 ? (
+                <Column lg={8} md={4} sm={4}>
+                  <Heading>
+                    <FormattedMessage
+                      id="customRole.permissions.global"
+                      defaultMessage="Global permissions"
                     />
-                  ))}
-                </FormGroup>
-              </Column>
-              <Column lg={8} md={4} sm={4}>
+                  </Heading>
+                  <FormGroup
+                    legendId="custom-role-global-permissions"
+                    legendText=""
+                  >
+                    {visibleGlobalPermissionRoles.map((permissionRole) => (
+                      <Checkbox
+                        key={`global-${permissionRole.id}`}
+                        id={`global-${permissionRole.id}`}
+                        labelText={getLabPermissionLabel(permissionRole.name)}
+                        checked={formData.permissionRoleIds.includes(
+                          permissionRole.id,
+                        )}
+                        onChange={() => updatePermissionRole(permissionRole.id)}
+                      />
+                    ))}
+                  </FormGroup>
+                </Column>
+              ) : null}
+              <Column
+                lg={visibleGlobalPermissionRoles.length > 0 ? 8 : 16}
+                md={8}
+                sm={4}
+              >
                 <Heading>
                   <FormattedMessage
                     id="customRole.permissions.lab"
@@ -336,11 +627,70 @@ function RoleAddModify() {
                   />
                 </p>
                 <FormGroup legendId="custom-role-lab-permissions" legendText="">
-                  {visibleLabPermissionRoles.map((permissionRole) => (
+                  <Accordion align="start">
+                    {groupedLabPermissionRoles.groupedRoles.map((permissionGroup) => {
+                      const { parentRole, childRoles, key } = permissionGroup;
+
+                      if (!parentRole) {
+                        return null;
+                      }
+
+                      if (childRoles.length === 0) {
+                        return (
+                          <Checkbox
+                            key={`lab-${parentRole.id}`}
+                            id={`lab-${parentRole.id}`}
+                            labelText={getLabPermissionLabel(parentRole.name)}
+                            checked={formData.permissionRoleIds.includes(
+                              parentRole.id,
+                            )}
+                            onChange={() => updatePermissionRole(parentRole.id)}
+                          />
+                        );
+                      }
+
+                      return (
+                        <AccordionItem
+                          key={`lab-group-${key}`}
+                          title={getLabPermissionLabel(parentRole.name)}
+                        >
+                          <div>
+                            <Checkbox
+                              id={`lab-${parentRole.id}`}
+                              labelText={getLabPermissionLabel(parentRole.name)}
+                              checked={isParentGroupChecked(
+                                parentRole,
+                                childRoles,
+                              )}
+                              onChange={() => updatePermissionRole(parentRole.id)}
+                            />
+                          </div>
+                          <div style={{ paddingLeft: "1.5rem" }}>
+                            {childRoles.map((permissionRole) => (
+                              <Checkbox
+                                key={`lab-${permissionRole.id}`}
+                                id={`lab-${permissionRole.id}`}
+                                labelText={getLabPermissionLabel(
+                                  permissionRole.name,
+                                )}
+                                checked={formData.permissionRoleIds.includes(
+                                  permissionRole.id,
+                                )}
+                                onChange={() =>
+                                  updatePermissionRole(permissionRole.id)
+                                }
+                              />
+                            ))}
+                          </div>
+                        </AccordionItem>
+                      );
+                    })}
+                  </Accordion>
+                  {groupedLabPermissionRoles.ungroupedRoles.map((permissionRole) => (
                     <Checkbox
                       key={`lab-${permissionRole.id}`}
                       id={`lab-${permissionRole.id}`}
-                      labelText={permissionRole.name}
+                      labelText={getLabPermissionLabel(permissionRole.name)}
                       checked={formData.permissionRoleIds.includes(
                         permissionRole.id,
                       )}
@@ -362,7 +712,7 @@ function RoleAddModify() {
                   />
                 </p>
                 <FormGroup legendId="custom-role-lab-units" legendText="">
-                  {catalog.labUnits.map((labUnit) => (
+                  {visibleApplicableLabUnits.map((labUnit) => (
                     <Checkbox
                       key={`lab-unit-${labUnit.id}`}
                       id={`lab-unit-${labUnit.id}`}

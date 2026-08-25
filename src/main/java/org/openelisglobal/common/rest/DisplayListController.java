@@ -593,18 +593,13 @@ public class DisplayListController extends BaseRestController {
     public List<IdValuePair> createUserTestSectionsList(HttpServletRequest request, @PathVariable String roleName) {
         if (roleName.equals("ALL")) {
             return userService.getUserTestSections(getSysUserId(request), null);
+        } else if (Constants.ROLE_RESULTS.equals(roleName)) {
+            return getUserTestSectionsForRoles(request, List.of(Constants.ROLE_RESULTS, Constants.ROLE_RESULTS_BY_UNIT,
+                    Constants.ROLE_RESULTS_BY_PATIENT, Constants.ROLE_RESULTS_BY_ORDER));
         } else if (Constants.ROLE_VALIDATION.equals(roleName)) {
-            LinkedHashMap<String, IdValuePair> merged = new LinkedHashMap<>();
-            List<String> validationRoles = List.of(Constants.ROLE_VALIDATION, Constants.ROLE_PATHOLOGIST);
-            for (String role : validationRoles) {
-                Role currentRole = roleService.getRoleByName(role);
-                if (currentRole == null) {
-                    continue;
-                }
-                userService.getUserTestSections(getSysUserId(request), currentRole.getId())
-                        .forEach(section -> merged.putIfAbsent(section.getId(), section));
-            }
-            return new ArrayList<>(merged.values());
+            return getUserTestSectionsForRoles(request,
+                    List.of(Constants.ROLE_VALIDATION, Constants.ROLE_VALIDATION_ROUTINE,
+                            Constants.ROLE_VALIDATION_BY_ORDER, Constants.ROLE_PATHOLOGIST));
         } else {
             Role role = roleService.getRoleByName(roleName);
             if (role == null) {
@@ -613,6 +608,19 @@ public class DisplayListController extends BaseRestController {
             String resultsRoleId = role.getId();
             return userService.getUserTestSections(getSysUserId(request), resultsRoleId);
         }
+    }
+
+    private List<IdValuePair> getUserTestSectionsForRoles(HttpServletRequest request, List<String> roleNames) {
+        LinkedHashMap<String, IdValuePair> merged = new LinkedHashMap<>();
+        for (String roleName : roleNames) {
+            Role currentRole = roleService.getRoleByName(roleName);
+            if (currentRole == null) {
+                continue;
+            }
+            userService.getUserTestSections(getSysUserId(request), currentRole.getId())
+                    .forEach(section -> merged.putIfAbsent(section.getId(), section));
+        }
+        return new ArrayList<>(merged.values());
     }
 
     @GetMapping(value = "analysis-status-types", produces = MediaType.APPLICATION_JSON_VALUE)

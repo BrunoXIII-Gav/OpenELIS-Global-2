@@ -22,13 +22,16 @@ import org.openelisglobal.common.exception.LIMSRuntimeException;
 import org.openelisglobal.common.service.UserFieldOptionResolver;
 import org.openelisglobal.patientadditionalfield.bean.PatientAdditionalFieldOptionPayload;
 import org.openelisglobal.patientadditionalfield.bean.PatientAdditionalFieldPayload;
+import org.openelisglobal.patientadditionalfield.bean.PatientFixedFieldConfigPayload;
 import org.openelisglobal.patientadditionalfield.dao.PatientAdditionalFieldDefinitionDAO;
 import org.openelisglobal.patientadditionalfield.dao.PatientAdditionalFieldOptionDAO;
 import org.openelisglobal.patientadditionalfield.dao.PatientAdditionalFieldValueDAO;
+import org.openelisglobal.patientadditionalfield.dao.PatientFixedFieldConfigDAO;
 import org.openelisglobal.patientadditionalfield.valueholder.PatientAdditionalFieldDefinition;
 import org.openelisglobal.patientadditionalfield.valueholder.PatientAdditionalFieldDefinition.FieldType;
 import org.openelisglobal.patientadditionalfield.valueholder.PatientAdditionalFieldOption;
 import org.openelisglobal.patientadditionalfield.valueholder.PatientAdditionalFieldValue;
+import org.openelisglobal.patientadditionalfield.valueholder.PatientFixedFieldConfig;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -43,6 +46,21 @@ public class PatientAdditionalFieldServiceImpl implements PatientAdditionalField
     private static final DateTimeFormatter DATE_TIME_WITH_SPACE_SECONDS = DateTimeFormatter
             .ofPattern("yyyy-MM-dd HH:mm:ss");
     private static final Set<FieldType> OPTION_TYPES = Set.of(FieldType.SELECT, FieldType.RADIO, FieldType.MULTISELECT);
+    private static final List<FixedFieldDefault> FIXED_FIELD_DEFAULTS = List.of(
+            new FixedFieldDefault("photo", 10, false, false),
+            new FixedFieldDefault("subjectNumber", 20, false, false),
+            new FixedFieldDefault("nationalId", 30, false, true),
+            new FixedFieldDefault("optionalIdentifiers", 40, false, false),
+            new FixedFieldDefault("lastName", 50, false, false),
+            new FixedFieldDefault("firstName", 60, false, false),
+            new FixedFieldDefault("primaryPhone", 70, false, false),
+            new FixedFieldDefault("email", 80, false, false),
+            new FixedFieldDefault("gender", 90, true, false),
+            new FixedFieldDefault("birthDateAge", 100, true, false),
+            new FixedFieldDefault("emergencyContact", 110, false, false),
+            new FixedFieldDefault("additionalInfo", 120, false, false));
+    private static final Set<String> FIXED_FIELD_KEYS = FIXED_FIELD_DEFAULTS.stream().map(f -> f.fieldKey.toLowerCase())
+            .collect(Collectors.toSet());
 
     @Autowired
     private PatientAdditionalFieldDefinitionDAO definitionDAO;
@@ -52,6 +70,9 @@ public class PatientAdditionalFieldServiceImpl implements PatientAdditionalField
 
     @Autowired
     private PatientAdditionalFieldValueDAO valueDAO;
+
+    @Autowired
+    private PatientFixedFieldConfigDAO fixedFieldConfigDAO;
 
     @Autowired
     private UserFieldOptionResolver userFieldOptionResolver;
@@ -67,6 +88,32 @@ public class PatientAdditionalFieldServiceImpl implements PatientAdditionalField
                 .collect(Collectors.toList());
         List<PatientAdditionalFieldOption> options = optionDAO.findByDefinitionIds(definitionIds, !includeInactive);
         return mapDefinitionsToPayload(definitions, options, resolveUserOptions);
+    }
+
+    @Override
+    @Transactional(readOnly = true)
+    public List<PatientFixedFieldConfigPayload> getFixedFieldConfigs() {
+        List<PatientFixedFieldConfig> configured = fixedFieldConfigDAO.findAllOrdered();
+        Map<String, PatientFixedFieldConfig> byKey = configured.stream()
+                .collect(Collectors.toMap(c -> c.getFieldKey().toLowerCase(), c -> c, (left, right) -> left));
+
+        List<PatientFixedFieldConfigPayload> result = new ArrayList<>();
+        for (FixedFieldDefault fixedFieldDefault : FIXED_FIELD_DEFAULTS) {
+            PatientFixedFieldConfig config = byKey.get(fixedFieldDefault.fieldKey.toLowerCase());
+            if (config == null) {
+                PatientFixedFieldConfigPayload fallback = new PatientFixedFieldConfigPayload();
+                fallback.setFieldKey(fixedFieldDefault.fieldKey);
+                fallback.setVisible(true);
+                fallback.setRequired(fixedFieldDefault.required);
+                fallback.setReadonly(fixedFieldDefault.readonly);
+                fallback.setSortOrder(fixedFieldDefault.sortOrder);
+                result.add(fallback);
+            } else {
+                result.add(mapFixedFieldToPayload(config));
+            }
+        }
+
+        return result;
     }
 
     @Override
@@ -277,6 +324,40 @@ public class PatientAdditionalFieldServiceImpl implements PatientAdditionalField
     }
 
     @Override
+    public void upsertFixedFieldConfigs(List<PatientFixedFieldConfigPayload> payloads, String currentUserId) {
+        if (payloads == null || payloads.isEmpty()) {
+            return;
+        }
+
+        for (PatientFixedFieldConfigPayload payload : payloads) {
+            if (payload == null || StringUtils.isBlank(payload.getFieldKey())) {
+                continue;
+            }
+
+            String normalizedKey = payload.getFieldKey().trim();
+            if (!FIXED_FIELD_KEYS.contains(normalizedKey.toLowerCase())) {
+                throw new IllegalArgumentException("Unsupported patient fixed field key: " + normalizedKey);
+            }
+
+            PatientFixedFieldConfig entity = fixedFieldConfigDAO.findByFieldKey(normalizedKey)
+                    .orElseGet(PatientFixedFieldConfig::new);
+            entity.setFieldKey(normalizedKey);
+            entity.setVisible(payload.getVisible() == null || payload.getVisible());
+            entity.setRequired(payload.getRequired() != null && payload.getRequired());
+            entity.setReadonly(payload.getReadonly() != null && payload.getReadonly());
+            entity.setSortOrder(
+                    payload.getSortOrder() == null ? getDefaultFixedFieldSortOrder(normalizedKey) : payload.getSortOrder());
+            entity.setSysUserId(currentUserId);
+
+            if (entity.getId() == null) {
+                fixedFieldConfigDAO.insert(entity);
+            } else {
+                fixedFieldConfigDAO.update(entity);
+            }
+        }
+    }
+
+    @Override
     public void validateAndPersistPatientValues(String patientId, Map<String, String> fieldValues,
             String currentUserId, List<PatientAdditionalFieldPayload> activeFieldCache) {
         if (StringUtils.isBlank(patientId) || fieldValues == null) {
@@ -353,6 +434,17 @@ public class PatientAdditionalFieldServiceImpl implements PatientAdditionalField
         payload.setMaxLength(definition.getMaxLength());
         payload.setMetadataJson(definition.getMetadataJson());
         payload.setHasSavedValues(hasSavedValues(definition.getId()));
+        return payload;
+    }
+
+    private PatientFixedFieldConfigPayload mapFixedFieldToPayload(PatientFixedFieldConfig config) {
+        PatientFixedFieldConfigPayload payload = new PatientFixedFieldConfigPayload();
+        payload.setId(config.getId());
+        payload.setFieldKey(config.getFieldKey());
+        payload.setVisible(config.getVisible());
+        payload.setRequired(config.getRequired());
+        payload.setReadonly(config.getReadonly());
+        payload.setSortOrder(config.getSortOrder());
         return payload;
     }
 
@@ -474,6 +566,11 @@ public class PatientAdditionalFieldServiceImpl implements PatientAdditionalField
         List<PatientAdditionalFieldOption> existing = optionDAO.findByDefinitionId(fieldId, true);
         return existing.stream().map(PatientAdditionalFieldOption::getSortOrder).filter(value -> value != null)
                 .max(Integer::compareTo).map(max -> max + 1).orElse(1);
+    }
+
+    private Integer getDefaultFixedFieldSortOrder(String fieldKey) {
+        return FIXED_FIELD_DEFAULTS.stream().filter(f -> f.fieldKey.equalsIgnoreCase(fieldKey)).map(f -> f.sortOrder)
+                .findFirst().orElse(0);
     }
 
     private void saveOptionsForDefinition(Integer definitionId, List<PatientAdditionalFieldOptionPayload> options,
@@ -689,5 +786,19 @@ public class PatientAdditionalFieldServiceImpl implements PatientAdditionalField
             payloads.add(payload);
         }
         return payloads;
+    }
+
+    private static class FixedFieldDefault {
+        private final String fieldKey;
+        private final Integer sortOrder;
+        private final boolean required;
+        private final boolean readonly;
+
+        private FixedFieldDefault(String fieldKey, Integer sortOrder, boolean required, boolean readonly) {
+            this.fieldKey = fieldKey;
+            this.sortOrder = sortOrder;
+            this.required = required;
+            this.readonly = readonly;
+        }
     }
 }

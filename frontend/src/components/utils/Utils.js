@@ -1,6 +1,40 @@
 import config from "../../config.json";
 import { emitAccessDeniedEvent } from "../security/accessDenied";
 
+const FRONTEND_HIDDEN_SAMPLE_TYPE_NAMES = new Set([
+  "DBS",
+  "Fluid",
+  "Genital Specimen",
+  "Histopathology specimen",
+  "Immunohistochemistry specimen",
+  "Plasma",
+  "Respiratory Swab",
+  "Serum",
+  "Skin",
+  "Sputum",
+  "Tissue",
+  "Tissue antemortem",
+  "Tissue post mortem",
+  "Urine",
+  "Urines",
+  "Vaginal Fluid",
+  "Whole Blood",
+]);
+
+const filterFrontendHiddenSampleTypes = (endPoint, payload) => {
+  if (
+    !String(endPoint || "").startsWith("/rest/user-sample-types") ||
+    !Array.isArray(payload)
+  ) {
+    return payload;
+  }
+
+  return payload.filter((item) => {
+    const sampleTypeName = String(item?.value || "").trim();
+    return !FRONTEND_HIDDEN_SAMPLE_TYPE_NAMES.has(sampleTypeName);
+  });
+};
+
 const notifyIfAccessDenied = (response, options = {}) => {
   if (response?.status === 403 && !options?.suppressAccessDeniedDialog) {
     emitAccessDeniedEvent();
@@ -56,7 +90,7 @@ export const getFromOpenElisServer = (endPoint, callback, signal = null) => {
       const contentType = response.headers.get("content-type");
       if (contentType && contentType.indexOf("application/json") !== -1) {
         return response.json().then((jsonResp) => {
-          callback(jsonResp);
+          callback(filterFrontendHiddenSampleTypes(endPoint, jsonResp));
         });
       } else {
         callback();
@@ -659,13 +693,24 @@ export const Roles = {
   PATHOLOGIST: "Pathologist",
   RECEPTION: "Reception",
   GENERIC_SAMPLE: "Generic Sample",
+  SAMPLE_MANAGEMENT: "Sample Management",
   ORDER: "Order",
+  ORDER_ADD: "Order Add",
+  ORDER_EDIT: "Order Edit",
   PATIENT: "Patient",
+  PATIENT_MANAGEMENT: "Patient Management",
+  PATIENT_HISTORY: "Patient History",
   RESULTS: "Results",
+  RESULTS_BY_UNIT: "Results By Unit",
+  RESULTS_BY_PATIENT: "Results By Patient",
+  RESULTS_BY_ORDER: "Results By Order",
   VALIDATION: "Validation",
+  VALIDATION_ROUTINE: "Validation Routine",
+  VALIDATION_BY_ORDER: "Validation By Order",
   REPORTS: "Reports",
   ALIQUOT: "Aliquot",
   STORAGE: "Storage",
+  STORAGE_MANAGEMENT: "Storage Management",
 };
 
 export const toBase64 = (file) =>

@@ -61,6 +61,12 @@ function SearchPatientForm(props) {
   );
   const [prevfirstName, setPrevfirstName] = useState("");
   const [prevlastName, setPrevlastName] = useState("");
+  const hideNationalIdColumn = props.hideNationalIdColumn === true;
+  const disableNationalIdSearch = props.disableNationalIdSearch === true;
+
+  const patientTableHeaders = hideNationalIdColumn
+    ? patientSearchHeaderData.filter((header) => header.key !== "nationalId")
+    : patientSearchHeaderData;
 
   const handlePatientImport = (patientId) => {
     console.log("Import button clicked, patientId:", patientId);
@@ -146,6 +152,9 @@ function SearchPatientForm(props) {
     setPagination(false);
     setLoading(true);
     values.dateOfBirth = dob;
+    const nationalIdSearchValue = disableNationalIdSearch
+      ? ""
+      : values.patientId;
     let searchEndPoint =
       "/rest/patient-search-results?" +
       "lastName=" +
@@ -157,7 +166,7 @@ function SearchPatientForm(props) {
       "&subjectNumber=" +
       values.patientId +
       "&nationalID=" +
-      values.patientId +
+      nationalIdSearchValue +
       "&labNumber=" +
       values.labNumber +
       "&guid=" +
@@ -561,7 +570,7 @@ function SearchPatientForm(props) {
       )}
       <DataTable
         rows={patientSearchResults}
-        headers={patientSearchHeaderData}
+        headers={patientTableHeaders}
         isSortable
       >
         {({ rows, headers, getHeaderProps, getTableProps }) => (

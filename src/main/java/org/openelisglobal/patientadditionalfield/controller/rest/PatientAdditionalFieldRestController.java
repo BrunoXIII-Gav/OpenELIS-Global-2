@@ -1,11 +1,13 @@
 package org.openelisglobal.patientadditionalfield.controller.rest;
 
 import jakarta.servlet.http.HttpServletRequest;
+import java.util.Collections;
 import java.util.List;
 import java.util.Map;
 import org.openelisglobal.common.rest.BaseRestController;
 import org.openelisglobal.patientadditionalfield.bean.PatientAdditionalFieldOptionPayload;
 import org.openelisglobal.patientadditionalfield.bean.PatientAdditionalFieldPayload;
+import org.openelisglobal.patientadditionalfield.bean.PatientFixedFieldConfigPayload;
 import org.openelisglobal.patientadditionalfield.service.PatientAdditionalFieldService;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.http.HttpStatus;
@@ -47,6 +49,29 @@ public class PatientAdditionalFieldRestController extends BaseRestController {
     public Map<String, String> getValues(@RequestParam("patientId") String patientId) {
         return patientAdditionalFieldService.getPatientValues(patientId,
                 patientAdditionalFieldService.getFields(false, true));
+    }
+
+    @GetMapping(value = "patient-additional-fields/fixed", produces = MediaType.APPLICATION_JSON_VALUE)
+    @PreAuthorize("@accessControl.hasAnyPermission(T(org.openelisglobal.common.constants.SystemPermission).PATIENT, "
+            + "T(org.openelisglobal.common.constants.SystemPermission).ORDER)")
+    @ResponseBody
+    public List<PatientFixedFieldConfigPayload> getFixedFieldConfigs() {
+        return patientAdditionalFieldService.getFixedFieldConfigs();
+    }
+
+    @PutMapping(value = "patient-additional-fields/fixed", produces = MediaType.APPLICATION_JSON_VALUE, consumes = MediaType.APPLICATION_JSON_VALUE)
+    @PreAuthorize("@accessControl.hasPermission(T(org.openelisglobal.common.constants.SystemPermission).ADMINISTRATION)")
+    @ResponseBody
+    public ResponseEntity<?> upsertFixedFieldConfigs(HttpServletRequest request,
+            @RequestBody(required = false) List<PatientFixedFieldConfigPayload> payloads) {
+        try {
+            patientAdditionalFieldService.upsertFixedFieldConfigs(
+                    payloads == null ? Collections.emptyList() : payloads,
+                    getSysUserId(request));
+            return ResponseEntity.noContent().build();
+        } catch (IllegalArgumentException e) {
+            return ResponseEntity.badRequest().body(Map.of("message", e.getMessage()));
+        }
     }
 
     @PostMapping(value = "patient-additional-fields", produces = MediaType.APPLICATION_JSON_VALUE, consumes = MediaType.APPLICATION_JSON_VALUE)
