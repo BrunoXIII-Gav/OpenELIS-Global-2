@@ -28,8 +28,6 @@ public class SampleCugServiceImpl implements SampleCugService {
 
     private static final int DEFAULT_RESERVATION_TTL_MINUTES = 15;
     private static final int MAX_RESERVATION_ATTEMPTS = 30;
-    private static final int MAX_MANUAL_INCREMENT = 5;
-
     @PersistenceContext
     private EntityManager entityManager;
 
@@ -238,22 +236,8 @@ public class SampleCugServiceImpl implements SampleCugService {
     }
 
     private String validateManualCugOverride(String reservedValue, String manualValue) {
-        CugComponents reserved = parseCugComponents(reservedValue);
-        CugComponents manual = parseCugComponents(manualValue);
-
-        long maxAllowedPrefix = reserved.prefix + MAX_MANUAL_INCREMENT;
-        long maxAllowedSuffix = reserved.suffix + MAX_MANUAL_INCREMENT;
-
-        if (manual.prefix < reserved.prefix || manual.prefix > maxAllowedPrefix) {
-            throw new IllegalArgumentException(
-                    "Manual CUG prefix must be between " + reserved.prefix + " and " + maxAllowedPrefix);
-        }
-        if (manual.suffix < reserved.suffix || manual.suffix > maxAllowedSuffix) {
-            throw new IllegalArgumentException(
-                    "Manual CUG suffix must be between " + reserved.suffix + " and " + maxAllowedSuffix);
-        }
-
-        return manual.rawValue;
+        parseCugComponents(reservedValue);
+        return parseCugComponents(manualValue).rawValue;
     }
 
     private CugComponents parseCugComponents(String cugValue) {

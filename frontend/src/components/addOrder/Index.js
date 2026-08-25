@@ -620,7 +620,40 @@ const Index = () => {
     ) {
       return "";
     }
-    return trimmedMessage;
+    return trimmedMessage.replace(/\s+@\s+[\w.$]+:\d+\s*$/, "").trim();
+  };
+
+  const formatOrderSubmissionError = (message) => {
+    const normalizedMessage = String(message || "").trim();
+    if (!normalizedMessage) {
+      return normalizedMessage;
+    }
+
+    const duplicateExistingMatch = normalizedMessage.match(
+      /Duplicate CUG value already exists:\s*([0-9]+\.[0-9]+)/i,
+    );
+    if (duplicateExistingMatch) {
+      return intl.formatMessage(
+        { id: "sample.cug.duplicate.existing.error" },
+        { cugCode: duplicateExistingMatch[1] },
+      );
+    }
+
+    const duplicateInRequestMatch = normalizedMessage.match(
+      /Duplicate CUG value in request:\s*([0-9]+\.[0-9]+)/i,
+    );
+    if (duplicateInRequestMatch) {
+      return intl.formatMessage(
+        { id: "sample.cug.duplicate.request.error" },
+        { cugCode: duplicateInRequestMatch[1] },
+      );
+    }
+
+    if (/Invalid CUG format/i.test(normalizedMessage)) {
+      return intl.formatMessage({ id: "sample.cug.manual.format.error" });
+    }
+
+    return normalizedMessage;
   };
 
   const handlePost = async (response) => {
@@ -650,6 +683,7 @@ const Index = () => {
         }
       }
       detailedMessage = sanitizeServerMessage(detailedMessage);
+      detailedMessage = formatOrderSubmissionError(detailedMessage);
       const genericMessage = intl.formatMessage({ id: "server.error.msg" });
       const fallbackWithStatus = `${genericMessage} (HTTP ${response.status})`;
       showAlertMessage(

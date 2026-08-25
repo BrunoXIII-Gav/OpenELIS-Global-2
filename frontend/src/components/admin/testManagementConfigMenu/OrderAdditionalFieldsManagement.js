@@ -193,6 +193,13 @@ const OrderAdditionalFieldsManagement = () => {
       ),
     [sampleFixedConfigs],
   );
+
+  const getSampleFixedFieldDisplayLabel = (fieldKey) => {
+    if (String(fieldKey || "").toLowerCase() === "cug") {
+      return intl.formatMessage({ id: "sample.cug.label" });
+    }
+    return fieldKey;
+  };
   const fixedRows = useMemo(
     () =>
       [...fixedConfigs].sort((left, right) => {
@@ -756,11 +763,35 @@ const OrderAdditionalFieldsManagement = () => {
 
   const updateSampleFixedConfig = (fieldKey, property, rawValue) => {
     setSampleFixedConfigs((previous) =>
-      previous.map((config) =>
-        config.fieldKey !== fieldKey
-          ? config
-          : { ...config, [property]: rawValue },
-      ),
+      previous.map((config) => {
+        if (config.fieldKey !== fieldKey) {
+          return config;
+        }
+
+        if (
+          String(fieldKey || "").toLowerCase() === "cug" &&
+          property === "visible" &&
+          rawValue === false
+        ) {
+          return {
+            ...config,
+            visible: false,
+            readonly: true,
+          };
+        }
+
+        if (
+          String(fieldKey || "").toLowerCase() === "cug" &&
+          property === "required"
+        ) {
+          return {
+            ...config,
+            required: true,
+          };
+        }
+
+        return { ...config, [property]: rawValue };
+      }),
     );
   };
 
@@ -1830,7 +1861,9 @@ const OrderAdditionalFieldsManagement = () => {
                 <TableBody>
                   {sampleFixedRows.map((config) => (
                     <TableRow key={config.fieldKey}>
-                      <TableCell>{config.fieldKey}</TableCell>
+                      <TableCell>
+                        {getSampleFixedFieldDisplayLabel(config.fieldKey)}
+                      </TableCell>
                       <TableCell>
                         <Checkbox
                           id={`sample-fixed-visible-${config.fieldKey}`}
@@ -1850,6 +1883,10 @@ const OrderAdditionalFieldsManagement = () => {
                           id={`sample-fixed-required-${config.fieldKey}`}
                           labelText=""
                           checked={!!config.required}
+                          disabled={
+                            String(config.fieldKey || "").toLowerCase() ===
+                            "cug"
+                          }
                           onChange={(_event, { checked }) =>
                             updateSampleFixedConfig(
                               config.fieldKey,
@@ -1864,6 +1901,10 @@ const OrderAdditionalFieldsManagement = () => {
                           id={`sample-fixed-readonly-${config.fieldKey}`}
                           labelText=""
                           checked={!!config.readonly}
+                          disabled={
+                            String(config.fieldKey || "").toLowerCase() ===
+                              "cug" && config.visible === false
+                          }
                           onChange={(_event, { checked }) =>
                             updateSampleFixedConfig(
                               config.fieldKey,

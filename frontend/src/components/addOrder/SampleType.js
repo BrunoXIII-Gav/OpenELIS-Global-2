@@ -171,8 +171,22 @@ const SampleType = (props) => {
     return config.required != null ? !!config.required : fallback;
   }
 
+  function isSampleFieldReadonly(fieldKey, fallback = false) {
+    const config = getSampleFixedFieldConfig(fieldKey);
+    if (!config) {
+      return fallback;
+    }
+    return config.readonly != null ? !!config.readonly : fallback;
+  }
+
   const additionalFieldsVisible = isSampleFieldVisible("additionalFields");
   const referralFieldVisible = isSampleFieldVisible("referral");
+  const cugFieldVisible = isSampleFieldVisible("cug");
+  const cugFieldConfiguredReadonly = isSampleFieldReadonly("cug", true);
+  const cugHasReservedPreview =
+    String(sampleXml.cugAutoReserved || "").trim() !== "" &&
+    String(sampleXml.cugReservationToken || "").trim() !== "";
+  const cugFieldReadonly = cugFieldConfiguredReadonly || !cugHasReservedPreview;
 
   function handleCollectionDate(date) {
     setSampleXml({
@@ -443,27 +457,6 @@ const SampleType = (props) => {
           cugValidationMessage: intl.formatMessage({
             id: "sample.cug.manual.format.error",
           }),
-        };
-      }
-
-      const maxPrefix = reserved.prefix + 5;
-      const maxSuffix = reserved.suffix + 5;
-      const prefixInRange =
-        manual.prefix >= reserved.prefix && manual.prefix <= maxPrefix;
-      const suffixInRange =
-        manual.suffix >= reserved.suffix && manual.suffix <= maxSuffix;
-      if (!prefixInRange || !suffixInRange) {
-        return {
-          ...next,
-          cugValidationMessage: intl.formatMessage(
-            { id: "sample.cug.manual.range.error" },
-            {
-              minPrefix: reserved.prefix,
-              minSuffix: reserved.suffix,
-              maxPrefix: maxPrefix,
-              maxSuffix: maxSuffix,
-            },
-          ),
         };
       }
 
@@ -1103,6 +1096,19 @@ const SampleType = (props) => {
             value={sampleXml.rejectionReason}
             onChange={(e) => handleReasons(e)}
           />
+        )}
+        {cugFieldVisible && (
+          <div className="inlineDiv">
+            <TextInput
+              id={`cug_${index}`}
+              value={sampleXml.cug || ""}
+              labelText={intl.formatMessage({ id: "sample.cug.label" })}
+              onChange={handleCugChange}
+              readOnly={cugFieldReadonly}
+              invalid={String(sampleXml.cugValidationMessage || "").trim() !== ""}
+              invalidText={sampleXml.cugValidationMessage || ""}
+            />
+          </div>
         )}
         {isSampleFieldVisible("quantity") && (
           <div className="inlineDiv" style={{ display: "flex", gap: "1rem" }}>

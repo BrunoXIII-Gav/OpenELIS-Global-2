@@ -2710,6 +2710,8 @@
   "sample.cug.required": "Le CUG est obligatoire pour chaque échantillon.",
   "sample.cug.manual.format.error": "Format CUG invalide. Utilisez prefixe.suffixe numérique (exemple : 45.6).",
   "sample.cug.manual.range.error": "Le CUG doit être compris entre {minPrefix}.{minSuffix} et {maxPrefix}.{maxSuffix}.",
+  "sample.cug.duplicate.existing.error": "Le CUG {cugCode} existe déjà dans le système. Saisissez un CUG différent pour cet échantillon.",
+  "sample.cug.duplicate.request.error": "Le CUG {cugCode} est répété dans cette même commande. Chaque échantillon doit avoir un CUG différent.",
   "sample.type": "Type d'échantillon",
   "sample.type.and.test.sort.order": "Ordre de tri des types d'échantillons et des tests",
   "sample.uom.label": "Unité de mesure de l’échantillon",
