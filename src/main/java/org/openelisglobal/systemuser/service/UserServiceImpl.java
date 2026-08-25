@@ -24,6 +24,7 @@ import org.openelisglobal.login.valueholder.LoginUser;
 import org.openelisglobal.login.valueholder.UserSessionData;
 import org.openelisglobal.program.service.ProgramService;
 import org.openelisglobal.resultvalidation.bean.AnalysisItem;
+import org.openelisglobal.role.valueholder.Role;
 import org.openelisglobal.role.service.RoleService;
 import org.openelisglobal.security.SamlRoleMapping;
 import org.openelisglobal.security.SamlRoleMapping.ParsedSamlRole;
@@ -158,9 +159,10 @@ public class UserServiceImpl implements UserService {
         List<String> currentUserRoles = userRoleService.getRoleIdsForUser(systemUser.getId());
         List<UserRole> deletedUserRoles = new ArrayList<>();
         if (isLabRole) {
-            for (String role : currentUserRoles) {
-                selectedRoles.add(role);
-            }
+            List<String> rolesToPreserve = currentUserRoles.stream()
+                    .filter(roleId -> !isLabPermissionRole(roleId))
+                    .collect(Collectors.toList());
+            selectedRoles.addAll(rolesToPreserve);
         }
 
         for (int i = 0; i < selectedRoles.size(); i++) {
@@ -186,6 +188,24 @@ public class UserServiceImpl implements UserService {
         if (deletedUserRoles.size() > 0) {
             userRoleService.deleteAll(deletedUserRoles);
         }
+    }
+
+    private boolean isLabPermissionRole(String roleId) {
+        if (StringUtils.isBlank(roleId)) {
+            return false;
+        }
+
+        Role role = roleService.getRoleById(roleId);
+        if (role == null || StringUtils.isBlank(role.getGroupingParent())) {
+            return false;
+        }
+
+        Role labRolesGroup = roleService.getRoleByName(Constants.LAB_ROLES_GROUP);
+        if (labRolesGroup == null || StringUtils.isBlank(labRolesGroup.getId())) {
+            return false;
+        }
+
+        return labRolesGroup.getId().equals(role.getGroupingParent());
     }
 
     @Override

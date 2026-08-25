@@ -33,6 +33,11 @@ import { FormattedMessage, useIntl } from "react-intl";
 import PageBreadCrumb from "../../../common/PageBreadCrumb.js";
 import GenericConfigEdit from "../../generalConfig/common/GenericConfigEdit.js";
 import { useHistory } from "react-router-dom";
+import {
+  getSiteInformationDisplayDescription,
+  getSiteInformationDisplayName,
+  isSiteInformationConfig,
+} from "./siteInformationDisplay.js";
 
 function ConfigMenuDisplay(props) {
   const { notificationVisible, setNotificationVisible, addNotification } =
@@ -55,7 +60,7 @@ function ConfigMenuDisplay(props) {
   let breadcrumbs = [
     { label: "home.label", link: "/" },
     { label: "breadcrums.admin.managment", link: "/MasterListsPage" },
-    { label: `${props.label}`, link: `/MasterListsPage/${props.menuType}` },
+    { label: `${props.id}`, link: `/MasterListsPage/${props.menuType}` },
   ];
 
   function handleModify(event) {
@@ -137,8 +142,12 @@ function ConfigMenuDisplay(props) {
     const value = res?.value || "";
     const updatedItem = {
       id: item.id,
-      name: item.name,
-      description: item.description,
+      name: isSiteInformationConfig(props.menuType)
+        ? getSiteInformationDisplayName(intl, item.name)
+        : item.name,
+      description: isSiteInformationConfig(props.menuType)
+        ? getSiteInformationDisplayDescription(intl, item.description)
+        : item.description,
       value: value,
       valueType: item.valueType,
     };
@@ -189,8 +198,12 @@ function ConfigMenuDisplay(props) {
             }
             return {
               id: item.id,
-              name: item.name,
-              description: item.description,
+              name: isSiteInformationConfig(props.menuType)
+                ? getSiteInformationDisplayName(intl, item.name)
+                : item.name,
+              description: isSiteInformationConfig(props.menuType)
+                ? getSiteInformationDisplayDescription(intl, item.description)
+                : item.description,
               value: value,
               valueType: item.valueType,
             };
@@ -202,7 +215,7 @@ function ConfigMenuDisplay(props) {
     };
 
     updateConfigList();
-  }, [formEntryConfigMenuList]);
+  }, [formEntryConfigMenuList, intl, props.menuType]);
 
   const renderCell = (cell, row) => {
     if (cell.info.header === "select") {

@@ -119,6 +119,16 @@
   font-weight: 600;
 }
 
+.awaiting-results-counter-tag--yellow {
+  background-color: #fdf0c3 !important;
+}
+
+.awaiting-results-counter-tag--yellow .cds--tag__label,
+.awaiting-results-counter-tag--yellow svg {
+  color: #8e6a00 !important;
+  fill: #8e6a00 !important;
+}
+
 @media (max-width: 1200px) {
   .home-dashboard-container {
     grid-template-columns: repeat(3, minmax(220px, 1fr));

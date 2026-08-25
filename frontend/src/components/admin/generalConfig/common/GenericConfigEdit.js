@@ -27,6 +27,11 @@ import config from "../../../../config.json";
 import { NotificationContext } from "../../../layout/Layout.js";
 
 import { FormattedMessage, useIntl } from "react-intl";
+import {
+  getSiteInformationDisplayDescription,
+  getSiteInformationDisplayName,
+  isSiteInformationConfig,
+} from "./siteInformationDisplay.js";
 
 const GenericConfigEdit = ({ menuType, ID }) => {
   const intl = useIntl();
@@ -139,6 +144,20 @@ const GenericConfigEdit = ({ menuType, ID }) => {
   };
 
   const handleSubmitButton = () => {
+    if (
+      FormEntryConfig.tag === "numericOnly" &&
+      !/^\d+$/.test(String(FormEntryConfig.value ?? "").trim())
+    ) {
+      showAlertMessage(
+        intl.formatMessage({
+          id: "siteInformation.numeric.validation",
+          defaultMessage: "This field only accepts whole numbers greater than or equal to zero.",
+        }),
+        NotificationKinds.error,
+      );
+      return;
+    }
+
     if (FormEntryConfig.valueType === "logoUpload") {
       const formData = new FormData();
       if (!removeImage) {
@@ -185,6 +204,16 @@ const GenericConfigEdit = ({ menuType, ID }) => {
     }
   };
 
+  const displayParamName =
+    FormEntryConfig && isSiteInformationConfig(menuType)
+      ? getSiteInformationDisplayName(intl, FormEntryConfig.paramName)
+      : FormEntryConfig?.paramName;
+
+  const displayDescription =
+    FormEntryConfig && isSiteInformationConfig(menuType)
+      ? getSiteInformationDisplayDescription(intl, FormEntryConfig.description)
+      : FormEntryConfig?.description;
+
   return (
     <div className="adminPageContent">
       {isLoading && (
@@ -214,7 +243,7 @@ const GenericConfigEdit = ({ menuType, ID }) => {
                   </h4>
                 </Column>
                 <Column lg={3} md={6} sm={3}>
-                  {FormEntryConfig.paramName}
+                  {displayParamName}
                 </Column>
               </Grid>
               <br />
@@ -225,7 +254,7 @@ const GenericConfigEdit = ({ menuType, ID }) => {
                   </h4>
                 </Column>
                 <Column lg={7} md={6} sm={4}>
-                  {FormEntryConfig.description}
+                  {displayDescription}
                 </Column>
               </Grid>
               <br />
@@ -347,6 +376,26 @@ const GenericConfigEdit = ({ menuType, ID }) => {
                       <Column lg={8} sm={3}>
                         <TextInput
                           id="textInput"
+                          type={
+                            FormEntryConfig.tag === "numericOnly"
+                              ? "number"
+                              : "text"
+                          }
+                          min={
+                            FormEntryConfig.tag === "numericOnly"
+                              ? 0
+                              : undefined
+                          }
+                          step={
+                            FormEntryConfig.tag === "numericOnly"
+                              ? 1
+                              : undefined
+                          }
+                          inputMode={
+                            FormEntryConfig.tag === "numericOnly"
+                              ? "numeric"
+                              : undefined
+                          }
                           value={textInputValue}
                           onChange={handleInputChange}
                         />
