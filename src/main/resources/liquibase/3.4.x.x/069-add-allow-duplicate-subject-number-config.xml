@@ -1,0 +1,34 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<databaseChangeLog
+  xmlns="http://www.liquibase.org/xml/ns/dbchangelog"
+  xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+  xsi:schemaLocation="http://www.liquibase.org/xml/ns/dbchangelog http://www.liquibase.org/xml/ns/dbchangelog/dbchangelog-3.8.xsd">
+
+  <property name="now" value="now()" dbms="postgresql"/>
+
+  <changeSet id="069-01-add-allow-duplicate-subject-number-config" author="codex">
+    <preConditions onFail="MARK_RAN">
+      <sqlCheck expectedResult="0">SELECT count(*) FROM clinlims.site_information WHERE name = 'Allow duplicate subject number'</sqlCheck>
+    </preConditions>
+
+    <comment>Add site information toggle to allow duplicate Unique Health ID numbers</comment>
+    <insert schemaName="clinlims" tableName="site_information">
+      <column name="id" valueSequenceNext="site_information_seq" />
+      <column name="name" value="Allow duplicate subject number" />
+      <column name="lastupdated" valueComputed="${now}" />
+      <column name="description" value="Allow more than one patient to have same Unique Health ID number" />
+      <column name="value" value="true" />
+      <column name="encrypted" value="false" />
+      <column name="domain_id"
+        valueComputed="(SELECT id FROM site_information_domain WHERE name = 'patientEntryConfig')" />
+      <column name="value_type" value="boolean" />
+      <column name="group" value="0" />
+    </insert>
+
+    <rollback>
+      <delete schemaName="clinlims" tableName="site_information">
+        <where>name = 'Allow duplicate subject number'</where>
+      </delete>
+    </rollback>
+  </changeSet>
+</databaseChangeLog>

@@ -30,6 +30,16 @@ import org.springframework.transaction.annotation.Transactional;
 @Service
 public class CustomRoleDefinitionServiceImpl implements CustomRoleDefinitionService {
 
+    private static final Map<String, List<String>> LAB_ROLE_GROUPS = Map.of(
+            Constants.ROLE_GENERIC_SAMPLE, List.of(Constants.ROLE_SAMPLE_MANAGEMENT),
+            Constants.ROLE_ORDER, List.of(Constants.ROLE_ORDER_ADD, Constants.ROLE_ORDER_EDIT),
+            Constants.ROLE_PATIENT, List.of(Constants.ROLE_PATIENT_MANAGEMENT, Constants.ROLE_PATIENT_HISTORY),
+            Constants.ROLE_STORAGE, List.of(Constants.ROLE_STORAGE_MANAGEMENT),
+            Constants.ROLE_RESULTS,
+            List.of(Constants.ROLE_RESULTS_BY_UNIT, Constants.ROLE_RESULTS_BY_PATIENT,
+                    Constants.ROLE_RESULTS_BY_ORDER),
+            Constants.ROLE_VALIDATION, List.of(Constants.ROLE_VALIDATION_ROUTINE, Constants.ROLE_VALIDATION_BY_ORDER));
+
     @PersistenceContext
     private EntityManager entityManager;
 
@@ -321,8 +331,28 @@ public class CustomRoleDefinitionServiceImpl implements CustomRoleDefinitionServ
         if (permissionRoleIds == null) {
             return Collections.emptyList();
         }
-        return new ArrayList<>(new LinkedHashSet<>(permissionRoleIds.stream().filter(StringUtils::isNotBlank)
-                .map(StringUtils::trim).collect(Collectors.toList())));
+
+        List<String> normalizedIds = new ArrayList<>(new LinkedHashSet<>(permissionRoleIds.stream()
+                .filter(StringUtils::isNotBlank).map(StringUtils::trim).collect(Collectors.toList())));
+
+        Map<String, String> roleIdByName = normalizedIds.stream().map(roleService::getRoleById).filter(Objects::nonNull)
+                .filter(role -> StringUtils.isNotBlank(role.getName()) && StringUtils.isNotBlank(role.getId()))
+                .collect(Collectors.toMap(role -> StringUtils.trim(role.getName()), Role::getId, (left, right) -> left,
+                        LinkedHashMap::new));
+
+        Set<String> normalizedIdSet = new LinkedHashSet<>(normalizedIds);
+        LAB_ROLE_GROUPS.forEach((parentRoleName, childRoleNames) -> {
+            boolean hasSelectedChild = childRoleNames.stream().map(roleIdByName::get).filter(Objects::nonNull)
+                    .anyMatch(normalizedIdSet::contains);
+            if (hasSelectedChild) {
+                String parentRoleId = roleIdByName.get(parentRoleName);
+                if (StringUtils.isNotBlank(parentRoleId)) {
+                    normalizedIdSet.remove(parentRoleId);
+                }
+            }
+        });
+
+        return new ArrayList<>(normalizedIdSet);
     }
 
     private List<String> normalizeLabUnitIds(List<String> applicableLabUnitIds) {

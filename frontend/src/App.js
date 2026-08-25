@@ -802,19 +802,19 @@ export default function App() {
                   path="/SamplePatientEntry"
                   exact
                   component={() => <AddOrder />}
-                  role={Roles.ORDER}
+                  role={Roles.ORDER_ADD}
                 />
                 <SecureRoute
                   path="/ModifyOrder"
                   exact
                   component={() => <ModifyOrder />}
-                  role={Roles.ORDER}
+                  role={Roles.ORDER_EDIT}
                 />
                 <SecureRoute
                   path="/SampleEdit"
                   exact
                   component={() => <FindOrder />}
-                  role={Roles.ORDER}
+                  role={Roles.ORDER_EDIT}
                 />
                 <SecureRoute
                   path="/ReportNonConformingEvent"
@@ -865,28 +865,18 @@ export default function App() {
                   path="/PatientManagement"
                   exact
                   component={() => <PatientManagement />}
-                  role={Roles.PATIENT}
+                  role={Roles.PATIENT_MANAGEMENT}
                 />
                 <SecureRoute
                   path="/Storage"
                   exact
                   component={() => <StorageDashboard />}
-                  role={[
-                    Roles.STORAGE,
-                    Roles.RECEPTION,
-                    Roles.RESULTS,
-                    Roles.GLOBAL_ADMIN,
-                  ]}
+                  role={Roles.STORAGE_MANAGEMENT}
                 />
                 <SecureRoute
                   path="/Storage/:tab"
                   component={() => <StorageDashboard />}
-                  role={[
-                    Roles.STORAGE,
-                    Roles.RECEPTION,
-                    Roles.RESULTS,
-                    Roles.GLOBAL_ADMIN,
-                  ]}
+                  role={Roles.STORAGE_MANAGEMENT}
                 />
                 <SecureRoute
                   path="/inventory"
@@ -898,7 +888,7 @@ export default function App() {
                   path="/SampleManagement"
                   exact
                   component={() => <SampleManagement />}
-                  role={[Roles.RECEPTION, Roles.RESULTS]}
+                  role={Roles.SAMPLE_MANAGEMENT}
                 />
                 <SecureRoute
                   path="/analyzers"
@@ -964,7 +954,7 @@ export default function App() {
                   path="/PatientHistory"
                   exact
                   component={() => <PatientHistory />}
-                  role={Roles.PATIENT}
+                  role={Roles.PATIENT_HISTORY}
                 />
                 <SecureRoute
                   path="/PatientMerge"
@@ -993,7 +983,11 @@ export default function App() {
                   path="/PatientResults/:patientId"
                   exact
                   component={() => <RoutedResultsViewer />}
-                  role={Roles.PATIENT}
+                  role={[
+                    Roles.RESULTS_BY_PATIENT,
+                    Roles.PATIENT_HISTORY,
+                    Roles.PATIENT,
+                  ]}
                 />
 
                 <SecureRoute
@@ -1024,25 +1018,30 @@ export default function App() {
                   path="/result"
                   exact
                   component={() => <ResultSearch />}
-                  role={Roles.RESULTS}
+                  role={[
+                    Roles.RESULTS,
+                    Roles.RESULTS_BY_UNIT,
+                    Roles.RESULTS_BY_PATIENT,
+                    Roles.RESULTS_BY_ORDER,
+                  ]}
                 />
                 <SecureRoute
                   path="/LogbookResults"
                   exact
                   component={() => <ResultSearch />}
-                  role={Roles.RESULTS}
+                  role={Roles.RESULTS_BY_UNIT}
                 />
                 <SecureRoute
                   path="/PatientResults"
                   exact
                   component={() => <ResultSearch />}
-                  role={Roles.RESULTS}
+                  role={Roles.RESULTS_BY_PATIENT}
                 />
                 <SecureRoute
                   path="/AccessionResults"
                   exact
                   component={() => <ResultSearch />}
-                  role={Roles.RESULTS}
+                  role={Roles.RESULTS_BY_ORDER}
                 />
                 <SecureRoute
                   path="/StatusResults"
@@ -1102,19 +1101,23 @@ export default function App() {
                   path="/validation"
                   exact
                   component={() => <StudyValidation />}
-                  role={Roles.VALIDATION}
+                  role={[
+                    Roles.VALIDATION,
+                    Roles.VALIDATION_ROUTINE,
+                    Roles.VALIDATION_BY_ORDER,
+                  ]}
                 />
                 <SecureRoute
                   path="/ResultValidation"
                   exact
                   component={() => <StudyValidation />}
-                  role={Roles.VALIDATION}
+                  role={Roles.VALIDATION_ROUTINE}
                 />
                 <SecureRoute
                   path="/AccessionValidation"
                   exact
                   component={() => <StudyValidation />}
-                  role={Roles.VALIDATION}
+                  role={Roles.VALIDATION_BY_ORDER}
                 />
                 <SecureRoute
                   path="/AccessionValidationRange"

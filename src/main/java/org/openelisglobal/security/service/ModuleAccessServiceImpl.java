@@ -61,6 +61,12 @@ public class ModuleAccessServiceImpl implements ModuleAccessService {
 
         String userId = Integer.toString(getSysUserId(request));
         Map<String, String> targetParams = parseQueryParams(targetUrl);
+        if (normalizedPath.startsWith("/PatientResults/")) {
+            boolean allowed = userPermissionService.hasPermission(userId, SystemPermission.RESULTS_BY_PATIENT)
+                    || userPermissionService.hasPermission(userId, SystemPermission.PATIENT_HISTORY)
+                    || userPermissionService.hasPermission(userId, SystemPermission.PATIENT);
+            return allowed ? ModuleAccessResult.allowed() : ModuleAccessResult.denied();
+        }
         if (isPatientAnalysisReportRequest(normalizedPath, targetParams)) {
             boolean reportPrintAllowed = userPermissionService.hasPermission(userId, SystemPermission.VALIDATION)
                     || userPermissionService.hasPermission(userId, SystemPermission.RESULTS)
@@ -71,6 +77,10 @@ public class ModuleAccessServiceImpl implements ModuleAccessService {
         }
 
         SystemPermission semanticPermission = resolveSemanticPermission(normalizedPath, targetParams);
+        if (semanticPermission != null && requiresExactSemanticPermission(normalizedPath)) {
+            boolean allowed = userPermissionService.hasPermission(userId, semanticPermission);
+            return allowed ? ModuleAccessResult.allowed() : ModuleAccessResult.denied();
+        }
         List<SystemModuleUrl> systemModuleUrls = systemModuleUrlService.getByUrlPath(normalizedPath);
         systemModuleUrls = filterParamMatches(systemModuleUrls, targetParams);
 
@@ -92,6 +102,20 @@ public class ModuleAccessServiceImpl implements ModuleAccessService {
         return allowed ? ModuleAccessResult.allowed() : ModuleAccessResult.denied();
     }
 
+    private boolean requiresExactSemanticPermission(String normalizedPath) {
+        if (GenericValidator.isBlankOrNull(normalizedPath)) {
+            return false;
+        }
+
+        return List.of("/SampleManagement", "/SamplePatientEntry", "/ModifyOrder", "/SampleEdit",
+                "/PatientManagement", "/PatientHistory", "/LogbookResults", "/PatientResults",
+                "/AccessionResults", "/ResultValidation", "/AccessionValidation").contains(normalizedPath)
+                || "/rest/SamplePatientEntry".equals(normalizedPath)
+                || "/rest/SampleEdit".equals(normalizedPath)
+                || "/Storage".equals(normalizedPath)
+                || normalizedPath.startsWith("/Storage/");
+    }
+
     private SystemPermission resolveSemanticPermission(String normalizedPath, Map<String, String> targetParams) {
         if (GenericValidator.isBlankOrNull(normalizedPath)) {
             return null;
@@ -106,6 +130,48 @@ public class ModuleAccessServiceImpl implements ModuleAccessService {
         if (normalizedPath.startsWith("/analyzers")) {
             return SystemPermission.ADMINISTRATION;
         }
+        if ("/SampleManagement".equals(normalizedPath)) {
+            return SystemPermission.SAMPLE_MANAGEMENT;
+        }
+        if ("/SamplePatientEntry".equals(normalizedPath)) {
+            return SystemPermission.ORDER_ADD;
+        }
+        if ("/rest/SamplePatientEntry".equals(normalizedPath)) {
+            return SystemPermission.ORDER_ADD;
+        }
+        if (List.of("/ModifyOrder", "/SampleEdit").contains(normalizedPath)) {
+            return SystemPermission.ORDER_EDIT;
+        }
+        if ("/rest/SampleEdit".equals(normalizedPath)) {
+            return SystemPermission.ORDER_EDIT;
+        }
+        if ("/PatientManagement".equals(normalizedPath)) {
+            return SystemPermission.PATIENT_MANAGEMENT;
+        }
+        if ("/PatientHistory".equals(normalizedPath)) {
+            return SystemPermission.PATIENT_HISTORY;
+        }
+        if ("/LogbookResults".equals(normalizedPath)) {
+            return SystemPermission.RESULTS_BY_UNIT;
+        }
+        if ("/rest/LogbookResults".equals(normalizedPath)) {
+            return SystemPermission.RESULTS;
+        }
+        if ("/PatientResults".equals(normalizedPath)) {
+            return SystemPermission.RESULTS_BY_PATIENT;
+        }
+        if ("/AccessionResults".equals(normalizedPath)) {
+            return SystemPermission.RESULTS_BY_ORDER;
+        }
+        if ("/ResultValidation".equals(normalizedPath)) {
+            return SystemPermission.VALIDATION_ROUTINE;
+        }
+        if ("/AccessionValidation".equals(normalizedPath)) {
+            return SystemPermission.VALIDATION_BY_ORDER;
+        }
+        if ("/rest/AccessionValidation".equals(normalizedPath)) {
+            return SystemPermission.VALIDATION;
+        }
         if (normalizedPath.startsWith("/GenericSample/")) {
             return SystemPermission.GENERIC_SAMPLE;
         }
@@ -116,12 +182,11 @@ public class ModuleAccessServiceImpl implements ModuleAccessService {
                 "/ElectronicOrders", "/PrintBarcode").contains(normalizedPath)) {
             return SystemPermission.ORDER;
         }
-        if (List.of("/PatientManagement", "/PatientHistory").contains(normalizedPath)
-                || normalizedPath.startsWith("/PatientResults/")) {
-            return SystemPermission.PATIENT;
+        if (normalizedPath.startsWith("/PatientResults/")) {
+            return null;
         }
-        if ("/SampleManagement".equals(normalizedPath)) {
-            return SystemPermission.SAMPLE_MANAGEMENT;
+        if (List.of("/PatientManagement", "/PatientHistory").contains(normalizedPath)) {
+            return SystemPermission.PATIENT;
         }
         if ("/Aliquot".equals(normalizedPath)) {
             return SystemPermission.ALIQUOT;
@@ -137,8 +202,8 @@ public class ModuleAccessServiceImpl implements ModuleAccessService {
             }
             return SystemPermission.REPORTS;
         }
-        if (normalizedPath.startsWith("/Storage")) {
-            return SystemPermission.STORAGE;
+        if ("/Storage".equals(normalizedPath) || normalizedPath.startsWith("/Storage/")) {
+            return SystemPermission.STORAGE_MANAGEMENT;
         }
         if (normalizedPath.startsWith("/FreezerMonitoring") || normalizedPath.startsWith("/rest/storage")
                 || normalizedPath.startsWith("/rest/freezer-monitoring")) {

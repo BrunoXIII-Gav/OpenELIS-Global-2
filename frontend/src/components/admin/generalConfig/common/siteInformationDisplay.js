@@ -55,6 +55,10 @@ const SITE_INFORMATION_NAME_MESSAGES = {
     id: "siteInformation.display.name.dashWaitingRedDays",
     defaultMessage: "dash_waiting_red_days",
   },
+  "Allow duplicate subject number": {
+    id: "siteInformation.display.name.allowDuplicateSubjectNumber",
+    defaultMessage: "Allow duplicate subject number",
+  },
   "default date locale": {
     id: "siteInformation.display.name.defaultDateLocale",
     defaultMessage: "default date locale",
@@ -165,6 +169,11 @@ const SITE_INFORMATION_DESCRIPTION_MESSAGES = {
   "Days since waiting time should turn red": {
     id: "siteInformation.display.description.dashWaitingRedDays",
     defaultMessage: "Days since waiting time should turn red",
+  },
+  "Allow more than one patient to have same Unique Health ID number": {
+    id: "siteInformation.display.description.allowDuplicateSubjectNumber",
+    defaultMessage:
+      "Allow more than one patient to have same Unique Health ID number",
   },
   "The default date local": {
     id: "siteInformation.display.description.defaultDateLocale",

@@ -4,6 +4,7 @@ import java.util.List;
 import java.util.Map;
 import org.openelisglobal.patientadditionalfield.bean.PatientAdditionalFieldOptionPayload;
 import org.openelisglobal.patientadditionalfield.bean.PatientAdditionalFieldPayload;
+import org.openelisglobal.patientadditionalfield.bean.PatientFixedFieldConfigPayload;
 
 public interface PatientAdditionalFieldService {
 
@@ -12,6 +13,8 @@ public interface PatientAdditionalFieldService {
     }
 
     List<PatientAdditionalFieldPayload> getFields(boolean includeInactive, boolean resolveUserOptions);
+
+    List<PatientFixedFieldConfigPayload> getFixedFieldConfigs();
 
     Map<String, String> getPatientValues(String patientId, List<PatientAdditionalFieldPayload> fieldDefinitions);
 
@@ -29,6 +32,8 @@ public interface PatientAdditionalFieldService {
             String currentUserId);
 
     void deactivateOption(Integer optionId, String currentUserId);
+
+    void upsertFixedFieldConfigs(List<PatientFixedFieldConfigPayload> payloads, String currentUserId);
 
     void validateAndPersistPatientValues(String patientId, Map<String, String> fieldValues, String currentUserId,
             List<PatientAdditionalFieldPayload> activeFieldCache);

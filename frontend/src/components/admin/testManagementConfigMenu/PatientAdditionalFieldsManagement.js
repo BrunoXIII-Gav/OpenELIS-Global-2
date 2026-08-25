@@ -36,6 +36,11 @@ import {
 } from "../../common/CustomNotification";
 import AdditionalFieldOptionsEditor from "./customComponents/AdditionalFieldOptionsEditor";
 import {
+  getPatientFixedFieldLabel,
+  normalizePatientFixedFieldConfigs,
+  PATIENT_FIXED_FIELD_DEFINITION_MAP,
+} from "../../patient/patientFixedFieldConfig";
+import {
   createEmptyOption,
   FIELD_TYPE_OPTIONS,
   getAdditionalFieldTypeLabel,
@@ -105,10 +110,12 @@ const PatientAdditionalFieldsManagement = () => {
     useContext(NotificationContext);
 
   const [fields, setFields] = useState([]);
+  const [fixedConfigs, setFixedConfigs] = useState([]);
   const [professionalProfileOptions, setProfessionalProfileOptions] = useState([]);
   const [newField, setNewField] = useState(defaultNewField);
   const [editingFieldId, setEditingFieldId] = useState(null);
   const [savingField, setSavingField] = useState(false);
+  const [savingFixed, setSavingFixed] = useState(false);
   const [savingSortFieldId, setSavingSortFieldId] = useState(null);
   const structureLocked = editingFieldId !== null && newField.hasSavedValues;
 
@@ -121,8 +128,15 @@ const PatientAdditionalFieldsManagement = () => {
     );
   };
 
+  const loadFixedConfigs = () => {
+    getFromOpenElisServer("/rest/patient-additional-fields/fixed", (response) => {
+      setFixedConfigs(normalizePatientFixedFieldConfigs(response));
+    });
+  };
+
   useEffect(() => {
     loadFields();
+    loadFixedConfigs();
     getFromOpenElisServer("/rest/professional-profiles/catalog", (response) => {
       setProfessionalProfileOptions(
         Array.isArray(response?.profiles)
@@ -210,6 +224,42 @@ const PatientAdditionalFieldsManagement = () => {
         createEmptyOption((previous.options || []).length + 1),
       ],
     }));
+  };
+
+  const updateFixedConfig = (fieldKey, property, rawValue) => {
+    setFixedConfigs((previous) =>
+      previous.map((config) =>
+        config.fieldKey !== fieldKey
+          ? config
+          : {
+              ...config,
+              [property]: rawValue,
+            },
+      ),
+    );
+  };
+
+  const saveFixedConfigs = () => {
+    setSavingFixed(true);
+    putToOpenElisServerFullResponse(
+      "/rest/patient-additional-fields/fixed",
+      JSON.stringify(fixedConfigs),
+      (response) => {
+        setSavingFixed(false);
+        if (response.status >= 200 && response.status < 300) {
+          showNotification(
+            NotificationKinds.success,
+            intl.formatMessage({ id: "patient.additional.fields.saved" }),
+          );
+          loadFixedConfigs();
+          return;
+        }
+        showNotification(
+          NotificationKinds.error,
+          intl.formatMessage({ id: "server.error.msg" }),
+        );
+      },
+    );
   };
 
   const updateOptionLabel = (optionIndex, nextLabel) => {
@@ -443,6 +493,16 @@ const PatientAdditionalFieldsManagement = () => {
     [fields, intl],
   );
 
+  const fixedRows = useMemo(
+    () =>
+      [...fixedConfigs].sort((left, right) => {
+        const leftSort = left?.sortOrder ?? 0;
+        const rightSort = right?.sortOrder ?? 0;
+        return leftSort - rightSort;
+      }),
+    [fixedConfigs],
+  );
+
   return (
     <>
       {notificationVisible ? <AlertDialog /> : null}
@@ -460,6 +520,107 @@ const PatientAdditionalFieldsManagement = () => {
 
         <div className="orderLegendBody">
           <Stack gap={6}>
+            <Heading>
+              <FormattedMessage id="patient.fixed.fields.title" />
+            </Heading>
+            <TableContainer>
+              <Table>
+                <TableHead>
+                  <TableRow>
+                    <TableHeader>
+                      <FormattedMessage id="order.additional.fields.fieldKey" />
+                    </TableHeader>
+                    <TableHeader>
+                      <FormattedMessage id="order.additional.fields.visible" />
+                    </TableHeader>
+                    <TableHeader>
+                      <FormattedMessage id="order.additional.fields.required" />
+                    </TableHeader>
+                    <TableHeader>
+                      <FormattedMessage id="order.additional.fields.readonly" />
+                    </TableHeader>
+                    <TableHeader>
+                      <FormattedMessage id="order.additional.fields.sortOrder" />
+                    </TableHeader>
+                  </TableRow>
+                </TableHead>
+                <TableBody>
+                  {fixedRows.map((config) => {
+                    const definition =
+                      PATIENT_FIXED_FIELD_DEFINITION_MAP[config.fieldKey] || {};
+                    return (
+                      <TableRow key={config.fieldKey}>
+                        <TableCell>
+                          {getPatientFixedFieldLabel(intl, config.fieldKey)}
+                        </TableCell>
+                        <TableCell>
+                          <Checkbox
+                            id={`patient-fixed-visible-${config.fieldKey}`}
+                            labelText=""
+                            checked={config.visible !== false}
+                            onChange={(_event, { checked }) =>
+                              updateFixedConfig(config.fieldKey, "visible", checked)
+                            }
+                          />
+                        </TableCell>
+                        <TableCell>
+                          <Checkbox
+                            id={`patient-fixed-required-${config.fieldKey}`}
+                            labelText=""
+                            checked={!!config.required}
+                            disabled={!definition.supportsRequired}
+                            onChange={(_event, { checked }) =>
+                              updateFixedConfig(
+                                config.fieldKey,
+                                "required",
+                                checked,
+                              )
+                            }
+                          />
+                        </TableCell>
+                        <TableCell>
+                          <Checkbox
+                            id={`patient-fixed-readonly-${config.fieldKey}`}
+                            labelText=""
+                            checked={!!config.readonly}
+                            disabled={!definition.supportsReadonly}
+                            onChange={(_event, { checked }) =>
+                              updateFixedConfig(
+                                config.fieldKey,
+                                "readonly",
+                                checked,
+                              )
+                            }
+                          />
+                        </TableCell>
+                        <TableCell>
+                          <TextInput
+                            id={`patient-fixed-sort-order-${config.fieldKey}`}
+                            type="number"
+                            labelText=""
+                            hideLabel
+                            value={String(config.sortOrder ?? "")}
+                            onChange={(event) =>
+                              updateFixedConfig(
+                                config.fieldKey,
+                                "sortOrder",
+                                event.target.value === ""
+                                  ? ""
+                                  : Number.parseInt(event.target.value, 10),
+                              )
+                            }
+                          />
+                        </TableCell>
+                      </TableRow>
+                    );
+                  })}
+                </TableBody>
+              </Table>
+            </TableContainer>
+            <Button onClick={saveFixedConfigs} disabled={savingFixed}>
+              <FormattedMessage id="button.save" />
+            </Button>
+
             <Heading>
               <FormattedMessage id="patient.additional.fields.custom.title" />
             </Heading>
