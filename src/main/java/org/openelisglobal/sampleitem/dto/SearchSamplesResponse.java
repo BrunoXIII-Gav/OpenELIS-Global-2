@@ -15,6 +15,7 @@ package org.openelisglobal.sampleitem.dto;
 
 import java.util.ArrayList;
 import java.util.List;
+import org.openelisglobal.sample.bean.SampleOrderItem;
 
 /**
  * Response object for sample search operations.
@@ -30,6 +31,7 @@ public class SearchSamplesResponse {
 
     private String accessionNumber;
     private List<SampleItemDTO> sampleItems = new ArrayList<>();
+    private SampleOrderItem orderReceptionDetails;
     private int totalCount;
 
     // ========== Constructors ==========
@@ -59,6 +61,20 @@ public class SearchSamplesResponse {
 
     public void setSampleItems(List<SampleItemDTO> sampleItems) {
         this.sampleItems = sampleItems;
+    }
+
+    /**
+     * Reception-only order data shown alongside the sample items.
+     *
+     * <p>This keeps Sample Management self-contained instead of requiring the
+     * legacy SampleEdit endpoint, which has Order permissions.
+     */
+    public SampleOrderItem getOrderReceptionDetails() {
+        return orderReceptionDetails;
+    }
+
+    public void setOrderReceptionDetails(SampleOrderItem orderReceptionDetails) {
+        this.orderReceptionDetails = orderReceptionDetails;
     }
 
     public int getTotalCount() {

@@ -265,7 +265,7 @@ public class LogbookResultsController extends LogbookResultsBaseController {
             if (!GenericValidator.isBlankOrNull(form.getTestSectionId())) {
                 tests = resultsLoadUtility.getUnfinishedTestResultItemsInTestSection(form.getTestSectionId());
                 filteredTests = userService.filterResultsByLabUnitRoles(getSysUserId(request), tests,
-                        Constants.ROLE_RESULTS);
+                        Constants.ROLE_RESULTS_BY_UNIT);
                 int count = resultsLoadUtility.getTotalCountAnalysisByTestSectionAndStatus(form.getTestSectionId());
                 request.setAttribute("analysisCount", count);
                 request.setAttribute("pageSize", filteredTests.size());
@@ -294,7 +294,7 @@ public class LogbookResultsController extends LogbookResultsBaseController {
             } else if (!GenericValidator.isBlankOrNull(form.getAccessionNumber())) {
                 tests = resultsLoadUtility.getUnfinishedTestResultItemsByAccession(form.getAccessionNumber());
                 filteredTests = userService.filterResultsByLabUnitRoles(getSysUserId(request), tests,
-                        Constants.ROLE_RESULTS);
+                        Constants.ROLE_RESULTS_BY_ORDER);
                 int count = resultsLoadUtility.getTotalCountAnalysisByAccessionAndStatus(form.getAccessionNumber());
                 request.setAttribute("analysisCount", count);
                 request.setAttribute("pageSize", filteredTests.size());

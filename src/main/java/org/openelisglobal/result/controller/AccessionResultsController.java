@@ -107,7 +107,8 @@ public class AccessionResultsController extends BaseController {
 
                     List<TestResultItem> results = resultsUtility.getGroupedTestsForSample(sample, patient);
                     List<TestResultItem> filteredResults = userService
-                            .filterResultsByLabUnitRoles(getSysUserId(request), results, Constants.ROLE_RESULTS);
+                            .filterResultsByLabUnitRoles(getSysUserId(request), results,
+                                    Constants.ROLE_RESULTS_BY_ORDER);
 
                     if (resultsUtility.inventoryNeeded()) {
                         addInventory(form);

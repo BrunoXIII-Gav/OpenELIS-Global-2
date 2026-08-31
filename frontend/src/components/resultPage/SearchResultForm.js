@@ -1113,9 +1113,41 @@ export function SearchResultForm(props) {
     querySearch(searchFormValues);
   }, [patient]);
 
-  const querySearch = (values) => {
+  const getSearchByFromLocation = () => {
+    let displayFormType = "";
+    let doRange = "";
+    if (window.location.pathname == "/result") {
+      displayFormType = new URLSearchParams(window.location.search).get("type");
+      doRange = new URLSearchParams(window.location.search).get("doRange");
+    } else if (window.location.pathname == "/LogbookResults") {
+      displayFormType = "unit";
+      doRange = "false";
+    } else if (window.location.pathname == "/PatientResults") {
+      displayFormType = "patient";
+      doRange = "false";
+    } else if (window.location.pathname == "/AccessionResults") {
+      displayFormType = "order";
+      doRange = "false";
+    } else if (window.location.pathname == "/StatusResults") {
+      displayFormType = "date";
+      doRange = "false";
+    } else if (window.location.pathname == "/RangeResults") {
+      displayFormType = "range";
+      doRange = "true";
+    }
+
+    return {
+      type: displayFormType || "",
+      doRange: doRange || false,
+    };
+  };
+
+  const querySearch = (values, searchByOverride) => {
     setLoading(true);
     props.setResults({ testResult: [] });
+    const effectiveSearchBy =
+      searchByOverride ||
+      (searchBy.type ? searchBy : getSearchByFromLocation());
 
     let accessionNumber =
       values.accessionNumber !== ""
@@ -1145,13 +1177,15 @@ export function SearchResultForm(props) {
       values.sampleStatusType +
       "&selectedAnalysisStatus=" +
       values.analysisStatus +
+      "&type=" +
+      effectiveSearchBy.type +
       "&doRange=" +
-      searchBy.doRange +
+      effectiveSearchBy.doRange +
       "&finished=" +
       false;
     setUrl(searchEndPoint);
-    props.setSearchBy?.(searchBy);
-    switch (searchBy.type) {
+    props.setSearchBy?.(effectiveSearchBy);
+    switch (effectiveSearchBy.type) {
       case "unit":
         props.setParam("&testSectionId=" + values.unitType);
         break;
@@ -1299,31 +1333,7 @@ export function SearchResultForm(props) {
       querySearch(values);
     }
 
-    var displayFormType = "";
-    var doRange = "";
-    if (window.location.pathname == "/result") {
-      displayFormType = new URLSearchParams(window.location.search).get("type");
-      doRange = new URLSearchParams(window.location.search).get("doRange");
-    } else if (window.location.pathname == "/LogbookResults") {
-      displayFormType = "unit";
-      doRange = "false";
-    } else if (window.location.pathname == "/PatientResults") {
-      displayFormType = "patient";
-      doRange = "false";
-    } else if (window.location.pathname == "/AccessionResults") {
-      displayFormType = "order";
-      doRange = "false";
-    } else if (window.location.pathname == "/StatusResults") {
-      displayFormType = "date";
-      doRange = "false";
-    } else if (window.location.pathname == "/RangeResults") {
-      displayFormType = "range";
-      doRange = "true";
-    }
-    setSearchBy({
-      type: displayFormType,
-      doRange: doRange,
-    });
+    setSearchBy(getSearchByFromLocation());
   }, []);
 
   useEffect(() => {

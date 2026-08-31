@@ -98,13 +98,7 @@ export default function SampleManagement() {
    * @param {Object} error - Error object if search failed
    */
   const handleSearchResults = (response, error) => {
-    if (response) {
-      hydrateSearchResponse(response, (hydrated) => {
-        setSearchResponse(hydrated);
-      });
-    } else {
-      setSearchResponse(response);
-    }
+    setSearchResponse(enrichSearchResponse(response));
     setSearchError(error);
 
     // Clear selection when new search results arrive
@@ -765,76 +759,21 @@ const buildOrderReceptionFields = (sampleOrderItems) => {
   return [...fixedFields, ...customFields];
 };
 
-const mergeWithSampleEditData = (searchResp, sampleEditResp) => {
+const enrichSearchResponse = (searchResp) => {
   if (
     !searchResp ||
-    !Array.isArray(searchResp.sampleItems) ||
-    !sampleEditResp
+    !Array.isArray(searchResp.sampleItems)
   ) {
     return searchResp;
   }
 
-  const existingTests = Array.isArray(sampleEditResp.existingTests)
-    ? sampleEditResp.existingTests
-    : [];
   const orderReceptionFields = buildOrderReceptionFields(
-    sampleEditResp?.sampleOrderItems,
+    searchResp.orderReceptionDetails,
   );
 
-  const bySampleItemId = existingTests.reduce((acc, test) => {
-    const key = String(test.sampleItemId || "");
-    if (!key) return acc;
-    if (!acc[key]) acc[key] = [];
-    acc[key].push(test);
-    return acc;
-  }, {});
-
   const mergedItems = searchResp.sampleItems.map((item) => {
-    const sampleTests = bySampleItemId[String(item.id)] || [];
-    if (sampleTests.length === 0) {
-      return {
-        ...item,
-        orderReceptionFields,
-      };
-    }
-
-    const first = sampleTests[0];
-    const additionalFieldValues =
-      first.additionalFieldValues &&
-      Object.keys(first.additionalFieldValues).length > 0
-        ? first.additionalFieldValues
-        : item.additionalFieldValues || {};
-    const additionalFields =
-      Array.isArray(first.additionalFields) && first.additionalFields.length > 0
-        ? first.additionalFields
-        : item.additionalFields || [];
-
     return {
       ...item,
-      quantityDisplay:
-        first.quantity !== undefined &&
-        first.quantity !== null &&
-        first.quantity !== ""
-          ? String(first.quantity)
-          : item.quantityDisplay,
-      quantity:
-        first.quantity !== undefined &&
-        first.quantity !== null &&
-        first.quantity !== ""
-          ? Number(first.quantity)
-          : item.quantity,
-      unitOfMeasureId:
-        first.unitOfMeasureId !== undefined && first.unitOfMeasureId !== null
-          ? String(first.unitOfMeasureId)
-          : item.unitOfMeasureId,
-      collector:
-        first.collector !== undefined && first.collector !== null
-          ? first.collector
-          : item.collector,
-      collectionDate: first.collectionDate || item.collectionDate,
-      collectionTime: first.collectionTime || item.collectionTime,
-      additionalFields,
-      additionalFieldValues,
       orderReceptionFields,
     };
   });
@@ -843,18 +782,4 @@ const mergeWithSampleEditData = (searchResp, sampleEditResp) => {
     ...searchResp,
     sampleItems: mergedItems,
   };
-};
-
-const hydrateSearchResponse = (response, callback) => {
-  if (!response?.accessionNumber) {
-    callback(response);
-    return;
-  }
-
-  getFromOpenElisServer(
-    `/rest/SampleEdit?accessionNumber=${encodeURIComponent(response.accessionNumber)}`,
-    (sampleEditResp) => {
-      callback(mergeWithSampleEditData(response, sampleEditResp));
-    },
-  );
 };

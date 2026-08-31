@@ -29,6 +29,7 @@ import org.apache.commons.validator.GenericValidator;
 import org.openelisglobal.analysis.service.AnalysisService;
 import org.openelisglobal.analysis.valueholder.Analysis;
 import org.openelisglobal.common.services.IStatusService;
+import org.openelisglobal.common.services.SampleOrderService;
 import org.openelisglobal.common.services.StatusService;
 import org.openelisglobal.common.services.StatusService.SampleStatus;
 import org.openelisglobal.sample.service.SampleService;
@@ -53,6 +54,7 @@ import org.openelisglobal.test.valueholder.Test;
 import org.openelisglobal.unitofmeasure.service.UnitOfMeasureService;
 import org.openelisglobal.unitofmeasure.valueholder.UnitOfMeasure;
 import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.beans.factory.ObjectProvider;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -97,6 +99,9 @@ public class SampleManagementServiceImpl implements SampleManagementService {
     @Autowired
     private SampleTypeAdditionalFieldService sampleTypeAdditionalFieldService;
 
+    @Autowired
+    private ObjectProvider<SampleOrderService> sampleOrderServiceProvider;
+
     @Override
     @Transactional(readOnly = true)
     public SearchSamplesResponse searchByAccessionNumber(String accessionNumber, boolean includeTests) {
@@ -130,8 +135,15 @@ public class SampleManagementServiceImpl implements SampleManagementService {
         List<SampleItemDTO> dtos = sampleItems.stream().map(item -> convertToDTO(item, includeTests))
                 .collect(Collectors.toList());
 
-        // Step 6: Return response with results
-        return new SearchSamplesResponse(sample.getAccessionNumber(), dtos, dtos.size());
+        // Step 6: Compile reception details here so this module never needs the
+        // legacy SampleEdit endpoint, which is protected by Order permissions.
+        SampleOrderService sampleOrderService = sampleOrderServiceProvider.getObject();
+        sampleOrderService.setSample(sample);
+
+        // Step 7: Return response with results
+        SearchSamplesResponse response = new SearchSamplesResponse(sample.getAccessionNumber(), dtos, dtos.size());
+        response.setOrderReceptionDetails(sampleOrderService.getSampleOrderItem());
+        return response;
     }
 
     @Override

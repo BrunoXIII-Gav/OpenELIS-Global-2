@@ -262,6 +262,7 @@ public class LogbookResultsRestController extends LogbookResultsBaseController {
             @RequestParam(required = false) String selectedSampleStatus,
             @RequestParam(required = false) String selectedAnalysisStatus,
             @RequestParam(required = false) String upperRangeAccessionNumber,
+            @RequestParam(required = false) String type,
             @RequestParam(required = false) boolean doRange,
             @RequestParam(required = false, defaultValue = "false") boolean finished,
             @Validated(LogbookResults.class) @ModelAttribute("form") LogbookResultsForm form, BindingResult result)
@@ -277,7 +278,7 @@ public class LogbookResultsRestController extends LogbookResultsBaseController {
         LogbookResultsForm newForm = new LogbookResultsForm();
         if (!(result.hasFieldErrors("type") || result.hasFieldErrors("testSectionId")
                 || result.hasFieldErrors("methodId") || result.hasFieldErrors("accessionNumber"))) {
-            newForm.setType(form.getType());
+            newForm.setType(StringUtils.defaultIfBlank(type, form.getType()));
             newForm.setTestSectionId(form.getTestSectionId());
 
             String currentDate = getCurrentDate();
@@ -322,7 +323,7 @@ public class LogbookResultsRestController extends LogbookResultsBaseController {
             if (!GenericValidator.isBlankOrNull(form.getTestSectionId())) {
                 tests = resultsLoadUtility.getUnfinishedTestResultItemsInTestSection(form.getTestSectionId());
                 filteredTests = userService.filterResultsByLabUnitRoles(getSysUserId(request), tests,
-                        Constants.ROLE_RESULTS);
+                        Constants.ROLE_RESULTS_BY_UNIT);
                 int count = resultsLoadUtility.getTotalCountAnalysisByTestSectionAndStatus(form.getTestSectionId());
                 request.setAttribute("analysisCount", count);
                 request.setAttribute("pageSize", filteredTests.size());
@@ -438,7 +439,7 @@ public class LogbookResultsRestController extends LogbookResultsBaseController {
                 }
 
                 filteredTests = userService.filterResultsByLabUnitRoles(getSysUserId(request), tests,
-                        Constants.ROLE_RESULTS);
+                        resolveResultsFilterRole(form, patientPK));
                 LogEvent.logInfo(this.getClass().getSimpleName(), "getLogbookResults",
                         "After filterResultsByLabUnitRoles: tests.size()=" + tests.size() + ", filteredTests.size()="
                                 + filteredTests.size());
@@ -507,6 +508,21 @@ public class LogbookResultsRestController extends LogbookResultsBaseController {
         }
 
         return (form);
+    }
+
+    private String resolveResultsFilterRole(LogbookResultsForm form, String patientPK) {
+        String searchType = StringUtils.defaultString(form.getType()).trim();
+        if ("unit".equalsIgnoreCase(searchType)) {
+            return Constants.ROLE_RESULTS_BY_UNIT;
+        }
+        if ("order".equalsIgnoreCase(searchType) || "range".equalsIgnoreCase(searchType)
+                || StringUtils.isNotBlank(form.getAccessionNumber())) {
+            return Constants.ROLE_RESULTS_BY_ORDER;
+        }
+        if ("patient".equalsIgnoreCase(searchType) || StringUtils.isNotBlank(patientPK)) {
+            return Constants.ROLE_RESULTS_BY_PATIENT;
+        }
+        return Constants.ROLE_RESULTS;
     }
 
     private void AddPatientIdToResult(Patient patient, TestResultItem resultItem) {
