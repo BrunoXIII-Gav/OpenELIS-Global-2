@@ -130,6 +130,7 @@ type PatientHistoryResult = {
 
 type PatientHistorySummary = {
   patientId: string;
+  restrictedFieldTagKeys?: string[];
   metrics: PatientHistoryMetrics;
   orders: PatientHistoryOrder[];
   samples: PatientHistorySample[];
@@ -154,7 +155,8 @@ const ORDER_FIXED_FIELD_LABEL_MESSAGE_IDS: Record<string, string> = {
   priority: "sample.management.order.fixed.priority",
   requestDate: "sample.management.order.fixed.requestDate",
   requestTime: "sample.management.order.fixed.requestTime",
-  receivedDateForDisplay: "sample.management.order.fixed.receivedDateForDisplay",
+  receivedDateForDisplay:
+    "sample.management.order.fixed.receivedDateForDisplay",
   receivedTime: "sample.management.order.fixed.receivedTime",
   nextVisitDate: "sample.management.order.fixed.nextVisitDate",
   requesterSampleID: "patientHistory.table.sampleIdentifier",
@@ -174,7 +176,8 @@ const ORDER_FIXED_FIELD_LABEL_MESSAGE_IDS: Record<string, string> = {
   providerFax: "sample.management.order.fixed.providerFax",
   providerEmail: "sample.management.order.fixed.providerEmail",
   billingReferenceNumber: "patientHistory.table.clinicalOrderId",
-  paymentOptionSelection: "sample.management.order.fixed.paymentOptionSelection",
+  paymentOptionSelection:
+    "sample.management.order.fixed.paymentOptionSelection",
   testLocationCode: "sample.management.order.fixed.testLocationCode",
   otherLocationCode: "sample.management.order.fixed.otherLocationCode",
   program: "label.program",
@@ -389,7 +392,8 @@ const isPrimaryResultActive = (data: PatientHistoryResult) =>
 
 const isTubeSelectorFieldDefinition = (
   fieldDefinition: TestAdditionalFieldDefinition,
-) => parseAdditionalFieldMetadata(fieldDefinition)?.tubeSelector?.enabled === true;
+) =>
+  parseAdditionalFieldMetadata(fieldDefinition)?.tubeSelector?.enabled === true;
 
 const getTubeActivationCount = (
   fieldDefinition: TestAdditionalFieldDefinition,
@@ -453,7 +457,9 @@ const isPrimaryResultVisible = (data: PatientHistoryResult) => {
   if (metadata?.tubeSelector?.enabled) {
     selectorRawValue = data?.resultValue;
   } else {
-    const activeAdditionalFields = Array.isArray(data?.additionalFieldDefinitions)
+    const activeAdditionalFields = Array.isArray(
+      data?.additionalFieldDefinitions,
+    )
       ? data.additionalFieldDefinitions.filter(
           (fieldDefinition) => fieldDefinition?.active !== false,
         )
@@ -584,6 +590,17 @@ const PatientHistorySummaryPanel: React.FC<{ patientId: string }> = ({
     [filters, summary.orders],
   );
 
+  const hasRestrictedTag = (tagKey: string) =>
+    (summary.restrictedFieldTagKeys || []).includes(tagKey);
+  const showOverview = !hasRestrictedTag("patient-history-overview");
+  const showOrders = !hasRestrictedTag("patient-history-orders");
+  const showOrderDetails = !hasRestrictedTag("patient-history-order-details");
+  const showSamples = !hasRestrictedTag("patient-history-samples");
+  const showSampleDetails = !hasRestrictedTag("patient-history-sample-details");
+  const showResults = !hasRestrictedTag("patient-history-results");
+  const showResultValues = !hasRestrictedTag("patient-history-result-values");
+  const showStorage = !hasRestrictedTag("patient-history-storage");
+
   const filteredSamples = useMemo(
     () =>
       summary.samples.filter((sample) =>
@@ -697,7 +714,9 @@ const PatientHistorySummaryPanel: React.FC<{ patientId: string }> = ({
       },
       {
         key: "pendingTests",
-        label: intl.formatMessage({ id: "patientHistory.metrics.pendingTests" }),
+        label: intl.formatMessage({
+          id: "patientHistory.metrics.pendingTests",
+        }),
         value: filteredMetrics.pendingTests,
       },
     ],
@@ -880,7 +899,9 @@ const PatientHistorySummaryPanel: React.FC<{ patientId: string }> = ({
       <div className="patient-history-summary__filters">
         <TextInput
           id="patient-history-search"
-          labelText={intl.formatMessage({ id: "patientHistory.filters.search" })}
+          labelText={intl.formatMessage({
+            id: "patientHistory.filters.search",
+          })}
           placeholder={intl.formatMessage({
             id: "patientHistory.filters.searchPlaceholder",
           })}
@@ -929,104 +950,161 @@ const PatientHistorySummaryPanel: React.FC<{ patientId: string }> = ({
         </Button>
       </div>
 
-      <div className="patient-history-summary__metrics">
-        {metricCards.map((metric) => (
-          <div className="patient-history-summary__metric" key={metric.key}>
-            <div className="patient-history-summary__metric-label">
-              {metric.label}
+      {showOverview ? (
+        <div className="patient-history-summary__metrics">
+          {metricCards.map((metric) => (
+            <div className="patient-history-summary__metric" key={metric.key}>
+              <div className="patient-history-summary__metric-label">
+                {metric.label}
+              </div>
+              <div className="patient-history-summary__metric-value">
+                {metric.value}
+              </div>
             </div>
-            <div className="patient-history-summary__metric-value">
-              {metric.value}
-            </div>
-          </div>
-        ))}
-      </div>
+          ))}
+        </div>
+      ) : null}
 
       <Tabs>
         <TabList
           aria-label={intl.formatMessage({ id: "label.page.patientHistory" })}
         >
-          <Tab>{intl.formatMessage({ id: "patientHistory.tabs.orders" })}</Tab>
-          <Tab>{intl.formatMessage({ id: "patientHistory.tabs.samples" })}</Tab>
-          <Tab>{intl.formatMessage({ id: "patientHistory.tabs.results" })}</Tab>
-          <Tab>{intl.formatMessage({ id: "patientHistory.tabs.storage" })}</Tab>
+          {[
+            showOrders ? (
+              <Tab key="orders">
+                {intl.formatMessage({ id: "patientHistory.tabs.orders" })}
+              </Tab>
+            ) : null,
+            showSamples ? (
+              <Tab key="samples">
+                {intl.formatMessage({ id: "patientHistory.tabs.samples" })}
+              </Tab>
+            ) : null,
+            showResults ? (
+              <Tab key="results">
+                {intl.formatMessage({ id: "patientHistory.tabs.results" })}
+              </Tab>
+            ) : null,
+            showStorage ? (
+              <Tab key="storage">
+                {intl.formatMessage({ id: "patientHistory.tabs.storage" })}
+              </Tab>
+            ) : null,
+          ].filter(Boolean)}
         </TabList>
         <TabPanels>
-          <TabPanel>
-            <ExpandableHistoryTable
-              title={intl.formatMessage({ id: "patientHistory.tabs.orders" })}
-              columns={orderColumns}
-              rows={filteredOrders}
-              emptyMessage={intl.formatMessage({
-                id: "patientHistory.empty.orders",
-              })}
-              rowId={(row) => row.id}
-              renderDetails={(row) => (
-                <OrderDetails
-                  row={row}
-                  resolveFieldLabel={(field) => resolveFieldLabel(intl, field)}
-                  getFieldDisplayText={(field) =>
-                    getFieldDisplayText(intl, field)
-                  }
-                  renderFieldValue={(field) =>
-                    renderFieldValue(
-                      intl,
-                      field,
-                      String(field?.fieldType || "").toUpperCase() ===
-                        "DOCUMENT"
-                        ? buildOrderDocumentPreviewHref(row.id, field.key)
-                        : "",
-                    )
-                  }
-                />
-              )}
-            />
-          </TabPanel>
-          <TabPanel>
-            <ExpandableHistoryTable
-              title={intl.formatMessage({ id: "patientHistory.tabs.samples" })}
-              columns={sampleColumns}
-              rows={filteredSamples}
-              emptyMessage={intl.formatMessage({
-                id: "patientHistory.empty.samples",
-              })}
-              rowId={(row) => row.id}
-              renderDetails={(row) => (
-                <SampleDetails
-                  row={row}
-                  resolveFieldLabel={(field) => resolveFieldLabel(intl, field)}
-                  getFieldDisplayText={(field) =>
-                    getFieldDisplayText(intl, field)
-                  }
-                  renderFieldValue={(field) =>
-                    renderFieldValue(intl, field)
+          {[
+            showOrders ? (
+              <TabPanel key="orders">
+                <ExpandableHistoryTable
+                  title={intl.formatMessage({
+                    id: "patientHistory.tabs.orders",
+                  })}
+                  columns={orderColumns}
+                  rows={filteredOrders}
+                  emptyMessage={intl.formatMessage({
+                    id: "patientHistory.empty.orders",
+                  })}
+                  rowId={(row) => row.id}
+                  renderDetails={
+                    showOrderDetails
+                      ? (row) => (
+                          <OrderDetails
+                            row={row}
+                            resolveFieldLabel={(field) =>
+                              resolveFieldLabel(intl, field)
+                            }
+                            getFieldDisplayText={(field) =>
+                              getFieldDisplayText(intl, field)
+                            }
+                            renderFieldValue={(field) =>
+                              renderFieldValue(
+                                intl,
+                                field,
+                                String(field?.fieldType || "").toUpperCase() ===
+                                  "DOCUMENT"
+                                  ? buildOrderDocumentPreviewHref(
+                                      row.id,
+                                      field.key,
+                                    )
+                                  : "",
+                              )
+                            }
+                          />
+                        )
+                      : undefined
                   }
                 />
-              )}
-            />
-          </TabPanel>
-          <TabPanel>
-            <ExpandableHistoryTable
-              title={intl.formatMessage({ id: "patientHistory.tabs.results" })}
-              columns={resultColumns}
-              rows={filteredResults}
-              emptyMessage={intl.formatMessage({
-                id: "patientHistory.empty.results",
-              })}
-              rowId={(row) => row.id}
-              renderDetails={(row) => <ResultDetails row={row} />}
-            />
-          </TabPanel>
-          <TabPanel>
-            <SimpleHistoryTable
-              title={intl.formatMessage({ id: "patientHistory.tabs.storage" })}
-              columns={storageColumns}
-              rows={filteredStoredSamples}
-              emptyMessage={intl.formatMessage({
-                id: "patientHistory.empty.storage",
-              })}
-            />
-          </TabPanel>
+              </TabPanel>
+            ) : null,
+            showSamples ? (
+              <TabPanel key="samples">
+                <ExpandableHistoryTable
+                  title={intl.formatMessage({
+                    id: "patientHistory.tabs.samples",
+                  })}
+                  columns={sampleColumns}
+                  rows={filteredSamples}
+                  emptyMessage={intl.formatMessage({
+                    id: "patientHistory.empty.samples",
+                  })}
+                  rowId={(row) => row.id}
+                  renderDetails={
+                    showSampleDetails
+                      ? (row) => (
+                          <SampleDetails
+                            row={row}
+                            resolveFieldLabel={(field) =>
+                              resolveFieldLabel(intl, field)
+                            }
+                            getFieldDisplayText={(field) =>
+                              getFieldDisplayText(intl, field)
+                            }
+                            renderFieldValue={(field) =>
+                              renderFieldValue(intl, field)
+                            }
+                          />
+                        )
+                      : undefined
+                  }
+                />
+              </TabPanel>
+            ) : null,
+            showResults ? (
+              <TabPanel key="results">
+                <ExpandableHistoryTable
+                  title={intl.formatMessage({
+                    id: "patientHistory.tabs.results",
+                  })}
+                  columns={resultColumns}
+                  rows={filteredResults}
+                  emptyMessage={intl.formatMessage({
+                    id: "patientHistory.empty.results",
+                  })}
+                  rowId={(row) => row.id}
+                  renderDetails={
+                    showResultValues
+                      ? (row) => <ResultDetails row={row} />
+                      : undefined
+                  }
+                />
+              </TabPanel>
+            ) : null,
+            showStorage ? (
+              <TabPanel key="storage">
+                <SimpleHistoryTable
+                  title={intl.formatMessage({
+                    id: "patientHistory.tabs.storage",
+                  })}
+                  columns={storageColumns}
+                  rows={filteredStoredSamples}
+                  emptyMessage={intl.formatMessage({
+                    id: "patientHistory.empty.storage",
+                  })}
+                />
+              </TabPanel>
+            ) : null,
+          ].filter(Boolean)}
         </TabPanels>
       </Tabs>
     </div>
@@ -1089,7 +1167,7 @@ const ExpandableHistoryTable = <T extends object>({
   rows: T[];
   emptyMessage: string;
   rowId: (row: T) => string;
-  renderDetails: (row: T) => React.ReactNode;
+  renderDetails?: (row: T) => React.ReactNode;
 }) => {
   const intl = useIntl();
   const [expandedRowId, setExpandedRowId] = useState<string | null>(null);
@@ -1110,9 +1188,11 @@ const ExpandableHistoryTable = <T extends object>({
         <Table size="sm" useZebraStyles>
           <TableHead>
             <TableRow>
-              <TableHeader className="patient-history-summary__expand-column">
-                {intl.formatMessage({ id: "patientHistory.table.details" })}
-              </TableHeader>
+              {renderDetails ? (
+                <TableHeader className="patient-history-summary__expand-column">
+                  {intl.formatMessage({ id: "patientHistory.table.details" })}
+                </TableHeader>
+              ) : null}
               {columns.map((column) => (
                 <TableHeader key={column.key}>{column.header}</TableHeader>
               ))}
@@ -1126,32 +1206,34 @@ const ExpandableHistoryTable = <T extends object>({
               return (
                 <React.Fragment key={currentRowId}>
                   <TableRow>
-                    <TableCell className="patient-history-summary__expand-cell">
-                      <button
-                        type="button"
-                        className="patient-history-summary__expand-button"
-                        onClick={() =>
-                          setExpandedRowId((current) =>
-                            current === currentRowId ? null : currentRowId,
-                          )
-                        }
-                      >
-                        {isExpanded
-                          ? intl.formatMessage({
-                              id: "patientHistory.table.hideDetails",
-                            })
-                          : intl.formatMessage({
-                              id: "patientHistory.table.viewDetails",
-                            })}
-                      </button>
-                    </TableCell>
+                    {renderDetails ? (
+                      <TableCell className="patient-history-summary__expand-cell">
+                        <button
+                          type="button"
+                          className="patient-history-summary__expand-button"
+                          onClick={() =>
+                            setExpandedRowId((current) =>
+                              current === currentRowId ? null : currentRowId,
+                            )
+                          }
+                        >
+                          {isExpanded
+                            ? intl.formatMessage({
+                                id: "patientHistory.table.hideDetails",
+                              })
+                            : intl.formatMessage({
+                                id: "patientHistory.table.viewDetails",
+                              })}
+                        </button>
+                      </TableCell>
+                    ) : null}
                     {columns.map((column) => (
                       <TableCell key={column.key}>
                         {column.render(row) || "-"}
                       </TableCell>
                     ))}
                   </TableRow>
-                  {isExpanded ? (
+                  {renderDetails && isExpanded ? (
                     <TableRow className="patient-history-summary__expanded-row">
                       <TableCell colSpan={columns.length + 1}>
                         <div className="patient-history-summary__expanded-content">
@@ -1311,8 +1393,10 @@ const ResultDetails: React.FC<{
       if (leftLayout.fieldSortOrder !== rightLayout.fieldSortOrder) {
         return leftLayout.fieldSortOrder - rightLayout.fieldSortOrder;
       }
-      return (leftField.fieldDefinition?.sortOrder || 0) -
-        (rightField.fieldDefinition?.sortOrder || 0);
+      return (
+        (leftField.fieldDefinition?.sortOrder || 0) -
+        (rightField.fieldDefinition?.sortOrder || 0)
+      );
     })
     .forEach(({ fieldDefinition, layout }) => {
       const { blockName, blockSortOrder, fieldSortOrder } = layout;
@@ -1430,9 +1514,8 @@ const ResultDetails: React.FC<{
                 );
               }
 
-              const value = row?.additionalFieldValues?.[
-                item.fieldDefinition.fieldKey
-              ];
+              const value =
+                row?.additionalFieldValues?.[item.fieldDefinition.fieldKey];
               return (
                 <div
                   key={`${item.fieldDefinition.fieldKey}-${row.id}-${blockIndex}-${itemIndex}`}
@@ -1445,37 +1528,35 @@ const ResultDetails: React.FC<{
                   <div className="patient-history-summary__detail-value">
                     {String(
                       item.fieldDefinition?.fieldType || "",
-                    ).toUpperCase() === "DOCUMENT" ? (
-                      (() => {
-                        const documentValue = parseDocumentFieldValue(value);
-                        const previewHref = buildResultDocumentPreviewHref(
-                          row.id,
-                          item.fieldDefinition.fieldKey,
-                        );
+                    ).toUpperCase() === "DOCUMENT"
+                      ? (() => {
+                          const documentValue = parseDocumentFieldValue(value);
+                          const previewHref = buildResultDocumentPreviewHref(
+                            row.id,
+                            item.fieldDefinition.fieldKey,
+                          );
 
-                        if (!documentValue?.fileName) {
-                          return "-";
-                        }
+                          if (!documentValue?.fileName) {
+                            return "-";
+                          }
 
-                        return previewHref ? (
-                          <a
-                            href={previewHref}
-                            target="_blank"
-                            rel="noopener noreferrer"
-                          >
-                            {documentValue.fileName}
-                          </a>
-                        ) : (
-                          documentValue.fileName
-                        );
-                      })()
-                    ) : (
-                      formatConfiguredFieldValue(
-                        intl,
-                        item.fieldDefinition,
-                        value,
-                      )
-                    )}
+                          return previewHref ? (
+                            <a
+                              href={previewHref}
+                              target="_blank"
+                              rel="noopener noreferrer"
+                            >
+                              {documentValue.fileName}
+                            </a>
+                          ) : (
+                            documentValue.fileName
+                          );
+                        })()
+                      : formatConfiguredFieldValue(
+                          intl,
+                          item.fieldDefinition,
+                          value,
+                        )}
                   </div>
                 </div>
               );
@@ -1692,7 +1773,11 @@ const parseComparableDate = (value: string | null | undefined) => {
 };
 
 const isCompletedStatus = (status: string | null | undefined) =>
-  String(status || "").toLowerCase().includes("final") ||
-  String(status || "").toLowerCase().includes("complete");
+  String(status || "")
+    .toLowerCase()
+    .includes("final") ||
+  String(status || "")
+    .toLowerCase()
+    .includes("complete");
 
 export default PatientHistorySummaryPanel;

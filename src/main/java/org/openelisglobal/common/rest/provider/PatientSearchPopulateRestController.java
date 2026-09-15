@@ -1,16 +1,19 @@
 package org.openelisglobal.common.rest.provider;
 
+import jakarta.servlet.http.HttpServletRequest;
 import java.util.List;
 import org.apache.commons.validator.GenericValidator;
 import org.openelisglobal.address.service.AddressPartService;
 import org.openelisglobal.address.service.PersonAddressService;
 import org.openelisglobal.address.valueholder.AddressPart;
 import org.openelisglobal.address.valueholder.PersonAddress;
+import org.openelisglobal.common.rest.BaseRestController;
 import org.openelisglobal.common.rest.provider.bean.PatientInfoBean;
 import org.openelisglobal.common.util.ConfigurationProperties;
 import org.openelisglobal.common.util.ConfigurationProperties.Property;
 import org.openelisglobal.common.util.DateUtil;
 import org.openelisglobal.patient.service.PatientContactService;
+import org.openelisglobal.patient.service.PatientAuthorizationService;
 import org.openelisglobal.patient.service.PatientService;
 import org.openelisglobal.patientadditionalfield.service.PatientAdditionalFieldService;
 import org.openelisglobal.patient.util.PatientIdentifierUtil;
@@ -23,9 +26,10 @@ import org.openelisglobal.patientidentitytype.util.PatientIdentityTypeMap;
 import org.openelisglobal.patienttype.service.PatientPatientTypeService;
 import org.openelisglobal.patienttype.valueholder.PatientType;
 import org.openelisglobal.person.valueholder.Person;
+import org.openelisglobal.sample.service.OrderAuthorizationService;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.http.MediaType;
-import org.springframework.security.access.prepost.PreAuthorize;
+import org.springframework.security.access.AccessDeniedException;
 import org.springframework.stereotype.Controller;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.RequestMapping;
@@ -34,9 +38,7 @@ import org.springframework.web.bind.annotation.ResponseBody;
 
 @Controller
 @RequestMapping(value = "/rest/")
-@PreAuthorize("@accessControl.hasAnyPermission(T(org.openelisglobal.common.constants.SystemPermission).PATIENT, "
-        + "T(org.openelisglobal.common.constants.SystemPermission).ORDER)")
-public class PatientSearchPopulateRestController {
+public class PatientSearchPopulateRestController extends BaseRestController {
 
     @Autowired
     PatientService patientService;
@@ -59,6 +61,12 @@ public class PatientSearchPopulateRestController {
     @Autowired
     PatientAdditionalFieldService patientAdditionalFieldService;
 
+    @Autowired
+    PatientAuthorizationService patientAuthorizationService;
+
+    @Autowired
+    OrderAuthorizationService orderAuthorizationService;
+
     private String ADDRESS_PART_VILLAGE_ID;
 
     private String ADDRESS_PART_COMMUNE_ID;
@@ -67,12 +75,34 @@ public class PatientSearchPopulateRestController {
 
     @GetMapping(value = "patient-details", produces = MediaType.APPLICATION_JSON_VALUE)
     @ResponseBody
-    public PatientInfoBean getPatientResults(@RequestParam String patientID) {
+    public PatientInfoBean getPatientResults(HttpServletRequest request, @RequestParam String patientID) {
+        String sysUserId = getSysUserId(request);
+        requirePatientLookupPermission(sysUserId);
+        requirePatientRecordPermission(sysUserId, patientID);
 
         if (!GenericValidator.isBlankOrNull(patientID)) {
             return getPatientDetails(getPatientForID(patientID));
         } else {
             return new PatientInfoBean();
+        }
+    }
+
+    private void requirePatientLookupPermission(String sysUserId) {
+        if (patientAuthorizationService.hasPermission(sysUserId, "read")
+                || patientAuthorizationService.hasPermission(sysUserId, "update")
+                || orderAuthorizationService.hasPermission(sysUserId, "create")
+                || orderAuthorizationService.hasPermission(sysUserId, "read")
+                || orderAuthorizationService.hasPermission(sysUserId, "update")) {
+            return;
+        }
+        throw new AccessDeniedException("User does not have permission to read patient details");
+    }
+
+    private void requirePatientRecordPermission(String sysUserId, String patientId) {
+        String scopeAction = patientAuthorizationService.hasPermission(sysUserId, "read") ? "read"
+                : patientAuthorizationService.hasPermission(sysUserId, "update") ? "update" : null;
+        if (scopeAction != null && !patientAuthorizationService.canAccessPatient(sysUserId, patientId, scopeAction)) {
+            throw new AccessDeniedException("User cannot access this patient outside assigned laboratory units");
         }
     }
 

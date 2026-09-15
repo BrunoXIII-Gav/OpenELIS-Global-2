@@ -7,13 +7,15 @@ import org.hibernate.StaleObjectStateException;
 import org.openelisglobal.common.exception.LIMSRuntimeException;
 import org.openelisglobal.common.log.LogEvent;
 import org.openelisglobal.common.rest.BaseRestController;
-import org.openelisglobal.common.service.ProfessionalProfilePermissionService;
+import org.openelisglobal.authorization.service.ModuleAuthorizationService;
 import org.openelisglobal.dataexchange.fhir.exception.FhirPersistanceException;
 import org.openelisglobal.dataexchange.fhir.exception.FhirTransformationException;
 import org.openelisglobal.dataexchange.fhir.service.FhirTransformService;
 import org.openelisglobal.patient.action.IPatientUpdate.PatientUpdateStatus;
 import org.openelisglobal.patient.action.bean.PatientManagementInfo;
+import org.openelisglobal.patient.form.PatientModuleAccess;
 import org.openelisglobal.patient.service.PatientPhotoService;
+import org.openelisglobal.patient.service.PatientAuthorizationService;
 import org.openelisglobal.patient.service.PatientService;
 import org.openelisglobal.patient.util.PatientUtil;
 import org.openelisglobal.patient.valueholder.Patient;
@@ -23,7 +25,6 @@ import org.openelisglobal.search.service.SearchResultsService;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.http.MediaType;
 import org.springframework.http.ResponseEntity;
-import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.security.access.AccessDeniedException;
 import org.springframework.stereotype.Controller;
 import org.springframework.validation.BindException;
@@ -38,8 +39,6 @@ import org.springframework.web.bind.annotation.ResponseBody;
 
 @Controller
 @RequestMapping(value = "/rest/")
-@PreAuthorize("@accessControl.hasAnyPermission(T(org.openelisglobal.common.constants.SystemPermission).PATIENT, "
-        + "T(org.openelisglobal.common.constants.SystemPermission).ORDER)")
 public class PatientManagementRestController extends BaseRestController {
     @Autowired
     SearchResultsService searchService;
@@ -52,7 +51,9 @@ public class PatientManagementRestController extends BaseRestController {
     @Autowired
     PatientPhotoService photoService;
     @Autowired
-    ProfessionalProfilePermissionService profilePermissionService;
+    PatientAuthorizationService patientAuthorizationService;
+    @Autowired
+    ModuleAuthorizationService moduleAuthorizationService;
 
     @PostMapping(value = "PatientManagement", produces = MediaType.APPLICATION_JSON_VALUE)
     @ResponseBody
@@ -60,11 +61,8 @@ public class PatientManagementRestController extends BaseRestController {
             @Validated(SamplePatientEntryForm.SamplePatientEntry.class) @RequestBody PatientManagementInfo patientInfo,
             BindingResult bindingResult) throws Exception {
         String sysUserId = getSysUserId(request);
-        if (!profilePermissionService.hasPatientEntryPermission(sysUserId)) {
-            throw new AccessDeniedException(
-                    "User " + sysUserId + " does not have required professional profile for patient management");
-        }
-
+        String actionKey = StringUtils.isNotBlank(patientInfo.getPatientPK()) ? "update" : "create";
+        requirePatientPermission(sysUserId, patientInfo.getPatientPK(), actionKey);
         if (StringUtils.isNotBlank(patientInfo.getPatientPK())) {
             patientInfo.setPatientUpdateStatus(PatientUpdateStatus.UPDATE);
         } else {
@@ -103,12 +101,36 @@ public class PatientManagementRestController extends BaseRestController {
     }
 
     @GetMapping("patient-photos/{id}/{isThumbnail}")
-    public ResponseEntity<Map<String, String>> getPhoto(@PathVariable String id, @PathVariable boolean isThumbnail)
-            throws LIMSRuntimeException {
+    public ResponseEntity<Map<String, String>> getPhoto(HttpServletRequest request, @PathVariable String id,
+            @PathVariable boolean isThumbnail) throws LIMSRuntimeException {
+        String sysUserId = getSysUserId(request);
+        if (!patientAuthorizationService.canAccessPatient(sysUserId, id, "read")
+                && !patientAuthorizationService.canAccessPatient(sysUserId, id, "update")) {
+            throw new AccessDeniedException("User does not have Patients module permission to view a patient photo");
+        }
         String photo = photoService.getPhotoByPatientId(id, isThumbnail);
         // Map.of does not allow null values and throws Objects.requireNonNull.
         // Return empty string when no photo exists to keep response shape stable.
         return ResponseEntity.ok(Map.of("data", photo == null ? "" : photo));
+    }
+
+    @GetMapping(value = "patient-management/access", produces = MediaType.APPLICATION_JSON_VALUE)
+    @ResponseBody
+    public PatientModuleAccess getPatientModuleAccess(HttpServletRequest request) {
+        String sysUserId = getSysUserId(request);
+        return new PatientModuleAccess(patientAuthorizationService.hasPermission(sysUserId, "read"),
+                patientAuthorizationService.hasPermission(sysUserId, "create"),
+                patientAuthorizationService.hasPermission(sysUserId, "update"),
+                moduleAuthorizationService.getRestrictedFieldGroupKeys(sysUserId, "patients"),
+                moduleAuthorizationService.getRestrictedFieldTagKeys(sysUserId, "patients"));
+    }
+
+    private void requirePatientPermission(String sysUserId, String patientId, String actionKey) {
+        boolean permitted = StringUtils.isBlank(patientId) ? patientAuthorizationService.hasPermission(sysUserId, actionKey)
+                : patientAuthorizationService.canAccessPatient(sysUserId, patientId, actionKey);
+        if (!permitted) {
+            throw new AccessDeniedException("User does not have Patients module permission: " + actionKey);
+        }
     }
 
 }

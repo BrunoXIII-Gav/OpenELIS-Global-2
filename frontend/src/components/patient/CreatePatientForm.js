@@ -65,6 +65,21 @@ const PRIMARY_IDENTIFIER_OPTIONS = [
   },
 ];
 
+const PATIENT_FIXED_FIELD_TAGS = {
+  photo: "patient-photo",
+  subjectNumber: "patient-subject-number",
+  nationalId: "patient-national-id",
+  optionalIdentifiers: "patient-optional-identifiers",
+  lastName: "patient-last-name",
+  firstName: "patient-first-name",
+  primaryPhone: "patient-primary-phone",
+  email: "patient-email",
+  gender: "patient-gender",
+  birthDateAge: "patient-birth-date-age",
+  emergencyContact: "patient-emergency-contact",
+  additionalInfo: "patient-additional-information",
+};
+
 function CreatePatientForm(props) {
   const componentMounted = useRef(false);
   const selectedPatient = props.selectedPatient || {};
@@ -118,9 +133,15 @@ function CreatePatientForm(props) {
   });
 
   const [isSubmitting, setIsSubmitting] = useState(false);
-  const [hasPatientPermission, setHasPatientPermission] = useState(true);
+  const [hasPatientPermission, setHasPatientPermission] = useState(false);
   const [hasOrderPermission, setHasOrderPermission] = useState(true);
   const [permissionsLoaded, setPermissionsLoaded] = useState(false);
+  const [patientModuleAccess, setPatientModuleAccess] = useState({
+    canRead: false,
+    canCreate: false,
+    canUpdate: false,
+    restrictedFieldTagKeys: [],
+  });
   const [phoneValidation, setPhoneValidation] = useState({
     primaryPhone: { body: "", status: true },
     contactPhone: { body: "", status: true },
@@ -129,9 +150,15 @@ function CreatePatientForm(props) {
   const [showPassportField, setShowPassportField] = useState(false);
   const [showForeignIdField, setShowForeignIdField] = useState(false);
 
+  const isExistingPatient = Boolean(selectedPatient?.patientPK);
+  const restrictedPatientFieldTags = new Set(
+    patientModuleAccess.restrictedFieldTagKeys || [],
+  );
   const canEditPatientInCurrentContext = isOrderEntryPatientStep
     ? hasOrderPermission
-    : hasPatientPermission;
+    : isExistingPatient
+      ? patientModuleAccess.canUpdate
+      : patientModuleAccess.canCreate;
 
   const getPatientFixedFieldConfig = (fieldKey) =>
     patientFixedFieldConfigs.find((config) => config.fieldKey === fieldKey) ||
@@ -152,26 +179,103 @@ function CreatePatientForm(props) {
     order: getPatientFixedFieldOrder(fieldKey, offset),
   });
 
+  const hasPatientFieldValue = (fieldKey) => {
+    const contact = patientDetails?.patientContact?.person || {};
+    const additionalInfoValues = [
+      patientDetails?.city,
+      patientDetails?.streetAddress,
+      patientDetails?.commune,
+      patientDetails?.addressDepartment,
+      patientDetails?.healthRegion,
+      patientDetails?.healthDistrict,
+      patientDetails?.maritalStatus,
+      patientDetails?.education,
+      patientDetails?.nationality,
+      ...Object.values(patientDetails?.addressHierarchy || {}),
+    ];
+    const hasValue = (value) => String(value || "").trim().length > 0;
+
+    switch (fieldKey) {
+      case "photo":
+        return hasValue(patientDetails?.photo);
+      case "optionalIdentifiers":
+        return [
+          patientDetails?.dni,
+          patientDetails?.passportNumber,
+          patientDetails?.foreignId,
+        ].some(hasValue);
+      case "emergencyContact":
+        return [
+          contact.firstName,
+          contact.lastName,
+          contact.primaryPhone,
+          contact.email,
+        ].some(hasValue);
+      case "additionalInfo":
+        return additionalInfoValues.some(hasValue);
+      default:
+        return hasValue(patientDetails?.[fieldKey]);
+    }
+  };
+
+  const isUpdateOnlyPatientMode =
+    !isOrderEntryPatientStep &&
+    isExistingPatient &&
+    patientModuleAccess.canUpdate &&
+    !patientModuleAccess.canCreate &&
+    !patientModuleAccess.canRead;
+
   const isPatientFixedFieldVisible = (fieldKey) => {
     const config = getPatientFixedFieldConfig(fieldKey);
-    if (config.visible === false) {
+    if (
+      config.visible === false ||
+      restrictedPatientFieldTags.has(PATIENT_FIXED_FIELD_TAGS[fieldKey])
+    ) {
       return false;
     }
 
     switch (fieldKey) {
       case "photo":
-        return showPatientPhotoOnOrderEntry;
+        if (!showPatientPhotoOnOrderEntry) {
+          return false;
+        }
+        break;
       case "nationalId":
-        return showPatientNationalIdField;
+        if (!showPatientNationalIdField) {
+          return false;
+        }
+        break;
       case "optionalIdentifiers":
-        return showPatientOptionalIdentifiersOnOrderEntry;
+        if (!showPatientOptionalIdentifiersOnOrderEntry) {
+          return false;
+        }
+        break;
       case "emergencyContact":
-        return showPatientEmergencyContactOnOrderEntry;
+        if (!showPatientEmergencyContactOnOrderEntry) {
+          return false;
+        }
+        break;
       case "additionalInfo":
-        return showPatientAdditionalInfoOnOrderEntry;
+        if (!showPatientAdditionalInfoOnOrderEntry) {
+          return false;
+        }
+        break;
       default:
-        return true;
+        break;
     }
+
+    if (isOrderEntryPatientStep) {
+      return true;
+    }
+
+    if (!isExistingPatient) {
+      return patientModuleAccess.canCreate;
+    }
+
+    return (
+      (patientModuleAccess.canRead || patientModuleAccess.canUpdate) &&
+      (!isUpdateOnlyPatientMode || hasPatientFieldValue(fieldKey))
+    );
   };
 
   const isPatientFixedFieldRequired = (fieldKey) =>
@@ -196,7 +300,8 @@ function CreatePatientForm(props) {
           PATIENT_FIXED_FIELD_DEFINITION_MAP[fieldKey]?.labelId ||
           "patient.fixed.fields.unknown",
         defaultMessage:
-          PATIENT_FIXED_FIELD_DEFINITION_MAP[fieldKey]?.defaultLabel || fieldKey,
+          PATIENT_FIXED_FIELD_DEFINITION_MAP[fieldKey]?.defaultLabel ||
+          fieldKey,
       })}
       {isPatientFixedFieldRequired(fieldKey) ? (
         <span className="requiredlabel">*</span>
@@ -405,7 +510,21 @@ function CreatePatientForm(props) {
   const getPatientAdditionalFields = () => {
     return Array.isArray(patientAdditionalFields)
       ? [...patientAdditionalFields]
-          .filter((field) => field && field.active !== false && field.fieldKey)
+          .filter(
+            (field) =>
+              field &&
+              field.active !== false &&
+              field.fieldKey &&
+              !restrictedPatientFieldTags.has(
+                `patient-additional-field-${field.id}`,
+              ) &&
+              (!isUpdateOnlyPatientMode ||
+                String(
+                  patientDetails?.patientAdditionalFieldValues?.[
+                    field.fieldKey
+                  ] || "",
+                ).trim().length > 0),
+          )
           .sort((left, right) => {
             const leftSortOrder =
               left?.sortOrder !== null && left?.sortOrder !== undefined
@@ -1277,14 +1396,37 @@ function CreatePatientForm(props) {
     componentMounted.current = true;
     repopulatePatientInfo();
 
-    // Check professional profile permissions
-    getFromOpenElisServer("/rest/professional-profile-permissions", (response) => {
-      if (response) {
-        setHasPatientPermission(response.hasPatientEntryPermission !== false);
-        setHasOrderPermission(response.hasOrderPermission !== false);
-      }
-      setPermissionsLoaded(true);
-    });
+    if (isOrderEntryPatientStep) {
+      getFromOpenElisServer(
+        "/rest/professional-profile-permissions",
+        (response) => {
+          if (response) {
+            setHasOrderPermission(response.hasOrderPermission !== false);
+          }
+          setPermissionsLoaded(true);
+        },
+      );
+    } else {
+      getFromOpenElisServer("/rest/patient-management/access", (response) => {
+        const access = response || {};
+        if (componentMounted.current) {
+          setPatientModuleAccess({
+            canRead: access.canRead === true,
+            canCreate: access.canCreate === true,
+            canUpdate: access.canUpdate === true,
+            restrictedFieldTagKeys: Array.isArray(access.restrictedFieldTagKeys)
+              ? access.restrictedFieldTagKeys
+              : [],
+          });
+          setHasPatientPermission(
+            access.canRead === true ||
+              access.canCreate === true ||
+              access.canUpdate === true,
+          );
+          setPermissionsLoaded(true);
+        }
+      });
+    }
 
     return () => {
       componentMounted.current = false;
@@ -1299,9 +1441,9 @@ function CreatePatientForm(props) {
       getFromOpenElisServer(
         "/rest/patient-additional-fields?resolveUserOptions=true",
         (fields) => {
-        if (componentMounted.current) {
-          setPatientAdditionalFields(Array.isArray(fields) ? fields : []);
-        }
+          if (componentMounted.current) {
+            setPatientAdditionalFields(Array.isArray(fields) ? fields : []);
+          }
         },
       );
     }
@@ -1311,11 +1453,16 @@ function CreatePatientForm(props) {
     if (!componentMounted.current) {
       return;
     }
-    getFromOpenElisServer("/rest/patient-additional-fields/fixed", (configs) => {
-      if (componentMounted.current) {
-        setPatientFixedFieldConfigs(normalizePatientFixedFieldConfigs(configs));
-      }
-    });
+    getFromOpenElisServer(
+      "/rest/patient-additional-fields/fixed",
+      (configs) => {
+        if (componentMounted.current) {
+          setPatientFixedFieldConfigs(
+            normalizePatientFixedFieldConfigs(configs),
+          );
+        }
+      },
+    );
   }, []);
 
   useEffect(() => {
@@ -1490,11 +1637,7 @@ function CreatePatientForm(props) {
     }
 
     // Prevent multiple submissions.
-    if (
-      isSubmitting ||
-      !permissionsLoaded ||
-      !canEditPatientInCurrentContext
-    ) {
+    if (isSubmitting || !permissionsLoaded || !canEditPatientInCurrentContext) {
       return;
     }
 
@@ -1568,14 +1711,18 @@ function CreatePatientForm(props) {
   return (
     <>
       {notificationVisible === true ? <AlertDialog /> : ""}
-      {!isOrderEntryPatientStep && permissionsLoaded && !hasPatientPermission && (
-        <InlineNotification
-          kind="warning"
-          title={intl.formatMessage({ id: "professionalProfile.permission.denied.patient" })}
-          hideCloseButton={true}
-          lowContrast={true}
-        />
-      )}
+      {!isOrderEntryPatientStep &&
+        permissionsLoaded &&
+        !hasPatientPermission && (
+          <InlineNotification
+            kind="warning"
+            title={intl.formatMessage({
+              id: "professionalProfile.permission.denied.patient",
+            })}
+            hideCloseButton={true}
+            lowContrast={true}
+          />
+        )}
       <Formik
         initialValues={patientDetails}
         enableReinitialize
@@ -1624,7 +1771,9 @@ function CreatePatientForm(props) {
                 <Column lg={16} md={8} sm={4}>
                   <PatientImageSelector
                     value={values.photo}
-                    onChange={(photo) => handlePhotoChange(photo, setFieldValue)}
+                    onChange={(photo) =>
+                      handlePhotoChange(photo, setFieldValue)
+                    }
                     required={false}
                     disabled={isPatientFixedFieldReadOnly("photo")}
                   />
@@ -1747,7 +1896,10 @@ function CreatePatientForm(props) {
                               );
                             }
                           } else if (!values.primaryPatientIdentifierType) {
-                            setFieldValue("primaryPatientIdentifierType", "DNI");
+                            setFieldValue(
+                              "primaryPatientIdentifierType",
+                              "DNI",
+                            );
                           }
                         }}
                       />
@@ -2105,7 +2257,9 @@ function CreatePatientForm(props) {
                             id: "patient.label.primaryphone",
                             defaultMessage: "Phone: {PHONE_FORMAT}",
                           },
-                          { PHONE_FORMAT: configurationProperties.PHONE_FORMAT },
+                          {
+                            PHONE_FORMAT: configurationProperties.PHONE_FORMAT,
+                          },
                         )}
                         disabled={isPatientFixedFieldReadOnly("primaryPhone")}
                         invalid={!phoneValidation.primaryPhone.status}
@@ -2308,9 +2462,7 @@ function CreatePatientForm(props) {
                                 })}
                                 id={field.name}
                                 disabled={emergencyContactDisabled}
-                                onChange={(e) =>
-                                  handleLastContactNameChange(e)
-                                }
+                                onChange={(e) => handleLastContactNameChange(e)}
                                 placeholder={intl.formatMessage({
                                   id: "patient.emergency.lastname",
                                 })}
@@ -2345,7 +2497,9 @@ function CreatePatientForm(props) {
                           <Field name="patientContact.person.email">
                             {({ field }) => (
                               <TextInput
-                                value={values.patientContact?.person?.email || ""}
+                                value={
+                                  values.patientContact?.person?.email || ""
+                                }
                                 name={field.name}
                                 labelText={intl.formatMessage({
                                   id: "patientcontact.person.email",
@@ -2485,7 +2639,10 @@ function CreatePatientForm(props) {
                               <AddressSearch
                                 disabled={additionalInfoDisabled}
                                 onAddressSelect={(levels) =>
-                                  handleAddressSearchSelect(levels, setFieldValue)
+                                  handleAddressSearchSelect(
+                                    levels,
+                                    setFieldValue,
+                                  )
                                 }
                                 addressHierarchyLevels={addressHierarchyLevels}
                               />
@@ -2501,8 +2658,9 @@ function CreatePatientForm(props) {
                                   <Select
                                     id={`address_hierarchy_${levelIndex}`}
                                     value={
-                                      values[`addressHierarchy_${levelIndex}`] ||
-                                      ""
+                                      values[
+                                        `addressHierarchy_${levelIndex}`
+                                      ] || ""
                                     }
                                     disabled={additionalInfoDisabled}
                                     name={field.name}
@@ -2737,68 +2895,68 @@ function CreatePatientForm(props) {
               onBlur={handleBlur}
             >
               {props.orderFormValues && (
-              <PatientFormObserver
-                orderFormValues={props.orderFormValues}
-                setOrderFormValues={props.setOrderFormValues}
-                formAction={formAction}
-              />
+                <PatientFormObserver
+                  orderFormValues={props.orderFormValues}
+                  setOrderFormValues={props.setOrderFormValues}
+                  formAction={formAction}
+                />
               )}
               <Grid>
-              <Column lg={16} md={8} sm={4}>
-                <FormLabel>
-                  <Section>
+                <Column lg={16} md={8} sm={4}>
+                  <FormLabel>
                     <Section>
                       <Section>
-                        <Heading>
-                          <FormattedMessage id="patient.label.info" />
-                        </Heading>
+                        <Section>
+                          <Heading>
+                            <FormattedMessage id="patient.label.info" />
+                          </Heading>
+                        </Section>
                       </Section>
                     </Section>
-                  </Section>
-                </FormLabel>
-              </Column>
-              {renderOrderedPatientFields()}
-              <Column lg={16} md={8} sm={4}>
-                {" "}
-                <br></br>
-              </Column>
-              {props.showActionsButton && (
-                <>
-                  <Column lg={4} md={4} sm={4}>
-                    <Button
-                      type="submit"
-                      id="submit"
-                      disabled={
-                        patientEditingDisabled ||
-                        isSubmitting ||
-                        Object.values(phoneValidation).some(
-                          (item) => item.status === false,
-                        )
-                      }
-                    >
-                      <FormattedMessage id="label.button.save" />
-                    </Button>
-                  </Column>
-                  <Column lg={4} md={4} sm={4}>
-                    <Button
-                      id="clear"
-                      kind="danger"
-                      disabled={patientEditingDisabled || isSubmitting}
-                      onClick={() => {
-                        resetForm({ values: CreatePatientFormValues });
-                        setHealthDistricts([]);
-                        setDateOfBirthFormatter({
-                          years: "",
-                          months: "",
-                          days: "",
-                        });
-                      }}
-                    >
-                      <FormattedMessage id="label.button.clear" />
-                    </Button>
-                  </Column>
-                </>
-              )}
+                  </FormLabel>
+                </Column>
+                {renderOrderedPatientFields()}
+                <Column lg={16} md={8} sm={4}>
+                  {" "}
+                  <br></br>
+                </Column>
+                {props.showActionsButton && (
+                  <>
+                    <Column lg={4} md={4} sm={4}>
+                      <Button
+                        type="submit"
+                        id="submit"
+                        disabled={
+                          patientEditingDisabled ||
+                          isSubmitting ||
+                          Object.values(phoneValidation).some(
+                            (item) => item.status === false,
+                          )
+                        }
+                      >
+                        <FormattedMessage id="label.button.save" />
+                      </Button>
+                    </Column>
+                    <Column lg={4} md={4} sm={4}>
+                      <Button
+                        id="clear"
+                        kind="danger"
+                        disabled={patientEditingDisabled || isSubmitting}
+                        onClick={() => {
+                          resetForm({ values: CreatePatientFormValues });
+                          setHealthDistricts([]);
+                          setDateOfBirthFormatter({
+                            years: "",
+                            months: "",
+                            days: "",
+                          });
+                        }}
+                      >
+                        <FormattedMessage id="label.button.clear" />
+                      </Button>
+                    </Column>
+                  </>
+                )}
               </Grid>
             </Form>
           );

@@ -1,6 +1,7 @@
 const SearchPatientFormValues = {
   labNumber: "",
   patientId: "",
+  nationalId: "",
   lastName: "",
   firstName: "",
   dateOfBirth: "",

@@ -21,16 +21,16 @@ const PatientHistory = () => {
   };
   useEffect(() => {
     componentMounted.current = true;
-    openPatientResults(selectedPatient.patientPK);
+    openPatientHistory(selectedPatient.patientPK);
 
     return () => {
       componentMounted.current = false;
     };
   }, [selectedPatient]);
 
-  const openPatientResults = (patientId) => {
+  const openPatientHistory = (patientId) => {
     if (patientId) {
-      window.location.href = "/PatientResults/" + patientId;
+      window.location.href = "/PatientHistory/" + patientId;
     }
   };
 
