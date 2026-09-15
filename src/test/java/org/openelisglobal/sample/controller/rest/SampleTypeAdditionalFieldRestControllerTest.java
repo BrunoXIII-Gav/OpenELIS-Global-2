@@ -12,6 +12,7 @@ import static org.mockito.Mockito.when;
 
 import java.util.Collections;
 import java.util.List;
+import java.util.Map;
 import org.junit.Before;
 import org.junit.Test;
 import org.junit.runner.RunWith;
@@ -19,9 +20,12 @@ import org.mockito.InjectMocks;
 import org.mockito.Mock;
 import org.mockito.junit.MockitoJUnitRunner;
 import org.openelisglobal.common.action.IActionConstants;
+import org.openelisglobal.authorization.service.ModuleAuthorizationService;
 import org.openelisglobal.login.valueholder.UserSessionData;
 import org.openelisglobal.sample.bean.SampleTypeAdditionalFieldPayload;
 import org.openelisglobal.sample.service.SampleTypeAdditionalFieldService;
+import org.openelisglobal.sampleitem.service.SampleManagementAccess;
+import org.openelisglobal.sampleitem.service.SampleManagementAuthorizationService;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.mock.web.MockHttpServletRequest;
@@ -32,6 +36,12 @@ public class SampleTypeAdditionalFieldRestControllerTest {
 
     @Mock
     private SampleTypeAdditionalFieldService sampleTypeAdditionalFieldService;
+
+    @Mock
+    private ModuleAuthorizationService moduleAuthorizationService;
+
+    @Mock
+    private SampleManagementAuthorizationService sampleManagementAuthorizationService;
 
     @InjectMocks
     private SampleTypeAdditionalFieldRestController controller;
@@ -79,6 +89,22 @@ public class SampleTypeAdditionalFieldRestControllerTest {
         }
 
         assertTrue(thrown);
+    }
+
+    @Test
+    public void getFieldValuesForSampleItem_allowsAUserWhoCanCompleteSamples() {
+        when(sampleManagementAuthorizationService.getAccess("22"))
+                .thenReturn(new SampleManagementAccess(false, true, false));
+        when(sampleTypeAdditionalFieldService.getFieldValuesForSampleItem("1", "10"))
+                .thenReturn(Collections.singletonMap("collection_note", "received"));
+        when(moduleAuthorizationService.getRestrictedFieldGroupKeys("22", "sample-management"))
+                .thenReturn(Collections.emptySet());
+        when(moduleAuthorizationService.getRestrictedFieldTagKeys("22", "sample-management"))
+                .thenReturn(Collections.emptySet());
+
+        Map<String, String> response = controller.getFieldValuesForSampleItem("1", "10", request);
+
+        assertEquals("received", response.get("collection_note"));
     }
 
     @Test

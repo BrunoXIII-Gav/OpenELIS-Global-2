@@ -8,12 +8,14 @@ import org.openelisglobal.common.services.DisplayListService.ListType;
 import org.openelisglobal.common.services.SampleOrderService;
 import org.openelisglobal.common.util.DateUtil;
 import org.openelisglobal.sample.controller.BaseSampleEntryController;
+import org.openelisglobal.sample.service.OrderAuthorizationService;
 import org.openelisglobal.sample.form.ProjectData;
 import org.openelisglobal.samplebatchentry.form.SampleBatchEntryForm;
 import org.openelisglobal.siteinformation.service.SiteInformationService;
 import org.openelisglobal.siteinformation.valueholder.SiteInformation;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.http.MediaType;
+import org.springframework.security.access.AccessDeniedException;
 import org.springframework.stereotype.Controller;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.RequestMapping;
@@ -26,10 +28,14 @@ public class SampleBatchEntrySetupRestController extends BaseSampleEntryControll
     @Autowired
     SiteInformationService siteInformationService;
 
+    @Autowired
+    private OrderAuthorizationService orderAuthorizationService;
+
     @GetMapping(value = "/SampleBatchEntrySetup", produces = MediaType.APPLICATION_JSON_VALUE)
     @ResponseBody
     public SampleBatchEntryForm showSampleBatchEntrySetup(HttpServletRequest request)
             throws IllegalAccessException, InvocationTargetException, NoSuchMethodException {
+        requireOrderCreatePermission(request);
         SampleBatchEntryForm form = new SampleBatchEntryForm();
 
         request.getSession().setAttribute(NEXT_DISABLED, TRUE);
@@ -60,6 +66,12 @@ public class SampleBatchEntrySetupRestController extends BaseSampleEntryControll
         }
 
         return form;
+    }
+
+    private void requireOrderCreatePermission(HttpServletRequest request) {
+        if (!orderAuthorizationService.hasPermission(getSysUserId(request), "create")) {
+            throw new AccessDeniedException("The user does not have permission to create orders");
+        }
     }
 
     @Override

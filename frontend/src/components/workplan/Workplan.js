@@ -21,6 +21,7 @@ import WorkplanSearchForm from "./WorkplanSearchForm";
 import {
   postToOpenElisServerForPDF,
   convertAlphaNumLabNumForDisplay,
+  getFromOpenElisServer,
 } from "../utils/Utils";
 import { NotificationContext } from "../layout/Layout";
 import { AlertDialog, NotificationKinds } from "../common/CustomNotification";
@@ -42,6 +43,7 @@ export default function Workplan(props) {
   const [selectedLabel, setSelectedLabel] = useState("");
   const [page, setPage] = useState(1);
   const [pageSize, setPageSize] = useState(100);
+  const [canExportWorkplan, setCanExportWorkplan] = useState(false);
 
   const type = props.type;
   let title = "";
@@ -77,6 +79,13 @@ export default function Workplan(props) {
     setSubjectOnWorkplan(configurationProperties.SUBJECT_ON_WORKPLAN);
     setNextVisitOnWorkplan(configurationProperties.NEXT_VISIT_DATE_ON_WORKPLAN);
     setConfigurationName(configurationProperties.configurationName);
+  }, []);
+
+  useEffect(() => {
+    getFromOpenElisServer(
+      "/rest/module-action-access?moduleKey=results&actionKey=export",
+      (response) => setCanExportWorkplan(response?.allowed === true),
+    );
   }, []);
 
   const reportStatus = (pdfGenerated) => {
@@ -212,6 +221,7 @@ export default function Workplan(props) {
                   name="print"
                   id="print"
                   onClick={printWorkplan}
+                  disabled={!canExportWorkplan}
                 >
                   <FormattedMessage id="workplan.print" />
                 </Button>
@@ -418,6 +428,7 @@ export default function Workplan(props) {
                   name="print"
                   id="print"
                   onClick={printWorkplan}
+                  disabled={!canExportWorkplan}
                 >
                   <FormattedMessage id="workplan.print" />
                 </Button>

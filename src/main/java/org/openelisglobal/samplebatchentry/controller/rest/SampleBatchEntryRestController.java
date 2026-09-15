@@ -30,6 +30,7 @@ import org.openelisglobal.sample.action.util.SamplePatientUpdateData;
 import org.openelisglobal.sample.bean.SampleOrderItem;
 import org.openelisglobal.sample.form.SamplePatientEntryForm;
 import org.openelisglobal.sample.service.PatientManagementUpdate;
+import org.openelisglobal.sample.service.OrderAuthorizationService;
 import org.openelisglobal.sample.service.SamplePatientEntryService;
 import org.openelisglobal.sample.validator.SamplePatientEntryFormValidator;
 import org.openelisglobal.samplebatchentry.form.SampleBatchEntryForm;
@@ -40,6 +41,7 @@ import org.openelisglobal.test.service.TestServiceImpl;
 import org.openelisglobal.typeofsample.service.TypeOfSampleService;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.http.MediaType;
+import org.springframework.security.access.AccessDeniedException;
 import org.springframework.validation.BindingResult;
 import org.springframework.validation.annotation.Validated;
 import org.springframework.web.bind.WebDataBinder;
@@ -89,6 +91,9 @@ public class SampleBatchEntryRestController extends BaseController {
     @Autowired
     private SamplePatientEntryService samplePatientEntryService;
 
+    @Autowired
+    private OrderAuthorizationService orderAuthorizationService;
+
     protected FhirTransformService fhirTransformService = SpringContext.getBean(FhirTransformService.class);
 
     @InitBinder
@@ -104,6 +109,7 @@ public class SampleBatchEntryRestController extends BaseController {
             saveErrors(result);
             return (form);
         }
+        requireCreateScope(request, form.getSampleXML());
         String sampleXML = form.getSampleXML();
         SampleOrderService sampleOrderService = new SampleOrderService();
         SampleOrderItem soi = sampleOrderService.getSampleOrderItem();
@@ -169,6 +175,7 @@ public class SampleBatchEntryRestController extends BaseController {
         if (result.hasErrors()) {
             saveErrors(result);
         }
+        requireCreateScope(request, form.getSampleXML());
         SamplePatientUpdateData updateData = new SamplePatientUpdateData(getSysUserId(request));
 
         PatientManagementInfo patientInfo = form.getPatientProperties();
@@ -225,6 +232,14 @@ public class SampleBatchEntryRestController extends BaseController {
 
         redirectAttributes.addFlashAttribute(FWD_SUCCESS, true);
         return (form);
+    }
+
+    private void requireCreateScope(HttpServletRequest request, String sampleXml) {
+        String userId = getSysUserId(request);
+        if (!orderAuthorizationService.hasPermission(userId, "create")
+                || !orderAuthorizationService.canAccessSampleXml(userId, sampleXml, "create")) {
+            throw new AccessDeniedException("The user does not have access to create this order");
+        }
     }
 
     private void testAndInitializePatientForSaving(HttpServletRequest request, PatientManagementInfo patientInfo,

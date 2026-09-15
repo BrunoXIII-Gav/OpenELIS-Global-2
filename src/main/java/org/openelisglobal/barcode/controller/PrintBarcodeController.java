@@ -36,6 +36,7 @@ import org.openelisglobal.patient.valueholder.Patient;
 import org.openelisglobal.person.service.PersonService;
 import org.openelisglobal.sample.bean.SampleEditItem;
 import org.openelisglobal.sample.form.ProjectData;
+import org.openelisglobal.sample.service.OrderAuthorizationService;
 import org.openelisglobal.sample.service.SampleService;
 import org.openelisglobal.sample.util.AccessionNumberUtil;
 import org.openelisglobal.sample.valueholder.Sample;
@@ -48,6 +49,7 @@ import org.openelisglobal.typeofsample.service.TypeOfSampleService;
 import org.openelisglobal.typeofsample.valueholder.TypeOfSample;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Controller;
+import org.springframework.security.access.AccessDeniedException;
 import org.springframework.validation.BindingResult;
 import org.springframework.web.bind.WebDataBinder;
 import org.springframework.web.bind.annotation.InitBinder;
@@ -82,6 +84,8 @@ public class PrintBarcodeController extends BaseController {
     private SampleHumanService sampleHumanService;
     @Autowired
     private DisplayListService displayListService;
+    @Autowired
+    private OrderAuthorizationService orderAuthorizationService;
 
     @PostConstruct
     private void initialize() {
@@ -102,6 +106,9 @@ public class PrintBarcodeController extends BaseController {
             @Valid @ModelAttribute("form") PrintBarcodeForm form, BindingResult result)
             throws InvocationTargetException, NoSuchMethodException, IllegalAccessException,
             LIMSInvalidConfigurationException {
+        if (!orderAuthorizationService.hasPermission(getSysUserId(request), "print")) {
+            throw new AccessDeniedException("The user does not have permission to print order labels");
+        }
 
         form.setFormAction("PrintBarcode");
         form.setFormMethod(RequestMethod.GET);
@@ -121,6 +128,11 @@ public class PrintBarcodeController extends BaseController {
         String accessionNumber = form.getAccessionNumber();
         Sample sample = getSample(accessionNumber);
         if (sample != null && !org.apache.commons.validator.GenericValidator.isBlankOrNull(sample.getId())) {
+            List<String> testIds = analysisService.getAnalysesBySampleId(sample.getId()).stream()
+                    .map(analysis -> analysis.getTest().getId()).toList();
+            if (!orderAuthorizationService.canAccessAllTests(getSysUserId(request), testIds, "print")) {
+                throw new AccessDeniedException("The user does not have access to all order laboratory units");
+            }
             form.setAccessionNumber(sample.getAccessionNumber());
             List<SampleItem> sampleItemList = getSampleItems(sample);
             setPatientInfo(displayObjects, sample);
