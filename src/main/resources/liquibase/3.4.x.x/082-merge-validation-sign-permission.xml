@@ -1,0 +1,40 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<databaseChangeLog
+  xmlns="http://www.liquibase.org/xml/ns/dbchangelog"
+  xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+  xsi:schemaLocation="http://www.liquibase.org/xml/ns/dbchangelog http://www.liquibase.org/xml/ns/dbchangelog/dbchangelog-3.8.xsd">
+
+  <changeSet id="082-01-merge-validation-sign-permission" author="openelis">
+    <preConditions onFail="MARK_RAN">
+      <tableExists tableName="role_module_permission" schemaName="clinlims" />
+    </preConditions>
+
+    <!-- Preserve roles configured only with the former sign action. -->
+    <sql>
+      UPDATE clinlims.role_module_permission sign_permission
+      SET action_key = 'validate'
+      WHERE sign_permission.module_key = 'validation'
+        AND sign_permission.action_key = 'sign'
+        AND NOT EXISTS (
+          SELECT 1
+          FROM clinlims.role_module_permission validate_permission
+          WHERE validate_permission.role_id = sign_permission.role_id
+            AND validate_permission.module_key = 'validation'
+            AND validate_permission.action_key = 'validate'
+        );
+    </sql>
+
+    <sql>
+      DELETE FROM clinlims.role_module_permission_lab_unit_scope
+      WHERE role_module_permission_id IN (
+        SELECT id
+        FROM clinlims.role_module_permission
+        WHERE module_key = 'validation' AND action_key = 'sign'
+      );
+    </sql>
+
+    <delete schemaName="clinlims" tableName="role_module_permission">
+      <where>module_key = 'validation' AND action_key = 'sign'</where>
+    </delete>
+  </changeSet>
+</databaseChangeLog>
