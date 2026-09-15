@@ -334,6 +334,12 @@ public class AnalysisServiceImpl extends AuditableBaseObjectServiceImpl<Analysis
 
     @Override
     @Transactional(readOnly = true)
+    public boolean hasAnalysisForPatientInTestSections(String patientId, List<Integer> testSectionIds) {
+        return baseObjectDAO.hasAnalysisForPatientInTestSections(patientId, testSectionIds);
+    }
+
+    @Override
+    @Transactional(readOnly = true)
     public List<Analysis> getAnalysisByAccessionAndTestId(String accessionNumber, String testId) {
         if (accessionNumber != null && accessionNumber.contains(".")) {
             accessionNumber = accessionNumber.substring(0, accessionNumber.indexOf('.'));
