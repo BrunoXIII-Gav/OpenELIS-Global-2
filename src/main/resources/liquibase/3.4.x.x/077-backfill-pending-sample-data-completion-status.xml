@@ -1,0 +1,35 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<databaseChangeLog
+  xmlns="http://www.liquibase.org/xml/ns/dbchangelog"
+  xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+  xsi:schemaLocation="http://www.liquibase.org/xml/ns/dbchangelog http://www.liquibase.org/xml/ns/dbchangelog/dbchangelog-3.8.xsd">
+
+  <changeSet id="077-01-backfill-pending-sample-data-completion-status" author="openelis">
+    <comment>
+      Historical samples initially lacked a completion marker. Reclassify only records that have no generic-sample data;
+      CUGs are assigned when the order is created and therefore do not indicate completion.
+    </comment>
+    <sql>
+      UPDATE clinlims.sample_item sample_item
+      SET data_completion_status = 'PENDING_COMPLETION'
+      WHERE data_completion_status = 'COMPLETED'
+        AND quantity IS NULL
+        AND uom_id IS NULL
+        AND collection_date IS NULL
+        AND COALESCE(BTRIM(collector), '') = ''
+        AND NOT EXISTS (
+          SELECT 1
+          FROM clinlims.sample_item_additional_field_value additional_value
+          WHERE additional_value.sample_item_id = sample_item.id
+            AND COALESCE(BTRIM(additional_value.field_value), '') &lt;&gt; ''
+        );
+    </sql>
+    <rollback>
+      <sql>
+        UPDATE clinlims.sample_item
+        SET data_completion_status = 'COMPLETED'
+        WHERE data_completion_status = 'PENDING_COMPLETION';
+      </sql>
+    </rollback>
+  </changeSet>
+</databaseChangeLog>

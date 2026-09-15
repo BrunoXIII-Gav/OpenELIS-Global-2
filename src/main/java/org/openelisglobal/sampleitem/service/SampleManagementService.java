@@ -13,6 +13,7 @@
  */
 package org.openelisglobal.sampleitem.service;
 
+import java.util.Set;
 import org.openelisglobal.sampleitem.dto.AddTestsResponse;
 import org.openelisglobal.sampleitem.dto.CancelTestResponse;
 import org.openelisglobal.sampleitem.dto.CreateAliquotResponse;
@@ -51,6 +52,16 @@ public interface SampleManagementService {
      * @return SearchSamplesResponse containing matching sample items and metadata
      */
     SearchSamplesResponse searchByAccessionNumber(String accessionNumber, boolean includeTests);
+
+    SearchSamplesResponse searchByAccessionNumber(String accessionNumber, boolean includeTests,
+            Set<String> restrictedFieldGroupKeys);
+
+    SearchSamplesResponse searchByAccessionNumber(String accessionNumber, boolean includeTests,
+            Set<String> restrictedFieldGroupKeys, Set<String> restrictedFieldTagKeys);
+
+    SearchSamplesResponse searchByAccessionNumber(String accessionNumber, boolean includeTests,
+            Set<String> restrictedFieldGroupKeys, Set<String> restrictedFieldTagKeys,
+            SampleManagementAccess access);
 
     /**
      * Create an aliquot from a parent sample item.

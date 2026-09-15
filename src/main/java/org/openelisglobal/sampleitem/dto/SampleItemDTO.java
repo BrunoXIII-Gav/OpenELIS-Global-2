@@ -50,6 +50,8 @@ public class SampleItemDTO {
     private String unitOfMeasureId;
     private String status;
     private String statusId;
+    private String dataCompletionStatus;
+    private boolean editable;
     private Timestamp collectionDate;
     private String collector;
 
@@ -186,6 +188,22 @@ public class SampleItemDTO {
 
     public void setStatusId(String statusId) {
         this.statusId = statusId;
+    }
+
+    public String getDataCompletionStatus() {
+        return dataCompletionStatus;
+    }
+
+    public void setDataCompletionStatus(String dataCompletionStatus) {
+        this.dataCompletionStatus = dataCompletionStatus;
+    }
+
+    public boolean isEditable() {
+        return editable;
+    }
+
+    public void setEditable(boolean editable) {
+        this.editable = editable;
     }
 
     public Timestamp getCollectionDate() {

@@ -1,0 +1,21 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<databaseChangeLog
+  xmlns="http://www.liquibase.org/xml/ns/dbchangelog"
+  xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+  xsi:schemaLocation="http://www.liquibase.org/xml/ns/dbchangelog http://www.liquibase.org/xml/ns/dbchangelog/dbchangelog-3.8.xsd">
+
+  <changeSet id="076-01-add-sample-item-data-completion-status" author="openelis">
+    <addColumn tableName="sample_item" schemaName="clinlims">
+      <column name="data_completion_status" type="VARCHAR(30)" defaultValue="PENDING_COMPLETION">
+        <constraints nullable="false" />
+      </column>
+    </addColumn>
+    <update tableName="sample_item" schemaName="clinlims">
+      <column name="data_completion_status" value="COMPLETED" />
+      <where>data_completion_status = 'PENDING_COMPLETION'</where>
+    </update>
+    <rollback>
+      <dropColumn tableName="sample_item" schemaName="clinlims" columnName="data_completion_status" />
+    </rollback>
+  </changeSet>
+</databaseChangeLog>
