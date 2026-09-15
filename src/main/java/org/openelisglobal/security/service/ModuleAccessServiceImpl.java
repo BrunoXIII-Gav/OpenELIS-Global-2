@@ -10,6 +10,9 @@ import java.util.List;
 import java.util.Map;
 import java.util.Set;
 import org.apache.commons.validator.GenericValidator;
+import org.openelisglobal.authorization.service.ModuleAuthorizationService;
+import org.openelisglobal.authorization.service.ModuleAuthorizationService.AuthorizationDecision;
+import org.openelisglobal.authorization.service.ModuleAuthorizationService.AuthorizationSource;
 import org.openelisglobal.common.action.IActionConstants;
 import org.openelisglobal.common.constants.SystemPermission;
 import org.openelisglobal.login.dao.UserModuleService;
@@ -26,6 +29,22 @@ import org.springframework.stereotype.Service;
 @Service
 public class ModuleAccessServiceImpl implements ModuleAccessService {
 
+    private static final List<String> RESULTS_READ_PATHS = List.of("/result", "/LogbookResults", "/PatientResults",
+            "/AccessionResults", "/StatusResults", "/RangeResults", "/ReferredOutTests", "/WorkPlanByTestSection",
+            "/WorkplanByTest", "/WorkplanByPanel", "/WorkplanByPriority");
+    private static final List<String> RESULT_ACCESS_ACTIONS = List.of("read", "enter", "update", "correct");
+
+    private static final Map<String, String> ORDER_ACTIONS_BY_PATH = Map.of("/SamplePatientEntry", "create",
+            "/ModifyOrder", "update", "/SampleEdit", "read", "/SampleBatchEntrySetup", "create",
+            "/ElectronicOrders", "read", "/PrintBarcode", "print");
+
+    private static final Map<String, String> PATIENT_ACTIONS_BY_PATH = Map.of("/PatientHistory", "read",
+            "/PatientMerge", "merge");
+
+    private static final Map<String, String> VALIDATION_ACTIONS_BY_PATH = Map.of("/validation", "read",
+            "/ResultValidation", "read", "/AccessionValidation", "read", "/AccessionValidationRange", "read",
+            "/ResultValidationByTestDate", "read");
+
     @Autowired
     private UserModuleService userModuleService;
 
@@ -39,6 +58,8 @@ public class ModuleAccessServiceImpl implements ModuleAccessService {
     private PermissionModuleService<PermissionModule> permissionModuleService;
     @Autowired
     private UserPermissionService userPermissionService;
+    @Autowired
+    private ModuleAuthorizationService moduleAuthorizationService;
 
     @Override
     public ModuleAccessResult canAccess(String targetUrl, HttpServletRequest request) {
@@ -61,7 +82,95 @@ public class ModuleAccessServiceImpl implements ModuleAccessService {
 
         String userId = Integer.toString(getSysUserId(request));
         Map<String, String> targetParams = parseQueryParams(targetUrl);
+        if ("/SampleManagement".equals(normalizedPath)) {
+            List<AuthorizationDecision> decisions = List.of(
+                    moduleAuthorizationService.getAuthorization(userId, "sample-management", "read"),
+                    moduleAuthorizationService.getAuthorization(userId, "sample-management", "receive"),
+                    moduleAuthorizationService.getAuthorization(userId, "sample-management", "update"),
+                    moduleAuthorizationService.getAuthorization(userId, "sample-management", "aliquot"));
+            boolean hasExplicitSamplePermission = decisions.stream()
+                    .anyMatch(decision -> decision.source() == AuthorizationSource.MODULE_PERMISSION);
+            if (hasExplicitSamplePermission) {
+                return decisions.stream().anyMatch(AuthorizationDecision::allowed) ? ModuleAccessResult.allowed()
+                        : ModuleAccessResult.denied();
+            }
+        }
+        if (RESULTS_READ_PATHS.contains(normalizedPath)) {
+            List<AuthorizationDecision> decisions = RESULT_ACCESS_ACTIONS.stream()
+                    .map(actionKey -> moduleAuthorizationService.getAuthorization(userId, "results", actionKey))
+                    .toList();
+            if (decisions.stream().anyMatch(decision -> decision.source() == AuthorizationSource.MODULE_PERMISSION)) {
+                return decisions.stream().anyMatch(AuthorizationDecision::allowed) ? ModuleAccessResult.allowed()
+                        : ModuleAccessResult.denied();
+            }
+        }
+        if (normalizedPath.startsWith("/MasterListsPage") || "/admin".equals(normalizedPath)) {
+            AuthorizationDecision decision = moduleAuthorizationService.getAuthorization(userId, "administration",
+                    "read");
+            if (decision.source() == AuthorizationSource.MODULE_PERMISSION) {
+                return decision.allowed() && decision.allLabUnits() ? ModuleAccessResult.allowed()
+                        : ModuleAccessResult.denied();
+            }
+        }
+        String orderAction = ORDER_ACTIONS_BY_PATH.get(normalizedPath);
+        if (orderAction != null) {
+            AuthorizationDecision decision = moduleAuthorizationService.getAuthorization(userId, "orders", orderAction);
+            if (decision.source() == AuthorizationSource.MODULE_PERMISSION) {
+                return decision.allowed() ? ModuleAccessResult.allowed() : ModuleAccessResult.denied();
+            }
+        }
+        if ("/PatientManagement".equals(normalizedPath)) {
+            List<AuthorizationDecision> decisions = List.of(
+                    moduleAuthorizationService.getAuthorization(userId, "patients", "read"),
+                    moduleAuthorizationService.getAuthorization(userId, "patients", "create"),
+                    moduleAuthorizationService.getAuthorization(userId, "patients", "update"));
+            boolean hasExplicitPatientsPermission = decisions.stream()
+                    .anyMatch(decision -> decision.source() == AuthorizationSource.MODULE_PERMISSION);
+            if (hasExplicitPatientsPermission) {
+                return decisions.stream().anyMatch(AuthorizationDecision::allowed) ? ModuleAccessResult.allowed()
+                        : ModuleAccessResult.denied();
+            }
+        }
+        String patientAction = PATIENT_ACTIONS_BY_PATH.get(normalizedPath);
+        if (patientAction != null) {
+            AuthorizationDecision decision = moduleAuthorizationService.getAuthorization(userId, "patients",
+                    patientAction);
+            if (decision.source() == AuthorizationSource.MODULE_PERMISSION) {
+                boolean requiresGlobalScope = "merge".equals(patientAction);
+                return decision.allowed() && (!requiresGlobalScope || decision.allLabUnits())
+                        ? ModuleAccessResult.allowed() : ModuleAccessResult.denied();
+            }
+        }
+        String validationAction = VALIDATION_ACTIONS_BY_PATH.get(normalizedPath);
+        if (validationAction != null) {
+            AuthorizationDecision decision = moduleAuthorizationService.getAuthorization(userId, "validation",
+                    validationAction);
+            if (decision.source() == AuthorizationSource.MODULE_PERMISSION) {
+                return decision.allowed() ? ModuleAccessResult.allowed() : ModuleAccessResult.denied();
+            }
+        }
+        if ("/Storage".equals(normalizedPath) || normalizedPath.startsWith("/Storage/")
+                || "/FreezerMonitoring".equals(normalizedPath)) {
+            AuthorizationDecision decision = moduleAuthorizationService.getAuthorization(userId, "storage", "read");
+            if (decision.source() == AuthorizationSource.MODULE_PERMISSION) {
+                return decision.allowed() && decision.allLabUnits() ? ModuleAccessResult.allowed()
+                        : ModuleAccessResult.denied();
+            }
+        }
+        if (normalizedPath.startsWith("/PatientHistory/")) {
+            AuthorizationDecision decision = moduleAuthorizationService.getAuthorization(userId, "patients", "read");
+            if (decision.source() == AuthorizationSource.MODULE_PERMISSION) {
+                return decision.allowed() ? ModuleAccessResult.allowed() : ModuleAccessResult.denied();
+            }
+            boolean allowed = userPermissionService.hasPermission(userId, SystemPermission.PATIENT_HISTORY)
+                    || userPermissionService.hasPermission(userId, SystemPermission.PATIENT);
+            return allowed ? ModuleAccessResult.allowed() : ModuleAccessResult.denied();
+        }
         if (normalizedPath.startsWith("/PatientResults/")) {
+            AuthorizationDecision decision = moduleAuthorizationService.getAuthorization(userId, "patients", "read");
+            if (decision.source() == AuthorizationSource.MODULE_PERMISSION) {
+                return decision.allowed() ? ModuleAccessResult.allowed() : ModuleAccessResult.denied();
+            }
             boolean allowed = userPermissionService.hasPermission(userId, SystemPermission.RESULTS_BY_PATIENT)
                     || userPermissionService.hasPermission(userId, SystemPermission.PATIENT_HISTORY)
                     || userPermissionService.hasPermission(userId, SystemPermission.PATIENT);
@@ -107,9 +216,10 @@ public class ModuleAccessServiceImpl implements ModuleAccessService {
             return false;
         }
 
-        return List.of("/SampleManagement", "/SamplePatientEntry", "/ModifyOrder", "/SampleEdit",
-                "/PatientManagement", "/PatientHistory", "/LogbookResults", "/PatientResults",
-                "/AccessionResults", "/ResultValidation", "/AccessionValidation").contains(normalizedPath)
+        return List.of("/admin", "/SampleManagement", "/SamplePatientEntry", "/ModifyOrder", "/SampleEdit",
+                "/PatientManagement", "/PatientHistory", "/PatientMerge", "/LogbookResults", "/PatientResults",
+                "/AccessionResults", "/validation", "/ResultValidation", "/AccessionValidation",
+                "/AccessionValidationRange", "/ResultValidationByTestDate").contains(normalizedPath)
                 || "/rest/SamplePatientEntry".equals(normalizedPath)
                 || "/rest/SampleEdit".equals(normalizedPath)
                 || "/Storage".equals(normalizedPath)
@@ -150,6 +260,9 @@ public class ModuleAccessServiceImpl implements ModuleAccessService {
         }
         if ("/PatientHistory".equals(normalizedPath)) {
             return SystemPermission.PATIENT_HISTORY;
+        }
+        if ("/PatientMerge".equals(normalizedPath)) {
+            return SystemPermission.GLOBAL_ADMIN;
         }
         if ("/LogbookResults".equals(normalizedPath)) {
             return SystemPermission.RESULTS_BY_UNIT;
@@ -203,7 +316,7 @@ public class ModuleAccessServiceImpl implements ModuleAccessService {
             return SystemPermission.REPORTS;
         }
         if ("/Storage".equals(normalizedPath) || normalizedPath.startsWith("/Storage/")) {
-            return SystemPermission.STORAGE_MANAGEMENT;
+            return SystemPermission.STORAGE;
         }
         if (normalizedPath.startsWith("/FreezerMonitoring") || normalizedPath.startsWith("/rest/storage")
                 || normalizedPath.startsWith("/rest/freezer-monitoring")) {

@@ -84,4 +84,14 @@
   <include relativeToChangelogFile="true" file="070-create-patient-fixed-field-config.xml"/>
   <include relativeToChangelogFile="true" file="071-add-visible-submenu-route-permission-roles.xml"/>
   <include relativeToChangelogFile="true" file="072-hide-seeded-sample-types.xml"/>
+  <include relativeToChangelogFile="true" file="073-create-role-module-permissions.xml"/>
+  <include relativeToChangelogFile="true" file="074-create-role-field-restrictions.xml"/>
+  <include relativeToChangelogFile="true" file="075-create-role-field-tag-restrictions.xml"/>
+  <include relativeToChangelogFile="true" file="076-add-sample-item-data-completion-status.xml"/>
+  <include relativeToChangelogFile="true" file="077-backfill-pending-sample-data-completion-status.xml"/>
+  <include relativeToChangelogFile="true" file="078-backfill-partial-sample-data-completion-status.xml"/>
+  <include relativeToChangelogFile="true" file="079-backfill-missing-required-sample-additional-fields.xml"/>
+  <include relativeToChangelogFile="true" file="080-create-role-patient-search-restrictions.xml"/>
+  <include relativeToChangelogFile="true" file="081-add-role-patient-search-restriction-audit-column.xml"/>
+  <include relativeToChangelogFile="true" file="082-merge-validation-sign-permission.xml"/>
 </databaseChangeLog>
