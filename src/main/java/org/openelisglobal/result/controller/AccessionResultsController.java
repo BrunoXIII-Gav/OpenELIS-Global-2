@@ -106,9 +106,8 @@ public class AccessionResultsController extends BaseController {
                     resultsUtility.addIdentifingPatientInfo(patient, form);
 
                     List<TestResultItem> results = resultsUtility.getGroupedTestsForSample(sample, patient);
-                    List<TestResultItem> filteredResults = userService
-                            .filterResultsByLabUnitRoles(getSysUserId(request), results,
-                                    Constants.ROLE_RESULTS_BY_ORDER);
+                    List<TestResultItem> filteredResults = userService.filterResultsByLabUnitRoles(
+                            getSysUserId(request), results, Constants.ROLE_RESULTS_BY_ORDER);
 
                     if (resultsUtility.inventoryNeeded()) {
                         addInventory(form);

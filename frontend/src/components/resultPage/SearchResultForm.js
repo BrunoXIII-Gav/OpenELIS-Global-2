@@ -885,7 +885,10 @@ const getNextTubeLabelSuffix = (prefix, tubeLabels) => {
     return null;
   }
 
-  const matcher = new RegExp(`^${prefix.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")}\\.(\\d+)$`, "i");
+  const matcher = new RegExp(
+    `^${prefix.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")}\\.(\\d+)$`,
+    "i",
+  );
   let nextSuffix = 1;
   Object.values(tubeLabels || {}).forEach((labelValue) => {
     const normalizedLabel = String(labelValue || "").trim();
@@ -976,10 +979,6 @@ function ResultSearchPage() {
 export function SearchResultForm(props) {
   const { notificationVisible, setNotificationVisible, addNotification } =
     useContext(NotificationContext);
-
-  // Professional profile permission check
-  const [hasResultPermission, setHasResultPermission] = useState(true);
-  const [permissionsLoaded, setPermissionsLoaded] = useState(false);
 
   const [tests, setTests] = useState([]);
   const [analysisStatusTypes, setAnalysisStatusTypes] = useState([]);
@@ -1259,13 +1258,6 @@ export function SearchResultForm(props) {
   useEffect(() => {
     componentMounted.current = true;
 
-    // Check professional profile permission for result entry
-    getFromOpenElisServer("/rest/professional-profile-permissions", (response) => {
-      if (response) {
-        setHasResultPermission(response.hasResultEntryPermission !== false);
-      }
-      setPermissionsLoaded(true);
-    });
     let testId = new URLSearchParams(window.location.search).get(
       "selectedTest",
     );
@@ -1402,18 +1394,6 @@ export function SearchResultForm(props) {
   return (
     <>
       {notificationVisible === true ? <AlertDialog /> : ""}
-      {permissionsLoaded && !hasResultPermission && (
-        <InlineNotification
-          kind="warning"
-          title={intl.formatMessage({
-            id: "professionalProfile.permission.denied.result",
-            defaultMessage:
-              "You do not have the required professional profile to enter results.",
-          })}
-          hideCloseButton={true}
-          lowContrast={true}
-        />
-      )}
       {loading && <Loading></Loading>}
       <Formik
         initialValues={searchFormValues}
@@ -1770,10 +1750,30 @@ export function SearchResults(props) {
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [sampleLocations, setSampleLocations] = useState({}); // Track location by analysisId
   const [tubeLabelDraftsByRowId, setTubeLabelDraftsByRowId] = useState({});
-  const [hasResultPermission, setHasResultPermission] = useState(true);
+  const [resultActionPermissions, setResultActionPermissions] = useState({
+    enter: false,
+    update: false,
+    correct: false,
+  });
+  const [resultEntryPermissionLoaded, setResultEntryPermissionLoaded] =
+    useState(false);
 
   const componentMounted = useRef(false);
-  const resultEntryLocked = !hasResultPermission;
+  const hasResultEntryModulePermission = Object.values(
+    resultActionPermissions,
+  ).some(Boolean);
+  const resultEntryLocked = !hasResultEntryModulePermission;
+  const isResultItemLocked = (resultItem) => {
+    const actionKey =
+      resultItem?.resultEntryAction ||
+      (resultItem?.resultId ? "update" : "enter");
+    return resultEntryLocked || resultActionPermissions[actionKey] !== true;
+  };
+  const isResultRowLocked = (rowId) =>
+    isResultItemLocked(props.results?.testResult?.[rowId]);
+  const hasEditableResult = props.results?.testResult?.some(
+    (resultItem) => !isResultItemLocked(resultItem),
+  );
 
   useEffect(() => {
     componentMounted.current = true;
@@ -1790,14 +1790,24 @@ export function SearchResults(props) {
       "/rest/displayList/REJECTION_REASONS",
       loadRejectReasons,
     );
-    getFromOpenElisServer(
-      "/rest/professional-profile-permissions",
-      (response) => {
-        if (componentMounted.current && response) {
-          setHasResultPermission(response.hasResultEntryPermission !== false);
-        }
-      },
-    );
+    let completedPermissionChecks = 0;
+    ["enter", "update", "correct"].forEach((actionKey) => {
+      getFromOpenElisServer(
+        `/rest/module-action-access?moduleKey=results&actionKey=${actionKey}`,
+        (response) => {
+          if (componentMounted.current) {
+            setResultActionPermissions((permissions) => ({
+              ...permissions,
+              [actionKey]: response?.allowed === true,
+            }));
+            completedPermissionChecks += 1;
+            if (completedPermissionChecks === 3) {
+              setResultEntryPermissionLoaded(true);
+            }
+          }
+        },
+      );
+    });
     if (props.results.testResult.length > 0) {
       var defaultRejectedItems = {};
       props.results.testResult.forEach((result) => {
@@ -1885,8 +1895,7 @@ export function SearchResults(props) {
 
         const blockTitle =
           getResultBlockTitles(row, intl).find(
-            (title) =>
-              normalizeBlockIdentifier(title) === normalizedBlockTitle,
+            (title) => normalizeBlockIdentifier(title) === normalizedBlockTitle,
           ) || normalizedBlockTitle;
 
         nextTubeLabels[blockTitle] = `${normalizedCug}.${nextSuffix}`;
@@ -2176,7 +2185,7 @@ export function SearchResults(props) {
                   id={"testResult" + row.id + ".forceTechApproval"}
                   name={"testResult[" + row.id + "].forceTechApproval"}
                   labelText=""
-                  disabled={resultEntryLocked}
+                  disabled={isResultItemLocked(row)}
                   //defaultChecked={acceptAsIs}
                   onChange={(e) => handleAcceptAsIsChange(e, row.id)}
                 />
@@ -2194,7 +2203,7 @@ export function SearchResults(props) {
                   id={"testResult" + row.id + ".rejected"}
                   name={"testResult[" + row.id + "].rejected"}
                   labelText=""
-                  disabled={resultEntryLocked}
+                  disabled={isResultItemLocked(row)}
                   onChange={(e) => handleRejectCheckBoxChange(e, row.id)}
                 />
               )}
@@ -2206,7 +2215,7 @@ export function SearchResults(props) {
                 name={"testResult[" + row.id + "].rejectReasonId"}
                 //noLabel={true}
                 labelText={"Reason"}
-                disabled={resultEntryLocked}
+                disabled={isResultItemLocked(row)}
                 onChange={(e) => handleChange(e, row.id)}
               >
                 {/* {...updateShadowResult(e, this, param.rowId)} */}
@@ -2231,7 +2240,7 @@ export function SearchResults(props) {
                 id={"testResult" + row.id + ".note"}
                 name={"testResult[" + row.id + "].note"}
                 //value={props.results.testResult[row.id]?.pastNotes}
-                disabled={resultEntryLocked}
+                disabled={isResultItemLocked(row)}
                 type="text"
                 labelText=""
                 rows={1}
@@ -2254,7 +2263,7 @@ export function SearchResults(props) {
                 id={"resultValue" + row.id}
                 name={"testResult[" + row.id + "].resultValue"}
                 noLabel={true}
-                disabled={resultEntryLocked}
+                disabled={isResultItemLocked(row)}
                 onChange={(e) => validateResults(e, row.id)}
                 value={row.resultValue}
               >
@@ -2280,7 +2289,7 @@ export function SearchResults(props) {
                 dictionaryValues={row.dictionaryResults}
                 value={row.multiSelectResultValues}
                 onChange={(e) => handleChange(e, row.id)}
-                disabled={resultEntryLocked}
+                disabled={isResultItemLocked(row)}
               />
             );
 
@@ -2292,7 +2301,7 @@ export function SearchResults(props) {
                 dictionaryValues={row.dictionaryResults}
                 value={row.multiSelectResultValues}
                 onChange={(e) => handleChange(e, row.id)}
-                disabled={resultEntryLocked}
+                disabled={isResultItemLocked(row)}
               />
             );
 
@@ -2304,7 +2313,7 @@ export function SearchResults(props) {
                 fieldType={row.resultType}
                 value={row.resultValue}
                 style={validationState[row.id]?.style}
-                disabled={resultEntryLocked}
+                disabled={isResultItemLocked(row)}
                 onCommit={(nextValue) =>
                   commitRowFieldValue(
                     row.id,
@@ -2344,7 +2353,7 @@ export function SearchResults(props) {
                 fieldName={"testResult[" + row.id + "].resultValue"}
                 fieldType={row.resultType}
                 value={row.resultValue}
-                disabled={resultEntryLocked}
+                disabled={isResultItemLocked(row)}
                 onCommit={(nextValue) =>
                   commitRowFieldValue(
                     row.id,
@@ -2362,7 +2371,7 @@ export function SearchResults(props) {
                 fieldName={"testResult[" + row.id + "].resultValue"}
                 fieldType={row.resultType}
                 value={row.resultValue}
-                disabled={resultEntryLocked}
+                disabled={isResultItemLocked(row)}
                 onCommit={(nextValue) =>
                   commitRowFieldValue(
                     row.id,
@@ -2440,7 +2449,9 @@ export function SearchResults(props) {
                   defaultMessage: "Tube",
                 })}
                 value={row.parentUsageBlockName || ""}
-                disabled={resultEntryLocked || row.sampleUsageLocked === true}
+                disabled={
+                  isResultItemLocked(row) || row.sampleUsageLocked === true
+                }
                 onChange={(event) =>
                   handleParentTubeSelectionChange(row.id, event.target.value)
                 }
@@ -2473,7 +2484,9 @@ export function SearchResults(props) {
               step="0.001"
               min="0"
               value={row.sampleUsageQuantity || ""}
-              disabled={resultEntryLocked || row.sampleUsageLocked === true}
+              disabled={
+                isResultItemLocked(row) || row.sampleUsageLocked === true
+              }
               onCommit={(nextValue) =>
                 handleChange(
                   {
@@ -2512,7 +2525,7 @@ export function SearchResults(props) {
               min="0"
               value={row.parentSampleUsageQuantity || ""}
               disabled={
-                resultEntryLocked || row.parentSampleUsageLocked === true
+                isResultItemLocked(row) || row.parentSampleUsageLocked === true
               }
               onCommit={(nextValue) =>
                 handleChange(
@@ -2577,7 +2590,10 @@ export function SearchResults(props) {
     analysisId,
     sampleItemId,
   ) => {
-    if (resultEntryLocked) {
+    const resultItem = props.results?.testResult?.find(
+      (item) => item.analysisId === analysisId,
+    );
+    if (isResultItemLocked(resultItem)) {
       return;
     }
     // locationData format: { sample, newLocation, reason?, conditionNotes?, positionCoordinate? }
@@ -2679,7 +2695,7 @@ export function SearchResults(props) {
     fieldType,
     nextValue,
   ) => {
-    if (resultEntryLocked) {
+    if (isResultRowLocked(rowId)) {
       return;
     }
     const form = {
@@ -2730,7 +2746,7 @@ export function SearchResults(props) {
   };
 
   const handleParentTubeSelectionChange = (rowId, nextBlockName) => {
-    if (resultEntryLocked) {
+    if (isResultRowLocked(rowId)) {
       return;
     }
     const form = {
@@ -2751,7 +2767,7 @@ export function SearchResults(props) {
   };
 
   const handleTubeLabelChange = (rowId, blockTitle, nextValue) => {
-    if (resultEntryLocked) {
+    if (isResultRowLocked(rowId)) {
       return;
     }
     const normalizedValue = nextValue == null ? "" : `${nextValue}`;
@@ -2833,7 +2849,7 @@ export function SearchResults(props) {
   };
 
   const updateBlockTubeUsageRow = (rowId, updater) => {
-    if (resultEntryLocked) {
+    if (isResultRowLocked(rowId)) {
       return;
     }
     const form = {
@@ -2940,7 +2956,9 @@ export function SearchResults(props) {
               defaultMessage: "Tube",
             })}
             value={resolvedBlockUsage.parentTubeBlockName || ""}
-            disabled={resultEntryLocked || resolvedBlockUsage.locked === true}
+            disabled={
+              isResultItemLocked(data) || resolvedBlockUsage.locked === true
+            }
             onChange={(event) =>
               handleBlockTubeSelectionChange(
                 data.id,
@@ -2979,7 +2997,9 @@ export function SearchResults(props) {
             step="0.001"
             min="0"
             value={resolvedBlockUsage.usedQuantity || ""}
-            disabled={resultEntryLocked || resolvedBlockUsage.locked === true}
+            disabled={
+              isResultItemLocked(data) || resolvedBlockUsage.locked === true
+            }
             onCommit={(nextValue) =>
               handleBlockTubeUsageQuantityChange(data.id, blockTitle, nextValue)
             }
@@ -3015,7 +3035,7 @@ export function SearchResults(props) {
             defaultMessage: "Etiqueta",
           })}
           value={draftValue}
-          disabled={resultEntryLocked}
+          disabled={isResultItemLocked(data)}
           onCommit={(nextValue) =>
             handleTubeLabelChange(data.id, blockTitle, nextValue)
           }
@@ -3051,7 +3071,7 @@ export function SearchResults(props) {
         value={fieldValue || ""}
         activeOptions={activeOptions}
         fieldMetadata={fieldMetadata}
-        disabled={resultEntryLocked}
+        disabled={isResultItemLocked(data)}
         onCommit={(nextValue) =>
           handleAdditionalFieldChange(data.id, fieldKey, fieldType, nextValue)
         }
@@ -3094,7 +3114,7 @@ export function SearchResults(props) {
                 })}
                 onChange={(e) => handleChange(e, data.id)}
                 value={data.testMethod}
-                disabled={resultEntryLocked}
+                disabled={isResultItemLocked(data)}
               >
                 <SelectItem text="" value="" />
                 {rowMethods.map((method, method_index) => (
@@ -3113,7 +3133,7 @@ export function SearchResults(props) {
                 data={data}
                 results={props.results}
                 setResultForm={props.setResultForm}
-                disabled={resultEntryLocked}
+                disabled={isResultItemLocked(data)}
               />
 
               {data.resultFile && data.resultFile.fileName && (
@@ -3140,7 +3160,7 @@ export function SearchResults(props) {
                   name={"testResult[" + data.id + "].refer"}
                   id={"testResult[" + data.id + "].refer"}
                   checked={data.refer === "true"}
-                  disabled={resultEntryLocked || data.referredOut}
+                  disabled={isResultItemLocked(data) || data.referredOut}
                   data-cy="referalcheckbox"
                   onChange={(e) => {
                     e.target.value = e.target.checked;
@@ -3160,7 +3180,7 @@ export function SearchResults(props) {
                   })}
                   onChange={(e) => handleChange(e, data.id)}
                   value={data?.referralItem?.referralReasonId}
-                  disabled={resultEntryLocked || !referTest[data.id]}
+                  disabled={isResultItemLocked(data) || !referTest[data.id]}
                 >
                   {/* {...updateShadowResult(e, this, param.rowId)} */}
                   <SelectItem text="" value="" />
@@ -3187,7 +3207,7 @@ export function SearchResults(props) {
                   })}
                   onChange={(e) => handleChange(e, data.id)}
                   value={data?.referralItem?.referredInstituteId}
-                  disabled={resultEntryLocked || !referTest[data.id]}
+                  disabled={isResultItemLocked(data) || !referTest[data.id]}
                 >
                   {/* {...updateShadowResult(e, this, param.rowId)} */}
 
@@ -3213,7 +3233,7 @@ export function SearchResults(props) {
                   })}
                   onChange={(e) => handleChange(e, data.id)}
                   value={data?.referralItem?.referredTestId}
-                  disabled={resultEntryLocked || !referTest[data.id]}
+                  disabled={isResultItemLocked(data) || !referTest[data.id]}
                 >
                   {/* {...updateShadowResult(e, this, param.rowId)} */}
 
@@ -3231,7 +3251,7 @@ export function SearchResults(props) {
                     "testResult[" + data.id + "].referralItem.referredSendDate"
                   }
                   value={data?.referralItem?.referredSendDate}
-                  disabled={resultEntryLocked || !referTest[data.id]}
+                  disabled={isResultItemLocked(data) || !referTest[data.id]}
                   disallowFutureDate={true}
                 />
               </Column>
@@ -3452,7 +3472,7 @@ export function SearchResults(props) {
                 <StorageLocationSelector
                   workflow="results"
                   showQuickFind={true}
-                  readOnly={resultEntryLocked}
+                  readOnly={isResultItemLocked(data)}
                   sampleInfo={{
                     sampleItemId: sampleItemId || null,
                     sampleItemExternalId:
@@ -3487,7 +3507,7 @@ export function SearchResults(props) {
   };
 
   const commitRowFieldValue = (rowId, fieldName, nextValue) => {
-    if (resultEntryLocked) {
+    if (isResultRowLocked(rowId)) {
       return;
     }
     const form = { ...props.results };
@@ -3614,7 +3634,7 @@ export function SearchResults(props) {
   };
 
   const handleChange = (e, rowId) => {
-    if (resultEntryLocked) {
+    if (isResultRowLocked(rowId)) {
       return;
     }
     const { name, id, value } = e.target;
@@ -3663,7 +3683,7 @@ export function SearchResults(props) {
   };
 
   const handleRejectCheckBoxChange = (e, rowId) => {
-    if (resultEntryLocked) {
+    if (isResultRowLocked(rowId)) {
       return;
     }
     const { name, checked } = e.target;
@@ -3690,7 +3710,7 @@ export function SearchResults(props) {
   };
 
   const handleDatePickerChange = (date, rowId) => {
-    if (resultEntryLocked) {
+    if (isResultRowLocked(rowId)) {
       return;
     }
     var form = { ...props.results };
@@ -3711,7 +3731,7 @@ export function SearchResults(props) {
   };
 
   const handleAcceptAsIsChange = (e, rowId) => {
-    if (resultEntryLocked) {
+    if (isResultRowLocked(rowId)) {
       return;
     }
     console.debug("handleAcceptAsIsChange:" + acceptAsIs[rowId]);
@@ -4010,8 +4030,7 @@ export function SearchResults(props) {
           ...(result.tubeLabels || {}),
           ...rowDraftLabels,
         };
-        const rowHasTubeLabelDraft =
-          Object.keys(rowDraftLabels).length > 0;
+        const rowHasTubeLabelDraft = Object.keys(rowDraftLabels).length > 0;
         return {
           ...result,
           tubeLabels: mergedTubeLabels,
@@ -4094,6 +4113,16 @@ export function SearchResults(props) {
     <>
       {notificationVisible === true ? <AlertDialog /> : ""}
       {addRejectResult()}
+      {resultEntryPermissionLoaded && !hasResultEntryModulePermission && (
+        <InlineNotification
+          kind="warning"
+          title={intl.formatMessage({
+            id: "authorization.permission.denied.results.enter",
+          })}
+          hideCloseButton={true}
+          lowContrast={true}
+        />
+      )}
       <>
         <Formik
           initialValues={SearchResultFormValues}
@@ -4158,7 +4187,9 @@ export function SearchResults(props) {
                 id="saveResults"
                 onClick={handleSave}
                 style={{ marginTop: "16px" }}
-                disabled={resultEntryLocked || isSubmitting}
+                disabled={
+                  resultEntryLocked || !hasEditableResult || isSubmitting
+                }
               >
                 <FormattedMessage id="label.button.save" />
               </Button>
