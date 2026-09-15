@@ -40,7 +40,7 @@ import org.springframework.web.bind.annotation.*;
  */
 @RestController
 @RequestMapping("/rest/storage")
-@PreAuthorize("@accessControl.hasPermission(T(org.openelisglobal.common.constants.SystemPermission).STORAGE)")
+@PreAuthorize("@accessControl.hasStoragePermission('read')")
 public class StorageLocationRestController extends BaseRestController {
 
     private static final Logger logger = LoggerFactory.getLogger(StorageLocationRestController.class);
@@ -97,6 +97,7 @@ public class StorageLocationRestController extends BaseRestController {
     // ========== Room Endpoints ==========
 
     @PostMapping("/rooms")
+    @PreAuthorize("@accessControl.hasStoragePermission('manage')")
     public ResponseEntity<?> createRoom(@Valid @RequestBody StorageRoomForm form) {
         try {
             if (!storageLocationService.isNameUniqueWithinParent(form.getName(), null, "room", null)) {
@@ -175,6 +176,7 @@ public class StorageLocationRestController extends BaseRestController {
     }
 
     @PutMapping("/rooms/{id}")
+    @PreAuthorize("@accessControl.hasStoragePermission('manage')")
     public ResponseEntity<?> updateRoom(@PathVariable String id, @Valid @RequestBody StorageRoomForm form) {
         try {
             // Explicit validation guard: name is required (test expects 400 before
@@ -283,6 +285,7 @@ public class StorageLocationRestController extends BaseRestController {
     }
 
     @DeleteMapping("/rooms/{id}")
+    @PreAuthorize("@accessControl.hasStoragePermission('manage')")
     public ResponseEntity<?> deleteRoom(@PathVariable String id, HttpServletRequest request) {
         try {
             Integer idInt = Integer.parseInt(id);
@@ -321,6 +324,7 @@ public class StorageLocationRestController extends BaseRestController {
     // ========== Device Endpoints ==========
 
     @PostMapping("/devices")
+    @PreAuthorize("@accessControl.hasStoragePermission('manage')")
     public ResponseEntity<?> createDevice(@Valid @RequestBody StorageDeviceForm form,
             jakarta.servlet.http.HttpServletRequest request) {
         try {
@@ -438,6 +442,7 @@ public class StorageLocationRestController extends BaseRestController {
     }
 
     @PutMapping("/devices/{id}")
+    @PreAuthorize("@accessControl.hasStoragePermission('manage')")
     public ResponseEntity<?> updateDevice(@PathVariable String id, @Valid @RequestBody StorageDeviceForm form) {
         try {
             Integer idInt = Integer.parseInt(id);
@@ -595,6 +600,7 @@ public class StorageLocationRestController extends BaseRestController {
     }
 
     @DeleteMapping("/devices/{id}")
+    @PreAuthorize("@accessControl.hasStoragePermission('manage')")
     public ResponseEntity<?> deleteDevice(@PathVariable String id, HttpServletRequest request) {
         try {
             Integer idInt = Integer.parseInt(id);
@@ -632,6 +638,7 @@ public class StorageLocationRestController extends BaseRestController {
     // ========== Shelf Endpoints ==========
 
     @PostMapping("/shelves")
+    @PreAuthorize("@accessControl.hasStoragePermission('manage')")
     public ResponseEntity<?> createShelf(@Valid @RequestBody StorageShelfForm form) {
         try {
             StorageShelf shelf = new StorageShelf();
@@ -733,6 +740,7 @@ public class StorageLocationRestController extends BaseRestController {
     }
 
     @PutMapping("/shelves/{id}")
+    @PreAuthorize("@accessControl.hasStoragePermission('manage')")
     public ResponseEntity<?> updateShelf(@PathVariable String id, @Valid @RequestBody StorageShelfForm form) {
         try {
             Integer idInt = Integer.parseInt(id);
@@ -858,6 +866,7 @@ public class StorageLocationRestController extends BaseRestController {
     }
 
     @DeleteMapping("/shelves/{id}")
+    @PreAuthorize("@accessControl.hasStoragePermission('manage')")
     public ResponseEntity<?> deleteShelf(@PathVariable String id, HttpServletRequest request) {
         try {
             Integer idInt = Integer.parseInt(id);
@@ -895,6 +904,7 @@ public class StorageLocationRestController extends BaseRestController {
     // ========== Rack Endpoints ==========
 
     @PostMapping("/racks")
+    @PreAuthorize("@accessControl.hasStoragePermission('manage')")
     public ResponseEntity<?> createRack(@Valid @RequestBody StorageRackForm form) {
         try {
             StorageRack rack = new StorageRack();
@@ -996,6 +1006,7 @@ public class StorageLocationRestController extends BaseRestController {
     }
 
     @PutMapping("/racks/{id}")
+    @PreAuthorize("@accessControl.hasStoragePermission('manage')")
     public ResponseEntity<?> updateRack(@PathVariable String id, @Valid @RequestBody StorageRackForm form) {
         try {
             Integer idInt = Integer.parseInt(id);
@@ -1125,6 +1136,7 @@ public class StorageLocationRestController extends BaseRestController {
     }
 
     @DeleteMapping("/racks/{id}")
+    @PreAuthorize("@accessControl.hasStoragePermission('manage')")
     public ResponseEntity<?> deleteRack(@PathVariable String id, HttpServletRequest request) {
         try {
             Integer idInt = Integer.parseInt(id);
@@ -1162,6 +1174,7 @@ public class StorageLocationRestController extends BaseRestController {
     // ========== Box Endpoints ==========
 
     @PostMapping("/boxes")
+    @PreAuthorize("@accessControl.hasStoragePermission('manage')")
     public ResponseEntity<?> createBox(@Valid @RequestBody StorageBoxForm form) {
         try {
             StorageBox box = new StorageBox();
@@ -1234,6 +1247,7 @@ public class StorageLocationRestController extends BaseRestController {
     }
 
     @PutMapping("/boxes/{id}")
+    @PreAuthorize("@accessControl.hasStoragePermission('manage')")
     public ResponseEntity<?> updateBox(@PathVariable String id, @Valid @RequestBody StorageBoxForm form) {
         try {
             Integer idInt = Integer.parseInt(id);
@@ -1324,6 +1338,7 @@ public class StorageLocationRestController extends BaseRestController {
     }
 
     @DeleteMapping("/boxes/{id}")
+    @PreAuthorize("@accessControl.hasStoragePermission('manage')")
     public ResponseEntity<?> deleteBox(@PathVariable String id, HttpServletRequest request) {
         try {
             Integer idInt = Integer.parseInt(id);
