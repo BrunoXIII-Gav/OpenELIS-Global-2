@@ -94,4 +94,5 @@
   <include relativeToChangelogFile="true" file="080-create-role-patient-search-restrictions.xml"/>
   <include relativeToChangelogFile="true" file="081-add-role-patient-search-restriction-audit-column.xml"/>
   <include relativeToChangelogFile="true" file="082-merge-validation-sign-permission.xml"/>
+  <include relativeToChangelogFile="true" file="083-add-simplified-test-names-config.xml"/>
 </databaseChangeLog>

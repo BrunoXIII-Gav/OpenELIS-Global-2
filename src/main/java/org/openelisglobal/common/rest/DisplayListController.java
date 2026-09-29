@@ -400,6 +400,8 @@ public class DisplayListController extends BaseRestController {
                 ConfigurationProperties.getInstance().getPropertyValue(Property.ALERT_FOR_INVALID_RESULTS));
         configs.put(Property.showStorageLocationOnResultEntry.toString(),
                 ConfigurationProperties.getInstance().getPropertyValue(Property.showStorageLocationOnResultEntry));
+        configs.put(Property.SIMPLIFIED_TEST_NAMES.toString(),
+                ConfigurationProperties.getInstance().getPropertyValue(Property.SIMPLIFIED_TEST_NAMES));
         configs.put(Property.DEFAULT_DATE_LOCALE.toString(),
                 ConfigurationProperties.getInstance().getPropertyValue(Property.DEFAULT_DATE_LOCALE));
         configs.put(Property.PATIENT_PASSPORT_MAX_LENGTH.toString(),

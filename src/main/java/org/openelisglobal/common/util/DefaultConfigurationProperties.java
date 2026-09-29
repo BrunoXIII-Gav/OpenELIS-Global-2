@@ -263,6 +263,7 @@ public class DefaultConfigurationProperties extends ConfigurationProperties {
         properties.setPropertyValue(Property.ALERT_FOR_INVALID_RESULTS, "false");
         properties.setPropertyValue(Property.showStorageLocationOnResultEntry, "true");
         properties.setPropertyValue(Property.DEFAULT_DATE_LOCALE, "fr-FR");
+        properties.setPropertyValue(Property.SIMPLIFIED_TEST_NAMES, "false");
         properties.setPropertyValue(Property.DEFAULT_LANG_LOCALE, "fr-FR");
         properties.setPropertyValue(Property.configurationName, "not set");
         properties.setPropertyValue(Property.CONDENSE_NFS_PANEL, "false");

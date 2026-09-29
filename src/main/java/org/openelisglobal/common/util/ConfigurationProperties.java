@@ -125,6 +125,7 @@ public abstract class ConfigurationProperties {
                                                                                       // location controls are shown
                                                                                       // on results entry
         // outside of the valid range
+        SIMPLIFIED_TEST_NAMES("simplifiedTestNames", "text"),
         DEFAULT_LANG_LOCALE("default language locale", "text"), // Default language locale
         DEFAULT_DATE_LOCALE("default date locale", "text"), // Date local
         CONDENSE_NFS_PANEL("condenseNFS", "text"), // Flag used for RetroCI to condense NFS panel tests
