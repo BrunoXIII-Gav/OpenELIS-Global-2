@@ -3,19 +3,24 @@ package org.openelisglobal.sample.controller.rest;
 import jakarta.servlet.http.HttpServletRequest;
 import java.util.ArrayList;
 import java.util.Comparator;
+import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
 import org.apache.commons.lang3.StringUtils;
 import org.openelisglobal.common.rest.BaseRestController;
+import org.openelisglobal.authorization.service.ModuleAuthorizationService;
 import org.openelisglobal.common.services.DisplayListService;
 import org.openelisglobal.common.util.IdValuePair;
 import org.openelisglobal.sample.bean.SampleTypeAdditionalFieldOptionPayload;
 import org.openelisglobal.sample.bean.SampleTypeAdditionalFieldPayload;
 import org.openelisglobal.sample.service.SampleTypeAdditionalFieldService;
+import org.openelisglobal.sampleitem.service.SampleManagementAuthorizationService;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.MediaType;
 import org.springframework.http.ResponseEntity;
+import org.springframework.security.access.AccessDeniedException;
 import org.springframework.stereotype.Controller;
 import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.web.bind.annotation.DeleteMapping;
@@ -36,6 +41,12 @@ public class SampleTypeAdditionalFieldRestController extends BaseRestController 
     @Autowired
     private SampleTypeAdditionalFieldService sampleTypeAdditionalFieldService;
 
+    @Autowired
+    private ModuleAuthorizationService moduleAuthorizationService;
+
+    @Autowired
+    private SampleManagementAuthorizationService sampleManagementAuthorizationService;
+
     @GetMapping(value = "sample-type-additional-fields", produces = MediaType.APPLICATION_JSON_VALUE)
     @PreAuthorize("@accessControl.hasPermission(T(org.openelisglobal.common.constants.SystemPermission).ADMINISTRATION)")
     @ResponseBody
@@ -50,16 +61,40 @@ public class SampleTypeAdditionalFieldRestController extends BaseRestController 
     }
 
     @GetMapping(value = "sample-type-additional-fields/values", produces = MediaType.APPLICATION_JSON_VALUE)
-    @PreAuthorize("@accessControl.hasPermission(T(org.openelisglobal.common.constants.SystemPermission).SAMPLE_MANAGEMENT)")
     @ResponseBody
     public Map<String, String> getFieldValuesForSampleItem(
             @RequestParam("sampleTypeId") String sampleTypeId,
-            @RequestParam("sampleItemId") String sampleItemId) {
+            @RequestParam("sampleItemId") String sampleItemId, HttpServletRequest request) {
         try {
-            return sampleTypeAdditionalFieldService.getFieldValuesForSampleItem(sampleTypeId, sampleItemId);
+            String sysUserId = getSysUserId(request);
+            if (!sampleManagementAuthorizationService.getAccess(sysUserId).hasAnyAccess()) {
+                throw new AccessDeniedException("User does not have a Generic Samples module operation");
+            }
+            Map<String, String> values = new HashMap<>(
+                    sampleTypeAdditionalFieldService.getFieldValuesForSampleItem(sampleTypeId, sampleItemId));
+            Set<String> restrictions = moduleAuthorizationService.getRestrictedFieldGroupKeys(sysUserId,
+                    "sample-management");
+            Set<String> tagRestrictions = moduleAuthorizationService.getRestrictedFieldTagKeys(sysUserId,
+                    "sample-management");
+            if (restrictions.contains("collection") || restrictions.contains("clinical-data")
+                    || !tagRestrictions.isEmpty()) {
+                sampleTypeAdditionalFieldService.getFieldsForSampleType(sampleTypeId, false).stream()
+                        .filter(field -> isRestrictedAdditionalField(field, restrictions, tagRestrictions))
+                        .map(SampleTypeAdditionalFieldPayload::getFieldKey)
+                        .forEach(values::remove);
+            }
+            return values;
         } catch (IllegalArgumentException e) {
             throw new ResponseStatusException(HttpStatus.BAD_REQUEST, e.getMessage());
         }
+    }
+
+    private boolean isRestrictedAdditionalField(SampleTypeAdditionalFieldPayload field, Set<String> restrictions,
+            Set<String> tagRestrictions) {
+        String displaySection = StringUtils.defaultString(field.getDisplaySection()).trim();
+        return restrictions.contains("collection") && "COLLECTION".equalsIgnoreCase(displaySection)
+                || restrictions.contains("clinical-data") && !"COLLECTION".equalsIgnoreCase(displaySection)
+                || field.getId() != null && tagRestrictions.contains("additional-field-" + field.getId());
     }
 
     @GetMapping(value = "sample-type-additional-fields/sample-types", produces = MediaType.APPLICATION_JSON_VALUE)

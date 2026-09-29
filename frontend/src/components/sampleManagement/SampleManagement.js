@@ -8,10 +8,7 @@ import {
   Button,
 } from "@carbon/react";
 import { FormattedMessage, useIntl } from "react-intl";
-import {
-  AlertDialog,
-  NotificationKinds,
-} from "../common/CustomNotification";
+import { AlertDialog, NotificationKinds } from "../common/CustomNotification";
 import { NotificationContext } from "../layout/Layout";
 import PageBreadCrumb from "../common/PageBreadCrumb";
 import SampleSearch from "./SampleSearch";
@@ -54,9 +51,7 @@ export default function SampleManagement() {
   const [selectedSampleIds, setSelectedSampleIds] = useState([]);
   const [currentTestsVisibleBySampleId, setCurrentTestsVisibleBySampleId] =
     useState({});
-  const [hasSampleCollectionPermission, setHasSampleCollectionPermission] =
-    useState(true);
-  const [permissionsLoaded, setPermissionsLoaded] = useState(false);
+  const [canModifySamples, setCanModifySamples] = useState(false);
 
   // Modal state for aliquoting
   const [isAliquotModalOpen, setIsAliquotModalOpen] = useState(false);
@@ -75,15 +70,15 @@ export default function SampleManagement() {
   useEffect(() => {
     let cancelled = false;
 
-    getFromOpenElisServer("/rest/professional-profile-permissions", (data) => {
-      if (cancelled) {
-        return;
-      }
-
-      setHasSampleCollectionPermission(
-        data?.hasSampleCollectionPermission !== false,
+    ["receive", "update"].forEach((actionKey) => {
+      getFromOpenElisServer(
+        `/rest/module-action-access?moduleKey=sample-management&actionKey=${actionKey}`,
+        (data) => {
+          if (!cancelled && data?.allowed === true) {
+            setCanModifySamples(true);
+          }
+        },
       );
-      setPermissionsLoaded(true);
     });
 
     return () => {
@@ -98,13 +93,7 @@ export default function SampleManagement() {
    * @param {Object} error - Error object if search failed
    */
   const handleSearchResults = (response, error) => {
-    if (response) {
-      hydrateSearchResponse(response, (hydrated) => {
-        setSearchResponse(hydrated);
-      });
-    } else {
-      setSearchResponse(response);
-    }
+    setSearchResponse(enrichSearchResponse(response));
     setSearchError(error);
 
     // Clear selection when new search results arrive
@@ -420,19 +409,6 @@ export default function SampleManagement() {
             onSearchResults={handleSearchResults}
             includeTests={true}
           />
-
-          {permissionsLoaded && !hasSampleCollectionPermission ? (
-            <div style={{ marginTop: "1rem" }}>
-              <InlineNotification
-                kind="warning"
-                lowContrast
-                hideCloseButton
-                title={intl.formatMessage({
-                  id: "professionalProfile.permission.denied.sample",
-                })}
-              />
-            </div>
-          ) : null}
         </div>
 
         {/* Empty State (when search has been performed but no results) */}
@@ -498,9 +474,11 @@ export default function SampleManagement() {
                     sampleItems={searchResponse.sampleItems}
                     onSelectionChange={handleSelectionChange}
                     onTestRemoved={handleTestRemoved}
-                    currentTestsVisibleBySampleId={currentTestsVisibleBySampleId}
+                    currentTestsVisibleBySampleId={
+                      currentTestsVisibleBySampleId
+                    }
                     onPersistResult={handlePersistResult}
-                    isReadOnly={!hasSampleCollectionPermission}
+                    isReadOnly={!canModifySamples}
                   />
                 </div>
               </div>
@@ -515,7 +493,7 @@ export default function SampleManagement() {
           onClose={handleCloseAliquotModal}
           parentSample={selectedSample}
           onSuccess={handleAliquotSuccess}
-          isReadOnly={!hasSampleCollectionPermission}
+          isReadOnly={!canModifySamples}
         />
       )}
 
@@ -530,7 +508,7 @@ export default function SampleManagement() {
           ) || []
         }
         onSuccess={handleAddTestsSuccess}
-        isReadOnly={!hasSampleCollectionPermission}
+        isReadOnly={!canModifySamples}
       />
     </>
   );
@@ -669,11 +647,7 @@ const resolveCustomFieldDisplayValue = (field, valuesByKey, filesByKey) => {
   }
 
   const options = Array.isArray(field?.options) ? field.options : [];
-  if (
-    fieldType === "SELECT" ||
-    fieldType === "RADIO" ||
-    fieldType === "USER"
-  ) {
+  if (fieldType === "SELECT" || fieldType === "RADIO" || fieldType === "USER") {
     const selected = options.find(
       (option) => String(option?.optionKey || "") === String(rawValue),
     );
@@ -765,77 +739,24 @@ const buildOrderReceptionFields = (sampleOrderItems) => {
   return [...fixedFields, ...customFields];
 };
 
-const mergeWithSampleEditData = (searchResp, sampleEditResp) => {
-  if (
-    !searchResp ||
-    !Array.isArray(searchResp.sampleItems) ||
-    !sampleEditResp
-  ) {
+const enrichSearchResponse = (searchResp) => {
+  if (!searchResp || !Array.isArray(searchResp.sampleItems)) {
     return searchResp;
   }
 
-  const existingTests = Array.isArray(sampleEditResp.existingTests)
-    ? sampleEditResp.existingTests
-    : [];
   const orderReceptionFields = buildOrderReceptionFields(
-    sampleEditResp?.sampleOrderItems,
+    searchResp.orderReceptionDetails,
   );
 
-  const bySampleItemId = existingTests.reduce((acc, test) => {
-    const key = String(test.sampleItemId || "");
-    if (!key) return acc;
-    if (!acc[key]) acc[key] = [];
-    acc[key].push(test);
-    return acc;
-  }, {});
-
   const mergedItems = searchResp.sampleItems.map((item) => {
-    const sampleTests = bySampleItemId[String(item.id)] || [];
-    if (sampleTests.length === 0) {
-      return {
-        ...item,
-        orderReceptionFields,
-      };
-    }
-
-    const first = sampleTests[0];
-    const additionalFieldValues =
-      first.additionalFieldValues &&
-      Object.keys(first.additionalFieldValues).length > 0
-        ? first.additionalFieldValues
-        : item.additionalFieldValues || {};
-    const additionalFields =
-      Array.isArray(first.additionalFields) && first.additionalFields.length > 0
-        ? first.additionalFields
-        : item.additionalFields || [];
-
     return {
       ...item,
-      quantityDisplay:
-        first.quantity !== undefined &&
-        first.quantity !== null &&
-        first.quantity !== ""
-          ? String(first.quantity)
-          : item.quantityDisplay,
-      quantity:
-        first.quantity !== undefined &&
-        first.quantity !== null &&
-        first.quantity !== ""
-          ? Number(first.quantity)
-          : item.quantity,
-      unitOfMeasureId:
-        first.unitOfMeasureId !== undefined && first.unitOfMeasureId !== null
-          ? String(first.unitOfMeasureId)
-          : item.unitOfMeasureId,
-      collector:
-        first.collector !== undefined && first.collector !== null
-          ? first.collector
-          : item.collector,
-      collectionDate: first.collectionDate || item.collectionDate,
-      collectionTime: first.collectionTime || item.collectionTime,
-      additionalFields,
-      additionalFieldValues,
       orderReceptionFields,
+      restrictedFieldGroupKeys: searchResp.restrictedFieldGroupKeys || [],
+      restrictedFieldTagKeys: searchResp.restrictedFieldTagKeys || [],
+      canRead: Boolean(searchResp.canRead),
+      canComplete: Boolean(searchResp.canComplete),
+      canUpdate: Boolean(searchResp.canUpdate),
     };
   });
 
@@ -843,18 +764,4 @@ const mergeWithSampleEditData = (searchResp, sampleEditResp) => {
     ...searchResp,
     sampleItems: mergedItems,
   };
-};
-
-const hydrateSearchResponse = (response, callback) => {
-  if (!response?.accessionNumber) {
-    callback(response);
-    return;
-  }
-
-  getFromOpenElisServer(
-    `/rest/SampleEdit?accessionNumber=${encodeURIComponent(response.accessionNumber)}`,
-    (sampleEditResp) => {
-      callback(mergeWithSampleEditData(response, sampleEditResp));
-    },
-  );
 };

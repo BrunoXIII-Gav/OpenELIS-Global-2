@@ -1,0 +1,38 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<databaseChangeLog
+  xmlns="http://www.liquibase.org/xml/ns/dbchangelog"
+  xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+  xsi:schemaLocation="http://www.liquibase.org/xml/ns/dbchangelog http://www.liquibase.org/xml/ns/dbchangelog/dbchangelog-3.8.xsd">
+
+  <changeSet id="079-01-backfill-missing-required-sample-additional-fields" author="openelis">
+    <comment>
+      Required additional fields contribute to generic sample completion. Historical samples missing a current required
+      field remain pending until the field is completed through Sample Management.
+    </comment>
+    <sql>
+      UPDATE clinlims.sample_item sample_item
+      SET data_completion_status = 'PENDING_COMPLETION'
+      WHERE data_completion_status = 'COMPLETED'
+        AND EXISTS (
+          SELECT 1
+          FROM clinlims.sample_type_additional_field_def field_definition
+          WHERE field_definition.type_of_sample_id = sample_item.typeosamp_id
+            AND field_definition.active = TRUE
+            AND field_definition.required = TRUE
+            AND NOT EXISTS (
+              SELECT 1
+              FROM clinlims.sample_item_additional_field_value field_value
+              WHERE field_value.sample_item_id = sample_item.id
+                AND field_value.field_def_id = field_definition.id
+                AND COALESCE(BTRIM(field_value.field_value), '') &lt;&gt; ''
+            )
+        );
+    </sql>
+    <rollback>
+      <update tableName="sample_item" schemaName="clinlims">
+        <column name="data_completion_status" value="COMPLETED" />
+        <where>data_completion_status = 'PENDING_COMPLETION'</where>
+      </update>
+    </rollback>
+  </changeSet>
+</databaseChangeLog>

@@ -34,6 +34,9 @@ import org.openelisglobal.common.util.ConfigurationProperties.Property;
 import org.openelisglobal.common.util.DateUtil;
 import org.openelisglobal.common.util.IdValuePair;
 import org.openelisglobal.common.util.LabelValuePair;
+import org.openelisglobal.authorization.service.ModuleAuthorizationService;
+import org.openelisglobal.authorization.service.ModuleAuthorizationService.AuthorizationDecision;
+import org.openelisglobal.authorization.service.ModuleAuthorizationService.AuthorizationSource;
 import org.openelisglobal.dictionary.service.DictionaryService;
 import org.openelisglobal.dictionary.valueholder.Dictionary;
 import org.openelisglobal.localization.service.LocalizationService;
@@ -101,6 +104,8 @@ public class DisplayListController extends BaseRestController {
 
     @Autowired
     private UserService userService;
+    @Autowired
+    private ModuleAuthorizationService moduleAuthorizationService;
 
     @Autowired
     protected TestService testService;
@@ -594,6 +599,16 @@ public class DisplayListController extends BaseRestController {
         if (roleName.equals("ALL")) {
             return userService.getUserTestSections(getSysUserId(request), null);
         } else if (Constants.ROLE_RESULTS.equals(roleName)) {
+            AuthorizationDecision decision = moduleAuthorizationService.getAuthorization(getSysUserId(request), "results",
+                    "read");
+            if (decision.source() == AuthorizationSource.MODULE_PERMISSION) {
+                if (!decision.allowed()) {
+                    return new ArrayList<>();
+                }
+                List<IdValuePair> testSections = DisplayListService.getInstance().getList(ListType.TEST_SECTION_ACTIVE);
+                return decision.allLabUnits() ? testSections
+                        : testSections.stream().filter(section -> decision.labUnitIds().contains(section.getId())).toList();
+            }
             return getUserTestSectionsForRoles(request, List.of(Constants.ROLE_RESULTS, Constants.ROLE_RESULTS_BY_UNIT,
                     Constants.ROLE_RESULTS_BY_PATIENT, Constants.ROLE_RESULTS_BY_ORDER));
         } else if (Constants.ROLE_VALIDATION.equals(roleName)) {

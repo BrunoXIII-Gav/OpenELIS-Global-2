@@ -7,7 +7,6 @@ import java.util.List;
 import org.apache.commons.validator.GenericValidator;
 import org.openelisglobal.analysis.service.AnalysisService;
 import org.openelisglobal.analysis.valueholder.Analysis;
-import org.openelisglobal.common.constants.Constants;
 import org.openelisglobal.common.formfields.FormFields;
 import org.openelisglobal.common.formfields.FormFields.Field;
 import org.openelisglobal.common.services.QAService;
@@ -20,7 +19,6 @@ import org.openelisglobal.sample.valueholder.Sample;
 import org.openelisglobal.sampleqaevent.service.SampleQaEventService;
 import org.openelisglobal.sampleqaevent.valueholder.SampleQaEvent;
 import org.openelisglobal.spring.util.SpringContext;
-import org.openelisglobal.systemuser.service.UserService;
 import org.openelisglobal.test.beanItems.TestResultItem;
 import org.openelisglobal.test.service.TestServiceImpl;
 import org.openelisglobal.workplan.action.util.WorkplanPaging;
@@ -38,14 +36,12 @@ public class WorkplanByPriorityRestController extends WorkplanRestController {
     private AnalysisService analysisService;
     @Autowired
     private SampleQaEventService sampleQaEventService;
-    @Autowired
-    private UserService userService;
-
     @RequestMapping(value = "/rest/WorkPlanByPriority", method = RequestMethod.GET)
     public WorkplanForm showWorkPlanByPriority(HttpServletRequest request,
             @RequestParam(name = "priority", defaultValue = "") OrderPriority priority)
             throws IllegalAccessException, InvocationTargetException, NoSuchMethodException {
 
+        requireResultsReadPermission(request);
         WorkplanPaging paging = new WorkplanPaging();
         WorkplanForm form = new WorkplanForm();
         List<TestResultItem> workplanTests = new ArrayList<TestResultItem>();
@@ -54,8 +50,7 @@ public class WorkplanByPriorityRestController extends WorkplanRestController {
         String requestedPage = request.getParameter("page");
         if (GenericValidator.isBlankOrNull(requestedPage)) {
             workplanTests = getWorkplanByPriority(priority);
-            filteredTests = userService.filterResultsByLabUnitRoles(getSysUserId(request), workplanTests,
-                    Constants.ROLE_RESULTS);
+            filteredTests = filterWorkplanResults(request, workplanTests);
 
             ResultsLoadUtility resultsLoadUtility = new ResultsLoadUtility();
             resultsLoadUtility.sortByAccessionAndSequence(filteredTests);

@@ -171,6 +171,9 @@ public class TestResultItem implements ResultItem, Serializable {
     @Pattern(regexp = ValidationHelper.ID_REGEX, groups = { LogbookResultsForm.LogbookResults.class })
     private String resultId;
 
+    // The action required to modify this row: enter, update, or correct.
+    private String resultEntryAction;
+
     private Result result;
 
     @Pattern(regexp = ValidationHelper.ID_REGEX, groups = { LogbookResultsForm.LogbookResults.class })
@@ -698,6 +701,14 @@ public class TestResultItem implements ResultItem, Serializable {
 
     public void setResultId(String resultId) {
         this.resultId = resultId;
+    }
+
+    public String getResultEntryAction() {
+        return resultEntryAction;
+    }
+
+    public void setResultEntryAction(String resultEntryAction) {
+        this.resultEntryAction = resultEntryAction;
     }
 
     public void setDictionaryResults(List<IdValuePair> dictonaryResults) {

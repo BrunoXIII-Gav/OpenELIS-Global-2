@@ -30,17 +30,19 @@ import org.openelisglobal.internationalization.MessageUtil;
 import org.openelisglobal.observationhistory.service.ObservationHistoryService;
 import org.openelisglobal.observationhistory.service.ObservationHistoryServiceImpl.ObservationType;
 import org.openelisglobal.orderadditionalfield.service.OrderAdditionalFieldService;
+import org.openelisglobal.patient.service.PatientAuthorizationService;
 import org.openelisglobal.patient.service.PatientService;
 import org.openelisglobal.patient.valueholder.Patient;
 import org.openelisglobal.person.service.PersonService;
 import org.openelisglobal.sample.service.SampleService;
+import org.openelisglobal.sample.service.OrderAuthorizationService;
 import org.openelisglobal.sample.valueholder.Sample;
 import org.openelisglobal.samplehuman.service.SampleHumanService;
 import org.openelisglobal.search.service.SearchResultsService;
 import org.openelisglobal.spring.util.SpringContext;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.http.MediaType;
-import org.springframework.security.access.prepost.PreAuthorize;
+import org.springframework.security.access.AccessDeniedException;
 import org.springframework.stereotype.Controller;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.RequestMapping;
@@ -49,8 +51,6 @@ import org.springframework.web.bind.annotation.ResponseBody;
 
 @Controller
 @RequestMapping(value = "/rest/")
-@PreAuthorize("@accessControl.hasAnyPermission(T(org.openelisglobal.common.constants.SystemPermission).PATIENT, "
-        + "T(org.openelisglobal.common.constants.SystemPermission).ORDER)")
 public class PatientSearchRestController extends BaseRestController {
 
     @Autowired
@@ -71,6 +71,10 @@ public class PatientSearchRestController extends BaseRestController {
     SampleHumanService sampleHumanService;
     @Autowired
     SearchResultsService searchResultsService;
+    @Autowired
+    PatientAuthorizationService patientAuthorizationService;
+    @Autowired
+    OrderAuthorizationService orderAuthorizationService;
 
     StringOrListParam targetSystemsParam;
 
@@ -84,6 +88,11 @@ public class PatientSearchRestController extends BaseRestController {
             @RequestParam(required = false) String gender,
             @RequestParam(required = false) String suppressExternalSearch)
             throws InvocationTargetException, IllegalAccessException, NoSuchMethodException {
+        String sysUserId = getSysUserId(request);
+        requirePatientLookupPermission(sysUserId);
+        Set<String> restrictedCriteria = patientAuthorizationService.getRestrictedSearchCriteria(sysUserId);
+        rejectRestrictedCriteria(restrictedCriteria, lastName, firstName, STNumber, subjectNumber, nationalID, labNumber,
+                dateOfBirth, gender, request.getParameter("crSearch"));
         PatientSearchResultsPaging paging = new PatientSearchResultsPaging();
         PatientSearchResultsForm form = new PatientSearchResultsForm();
 
@@ -122,7 +131,8 @@ public class PatientSearchRestController extends BaseRestController {
                     results = fhirResults;
                 }
             }
-            paging.setDatabaseResults(request, form, results);
+            paging.setDatabaseResults(request, form,
+                    maskRestrictedCriteria(filterPatientResults(sysUserId, results), restrictedCriteria));
         } else {
             int requestedPageNumber = Integer.parseInt(requestedPage);
             paging.page(request, form, requestedPageNumber);
@@ -172,14 +182,93 @@ public class PatientSearchRestController extends BaseRestController {
     }
 
     @GetMapping("/patient-search")
-    public @ResponseBody List<PatientSearchResults> getSearchResults(@RequestParam(required = false) String lastName,
+    public @ResponseBody List<PatientSearchResults> getSearchResults(HttpServletRequest request,
+            @RequestParam(required = false) String lastName,
             @RequestParam(required = false) String firstName, @RequestParam(required = false) String STNumber,
             @RequestParam(required = false) String subjectNumber, @RequestParam(required = false) String nationalID,
             @RequestParam(required = false) String externalID, @RequestParam(required = false) String patientID,
             @RequestParam(required = false) String guid, @RequestParam(required = false) String dateOfBirth,
             @RequestParam(required = false) String gender) {
-        return searchResultsService.getSearchResults(lastName, firstName, STNumber, subjectNumber, nationalID,
-                externalID, patientID, guid, dateOfBirth, gender);
+        String sysUserId = getSysUserId(request);
+        requirePatientLookupPermission(sysUserId);
+        Set<String> restrictedCriteria = patientAuthorizationService.getRestrictedSearchCriteria(sysUserId);
+        rejectRestrictedCriteria(restrictedCriteria, lastName, firstName, STNumber, subjectNumber, nationalID, null,
+                dateOfBirth, gender, null);
+        if (restrictedCriteria.contains("patient-id") && isProvided(patientID)) {
+            throw new AccessDeniedException("A restricted patient search criterion was requested");
+        }
+        List<PatientSearchResults> results = searchResultsService.getSearchResults(lastName, firstName, STNumber,
+                subjectNumber, nationalID, externalID, patientID, guid, dateOfBirth, gender);
+        return maskRestrictedCriteria(filterPatientResults(sysUserId, results), restrictedCriteria);
+    }
+
+    @GetMapping(value = "patient-search/access", produces = MediaType.APPLICATION_JSON_VALUE)
+    @ResponseBody
+    public Map<String, Set<String>> getPatientSearchAccess(HttpServletRequest request) {
+        String sysUserId = getSysUserId(request);
+        requirePatientLookupPermission(sysUserId);
+        return Map.of("restrictedCriteria", patientAuthorizationService.getRestrictedSearchCriteria(sysUserId));
+    }
+
+    private void rejectRestrictedCriteria(Set<String> criteria, String lastName, String firstName, String stNumber,
+            String subjectNumber, String nationalId, String labNumber, String dateOfBirth, String gender,
+            String clientRegistrySearch) {
+        if ((criteria.contains("name") || criteria.contains("last-name")) && isProvided(lastName)
+                || (criteria.contains("name") || criteria.contains("first-name")) && isProvided(firstName)
+                || criteria.contains("patient-id") && (isProvided(stNumber) || isProvided(subjectNumber))
+                || criteria.contains("national-id") && isProvided(nationalId)
+                || criteria.contains("lab-number") && isProvided(labNumber)
+                || criteria.contains("birth-date") && isProvided(dateOfBirth)
+                || criteria.contains("gender") && isProvided(gender)
+                || criteria.contains("external-search") && isProvided(clientRegistrySearch)) {
+            throw new AccessDeniedException("A restricted patient search criterion was requested");
+        }
+    }
+
+    private boolean isProvided(String value) {
+        return !GenericValidator.isBlankOrNull(value);
+    }
+
+    private List<PatientSearchResults> maskRestrictedCriteria(List<PatientSearchResults> results, Set<String> criteria) {
+        results.forEach(result -> {
+            if (criteria.contains("name") || criteria.contains("first-name")) {
+                result.setFirstName(null);
+            }
+            if (criteria.contains("name") || criteria.contains("last-name")) {
+                result.setLastName(null);
+            }
+            if (criteria.contains("gender")) {
+                result.setGender(null);
+            }
+            if (criteria.contains("birth-date")) {
+                result.setBirthdate(null);
+            }
+            if (criteria.contains("national-id")) {
+                result.setNationalId(null);
+            }
+        });
+        return results;
+    }
+
+    private void requirePatientLookupPermission(String sysUserId) {
+        if (patientAuthorizationService.hasPermission(sysUserId, "read")
+                || patientAuthorizationService.hasPermission(sysUserId, "update")
+                || orderAuthorizationService.hasPermission(sysUserId, "create")
+                || orderAuthorizationService.hasPermission(sysUserId, "read")
+                || orderAuthorizationService.hasPermission(sysUserId, "update")) {
+            return;
+        }
+        throw new AccessDeniedException("User does not have permission to search patients");
+    }
+
+    private List<PatientSearchResults> filterPatientResults(String sysUserId, List<PatientSearchResults> results) {
+        String scopeAction = patientAuthorizationService.hasPermission(sysUserId, "read") ? "read"
+                : patientAuthorizationService.hasPermission(sysUserId, "update") ? "update" : null;
+        if (scopeAction == null) {
+            return results;
+        }
+        return results.stream().filter(result -> patientAuthorizationService.canAccessPatient(sysUserId,
+                result.getPatientID(), scopeAction)).toList();
     }
 
     private List<PatientSearchResults> searchPatientInClientRegistry(String lastName, String firstName, String STNumber,

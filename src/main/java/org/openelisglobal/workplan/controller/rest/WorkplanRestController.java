@@ -1,10 +1,13 @@
 package org.openelisglobal.workplan.controller.rest;
 
 import jakarta.annotation.PostConstruct;
+import jakarta.servlet.http.HttpServletRequest;
 import java.util.ArrayList;
 import java.util.Comparator;
 import java.util.List;
 import org.openelisglobal.analysis.valueholder.Analysis;
+import org.openelisglobal.authorization.service.ModuleAuthorizationService;
+import org.openelisglobal.common.constants.Constants;
 import org.openelisglobal.common.formfields.FormFields;
 import org.openelisglobal.common.formfields.FormFields.Field;
 import org.openelisglobal.common.rest.BaseRestController;
@@ -21,18 +24,25 @@ import org.openelisglobal.patient.valueholder.Patient;
 import org.openelisglobal.sample.valueholder.Sample;
 import org.openelisglobal.samplehuman.service.SampleHumanService;
 import org.openelisglobal.spring.util.SpringContext;
+import org.openelisglobal.result.service.ResultAuthorizationService;
+import org.openelisglobal.test.beanItems.TestResultItem;
 import org.openelisglobal.test.service.TestService;
 import org.openelisglobal.test.valueholder.Test;
 import org.springframework.beans.factory.annotation.Autowired;
-import org.springframework.security.access.prepost.PreAuthorize;
+import org.springframework.security.access.AccessDeniedException;
 import org.springframework.stereotype.Controller;
 
 @Controller
-@PreAuthorize("@accessControl.hasPermission(T(org.openelisglobal.common.constants.SystemPermission).RESULTS)")
 public class WorkplanRestController extends BaseRestController {
 
     @Autowired
     protected TestService testService;
+
+    @Autowired
+    private ModuleAuthorizationService moduleAuthorizationService;
+
+    @Autowired
+    private ResultAuthorizationService resultAuthorizationService;
 
     protected static List<Integer> statusList;
     protected static boolean useReceptionTime = FormFields.getInstance().useField(Field.SampleEntryUseReceptionHour);
@@ -129,6 +139,18 @@ public class WorkplanRestController extends BaseRestController {
     protected String getReceivedDateDisplay(Sample sample) {
         String receptionTime = useReceptionTime ? " " + sample.getReceivedTimeForDisplay() : "";
         return sample.getReceivedDateForDisplay() + receptionTime;
+    }
+
+    /** Applies the Results read permission and its laboratory-unit scope to workplans. */
+    protected List<TestResultItem> filterWorkplanResults(HttpServletRequest request, List<TestResultItem> results) {
+        requireResultsReadPermission(request);
+        return resultAuthorizationService.filterResults(getSysUserId(request), results, "read", Constants.ROLE_RESULTS);
+    }
+
+    protected void requireResultsReadPermission(HttpServletRequest request) {
+        if (!moduleAuthorizationService.hasPermission(getSysUserId(request), "results", "read")) {
+            throw new AccessDeniedException("The user does not have permission to read results");
+        }
     }
 
     class ValueComparator implements Comparator<IdValuePair> {

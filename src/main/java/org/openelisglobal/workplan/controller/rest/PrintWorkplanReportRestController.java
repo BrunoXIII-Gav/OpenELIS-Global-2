@@ -13,6 +13,9 @@ import net.sf.jasperreports.engine.JRDataSource;
 import net.sf.jasperreports.engine.JRException;
 import net.sf.jasperreports.engine.JasperRunManager;
 import net.sf.jasperreports.engine.data.JRBeanCollectionDataSource;
+import org.openelisglobal.authorization.service.ModuleAuthorizationService;
+import org.openelisglobal.authorization.service.ModuleAuthorizationService.AuthorizationDecision;
+import org.openelisglobal.authorization.service.ModuleAuthorizationService.AuthorizationSource;
 import org.openelisglobal.common.exception.LIMSRuntimeException;
 import org.openelisglobal.common.log.LogEvent;
 import org.openelisglobal.common.rest.BaseRestController;
@@ -22,7 +25,8 @@ import org.openelisglobal.workplan.form.WorkplanForm.PrintWorkplan;
 import org.openelisglobal.workplan.reports.IWorkplanReport;
 import org.openelisglobal.workplan.reports.TestSectionWorkplanReport;
 import org.openelisglobal.workplan.reports.TestWorkplanReport;
-import org.springframework.security.access.prepost.PreAuthorize;
+import org.springframework.security.access.AccessDeniedException;
+import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.validation.BindingResult;
 import org.springframework.validation.annotation.Validated;
 import org.springframework.web.bind.annotation.PostMapping;
@@ -30,14 +34,18 @@ import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RestController;
 
 @RestController("PrintWorkplanReportRestController")
-@PreAuthorize("@accessControl.hasPermission(T(org.openelisglobal.common.constants.SystemPermission).RESULTS)")
 public class PrintWorkplanReportRestController extends BaseRestController {
 
     private String reportPath = null;
 
+    @Autowired
+    private ModuleAuthorizationService moduleAuthorizationService;
+
     @PostMapping(value = "/rest/PrintWorkplanReport")
     public void showRestPrintWorkplanReport(HttpServletRequest request, HttpServletResponse response,
             @RequestBody @Validated(PrintWorkplan.class) WorkplanForm form, BindingResult result) {
+
+        requireWorkplanExportPermission(request);
 
         String workplanType = form.getType();
         String workplanName;
@@ -84,6 +92,19 @@ public class PrintWorkplanReportRestController extends BaseRestController {
         } catch (JRException | IOException e) {
             LogEvent.logError(e);
             result.reject("error.jasper", "error.jasper");
+        }
+    }
+
+    private void requireWorkplanExportPermission(HttpServletRequest request) {
+        AuthorizationDecision decision = moduleAuthorizationService.getAuthorization(getSysUserId(request), "results",
+                "export");
+        if (!decision.allowed()) {
+            throw new AccessDeniedException("The user does not have permission to export results");
+        }
+        if (decision.source() == AuthorizationSource.MODULE_PERMISSION && !decision.allLabUnits()) {
+            // The legacy PDF request contains display rows rather than analysis IDs, so scoped exports are denied
+            // until the report endpoint can reload and authorize each row from persisted analyses.
+            throw new AccessDeniedException("Scoped workplan exports are not supported");
         }
     }
 

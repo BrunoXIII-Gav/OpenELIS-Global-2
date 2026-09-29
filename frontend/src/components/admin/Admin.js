@@ -1,8 +1,7 @@
-import React, { useState, useEffect, useContext, useRef } from "react";
+import React, { useState, useEffect } from "react";
 import config from "../../config.json";
 import { FormattedMessage, useIntl, injectIntl } from "react-intl";
 import { Switch, Route, useRouteMatch, useHistory } from "react-router-dom";
-import { confirmAlert } from "react-confirm-alert";
 import "../Style.css";
 import ReflexTestManagement from "./reflexTests/ReflexTestManagement";
 import ProgramManagement from "./program/ProgramManagement";
@@ -103,8 +102,6 @@ import SelectListRenameEntry from "./testManagementConfigMenu/SelectListRenameEn
 import MethodRenameEntry from "./testManagementConfigMenu/MethodRenameEntry.js";
 import OrderAdditionalFieldsManagement from "./testManagementConfigMenu/OrderAdditionalFieldsManagement.js";
 import PatientAdditionalFieldsManagement from "./testManagementConfigMenu/PatientAdditionalFieldsManagement.js";
-import UserSessionDetailsContext from "../../UserSessionDetailsContext";
-import { Roles } from "../utils/Utils";
 import TestParentChildDependency from "./testManagementConfigMenu/TestParentChildDependency.js";
 
 function Admin() {
@@ -112,8 +109,6 @@ function Admin() {
   const { path } = useRouteMatch();
   const history = useHistory();
   const [isSmallScreen, setIsSmallScreen] = useState(false);
-  const { userSessionDetails } = useContext(UserSessionDetailsContext);
-  const accessDeniedShownRef = useRef(false);
 
   // Navigation handler to prevent page reload
   const handleNavigation = (targetPath) => (e) => {
@@ -131,49 +126,6 @@ function Admin() {
     return () =>
       mediaQuery.removeEventListener("change", handleMediaQueryChange);
   }, []);
-
-  const hasGlobalAdminRole = () => {
-    const roles = userSessionDetails?.roles;
-    const normalizedRoles = Array.isArray(roles)
-      ? roles
-      : roles instanceof Set
-        ? Array.from(roles)
-        : roles && typeof roles === "object"
-          ? Object.values(roles)
-          : [];
-    return (
-      normalizedRoles.includes(Roles.GLOBAL_ADMIN) ||
-      normalizedRoles.includes(Roles.ADMINISTRATION)
-    );
-  };
-
-  useEffect(() => {
-    if (
-      userSessionDetails?.authenticated &&
-      !hasGlobalAdminRole() &&
-      !accessDeniedShownRef.current
-    ) {
-      accessDeniedShownRef.current = true;
-      confirmAlert({
-        title: intl.formatMessage({ id: "accessDenied.title" }),
-        message: intl.formatMessage({ id: "accessDenied.message" }),
-        buttons: [
-          {
-            label: intl.formatMessage({ id: "accessDenied.okButton" }),
-            onClick: () => {
-              window.location.href = window.location.origin;
-            },
-          },
-        ],
-        closeOnClickOutside: false,
-        closeOnEscape: false,
-      });
-    }
-  }, [userSessionDetails, intl]);
-
-  if (userSessionDetails?.authenticated && !hasGlobalAdminRole()) {
-    return null;
-  }
 
   return (
     <>

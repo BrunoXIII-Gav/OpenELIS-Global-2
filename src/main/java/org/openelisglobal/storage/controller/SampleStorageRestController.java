@@ -45,7 +45,7 @@ import org.springframework.web.bind.annotation.RestController;
  */
 @RestController
 @RequestMapping("/rest/storage/sample-items")
-@PreAuthorize("@accessControl.hasPermission(T(org.openelisglobal.common.constants.SystemPermission).STORAGE)")
+@PreAuthorize("@accessControl.hasStoragePermission('read')")
 public class SampleStorageRestController extends BaseRestController {
 
     private static final Logger logger = LoggerFactory.getLogger(SampleStorageRestController.class);
@@ -234,6 +234,7 @@ public class SampleStorageRestController extends BaseRestController {
      * @return Assignment details including hierarchical location path
      */
     @PostMapping("/assign")
+    @PreAuthorize("@accessControl.hasStoragePermission('update')")
     public ResponseEntity<Map<String, Object>> assignSampleItem(@Valid @RequestBody SampleAssignmentForm form) {
         try {
             // Validate required fields
@@ -293,6 +294,7 @@ public class SampleStorageRestController extends BaseRestController {
      * Move SampleItem to new storage position POST /rest/storage/sample-items/move
      */
     @PostMapping("/move")
+    @PreAuthorize("@accessControl.hasStoragePermission('update')")
     public ResponseEntity<Map<String, Object>> moveSampleItem(@Valid @RequestBody SampleMovementForm form) {
         try {
             // Validate required fields
@@ -450,6 +452,7 @@ public class SampleStorageRestController extends BaseRestController {
      * location PATCH /rest/storage/sample-items/{sampleItemId}
      */
     @PatchMapping("/{sampleItemId}")
+    @PreAuthorize("@accessControl.hasStoragePermission('update')")
     public ResponseEntity<Map<String, Object>> updateAssignmentMetadata(@PathVariable String sampleItemId,
             @RequestBody Map<String, String> updates) {
         try {
@@ -506,6 +509,7 @@ public class SampleStorageRestController extends BaseRestController {
      * @return Disposal details including previous location and disposal timestamp
      */
     @PostMapping("/dispose")
+    @PreAuthorize("@accessControl.hasStoragePermission('manage')")
     public ResponseEntity<Map<String, Object>> disposeSampleItem(@Valid @RequestBody SampleDisposalForm form) {
         try {
             // Log incoming request for debugging

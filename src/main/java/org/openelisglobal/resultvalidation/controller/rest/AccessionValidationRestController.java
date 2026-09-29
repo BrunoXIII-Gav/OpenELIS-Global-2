@@ -49,6 +49,7 @@ import org.openelisglobal.resultvalidation.controller.BaseResultValidationContro
 import org.openelisglobal.resultvalidation.form.ResultValidationForm;
 import org.openelisglobal.resultvalidation.service.AnalysisValidationApprovalService;
 import org.openelisglobal.resultvalidation.service.ResultValidationService;
+import org.openelisglobal.resultvalidation.service.ValidationAuthorizationService;
 import org.openelisglobal.resultvalidation.util.ResultValidationSaveService;
 import org.openelisglobal.resultvalidation.util.ResultsValidationUtility;
 import org.openelisglobal.role.service.RoleService;
@@ -72,7 +73,6 @@ import org.openelisglobal.userrole.service.UserRoleService;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.http.MediaType;
 import org.springframework.security.access.AccessDeniedException;
-import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.stereotype.Controller;
 import org.springframework.validation.BindingResult;
 import org.springframework.validation.Errors;
@@ -82,7 +82,6 @@ import org.springframework.web.bind.annotation.*;
 
 @Controller
 @RequestMapping(value = "/rest/")
-@PreAuthorize("@accessControl.hasPermission(T(org.openelisglobal.common.constants.SystemPermission).VALIDATION)")
 public class AccessionValidationRestController extends BaseResultValidationController {
     @Autowired
     private UserService userService;
@@ -103,6 +102,8 @@ public class AccessionValidationRestController extends BaseResultValidationContr
     private SampleItemService sampleItemService;
     @Autowired
     private ProfessionalProfilePermissionService profilePermissionService;
+    @Autowired
+    private ValidationAuthorizationService validationAuthorizationService;
 
     private static final String[] ALLOWED_FIELDS = new String[] { "testSectionId", "paging.currentPage", "testSection",
             "testName", "resultList*.accessionNumber", "resultList*.analysisId", "resultList*.testId",
@@ -163,6 +164,8 @@ public class AccessionValidationRestController extends BaseResultValidationContr
             @RequestParam(required = false) String accessionNumber, @RequestParam(required = false) String date,
             @RequestParam(required = false) String unitType, @RequestParam(defaultValue = "true") Boolean doRange)
             throws IllegalAccessException, InvocationTargetException, NoSuchMethodException {
+
+        requirePermission(getSysUserId(request), "read");
 
         ResultValidationForm newForm = new ResultValidationForm();
         if (StringUtils.isNotBlank(accessionNumber)) {
@@ -243,7 +246,8 @@ public class AccessionValidationRestController extends BaseResultValidationContr
                 }
                 resultList = filterAnalysisItemsBySampleItem(resultList, cugSampleItem);
 
-                filteredresultList = filterAnalysisResultsByValidationRoles(currentUserId, resultList);
+                filteredresultList = validationAuthorizationService.filterResults(currentUserId, resultList, "read",
+                        getValidationRoleNamesForScope(currentUserId));
                 request.setAttribute("pageSize", filteredresultList.size());
                 form.setSearchFinished(true);
             } else {
@@ -284,14 +288,15 @@ public class AccessionValidationRestController extends BaseResultValidationContr
         if (StringUtils.isBlank(userId)) {
             return false;
         }
-        return userPermissionService.hasPermission(userId, SystemPermission.VALIDATION);
+        // Validation is a single final operation; the former sign action is no longer separate.
+        return validationAuthorizationService.hasPermission(userId, "validate");
     }
 
     private boolean isBiologistValidator(String userId) {
         if (StringUtils.isBlank(userId)) {
             return false;
         }
-        return userPermissionService.hasPermission(userId, SystemPermission.VALIDATION);
+        return validationAuthorizationService.hasPermission(userId, "validate");
     }
 
     private List<IdValuePair> getUserValidationTestSections(String userId) {
@@ -343,14 +348,16 @@ public class AccessionValidationRestController extends BaseResultValidationContr
             @Validated(ResultValidationForm.ResultValidation.class) @RequestBody ResultValidationForm form,
             BindingResult result) throws IllegalAccessException, InvocationTargetException, NoSuchMethodException {
         String sysUserId = getSysUserId(request);
+        if ("true".equals(request.getParameter("pageResults"))) {
+            requirePermission(sysUserId, "read");
+            return getResultValidation(request, form, false);
+        }
+        requirePermission(sysUserId, "validate");
         if (!profilePermissionService.hasValidationPermission(sysUserId)) {
             throw new AccessDeniedException(
                     "User " + sysUserId + " does not have required professional profile for validation");
         }
 
-        if ("true".equals(request.getParameter("pageResults"))) {
-            return getResultValidation(request, form, false);
-        }
         form.setSearchFinished(false);
 
         if (result.hasErrors()) {
@@ -372,7 +379,10 @@ public class AccessionValidationRestController extends BaseResultValidationContr
         ResultValidationPaging paging = new ResultValidationPaging();
         paging.updatePagedResults(request, form);
         List<AnalysisItem> resultItemList = paging.getResults(request);
-
+        if (!validationAuthorizationService.canAccessAllResults(sysUserId, resultItemList, "validate",
+                getValidationRoleNamesForScope(sysUserId))) {
+            throw new AccessDeniedException("User cannot validate results outside the assigned laboratory units");
+        }
         String testSectionName = form.getTestSection();
         String testName = form.getTestName();
         setRequestType(testSectionName);
@@ -439,6 +449,12 @@ public class AccessionValidationRestController extends BaseResultValidationContr
         }
 
         return (form);
+    }
+
+    private void requirePermission(String sysUserId, String actionKey) {
+        if (!validationAuthorizationService.hasPermission(sysUserId, actionKey)) {
+            throw new AccessDeniedException("User does not have Validation module permission: " + actionKey);
+        }
     }
 
     private Errors validateModifiedItems(List<AnalysisItem> resultItemList) {

@@ -2,7 +2,6 @@ import React, { useContext, useEffect, useRef, useState } from "react";
 import {
   Checkbox,
   FileUploader,
-  InlineNotification,
   Link,
   RadioButton,
   RadioButtonGroup,
@@ -101,8 +100,12 @@ const normalizeProviderProfileFieldValue = (value) => {
 };
 
 const isLegacyProviderProfileFieldMatch = (field, expectedKey) => {
-  const normalizedExpectedKey = String(expectedKey || "").trim().toUpperCase();
-  const normalizedFieldKey = String(field?.fieldKey || "").trim().toUpperCase();
+  const normalizedExpectedKey = String(expectedKey || "")
+    .trim()
+    .toUpperCase();
+  const normalizedFieldKey = String(field?.fieldKey || "")
+    .trim()
+    .toUpperCase();
   const normalizedDisplayName = String(field?.displayName || "")
     .trim()
     .toUpperCase()
@@ -159,11 +162,8 @@ const AddOrder = (props) => {
     isModifyOrder,
     changed,
     setChanged,
+    isOrderReadOnly = false,
   } = props;
-
-  // Professional profile permission check
-  const [hasOrderPermission, setHasOrderPermission] = useState(true);
-  const [permissionsLoaded, setPermissionsLoaded] = useState(false);
 
   const [otherSamplingVisible, setOtherSamplingVisible] = useState(false);
   const [providers, setProviders] = useState([]);
@@ -184,8 +184,6 @@ const AddOrder = (props) => {
   const hasLoadedFixedFieldConfig =
     Array.isArray(orderFormValues?.sampleOrderItems?.fixedFieldConfigs) &&
     orderFormValues.sampleOrderItems.fixedFieldConfigs.length > 0;
-  const isOrderReadOnly = !permissionsLoaded || !hasOrderPermission;
-
   const updateOrderFormValues = (updater) => {
     setOrderFormValues((previous) => {
       const current = previous || orderFormValues || {};
@@ -308,7 +306,9 @@ const AddOrder = (props) => {
 
   const loadProviderProfileConfig = (providerId, profileCode) => {
     const normalizedProviderId = String(providerId || "").trim();
-    const normalizedProfileCode = String(profileCode || "").trim().toUpperCase();
+    const normalizedProfileCode = String(profileCode || "")
+      .trim()
+      .toUpperCase();
 
     if (!normalizedProviderId || !normalizedProfileCode) {
       clearRequesterProfileFields();
@@ -1210,7 +1210,9 @@ const AddOrder = (props) => {
 
         return (
           <Column key={field.fieldKey} lg={8} md={4} sm={4}>
-            <label htmlFor={`requester-profile-${field.fieldKey}`}>{label}</label>
+            <label htmlFor={`requester-profile-${field.fieldKey}`}>
+              {label}
+            </label>
             <div id={`requester-profile-${field.fieldKey}`}>
               {options.map((option) => (
                 <Checkbox
@@ -1292,8 +1294,7 @@ const AddOrder = (props) => {
       .map((field, index) => ({
         type: "requesterProfile",
         field,
-        sortOrder:
-          REQUESTER_PROFILE_FIELD_SORT_ORDER_BASE + (index + 1) / 100,
+        sortOrder: REQUESTER_PROFILE_FIELD_SORT_ORDER_BASE + (index + 1) / 100,
       }));
 
     const staticFields = [
@@ -1312,29 +1313,27 @@ const AddOrder = (props) => {
       ...staticFields,
       ...requesterProfileFields,
       ...customFields,
-    ].sort(
-      (left, right) => {
-        if (left.sortOrder !== right.sortOrder) {
-          return left.sortOrder - right.sortOrder;
-        }
+    ].sort((left, right) => {
+      if (left.sortOrder !== right.sortOrder) {
+        return left.sortOrder - right.sortOrder;
+      }
 
-        const leftRank = typeRank[left.type] ?? 99;
-        const rightRank = typeRank[right.type] ?? 99;
-        if (leftRank !== rightRank) {
-          return leftRank - rightRank;
-        }
+      const leftRank = typeRank[left.type] ?? 99;
+      const rightRank = typeRank[right.type] ?? 99;
+      if (leftRank !== rightRank) {
+        return leftRank - rightRank;
+      }
 
-        const leftKey =
-          left.type === "custom" || left.type === "requesterProfile"
-            ? left.field.fieldKey
-            : left.fieldKey;
-        const rightKey =
-          right.type === "custom" || right.type === "requesterProfile"
-            ? right.field.fieldKey
-            : right.fieldKey;
-        return String(leftKey || "").localeCompare(String(rightKey || ""));
-      },
-    );
+      const leftKey =
+        left.type === "custom" || left.type === "requesterProfile"
+          ? left.field.fieldKey
+          : left.fieldKey;
+      const rightKey =
+        right.type === "custom" || right.type === "requesterProfile"
+          ? right.field.fieldKey
+          : right.fieldKey;
+      return String(leftKey || "").localeCompare(String(rightKey || ""));
+    });
   };
 
   const renderRequesterSearchField = () => (
@@ -1895,14 +1894,6 @@ const AddOrder = (props) => {
     componentMounted.current = true;
     getFromOpenElisServer("/rest/SamplePatientEntry", getSampleEntryPreform);
     getFromOpenElisServer("/rest/priorities", loadPriorityOptions);
-
-    // Check professional profile permissions
-    getFromOpenElisServer("/rest/professional-profile-permissions", (response) => {
-      if (response) {
-        setHasOrderPermission(response.hasOrderPermission !== false);
-      }
-      setPermissionsLoaded(true);
-    });
 
     window.scrollTo(0, 0);
     return () => {
@@ -2496,11 +2487,14 @@ const AddOrder = (props) => {
         shouldPreloadProviderFromResponse &&
         responseOrderItems.providerPersonId &&
         !responseOrderItems.providerProfessionalProfileCode &&
-        preloadedProviderPersonIdRef.current !== responseOrderItems.providerPersonId
+        preloadedProviderPersonIdRef.current !==
+          responseOrderItems.providerPersonId
       ) {
-        preloadedProviderPersonIdRef.current = responseOrderItems.providerPersonId;
+        preloadedProviderPersonIdRef.current =
+          responseOrderItems.providerPersonId;
         getFromOpenElisServer(
-          "/rest/practitioner?providerId=" + responseOrderItems.providerPersonId,
+          "/rest/practitioner?providerId=" +
+            responseOrderItems.providerPersonId,
           fetchPractitioner,
         );
       }
@@ -2522,14 +2516,6 @@ const AddOrder = (props) => {
   return (
     <>
       <Stack gap={10}>
-        {permissionsLoaded && !hasOrderPermission && (
-          <InlineNotification
-            kind="warning"
-            title={intl.formatMessage({ id: "professionalProfile.permission.denied.order" })}
-            hideCloseButton={true}
-            lowContrast={true}
-          />
-        )}
         <div className="orderLegendBody">
           <Grid>
             <Column lg={16} md={8} sm={4}>

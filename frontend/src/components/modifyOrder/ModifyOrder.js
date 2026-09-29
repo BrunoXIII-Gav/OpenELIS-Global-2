@@ -59,7 +59,7 @@ const ModifyOrder = () => {
   const [errors, setErrors] = useState([]);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [patientId, setPatientId] = useState("");
-  const [hasOrderPermission, setHasOrderPermission] = useState(true);
+  const [hasOrderPermission, setHasOrderPermission] = useState(false);
   const [permissionsLoaded, setPermissionsLoaded] = useState(false);
   const [removedExistingSampleItemIds, setRemovedExistingSampleItemIds] =
     useState([]);
@@ -101,14 +101,15 @@ const ModifyOrder = () => {
         accessionNumber,
       loadOrderValues,
     );
-    getFromOpenElisServer("/rest/professional-profile-permissions", (response) => {
-      if (componentMounted.current && response) {
-        setHasOrderPermission(response.hasOrderPermission !== false);
-      }
-      if (componentMounted.current) {
-        setPermissionsLoaded(true);
-      }
-    });
+    getFromOpenElisServer(
+      "/rest/module-action-access?moduleKey=orders&actionKey=update",
+      (response) => {
+        if (componentMounted.current) {
+          setHasOrderPermission(response?.allowed === true);
+          setPermissionsLoaded(true);
+        }
+      },
+    );
     return () => {
       componentMounted.current = false;
     };
@@ -256,7 +257,10 @@ const ModifyOrder = () => {
   const handleExistingSampleRemoved = (sampleItemId) => {
     setRemovedExistingSampleItemIds((previous) => {
       const normalizedSampleItemId = String(sampleItemId || "").trim();
-      if (!normalizedSampleItemId || previous.includes(normalizedSampleItemId)) {
+      if (
+        !normalizedSampleItemId ||
+        previous.includes(normalizedSampleItemId)
+      ) {
         return previous;
       }
       return [...previous, normalizedSampleItemId];
@@ -401,6 +405,7 @@ const ModifyOrder = () => {
                       isModifyOrder={true}
                       changed={changed}
                       setChanged={setChanged}
+                      isOrderReadOnly={isOrderReadOnly}
                     />
                   )}
 

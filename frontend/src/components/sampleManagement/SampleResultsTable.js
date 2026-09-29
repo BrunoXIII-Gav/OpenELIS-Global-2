@@ -449,11 +449,6 @@ function SampleResultsTable({
       if (!componentMounted.current) return;
       setSampleFixedConfigs(Array.isArray(res) ? res : []);
     });
-    getFromOpenElisServer("/rest/sample-type-uoms/assignments", (res) => {
-      if (!componentMounted.current) return;
-      setUomAssignmentsBySampleType(res || {});
-    });
-
     const fetchCollectorUsers = (profileCodes) => {
       const normalizedCodes = Array.from(
         new Set((profileCodes || []).map(normalizeProfileCode).filter(Boolean)),
@@ -470,9 +465,9 @@ function SampleResultsTable({
 
       normalizedCodes.forEach((profileCode) => {
         getFromOpenElisServer(
-          `/rest/users/professional-profile/${encodeURIComponent(
+          `/rest/sample-management/collectors?professionalProfileCode=${encodeURIComponent(
             profileCode,
-          )}?activeOnly=true&requireEmail=false`,
+          )}`,
           (usersResponse) => {
             if (!componentMounted.current) return;
 
@@ -524,6 +519,36 @@ function SampleResultsTable({
   }, []);
 
   useEffect(() => {
+    const sampleTypeIds = Array.from(
+      new Set(
+        (sampleItems || [])
+          .map((item) => String(item?.sampleTypeId || "").trim())
+          .filter(Boolean),
+      ),
+    );
+
+    sampleTypeIds.forEach((sampleTypeId) => {
+      if (uomAssignmentsBySampleType[sampleTypeId] !== undefined) {
+        return;
+      }
+      getFromOpenElisServer(
+        `/rest/sample-management/uom-assignments?sampleTypeId=${encodeURIComponent(
+          sampleTypeId,
+        )}`,
+        (response) => {
+          if (!componentMounted.current || !Array.isArray(response)) {
+            return;
+          }
+          setUomAssignmentsBySampleType((previous) => ({
+            ...previous,
+            [sampleTypeId]: response.map((id) => String(id)),
+          }));
+        },
+      );
+    });
+  }, [sampleItems, uomAssignmentsBySampleType]);
+
+  useEffect(() => {
     const signature = JSON.stringify(
       (sampleItems || []).map((item) => `${item.id}:${item.lastupdated || ""}`),
     );
@@ -535,6 +560,12 @@ function SampleResultsTable({
   }, [sampleItems]);
 
   useEffect(() => {
+    const restrictedFieldGroupKeys = new Set(
+      sampleItems.flatMap((item) => item.restrictedFieldGroupKeys || []),
+    );
+    const restrictedFieldTagKeys = new Set(
+      sampleItems.flatMap((item) => item.restrictedFieldTagKeys || []),
+    );
     const sampleTypeIds = Array.from(
       new Set(
         sampleItems
@@ -556,9 +587,31 @@ function SampleResultsTable({
           if (!componentMounted.current) {
             return;
           }
-          const fields = Array.isArray(response?.additionalFields)
+          const configuredFields = Array.isArray(response?.additionalFields)
             ? response.additionalFields
             : [];
+          const fields = configuredFields.filter((field) => {
+            const displaySection = String(field?.displaySection || "RECEPTION")
+              .trim()
+              .toUpperCase();
+            if (
+              restrictedFieldGroupKeys.has("collection") &&
+              displaySection === "COLLECTION"
+            ) {
+              return false;
+            }
+            if (
+              field?.id !== undefined &&
+              field?.id !== null &&
+              restrictedFieldTagKeys.has(`additional-field-${field.id}`)
+            ) {
+              return false;
+            }
+            return !(
+              restrictedFieldGroupKeys.has("clinical-data") &&
+              displaySection !== "COLLECTION"
+            );
+          });
           const tests = Array.isArray(response?.tests) ? response.tests : [];
 
           if (tests.length > 0) {
@@ -607,6 +660,15 @@ function SampleResultsTable({
   }, [sampleItems]);
 
   useEffect(() => {
+    const restrictedFieldGroupKeys = new Set(
+      sampleItems.flatMap((item) => item.restrictedFieldGroupKeys || []),
+    );
+    if (
+      restrictedFieldGroupKeys.has("collection") ||
+      restrictedFieldGroupKeys.has("clinical-data")
+    ) {
+      return;
+    }
     sampleItems.forEach((item) => {
       if (!item?.id || !item?.sampleTypeId) {
         return;
@@ -715,8 +777,11 @@ function SampleResultsTable({
   /**
    * Table headers configuration.
    */
-  const headers = useMemo(
-    () => [
+  const headers = useMemo(() => {
+    const restrictedFieldTagKeys = new Set(
+      sampleItems.flatMap((item) => item.restrictedFieldTagKeys || []),
+    );
+    return [
       {
         key: "externalId",
         header: intl.formatMessage({
@@ -766,9 +831,19 @@ function SampleResultsTable({
           id: "sample.management.table.header.hierarchy",
         }),
       },
-    ],
-    [intl],
-  );
+    ].filter((header) => {
+      if (header.key === "cugCode") {
+        return !restrictedFieldTagKeys.has("cug-code");
+      }
+      if (["quantity", "remainingQuantity"].includes(header.key)) {
+        return !restrictedFieldTagKeys.has("quantity");
+      }
+      if (header.key === "tests") {
+        return !restrictedFieldTagKeys.has("tests");
+      }
+      return true;
+    });
+  }, [intl, sampleItems]);
 
   /**
    * Transform sample items to table rows.
@@ -832,11 +907,18 @@ function SampleResultsTable({
           ? `${displayRemaining} ${item.unitOfMeasure || ""}`
           : "-",
         statusId: item.statusId,
+        dataCompletionStatus: item.dataCompletionStatus,
+        editable: Boolean(item.editable),
+        canRead: Boolean(item.canRead),
+        canComplete: Boolean(item.canComplete),
+        canUpdate: Boolean(item.canUpdate),
         isAliquot: item.isAliquot,
         nestingLevel: item.nestingLevel || 0,
         hasRemainingQuantity: item.hasRemainingQuantity,
         childAliquotCount: item.childAliquots ? item.childAliquots.length : 0,
         parentExternalId: item.parentExternalId,
+        restrictedFieldGroupKeys: item.restrictedFieldGroupKeys || [],
+        restrictedFieldTagKeys: item.restrictedFieldTagKeys || [],
         orderedTests: item.orderedTests || [],
         additionalFields,
         additionalFieldValues,
@@ -1044,7 +1126,7 @@ function SampleResultsTable({
   };
 
   const handleSaveSampleChanges = (sampleId, originalRow, additionalFields) => {
-    if (isReadOnly) {
+    if (isReadOnly || !originalRow?.editable) {
       return;
     }
 
@@ -1240,6 +1322,35 @@ function SampleResultsTable({
    */
   const renderExpandedContent = (row) => {
     const originalRow = rows.find((r) => r.id === row.id);
+    const rowReadOnly = isReadOnly || !originalRow?.editable;
+    const restrictedFieldGroupKeys = new Set(
+      originalRow?.restrictedFieldGroupKeys || [],
+    );
+    const restrictedFieldTagKeys = new Set(
+      originalRow?.restrictedFieldTagKeys || [],
+    );
+    const collectionRestricted = restrictedFieldGroupKeys.has("collection");
+    const testsRestricted =
+      restrictedFieldGroupKeys.has("tests-and-results") ||
+      restrictedFieldTagKeys.has("tests");
+    const completingOnly =
+      originalRow?.canComplete &&
+      !originalRow?.canRead &&
+      !originalRow?.canUpdate;
+    const hasFieldValue = (value) => {
+      if (typeof value === "boolean") {
+        return true;
+      }
+      return String(value ?? "").trim().length > 0;
+    };
+    const isEditableSampleFieldRestricted = (fieldKey) =>
+      (collectionRestricted &&
+        ["collector", "collectionDate", "collectionTime"].includes(fieldKey)) ||
+      (restrictedFieldTagKeys.has("quantity") && fieldKey === "quantity") ||
+      (restrictedFieldTagKeys.has("unit-of-measure") && fieldKey === "uom") ||
+      (restrictedFieldTagKeys.has("collector") && fieldKey === "collector") ||
+      (restrictedFieldTagKeys.has("collection-date") &&
+        ["collectionDate", "collectionTime"].includes(fieldKey));
     const shouldShowCurrentTests = Boolean(
       currentTestsVisibleBySampleId[row.id],
     );
@@ -1264,12 +1375,28 @@ function SampleResultsTable({
     const receptionAdditionalFields = additionalFields.filter(
       (field) => getAdditionalFieldDisplaySection(field) !== "COLLECTION",
     );
+    const isAdditionalFieldIncomplete = (field) => {
+      const fieldKey = resolveAdditionalFieldKey(field);
+      const fieldValue =
+        effectiveAdditionalFieldValues?.[fieldKey] ??
+        effectiveAdditionalFieldValues?.[
+          normalizeAdditionalFieldKey(field?.displayName)
+        ] ??
+        "";
+      return !hasFieldValue(fieldValue);
+    };
+    const visibleReceptionAdditionalFields = completingOnly
+      ? receptionAdditionalFields.filter(isAdditionalFieldIncomplete)
+      : receptionAdditionalFields;
     const orderReceptionFields = Array.isArray(
       originalRow?.orderReceptionFields,
     )
       ? originalRow.orderReceptionFields
       : [];
-    if (!originalRow || originalRow.orderedTests.length === 0) {
+    if (
+      !originalRow ||
+      (!testsRestricted && originalRow.orderedTests.length === 0)
+    ) {
       return (
         <div
           style={{
@@ -1285,76 +1412,80 @@ function SampleResultsTable({
 
     return (
       <div className="sample-mgmt-expanded-content">
-        <div className="sample-mgmt-ordered-tests-header">
-          <div className="sample-mgmt-section-title-row">
-            <Chemistry size={20} />
-            <FormattedMessage
-              id="sample.management.table.orderedTests"
-              values={{ count: originalRow.orderedTests.length }}
-            />
-          </div>
-        </div>
-        <div className="sample-mgmt-tests-grid">
-          {originalRow.orderedTests.map((test) => (
-            <div key={test.analysisId} className="sample-mgmt-test-card">
-              <div style={{ flex: 1 }}>
-                <div style={{ fontWeight: "500" }}>
-                  {resolveTestName(test, originalRow.sampleTypeId)}
-                </div>
-                <div
-                  style={{
-                    fontSize: "0.75rem",
-                    color: "#6f6f6f",
-                    display: "flex",
-                    gap: "0.75rem",
-                    marginTop: "0.25rem",
-                  }}
-                >
-                  {shouldRenderStatusTag(test.status) && (
-                    <Tag type={getTestStatusType(test.status)} size="sm">
-                      {test.status}
-                    </Tag>
-                  )}
-                  {test.orderedDate && (
-                    <span>
-                      <FormattedMessage id="sample.management.table.orderedDate" />
-                      : {new Date(test.orderedDate).toLocaleDateString()}
-                    </span>
-                  )}
-                </div>
-              </div>
-              <div style={{ marginLeft: "0.5rem" }}>
-                {cancellingTests[test.analysisId] ? (
-                  <InlineLoading
-                    description={intl.formatMessage({
-                      id: "sample.management.table.cancelling",
-                    })}
-                    status="active"
-                  />
-                ) : (
-                  <Button
-                    kind="ghost"
-                    size="sm"
-                    renderIcon={TrashCan}
-                    iconDescription={intl.formatMessage({
-                      id: "sample.management.table.cancelTest",
-                    })}
-                    hasIconOnly
-                    onClick={() =>
-                      handleCancelTest(
-                        row.id,
-                        test.analysisId,
-                        resolveTestName(test, originalRow.sampleTypeId),
-                      )
-                    }
-                    disabled={isReadOnly || !canCancelTest(test.status)}
-                    tooltipPosition="left"
-                  />
-                )}
+        {!testsRestricted && !completingOnly ? (
+          <>
+            <div className="sample-mgmt-ordered-tests-header">
+              <div className="sample-mgmt-section-title-row">
+                <Chemistry size={20} />
+                <FormattedMessage
+                  id="sample.management.table.orderedTests"
+                  values={{ count: originalRow.orderedTests.length }}
+                />
               </div>
             </div>
-          ))}
-        </div>
+            <div className="sample-mgmt-tests-grid">
+              {originalRow.orderedTests.map((test) => (
+                <div key={test.analysisId} className="sample-mgmt-test-card">
+                  <div style={{ flex: 1 }}>
+                    <div style={{ fontWeight: "500" }}>
+                      {resolveTestName(test, originalRow.sampleTypeId)}
+                    </div>
+                    <div
+                      style={{
+                        fontSize: "0.75rem",
+                        color: "#6f6f6f",
+                        display: "flex",
+                        gap: "0.75rem",
+                        marginTop: "0.25rem",
+                      }}
+                    >
+                      {shouldRenderStatusTag(test.status) && (
+                        <Tag type={getTestStatusType(test.status)} size="sm">
+                          {test.status}
+                        </Tag>
+                      )}
+                      {test.orderedDate && (
+                        <span>
+                          <FormattedMessage id="sample.management.table.orderedDate" />
+                          : {new Date(test.orderedDate).toLocaleDateString()}
+                        </span>
+                      )}
+                    </div>
+                  </div>
+                  <div style={{ marginLeft: "0.5rem" }}>
+                    {cancellingTests[test.analysisId] ? (
+                      <InlineLoading
+                        description={intl.formatMessage({
+                          id: "sample.management.table.cancelling",
+                        })}
+                        status="active"
+                      />
+                    ) : (
+                      <Button
+                        kind="ghost"
+                        size="sm"
+                        renderIcon={TrashCan}
+                        iconDescription={intl.formatMessage({
+                          id: "sample.management.table.cancelTest",
+                        })}
+                        hasIconOnly
+                        onClick={() =>
+                          handleCancelTest(
+                            row.id,
+                            test.analysisId,
+                            resolveTestName(test, originalRow.sampleTypeId),
+                          )
+                        }
+                        disabled={rowReadOnly || !canCancelTest(test.status)}
+                        tooltipPosition="left"
+                      />
+                    )}
+                  </div>
+                </div>
+              ))}
+            </div>
+          </>
+        ) : null}
         {shouldShowCurrentTests &&
           (() => {
             const primarySampleRowId = getPrimarySampleRowId(
@@ -1398,10 +1529,28 @@ function SampleResultsTable({
                     ),
                   ]
                 : availableUoms;
+            const sampleFieldValues = {
+              quantity: sampleQuantity,
+              uom: sampleUom,
+              collector: sampleCollector,
+              collectionDate: sampleDate,
+              collectionTime: sampleTime,
+            };
+            const visibleEditableSampleFieldDefinitions =
+              editableSampleFieldDefinitions.filter(
+                (field) =>
+                  !isEditableSampleFieldRestricted(field.fieldKey) &&
+                  (!completingOnly ||
+                    !hasFieldValue(sampleFieldValues[field.fieldKey])),
+              );
+            const visibleCollectionAdditionalFields = completingOnly
+              ? collectionAdditionalFields.filter(isAdditionalFieldIncomplete)
+              : collectionAdditionalFields;
 
             return (
               <div style={{ marginTop: "1rem", display: "grid", gap: "1rem" }}>
-                {editableSampleFieldDefinitions.length > 0 ? (
+                {visibleEditableSampleFieldDefinitions.length > 0 ||
+                visibleCollectionAdditionalFields.length > 0 ? (
                   <Tile className="sample-mgmt-section-card">
                     <div className="sample-mgmt-section-header">
                       <h4 className="sample-mgmt-section-title">
@@ -1414,8 +1563,8 @@ function SampleResultsTable({
                       </Tag>
                     </div>
                     <div className="sample-mgmt-grid">
-                      {editableSampleFieldDefinitions.map((field) => {
-                        const disabled = isReadOnly || field.readonly;
+                      {visibleEditableSampleFieldDefinitions.map((field) => {
+                        const disabled = rowReadOnly || field.readonly;
                         switch (field.fieldKey) {
                           case "quantity":
                             return (
@@ -1538,7 +1687,7 @@ function SampleResultsTable({
                             return null;
                         }
                       })}
-                      {collectionAdditionalFields.map((field, idx) => {
+                      {visibleCollectionAdditionalFields.map((field, idx) => {
                         const fieldType = (
                           field.fieldType || "TEXT"
                         ).toUpperCase();
@@ -1560,7 +1709,7 @@ function SampleResultsTable({
                               id={fieldId}
                               labelText={fieldLabel}
                               checked={fieldValue === "true"}
-                              disabled={isReadOnly}
+                              disabled={rowReadOnly}
                               onChange={(e) =>
                                 updateAdditionalFieldValue(
                                   row.id,
@@ -1583,7 +1732,7 @@ function SampleResultsTable({
                               id={fieldId}
                               labelText={fieldLabel}
                               value={fieldValue}
-                              disabled={isReadOnly}
+                              disabled={rowReadOnly}
                               onChange={(e) =>
                                 updateAdditionalFieldValue(
                                   row.id,
@@ -1632,7 +1781,7 @@ function SampleResultsTable({
                                   id={`${fieldId}_multi_${optionIdx}`}
                                   labelText={option.optionLabel}
                                   checked={selectedValues.has(option.optionKey)}
-                                  disabled={isReadOnly}
+                                  disabled={rowReadOnly}
                                   onChange={(e) =>
                                     updateAdditionalMultiSelectOption(
                                       row.id,
@@ -1655,7 +1804,7 @@ function SampleResultsTable({
                               labelText={fieldLabel}
                               style={{ gridColumn: "1 / -1" }}
                               value={fieldValue}
-                              disabled={isReadOnly}
+                              disabled={rowReadOnly}
                               onChange={(e) =>
                                 updateAdditionalFieldValue(
                                   row.id,
@@ -1687,7 +1836,7 @@ function SampleResultsTable({
                             size="lg"
                             style={{ minHeight: "52px" }}
                             value={fieldValue}
-                            disabled={isReadOnly}
+                            disabled={rowReadOnly}
                             onChange={(e) =>
                               updateAdditionalFieldValue(
                                 row.id,
@@ -1704,174 +1853,217 @@ function SampleResultsTable({
               </div>
             );
           })()}
-        {shouldShowCurrentTests && orderReceptionFields.length > 0 && (
-          <Tile className="sample-mgmt-section-card" style={{ marginTop: "1.5rem" }}>
-            <h4 className="sample-mgmt-section-title">
-              <FormattedMessage id="sample.management.order.fields.heading" />
-            </h4>
-            <div className="sample-mgmt-grid">
-              {orderReceptionFields.map((field, index) => {
-                const fieldId = `sample_mgmt_order_readonly_${row.id}_${field.fieldKey}_${index}`;
-                const rawValue =
-                  field?.value === undefined || field?.value === null
-                    ? ""
-                    : String(field.value);
-                const displayValue =
-                  field?.fieldType === "BOOLEAN"
-                    ? rawValue.toLowerCase() === "true"
-                      ? intl.formatMessage({ id: "yes.option" })
-                      : rawValue.toLowerCase() === "false"
-                        ? intl.formatMessage({ id: "no.option" })
-                        : rawValue
-                    : rawValue;
-                const label = resolveOrderFieldLabel(field);
+        {shouldShowCurrentTests &&
+          !completingOnly &&
+          orderReceptionFields.length > 0 && (
+            <Tile
+              className="sample-mgmt-section-card"
+              style={{ marginTop: "1.5rem" }}
+            >
+              <h4 className="sample-mgmt-section-title">
+                <FormattedMessage id="sample.management.order.fields.heading" />
+              </h4>
+              <div className="sample-mgmt-grid">
+                {orderReceptionFields.map((field, index) => {
+                  const fieldId = `sample_mgmt_order_readonly_${row.id}_${field.fieldKey}_${index}`;
+                  const rawValue =
+                    field?.value === undefined || field?.value === null
+                      ? ""
+                      : String(field.value);
+                  const displayValue =
+                    field?.fieldType === "BOOLEAN"
+                      ? rawValue.toLowerCase() === "true"
+                        ? intl.formatMessage({ id: "yes.option" })
+                        : rawValue.toLowerCase() === "false"
+                          ? intl.formatMessage({ id: "no.option" })
+                          : rawValue
+                      : rawValue;
+                  const label = resolveOrderFieldLabel(field);
 
-                if (displayValue.length > 120) {
+                  if (displayValue.length > 120) {
+                    return (
+                      <TextArea
+                        key={fieldId}
+                        id={fieldId}
+                        labelText={label}
+                        style={{ gridColumn: "1 / -1" }}
+                        value={displayValue}
+                        readOnly
+                      />
+                    );
+                  }
+
                   return (
-                    <TextArea
+                    <TextInput
                       key={fieldId}
                       id={fieldId}
                       labelText={label}
-                      style={{ gridColumn: "1 / -1" }}
                       value={displayValue}
                       readOnly
                     />
                   );
-                }
+                })}
+              </div>
+            </Tile>
+          )}
+        {shouldShowCurrentTests &&
+          visibleReceptionAdditionalFields.length > 0 && (
+            <Tile
+              className="sample-mgmt-section-card"
+              style={{ marginTop: "1.5rem" }}
+            >
+              <h4 style={{ marginTop: 0, marginBottom: "0.75rem" }}>
+                <FormattedMessage id="sample.additional.fields.heading" />
+              </h4>
+              <div style={{ marginBottom: "0.75rem", fontWeight: 500 }}>
+                {(originalRow.cugCode || originalRow.externalId || "-") +
+                  " - " +
+                  (originalRow.sampleType || "")}
+              </div>
+              <div className="sample-mgmt-grid">
+                {visibleReceptionAdditionalFields.map((field, idx) => {
+                  const fieldType = (field.fieldType || "TEXT").toUpperCase();
+                  const fieldKey = resolveAdditionalFieldKey(field);
+                  const fieldLabel = field.displayName || field.fieldKey;
+                  const fieldValue =
+                    effectiveAdditionalFieldValues?.[fieldKey] ??
+                    effectiveAdditionalFieldValues?.[
+                      normalizeAdditionalFieldKey(field?.displayName)
+                    ] ??
+                    "";
+                  const fieldId = `sample_mgmt_additional_${row.id}_${fieldKey}_${idx}`;
+                  const options = field.options || [];
 
-                return (
-                  <TextInput
-                    key={fieldId}
-                    id={fieldId}
-                    labelText={label}
-                    value={displayValue}
-                    readOnly
-                  />
-                );
-              })}
-            </div>
-          </Tile>
-        )}
-        {shouldShowCurrentTests && receptionAdditionalFields.length > 0 && (
-          <Tile className="sample-mgmt-section-card" style={{ marginTop: "1.5rem" }}>
-            <h4 style={{ marginTop: 0, marginBottom: "0.75rem" }}>
-              <FormattedMessage id="sample.additional.fields.heading" />
-            </h4>
-            <div style={{ marginBottom: "0.75rem", fontWeight: 500 }}>
-              {(originalRow.cugCode || originalRow.externalId || "-") +
-                " - " +
-                (originalRow.sampleType || "")}
-            </div>
-            <div className="sample-mgmt-grid">
-              {receptionAdditionalFields.map((field, idx) => {
-                const fieldType = (field.fieldType || "TEXT").toUpperCase();
-                const fieldKey = resolveAdditionalFieldKey(field);
-                const fieldLabel = field.displayName || field.fieldKey;
-                const fieldValue =
-                  effectiveAdditionalFieldValues?.[fieldKey] ??
-                  effectiveAdditionalFieldValues?.[
-                    normalizeAdditionalFieldKey(field?.displayName)
-                  ] ??
-                  "";
-                const fieldId = `sample_mgmt_additional_${row.id}_${fieldKey}_${idx}`;
-                const options = field.options || [];
-
-                if (fieldType === "BOOLEAN") {
-                  return (
-                    <Checkbox
-                      key={fieldId}
-                      id={fieldId}
-                      labelText={fieldLabel}
-                      checked={fieldValue === "true"}
-                      disabled={isReadOnly}
-                      onChange={(e) =>
-                        updateAdditionalFieldValue(
-                          row.id,
-                          fieldKey,
-                          e.target.checked ? "true" : "false",
-                        )
-                      }
-                    />
-                  );
-                }
-
-                if (
-                  fieldType === "SELECT" ||
-                  fieldType === "RADIO" ||
-                  fieldType === "USER"
-                ) {
-                  return (
-                    <Select
-                      key={fieldId}
-                      id={fieldId}
-                      labelText={fieldLabel}
-                      value={fieldValue}
-                      disabled={isReadOnly}
-                      onChange={(e) =>
-                        updateAdditionalFieldValue(
-                          row.id,
-                          fieldKey,
-                          e.target.value,
-                        )
-                      }
-                    >
-                      <SelectItem
-                        text={intl.formatMessage({ id: "label.select" })}
-                        value=""
+                  if (fieldType === "BOOLEAN") {
+                    return (
+                      <Checkbox
+                        key={fieldId}
+                        id={fieldId}
+                        labelText={fieldLabel}
+                        checked={fieldValue === "true"}
+                        disabled={rowReadOnly}
+                        onChange={(e) =>
+                          updateAdditionalFieldValue(
+                            row.id,
+                            fieldKey,
+                            e.target.checked ? "true" : "false",
+                          )
+                        }
                       />
-                      {options.map((option, optionIdx) => (
+                    );
+                  }
+
+                  if (
+                    fieldType === "SELECT" ||
+                    fieldType === "RADIO" ||
+                    fieldType === "USER"
+                  ) {
+                    return (
+                      <Select
+                        key={fieldId}
+                        id={fieldId}
+                        labelText={fieldLabel}
+                        value={fieldValue}
+                        disabled={rowReadOnly}
+                        onChange={(e) =>
+                          updateAdditionalFieldValue(
+                            row.id,
+                            fieldKey,
+                            e.target.value,
+                          )
+                        }
+                      >
                         <SelectItem
-                          key={`${fieldId}_option_${optionIdx}`}
-                          text={option.optionLabel}
-                          value={option.optionKey}
+                          text={intl.formatMessage({ id: "label.select" })}
+                          value=""
                         />
-                      ))}
-                    </Select>
-                  );
-                }
+                        {options.map((option, optionIdx) => (
+                          <SelectItem
+                            key={`${fieldId}_option_${optionIdx}`}
+                            text={option.optionLabel}
+                            value={option.optionKey}
+                          />
+                        ))}
+                      </Select>
+                    );
+                  }
 
-                if (fieldType === "MULTISELECT") {
-                  const selectedValues = new Set(
-                    String(fieldValue)
-                      .split(",")
-                      .map((entry) => entry.trim())
-                      .filter((entry) => entry !== ""),
-                  );
-                  return (
-                    <div key={fieldId} style={{ gridColumn: "1 / -1" }}>
-                      <div style={{ marginBottom: "0.5rem", fontWeight: 500 }}>
-                        {fieldLabel}
+                  if (fieldType === "MULTISELECT") {
+                    const selectedValues = new Set(
+                      String(fieldValue)
+                        .split(",")
+                        .map((entry) => entry.trim())
+                        .filter((entry) => entry !== ""),
+                    );
+                    return (
+                      <div key={fieldId} style={{ gridColumn: "1 / -1" }}>
+                        <div
+                          style={{ marginBottom: "0.5rem", fontWeight: 500 }}
+                        >
+                          {fieldLabel}
+                        </div>
+                        {options.map((option, optionIdx) => (
+                          <Checkbox
+                            key={`${fieldId}_multi_${optionIdx}`}
+                            id={`${fieldId}_multi_${optionIdx}`}
+                            labelText={option.optionLabel}
+                            checked={selectedValues.has(option.optionKey)}
+                            disabled={rowReadOnly}
+                            onChange={(e) =>
+                              updateAdditionalMultiSelectOption(
+                                row.id,
+                                fieldKey,
+                                option.optionKey,
+                                e.target.checked,
+                              )
+                            }
+                          />
+                        ))}
                       </div>
-                      {options.map((option, optionIdx) => (
-                        <Checkbox
-                          key={`${fieldId}_multi_${optionIdx}`}
-                          id={`${fieldId}_multi_${optionIdx}`}
-                          labelText={option.optionLabel}
-                          checked={selectedValues.has(option.optionKey)}
-                          disabled={isReadOnly}
-                          onChange={(e) =>
-                            updateAdditionalMultiSelectOption(
-                              row.id,
-                              fieldKey,
-                              option.optionKey,
-                              e.target.checked,
-                            )
-                          }
-                        />
-                      ))}
-                    </div>
-                  );
-                }
+                    );
+                  }
 
-                if (fieldType === "TEXTAREA") {
+                  if (fieldType === "TEXTAREA") {
+                    return (
+                      <TextArea
+                        key={fieldId}
+                        id={fieldId}
+                        labelText={fieldLabel}
+                        style={{ gridColumn: "1 / -1" }}
+                        value={fieldValue}
+                        disabled={rowReadOnly}
+                        onChange={(e) =>
+                          updateAdditionalFieldValue(
+                            row.id,
+                            fieldKey,
+                            e.target.value,
+                          )
+                        }
+                      />
+                    );
+                  }
+
+                  const htmlInputType =
+                    fieldType === "NUMBER"
+                      ? "number"
+                      : fieldType === "DATE"
+                        ? "date"
+                        : fieldType === "TIME"
+                          ? "time"
+                          : fieldType === "DATETIME"
+                            ? "datetime-local"
+                            : "text";
+
                   return (
-                    <TextArea
+                    <TextInput
                       key={fieldId}
                       id={fieldId}
                       labelText={fieldLabel}
-                      style={{ gridColumn: "1 / -1" }}
+                      type={htmlInputType}
+                      size="lg"
+                      style={{ minHeight: "52px" }}
                       value={fieldValue}
-                      disabled={isReadOnly}
+                      disabled={rowReadOnly}
                       onChange={(e) =>
                         updateAdditionalFieldValue(
                           row.id,
@@ -1881,42 +2073,10 @@ function SampleResultsTable({
                       }
                     />
                   );
-                }
-
-                const htmlInputType =
-                  fieldType === "NUMBER"
-                    ? "number"
-                    : fieldType === "DATE"
-                      ? "date"
-                      : fieldType === "TIME"
-                        ? "time"
-                        : fieldType === "DATETIME"
-                          ? "datetime-local"
-                          : "text";
-
-                return (
-                  <TextInput
-                    key={fieldId}
-                    id={fieldId}
-                    labelText={fieldLabel}
-                    type={htmlInputType}
-                    size="lg"
-                    style={{ minHeight: "52px" }}
-                    value={fieldValue}
-                    disabled={isReadOnly}
-                    onChange={(e) =>
-                      updateAdditionalFieldValue(
-                        row.id,
-                        fieldKey,
-                        e.target.value,
-                      )
-                    }
-                  />
-                );
-              })}
-            </div>
-          </Tile>
-        )}
+                })}
+              </div>
+            </Tile>
+          )}
         {shouldShowCurrentTests && (
           <div className="sample-mgmt-save-bar">
             <Button
@@ -1925,7 +2085,7 @@ function SampleResultsTable({
               onClick={() =>
                 handleSaveSampleChanges(row.id, originalRow, additionalFields)
               }
-              disabled={isReadOnly || Boolean(savingBySampleId[row.id])}
+              disabled={rowReadOnly || Boolean(savingBySampleId[row.id])}
             >
               {savingBySampleId[row.id]
                 ? intl.formatMessage({ id: "sample.management.search.loading" })

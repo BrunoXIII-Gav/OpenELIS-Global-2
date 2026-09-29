@@ -88,6 +88,7 @@ import org.openelisglobal.sample.service.SampleService;
 import org.openelisglobal.sample.valueholder.Sample;
 import org.openelisglobal.samplehuman.service.SampleHumanService;
 import org.openelisglobal.sampleitem.service.SampleItemService;
+import org.openelisglobal.sampleitem.valueholder.SampleDataCompletionStatus;
 import org.openelisglobal.sampleitem.valueholder.SampleItem;
 import org.openelisglobal.sampleqaevent.service.SampleQaEventService;
 import org.openelisglobal.sampleqaevent.valueholder.SampleQaEvent;
@@ -691,6 +692,9 @@ public class ResultsLoadUtility {
     }
 
     private List<Analysis> getAnalysisForSampleItem(SampleItem item) {
+        if (item.getDataCompletionState() != SampleDataCompletionStatus.COMPLETED) {
+            return Collections.emptyList();
+        }
         return analysisService.getAnalysesBySampleItemsExcludingByStatusIds(item, excludedAnalysisStatus);
     }
 
@@ -814,6 +818,8 @@ public class ResultsLoadUtility {
         testItem.setTestMethod(analysisService.getMethodId(analysis));
         testItem.setMethods(getMethodOptionsForTest(test, testItem.getTestMethod(), testMethodName));
         testItem.setResult(result);
+        testItem.setResultEntryAction(result == null || GenericValidator.isBlankOrNull(result.getId()) ? "enter"
+                : analysisService.patientReportHasBeenDone(analysis) ? "correct" : "update");
         testItem.setResultValue(getFormattedResultValue(result));
         testItem.setMultiSelectResultValues(analysisService.getJSONMultiSelectResults(analysis));
         testItem.setAnalysisStatusId(analysisService.getStatusId(analysis));

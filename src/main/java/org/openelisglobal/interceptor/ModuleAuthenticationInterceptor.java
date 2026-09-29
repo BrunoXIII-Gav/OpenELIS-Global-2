@@ -11,6 +11,8 @@ import org.openelisglobal.common.action.IActionConstants;
 import org.openelisglobal.common.log.LogEvent;
 import org.openelisglobal.common.util.ConfigurationProperties;
 import org.openelisglobal.common.validator.BaseErrors;
+import org.openelisglobal.administration.service.AdministrationAuthorizationService;
+import org.openelisglobal.authorization.service.ModuleAuthorizationService;
 import org.openelisglobal.login.dao.UserModuleService;
 import org.openelisglobal.login.valueholder.UserSessionData;
 import org.openelisglobal.security.service.ModuleAccessService;
@@ -28,6 +30,7 @@ import org.springframework.stereotype.Component;
 import org.springframework.validation.Errors;
 import org.springframework.web.servlet.HandlerInterceptor;
 import org.springframework.web.servlet.ModelAndView;
+import org.springframework.web.method.HandlerMethod;
 
 @Component
 @Qualifier(value = "ModuleAuthenticationInterceptor")
@@ -50,11 +53,20 @@ public class ModuleAuthenticationInterceptor implements HandlerInterceptor {
     private PermissionModuleService<PermissionModule> permissionModuleService;
     @Autowired
     private ModuleAccessService moduleAccessService;
+    @Autowired
+    private AdministrationAuthorizationService administrationAuthorizationService;
+    @Autowired
+    private ModuleAuthorizationService moduleAuthorizationService;
 
     @Override
     public boolean preHandle(HttpServletRequest request, HttpServletResponse response, Object handler)
             throws IOException {
         String resolvedPath = resolveRequestPath(request);
+        if (isAdministrationRequest(handler) && !isOrderEntryReferenceDataRequest(request)
+                && !hasAdministrationPermission(request)) {
+            rejectAdministrationRequest(response);
+            return false;
+        }
         Errors errors = new BaseErrors();
         if (!hasPermission(errors, request) && !hasSemanticPermissionFallback(request, resolvedPath)) {
             LogEvent.logInfo("ModuleAuthenticationInterceptor", "preHandle()",
@@ -131,6 +143,93 @@ public class ModuleAuthenticationInterceptor implements HandlerInterceptor {
             targetUrl = targetUrl + "?" + request.getQueryString();
         }
         return moduleAccessService.canAccess(targetUrl, request).isAllowed();
+    }
+
+    private boolean isAdministrationRequest(Object handler) {
+        if (!(handler instanceof HandlerMethod handlerMethod)) {
+            return false;
+        }
+        String packageName = handlerMethod.getBeanType().getPackageName();
+        return packageName.startsWith("org.openelisglobal.testconfiguration.controller.rest")
+                || packageName.startsWith("org.openelisglobal.analyzer.controller")
+                || packageName.startsWith("org.openelisglobal.analyzerimport.controller.rest")
+                || packageName.startsWith("org.openelisglobal.barcode.controller.rest")
+                || packageName.startsWith("org.openelisglobal.dictionary.controller.rest")
+                || packageName.startsWith("org.openelisglobal.externalconnections.controller.rest")
+                || packageName.startsWith("org.openelisglobal.logo.controller.rest")
+                || packageName.startsWith("org.openelisglobal.notification.controller.rest")
+                || packageName.startsWith("org.openelisglobal.organization.controller.rest")
+                || packageName.startsWith("org.openelisglobal.professionalprofile.controller.rest")
+                || packageName.startsWith("org.openelisglobal.provider.controller.rest")
+                || packageName.startsWith("org.openelisglobal.resultreporting.controller.rest")
+                || packageName.startsWith("org.openelisglobal.role.controller.rest")
+                || packageName.startsWith("org.openelisglobal.sitebranding.controller.rest")
+                || packageName.startsWith("org.openelisglobal.siteinformation.controller.rest")
+                || packageName.startsWith("org.openelisglobal.systemuser.controller.rest")
+                || packageName.startsWith("org.openelisglobal.testcalculated.controller.rest")
+                || packageName.startsWith("org.openelisglobal.testdependency.controller.rest")
+                || packageName.startsWith("org.openelisglobal.testreflex.controller.rest");
+    }
+
+    /**
+     * These read-only sample/UOM and requester-profile lookups are needed to
+     * build an order, but their controllers also contain administration-only
+     * configuration endpoints.
+     */
+    private boolean isOrderEntryReferenceDataRequest(HttpServletRequest request) {
+        if (!"GET".equalsIgnoreCase(request.getMethod())) {
+            return false;
+        }
+
+        String path = resolveRequestPath(request);
+        if (!List.of("/rest/sample-type-uoms", "/rest/sample-type-uoms/assignments", "/rest/providers/form-config")
+                .contains(path)) {
+            return false;
+        }
+
+        UserSessionData userSessionData = getUserSessionData(request);
+        if (userSessionData == null) {
+            return false;
+        }
+
+        String userId = Integer.toString(userSessionData.getSystemUserId());
+        return moduleAuthorizationService.hasPermission(userId, "orders", "create")
+                || moduleAuthorizationService.hasPermission(userId, "orders", "update");
+    }
+
+    private boolean hasAdministrationPermission(HttpServletRequest request) {
+        if (userModuleService.isSessionExpired(request)) {
+            return false;
+        }
+        if (userModuleService.isUserAdmin(request)) {
+            return true;
+        }
+        UserSessionData userSessionData = getUserSessionData(request);
+        if (userSessionData == null) {
+            return false;
+        }
+        String actionKey = "GET".equalsIgnoreCase(request.getMethod()) || "HEAD".equalsIgnoreCase(request.getMethod())
+                ? "read"
+                : "manage";
+        return administrationAuthorizationService.hasPermission(Integer.toString(userSessionData.getSystemUserId()),
+                actionKey);
+    }
+
+    private void rejectAdministrationRequest(HttpServletResponse response) throws IOException {
+        response.setStatus(HttpServletResponse.SC_FORBIDDEN);
+        response.setContentType("application/json");
+        response.setCharacterEncoding("UTF-8");
+        response.getWriter().write("{ \"status\": 403, \"message\": \"Forbidden\" }");
+        response.getWriter().flush();
+    }
+
+    private UserSessionData getUserSessionData(HttpServletRequest request) {
+        UserSessionData userSessionData = (UserSessionData) request.getSession()
+                .getAttribute(IActionConstants.USER_SESSION_DATA);
+        if (userSessionData == null) {
+            userSessionData = (UserSessionData) request.getAttribute(IActionConstants.USER_SESSION_DATA);
+        }
+        return userSessionData;
     }
 
     private String resolveRequestPath(HttpServletRequest request) {

@@ -4,6 +4,7 @@ import java.util.Collection;
 import java.util.List;
 import java.util.Map;
 import org.openelisglobal.role.form.CustomRoleDefinitionForm;
+import org.openelisglobal.role.form.ModulePermissionForm;
 import org.openelisglobal.role.valueholder.Role;
 
 public interface CustomRoleDefinitionService {
@@ -19,6 +20,10 @@ public interface CustomRoleDefinitionService {
     Map<String, List<String>> getPermissionRoleIdsForCustomRoles(Collection<String> roleIds);
 
     List<String> getApplicableLabUnitIdsForCustomRole(String roleId);
+
+    List<ModulePermissionForm> getModulePermissionsForCustomRole(String roleId);
+
+    List<String> getRestrictedPatientSearchCriteriaForCustomRole(String roleId);
 
     Map<String, List<String>> getApplicableLabUnitIdsForCustomRoles(Collection<String> roleIds);
 

@@ -16,6 +16,8 @@ import org.hl7.fhir.r4.model.Enumerations.ResourceType;
 import org.hl7.fhir.r4.model.Reference;
 import org.hl7.fhir.r4.model.Task;
 import org.openelisglobal.analysis.valueholder.Analysis;
+import org.openelisglobal.authorization.service.ModuleAuthorizationService;
+import org.openelisglobal.authorization.service.ModuleAuthorizationService.AuthorizationSource;
 import org.openelisglobal.common.constants.Constants;
 import org.openelisglobal.common.constants.SystemPermission;
 import org.openelisglobal.common.exception.LIMSRuntimeException;
@@ -54,6 +56,7 @@ import org.openelisglobal.sample.controller.BaseSampleEntryController;
 import org.openelisglobal.sample.event.SamplePatientUpdateDataCreatedEvent;
 import org.openelisglobal.sample.form.SamplePatientEntryForm;
 import org.openelisglobal.sample.service.PatientManagementUpdate;
+import org.openelisglobal.sample.service.OrderAuthorizationService;
 import org.openelisglobal.sample.service.SamplePatientEntryService;
 import org.openelisglobal.sample.service.SampleService;
 import org.openelisglobal.sample.validator.SamplePatientEntryFormValidator;
@@ -71,7 +74,7 @@ import org.springframework.context.ApplicationEventPublisher;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.MediaType;
 import org.springframework.http.ResponseEntity;
-import org.springframework.security.access.prepost.PreAuthorize;
+import org.springframework.security.access.AccessDeniedException;
 import org.springframework.stereotype.Controller;
 import org.springframework.validation.BindingResult;
 import org.springframework.validation.FieldError;
@@ -90,7 +93,6 @@ import org.springframework.web.servlet.support.RequestContextUtils;
 
 @Controller
 @RequestMapping(value = "/rest/")
-@PreAuthorize("@accessControl.hasPermission(T(org.openelisglobal.common.constants.SystemPermission).ORDER)")
 public class SamplePatientEntryRestController extends BaseSampleEntryController {
     private static final String ERROR_MESSAGE_HEADER = "X-OpenELIS-Error-Message";
     private static final String PROP_PROVIDER_SELECTION_POLICY = "orderProviderSelectionPolicy";
@@ -201,6 +203,11 @@ public class SamplePatientEntryRestController extends BaseSampleEntryController 
     private AlternateOrderFlowService alternateOrderFlowService;
 
     @Autowired
+    private OrderAuthorizationService orderAuthorizationService;
+    @Autowired
+    private ModuleAuthorizationService moduleAuthorizationService;
+
+    @Autowired
     private ApplicationEventPublisher eventPublisher;
     @Autowired
     private org.openelisglobal.common.service.ProfessionalProfilePermissionService profilePermissionService;
@@ -215,6 +222,7 @@ public class SamplePatientEntryRestController extends BaseSampleEntryController 
     public SamplePatientEntryForm showSamplePatientEntry(HttpServletRequest request,
             @RequestParam(value = ID, required = false) @Pattern(regexp = "[a-zA-Z0-9 -]*") String externalOrderNumber)
             throws IllegalAccessException, InvocationTargetException, NoSuchMethodException {
+        requireOrderPermission(request, "create");
         SamplePatientEntryForm form = new SamplePatientEntryForm();
 
         request.getSession().setAttribute(SAVE_DISABLED, TRUE);
@@ -265,11 +273,13 @@ public class SamplePatientEntryRestController extends BaseSampleEntryController 
             BindingResult result, RedirectAttributes redirectAttributes)
             throws IllegalAccessException, InvocationTargetException, NoSuchMethodException {
 
+        requireOrderPermission(request, "create");
+
         enforceSelfOnlyProviderPolicy(request, form, result);
 
-        // Validate professional profile permission for order creation
         String sysUserId = getSysUserId(request);
-        if (!profilePermissionService.hasOrderPermission(sysUserId)) {
+        if (requiresLegacyProfessionalProfile(sysUserId, "orders", "create")
+                && !profilePermissionService.hasOrderPermission(sysUserId)) {
             result.reject("professionalProfile.order.permission.denied",
                     "User does not have required professional profile for order creation");
             return buildErrorResponse(form, result, HttpStatus.FORBIDDEN);
@@ -280,6 +290,9 @@ public class SamplePatientEntryRestController extends BaseSampleEntryController 
             saveErrors(result);
             setupForm(form, request, "");
             return buildErrorResponse(form, result, HttpStatus.BAD_REQUEST);
+        }
+        if (!orderAuthorizationService.canAccessSampleXml(getSysUserId(request), form.getSampleXML(), "create")) {
+            throw new AccessDeniedException("The user does not have access to all selected laboratory units");
         }
         SamplePatientUpdateData updateData = new SamplePatientUpdateData(getSysUserId(request));
 
@@ -441,6 +454,17 @@ public class SamplePatientEntryRestController extends BaseSampleEntryController 
         }
 
         return ResponseEntity.ok(form);
+    }
+
+    private void requireOrderPermission(HttpServletRequest request, String actionKey) {
+        if (!orderAuthorizationService.hasPermission(getSysUserId(request), actionKey)) {
+            throw new AccessDeniedException("The user does not have permission to " + actionKey + " orders");
+        }
+    }
+
+    private boolean requiresLegacyProfessionalProfile(String userId, String moduleKey, String actionKey) {
+        return moduleAuthorizationService.getAuthorization(userId, moduleKey, actionKey)
+                .source() != AuthorizationSource.MODULE_PERMISSION;
     }
 
     private void enforceSelfOnlyProviderPolicy(HttpServletRequest request, SamplePatientEntryForm form,

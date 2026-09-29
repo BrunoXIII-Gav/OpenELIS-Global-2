@@ -1202,6 +1202,29 @@ public class AnalysisDAOImpl extends BaseDAOImpl<Analysis, String> implements An
 
     @Override
     @Transactional(readOnly = true)
+    public boolean hasAnalysisForPatientInTestSections(String patientId, List<Integer> testSectionIds)
+            throws LIMSRuntimeException {
+        if (GenericValidator.isBlankOrNull(patientId) || testSectionIds == null || testSectionIds.isEmpty()) {
+            return false;
+        }
+
+        try {
+            String hql = "select count(analysis) from Analysis analysis, SampleHuman sampleHuman "
+                    + "where analysis.sampleItem.sample.id = sampleHuman.sampleId "
+                    + "and sampleHuman.patientId = :patientId "
+                    + "and analysis.testSection.id in (:testSectionIds)";
+            Long count = entityManager.unwrap(Session.class).createQuery(hql, Long.class)
+                    .setParameter("patientId", Integer.parseInt(patientId))
+                    .setParameterList("testSectionIds", testSectionIds).uniqueResult();
+            return count != null && count > 0;
+        } catch (RuntimeException e) {
+            LogEvent.logError(e);
+            throw new LIMSRuntimeException("Error checking analysis access for patient", e);
+        }
+    }
+
+    @Override
+    @Transactional(readOnly = true)
     public List<Analysis> getAllAnalysisByTestsAndStatus(List<Integer> testIds, List<Integer> analysisStatusList,
             List<Integer> sampleStatusList) {
         String sql = "From Analysis a WHERE a.test.id IN (:testIds) AND a.statusId IN (:analysisStatusList) AND"

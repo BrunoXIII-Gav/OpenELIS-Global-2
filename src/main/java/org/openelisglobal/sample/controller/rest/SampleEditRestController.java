@@ -13,6 +13,8 @@ import org.apache.commons.validator.GenericValidator;
 import org.hibernate.StaleObjectStateException;
 import org.openelisglobal.analysis.service.AnalysisService;
 import org.openelisglobal.analysis.valueholder.Analysis;
+import org.openelisglobal.authorization.service.ModuleAuthorizationService;
+import org.openelisglobal.authorization.service.ModuleAuthorizationService.AuthorizationSource;
 import org.openelisglobal.common.constants.Constants;
 import org.openelisglobal.common.exception.LIMSRuntimeException;
 import org.openelisglobal.common.formfields.FormFields;
@@ -37,6 +39,7 @@ import org.openelisglobal.sample.controller.BaseSampleEntryController;
 import org.openelisglobal.sample.form.SampleEditForm;
 import org.openelisglobal.sample.form.SampleEditForm.SampleEdit;
 import org.openelisglobal.sample.service.SampleEditService;
+import org.openelisglobal.sample.service.OrderAuthorizationService;
 import org.openelisglobal.sample.service.SampleService;
 import org.openelisglobal.sample.service.SampleTypeAdditionalFieldService;
 import org.openelisglobal.sample.util.AccessionNumberUtil;
@@ -58,7 +61,7 @@ import org.openelisglobal.userrole.service.UserRoleService;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.http.MediaType;
 import org.springframework.http.ResponseEntity;
-import org.springframework.security.access.prepost.PreAuthorize;
+import org.springframework.security.access.AccessDeniedException;
 import org.springframework.stereotype.Controller;
 import org.springframework.validation.BindingResult;
 import org.springframework.validation.Errors;
@@ -72,7 +75,6 @@ import org.springframework.web.bind.annotation.ResponseBody;
 
 @Controller
 @RequestMapping(value = "/rest/")
-@PreAuthorize("@accessControl.hasPermission(T(org.openelisglobal.common.constants.SystemPermission).ORDER)")
 public class SampleEditRestController extends BaseSampleEntryController {
     @Autowired
     SampleEditFormValidator formValidator;
@@ -124,6 +126,10 @@ public class SampleEditRestController extends BaseSampleEntryController {
     @Autowired
     private SampleTypeAdditionalFieldService sampleTypeAdditionalFieldService;
     @Autowired
+    private OrderAuthorizationService orderAuthorizationService;
+    @Autowired
+    private ModuleAuthorizationService moduleAuthorizationService;
+    @Autowired
     private org.openelisglobal.common.service.ProfessionalProfilePermissionService profilePermissionService;
 
     @GetMapping(value = "SampleEdit", produces = MediaType.APPLICATION_JSON_VALUE)
@@ -132,13 +138,14 @@ public class SampleEditRestController extends BaseSampleEntryController {
             @RequestParam(required = false) String accessionNumber, @RequestParam(required = false) String patientId)
             throws InvocationTargetException, NoSuchMethodException, IllegalAccessException {
 
+        requireOrderPermission(request, "read");
+
         SampleEditForm form = new SampleEditForm();
         form.setFormAction("SampleEdit");
 
         request.getSession().setAttribute(SAVE_DISABLED, TRUE);
 
-        boolean allowedToCancelResults = userModuleService.isUserAdmin(request)
-                || userRoleService.userInRole(getSysUserId(request), ABLE_TO_CANCEL_ROLE_NAMES);
+        boolean allowedToCancelResults = orderAuthorizationService.hasPermission(getSysUserId(request), "cancel");
         boolean isEditable = "readwrite".equals(request.getSession().getAttribute(SAMPLE_EDIT_WRITABLE))
                 || "readwrite".equals(request.getParameter("type"));
         form.setIsEditable(isEditable);
@@ -157,9 +164,10 @@ public class SampleEditRestController extends BaseSampleEntryController {
                 form.setAccessionNumber(accessionNumber);
 
                 List<SampleItem> sampleItemList = getSampleItems(sample);
-                setPatientInfo(form, sample);
                 List<SampleEditItem> currentTestList = getCurrentTestInfo(sampleItemList, accessionNumber,
                         allowedToCancelResults);
+                requireOrderTestScope(request, testIds(currentTestList), "read");
+                setPatientInfo(form, sample);
                 form.setExistingTests(currentTestList);
                 setAddableTestInfo(form, sampleItemList, accessionNumber);
                 setAddableSampleTypes(form, request);
@@ -207,6 +215,7 @@ public class SampleEditRestController extends BaseSampleEntryController {
     @ResponseBody
     public ResponseEntity<Patient> getPatientByLabNumber(HttpServletRequest request,
             @RequestParam(required = false) String accessionNumber) {
+        requireOrderPermission(request, "read");
         if (GenericValidator.isBlankOrNull(accessionNumber)) {
             return ResponseEntity.badRequest().build();
         }
@@ -215,6 +224,7 @@ public class SampleEditRestController extends BaseSampleEntryController {
         if (sample == null) {
             return ResponseEntity.notFound().build();
         }
+        requireOrderTestScope(request, testIdsForSample(sample), "read");
 
         Patient patient = sampleHumanService.getPatientForSample(sample);
         if (patient == null) {
@@ -226,7 +236,9 @@ public class SampleEditRestController extends BaseSampleEntryController {
 
     @GetMapping(value = "patient-orders", produces = MediaType.APPLICATION_JSON_VALUE)
     @ResponseBody
-    public List<PatientOrderSummary> getPatientOrders(@RequestParam(required = false) String patientId) {
+    public List<PatientOrderSummary> getPatientOrders(HttpServletRequest request,
+            @RequestParam(required = false) String patientId) {
+        requireOrderPermission(request, "read");
         if (GenericValidator.isBlankOrNull(patientId)) {
             return Collections.emptyList();
         }
@@ -236,7 +248,10 @@ public class SampleEditRestController extends BaseSampleEntryController {
             return Collections.emptyList();
         }
 
-        return samples.stream().filter(sample -> !GenericValidator.isBlankOrNull(sample.getAccessionNumber())).sorted(
+        return samples.stream().filter(sample -> !GenericValidator.isBlankOrNull(sample.getAccessionNumber()))
+                .filter(sample -> orderAuthorizationService.canAccessAllTests(getSysUserId(request), testIdsForSample(sample),
+                        "read"))
+                .sorted(
                 (sample1, sample2) -> Integer.compare(parseSampleId(sample2.getId()), parseSampleId(sample1.getId())))
                 .map(sample -> new PatientOrderSummary(sample.getId(), sample.getAccessionNumber(),
                         sample.getEnteredDateForDisplay(), sample.getReceivedDateForDisplay()))
@@ -248,10 +263,16 @@ public class SampleEditRestController extends BaseSampleEntryController {
     public void saveSampleEdit(HttpServletRequest request,
             @Validated(SampleEdit.class) @RequestBody SampleEditForm form, BindingResult result)
             throws InvocationTargetException, NoSuchMethodException, IllegalAccessException {
-        
-        // Validate professional profile permission for sample editing
+        requireOrderPermission(request, "update");
+        requireOrderTestScope(request, testIds(form.getExistingTests(), form.getPossibleTests()), "update");
+        if (cancellationRequested(form)) {
+            requireOrderPermission(request, "cancel");
+            requireOrderTestScope(request, testIds(form.getExistingTests()), "cancel");
+        }
+
         String sysUserId = getSysUserId(request);
-        if (!profilePermissionService.hasSampleCollectionPermission(sysUserId)) {
+        if (requiresLegacyProfessionalProfile(sysUserId, "orders", "update")
+                && !profilePermissionService.hasSampleCollectionPermission(sysUserId)) {
             LogEvent.logWarn(this.getClass().getSimpleName(), "saveSampleEdit",
                     "User " + sysUserId + " does not have required professional profile for sample editing");
             result.reject("professionalProfile.sample.permission.denied",
@@ -295,6 +316,45 @@ public class SampleEditRestController extends BaseSampleEntryController {
         } catch (Exception e) {
             LogEvent.logError(e);
         }
+    }
+
+    private void requireOrderPermission(HttpServletRequest request, String actionKey) {
+        if (!orderAuthorizationService.hasPermission(getSysUserId(request), actionKey)) {
+            throw new AccessDeniedException("The user does not have permission to " + actionKey + " orders");
+        }
+    }
+
+    private boolean requiresLegacyProfessionalProfile(String userId, String moduleKey, String actionKey) {
+        return moduleAuthorizationService.getAuthorization(userId, moduleKey, actionKey)
+                .source() != AuthorizationSource.MODULE_PERMISSION;
+    }
+
+    private void requireOrderTestScope(HttpServletRequest request, List<String> testIds, String actionKey) {
+        if (!orderAuthorizationService.canAccessAllTests(getSysUserId(request), testIds, actionKey)) {
+            throw new AccessDeniedException("The user does not have access to all selected laboratory units");
+        }
+    }
+
+    private List<String> testIdsForSample(Sample sample) {
+        return analysisService.getAnalysesBySampleId(sample.getId()).stream().map(analysis -> analysis.getTest().getId())
+                .toList();
+    }
+
+    @SafeVarargs
+    private final List<String> testIds(List<SampleEditItem>... testLists) {
+        List<String> testIds = new ArrayList<>();
+        for (List<SampleEditItem> testList : testLists) {
+            if (testList != null) {
+                testList.stream().map(SampleEditItem::getTestId).filter(testId -> !GenericValidator.isBlankOrNull(testId))
+                        .forEach(testIds::add);
+            }
+        }
+        return testIds;
+    }
+
+    private boolean cancellationRequested(SampleEditForm form) {
+        return form.getExistingTests() != null && form.getExistingTests().stream()
+                .anyMatch(item -> item.isCanceled() || item.isRemoveSample());
     }
 
     @Override

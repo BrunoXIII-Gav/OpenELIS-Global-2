@@ -91,7 +91,7 @@ public class PatientResultsController extends BaseController {
                 List<TestResultItem> results = resultsUtility.getGroupedTestsForPatient(patient);
 
                 List<TestResultItem> filteredResults = userService.filterResultsByLabUnitRoles(getSysUserId(request),
-                        results, Constants.ROLE_RESULTS);
+                        results, Constants.ROLE_RESULTS_BY_PATIENT);
                 form.setTestResult(filteredResults);
 
                 // move this out of results utility

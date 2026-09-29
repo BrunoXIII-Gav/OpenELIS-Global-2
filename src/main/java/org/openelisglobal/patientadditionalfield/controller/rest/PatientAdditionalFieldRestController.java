@@ -5,15 +5,18 @@ import java.util.Collections;
 import java.util.List;
 import java.util.Map;
 import org.openelisglobal.common.rest.BaseRestController;
+import org.openelisglobal.patient.service.PatientAuthorizationService;
 import org.openelisglobal.patientadditionalfield.bean.PatientAdditionalFieldOptionPayload;
 import org.openelisglobal.patientadditionalfield.bean.PatientAdditionalFieldPayload;
 import org.openelisglobal.patientadditionalfield.bean.PatientFixedFieldConfigPayload;
 import org.openelisglobal.patientadditionalfield.service.PatientAdditionalFieldService;
+import org.openelisglobal.sample.service.OrderAuthorizationService;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.MediaType;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.access.prepost.PreAuthorize;
+import org.springframework.security.access.AccessDeniedException;
 import org.springframework.stereotype.Controller;
 import org.springframework.web.bind.annotation.DeleteMapping;
 import org.springframework.web.bind.annotation.GetMapping;
@@ -31,32 +34,51 @@ public class PatientAdditionalFieldRestController extends BaseRestController {
 
     @Autowired
     private PatientAdditionalFieldService patientAdditionalFieldService;
+    @Autowired
+    private PatientAuthorizationService patientAuthorizationService;
+    @Autowired
+    private OrderAuthorizationService orderAuthorizationService;
 
     @GetMapping(value = "patient-additional-fields", produces = MediaType.APPLICATION_JSON_VALUE)
-    @PreAuthorize("@accessControl.hasAnyPermission(T(org.openelisglobal.common.constants.SystemPermission).PATIENT, "
-            + "T(org.openelisglobal.common.constants.SystemPermission).ORDER)")
     @ResponseBody
-    public List<PatientAdditionalFieldPayload> getFields(
+    public List<PatientAdditionalFieldPayload> getFields(HttpServletRequest request,
             @RequestParam(value = "includeInactive", defaultValue = "false") boolean includeInactive,
             @RequestParam(value = "resolveUserOptions", defaultValue = "false") boolean resolveUserOptions) {
+        requirePatientLookupPermission(getSysUserId(request));
         return patientAdditionalFieldService.getFields(includeInactive, resolveUserOptions);
     }
 
     @GetMapping(value = "patient-additional-fields/values", produces = MediaType.APPLICATION_JSON_VALUE)
-    @PreAuthorize("@accessControl.hasAnyPermission(T(org.openelisglobal.common.constants.SystemPermission).PATIENT, "
-            + "T(org.openelisglobal.common.constants.SystemPermission).ORDER)")
     @ResponseBody
-    public Map<String, String> getValues(@RequestParam("patientId") String patientId) {
+    public Map<String, String> getValues(HttpServletRequest request, @RequestParam("patientId") String patientId) {
+        String sysUserId = getSysUserId(request);
+        requirePatientLookupPermission(sysUserId);
+        String scopeAction = patientAuthorizationService.hasPermission(sysUserId, "read") ? "read"
+                : patientAuthorizationService.hasPermission(sysUserId, "update") ? "update" : null;
+        if (scopeAction != null && !patientAuthorizationService.canAccessPatient(sysUserId, patientId, scopeAction)) {
+            throw new AccessDeniedException("User cannot access patient fields outside assigned laboratory units");
+        }
         return patientAdditionalFieldService.getPatientValues(patientId,
                 patientAdditionalFieldService.getFields(false, true));
     }
 
     @GetMapping(value = "patient-additional-fields/fixed", produces = MediaType.APPLICATION_JSON_VALUE)
-    @PreAuthorize("@accessControl.hasAnyPermission(T(org.openelisglobal.common.constants.SystemPermission).PATIENT, "
-            + "T(org.openelisglobal.common.constants.SystemPermission).ORDER)")
     @ResponseBody
-    public List<PatientFixedFieldConfigPayload> getFixedFieldConfigs() {
+    public List<PatientFixedFieldConfigPayload> getFixedFieldConfigs(HttpServletRequest request) {
+        requirePatientLookupPermission(getSysUserId(request));
         return patientAdditionalFieldService.getFixedFieldConfigs();
+    }
+
+    private void requirePatientLookupPermission(String sysUserId) {
+        if (patientAuthorizationService.hasPermission(sysUserId, "read")
+                || patientAuthorizationService.hasPermission(sysUserId, "create")
+                || patientAuthorizationService.hasPermission(sysUserId, "update")
+                || orderAuthorizationService.hasPermission(sysUserId, "create")
+                || orderAuthorizationService.hasPermission(sysUserId, "read")
+                || orderAuthorizationService.hasPermission(sysUserId, "update")) {
+            return;
+        }
+        throw new AccessDeniedException("User does not have permission to read patient fields");
     }
 
     @PutMapping(value = "patient-additional-fields/fixed", produces = MediaType.APPLICATION_JSON_VALUE, consumes = MediaType.APPLICATION_JSON_VALUE)

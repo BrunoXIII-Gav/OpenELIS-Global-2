@@ -21,26 +21,32 @@ import java.time.LocalTime;
 import java.time.format.DateTimeFormatter;
 import java.time.format.DateTimeParseException;
 import java.util.ArrayList;
+import java.util.Collections;
+import java.util.HashMap;
+import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
-import java.util.stream.Collectors;
+import java.util.Set;
 import java.util.regex.Pattern;
+import java.util.stream.Collectors;
 import org.apache.commons.validator.GenericValidator;
 import org.openelisglobal.analysis.service.AnalysisService;
 import org.openelisglobal.analysis.valueholder.Analysis;
 import org.openelisglobal.common.services.IStatusService;
+import org.openelisglobal.common.services.SampleOrderService;
 import org.openelisglobal.common.services.StatusService;
 import org.openelisglobal.common.services.StatusService.SampleStatus;
 import org.openelisglobal.sample.service.SampleService;
 import org.openelisglobal.sample.service.SampleTypeAdditionalFieldService;
+import org.openelisglobal.sample.bean.SampleTypeAdditionalFieldPayload;
 import org.openelisglobal.sample.valueholder.Sample;
 import org.openelisglobal.sampleitem.dao.SampleItemDAO;
 import org.openelisglobal.sampleitem.dto.AddTestsResponse;
 import org.openelisglobal.sampleitem.dto.AliquotSummaryDTO;
 import org.openelisglobal.sampleitem.dto.CancelTestResponse;
 import org.openelisglobal.sampleitem.dto.CreateAliquotResponse;
-import org.openelisglobal.sampleitem.dto.SaveSampleManagementChangesResponse;
 import org.openelisglobal.sampleitem.dto.SampleItemDTO;
+import org.openelisglobal.sampleitem.dto.SaveSampleManagementChangesResponse;
 import org.openelisglobal.sampleitem.dto.SearchSamplesResponse;
 import org.openelisglobal.sampleitem.dto.TestSummaryDTO;
 import org.openelisglobal.sampleitem.form.AddTestsForm;
@@ -48,10 +54,12 @@ import org.openelisglobal.sampleitem.form.CancelTestForm;
 import org.openelisglobal.sampleitem.form.CreateAliquotForm;
 import org.openelisglobal.sampleitem.form.SaveSampleManagementChangesForm;
 import org.openelisglobal.sampleitem.valueholder.SampleItem;
+import org.openelisglobal.sampleitem.valueholder.SampleDataCompletionStatus;
 import org.openelisglobal.test.service.TestService;
 import org.openelisglobal.test.valueholder.Test;
 import org.openelisglobal.unitofmeasure.service.UnitOfMeasureService;
 import org.openelisglobal.unitofmeasure.valueholder.UnitOfMeasure;
+import org.springframework.beans.factory.ObjectProvider;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -97,9 +105,40 @@ public class SampleManagementServiceImpl implements SampleManagementService {
     @Autowired
     private SampleTypeAdditionalFieldService sampleTypeAdditionalFieldService;
 
+    @Autowired
+    private ObjectProvider<SampleOrderService> sampleOrderServiceProvider;
+
+    @Autowired
+    private SampleManagementAuthorizationService sampleManagementAuthorizationService;
+
     @Override
     @Transactional(readOnly = true)
     public SearchSamplesResponse searchByAccessionNumber(String accessionNumber, boolean includeTests) {
+        return searchByAccessionNumber(accessionNumber, includeTests, Collections.emptySet());
+    }
+
+    @Override
+    @Transactional(readOnly = true)
+    public SearchSamplesResponse searchByAccessionNumber(String accessionNumber, boolean includeTests,
+            Set<String> restrictedFieldGroupKeys) {
+        return searchByAccessionNumber(accessionNumber, includeTests, restrictedFieldGroupKeys, Collections.emptySet());
+    }
+
+    @Override
+    @Transactional(readOnly = true)
+    public SearchSamplesResponse searchByAccessionNumber(String accessionNumber, boolean includeTests,
+            Set<String> restrictedFieldGroupKeys, Set<String> restrictedFieldTagKeys) {
+        return searchByAccessionNumber(accessionNumber, includeTests, restrictedFieldGroupKeys, restrictedFieldTagKeys,
+                SampleManagementAccess.fullAccess());
+    }
+
+    @Override
+    @Transactional(readOnly = true)
+    public SearchSamplesResponse searchByAccessionNumber(String accessionNumber, boolean includeTests,
+            Set<String> restrictedFieldGroupKeys, Set<String> restrictedFieldTagKeys, SampleManagementAccess access) {
+        if (access == null || !access.hasAnyAccess()) {
+            return new SearchSamplesResponse(accessionNumber, new ArrayList<>(), 0);
+        }
         String searchValue = accessionNumber == null ? null : accessionNumber.trim();
         // Step 1: Find sample by accession number (or CUG via SampleService fallback)
         Sample sample = sampleService.getSampleByAccessionNumber(searchValue);
@@ -127,11 +166,107 @@ public class SampleManagementServiceImpl implements SampleManagementService {
             sampleItems = sampleItemDAO.getSampleItemsWithHierarchy(sampleItemIds);
         }
         // Step 5: Convert entities to DTOs WITHIN transaction boundary
-        List<SampleItemDTO> dtos = sampleItems.stream().map(item -> convertToDTO(item, includeTests))
+        List<SampleItemDTO> dtos = sampleItems.stream().filter(item -> access.canView(item.getDataCompletionState()))
+                .map(item -> convertToDTO(item, includeTests, access))
                 .collect(Collectors.toList());
 
-        // Step 6: Return response with results
-        return new SearchSamplesResponse(sample.getAccessionNumber(), dtos, dtos.size());
+        // Step 6: Compile reception details here so this module never needs the
+        // legacy SampleEdit endpoint, which is protected by Order permissions.
+        SampleOrderService sampleOrderService = sampleOrderServiceProvider.getObject();
+        sampleOrderService.setSample(sample);
+
+        // Step 7: Return response with results
+        SearchSamplesResponse response = new SearchSamplesResponse(sample.getAccessionNumber(), dtos, dtos.size());
+        response.setOrderReceptionDetails(sampleOrderService.getSampleOrderItem());
+        response.setCanRead(access.canRead());
+        response.setCanComplete(access.canComplete());
+        response.setCanUpdate(access.canUpdate());
+        applyFieldRestrictions(response, restrictedFieldGroupKeys, restrictedFieldTagKeys);
+        return response;
+    }
+
+    private void applyFieldRestrictions(SearchSamplesResponse response, Set<String> restrictedFieldGroupKeys,
+            Set<String> restrictedFieldTagKeys) {
+        Set<String> restrictions = restrictedFieldGroupKeys == null ? Collections.emptySet()
+                : new HashSet<>(restrictedFieldGroupKeys);
+        Set<String> tagRestrictions = restrictedFieldTagKeys == null ? Collections.emptySet()
+                : new HashSet<>(restrictedFieldTagKeys);
+        response.setRestrictedFieldGroupKeys(new ArrayList<>(restrictions));
+        response.setRestrictedFieldTagKeys(new ArrayList<>(tagRestrictions));
+        if (restrictions.isEmpty() && tagRestrictions.isEmpty()) {
+            return;
+        }
+
+        if (restrictions.contains("patient-identity") || restrictions.contains("patient-demographics")
+                || restrictions.contains("reception") || tagRestrictions.contains("order-reception")) {
+            response.setOrderReceptionDetails(null);
+        }
+
+        response.getSampleItems().forEach(sampleItem -> {
+            if (restrictions.contains("collection")) {
+                sampleItem.setCollectionDate(null);
+                sampleItem.setCollector(null);
+                removeAdditionalFields(sampleItem, "COLLECTION");
+            }
+            if (tagRestrictions.contains("cug-code")) {
+                sampleItem.setCugCode(null);
+            }
+            if (tagRestrictions.contains("quantity")) {
+                sampleItem.setQuantity(null);
+                sampleItem.setRemainingQuantity(null);
+            }
+            if (tagRestrictions.contains("unit-of-measure")) {
+                sampleItem.setUnitOfMeasure(null);
+                sampleItem.setUnitOfMeasureId(null);
+            }
+            if (tagRestrictions.contains("collector")) {
+                sampleItem.setCollector(null);
+            }
+            if (tagRestrictions.contains("collection-date")) {
+                sampleItem.setCollectionDate(null);
+            }
+            if (restrictions.contains("clinical-data")) {
+                removeAdditionalFieldsExceptSection(sampleItem, "COLLECTION");
+            }
+            if (restrictions.contains("tests-and-results") || tagRestrictions.contains("tests")) {
+                sampleItem.setOrderedTests(new ArrayList<>());
+            }
+            removeAdditionalFieldsByTag(sampleItem, tagRestrictions);
+        });
+    }
+
+    private void removeAdditionalFields(SampleItemDTO sampleItem, String displaySection) {
+        removeAdditionalFieldsMatching(sampleItem,
+                field -> displaySection.equalsIgnoreCase(String.valueOf(field.getDisplaySection())));
+    }
+
+    private void removeAdditionalFieldsExceptSection(SampleItemDTO sampleItem, String displaySection) {
+        removeAdditionalFieldsMatching(sampleItem,
+                field -> !displaySection.equalsIgnoreCase(String.valueOf(field.getDisplaySection())));
+    }
+
+    private void removeAdditionalFieldsMatching(SampleItemDTO sampleItem,
+            java.util.function.Predicate<SampleTypeAdditionalFieldPayload> shouldRemove) {
+        List<SampleTypeAdditionalFieldPayload> fields = sampleItem.getAdditionalFields();
+        if (fields == null || fields.isEmpty()) {
+            return;
+        }
+        Set<String> removedFieldKeys = fields.stream().filter(shouldRemove).map(SampleTypeAdditionalFieldPayload::getFieldKey)
+                .filter(key -> key != null && !key.isBlank()).collect(Collectors.toSet());
+        sampleItem.setAdditionalFields(fields.stream().filter(shouldRemove.negate()).collect(Collectors.toList()));
+        if (!removedFieldKeys.isEmpty()) {
+            Map<String, String> values = new HashMap<>(sampleItem.getAdditionalFieldValues());
+            removedFieldKeys.forEach(values::remove);
+            sampleItem.setAdditionalFieldValues(values);
+        }
+    }
+
+    private void removeAdditionalFieldsByTag(SampleItemDTO sampleItem, Set<String> tagRestrictions) {
+        if (tagRestrictions.isEmpty()) {
+            return;
+        }
+        removeAdditionalFieldsMatching(sampleItem, field -> field.getId() != null
+                && tagRestrictions.contains("additional-field-" + field.getId()));
     }
 
     @Override
@@ -251,6 +386,10 @@ public class SampleManagementServiceImpl implements SampleManagementService {
      * @return populated DTO
      */
     private SampleItemDTO convertToDTO(SampleItem sampleItem, boolean includeTests) {
+        return convertToDTO(sampleItem, includeTests, SampleManagementAccess.fullAccess());
+    }
+
+    private SampleItemDTO convertToDTO(SampleItem sampleItem, boolean includeTests, SampleManagementAccess access) {
         SampleItemDTO dto = new SampleItemDTO();
 
         // Basic fields
@@ -282,6 +421,8 @@ public class SampleManagementServiceImpl implements SampleManagementService {
             dto.setStatusId(sampleItem.getStatusId());
             // Status description would come from status service if needed
         }
+        dto.setDataCompletionStatus(sampleItem.getDataCompletionState().name());
+        dto.setEditable(access.canEdit(sampleItem.getDataCompletionState()));
 
         // Collection date
         dto.setCollectionDate(sampleItem.getCollectionDate());
@@ -514,6 +655,7 @@ public class SampleManagementServiceImpl implements SampleManagementService {
         String cancelledAnalysisStatus = statusService.getStatusID(StatusService.AnalysisStatus.Canceled);
         String cancelledSampleStatus = statusService.getStatusID(SampleStatus.Canceled);
 
+        SampleManagementAccess access = sampleManagementAuthorizationService.getAccess(sysUserId);
         for (SaveSampleManagementChangesForm.SampleUpdate update : form.getSampleUpdates()) {
             SampleItem sampleItem = sampleItemService.getData(update.getSampleItemId());
             if (sampleItem == null) {
@@ -521,6 +663,10 @@ public class SampleManagementServiceImpl implements SampleManagementService {
             }
             if (sampleItem.getSample() == null) {
                 throw new IllegalArgumentException("Sample not found for sample item: " + update.getSampleItemId());
+            }
+            if (!access.canEdit(sampleItem.getDataCompletionState())) {
+                throw new org.springframework.security.access.AccessDeniedException(
+                        "User cannot modify this sample in its current completion state");
             }
 
             applySampleItemCoreUpdates(sampleItem, update);
@@ -547,6 +693,15 @@ public class SampleManagementServiceImpl implements SampleManagementService {
                         analysisService.update(analysis);
                         cancelledTests++;
                     }
+                }
+            } else {
+                SampleDataCompletionStatus completionState = hasCompletedSampleData(sampleItem)
+                        ? SampleDataCompletionStatus.COMPLETED
+                        : SampleDataCompletionStatus.PENDING_COMPLETION;
+                if (sampleItem.getDataCompletionState() != completionState) {
+                    sampleItem.setDataCompletionState(completionState);
+                    sampleItem.setSysUserId(sysUserId);
+                    sampleItemService.update(sampleItem);
                 }
             }
 
@@ -575,15 +730,37 @@ public class SampleManagementServiceImpl implements SampleManagementService {
         return new SaveSampleManagementChangesResponse(updatedSamples, cancelledTests, message);
     }
 
-    private void applySampleItemCoreUpdates(SampleItem sampleItem, SaveSampleManagementChangesForm.SampleUpdate update) {
+    private boolean hasCompletedSampleData(SampleItem sampleItem) {
+        return sampleItem.getQuantity() != null && sampleItem.getUnitOfMeasure() != null
+                && !GenericValidator.isBlankOrNull(sampleItem.getCollector()) && sampleItem.getCollectionDate() != null
+                && hasCompletedRequiredAdditionalFields(sampleItem);
+    }
+
+    private boolean hasCompletedRequiredAdditionalFields(SampleItem sampleItem) {
+        List<SampleTypeAdditionalFieldPayload> fields = sampleTypeAdditionalFieldService
+                .getFieldsForSampleType(sampleItem.getTypeOfSampleId(), false, false);
+        if (fields.isEmpty()) {
+            return true;
+        }
+
+        Map<String, String> values = sampleTypeAdditionalFieldService
+                .getFieldValuesForSampleItem(sampleItem.getTypeOfSampleId(), sampleItem.getId());
+        return fields.stream().filter(field -> Boolean.TRUE.equals(field.getRequired()))
+                .allMatch(field -> !GenericValidator.isBlankOrNull(values.get(field.getFieldKey())));
+    }
+
+    private void applySampleItemCoreUpdates(SampleItem sampleItem,
+            SaveSampleManagementChangesForm.SampleUpdate update) {
         applyCugUpdate(sampleItem, update);
 
-        BigDecimal previousQuantity = sampleItem.getQuantity() == null ? null : BigDecimal.valueOf(sampleItem.getQuantity());
+        BigDecimal previousQuantity = sampleItem.getQuantity() == null ? null
+                : BigDecimal.valueOf(sampleItem.getQuantity());
         BigDecimal previousRemainingQuantity = sampleItem.getRemainingQuantity();
         BigDecimal nextQuantity = parseQuantityValue(update.getQuantity());
 
         sampleItem.setQuantity(nextQuantity == null ? null : nextQuantity.doubleValue());
-        reconcileRemainingQuantityAfterQuantityEdit(sampleItem, previousQuantity, previousRemainingQuantity, nextQuantity);
+        reconcileRemainingQuantityAfterQuantityEdit(sampleItem, previousQuantity, previousRemainingQuantity,
+                nextQuantity);
 
         if (GenericValidator.isBlankOrNull(update.getUnitOfMeasureId())) {
             sampleItem.setUnitOfMeasure(null);
@@ -592,8 +769,8 @@ public class SampleManagementServiceImpl implements SampleManagementService {
             sampleItem.setUnitOfMeasure(unitOfMeasure);
         }
 
-        sampleItem
-                .setCollector(GenericValidator.isBlankOrNull(update.getCollector()) ? null : update.getCollector().trim());
+        sampleItem.setCollector(
+                GenericValidator.isBlankOrNull(update.getCollector()) ? null : update.getCollector().trim());
 
         sampleItem.setCollectionDate(parseCollectionTimestamp(update.getCollectionDate(), update.getCollectionTime()));
     }
@@ -630,10 +807,10 @@ public class SampleManagementServiceImpl implements SampleManagementService {
             if (alreadyConsumed.compareTo(BigDecimal.ZERO) < 0) {
                 alreadyConsumed = BigDecimal.ZERO;
             }
-            throw new IllegalArgumentException(String.format(
-                    "Updated quantity (%s) cannot be less than the amount already used (%s).",
-                    nextQuantity.stripTrailingZeros().toPlainString(),
-                    alreadyConsumed.stripTrailingZeros().toPlainString()));
+            throw new IllegalArgumentException(
+                    String.format("Updated quantity (%s) cannot be less than the amount already used (%s).",
+                            nextQuantity.stripTrailingZeros().toPlainString(),
+                            alreadyConsumed.stripTrailingZeros().toPlainString()));
         }
 
         sampleItem.setRemainingQuantity(nextRemainingQuantity);

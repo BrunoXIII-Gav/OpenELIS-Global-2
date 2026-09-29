@@ -28,7 +28,7 @@ import org.springframework.web.bind.annotation.*;
  */
 @RestController
 @RequestMapping("/rest/storage")
-@PreAuthorize("@accessControl.hasPermission(T(org.openelisglobal.common.constants.SystemPermission).STORAGE)")
+@PreAuthorize("@accessControl.hasStoragePermission('read')")
 public class LabelManagementRestController extends BaseRestController {
 
     private static final Logger logger = LoggerFactory.getLogger(LabelManagementRestController.class);

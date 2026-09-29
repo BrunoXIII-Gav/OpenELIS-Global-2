@@ -69,7 +69,7 @@ const Index = () => {
   const [errors, setErrors] = useState([]);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [isConsentDownloading, setIsConsentDownloading] = useState(false);
-  const [hasOrderPermission, setHasOrderPermission] = useState(true);
+  const [hasOrderPermission, setHasOrderPermission] = useState(false);
   const [permissionsLoaded, setPermissionsLoaded] = useState(false);
   const [phoneValidation, setPhoneValidation] = useState({
     primaryPhone: { body: "", status: true },
@@ -110,12 +110,13 @@ const Index = () => {
   }, [orderFormValues.sampleOrderItems.externalOrderNumber]);
 
   useEffect(() => {
-    getFromOpenElisServer("/rest/professional-profile-permissions", (response) => {
-      if (response) {
-        setHasOrderPermission(response.hasOrderPermission !== false);
-      }
-      setPermissionsLoaded(true);
-    });
+    getFromOpenElisServer(
+      "/rest/module-action-access?moduleKey=orders&actionKey=create",
+      (response) => {
+        setHasOrderPermission(response?.allowed === true);
+        setPermissionsLoaded(true);
+      },
+    );
   }, []);
 
   useEffect(() => {
@@ -1178,6 +1179,7 @@ const Index = () => {
                 isModifyOrder={false}
                 changed={changed}
                 setChanged={setChanged}
+                isOrderReadOnly={isOrderReadOnly}
               />
             )}
 

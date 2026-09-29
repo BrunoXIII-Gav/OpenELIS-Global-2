@@ -24,6 +24,7 @@ import org.openelisglobal.systemuser.service.SystemUserService;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.http.ResponseEntity;
+import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.validation.annotation.Validated;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PathVariable;
@@ -37,6 +38,7 @@ import org.springframework.web.bind.annotation.RestController;
 @Validated
 @RestController
 @RequestMapping({ "/rest/coldstorage", "/rest/freezer-monitoring" })
+@PreAuthorize("@accessControl.hasStoragePermission('read')")
 @SuppressWarnings("unused")
 public class FreezerDeviceController extends BaseRestController {
 
@@ -123,6 +125,7 @@ public class FreezerDeviceController extends BaseRestController {
     }
 
     @PostMapping("/devices")
+    @PreAuthorize("@accessControl.hasStoragePermission('manage')")
     public ResponseEntity<Freezer> createDevice(@RequestBody @Valid Freezer freezer,
             @RequestParam(name = "roomId", required = true) Long roomId,
             jakarta.servlet.http.HttpServletRequest request) {
@@ -131,6 +134,7 @@ public class FreezerDeviceController extends BaseRestController {
     }
 
     @PutMapping("/devices/{id}")
+    @PreAuthorize("@accessControl.hasStoragePermission('manage')")
     public ResponseEntity<Freezer> updateDevice(@PathVariable Long id, @RequestBody @Valid Freezer freezer,
             @RequestParam(name = "roomId", required = true) Long roomId,
             jakarta.servlet.http.HttpServletRequest request) {
@@ -139,18 +143,21 @@ public class FreezerDeviceController extends BaseRestController {
     }
 
     @PostMapping("/devices/{id}/toggle-status")
+    @PreAuthorize("@accessControl.hasStoragePermission('manage')")
     public ResponseEntity<Void> toggleDeviceStatus(@PathVariable Long id, @RequestBody ToggleStatusRequest request) {
         freezerService.setDeviceStatus(id, request.getActive());
         return ResponseEntity.ok().build();
     }
 
     @PostMapping("/devices/{id}/delete")
+    @PreAuthorize("@accessControl.hasStoragePermission('manage')")
     public ResponseEntity<Void> deleteDevice(@PathVariable Long id) {
         freezerService.deleteFreezer(id);
         return ResponseEntity.ok().build();
     }
 
     @PutMapping("/devices/{id}/thresholds")
+    @PreAuthorize("@accessControl.hasStoragePermission('manage')")
     public ResponseEntity<Freezer> updateDeviceThresholds(@PathVariable Long id,
             @RequestBody @Valid UpdateThresholdsRequest request, jakarta.servlet.http.HttpServletRequest httpRequest) {
         Freezer updated = freezerService.updateThresholds(id, request.getTargetTemperature(),

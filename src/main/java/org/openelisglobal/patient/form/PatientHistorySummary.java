@@ -4,6 +4,7 @@ import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
 import org.openelisglobal.testadditionalfield.bean.TestAdditionalFieldPayload;
 
 public class PatientHistorySummary {
@@ -13,6 +14,7 @@ public class PatientHistorySummary {
     private List<OrderRecord> orders = new ArrayList<>();
     private List<SampleRecord> samples = new ArrayList<>();
     private List<ResultRecord> results = new ArrayList<>();
+    private Set<String> restrictedFieldTagKeys = Set.of();
 
     public String getPatientId() {
         return patientId;
@@ -52,6 +54,14 @@ public class PatientHistorySummary {
 
     public void setResults(List<ResultRecord> results) {
         this.results = results;
+    }
+
+    public Set<String> getRestrictedFieldTagKeys() {
+        return restrictedFieldTagKeys;
+    }
+
+    public void setRestrictedFieldTagKeys(Set<String> restrictedFieldTagKeys) {
+        this.restrictedFieldTagKeys = restrictedFieldTagKeys == null ? Set.of() : Set.copyOf(restrictedFieldTagKeys);
     }
 
     public static class Metrics {

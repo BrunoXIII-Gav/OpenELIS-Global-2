@@ -1,0 +1,44 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<databaseChangeLog
+  xmlns="http://www.liquibase.org/xml/ns/dbchangelog"
+  xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+  xsi:schemaLocation="http://www.liquibase.org/xml/ns/dbchangelog http://www.liquibase.org/xml/ns/dbchangelog/dbchangelog-3.8.xsd">
+
+  <changeSet id="074-01-create-role-field-restriction" author="openelis">
+    <preConditions onFail="MARK_RAN">
+      <not>
+        <tableExists tableName="role_field_restriction" schemaName="clinlims" />
+      </not>
+    </preConditions>
+
+    <createTable tableName="role_field_restriction" schemaName="clinlims">
+      <column name="id" type="SERIAL">
+        <constraints primaryKey="true" nullable="false" />
+      </column>
+      <column name="role_id" type="INTEGER">
+        <constraints nullable="false" />
+      </column>
+      <column name="module_key" type="VARCHAR(80)">
+        <constraints nullable="false" />
+      </column>
+      <column name="field_group_key" type="VARCHAR(80)">
+        <constraints nullable="false" />
+      </column>
+      <column name="last_updated" type="TIMESTAMP" defaultValueComputed="CURRENT_TIMESTAMP">
+        <constraints nullable="false" />
+      </column>
+    </createTable>
+
+    <addUniqueConstraint tableName="role_field_restriction" schemaName="clinlims"
+      columnNames="role_id, module_key, field_group_key"
+      constraintName="uq_role_field_restriction_role_module_field" />
+
+    <addForeignKeyConstraint baseTableName="role_field_restriction" baseColumnNames="role_id"
+      baseTableSchemaName="clinlims" constraintName="fk_role_field_restriction_role"
+      referencedTableName="system_role" referencedColumnNames="id" referencedTableSchemaName="clinlims" />
+
+    <rollback>
+      <dropTable tableName="role_field_restriction" schemaName="clinlims" />
+    </rollback>
+  </changeSet>
+</databaseChangeLog>

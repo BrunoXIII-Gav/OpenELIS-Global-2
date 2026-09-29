@@ -64,6 +64,8 @@
             column="collection_date" />
         <property name="statusId" column="status_id"
             type="org.openelisglobal.hibernate.resources.usertype.LIMSStringNumberUserType" />
+        <property name="dataCompletionStatus"
+            column="data_completion_status" type="java.lang.String" />
         <property name="collector" column="collector"
             type="java.lang.String" />
         <property name="fhirUuid" column="fhir_uuid"

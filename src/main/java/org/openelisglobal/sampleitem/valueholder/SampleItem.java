@@ -52,6 +52,7 @@ public class SampleItem extends BaseObject<String> implements NoteObject {
     private String cugCode;
     private Timestamp collectionDate;
     private String statusId;
+    private String dataCompletionStatus = SampleDataCompletionStatus.PENDING_COMPLETION.name();
     private String collector;
     private boolean rejected = false;
     private String rejectReasonId;
@@ -233,6 +234,29 @@ public class SampleItem extends BaseObject<String> implements NoteObject {
 
     public void setStatusId(String statusId) {
         this.statusId = statusId;
+    }
+
+    public String getDataCompletionStatus() {
+        return dataCompletionStatus;
+    }
+
+    public void setDataCompletionStatus(String dataCompletionStatus) {
+        this.dataCompletionStatus = dataCompletionStatus;
+    }
+
+    public SampleDataCompletionStatus getDataCompletionState() {
+        if (dataCompletionStatus == null) {
+            return SampleDataCompletionStatus.COMPLETED;
+        }
+        try {
+            return SampleDataCompletionStatus.valueOf(dataCompletionStatus);
+        } catch (IllegalArgumentException exception) {
+            return SampleDataCompletionStatus.COMPLETED;
+        }
+    }
+
+    public void setDataCompletionState(SampleDataCompletionStatus dataCompletionStatus) {
+        this.dataCompletionStatus = dataCompletionStatus == null ? null : dataCompletionStatus.name();
     }
 
     public String getCollector() {

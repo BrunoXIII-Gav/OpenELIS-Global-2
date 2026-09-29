@@ -92,6 +92,10 @@
         <class>org.openelisglobal.analyzer.valueholder.UnitMapping</class>
         <class>org.openelisglobal.analyzer.valueholder.QualitativeResultMapping</class>
         <class>org.openelisglobal.role.valueholder.RolePermissionMapping</class>
+    <class>org.openelisglobal.authorization.valueholder.RoleModulePermission</class>
+    <class>org.openelisglobal.authorization.valueholder.RoleModulePermissionLabUnitScope</class>
+    <class>org.openelisglobal.authorization.valueholder.RoleFieldRestriction</class>
+    <class>org.openelisglobal.authorization.valueholder.RoleFieldTagRestriction</class>
 
         <!-- Order Additional Fields entities -->
         <class>org.openelisglobal.orderadditionalfield.valueholder.OrderAdditionalFieldDefinition</class>
