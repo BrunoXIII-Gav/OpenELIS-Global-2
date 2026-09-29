@@ -1,309 +1,49 @@
-import {
-  Grid,
-  Section,
-  Column,
-  Table,
-  TableBody,
-  TableCell,
-  TableContainer,
-  TableHead,
-  TableHeader,
-  TableRow,
-  Heading,
-  Row,
-} from "@carbon/react";
+import React from "react";
+import { Heading, Section } from "@carbon/react";
 import { FormattedMessage } from "react-intl";
+import { TestNameValue } from "./TestNamePresentation";
+import { hasSummaryValue } from "./testSummaryUtils";
+import "./TestSummary.scss";
 
+// Compact context from the current wizard values, not a second saved-data review.
 export const CustomTestDataDisplay = ({ testToDisplay }) => {
   if (!testToDisplay) return null;
-
+  const { localization = {}, testUnit, sampleType } = testToDisplay;
+  const hasName =
+    hasSummaryValue(localization.english) ||
+    hasSummaryValue(localization.french);
   return (
-    <Grid fullWidth={true}>
-      <Column lg={16} md={8} sm={4}>
-        <Section>
-          <Heading>
-            <FormattedMessage id={`banner.menu.patientEdit`} />
-          </Heading>
-        </Section>
-        <hr />
-        <Section>
-          <Section>
-            <Section>
-              <Heading>
-                <FormattedMessage id={`test.modify.header.test`} />
-                {" : "}
-                {`${testToDisplay.localization.english} (${testToDisplay.sampleType})`}
-              </Heading>
-            </Section>
-          </Section>
-        </Section>
-        <hr />
-      </Column>
-      <Column lg={8} md={8} sm={4}>
-        <Section>
-          <Section>
-            <Section>
-              <FormattedMessage id={`field.name`} />
-            </Section>
-          </Section>
-        </Section>
-        <Row>
-          <Column lg={4}>
-            <Section>
-              <Section>
-                <Section>
-                  <FormattedMessage id={`test.modify.en`} />
-                  {" : "}
-                  {`${testToDisplay.localization.english}`}
-                </Section>
-              </Section>
-            </Section>
-          </Column>
-          <Column lg={4}>
-            <Section>
-              <Section>
-                <Section>
-                  <FormattedMessage id={`test.modify.fr`} />
-                  {" : "}
-                  {`${testToDisplay.localization.french}`}
-                </Section>
-              </Section>
-            </Section>
-          </Column>
-        </Row>
-      </Column>
-      <Column lg={8} md={8} sm={4}>
-        <Section>
-          <Section>
-            <Section>
-              <FormattedMessage id={`field.reportName`} />
-            </Section>
-          </Section>
-        </Section>
-        <Row>
-          <Column lg={4}>
-            <Section>
-              <Section>
-                <Section>
-                  <FormattedMessage id={`test.modify.en`} />
-                  {" : "}
-                  {`${testToDisplay.reportLocalization.english}`}
-                </Section>
-              </Section>
-            </Section>
-          </Column>
-          <Column lg={4}>
-            <Section>
-              <Section>
-                <Section>
-                  <FormattedMessage id={`test.modify.fr`} />
-                  {" : "}
-                  {`${testToDisplay.reportLocalization.french}`}
-                </Section>
-              </Section>
-            </Section>
-          </Column>
-        </Row>
-      </Column>
-      <Column lg={4} md={4} sm={4}>
-        <Section>
-          <Section>
-            <Section>
-              <FormattedMessage id="test.field.active" /> :{" "}
-              {String(testToDisplay.active)}
-            </Section>
-          </Section>
-        </Section>
-      </Column>
-      <Column lg={4} md={4} sm={4}>
-        <Section>
-          <Section>
-            <Section>
-              <FormattedMessage id="label.orderable" /> :{" "}
-              {String(testToDisplay.orderable)}
-            </Section>
-          </Section>
-        </Section>
-      </Column>
-      <Column lg={4} md={4} sm={4}>
-        <Section>
-          <Section>
-            <Section>
-              <FormattedMessage id="test.directSampleUsage" /> :{" "}
-              {String(testToDisplay.directSampleUsageEnabled)}
-            </Section>
-          </Section>
-        </Section>
-      </Column>
-      <Column lg={4} md={4} sm={4}>
-        <Section>
-          <Section>
-            <Section>
-              <FormattedMessage id="test.skipValidationWhenParentComplete" /> :{" "}
-              {String(testToDisplay.skipValidationWhenParentComplete)}
-            </Section>
-          </Section>
-        </Section>
-      </Column>
-      <Column lg={4} md={4} sm={4}>
-        <Section>
-          <Section>
-            <Section>
-              <FormattedMessage id="field.testUnit" /> :{" "}
-              {testToDisplay.testUnit}
-            </Section>
-          </Section>
-        </Section>
-      </Column>
-      <Column lg={4} md={4} sm={4}>
-        <Section>
-          <Section>
-            <Section>
-              <FormattedMessage id="field.sampleType" /> :{" "}
-              {testToDisplay.sampleType}
-            </Section>
-          </Section>
-        </Section>
-      </Column>
-      <Column lg={4} md={4} sm={4}>
-        <Section>
-          <Section>
-            <Section>
-              <FormattedMessage id="field.panel" /> : {testToDisplay.panel}
-            </Section>
-          </Section>
-        </Section>
-      </Column>
-      <Column lg={4} md={4} sm={4}>
-        <Section>
-          <Section>
-            <Section>
-              <FormattedMessage id="field.resultType" /> :{" "}
-              {testToDisplay.resultType}
-            </Section>
-          </Section>
-        </Section>
-      </Column>
-      <Column lg={4} md={4} sm={4}>
-        <Section>
-          <Section>
-            <Section>
-              <FormattedMessage id="field.uom" /> : {testToDisplay.uom}
-            </Section>
-          </Section>
-        </Section>
-      </Column>
-      <Column lg={4} md={4} sm={4}>
-        <Section>
-          <Section>
-            <Section>
-              <FormattedMessage id="field.significantDigits" /> :{" "}
-              {testToDisplay.significantDigits}
-            </Section>
-          </Section>
-        </Section>
-      </Column>
-      <Column lg={4} md={4} sm={4}>
-        <Section>
-          <Section>
-            <Section>
-              <FormattedMessage id="field.loinc" />:{" "}
-              {testToDisplay.loinc ?? null}
-            </Section>
-          </Section>
-        </Section>
-      </Column>
-
-      {testToDisplay &&
-        testToDisplay?.hasDictionaryValues &&
-        testToDisplay?.dictionaryValues && (
-          <>
-            <br />
-            <hr />
-            <Column lg={8} md={8} sm={4}>
-              <Section>
-                <Section>
-                  <Section>
-                    <FormattedMessage id="field.selectValues" /> :
-                    <ul>
-                      {testToDisplay.dictionaryValues.map((value, index) => (
-                        <li key={index}>{value}</li>
-                      ))}
-                    </ul>
-                  </Section>
-                </Section>
-              </Section>
-            </Column>
-            <Column lg={8} md={8} sm={4}>
-              <Section>
-                <Section>
-                  <Section>
-                    <FormattedMessage id="field.referenceValue" /> :{" "}
-                    {testToDisplay.referenceValue}
-                  </Section>
-                </Section>
-              </Section>
-            </Column>
-          </>
+    <Section className="test-summary-header">
+      <Heading>
+        {hasName ? (
+          <TestNameValue
+            english={localization.english}
+            french={localization.french}
+          />
+        ) : (
+          <FormattedMessage id="test.summary.new" />
         )}
-
-      {testToDisplay &&
-        testToDisplay?.hasLimitValues &&
-        testToDisplay?.resultLimits?.length > 0 && (
-          <Column lg={16} md={8} sm={4}>
-            <>
-              <br />
-              <hr />
-              <Section>
-                <Section>
-                  <Section>
-                    <Heading>
-                      <FormattedMessage id="field.resultLimits" />
-                    </Heading>
-                  </Section>
-                </Section>
-                <TableContainer>
-                  <Table size="sm">
-                    <TableHead>
-                      <TableRow>
-                        <TableHeader>
-                          <FormattedMessage id="field.sex" />
-                        </TableHeader>
-                        <TableHeader>
-                          <FormattedMessage id="field.ageRange" />
-                        </TableHeader>
-                        <TableHeader>
-                          <FormattedMessage id="field.normalRange" />
-                        </TableHeader>
-                        <TableHeader>
-                          <FormattedMessage id="field.validRange" />
-                        </TableHeader>
-                        <TableHeader>
-                          <FormattedMessage id="label.critical.range" />
-                        </TableHeader>
-                        <TableHeader>
-                          <FormattedMessage id="label.reporting.range" />
-                        </TableHeader>
-                      </TableRow>
-                    </TableHead>
-                    <TableBody>
-                      {testToDisplay?.resultLimits.map((limit, idx) => (
-                        <TableRow key={idx}>
-                          <TableCell>{limit.gender}</TableCell>
-                          <TableCell>{limit.ageRange}</TableCell>
-                          <TableCell>{limit.normalRange}</TableCell>
-                          <TableCell>{limit.validRange}</TableCell>
-                          <TableCell>{limit.criticalRange}</TableCell>
-                          <TableCell>{limit.reportingRange}</TableCell>
-                        </TableRow>
-                      ))}
-                    </TableBody>
-                  </Table>
-                </TableContainer>
-              </Section>
-            </>
-          </Column>
-        )}
-    </Grid>
+      </Heading>
+      {(hasSummaryValue(testUnit) || hasSummaryValue(sampleType)) && (
+        <dl className="test-summary-header__details">
+          {hasSummaryValue(testUnit) && (
+            <div>
+              <dt>
+                <FormattedMessage id="test.section.label" />
+              </dt>
+              <dd>{testUnit}</dd>
+            </div>
+          )}
+          {hasSummaryValue(sampleType) && (
+            <div>
+              <dt>
+                <FormattedMessage id="field.sampleType" />
+              </dt>
+              <dd>{sampleType}</dd>
+            </div>
+          )}
+        </dl>
+      )}
+    </Section>
   );
 };

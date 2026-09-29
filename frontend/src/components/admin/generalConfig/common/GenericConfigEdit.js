@@ -30,6 +30,7 @@ import { FormattedMessage, useIntl } from "react-intl";
 import {
   getSiteInformationDisplayDescription,
   getSiteInformationDisplayName,
+  getSiteInformationDisplayValue,
   isSiteInformationConfig,
 } from "./siteInformationDisplay.js";
 
@@ -151,7 +152,8 @@ const GenericConfigEdit = ({ menuType, ID }) => {
       showAlertMessage(
         intl.formatMessage({
           id: "siteInformation.numeric.validation",
-          defaultMessage: "This field only accepts whole numbers greater than or equal to zero.",
+          defaultMessage:
+            "This field only accepts whole numbers greater than or equal to zero.",
         }),
         NotificationKinds.error,
       );
@@ -211,7 +213,11 @@ const GenericConfigEdit = ({ menuType, ID }) => {
 
   const displayDescription =
     FormEntryConfig && isSiteInformationConfig(menuType)
-      ? getSiteInformationDisplayDescription(intl, FormEntryConfig.description)
+      ? getSiteInformationDisplayDescription(
+          intl,
+          FormEntryConfig.description,
+          FormEntryConfig.paramName,
+        )
       : FormEntryConfig?.description;
 
   return (
@@ -376,6 +382,26 @@ const GenericConfigEdit = ({ menuType, ID }) => {
                       <Column lg={8} sm={3}>
                         <TextInput
                           id="textInput"
+                          labelText={intl.formatMessage({
+                            id: "admin.page.configuration.formEntryConfigMenu.value",
+                          })}
+                          hideLabel
+                          helperText={
+                            isSiteInformationConfig(menuType) &&
+                            getSiteInformationDisplayValue(
+                              intl,
+                              FormEntryConfig.paramName,
+                              textInputValue,
+                              FormEntryConfig.valueType,
+                            ) !== textInputValue
+                              ? getSiteInformationDisplayValue(
+                                  intl,
+                                  FormEntryConfig.paramName,
+                                  textInputValue,
+                                  FormEntryConfig.valueType,
+                                )
+                              : undefined
+                          }
                           type={
                             FormEntryConfig.tag === "numericOnly"
                               ? "number"
