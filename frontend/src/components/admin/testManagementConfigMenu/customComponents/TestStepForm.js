@@ -12,8 +12,6 @@ import {
   Row,
   FlexGrid,
   Tag,
-  UnorderedList,
-  ListItem,
   NumberInput,
   RadioButtonGroup,
   RadioButton,
@@ -30,6 +28,24 @@ import { getFromOpenElisServer } from "../../../utils/Utils.js";
 import { NotificationContext } from "../../../layout/Layout.js";
 import { extractAgeRangeParts } from "./TestFormData.js";
 import AdditionalFieldOptionsEditor from "./AdditionalFieldOptionsEditor.js";
+import "./TestAdditionalFields.scss";
+import { CustomTestDataDisplay } from "./CustomTestDataDisplay";
+import { TestReviewSummary } from "./TestReviewSummary";
+import {
+  canSimplifyTestNames,
+  prepareSimplifiedNames,
+  SimplifiedTestNameFields,
+  useSimplifiedTestNames,
+} from "./TestNamePresentation";
+import { ArrowUp, ArrowDown } from "@carbon/icons-react";
+import AdditionalFieldBlockSelector from "./AdditionalFieldBlockSelector";
+import {
+  assignAdditionalFieldBlock,
+  getAdditionalBlocks,
+  getAdditionalFieldSiblings,
+  moveAdditionalBlock,
+  moveAdditionalField,
+} from "../additionalFieldLayoutUtils";
 import {
   createEmptyOption,
   FIELD_TYPE_OPTIONS,
@@ -807,6 +823,7 @@ export const TestStepForm = ({
     />,
     <StepSevenFinalDisplayAndSaveConfirmation
       key="step-7"
+      resultTypeCodes={resultTypeCodes}
       formData={formData}
       setFormData={setFormData}
       handleNextStep={handleNextStep}
@@ -855,9 +872,22 @@ export const TestStepForm = ({
     <>
       <Grid fullWidth={true}>
         <Column lg={16} md={8} sm={4}>
-          <br />
-          <hr />
-          <br />
+          {currentStep !== 6 && (
+            <CustomTestDataDisplay
+              testToDisplay={{
+                localization: {
+                  english: formData.testNameEnglish,
+                  french: formData.testNameFrench,
+                },
+                testUnit: labUnitList.find(
+                  (unit) => String(unit.id) === String(formData.testSection),
+                )?.value,
+                sampleType: selectedSampleTypeList
+                  .map((sample) => sample.value)
+                  .join(", "),
+              }}
+            />
+          )}
           <div>{steps[currentStep]}</div>
           <br />
           <hr />
@@ -879,6 +909,8 @@ export const StepOneTestNameAndTestSection = ({
   cancelCall,
 }) => {
   const intl = useIntl();
+  const simplifiedNames = useSimplifiedTestNames();
+  const useSingleName = simplifiedNames && canSimplifyTestNames(formData);
 
   const handleSubmit = (values) => {
     handleNextStep(values, true);
@@ -887,22 +919,29 @@ export const StepOneTestNameAndTestSection = ({
   return (
     <>
       <Formik
-        initialValues={formData}
+        initialValues={
+          useSingleName ? prepareSimplifiedNames(formData) : formData
+        }
         enableReinitialize={true}
         validationSchema={Yup.object({
           testSection: Yup.string()
-            .required("Test section is required")
-            .notOneOf(["0"], "Please select a valid test section"),
-          testNameEnglish: Yup.string().required(
-            "English test name is required",
-          ),
-          testNameFrench: Yup.string().required("French test name is required"),
-          testReportNameEnglish: Yup.string().required(
-            "English report name is required",
-          ),
-          testReportNameFrench: Yup.string().required(
-            "French report name is required",
-          ),
+            .required(intl.formatMessage({ id: "test.names.sectionRequired" }))
+            .notOneOf(
+              ["0"],
+              intl.formatMessage({ id: "test.names.sectionRequired" }),
+            ),
+          testNameEnglish: Yup.string()
+            .max(255, intl.formatMessage({ id: "test.names.tooLong" }))
+            .required(intl.formatMessage({ id: "test.names.required" })),
+          testNameFrench: Yup.string()
+            .max(255, intl.formatMessage({ id: "test.names.tooLong" }))
+            .required(intl.formatMessage({ id: "test.names.required" })),
+          testReportNameEnglish: Yup.string()
+            .max(255, intl.formatMessage({ id: "test.names.tooLong" }))
+            .required(intl.formatMessage({ id: "test.names.reportRequired" })),
+          testReportNameFrench: Yup.string()
+            .max(255, intl.formatMessage({ id: "test.names.tooLong" }))
+            .required(intl.formatMessage({ id: "test.names.reportRequired" })),
         })}
         validateOnChange={true}
         validateOnBlur={true}
@@ -974,108 +1013,119 @@ export const StepOneTestNameAndTestSection = ({
                     </Select>
                   </div>
                   <br />
-                  <div>
+                  {useSingleName ? (
+                    <SimplifiedTestNameFields
+                      key={JSON.stringify([
+                        formData.testNameEnglish,
+                        formData.testReportNameEnglish,
+                      ])}
+                    />
+                  ) : (
                     <>
-                      <FormattedMessage id="sample.entry.project.testName" />
-                      <span style={{ color: "red" }}>*</span>
+                      <div>
+                        <>
+                          <FormattedMessage id="sample.entry.project.testName" />
+                          <span style={{ color: "red" }}>*</span>
+                        </>
+                        <br />
+                        <br />
+                        <FormattedMessage id="english.label" />
+                        <br />
+                        <TextInput
+                          labelText=""
+                          id="testNameEn"
+                          name="testNameEnglish"
+                          value={values.testNameEnglish}
+                          onChange={handleChange}
+                          onBlur={handleBlur}
+                          required
+                          invalid={
+                            touched.testNameEnglish && !!errors.testNameEnglish
+                          }
+                          invalidText={
+                            touched.testNameEnglish && errors.testNameEnglish
+                          }
+                        />
+                        <br />
+                        <FormattedMessage id="french.label" />
+                        <br />
+                        <TextInput
+                          labelText=""
+                          id="testNameFr"
+                          name="testNameFrench"
+                          value={values.testNameFrench}
+                          onChange={handleChange}
+                          onBlur={handleBlur}
+                          required
+                          invalid={
+                            touched.testNameFrench && !!errors.testNameFrench
+                          }
+                          invalidText={
+                            touched.testNameFrench && errors.testNameFrench
+                          }
+                        />
+                      </div>
+                      <br />
+                      <div>
+                        <>
+                          <FormattedMessage id="reporting.label.testName" />
+                          <span style={{ color: "red" }}>*</span>
+                        </>
+                        <br />
+                        <br />
+                        <Button
+                          kind="tertiary"
+                          onClick={() => {
+                            copyInputValuesFromTestNameEnFr(values);
+                          }}
+                          type="button"
+                        >
+                          <FormattedMessage id="test.add.copy.name" />
+                        </Button>
+                        <br />
+                        <br />
+                        <FormattedMessage id="english.label" />
+                        <br />
+                        <TextInput
+                          labelText=""
+                          id="reportingTestNameEn"
+                          name="testReportNameEnglish"
+                          value={values.testReportNameEnglish}
+                          onChange={handleChange}
+                          onBlur={handleBlur}
+                          required
+                          invalid={
+                            touched.testReportNameEnglish &&
+                            !!errors.testReportNameEnglish
+                          }
+                          invalidText={
+                            touched.testReportNameEnglish &&
+                            errors.testReportNameEnglish
+                          }
+                        />
+                        <br />
+                        <FormattedMessage id="french.label" />
+                        <br />
+                        <TextInput
+                          labelText=""
+                          id="reportingTestNameFr"
+                          name="testReportNameFrench"
+                          value={values.testReportNameFrench}
+                          onChange={handleChange}
+                          onBlur={handleBlur}
+                          required
+                          invalid={
+                            touched.testReportNameFrench &&
+                            !!errors.testReportNameFrench
+                          }
+                          invalidText={
+                            touched.testReportNameFrench &&
+                            errors.testReportNameFrench
+                          }
+                        />
+                      </div>
                     </>
-                    <br />
-                    <br />
-                    <FormattedMessage id="english.label" />
-                    <br />
-                    <TextInput
-                      labelText=""
-                      id="testNameEn"
-                      name="testNameEnglish"
-                      value={values.testNameEnglish}
-                      onChange={handleChange}
-                      onBlur={handleBlur}
-                      required
-                      invalid={
-                        touched.testNameEnglish && !!errors.testNameEnglish
-                      }
-                      invalidText={
-                        touched.testNameEnglish && errors.testNameEnglish
-                      }
-                    />
-                    <br />
-                    <FormattedMessage id="french.label" />
-                    <br />
-                    <TextInput
-                      labelText=""
-                      id="testNameFr"
-                      name="testNameFrench"
-                      value={values.testNameFrench}
-                      onChange={handleChange}
-                      onBlur={handleBlur}
-                      required
-                      invalid={
-                        touched.testNameFrench && !!errors.testNameFrench
-                      }
-                      invalidText={
-                        touched.testNameFrench && errors.testNameFrench
-                      }
-                    />
-                  </div>
-                  <br />
-                  <div>
-                    <>
-                      <FormattedMessage id="reporting.label.testName" />
-                      <span style={{ color: "red" }}>*</span>
-                    </>
-                    <br />
-                    <br />
-                    <Button
-                      kind="tertiary"
-                      onClick={() => {
-                        copyInputValuesFromTestNameEnFr(values);
-                      }}
-                      type="button"
-                    >
-                      <FormattedMessage id="test.add.copy.name" />
-                    </Button>
-                    <br />
-                    <br />
-                    <FormattedMessage id="english.label" />
-                    <br />
-                    <TextInput
-                      labelText=""
-                      id="reportingTestNameEn"
-                      name="testReportNameEnglish"
-                      value={values.testReportNameEnglish}
-                      onChange={handleChange}
-                      onBlur={handleBlur}
-                      required
-                      invalid={
-                        touched.testReportNameEnglish &&
-                        !!errors.testReportNameEnglish
-                      }
-                      invalidText={
-                        touched.testReportNameEnglish &&
-                        errors.testReportNameEnglish
-                      }
-                    />
-                    <br />
-                    <FormattedMessage id="french.label" />
-                    <br />
-                    <TextInput
-                      labelText=""
-                      id="reportingTestNameFr"
-                      name="testReportNameFrench"
-                      value={values.testReportNameFrench}
-                      onChange={handleChange}
-                      onBlur={handleBlur}
-                      required
-                      invalid={
-                        touched.testReportNameFrench &&
-                        !!errors.testReportNameFrench
-                      }
-                      invalidText={
-                        touched.testReportNameFrench &&
-                        errors.testReportNameFrench
-                      }
-                    />
-                  </div>
+                  )}
                 </Column>
               </Grid>
               <br />
@@ -1376,10 +1426,17 @@ export const StepThreeTestResultTypeAndLoinc = ({
   });
   const [editingAdditionalFieldIndexes, setEditingAdditionalFieldIndexes] =
     useState([]);
+  const [pendingBlockNames, setPendingBlockNames] = useState({});
+  const [confirmedAdditionalFieldIndexes, setConfirmedAdditionalFieldIndexes] =
+    useState(() => (formData?.additionalFields || []).map((_, index) => index));
   const hideUncheckedStatusToggles = Boolean(formData?.testId);
 
   useEffect(() => {
     setEditingAdditionalFieldIndexes([]);
+    setPendingBlockNames({});
+    setConfirmedAdditionalFieldIndexes(
+      (formData?.additionalFields || []).map((_, index) => index),
+    );
   }, [formData?.testId]);
 
   const normalizeAdditionalFieldKey = (field = {}) => {
@@ -1668,29 +1725,6 @@ export const StepThreeTestResultTypeAndLoinc = ({
     });
   };
 
-  const additionalFieldGroupAccentPalette = [
-    { border: "#0f62fe", background: "#edf5ff" },
-    { border: "#198038", background: "#edfdf1" },
-    { border: "#8a3ffc", background: "#f6f2ff" },
-    { border: "#b28600", background: "#fcf4d6" },
-    { border: "#009d9a", background: "#defbe6" },
-    { border: "#a56eff", background: "#f7f3ff" },
-  ];
-
-  const getAdditionalFieldGroupAccent = (blockName = "") => {
-    const normalized = String(blockName || "")
-      .trim()
-      .toLowerCase();
-    const hash = normalized.split("").reduce((accumulator, character) => {
-      return accumulator + character.charCodeAt(0);
-    }, 0);
-    return (
-      additionalFieldGroupAccentPalette[
-        hash % additionalFieldGroupAccentPalette.length
-      ] || additionalFieldGroupAccentPalette[0]
-    );
-  };
-
   const buildResultDisplayConfigJson = (values = {}) => {
     const entryScope = sanitizeEntryScope(values.resultEntryScope);
     const blockName =
@@ -1706,7 +1740,6 @@ export const StepThreeTestResultTypeAndLoinc = ({
     };
     if (values.resultActive === false) {
       metadata.active = false;
-      return JSON.stringify(metadata);
     }
     if (values.resultTubeSelectorEnabled === true) {
       metadata.tubeSelector = {
@@ -1856,14 +1889,60 @@ export const StepThreeTestResultTypeAndLoinc = ({
     });
   };
 
+  const resultLayoutField = (values) => {
+    if (values.resultActive === false) return null;
+    const blockName =
+      values.resultBlockName ||
+      resolveDefaultBlockName(values.resultEntryScope);
+    const sibling = normalizeAdditionalFieldsForDisplay(
+      values.additionalFields,
+    ).find((field) => field.active !== false && field.blockName === blockName);
+    return {
+      blockName,
+      blockSortOrder:
+        sibling?.blockSortOrder || values.resultBlockSortOrder || 1,
+      fieldSortOrder: values.resultFieldSortOrder || 1,
+      entryScope: values.resultEntryScope || "OFFICIAL",
+    };
+  };
+
+  const applyPendingBlocks = (values) =>
+    Object.entries(pendingBlockNames).reduce(
+      (fields, [index, name]) =>
+        assignAdditionalFieldBlock(
+          fields,
+          Number(index),
+          name,
+          resultLayoutField(values),
+        ),
+      normalizeAdditionalFieldsForDisplay(values.additionalFields),
+    );
+
   const handleSubmit = (values) => {
+    const additionalFields = normalizeAdditionalFieldsForSubmit(
+      applyPendingBlocks(values),
+    );
+    const result = resultLayoutField({ ...values, additionalFields });
+    const nextValues = {
+      ...values,
+      // The API requires a type ID even when the primary result is inactive.
+      resultType:
+        values.resultActive === false &&
+        (!values.resultType || values.resultType === "0")
+          ? String(
+              resultTypeCodes.find((item) => item.value === "R")?.id ||
+                values.resultType ||
+                "",
+            )
+          : values.resultType,
+      additionalFields,
+      resultBlockSortOrder:
+        result?.blockSortOrder || values.resultBlockSortOrder,
+    };
     handleNextStep(
       {
-        ...values,
-        resultDisplayConfigJson: buildResultDisplayConfigJson(values),
-        additionalFields: normalizeAdditionalFieldsForSubmit(
-          values.additionalFields,
-        ),
+        ...nextValues,
+        resultDisplayConfigJson: buildResultDisplayConfigJson(nextValues),
       },
       true,
     );
@@ -1894,6 +1973,15 @@ export const StepThreeTestResultTypeAndLoinc = ({
             otherwise: (schema) => schema.notRequired(),
           }),
           additionalFields: Yup.array()
+            // Validate the destination even when Next is used before field-level OK.
+            .transform((fields) =>
+              Array.isArray(fields)
+                ? fields.map((field, index) => ({
+                    ...field,
+                    blockName: pendingBlockNames[index] || field.blockName,
+                  }))
+                : fields,
+            )
             .of(
               Yup.object().shape({
                 displayName: Yup.string()
@@ -2085,6 +2173,7 @@ export const StepThreeTestResultTypeAndLoinc = ({
           touched,
           errors,
           setFieldValue,
+          setValues,
           validateForm,
           setTouched,
           submitForm,
@@ -2162,13 +2251,93 @@ export const StepThreeTestResultTypeAndLoinc = ({
 
           const normalizedAdditionalFields =
             normalizeAdditionalFieldsForDisplay(values.additionalFields);
-          const activeAdditionalFields = sortAdditionalFieldEntries(
-            normalizedAdditionalFields
-              .map((field, index) => ({ field, fieldIndex: index }))
-              .filter(({ field }) => field?.active !== false),
+          // The primary result is a layout-only entry; never include it in additionalFields payloads.
+          const primaryFieldIndex = normalizedAdditionalFields.length;
+          const primaryField = resultLayoutField(values);
+          const layoutFields = primaryField
+            ? [
+                ...normalizedAdditionalFields,
+                {
+                  ...primaryField,
+                  displayName:
+                    values.resultName ||
+                    intl.formatMessage({
+                      id: "test.resultFields.primaryResult",
+                    }),
+                },
+              ]
+            : normalizedAdditionalFields;
+          const isUnplacedField = (fieldIndex, field) =>
+            fieldIndex !== primaryFieldIndex &&
+            !field?.id &&
+            !confirmedAdditionalFieldIndexes.includes(fieldIndex);
+          const activeEntries = layoutFields
+            .map((field, fieldIndex) => ({ field, fieldIndex }))
+            .filter(({ field }) => field?.active !== false);
+          const activeAdditionalFields = [
+            ...sortAdditionalFieldEntries(
+              activeEntries.filter(
+                ({ field, fieldIndex }) => !isUnplacedField(fieldIndex, field),
+              ),
+            ),
+            ...activeEntries.filter(({ field, fieldIndex }) =>
+              isUnplacedField(fieldIndex, field),
+            ),
+          ];
+          const hasUnplacedFields = activeEntries.some(
+            ({ field, fieldIndex }) => isUnplacedField(fieldIndex, field),
           );
+          const orderedBlocks = getAdditionalBlocks(layoutFields);
+          const blockOptions = [
+            ...new Set([
+              ...getAdditionalBlocks(
+                normalizedAdditionalFields,
+                resultLayoutField(values),
+              ).map(({ name }) => name),
+              ...Object.values(pendingBlockNames),
+            ]),
+          ];
+          const persistLayout = (fields) => {
+            const nextPrimary = fields[primaryFieldIndex];
+            setValues((current) => ({
+              ...current,
+              additionalFields: fields
+                .slice(0, primaryFieldIndex)
+                .map((field) => ({
+                  ...field,
+                  metadataJson: buildFieldMetadataJson(field),
+                })),
+              ...(nextPrimary
+                ? {
+                    resultBlockName: nextPrimary.blockName,
+                    resultBlockSortOrder: nextPrimary.blockSortOrder,
+                    resultFieldSortOrder: nextPrimary.fieldSortOrder,
+                  }
+                : {}),
+            }));
+          };
+          const handleMoveBlock = (blockName, direction) =>
+            persistLayout(
+              moveAdditionalBlock(layoutFields, blockName, direction),
+            );
+          const handleMoveField = (fieldIndex, direction) =>
+            persistLayout(
+              moveAdditionalField(layoutFields, fieldIndex, direction),
+            );
+          const handleResultBlockChange = (name) =>
+            persistLayout(
+              assignAdditionalFieldBlock(layoutFields, primaryFieldIndex, name),
+            );
+          const clearPendingBlock = (fieldIndex) =>
+            setPendingBlockNames((previous) => {
+              const next = { ...previous };
+              delete next[fieldIndex];
+              return next;
+            });
           const firstDraftAdditionalFieldIndex =
-            activeAdditionalFields.findIndex(({ field }) => !field?.id);
+            activeAdditionalFields.findIndex(({ field, fieldIndex }) =>
+              isUnplacedField(fieldIndex, field),
+            );
           const inactiveAdditionalFields = normalizedAdditionalFields
             .map((field, index) => ({ field, fieldIndex: index }))
             .filter(({ field }) => field?.active === false);
@@ -2243,6 +2412,7 @@ export const StepThreeTestResultTypeAndLoinc = ({
           };
 
           const handleDisableAdditionalField = (fieldIndex) => {
+            clearPendingBlock(fieldIndex);
             const nextFields = [...normalizedAdditionalFields];
             const target = { ...(nextFields[fieldIndex] || {}) };
             target.active = false;
@@ -2270,6 +2440,20 @@ export const StepThreeTestResultTypeAndLoinc = ({
           };
 
           const handleStopEditAdditionalField = (fieldIndex) => {
+            if (pendingBlockNames[fieldIndex]) {
+              persistLayout(
+                assignAdditionalFieldBlock(
+                  normalizedAdditionalFields,
+                  fieldIndex,
+                  pendingBlockNames[fieldIndex],
+                  resultLayoutField(values),
+                ),
+              );
+            }
+            clearPendingBlock(fieldIndex);
+            setConfirmedAdditionalFieldIndexes((previous) => [
+              ...new Set([...previous, fieldIndex]),
+            ]);
             setEditingAdditionalFieldIndexes((previous) =>
               previous.filter((index) => index !== fieldIndex),
             );
@@ -2450,7 +2634,8 @@ export const StepThreeTestResultTypeAndLoinc = ({
           };
 
           const isFieldEditable = (fieldIndex, field) =>
-            !field?.id || editingAdditionalFieldIndexes.includes(fieldIndex);
+            isUnplacedField(fieldIndex, field) ||
+            editingAdditionalFieldIndexes.includes(fieldIndex);
 
           const handleAddFieldOption = (fieldIndex) => {
             const nextFields = [...normalizedAdditionalFields];
@@ -2526,7 +2711,9 @@ export const StepThreeTestResultTypeAndLoinc = ({
                   <div>
                     <>
                       <FormattedMessage id="field.resultType" />
-                      <span style={{ color: "red" }}>*</span>
+                      {isResultFieldActive && (
+                        <span style={{ color: "red" }}>*</span>
+                      )}
                     </>
                     <br />
                     <Select
@@ -2534,12 +2721,17 @@ export const StepThreeTestResultTypeAndLoinc = ({
                       id={`select-result-type`}
                       name="resultType"
                       hideLabel
-                      required
+                      required={isResultFieldActive}
+                      disabled={!isResultFieldActive}
                       onChange={(e) => {
                         handelResultType(e);
                       }}
                       value={values.resultType}
-                      invalid={touched.resultType && !!errors.resultType}
+                      invalid={
+                        isResultFieldActive &&
+                        touched.resultType &&
+                        !!errors.resultType
+                      }
                       invalidText={touched.resultType && errors.resultType}
                     >
                       <SelectItem
@@ -2553,7 +2745,10 @@ export const StepThreeTestResultTypeAndLoinc = ({
                         <SelectItem
                           key={test.id}
                           value={String(test.id)}
-                          text={`${test.value}`}
+                          text={intl.formatMessage({
+                            id: `test.resultType.option.${resolveResultTypeCode(test.id)}`,
+                            defaultMessage: test.value,
+                          })}
                         />
                       ))}
                     </Select>
@@ -2563,6 +2758,7 @@ export const StepThreeTestResultTypeAndLoinc = ({
                     <FormattedMessage id="label.loinc" />
                     <br />
                     <TextInput
+                      disabled={!isResultFieldActive}
                       labelText=""
                       id="loinc"
                       name="loinc"
@@ -2583,6 +2779,7 @@ export const StepThreeTestResultTypeAndLoinc = ({
                     <FormattedMessage id="field.resultName" />
                     <br />
                     <TextInput
+                      disabled={!isResultFieldActive}
                       labelText=""
                       id="resultName"
                       name="resultName"
@@ -2594,28 +2791,28 @@ export const StepThreeTestResultTypeAndLoinc = ({
                       invalidText={touched.resultName && errors.resultName}
                     />
                   </div>
-                  {isResultFieldActive && (
+                  <>
                     <>
                       <div>
                         <Grid
-                          condensed
                           fullWidth
-                          style={{ marginTop: "0.75rem" }}
+                          className="test-additional-fields__primary-settings"
                         >
-                          <Column lg={4} md={4} sm={4}>
-                            <TextInput
+                          <Column lg={8} md={4} sm={4}>
+                            <AdditionalFieldBlockSelector
+                              disabled={!isResultFieldActive}
                               id="result-block-name"
-                              name="resultBlockName"
-                              labelText={intl.formatMessage({
-                                id: "test.additionalFields.blockName",
-                                defaultMessage: "Block",
-                              })}
-                              value={values.resultBlockName || ""}
-                              onChange={handleChange}
+                              value={
+                                values.resultBlockName ||
+                                resolveDefaultBlockName(values.resultEntryScope)
+                              }
+                              blocks={blockOptions}
+                              onChange={handleResultBlockChange}
                             />
                           </Column>
                           <Column lg={4} md={4} sm={4}>
                             <Select
+                              disabled={!isResultFieldActive}
                               id="result-entry-scope"
                               name="resultEntryScope"
                               labelText={intl.formatMessage({
@@ -2639,36 +2836,10 @@ export const StepThreeTestResultTypeAndLoinc = ({
                               ))}
                             </Select>
                           </Column>
+
                           <Column lg={4} md={4} sm={4}>
                             <TextInput
-                              id="result-block-sort-order"
-                              name="resultBlockSortOrder"
-                              type="number"
-                              min="1"
-                              labelText={intl.formatMessage({
-                                id: "test.additionalFields.blockSortOrder",
-                                defaultMessage: "Block Order",
-                              })}
-                              value={values.resultBlockSortOrder || "1"}
-                              onChange={handleChange}
-                            />
-                          </Column>
-                          <Column lg={4} md={4} sm={4}>
-                            <TextInput
-                              id="result-field-sort-order"
-                              name="resultFieldSortOrder"
-                              type="number"
-                              min="1"
-                              labelText={intl.formatMessage({
-                                id: "test.additionalFields.fieldSortOrder",
-                                defaultMessage: "Field Order",
-                              })}
-                              value={values.resultFieldSortOrder || "1"}
-                              onChange={handleChange}
-                            />
-                          </Column>
-                          <Column lg={4} md={4} sm={4}>
-                            <TextInput
+                              disabled={!isResultFieldActive}
                               id="result-tube-activation-count"
                               name="resultTubeActivationCount"
                               type="number"
@@ -2693,11 +2864,14 @@ export const StepThreeTestResultTypeAndLoinc = ({
                               }}
                             >
                               <Checkbox
+                                disabled={!isResultFieldActive}
                                 id="result-tube-selector-enabled"
                                 labelText={intl.formatMessage({
                                   id: "test.additionalFields.tubeSelector",
                                 })}
-                                checked={values.resultTubeSelectorEnabled === true}
+                                checked={
+                                  values.resultTubeSelectorEnabled === true
+                                }
                                 onChange={(event) =>
                                   setFieldValue(
                                     "resultTubeSelectorEnabled",
@@ -2706,11 +2880,14 @@ export const StepThreeTestResultTypeAndLoinc = ({
                                 }
                               />
                               <Checkbox
+                                disabled={!isResultFieldActive}
                                 id="result-tube-quantity-source"
                                 labelText={intl.formatMessage({
                                   id: "test.additionalFields.tubeQuantitySource",
                                 })}
-                                checked={values.resultTubeQuantitySource === true}
+                                checked={
+                                  values.resultTubeQuantitySource === true
+                                }
                                 onChange={(event) =>
                                   setFieldValue(
                                     "resultTubeQuantitySource",
@@ -2719,6 +2896,7 @@ export const StepThreeTestResultTypeAndLoinc = ({
                                 }
                               />
                               <Checkbox
+                                disabled={!isResultFieldActive}
                                 id="result-tube-label-enabled"
                                 labelText={intl.formatMessage({
                                   id: "test.additionalFields.tubeLabel",
@@ -2733,6 +2911,7 @@ export const StepThreeTestResultTypeAndLoinc = ({
                                 }
                               />
                               <Checkbox
+                                disabled={!isResultFieldActive}
                                 id="result-child-tube-usage-block-enabled"
                                 labelText={intl.formatMessage({
                                   id: "test.additionalFields.childTubeUsageBlock",
@@ -2740,7 +2919,8 @@ export const StepThreeTestResultTypeAndLoinc = ({
                                     "Participates in child tube usage",
                                 })}
                                 checked={
-                                  values.resultChildTubeUsageBlockEnabled === true
+                                  values.resultChildTubeUsageBlockEnabled ===
+                                  true
                                 }
                                 onChange={(event) =>
                                   setFieldValue(
@@ -2758,6 +2938,7 @@ export const StepThreeTestResultTypeAndLoinc = ({
                               >
                                 <Column lg={4} md={4} sm={4}>
                                   <TextInput
+                                    disabled={!isResultFieldActive}
                                     id="result-tube-selector-min"
                                     name="resultTubeSelectorMin"
                                     type="number"
@@ -2771,6 +2952,7 @@ export const StepThreeTestResultTypeAndLoinc = ({
                                 </Column>
                                 <Column lg={4} md={4} sm={4}>
                                   <TextInput
+                                    disabled={!isResultFieldActive}
                                     id="result-tube-selector-max"
                                     name="resultTubeSelectorMax"
                                     type="number"
@@ -2788,30 +2970,44 @@ export const StepThreeTestResultTypeAndLoinc = ({
                         )}
                       </div>
                     </>
-                  )}
+                  </>
                   <br />
-                  <div>
-                    <Heading level={5} size="compact-01">
-                      <FormattedMessage id="test.additionalFields.title" />
+                  <div className="test-additional-fields">
+                    <Heading className="test-additional-fields__title">
+                      <FormattedMessage
+                        id={
+                          isResultFieldActive
+                            ? "test.resultFields.title"
+                            : "test.additionalFields.title"
+                        }
+                      />
                     </Heading>
-                    <p
-                      style={{ marginTop: "0.25rem", marginBottom: "0.75rem" }}
-                    >
-                      <FormattedMessage id="test.additionalFields.description" />
-                    </p>
-                    <p
-                      style={{
-                        marginTop: "0",
-                        marginBottom: "1rem",
-                        fontSize: "0.875rem",
-                        color: "#525252",
-                      }}
-                    >
-                      <FormattedMessage id="test.additionalFields.uiHelper" />
+                    <p className="test-additional-fields__description">
+                      <FormattedMessage
+                        id={
+                          isResultFieldActive
+                            ? "test.resultFields.description"
+                            : "test.additionalFields.description"
+                        }
+                      />
                     </p>
                     {activeAdditionalFields.map(
                       ({ field, fieldIndex }, groupIndex) => {
-                        const isDraftField = !field?.id;
+                        const isPrimary = fieldIndex === primaryFieldIndex;
+                        const isDraftField = isUnplacedField(fieldIndex, field);
+                        const blockPosition = orderedBlocks.findIndex(
+                          ({ name }) => name === field.blockName,
+                        );
+                        const siblings = getAdditionalFieldSiblings(
+                          layoutFields,
+                          fieldIndex,
+                        );
+                        const fieldPosition = siblings.findIndex(
+                          ({ index }) => index === fieldIndex,
+                        );
+                        const pendingMove =
+                          pendingBlockNames[fieldIndex] &&
+                          pendingBlockNames[fieldIndex] !== field.blockName;
                         const fieldType = field?.fieldType || "TEXT";
                         const supportsOptions = optionBasedTypes.has(fieldType);
                         const isEditable = isFieldEditable(fieldIndex, field);
@@ -2828,9 +3024,6 @@ export const StepThreeTestResultTypeAndLoinc = ({
                         const isFirstFieldInBlock =
                           !isDraftField &&
                           (groupIndex === 0 || previousBlockName !== blockName);
-                        const groupAccent = isDraftField
-                          ? { background: "#ffffff", border: "#8d8d8d" }
-                          : getAdditionalFieldGroupAccent(blockName);
                         const entryScopeLabel = intl.formatMessage({
                           id:
                             field?.entryScope === "PRELIMINARY"
@@ -2841,619 +3034,621 @@ export const StepThreeTestResultTypeAndLoinc = ({
                               ? "Preliminary"
                               : "Official",
                         });
-                        const cardSectionTitleStyle = {
-                          marginTop: "0",
-                          marginBottom: "0.75rem",
-                          fontSize: "0.875rem",
-                          fontWeight: 600,
-                          color: "#161616",
-                        };
-                        const cardSectionStyle = {
-                          border: "1px solid #e0e0e0",
-                          borderRadius: "0.5rem",
-                          padding: "1rem",
-                          background: "#ffffff",
-                        };
                         return (
                           <div
-                            key={`additional-field-grouped-${fieldIndex}`}
-                            style={{
-                              marginBottom: "1rem",
-                            }}
+                            key={
+                              isPrimary
+                                ? "primary-result"
+                                : `additional-field-grouped-${fieldIndex}`
+                            }
+                            className="test-additional-fields__item"
                           >
                             {isDraftField &&
                               groupIndex === firstDraftAdditionalFieldIndex && (
-                                <div
-                                  style={{
-                                    margin: "1.5rem 0 0.75rem",
-                                    paddingTop: "0.75rem",
-                                    borderTop: "1px dashed #c6c6c6",
-                                  }}
-                                />
+                                <div className="test-additional-fields__draft-divider" />
                               )}
                             {isFirstFieldInBlock && (
-                              <div
-                                style={{
-                                  display: "flex",
-                                  justifyContent: "space-between",
-                                  alignItems: "center",
-                                  gap: "0.75rem",
-                                  marginBottom: "0.5rem",
-                                  padding: "0.75rem 1rem",
-                                  borderRadius: "0.75rem",
-                                  background: groupAccent.background,
-                                  borderLeft: `6px solid ${groupAccent.border}`,
-                                }}
+                              <Grid
+                                fullWidth
+                                className="test-additional-fields__block"
                               >
-                                <div>
-                                  <p
-                                    style={{
-                                      margin: 0,
-                                      fontSize: "0.75rem",
-                                      fontWeight: 600,
-                                      color: "#525252",
-                                      textTransform: "uppercase",
-                                      letterSpacing: "0.04em",
-                                    }}
-                                  >
+                                <Column lg={12} md={6} sm={2}>
+                                  <p className="test-additional-fields__eyebrow">
                                     <FormattedMessage id="test.additionalFields.blockName" />
                                   </p>
-                                  <Heading
-                                    level={6}
-                                    size="compact-01"
-                                    style={{
-                                      marginTop: "0.25rem",
-                                      marginBottom: 0,
-                                    }}
-                                  >
+                                  <Heading className="test-additional-fields__block-title">
                                     {blockName}
                                   </Heading>
-                                </div>
-                                <Tag type="cool-gray">
-                                  {intl.formatMessage(
-                                    {
-                                      id: "test.additionalFields.group.count",
-                                    },
-                                    {
-                                      count: activeAdditionalFields.filter(
-                                        ({ field: siblingField }) =>
-                                          (siblingField?.blockName ||
-                                            defaultOfficialBlock ||
-                                            "-") === blockName,
-                                      ).length,
-                                    },
-                                  )}
-                                </Tag>
-                              </div>
-                            )}
-                            <Section
-                              style={{
-                                border: `1px solid ${groupAccent.border}33`,
-                                borderLeft: `5px solid ${groupAccent.border}`,
-                                borderRadius: "0.75rem",
-                                padding: "1rem",
-                                background: isEditable ? "#ffffff" : "#f8f8f8",
-                                boxShadow: "0 1px 2px rgba(0, 0, 0, 0.06)",
-                              }}
-                            >
-                              <div
-                                style={{
-                                  display: "flex",
-                                  justifyContent: "space-between",
-                                  alignItems: "flex-start",
-                                  gap: "1rem",
-                                  marginBottom: "1rem",
-                                  flexWrap: "wrap",
-                                }}
-                              >
-                                <div style={{ flex: "1 1 24rem" }}>
-                                  <Heading
-                                    level={6}
-                                    size="compact-01"
-                                    style={{
-                                      marginTop: 0,
-                                      marginBottom: "0.5rem",
-                                    }}
-                                  >
-                                    {field?.displayName ||
-                                      intl.formatMessage({
-                                        id: "test.additionalFields.unnamedField",
-                                      })}
-                                  </Heading>
-                                  <div
-                                    style={{
-                                      display: "flex",
-                                      flexWrap: "wrap",
-                                      gap: "0.5rem",
-                                    }}
-                                  >
-                                    <Tag type="blue">
-                                      {getAdditionalFieldTypeLabel(
-                                        intl,
-                                        fieldType,
-                                      )}
-                                    </Tag>
-                                    <Tag type="cool-gray">{blockName}</Tag>
-                                    <Tag type="purple">{entryScopeLabel}</Tag>
-                                    <Tag
-                                      type={isEditable ? "green" : "warm-gray"}
-                                    >
-                                      {intl.formatMessage({
-                                        id: isEditable
-                                          ? "test.additionalFields.status.editing"
-                                          : "test.additionalFields.status.readOnly",
-                                      })}
-                                    </Tag>
-                                  </div>
-                                </div>
-                                <div
-                                  style={{
-                                    display: "flex",
-                                    gap: "0.5rem",
-                                    flexWrap: "wrap",
-                                    justifyContent: "flex-end",
-                                  }}
+                                </Column>
+                                <Column
+                                  lg={4}
+                                  md={2}
+                                  sm={2}
+                                  className="test-additional-fields__count"
                                 >
-                                  <Button
-                                    kind="tertiary"
-                                    size="sm"
-                                    type="button"
-                                    onClick={() =>
-                                      isEditable
-                                        ? handleStopEditAdditionalField(
-                                            fieldIndex,
-                                          )
-                                        : handleStartEditAdditionalField(
-                                            fieldIndex,
-                                          )
-                                    }
-                                  >
-                                    <FormattedMessage
-                                      id={
-                                        isEditable
-                                          ? "label.button.ok"
-                                          : "label.button.edit"
+                                  <Tag type="cool-gray">
+                                    {intl.formatMessage(
+                                      {
+                                        id: "test.additionalFields.group.count",
+                                      },
+                                      {
+                                        count: activeAdditionalFields.filter(
+                                          ({
+                                            field: siblingField,
+                                            fieldIndex: siblingIndex,
+                                          }) =>
+                                            !isUnplacedField(
+                                              siblingIndex,
+                                              siblingField,
+                                            ) &&
+                                            (siblingField?.blockName ||
+                                              defaultOfficialBlock ||
+                                              "-") === blockName,
+                                        ).length,
+                                      },
+                                    )}
+                                  </Tag>
+                                  <div className="test-additional-fields__reorder">
+                                    <Button
+                                      type="button"
+                                      kind="ghost"
+                                      size="sm"
+                                      hasIconOnly
+                                      renderIcon={ArrowUp}
+                                      iconDescription={intl.formatMessage(
+                                        {
+                                          id: "test.additionalFields.moveBlockUp",
+                                        },
+                                        { name: blockName },
+                                      )}
+                                      disabled={
+                                        hasUnplacedFields || blockPosition <= 0
+                                      }
+                                      onClick={() =>
+                                        handleMoveBlock(blockName, -1)
                                       }
                                     />
-                                  </Button>
-                                  <Button
-                                    kind="danger--tertiary"
-                                    size="sm"
-                                    type="button"
-                                    disabled={!isEditable}
-                                    onClick={() =>
-                                      handleDisableAdditionalField(fieldIndex)
-                                    }
-                                  >
-                                    <FormattedMessage id="test.additionalFields.disableField" />
-                                  </Button>
-                                </div>
-                              </div>
-
-                              {!isEditable && (
-                                <div
-                                  style={{
-                                    marginBottom: "1rem",
-                                    padding: "0.75rem 1rem",
-                                    borderRadius: "0.5rem",
-                                    background: "#ffffff",
-                                    borderLeft: "4px solid #0f62fe",
-                                    fontSize: "0.875rem",
-                                    color: "#525252",
-                                  }}
-                                >
-                                  <FormattedMessage id="test.additionalFields.readOnlyHelper" />
-                                </div>
-                              )}
-
-                              <Grid
-                                condensed
-                                fullWidth
-                                style={{ rowGap: "1rem" }}
+                                    <Button
+                                      type="button"
+                                      kind="ghost"
+                                      size="sm"
+                                      hasIconOnly
+                                      renderIcon={ArrowDown}
+                                      iconDescription={intl.formatMessage(
+                                        {
+                                          id: "test.additionalFields.moveBlockDown",
+                                        },
+                                        { name: blockName },
+                                      )}
+                                      disabled={
+                                        hasUnplacedFields ||
+                                        blockPosition >=
+                                          orderedBlocks.length - 1
+                                      }
+                                      onClick={() =>
+                                        handleMoveBlock(blockName, 1)
+                                      }
+                                    />
+                                  </div>
+                                </Column>
+                              </Grid>
+                            )}
+                            {isPrimary ? (
+                              <Section
+                                className="test-additional-fields__card test-additional-fields__primary-row"
+                                aria-labelledby="primary-result-heading"
                               >
-                                <Column lg={16} md={8} sm={4}>
-                                  <div style={cardSectionStyle}>
-                                    <p style={cardSectionTitleStyle}>
-                                      <FormattedMessage id="test.additionalFields.group.identity" />
-                                    </p>
-                                    <Grid condensed fullWidth>
-                                      <Column lg={4} md={4} sm={4}>
-                                        <TextInput
-                                          id={`additional-field-display-name-${fieldIndex}`}
-                                          labelText={intl.formatMessage({
-                                            id: "test.additionalFields.displayName",
-                                          })}
-                                          value={field?.displayName || ""}
-                                          readOnly={!isEditable}
-                                          onChange={(event) =>
-                                            handleAdditionalFieldChange(
+                                <Grid
+                                  fullWidth
+                                  className="test-additional-fields__card-header"
+                                >
+                                  <Column lg={12} md={6} sm={2}>
+                                    <Heading
+                                      id="primary-result-heading"
+                                      className="test-additional-fields__primary-title"
+                                    >
+                                      {field.displayName}
+                                    </Heading>
+                                    <div className="test-additional-fields__tags">
+                                      <Tag type="gray">
+                                        <FormattedMessage id="test.resultFields.primary" />
+                                      </Tag>
+                                      <Tag type="gray">{entryScopeLabel}</Tag>
+                                    </div>
+                                  </Column>
+                                  <Column
+                                    lg={4}
+                                    md={2}
+                                    sm={2}
+                                    className="test-additional-fields__actions"
+                                  >
+                                    <div className="test-additional-fields__reorder">
+                                      <Button
+                                        type="button"
+                                        kind="ghost"
+                                        size="sm"
+                                        hasIconOnly
+                                        renderIcon={ArrowUp}
+                                        iconDescription={intl.formatMessage(
+                                          {
+                                            id: "test.additionalFields.moveFieldUp",
+                                          },
+                                          { name: field.displayName },
+                                        )}
+                                        disabled={
+                                          hasUnplacedFields ||
+                                          fieldPosition <= 0
+                                        }
+                                        onClick={() =>
+                                          handleMoveField(fieldIndex, -1)
+                                        }
+                                      />
+                                      <Button
+                                        type="button"
+                                        kind="ghost"
+                                        size="sm"
+                                        hasIconOnly
+                                        renderIcon={ArrowDown}
+                                        iconDescription={intl.formatMessage(
+                                          {
+                                            id: "test.additionalFields.moveFieldDown",
+                                          },
+                                          { name: field.displayName },
+                                        )}
+                                        disabled={
+                                          hasUnplacedFields ||
+                                          fieldPosition >= siblings.length - 1
+                                        }
+                                        onClick={() =>
+                                          handleMoveField(fieldIndex, 1)
+                                        }
+                                      />
+                                    </div>
+                                  </Column>
+                                </Grid>
+                              </Section>
+                            ) : (
+                              <Section
+                                className={`test-additional-fields__card${isEditable ? " test-additional-fields__card--editing" : ""}`}
+                              >
+                                <Grid
+                                  fullWidth
+                                  className="test-additional-fields__card-header"
+                                >
+                                  <Column lg={10} md={4} sm={4}>
+                                    <Heading className="test-additional-fields__field-title">
+                                      {field?.displayName ||
+                                        intl.formatMessage({
+                                          id: "test.additionalFields.unnamedField",
+                                        })}
+                                    </Heading>
+                                    <div className="test-additional-fields__tags">
+                                      <Tag type="gray">
+                                        {getAdditionalFieldTypeLabel(
+                                          intl,
+                                          fieldType,
+                                        )}
+                                      </Tag>
+                                      <Tag type="gray">{blockName}</Tag>
+                                      <Tag type="gray">{entryScopeLabel}</Tag>
+                                      <Tag type={isEditable ? "blue" : "gray"}>
+                                        {intl.formatMessage({
+                                          id: isEditable
+                                            ? "test.additionalFields.status.editing"
+                                            : "test.additionalFields.status.readOnly",
+                                        })}
+                                      </Tag>
+                                    </div>
+                                  </Column>
+                                  <Column
+                                    lg={6}
+                                    md={4}
+                                    sm={4}
+                                    className="test-additional-fields__actions"
+                                  >
+                                    <Button
+                                      kind="tertiary"
+                                      size="sm"
+                                      type="button"
+                                      onClick={() =>
+                                        isEditable
+                                          ? handleStopEditAdditionalField(
                                               fieldIndex,
-                                              "displayName",
-                                              event.target.value,
                                             )
-                                          }
-                                        />
-                                      </Column>
-                                      <Column lg={4} md={4} sm={4}>
-                                        <TextInput
-                                          id={`additional-field-key-${fieldIndex}`}
-                                          labelText={intl.formatMessage({
-                                            id: "test.additionalFields.fieldKey",
-                                          })}
-                                          value={field?.fieldKey || ""}
-                                          readOnly={!isEditable}
-                                          onChange={(event) =>
-                                            handleAdditionalFieldChange(
+                                          : handleStartEditAdditionalField(
                                               fieldIndex,
-                                              "fieldKey",
-                                              event.target.value,
                                             )
-                                          }
-                                        />
-                                      </Column>
-                                      <Column lg={4} md={4} sm={4}>
-                                        <Select
-                                          id={`additional-field-type-${fieldIndex}`}
-                                          labelText={intl.formatMessage({
-                                            id: "test.additionalFields.fieldType",
-                                          })}
-                                          value={fieldType}
-                                          disabled={
-                                            !isEditable ||
-                                            structureLockedByData
-                                          }
-                                          onChange={(event) =>
-                                            handleAdditionalFieldChange(
-                                              fieldIndex,
-                                              "fieldType",
-                                              event.target.value,
-                                            )
-                                          }
-                                        >
-                                          {FIELD_TYPE_OPTIONS.map(
-                                            (typeOption) => (
-                                              <SelectItem
-                                                key={`${fieldIndex}-${typeOption.value}`}
-                                                value={typeOption.value}
-                                                text={intl.formatMessage({
-                                                  id: typeOption.labelId,
-                                                  defaultMessage:
-                                                    typeOption.defaultMessage,
-                                                })}
-                                              />
-                                            ),
-                                          )}
-                                        </Select>
-                                      </Column>
-                                      <Column lg={4} md={4} sm={4}>
-                                        <TextInput
-                                          id={`additional-field-block-${fieldIndex}`}
-                                          labelText={intl.formatMessage({
-                                            id: "test.additionalFields.blockName",
-                                            defaultMessage: "Block",
-                                          })}
-                                          value={field?.blockName || ""}
-                                          readOnly={!isEditable}
-                                          onChange={(event) =>
-                                            handleAdditionalFieldChange(
-                                              fieldIndex,
-                                              "blockName",
-                                              event.target.value,
-                                            )
-                                          }
-                                        />
-                                      </Column>
-                                      {fieldType === "USER" ? (
-                                        <>
-                                          <Column lg={8} md={4} sm={4}>
-                                            <div style={{ marginTop: "1rem" }}>
-                                              <label
-                                                htmlFor={`additional-field-user-profiles-${fieldIndex}`}
-                                                style={{
-                                                  display: "block",
-                                                  marginBottom: "0.5rem",
-                                                }}
-                                              >
-                                                {intl.formatMessage({
-                                                  id: "test.additionalFields.userProfiles",
-                                                  defaultMessage:
-                                                    "Allowed professional profiles",
-                                                })}
-                                              </label>
-                                              <MultiSelect
-                                                id={`additional-field-user-profiles-${fieldIndex}`}
-                                                items={professionalProfileOptions}
-                                                itemToString={(item) =>
-                                                  item?.label || ""
-                                                }
-                                                selectedItems={professionalProfileOptions.filter(
-                                                  (item) =>
-                                                    (
-                                                      field?.userProfileCodes ||
-                                                      []
-                                                    ).includes(item.id),
-                                                )}
-                                                onChange={({
-                                                  selectedItems,
-                                                }) =>
-                                                  handleAdditionalFieldChange(
-                                                    fieldIndex,
-                                                    "userProfileCodes",
-                                                    selectedItems.map(
-                                                      (item) => item.id,
-                                                    ),
-                                                  )
-                                                }
-                                                label=""
-                                                titleText=""
-                                                selectionFeedback="top-after-reopen"
-                                                disabled={!isEditable}
-                                              />
-                                            </div>
-                                          </Column>
-                                          <Column lg={4} md={4} sm={4}>
-                                            <Select
-                                              id={`additional-field-user-display-mode-${fieldIndex}`}
-                                              labelText={intl.formatMessage({
-                                                id: "user.field.display.mode.label",
-                                                defaultMessage:
-                                                  "Display user as",
-                                              })}
-                                              value={
-                                                field?.userDisplayMode ||
-                                                USER_DISPLAY_MODE_BOTH
-                                              }
-                                              disabled={!isEditable}
-                                              onChange={(event) =>
-                                                handleAdditionalFieldChange(
-                                                  fieldIndex,
-                                                  "userDisplayMode",
-                                                  event.target.value,
-                                                )
-                                              }
-                                            >
-                                              <SelectItem
-                                                value={
-                                                  USER_DISPLAY_MODE_INITIALS
-                                                }
-                                                text={intl.formatMessage({
-                                                  id: "user.field.display.mode.initials",
-                                                  defaultMessage:
-                                                    "Initials only",
-                                                })}
-                                              />
-                                              <SelectItem
-                                                value={USER_DISPLAY_MODE_NAME}
-                                                text={intl.formatMessage({
-                                                  id: "user.field.display.mode.name",
-                                                  defaultMessage: "Name only",
-                                                })}
-                                              />
-                                              <SelectItem
-                                                value={USER_DISPLAY_MODE_BOTH}
-                                                text={intl.formatMessage({
-                                                  id: "user.field.display.mode.both",
-                                                  defaultMessage:
-                                                    "Initials and name",
-                                                })}
-                                              />
-                                            </Select>
-                                          </Column>
-                                        </>
-                                      ) : null}
-                                    </Grid>
-                                  </div>
-                                </Column>
-                                <Column lg={16} md={8} sm={4}>
-                                  <div style={cardSectionStyle}>
-                                    <p style={cardSectionTitleStyle}>
-                                      <FormattedMessage id="test.additionalFields.group.layout" />
-                                    </p>
-                                    <Grid condensed fullWidth>
-                                      <Column lg={4} md={4} sm={4}>
-                                        <Select
-                                          id={`additional-field-scope-${fieldIndex}`}
-                                          labelText={intl.formatMessage({
-                                            id: "test.additionalFields.entryScope",
-                                            defaultMessage: "Entry Scope",
-                                          })}
-                                          value={
-                                            field?.entryScope || "OFFICIAL"
-                                          }
-                                          disabled={!isEditable}
-                                          onChange={(event) =>
-                                            handleAdditionalFieldChange(
-                                              fieldIndex,
-                                              "entryScope",
-                                              event.target.value,
-                                            )
-                                          }
-                                        >
-                                          {entryScopeOptions.map(
-                                            (scopeOption) => (
-                                              <SelectItem
-                                                key={`${fieldIndex}-scope-${scopeOption}`}
-                                                value={scopeOption}
-                                                text={intl.formatMessage({
-                                                  id:
-                                                    scopeOption === "OFFICIAL"
-                                                      ? "test.additionalFields.entryScope.official"
-                                                      : "test.additionalFields.entryScope.preliminary",
-                                                  defaultMessage:
-                                                    scopeOption === "OFFICIAL"
-                                                      ? "Official"
-                                                      : "Preliminary",
-                                                })}
-                                              />
-                                            ),
-                                          )}
-                                        </Select>
-                                      </Column>
-                                      <Column lg={2} md={2} sm={2}>
-                                        <TextInput
-                                          id={`additional-field-block-order-${fieldIndex}`}
-                                          labelText={intl.formatMessage({
-                                            id: "test.additionalFields.blockSortOrder",
-                                            defaultMessage: "Block Order",
-                                          })}
-                                          type="number"
-                                          min="1"
-                                          value={field?.blockSortOrder || 1}
-                                          readOnly={!isEditable}
-                                          onChange={(event) =>
-                                            handleAdditionalFieldChange(
-                                              fieldIndex,
-                                              "blockSortOrder",
-                                              event.target.value,
-                                            )
-                                          }
-                                        />
-                                      </Column>
-                                      <Column lg={2} md={2} sm={2}>
-                                        <TextInput
-                                          id={`additional-field-field-order-${fieldIndex}`}
-                                          labelText={intl.formatMessage({
-                                            id: "test.additionalFields.fieldSortOrder",
-                                            defaultMessage: "Field Order",
-                                          })}
-                                          type="number"
-                                          min="1"
-                                          value={field?.fieldSortOrder || 1}
-                                          readOnly={!isEditable}
-                                          onChange={(event) =>
-                                            handleAdditionalFieldChange(
-                                              fieldIndex,
-                                              "fieldSortOrder",
-                                              event.target.value,
-                                            )
-                                          }
-                                        />
-                                      </Column>
-                                      <Column lg={2} md={2} sm={2}>
-                                        <TextInput
-                                          id={`additional-field-max-length-${fieldIndex}`}
-                                          labelText={intl.formatMessage({
-                                            id: "test.additionalFields.maxLength",
-                                          })}
-                                          type="number"
-                                          value={
-                                            fieldType === "DOCUMENT"
-                                              ? ""
-                                              : field?.maxLength || ""
-                                          }
-                                          readOnly={
-                                            !isEditable ||
-                                            fieldType === "DOCUMENT"
-                                          }
-                                          onChange={(event) =>
-                                            handleAdditionalFieldChange(
-                                              fieldIndex,
-                                              "maxLength",
-                                              event.target.value,
-                                            )
-                                          }
-                                        />
-                                      </Column>
-                                      <Column lg={3} md={4} sm={4}>
-                                        <TextInput
-                                          id={`additional-field-default-value-${fieldIndex}`}
-                                          labelText={intl.formatMessage({
-                                            id: "test.additionalFields.defaultValue",
-                                          })}
-                                          value={
-                                            fieldType === "DOCUMENT"
-                                              ? ""
-                                              : field?.defaultValue || ""
-                                          }
-                                          readOnly={
-                                            !isEditable ||
-                                            fieldType === "DOCUMENT"
-                                          }
-                                          onChange={(event) =>
-                                            handleAdditionalFieldChange(
-                                              fieldIndex,
-                                              "defaultValue",
-                                              event.target.value,
-                                            )
-                                          }
-                                        />
-                                      </Column>
-                                      <Column lg={3} md={4} sm={4}>
-                                        <TextInput
-                                          id={`additional-field-tube-activation-${fieldIndex}`}
-                                          labelText={intl.formatMessage({
-                                            id: "test.additionalFields.tubeActivationCount",
-                                            defaultMessage:
-                                              "Tube activation count",
-                                          })}
-                                          type="number"
-                                          min="1"
-                                          value={
-                                            field?.tubeActivationCount || ""
-                                          }
-                                          readOnly={!isEditable}
-                                          onChange={(event) =>
-                                            handleAdditionalFieldChange(
-                                              fieldIndex,
-                                              "tubeActivationCount",
-                                              event.target.value,
-                                            )
-                                          }
-                                        />
-                                      </Column>
-                                    </Grid>
-                                  </div>
-                                </Column>
-                                {fieldType === "DOCUMENT" && (
+                                      }
+                                    >
+                                      <FormattedMessage
+                                        id={
+                                          isEditable
+                                            ? "label.button.ok"
+                                            : "label.button.edit"
+                                        }
+                                      />
+                                    </Button>
+                                    <Button
+                                      kind="danger--tertiary"
+                                      size="sm"
+                                      type="button"
+                                      disabled={!isEditable}
+                                      onClick={() =>
+                                        handleDisableAdditionalField(fieldIndex)
+                                      }
+                                    >
+                                      <FormattedMessage id="test.additionalFields.disableField" />
+                                    </Button>
+                                  </Column>
+                                </Grid>
+                                <Grid
+                                  fullWidth
+                                  className="test-additional-fields__sections"
+                                >
                                   <Column lg={16} md={8} sm={4}>
-                                    <div style={cardSectionStyle}>
-                                      <p style={cardSectionTitleStyle}>
-                                        <FormattedMessage id="test.additionalFields.group.document" />
+                                    <div className="test-additional-fields__section">
+                                      <p className="test-additional-fields__section-title">
+                                        <FormattedMessage id="test.additionalFields.group.identity" />
                                       </p>
-                                      <Grid condensed fullWidth>
-                                        <Column lg={8} md={4} sm={4}>
+                                      <Grid
+                                        fullWidth
+                                        className="test-additional-fields__controls"
+                                      >
+                                        <Column lg={8} md={8} sm={4}>
                                           <TextInput
-                                            id={`additional-field-document-accept-${fieldIndex}`}
+                                            id={`additional-field-display-name-${fieldIndex}`}
                                             labelText={intl.formatMessage({
-                                              id: "order.additional.fields.document.accept",
+                                              id: "test.additionalFields.displayName",
                                             })}
-                                            value={field?.documentAccept || ""}
+                                            value={field?.displayName || ""}
                                             readOnly={!isEditable}
                                             onChange={(event) =>
                                               handleAdditionalFieldChange(
                                                 fieldIndex,
-                                                "documentAccept",
+                                                "displayName",
                                                 event.target.value,
                                               )
                                             }
                                           />
-                                          <p
-                                            style={{
-                                              fontSize: "0.75rem",
-                                              color: "#6f6f6f",
-                                              marginTop: "0.25rem",
-                                            }}
-                                          >
-                                            {intl.formatMessage({
-                                              id: "order.additional.fields.document.accept.helper",
-                                            })}
-                                          </p>
                                         </Column>
-                                        <Column lg={3} md={4} sm={4}>
-                                          <TextInput
-                                            id={`additional-field-document-max-size-${fieldIndex}`}
+                                        <Column lg={4} md={4} sm={4}>
+                                          <Select
+                                            id={`additional-field-type-${fieldIndex}`}
                                             labelText={intl.formatMessage({
-                                              id: "order.additional.fields.document.maxSizeMb",
+                                              id: "test.additionalFields.fieldType",
                                             })}
-                                            type="number"
-                                            value={
-                                              field?.documentMaxSizeMb || ""
+                                            value={fieldType}
+                                            disabled={
+                                              !isEditable ||
+                                              structureLockedByData
                                             }
+                                            onChange={(event) =>
+                                              handleAdditionalFieldChange(
+                                                fieldIndex,
+                                                "fieldType",
+                                                event.target.value,
+                                              )
+                                            }
+                                          >
+                                            {FIELD_TYPE_OPTIONS.map(
+                                              (typeOption) => (
+                                                <SelectItem
+                                                  key={`${fieldIndex}-${typeOption.value}`}
+                                                  value={typeOption.value}
+                                                  text={intl.formatMessage({
+                                                    id: typeOption.labelId,
+                                                    defaultMessage:
+                                                      typeOption.defaultMessage,
+                                                  })}
+                                                />
+                                              ),
+                                            )}
+                                          </Select>
+                                        </Column>
+                                        <Column lg={4} md={4} sm={4}>
+                                          <TextInput
+                                            id={`additional-field-key-${fieldIndex}`}
+                                            labelText={intl.formatMessage({
+                                              id: "test.additionalFields.fieldKey",
+                                            })}
+                                            value={field?.fieldKey || ""}
                                             readOnly={!isEditable}
                                             onChange={(event) =>
                                               handleAdditionalFieldChange(
                                                 fieldIndex,
-                                                "documentMaxSizeMb",
+                                                "fieldKey",
+                                                event.target.value,
+                                              )
+                                            }
+                                          />
+                                        </Column>
+
+                                        {fieldType === "USER" ? (
+                                          <>
+                                            <Column lg={8} md={4} sm={4}>
+                                              <div>
+                                                <label
+                                                  className="cds--label"
+                                                  htmlFor={`additional-field-user-profiles-${fieldIndex}`}
+                                                >
+                                                  {intl.formatMessage({
+                                                    id: "test.additionalFields.userProfiles",
+                                                    defaultMessage:
+                                                      "Allowed professional profiles",
+                                                  })}
+                                                </label>
+                                                <MultiSelect
+                                                  id={`additional-field-user-profiles-${fieldIndex}`}
+                                                  items={
+                                                    professionalProfileOptions
+                                                  }
+                                                  itemToString={(item) =>
+                                                    item?.label || ""
+                                                  }
+                                                  selectedItems={professionalProfileOptions.filter(
+                                                    (item) =>
+                                                      (
+                                                        field?.userProfileCodes ||
+                                                        []
+                                                      ).includes(item.id),
+                                                  )}
+                                                  onChange={({
+                                                    selectedItems,
+                                                  }) =>
+                                                    handleAdditionalFieldChange(
+                                                      fieldIndex,
+                                                      "userProfileCodes",
+                                                      selectedItems.map(
+                                                        (item) => item.id,
+                                                      ),
+                                                    )
+                                                  }
+                                                  label=""
+                                                  titleText=""
+                                                  selectionFeedback="top-after-reopen"
+                                                  disabled={!isEditable}
+                                                />
+                                              </div>
+                                            </Column>
+                                            <Column lg={8} md={4} sm={4}>
+                                              <Select
+                                                id={`additional-field-user-display-mode-${fieldIndex}`}
+                                                labelText={intl.formatMessage({
+                                                  id: "user.field.display.mode.label",
+                                                  defaultMessage:
+                                                    "Display user as",
+                                                })}
+                                                value={
+                                                  field?.userDisplayMode ||
+                                                  USER_DISPLAY_MODE_BOTH
+                                                }
+                                                disabled={!isEditable}
+                                                onChange={(event) =>
+                                                  handleAdditionalFieldChange(
+                                                    fieldIndex,
+                                                    "userDisplayMode",
+                                                    event.target.value,
+                                                  )
+                                                }
+                                              >
+                                                <SelectItem
+                                                  value={
+                                                    USER_DISPLAY_MODE_INITIALS
+                                                  }
+                                                  text={intl.formatMessage({
+                                                    id: "user.field.display.mode.initials",
+                                                    defaultMessage:
+                                                      "Initials only",
+                                                  })}
+                                                />
+                                                <SelectItem
+                                                  value={USER_DISPLAY_MODE_NAME}
+                                                  text={intl.formatMessage({
+                                                    id: "user.field.display.mode.name",
+                                                    defaultMessage: "Name only",
+                                                  })}
+                                                />
+                                                <SelectItem
+                                                  value={USER_DISPLAY_MODE_BOTH}
+                                                  text={intl.formatMessage({
+                                                    id: "user.field.display.mode.both",
+                                                    defaultMessage:
+                                                      "Initials and name",
+                                                  })}
+                                                />
+                                              </Select>
+                                            </Column>
+                                          </>
+                                        ) : null}
+                                      </Grid>
+                                    </div>
+                                  </Column>
+                                  <Column lg={16} md={8} sm={4}>
+                                    <div className="test-additional-fields__section">
+                                      <p className="test-additional-fields__section-title">
+                                        <FormattedMessage id="test.additionalFields.group.placement" />
+                                      </p>
+                                      <Grid
+                                        fullWidth
+                                        className="test-additional-fields__controls"
+                                      >
+                                        <Column lg={8} md={4} sm={4}>
+                                          <AdditionalFieldBlockSelector
+                                            id={`additional-field-block-${fieldIndex}`}
+                                            value={
+                                              pendingBlockNames[fieldIndex] ||
+                                              field.blockName
+                                            }
+                                            blocks={blockOptions}
+                                            disabled={!isEditable}
+                                            onChange={(name) =>
+                                              setPendingBlockNames(
+                                                (previous) => ({
+                                                  ...previous,
+                                                  [fieldIndex]: name,
+                                                }),
+                                              )
+                                            }
+                                          />
+                                        </Column>
+                                        <Column lg={4} md={4} sm={4}>
+                                          <Select
+                                            id={`additional-field-scope-${fieldIndex}`}
+                                            labelText={intl.formatMessage({
+                                              id: "test.additionalFields.entryScope",
+                                              defaultMessage: "Entry Scope",
+                                            })}
+                                            value={
+                                              field?.entryScope || "OFFICIAL"
+                                            }
+                                            disabled={!isEditable}
+                                            onChange={(event) =>
+                                              handleAdditionalFieldChange(
+                                                fieldIndex,
+                                                "entryScope",
+                                                event.target.value,
+                                              )
+                                            }
+                                          >
+                                            {entryScopeOptions.map(
+                                              (scopeOption) => (
+                                                <SelectItem
+                                                  key={`${fieldIndex}-scope-${scopeOption}`}
+                                                  value={scopeOption}
+                                                  text={intl.formatMessage({
+                                                    id:
+                                                      scopeOption === "OFFICIAL"
+                                                        ? "test.additionalFields.entryScope.official"
+                                                        : "test.additionalFields.entryScope.preliminary",
+                                                    defaultMessage:
+                                                      scopeOption === "OFFICIAL"
+                                                        ? "Official"
+                                                        : "Preliminary",
+                                                  })}
+                                                />
+                                              ),
+                                            )}
+                                          </Select>
+                                        </Column>
+
+                                        <Column lg={4} md={4} sm={4}>
+                                          <p className="cds--label">
+                                            <FormattedMessage id="test.additionalFields.fieldSortOrder" />
+                                          </p>
+                                          <div className="test-additional-fields__reorder">
+                                            <Button
+                                              type="button"
+                                              kind="ghost"
+                                              size="sm"
+                                              hasIconOnly
+                                              renderIcon={ArrowUp}
+                                              iconDescription={intl.formatMessage(
+                                                {
+                                                  id: "test.additionalFields.moveFieldUp",
+                                                },
+                                                {
+                                                  name:
+                                                    field.displayName ||
+                                                    intl.formatMessage({
+                                                      id: "test.additionalFields.unnamedField",
+                                                    }),
+                                                },
+                                              )}
+                                              disabled={
+                                                hasUnplacedFields ||
+                                                pendingMove ||
+                                                fieldPosition <= 0
+                                              }
+                                              onClick={() =>
+                                                handleMoveField(fieldIndex, -1)
+                                              }
+                                            />
+                                            <Button
+                                              type="button"
+                                              kind="ghost"
+                                              size="sm"
+                                              hasIconOnly
+                                              renderIcon={ArrowDown}
+                                              iconDescription={intl.formatMessage(
+                                                {
+                                                  id: "test.additionalFields.moveFieldDown",
+                                                },
+                                                {
+                                                  name:
+                                                    field.displayName ||
+                                                    intl.formatMessage({
+                                                      id: "test.additionalFields.unnamedField",
+                                                    }),
+                                                },
+                                              )}
+                                              disabled={
+                                                hasUnplacedFields ||
+                                                pendingMove ||
+                                                fieldPosition >=
+                                                  siblings.length - 1
+                                              }
+                                              onClick={() =>
+                                                handleMoveField(fieldIndex, 1)
+                                              }
+                                            />
+                                          </div>
+                                        </Column>
+                                      </Grid>
+                                    </div>
+                                  </Column>
+                                  <Column lg={8} md={8} sm={4}>
+                                    <div className="test-additional-fields__section">
+                                      <p className="test-additional-fields__section-title">
+                                        <FormattedMessage id="test.additionalFields.group.defaults" />
+                                      </p>
+                                      <Grid
+                                        fullWidth
+                                        className="test-additional-fields__controls"
+                                      >
+                                        <Column lg={5} md={4} sm={4}>
+                                          <TextInput
+                                            id={`additional-field-default-value-${fieldIndex}`}
+                                            labelText={intl.formatMessage({
+                                              id: "test.additionalFields.defaultValue",
+                                            })}
+                                            value={
+                                              fieldType === "DOCUMENT"
+                                                ? ""
+                                                : field?.defaultValue || ""
+                                            }
+                                            readOnly={
+                                              !isEditable ||
+                                              fieldType === "DOCUMENT"
+                                            }
+                                            onChange={(event) =>
+                                              handleAdditionalFieldChange(
+                                                fieldIndex,
+                                                "defaultValue",
+                                                event.target.value,
+                                              )
+                                            }
+                                          />
+                                        </Column>
+                                        <Column lg={3} md={4} sm={4}>
+                                          <TextInput
+                                            id={`additional-field-max-length-${fieldIndex}`}
+                                            labelText={intl.formatMessage({
+                                              id: "test.additionalFields.maxLength",
+                                            })}
+                                            type="number"
+                                            value={
+                                              fieldType === "DOCUMENT"
+                                                ? ""
+                                                : field?.maxLength || ""
+                                            }
+                                            readOnly={
+                                              !isEditable ||
+                                              fieldType === "DOCUMENT"
+                                            }
+                                            onChange={(event) =>
+                                              handleAdditionalFieldChange(
+                                                fieldIndex,
+                                                "maxLength",
                                                 event.target.value,
                                               )
                                             }
@@ -3462,189 +3657,117 @@ export const StepThreeTestResultTypeAndLoinc = ({
                                       </Grid>
                                     </div>
                                   </Column>
-                                )}
-                                <Column lg={16} md={8} sm={4}>
-                                  <div style={cardSectionStyle}>
-                                    <p style={cardSectionTitleStyle}>
-                                      <FormattedMessage id="test.additionalFields.group.behavior" />
-                                    </p>
-                                    <div
-                                      style={{
-                                        display: "grid",
-                                        gridTemplateColumns:
-                                          "repeat(auto-fit, minmax(16rem, 1fr))",
-                                        gap: "0.75rem 1rem",
-                                      }}
-                                    >
-                                      <Checkbox
-                                        id={`additional-field-required-${fieldIndex}`}
-                                        labelText={intl.formatMessage({
-                                          id: "test.additionalFields.required",
-                                        })}
-                                        checked={field?.required === true}
-                                        disabled={!isEditable}
-                                        onChange={(event) =>
-                                          handleAdditionalFieldChange(
-                                            fieldIndex,
-                                            "required",
-                                            event.target.checked,
-                                          )
-                                        }
-                                      />
-                                      <Checkbox
-                                        id={`additional-field-validation-${fieldIndex}`}
-                                        labelText={intl.formatMessage({
-                                          id: "test.additionalFields.includeInValidation",
-                                          defaultMessage:
-                                            "Include In Validation",
-                                        })}
-                                        checked={
-                                          field?.includeInValidation !== false
-                                        }
-                                        disabled={
-                                          !isEditable ||
-                                          field?.entryScope === "PRELIMINARY"
-                                        }
-                                        onChange={(event) =>
-                                          handleAdditionalFieldChange(
-                                            fieldIndex,
-                                            "includeInValidation",
-                                            event.target.checked,
-                                          )
-                                        }
-                                      />
-                                      {String(fieldType || "").toUpperCase() ===
-                                        "NUMBER" && (
-                                        <>
+                                  <Column lg={8} md={8} sm={4}>
+                                    <div className="test-additional-fields__section">
+                                      <p className="test-additional-fields__section-title">
+                                        <FormattedMessage id="test.additionalFields.group.behavior" />
+                                      </p>
+                                      <Grid
+                                        fullWidth
+                                        className="test-additional-fields__controls"
+                                      >
+                                        {" "}
+                                        <Column lg={8} md={4} sm={4}>
                                           <Checkbox
-                                            id={`additional-field-tube-selector-${fieldIndex}`}
+                                            id={`additional-field-required-${fieldIndex}`}
                                             labelText={intl.formatMessage({
-                                              id: "test.additionalFields.tubeSelector",
-                                              defaultMessage: "Tube selector",
+                                              id: "test.additionalFields.required",
                                             })}
-                                            checked={
-                                              field?.tubeSelectorEnabled ===
-                                              true
-                                            }
+                                            checked={field?.required === true}
                                             disabled={!isEditable}
                                             onChange={(event) =>
                                               handleAdditionalFieldChange(
                                                 fieldIndex,
-                                                "tubeSelectorEnabled",
+                                                "required",
                                                 event.target.checked,
                                               )
                                             }
                                           />
+                                        </Column>
+                                        <Column lg={8} md={4} sm={4}>
                                           <Checkbox
-                                            id={`additional-field-tube-source-${fieldIndex}`}
+                                            id={`additional-field-validation-${fieldIndex}`}
                                             labelText={intl.formatMessage({
-                                              id: "test.additionalFields.tubeQuantitySource",
+                                              id: "test.additionalFields.includeInValidation",
                                               defaultMessage:
-                                                "Tube quantity source",
+                                                "Include In Validation",
                                             })}
                                             checked={
-                                              field?.tubeQuantitySource === true
+                                              field?.includeInValidation !==
+                                              false
                                             }
-                                            disabled={!isEditable}
+                                            disabled={
+                                              !isEditable ||
+                                              field?.entryScope ===
+                                                "PRELIMINARY"
+                                            }
                                             onChange={(event) =>
                                               handleAdditionalFieldChange(
                                                 fieldIndex,
-                                                "tubeQuantitySource",
+                                                "includeInValidation",
                                                 event.target.checked,
                                               )
                                             }
                                           />
-                                        </>
-                                      )}
-                                      <Checkbox
-                                        id={`additional-field-child-tube-usage-block-${fieldIndex}`}
-                                        labelText={intl.formatMessage({
-                                          id: "test.additionalFields.childTubeUsageBlock",
-                                          defaultMessage:
-                                            "Participates in child tube usage",
-                                        })}
-                                        checked={
-                                          field?.childTubeUsageBlockEnabled ===
-                                          true
-                                        }
-                                        disabled={!isEditable}
-                                        onChange={(event) =>
-                                          handleAdditionalFieldChange(
-                                            fieldIndex,
-                                            "childTubeUsageBlockEnabled",
-                                            event.target.checked,
-                                          )
-                                        }
-                                      />
-                                      <Checkbox
-                                        id={`additional-field-tube-label-${fieldIndex}`}
-                                        labelText={intl.formatMessage({
-                                          id: "test.additionalFields.tubeLabel",
-                                          defaultMessage: "Generate tube label",
-                                        })}
-                                        checked={
-                                          field?.tubeLabelEnabled === true
-                                        }
-                                        disabled={!isEditable}
-                                        onChange={(event) =>
-                                          handleAdditionalFieldChange(
-                                            fieldIndex,
-                                            "tubeLabelEnabled",
-                                            event.target.checked,
-                                          )
-                                        }
-                                      />
+                                        </Column>
+                                      </Grid>
                                     </div>
-                                  </div>
-                                </Column>
-                                {String(fieldType || "").toUpperCase() ===
-                                  "NUMBER" &&
-                                  field?.tubeSelectorEnabled === true && (
+                                  </Column>{" "}
+                                  {fieldType === "DOCUMENT" && (
                                     <Column lg={16} md={8} sm={4}>
-                                      <div style={cardSectionStyle}>
-                                        <p style={cardSectionTitleStyle}>
-                                          <FormattedMessage id="test.additionalFields.group.tubeSelector" />
+                                      <div className="test-additional-fields__section">
+                                        <p className="test-additional-fields__section-title">
+                                          <FormattedMessage id="test.additionalFields.group.document" />
                                         </p>
-                                        <Grid condensed fullWidth>
-                                          <Column lg={3} md={4} sm={4}>
+                                        <Grid
+                                          fullWidth
+                                          className="test-additional-fields__controls"
+                                        >
+                                          <Column lg={8} md={4} sm={4}>
                                             <TextInput
-                                              id={`additional-field-tube-selector-min-${fieldIndex}`}
+                                              id={`additional-field-document-accept-${fieldIndex}`}
                                               labelText={intl.formatMessage({
-                                                id: "test.additionalFields.tubeSelectorMin",
-                                                defaultMessage: "Tube min",
+                                                id: "order.additional.fields.document.accept",
                                               })}
-                                              type="number"
-                                              min="1"
                                               value={
-                                                field?.tubeSelectorMin || "1"
+                                                field?.documentAccept || ""
                                               }
                                               readOnly={!isEditable}
                                               onChange={(event) =>
                                                 handleAdditionalFieldChange(
                                                   fieldIndex,
-                                                  "tubeSelectorMin",
+                                                  "documentAccept",
                                                   event.target.value,
                                                 )
                                               }
                                             />
+                                            <p
+                                              style={{
+                                                fontSize: "0.75rem",
+                                                color: "#6f6f6f",
+                                                marginTop: "0.25rem",
+                                              }}
+                                            >
+                                              {intl.formatMessage({
+                                                id: "order.additional.fields.document.accept.helper",
+                                              })}
+                                            </p>
                                           </Column>
-                                          <Column lg={3} md={4} sm={4}>
+                                          <Column lg={4} md={4} sm={4}>
                                             <TextInput
-                                              id={`additional-field-tube-selector-max-${fieldIndex}`}
+                                              id={`additional-field-document-max-size-${fieldIndex}`}
                                               labelText={intl.formatMessage({
-                                                id: "test.additionalFields.tubeSelectorMax",
-                                                defaultMessage: "Tube max",
+                                                id: "order.additional.fields.document.maxSizeMb",
                                               })}
                                               type="number"
-                                              min="1"
                                               value={
-                                                field?.tubeSelectorMax || "2"
+                                                field?.documentMaxSizeMb || ""
                                               }
                                               readOnly={!isEditable}
                                               onChange={(event) =>
                                                 handleAdditionalFieldChange(
                                                   fieldIndex,
-                                                  "tubeSelectorMax",
+                                                  "documentMaxSizeMb",
                                                   event.target.value,
                                                 )
                                               }
@@ -3654,42 +3777,243 @@ export const StepThreeTestResultTypeAndLoinc = ({
                                       </div>
                                     </Column>
                                   )}
-                                {supportsOptions && (
                                   <Column lg={16} md={8} sm={4}>
-                                    <div style={cardSectionStyle}>
-                                      <AdditionalFieldOptionsEditor
-                                        idPrefix={`additional-field-${fieldIndex}`}
-                                        options={field?.options || []}
-                                        locked={
-                                          !isEditable ||
-                                          structureLockedByData
-                                        }
-                                        onAddOption={() =>
-                                          handleAddFieldOption(fieldIndex)
-                                        }
-                                        onOptionLabelChange={(
-                                          optionIndex,
-                                          nextLabel,
-                                        ) =>
-                                          handleFieldOptionChange(
-                                            fieldIndex,
-                                            optionIndex,
-                                            "optionLabel",
-                                            nextLabel,
-                                          )
-                                        }
-                                        onRemoveOption={(optionIndex) =>
-                                          handleRemoveFieldOption(
-                                            fieldIndex,
-                                            optionIndex,
-                                          )
-                                        }
-                                      />
+                                    <div className="test-additional-fields__section">
+                                      <p className="test-additional-fields__section-title">
+                                        <FormattedMessage id="test.additionalFields.group.tubes" />
+                                      </p>
+                                      <Grid
+                                        fullWidth
+                                        className="test-additional-fields__controls"
+                                      >
+                                        <Column lg={4} md={4} sm={4}>
+                                          <TextInput
+                                            id={`additional-field-tube-activation-${fieldIndex}`}
+                                            labelText={intl.formatMessage({
+                                              id: "test.additionalFields.tubeActivationCount",
+                                              defaultMessage:
+                                                "Tube activation count",
+                                            })}
+                                            type="number"
+                                            min="1"
+                                            value={
+                                              field?.tubeActivationCount || ""
+                                            }
+                                            readOnly={!isEditable}
+                                            onChange={(event) =>
+                                              handleAdditionalFieldChange(
+                                                fieldIndex,
+                                                "tubeActivationCount",
+                                                event.target.value,
+                                              )
+                                            }
+                                          />
+                                        </Column>
+                                        <Column lg={12} md={8} sm={4}>
+                                          <Grid
+                                            fullWidth
+                                            className="test-additional-fields__controls"
+                                          >
+                                            {" "}
+                                            {String(
+                                              fieldType || "",
+                                            ).toUpperCase() === "NUMBER" && (
+                                              <>
+                                                <Column lg={6} md={4} sm={4}>
+                                                  <Checkbox
+                                                    id={`additional-field-tube-selector-${fieldIndex}`}
+                                                    labelText={intl.formatMessage(
+                                                      {
+                                                        id: "test.additionalFields.tubeSelector",
+                                                        defaultMessage:
+                                                          "Tube selector",
+                                                      },
+                                                    )}
+                                                    checked={
+                                                      field?.tubeSelectorEnabled ===
+                                                      true
+                                                    }
+                                                    disabled={!isEditable}
+                                                    onChange={(event) =>
+                                                      handleAdditionalFieldChange(
+                                                        fieldIndex,
+                                                        "tubeSelectorEnabled",
+                                                        event.target.checked,
+                                                      )
+                                                    }
+                                                  />
+                                                </Column>
+                                                <Column lg={6} md={4} sm={4}>
+                                                  <Checkbox
+                                                    id={`additional-field-tube-source-${fieldIndex}`}
+                                                    labelText={intl.formatMessage(
+                                                      {
+                                                        id: "test.additionalFields.tubeQuantitySource",
+                                                        defaultMessage:
+                                                          "Tube quantity source",
+                                                      },
+                                                    )}
+                                                    checked={
+                                                      field?.tubeQuantitySource ===
+                                                      true
+                                                    }
+                                                    disabled={!isEditable}
+                                                    onChange={(event) =>
+                                                      handleAdditionalFieldChange(
+                                                        fieldIndex,
+                                                        "tubeQuantitySource",
+                                                        event.target.checked,
+                                                      )
+                                                    }
+                                                  />
+                                                </Column>
+                                              </>
+                                            )}
+                                            <Column lg={6} md={4} sm={4}>
+                                              <Checkbox
+                                                id={`additional-field-child-tube-usage-block-${fieldIndex}`}
+                                                labelText={intl.formatMessage({
+                                                  id: "test.additionalFields.childTubeUsageBlock",
+                                                  defaultMessage:
+                                                    "Participates in child tube usage",
+                                                })}
+                                                checked={
+                                                  field?.childTubeUsageBlockEnabled ===
+                                                  true
+                                                }
+                                                disabled={!isEditable}
+                                                onChange={(event) =>
+                                                  handleAdditionalFieldChange(
+                                                    fieldIndex,
+                                                    "childTubeUsageBlockEnabled",
+                                                    event.target.checked,
+                                                  )
+                                                }
+                                              />
+                                            </Column>
+                                            <Column lg={6} md={4} sm={4}>
+                                              <Checkbox
+                                                id={`additional-field-tube-label-${fieldIndex}`}
+                                                labelText={intl.formatMessage({
+                                                  id: "test.additionalFields.tubeLabel",
+                                                  defaultMessage:
+                                                    "Generate tube label",
+                                                })}
+                                                checked={
+                                                  field?.tubeLabelEnabled ===
+                                                  true
+                                                }
+                                                disabled={!isEditable}
+                                                onChange={(event) =>
+                                                  handleAdditionalFieldChange(
+                                                    fieldIndex,
+                                                    "tubeLabelEnabled",
+                                                    event.target.checked,
+                                                  )
+                                                }
+                                              />
+                                            </Column>
+                                          </Grid>
+                                        </Column>
+                                      </Grid>
                                     </div>
                                   </Column>
-                                )}
-                              </Grid>
-                            </Section>
+                                  {String(fieldType || "").toUpperCase() ===
+                                    "NUMBER" &&
+                                    field?.tubeSelectorEnabled === true && (
+                                      <Column lg={16} md={8} sm={4}>
+                                        <div className="test-additional-fields__section">
+                                          <p className="test-additional-fields__section-title">
+                                            <FormattedMessage id="test.additionalFields.group.tubeSelector" />
+                                          </p>
+                                          <Grid
+                                            fullWidth
+                                            className="test-additional-fields__controls"
+                                          >
+                                            <Column lg={4} md={4} sm={4}>
+                                              <TextInput
+                                                id={`additional-field-tube-selector-min-${fieldIndex}`}
+                                                labelText={intl.formatMessage({
+                                                  id: "test.additionalFields.tubeSelectorMin",
+                                                  defaultMessage: "Tube min",
+                                                })}
+                                                type="number"
+                                                min="1"
+                                                value={
+                                                  field?.tubeSelectorMin || "1"
+                                                }
+                                                readOnly={!isEditable}
+                                                onChange={(event) =>
+                                                  handleAdditionalFieldChange(
+                                                    fieldIndex,
+                                                    "tubeSelectorMin",
+                                                    event.target.value,
+                                                  )
+                                                }
+                                              />
+                                            </Column>
+                                            <Column lg={4} md={4} sm={4}>
+                                              <TextInput
+                                                id={`additional-field-tube-selector-max-${fieldIndex}`}
+                                                labelText={intl.formatMessage({
+                                                  id: "test.additionalFields.tubeSelectorMax",
+                                                  defaultMessage: "Tube max",
+                                                })}
+                                                type="number"
+                                                min="1"
+                                                value={
+                                                  field?.tubeSelectorMax || "2"
+                                                }
+                                                readOnly={!isEditable}
+                                                onChange={(event) =>
+                                                  handleAdditionalFieldChange(
+                                                    fieldIndex,
+                                                    "tubeSelectorMax",
+                                                    event.target.value,
+                                                  )
+                                                }
+                                              />
+                                            </Column>
+                                          </Grid>
+                                        </div>
+                                      </Column>
+                                    )}
+                                  {supportsOptions && (
+                                    <Column lg={16} md={8} sm={4}>
+                                      <div className="test-additional-fields__section">
+                                        <AdditionalFieldOptionsEditor
+                                          idPrefix={`additional-field-${fieldIndex}`}
+                                          options={field?.options || []}
+                                          locked={
+                                            !isEditable || structureLockedByData
+                                          }
+                                          onAddOption={() =>
+                                            handleAddFieldOption(fieldIndex)
+                                          }
+                                          onOptionLabelChange={(
+                                            optionIndex,
+                                            nextLabel,
+                                          ) =>
+                                            handleFieldOptionChange(
+                                              fieldIndex,
+                                              optionIndex,
+                                              "optionLabel",
+                                              nextLabel,
+                                            )
+                                          }
+                                          onRemoveOption={(optionIndex) =>
+                                            handleRemoveFieldOption(
+                                              fieldIndex,
+                                              optionIndex,
+                                            )
+                                          }
+                                        />
+                                      </div>
+                                    </Column>
+                                  )}
+                                </Grid>
+                              </Section>
+                            )}
                           </div>
                         );
                       },
@@ -3793,7 +4117,8 @@ export const StepThreeTestResultTypeAndLoinc = ({
                         checked={values?.antimicrobialResistance === "Y"}
                       />
                     )}
-                    {(!hideUncheckedStatusToggles || values?.active === "Y") && (
+                    {(!hideUncheckedStatusToggles ||
+                      values?.active === "Y") && (
                       <Checkbox
                         labelText={
                           <FormattedMessage id="dictionary.category.isActive" />
@@ -5965,6 +6290,7 @@ export const StepSixSelectRangeAgeRangeAndSignificantDigits = ({
 
 export const StepSevenFinalDisplayAndSaveConfirmation = ({
   formData,
+  resultTypeCodes = [],
   handlePreviousStep,
   handleNextStep,
   panelListTag,
@@ -6003,188 +6329,16 @@ export const StepSevenFinalDisplayAndSaveConfirmation = ({
             }) => {
               return (
                 <Form>
-                  <Grid fullWidth={true}>
-                    <Column lg={6} md={8} sm={4}>
-                      <Section>
-                        <Section>
-                          <Section>
-                            <Heading>
-                              <FormattedMessage id="sample.entry.project.testName" />
-                            </Heading>
-                          </Section>
-                        </Section>
-                      </Section>
-                      <br />
-                      <FormattedMessage id="english.label" />
-                      {" : "}
-                      {values?.testNameEnglish}
-                      <br />
-                      <FormattedMessage id="french.label" />
-                      {" : "}
-                      {values?.testNameFrench}
-                      <br />
-                      <br />
-                      <Section>
-                        <Section>
-                          <Section>
-                            <Heading>
-                              <FormattedMessage id="reporting.label.testName" />
-                            </Heading>
-                          </Section>
-                        </Section>
-                      </Section>
-                      <br />
-                      <FormattedMessage id="english.label" />
-                      {" : "}
-                      {values?.testReportNameEnglish}
-                      <br />
-                      <FormattedMessage id="french.label" />
-                      {" : "}
-                      {values?.testReportNameFrench}
-                      <br />
-                      <br />
-                      <FormattedMessage id="test.section.label" />
-                      {" : "}
-                      {selectedLabUnitList?.value}
-                      <br />
-                      <br />
-                      <FormattedMessage id="field.panel" />
-                      {" : "}
-                      {panelListTag.length > 0 ? (
-                        <UnorderedList>
-                          {panelListTag.map((tag) => (
-                            <div key={tag.id} style={{ marginRight: "0.5rem" }}>
-                              <ListItem>{tag.value}</ListItem>
-                            </div>
-                          ))}
-                        </UnorderedList>
-                      ) : (
-                        <></>
-                      )}
-                      <br />
-                      <br />
-                      <FormattedMessage id="field.uom" />
-                      {" : "}
-                      {selectedUomList?.value}
-                      <br />
-                      <br />
-                      <FormattedMessage id="label.loinc" />
-                      {" : "}
-                      {values?.loinc}
-                      <br />
-                      <br />
-                      <FormattedMessage id="field.resultType" />
-                      {" : "}
-                      {selectedResultTypeList.value}
-                      <br />
-                      <br />
-                      <FormattedMessage id="test.antimicrobialResistance" />
-                      {" : "}
-                      {values?.antimicrobialResistance}
-                      <br />
-                      <br />
-                      <FormattedMessage id="dictionary.category.isActive" />
-                      {" : "}
-                      {values?.active}
-                      <br />
-                      <br />
-                      <FormattedMessage id="label.orderable" />
-                      {" : "}
-                      {values?.orderable}
-                      <br />
-                      <br />
-                      <FormattedMessage id="test.directSampleUsage" />
-                      {" : "}
-                      {values?.directSampleUsageEnabled}
-                      <br />
-                      <br />
-                      <FormattedMessage id="test.skipValidationWhenParentComplete" />
-                      {" : "}
-                      {values?.skipValidationWhenParentComplete}
-                      <br />
-                      <br />
-                      <FormattedMessage id="test.notifyResults" />
-                      {" : "}
-                      {values?.notifyResults}
-                      <br />
-                      <br />
-                      <FormattedMessage id="test.inLabOnly" />
-                      {" : "}
-                      {values?.inLabOnly}
-                      <br />
-                    </Column>
-                    <Column lg={10} md={8} sm={4}>
-                      <FormattedMessage id="sample.type.and.test.sort.order" />
-                      <br />
-                      {selectedSampleTypeList.length > 0 ? (
-                        <UnorderedList nested={true}>
-                          {selectedSampleTypeList.map((type, index) => (
-                            <div key={`selectedSampleType_${index}`}>
-                              <ListItem>{type.value}</ListItem>
-                              <br />
-                              {selectedSampleTypeResp
-                                .filter((resp) => resp.sampleTypeId === type.id)
-                                .map((item, respIndex) => (
-                                  <div
-                                    key={`selectedSampleTypeResp_${respIndex}`}
-                                    className="gridBoundary"
-                                  >
-                                    <Section>
-                                      <UnorderedList nested>
-                                        {item.tests.map((test) => (
-                                          <ListItem key={`test_${test.id}`}>
-                                            {test.name}
-                                          </ListItem>
-                                        ))}
-                                      </UnorderedList>
-                                    </Section>
-                                  </div>
-                                ))}
-                            </div>
-                          ))}
-                        </UnorderedList>
-                      ) : (
-                        <></>
-                      )}
-                      {/* {values.sampleTypes.length > 0 ? (
-                        <UnorderedList nested={true}>
-                          {values.sampleTypes.map((type, index) => (
-                            <div key={`sampleType_${index}`}>
-                              <ListItem>
-                                {selectedSampleTypeList.find(
-                                  (item) => item.id === type.id,
-                                )?.value ?? `Sample Type ${type.id}`}
-                              </ListItem>
-                              <br />
-                              {type.tests?.length > 0 && (
-                                <div className="gridBoundary">
-                                  <Section>
-                                    <UnorderedList nested>
-                                      {type.tests.map((test) => (
-                                        <ListItem key={`test_${test.id}`}>
-                                          {test.name}
-                                        </ListItem>
-                                      ))}
-                                    </UnorderedList>
-                                  </Section>
-                                </div>
-                              )}
-                            </div>
-                          ))}
-                        </UnorderedList>
-                      ) : (
-                        <></>
-                      )} */}
-                      <br />
-                      <FormattedMessage id="field.referenceValue" />
-                      {" : "}
-                      {values?.dictionaryReference}
-                      <br />
-                      <FormattedMessage id="label.default.result" />
-                      {" : "}
-                      {values?.defaultTestResult}
-                    </Column>
-                  </Grid>
+                  <TestReviewSummary
+                    values={values}
+                    panelListTag={panelListTag}
+                    selectedLabUnitList={selectedLabUnitList}
+                    selectedUomList={selectedUomList}
+                    selectedResultTypeList={selectedResultTypeList}
+                    resultTypeCodes={resultTypeCodes}
+                    selectedSampleTypeList={selectedSampleTypeList}
+                    selectedSampleTypeResp={selectedSampleTypeResp}
+                  />
                   <br />
                   <Grid fullWidth={true}>
                     <Column lg={16} md={8} sm={4}>

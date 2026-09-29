@@ -1,0 +1,75 @@
+@use "@carbon/styles/scss/spacing";
+@use "@carbon/styles/scss/theme";
+@use "@carbon/styles/scss/type";
+
+.test-summary-header {
+  margin-block-end: spacing.$spacing-06;
+  padding-block-end: spacing.$spacing-05;
+  border-block-end: 1px solid theme.$border-subtle-01;
+
+  h2,
+  h3,
+  h4,
+  h5,
+  h6 {
+    @include type.type-style("heading-03");
+  }
+
+  &__details {
+    display: flex;
+    flex-wrap: wrap;
+    gap: spacing.$spacing-05 spacing.$spacing-07;
+    margin-block-start: spacing.$spacing-04;
+    dt {
+      @include type.type-style("label-01");
+      color: theme.$text-secondary;
+    }
+    dd {
+      margin: spacing.$spacing-02 0 0;
+      @include type.type-style("body-compact-01");
+    }
+  }
+}
+
+.test-summary {
+  row-gap: spacing.$spacing-06;
+  &__group {
+    border-block-start: 1px solid theme.$border-subtle-01;
+    padding-block-start: spacing.$spacing-05;
+    h2,
+    h3,
+    h4,
+    h5,
+    h6 {
+      @include type.type-style("heading-compact-02");
+      margin-block-end: spacing.$spacing-05;
+    }
+  }
+  &__row {
+    margin-block-end: spacing.$spacing-05;
+    dt {
+      @include type.type-style("label-01");
+      color: theme.$text-secondary;
+      margin-block-end: spacing.$spacing-02;
+    }
+    dd {
+      @include type.type-style("body-compact-01");
+      margin: 0;
+      overflow-wrap: anywhere;
+    }
+  }
+  &__sample {
+    margin-block-end: spacing.$spacing-05;
+    h2,
+    h3,
+    h4,
+    h5,
+    h6 {
+      @include type.type-style("heading-compact-01");
+      margin-block-end: spacing.$spacing-03;
+    }
+    ol {
+      margin-inline-start: spacing.$spacing-05;
+    }
+  }
+}
