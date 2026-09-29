@@ -21,9 +21,7 @@ import {
   ClickableTile,
   UnorderedList,
 } from "@carbon/react";
-import {
-  getFromOpenElisServer,
-} from "../../../utils/Utils.js";
+import { getFromOpenElisServer } from "../../../utils/Utils.js";
 import { NotificationContext } from "../../../layout/Layout.js";
 import {
   AlertDialog,
@@ -36,6 +34,7 @@ import { useHistory } from "react-router-dom";
 import {
   getSiteInformationDisplayDescription,
   getSiteInformationDisplayName,
+  getSiteInformationDisplayValue,
   isSiteInformationConfig,
 } from "./siteInformationDisplay.js";
 
@@ -102,7 +101,9 @@ function ConfigMenuDisplay(props) {
       }
 
       if (!response) {
-        handleMenuItems(firstResponse ? { ...firstResponse, menuList: [] } : []);
+        handleMenuItems(
+          firstResponse ? { ...firstResponse, menuList: [] } : [],
+        );
         return;
       }
 
@@ -146,7 +147,11 @@ function ConfigMenuDisplay(props) {
         ? getSiteInformationDisplayName(intl, item.name)
         : item.name,
       description: isSiteInformationConfig(props.menuType)
-        ? getSiteInformationDisplayDescription(intl, item.description)
+        ? getSiteInformationDisplayDescription(
+            intl,
+            item.description,
+            item.name,
+          )
         : item.description,
       value: value,
       valueType: item.valueType,
@@ -202,9 +207,20 @@ function ConfigMenuDisplay(props) {
                 ? getSiteInformationDisplayName(intl, item.name)
                 : item.name,
               description: isSiteInformationConfig(props.menuType)
-                ? getSiteInformationDisplayDescription(intl, item.description)
+                ? getSiteInformationDisplayDescription(
+                    intl,
+                    item.description,
+                    item.name,
+                  )
                 : item.description,
-              value: value,
+              value: isSiteInformationConfig(props.menuType)
+                ? getSiteInformationDisplayValue(
+                    intl,
+                    item.name,
+                    value,
+                    item.valueType,
+                  )
+                : value,
               valueType: item.valueType,
             };
           })
@@ -295,7 +311,9 @@ function ConfigMenuDisplay(props) {
                           id="ValidationTemplateOverridesFromValidationConfig"
                           onClick={(event) => {
                             event.preventDefault();
-                            history.push("/MasterListsPage/ValidationTemplateOverrides");
+                            history.push(
+                              "/MasterListsPage/ValidationTemplateOverrides",
+                            );
                           }}
                         >
                           <FormattedMessage

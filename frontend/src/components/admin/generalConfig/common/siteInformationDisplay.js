@@ -1,4 +1,10 @@
+import configurationMessages from "./configurationDisplayMessages.json";
+
 const SITE_INFORMATION_NAME_MESSAGES = {
+  simplifiedTestNames: {
+    id: "siteInformation.display.name.simplifiedTestNames",
+    defaultMessage: "Simplified test names",
+  },
   "24 hour clock": {
     id: "siteInformation.display.name.24HourClock",
     defaultMessage: "24 hour clock",
@@ -122,6 +128,11 @@ const SITE_INFORMATION_NAME_MESSAGES = {
 };
 
 const SITE_INFORMATION_DESCRIPTION_MESSAGES = {
+  "Use a single name for tests with matching English and French names": {
+    id: "siteInformation.display.description.simplifiedTestNames",
+    defaultMessage:
+      "Use a single name for tests with matching English and French names",
+  },
   "12 vs. 24 hour clock": {
     id: "siteInformation.display.description.12Vs24HourClock",
     defaultMessage: "12 vs. 24 hour clock",
@@ -209,8 +220,7 @@ const SITE_INFORMATION_DESCRIPTION_MESSAGES = {
   },
   "The service URL from which to import patient demographics": {
     id: "siteInformation.display.description.patientSearchURL",
-    defaultMessage:
-      "The service URL from which to import patient demographics",
+    defaultMessage: "The service URL from which to import patient demographics",
   },
   "The acceptable format for a phone number": {
     id: "siteInformation.display.description.phoneFormat",
@@ -235,9 +245,19 @@ const SITE_INFORMATION_DESCRIPTION_MESSAGES = {
 };
 
 export const isSiteInformationConfig = (menuType) =>
-  menuType === "SiteInformation" || menuType === "SiteInformationMenu";
+  [
+    "SiteInformation",
+    "ResultConfiguration",
+    "PatientConfiguration",
+    "SampleEntryConfig",
+    "SampleEntryConfiguration",
+    "ValidationConfiguration",
+  ].includes(String(menuType || "").replace(/Menu$/, ""));
 
 export const getSiteInformationDisplayName = (intl, rawName) => {
+  const nameId = configurationMessages[rawName]?.nameId;
+  if (nameId)
+    return intl.formatMessage({ id: nameId, defaultMessage: rawName });
   const config = SITE_INFORMATION_NAME_MESSAGES[rawName];
   if (!config) {
     return rawName;
@@ -249,7 +269,17 @@ export const getSiteInformationDisplayName = (intl, rawName) => {
   });
 };
 
-export const getSiteInformationDisplayDescription = (intl, rawDescription) => {
+export const getSiteInformationDisplayDescription = (
+  intl,
+  rawDescription,
+  rawName,
+) => {
+  const descriptionId = configurationMessages[rawName]?.descriptionId;
+  if (descriptionId && rawDescription)
+    return intl.formatMessage({
+      id: descriptionId,
+      defaultMessage: rawDescription,
+    });
   const config = SITE_INFORMATION_DESCRIPTION_MESSAGES[rawDescription];
   if (!config) {
     return rawDescription;
@@ -259,4 +289,40 @@ export const getSiteInformationDisplayDescription = (intl, rawDescription) => {
     id: config.id,
     defaultMessage: config.defaultMessage,
   });
+};
+
+// Only presentation values: editable text and the submitted configuration remain raw.
+export const getSiteInformationDisplayValue = (
+  intl,
+  rawName,
+  value,
+  valueType,
+) => {
+  if (
+    valueType === "boolean" &&
+    [true, false, "true", "false"].includes(value)
+  ) {
+    return intl.formatMessage({
+      id: String(value) === "true" ? "label.yes" : "label.no",
+    });
+  }
+  const allowedValues = {
+    orderProviderSelectionPolicy: ["OPEN", "SELF_ONLY"],
+    enabledOrderPriorities: ["ROUTINE", "ASAP", "STAT", "TIMED", "FUTURE_STAT"],
+    orderProviderOverrideRoles: ["Global Administrator", "Admin"],
+    customCriticalMessage: ["Set new critical result message"],
+  }[rawName];
+  if (!allowedValues || typeof value !== "string") return value;
+  return value
+    .split(",")
+    .map((part) => {
+      const code = part.trim();
+      return allowedValues.includes(code)
+        ? intl.formatMessage({
+            id: `config.display.value.${code.replace(/[^A-Za-z0-9]+/g, "_")}`,
+            defaultMessage: code,
+          })
+        : part;
+    })
+    .join(", ");
 };
