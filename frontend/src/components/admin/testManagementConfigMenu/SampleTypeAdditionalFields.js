@@ -1,3 +1,6 @@
+import UserFieldPermissionConfig, {
+  userTaskFromMetadata,
+} from "./customComponents/UserFieldPermissionConfig.js";
 import React, { useContext, useEffect, useRef, useState } from "react";
 import {
   Button,
@@ -93,7 +96,7 @@ const SampleTypeAdditionalFields = () => {
 
   const [loading, setLoading] = useState(true);
   const [sampleTypes, setSampleTypes] = useState([]);
-  const [professionalProfileOptions, setProfessionalProfileOptions] = useState([]);
+
   const [selectedSampleTypeId, setSelectedSampleTypeId] = useState("");
   const [fields, setFields] = useState([]);
   const [formState, setFormState] = useState(initialFormState);
@@ -198,6 +201,7 @@ const SampleTypeAdditionalFields = () => {
             .filter((option) => option?.active !== false)
             .map((option, index) => normalizeOptionForUi(option, index))
         : [],
+      userTask: userTaskFromMetadata(metadata, "sample-management"),
       userProfileCodes: resolveUserProfileCodes(field.fieldType, metadata),
       userDisplayMode: resolveUserDisplayMode(metadata),
     });
@@ -307,7 +311,8 @@ const SampleTypeAdditionalFields = () => {
       metadataJson:
         formState.fieldType === "USER"
           ? JSON.stringify({
-              userProfileCodes: formState.userProfileCodes || [],
+              ...(formState.userTask ||
+                userTaskFromMetadata(null, "sample-management")),
               userDisplayMode:
                 formState.userDisplayMode || USER_DISPLAY_MODE_BOTH,
             })
@@ -468,19 +473,6 @@ const SampleTypeAdditionalFields = () => {
         setLoading(false);
       },
     );
-    getFromOpenElisServer("/rest/professional-profiles/catalog", (response) => {
-      if (!componentMounted.current) {
-        return;
-      }
-      setProfessionalProfileOptions(
-        Array.isArray(response?.profiles)
-          ? response.profiles.map((profile) => ({
-              id: profile.code,
-              label: profile.label || profile.name || profile.code,
-            }))
-          : [],
-      );
-    });
 
     return () => {
       componentMounted.current = false;
@@ -619,42 +611,17 @@ const SampleTypeAdditionalFields = () => {
                     {formState.fieldType === "USER" ? (
                       <>
                         <Column lg={8} md={4} sm={4}>
-                          <div style={{ marginTop: "1rem" }}>
-                            <label
-                              htmlFor="sample-additional-user-profiles"
-                              style={{
-                                display: "block",
-                                marginBottom: "0.5rem",
-                              }}
-                            >
-                              {intl.formatMessage({
-                                id: "sample.additional.fields.userProfiles",
-                                defaultMessage: "Allowed professional profiles",
-                              })}
-                            </label>
-                            <MultiSelect
-                              id="sample-additional-user-profiles"
-                              items={professionalProfileOptions}
-                              itemToString={(item) => item?.label || ""}
-                              selectedItems={professionalProfileOptions.filter(
-                                (item) =>
-                                  (formState.userProfileCodes || []).includes(
-                                    item.id,
-                                  ),
-                              )}
-                              onChange={({ selectedItems }) =>
-                                setFormState((previous) => ({
-                                  ...previous,
-                                  userProfileCodes: selectedItems.map(
-                                    (item) => item.id,
-                                  ),
-                                }))
-                              }
-                              label=""
-                              titleText=""
-                              selectionFeedback="top-after-reopen"
-                            />
-                          </div>
+                          <UserFieldPermissionConfig
+                            id={`user-task-${"sample-management"}`}
+                            value={formState.userTask}
+                            module="sample-management"
+                            onChange={(userTask) =>
+                              setFormState((previous) => ({
+                                ...previous,
+                                userTask,
+                              }))
+                            }
+                          />
                         </Column>
                         <Column lg={4} md={4} sm={4}>
                           <Select

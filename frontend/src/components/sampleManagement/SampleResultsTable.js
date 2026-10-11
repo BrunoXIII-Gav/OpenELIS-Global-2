@@ -1,3 +1,4 @@
+import HistoricalUserSelectItem from "../common/HistoricalUserSelectItem";
 import React, {
   useMemo,
   useState,
@@ -85,6 +86,16 @@ const SAMPLE_MANAGEMENT_EDITABLE_FIXED_FIELD_KEYS = [
   "collectionTime",
 ];
 
+// General field templates cannot determine eligibility for a particular sample.
+const clearUserOptions = (field) =>
+  ["USER", "SYSTEM_USER_BIOLOGIST_SELECT"].includes(
+    String(field.fieldType || "")
+      .trim()
+      .toUpperCase(),
+  )
+    ? { ...field, options: [] }
+    : field;
+
 /**
  * SampleResultsTable - Display search results for sample items in a data table.
  *
@@ -115,30 +126,6 @@ function SampleResultsTable({
 }) {
   const intl = useIntl();
 
-  const normalizeProfileCode = (rawValue) =>
-    String(rawValue || "")
-      .trim()
-      .toUpperCase();
-
-  const parseConfiguredProfileCodes = (config) => {
-    const configuredCodes = Array.isArray(
-      config?.sampleCollectorProfessionalProfileCodes,
-    )
-      ? config.sampleCollectorProfessionalProfileCodes
-      : String(config?.sampleCollectorProfessionalProfileCode || "")
-          .split(",")
-          .map((entry) => entry.trim())
-          .filter(Boolean);
-
-    return Array.from(
-      new Set(
-        configuredCodes
-          .map((code) => normalizeProfileCode(code))
-          .filter(Boolean),
-      ),
-    );
-  };
-
   // Track which tests are being cancelled (loading state)
   const [cancellingTests, setCancellingTests] = useState({});
   const [currentTestDetailsByKey, setCurrentTestDetailsByKey] = useState({});
@@ -147,7 +134,7 @@ function SampleResultsTable({
     {},
   );
   const [sampleFixedConfigs, setSampleFixedConfigs] = useState([]);
-  const [collectorUsers, setCollectorUsers] = useState([]);
+  const [collectorUsersBySample, setCollectorUsersBySample] = useState({});
   const [additionalFieldValuesBySampleId, setAdditionalFieldValuesBySampleId] =
     useState({});
   const [additionalFieldsBySampleId, setAdditionalFieldsBySampleId] = useState(
@@ -158,25 +145,41 @@ function SampleResultsTable({
   const componentMounted = useRef(false);
   const lastSampleSignatureRef = useRef("");
 
+  useEffect(() => {
+    let active = true;
+    (sampleItems || []).forEach((item) => {
+      getFromOpenElisServer(
+        `/rest/sample-management/collectors?sampleItemId=${encodeURIComponent(item.id)}`,
+        (users) => {
+          if (active)
+            setCollectorUsersBySample((previous) => ({
+              ...previous,
+              [item.id]: Array.isArray(users) ? users : [],
+            }));
+        },
+      );
+    });
+    return () => {
+      active = false;
+    };
+  }, [sampleItems]);
+
   const getCollectorOptionsWithCurrentValue = useCallback(
-    (currentValue) => {
-      const options = [...collectorUsers];
-      const normalizedCurrentValue = String(currentValue || "").trim();
+    (sampleId, currentId, currentValue) => {
+      const options = [...(collectorUsersBySample[sampleId] || [])];
       if (
-        normalizedCurrentValue &&
-        !options.some(
-          (option) =>
-            String(option.value || "").trim() === normalizedCurrentValue,
-        )
+        currentValue &&
+        !options.some((option) => String(option.id) === String(currentId))
       ) {
         options.push({
-          id: `legacy-${normalizedCurrentValue}`,
-          value: normalizedCurrentValue,
+          id: currentId || "legacy",
+          value: currentValue,
+          historical: true,
         });
       }
       return options;
     },
-    [collectorUsers],
+    [collectorUsersBySample],
   );
 
   const toDateInputValue = (value) => {
@@ -449,69 +452,6 @@ function SampleResultsTable({
       if (!componentMounted.current) return;
       setSampleFixedConfigs(Array.isArray(res) ? res : []);
     });
-    const fetchCollectorUsers = (profileCodes) => {
-      const normalizedCodes = Array.from(
-        new Set((profileCodes || []).map(normalizeProfileCode).filter(Boolean)),
-      );
-      if (normalizedCodes.length === 0) {
-        if (componentMounted.current) {
-          setCollectorUsers([]);
-        }
-        return;
-      }
-
-      const mergedOptions = new Map();
-      let pendingRequests = normalizedCodes.length;
-
-      normalizedCodes.forEach((profileCode) => {
-        getFromOpenElisServer(
-          `/rest/sample-management/collectors?professionalProfileCode=${encodeURIComponent(
-            profileCode,
-          )}`,
-          (usersResponse) => {
-            if (!componentMounted.current) return;
-
-            const options = Array.isArray(usersResponse)
-              ? usersResponse
-                  .map((item) => ({
-                    id: item.id,
-                    value: item.value,
-                  }))
-                  .filter((item) => String(item.value || "").trim())
-              : [];
-
-            options.forEach((option) => {
-              const dedupeKey =
-                String(option.id || "").trim() ||
-                String(option.value || "").trim();
-              if (dedupeKey && !mergedOptions.has(dedupeKey)) {
-                mergedOptions.set(dedupeKey, option);
-              }
-            });
-
-            pendingRequests -= 1;
-            if (pendingRequests === 0) {
-              setCollectorUsers(
-                Array.from(mergedOptions.values()).sort((left, right) =>
-                  String(left.value || "").localeCompare(
-                    String(right.value || ""),
-                    undefined,
-                    {
-                      sensitivity: "base",
-                    },
-                  ),
-                ),
-              );
-            }
-          },
-        );
-      });
-    };
-
-    getFromOpenElisServer("/rest/open-configuration-properties", (config) => {
-      if (!componentMounted.current) return;
-      fetchCollectorUsers(parseConfiguredProfileCodes(config));
-    });
 
     return () => {
       componentMounted.current = false;
@@ -641,16 +581,16 @@ function SampleResultsTable({
             return;
           }
 
-          const sampleIdsForType = sampleItems
-            .filter(
-              (item) => String(item.sampleTypeId) === String(sampleTypeId),
-            )
-            .map((item) => item.id);
+          const samplesForType = sampleItems.filter(
+            (item) => String(item.sampleTypeId) === String(sampleTypeId),
+          );
 
           setAdditionalFieldsBySampleId((prev) => {
             const next = { ...prev };
-            sampleIdsForType.forEach((sampleId) => {
-              next[sampleId] = fields;
+            samplesForType.forEach((item) => {
+              next[item.id] = Array.isArray(item.additionalFields)
+                ? item.additionalFields
+                : fields.map(clearUserOptions);
             });
             return next;
           });
@@ -860,7 +800,7 @@ function SampleResultsTable({
         : [];
       let additionalFieldValues = item.additionalFieldValues || {};
 
-      if (additionalFields.length === 0) {
+      if (!Array.isArray(item.additionalFields)) {
         (item.orderedTests || []).forEach((test) => {
           if (
             additionalFields.length === 0 &&
@@ -881,6 +821,7 @@ function SampleResultsTable({
             };
           }
         });
+        additionalFields = additionalFields.map(clearUserOptions);
       }
 
       return {
@@ -896,6 +837,7 @@ function SampleResultsTable({
           ? String(item.unitOfMeasureId)
           : "",
         collectorRaw: item.collector || "",
+        collectorUserIdRaw: item.collectorUserId || "",
         collectionDateRaw: toDateInputValue(item.collectionDate),
         collectionTimeRaw: toTimeInputValue(
           item.collectionTime || item.collectionDate,
@@ -1085,6 +1027,10 @@ function SampleResultsTable({
         rowLevelDetails.unitOfMeasureId !== undefined
           ? rowLevelDetails.unitOfMeasureId
           : originalRow?.unitOfMeasureIdRaw || "",
+      collectorUserId:
+        rowLevelDetails.collectorUserId !== undefined
+          ? rowLevelDetails.collectorUserId
+          : originalRow?.collectorUserIdRaw || "",
       collector:
         rowLevelDetails.collector !== undefined
           ? rowLevelDetails.collector
@@ -1354,11 +1300,14 @@ function SampleResultsTable({
     const shouldShowCurrentTests = Boolean(
       currentTestsVisibleBySampleId[row.id],
     );
-    const additionalFields = Array.isArray(additionalFieldsBySampleId[row.id])
-      ? additionalFieldsBySampleId[row.id]
-      : Array.isArray(originalRow?.additionalFields)
-        ? originalRow.additionalFields
-        : [];
+    const contextualAdditionalFields = sampleItems.find(
+      (item) => item.id === row.id,
+    )?.additionalFields;
+    const additionalFields = Array.isArray(contextualAdditionalFields)
+      ? contextualAdditionalFields
+      : Array.isArray(additionalFieldsBySampleId[row.id])
+        ? additionalFieldsBySampleId[row.id]
+        : originalRow?.additionalFields || [];
     const effectiveAdditionalFieldValues = {
       ...(originalRow?.additionalFieldValues || {}),
       ...(additionalFieldValuesBySampleId[row.id] || {}),
@@ -1504,6 +1453,10 @@ function SampleResultsTable({
               sampleDetails.unitOfMeasureId !== undefined
                 ? sampleDetails.unitOfMeasureId
                 : originalRow.unitOfMeasureIdRaw || "";
+            const sampleCollectorId =
+              sampleDetails.collectorUserId !== undefined
+                ? sampleDetails.collectorUserId
+                : originalRow.collectorUserIdRaw || "";
             const sampleCollector =
               sampleDetails.collector !== undefined
                 ? sampleDetails.collector
@@ -1620,15 +1573,30 @@ function SampleResultsTable({
                                 key={`${row.id}-sample-${field.fieldKey}`}
                                 id={`${row.id}-sample-${field.fieldKey}`}
                                 labelText={field.label}
-                                value={sampleCollector || ""}
+                                value={
+                                  sampleCollectorId ||
+                                  (sampleCollector ? "legacy" : "")
+                                }
                                 disabled={disabled}
-                                onChange={(e) =>
+                                onChange={(e) => {
+                                  const id =
+                                    e.target.value === "legacy"
+                                      ? ""
+                                      : e.target.value;
+                                  const option = (
+                                    collectorUsersBySample[row.id] || []
+                                  ).find((item) => String(item.id) === id);
+                                  handleCurrentTestFieldChange(
+                                    primarySampleRowId,
+                                    "collectorUserId",
+                                    id,
+                                  );
                                   handleCurrentTestFieldChange(
                                     primarySampleRowId,
                                     "collector",
-                                    e.target.value,
-                                  )
-                                }
+                                    option?.value || "",
+                                  );
+                                }}
                               >
                                 <SelectItem
                                   value=""
@@ -1637,12 +1605,17 @@ function SampleResultsTable({
                                   })}
                                 />
                                 {getCollectorOptionsWithCurrentValue(
+                                  row.id,
+                                  sampleCollectorId,
                                   sampleCollector,
                                 ).map((collectorOption) => (
                                   <SelectItem
                                     key={collectorOption.id}
-                                    value={collectorOption.value}
+                                    value={collectorOption.id}
                                     text={collectorOption.value}
+                                    disabled={Boolean(
+                                      collectorOption.historical,
+                                    )}
                                   />
                                 ))}
                               </Select>
@@ -1746,6 +1719,11 @@ function SampleResultsTable({
                                   id: "label.select",
                                 })}
                                 value=""
+                              />
+                              <HistoricalUserSelectItem
+                                fieldType={fieldType}
+                                value={fieldValue}
+                                options={options}
                               />
                               {options.map((option, optionIdx) => (
                                 <SelectItem
@@ -1976,6 +1954,11 @@ function SampleResultsTable({
                         <SelectItem
                           text={intl.formatMessage({ id: "label.select" })}
                           value=""
+                        />
+                        <HistoricalUserSelectItem
+                          fieldType={fieldType}
+                          value={fieldValue}
+                          options={options}
                         />
                         {options.map((option, optionIdx) => (
                           <SelectItem

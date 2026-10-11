@@ -1,3 +1,6 @@
+import UserFieldPermissionConfig, {
+  userTaskFromMetadata,
+} from "./customComponents/UserFieldPermissionConfig.js";
 import React, { useContext, useEffect, useMemo, useState } from "react";
 import {
   Button,
@@ -111,7 +114,7 @@ const PatientAdditionalFieldsManagement = () => {
 
   const [fields, setFields] = useState([]);
   const [fixedConfigs, setFixedConfigs] = useState([]);
-  const [professionalProfileOptions, setProfessionalProfileOptions] = useState([]);
+
   const [newField, setNewField] = useState(defaultNewField);
   const [editingFieldId, setEditingFieldId] = useState(null);
   const [savingField, setSavingField] = useState(false);
@@ -129,24 +132,17 @@ const PatientAdditionalFieldsManagement = () => {
   };
 
   const loadFixedConfigs = () => {
-    getFromOpenElisServer("/rest/patient-additional-fields/fixed", (response) => {
-      setFixedConfigs(normalizePatientFixedFieldConfigs(response));
-    });
+    getFromOpenElisServer(
+      "/rest/patient-additional-fields/fixed",
+      (response) => {
+        setFixedConfigs(normalizePatientFixedFieldConfigs(response));
+      },
+    );
   };
 
   useEffect(() => {
     loadFields();
     loadFixedConfigs();
-    getFromOpenElisServer("/rest/professional-profiles/catalog", (response) => {
-      setProfessionalProfileOptions(
-        Array.isArray(response?.profiles)
-          ? response.profiles.map((profile) => ({
-              id: profile.code,
-              label: profile.label || profile.name || profile.code,
-            }))
-          : [],
-      );
-    });
   }, []);
 
   const parseFieldMetadata = (metadataJson) => {
@@ -193,6 +189,10 @@ const PatientAdditionalFieldsManagement = () => {
             .filter((option) => option?.active !== false)
             .map((option, index) => normalizeOptionForUi(option, index))
         : [],
+      userTask: userTaskFromMetadata(
+        parseFieldMetadata(field?.metadataJson),
+        "patients",
+      ),
       userProfileCodes: resolveUserProfileCodes(
         field?.fieldType,
         parseFieldMetadata(field?.metadataJson),
@@ -312,7 +312,7 @@ const PatientAdditionalFieldsManagement = () => {
       metadataJson:
         newField.fieldType === "USER"
           ? JSON.stringify({
-              userProfileCodes: newField.userProfileCodes || [],
+              ...(newField.userTask || userTaskFromMetadata(null, "patients")),
               userDisplayMode:
                 newField.userDisplayMode || USER_DISPLAY_MODE_BOTH,
             })
@@ -559,7 +559,11 @@ const PatientAdditionalFieldsManagement = () => {
                             labelText=""
                             checked={config.visible !== false}
                             onChange={(_event, { checked }) =>
-                              updateFixedConfig(config.fieldKey, "visible", checked)
+                              updateFixedConfig(
+                                config.fieldKey,
+                                "visible",
+                                checked,
+                              )
                             }
                           />
                         </TableCell>
@@ -672,8 +676,7 @@ const PatientAdditionalFieldsManagement = () => {
                       fieldType: event.target.value,
                       userDisplayMode:
                         event.target.value === "USER"
-                          ? previous.userDisplayMode ||
-                            USER_DISPLAY_MODE_BOTH
+                          ? previous.userDisplayMode || USER_DISPLAY_MODE_BOTH
                           : USER_DISPLAY_MODE_BOTH,
                     }))
                   }
@@ -710,37 +713,14 @@ const PatientAdditionalFieldsManagement = () => {
               {newField.fieldType === "USER" ? (
                 <>
                   <Column lg={8} md={4} sm={4}>
-                    <div style={{ marginTop: "1rem" }}>
-                      <label
-                        htmlFor="patient-additional-user-profiles"
-                        style={{ display: "block", marginBottom: "0.5rem" }}
-                      >
-                        {intl.formatMessage({
-                          id: "patient.additional.fields.userProfiles",
-                          defaultMessage: "Allowed professional profiles",
-                        })}
-                      </label>
-                      <MultiSelect
-                        id="patient-additional-user-profiles"
-                        items={professionalProfileOptions}
-                        itemToString={(item) => item?.label || ""}
-                        selectedItems={professionalProfileOptions.filter(
-                          (item) =>
-                            (newField.userProfileCodes || []).includes(item.id),
-                        )}
-                        onChange={({ selectedItems }) =>
-                          setNewField((previous) => ({
-                            ...previous,
-                            userProfileCodes: selectedItems.map(
-                              (item) => item.id,
-                            ),
-                          }))
-                        }
-                        label=""
-                        titleText=""
-                        selectionFeedback="top-after-reopen"
-                      />
-                    </div>
+                    <UserFieldPermissionConfig
+                      id={`user-task-${"patients"}`}
+                      value={newField.userTask}
+                      module="patients"
+                      onChange={(userTask) =>
+                        setNewField((previous) => ({ ...previous, userTask }))
+                      }
+                    />
                   </Column>
                   <Column lg={8} md={4} sm={4}>
                     <Select
@@ -749,9 +729,7 @@ const PatientAdditionalFieldsManagement = () => {
                         id: "user.field.display.mode.label",
                         defaultMessage: "Display user as",
                       })}
-                      value={
-                        newField.userDisplayMode || USER_DISPLAY_MODE_BOTH
-                      }
+                      value={newField.userDisplayMode || USER_DISPLAY_MODE_BOTH}
                       onChange={(event) =>
                         setNewField((previous) => ({
                           ...previous,

@@ -1,3 +1,4 @@
+import HistoricalUserSelectItem from "../common/HistoricalUserSelectItem";
 import React, { useState, useRef, useEffect, useContext } from "react";
 import { FormattedMessage, injectIntl, useIntl } from "react-intl";
 import "../Style.css";
@@ -768,6 +769,11 @@ function CreatePatientForm(props) {
               }
             >
               <SelectItem value="" text="" />
+              <HistoricalUserSelectItem
+                fieldType={fieldType}
+                value={value}
+                options={options}
+              />
               {options.map((option) => (
                 <SelectItem
                   key={`${field.fieldKey}-${option.optionKey}`}

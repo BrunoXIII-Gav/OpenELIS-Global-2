@@ -1,3 +1,4 @@
+import HistoricalUserSelectItem from "../common/HistoricalUserSelectItem";
 import React, { useContext, useEffect, useRef, useState } from "react";
 import {
   Button,
@@ -337,6 +338,11 @@ const EditSample = (props) => {
           <SelectItem
             text={intl.formatMessage({ id: "label.select" })}
             value=""
+          />
+          <HistoricalUserSelectItem
+            fieldType={fieldType}
+            value={value}
+            options={options}
           />
           {options.map((option, optionIndex) => (
             <SelectItem

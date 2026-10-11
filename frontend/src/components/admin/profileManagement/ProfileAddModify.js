@@ -25,16 +25,36 @@ import {
 } from "../../utils/Utils.js";
 
 const FIELD_TYPE_OPTIONS = [
-  { value: "TEXT", labelId: "professionalProfile.fieldTypes.text", defaultMessage: "Text" },
-  { value: "NUMBER", labelId: "professionalProfile.fieldTypes.number", defaultMessage: "Number" },
-  { value: "DATE", labelId: "professionalProfile.fieldTypes.date", defaultMessage: "Date" },
-  { value: "SELECT", labelId: "professionalProfile.fieldTypes.select", defaultMessage: "Select" },
+  {
+    value: "TEXT",
+    labelId: "professionalProfile.fieldTypes.text",
+    defaultMessage: "Text",
+  },
+  {
+    value: "NUMBER",
+    labelId: "professionalProfile.fieldTypes.number",
+    defaultMessage: "Number",
+  },
+  {
+    value: "DATE",
+    labelId: "professionalProfile.fieldTypes.date",
+    defaultMessage: "Date",
+  },
+  {
+    value: "SELECT",
+    labelId: "professionalProfile.fieldTypes.select",
+    defaultMessage: "Select",
+  },
   {
     value: "MULTISELECT",
     labelId: "professionalProfile.fieldTypes.multiselect",
     defaultMessage: "Multiple select",
   },
-  { value: "BOOLEAN", labelId: "professionalProfile.fieldTypes.boolean", defaultMessage: "Checkbox" },
+  {
+    value: "BOOLEAN",
+    labelId: "professionalProfile.fieldTypes.boolean",
+    defaultMessage: "Checkbox",
+  },
 ];
 
 const toCodeCandidate = (value = "") =>
@@ -86,7 +106,9 @@ const normalizeOptionForUi = (option = {}, index = 0) => {
 const normalizeOptionsForPayload = (options = []) =>
   options
     .map((option, index) => ({
-      optionKey: toCodeCandidate(option?.optionKey || option?.optionLabel || ""),
+      optionKey: toCodeCandidate(
+        option?.optionKey || option?.optionLabel || "",
+      ),
       optionLabel: (option?.optionLabel || "").trim(),
       active: option?.active !== false,
       sortOrder: index,
@@ -103,7 +125,9 @@ const normalizeFieldForUi = (field = {}, index = 0) => ({
   hasSavedValues: !!field.hasSavedValues,
   sortOrder: field.sortOrder ?? index,
   options: Array.isArray(field.options)
-    ? field.options.map((option, optionIndex) => normalizeOptionForUi(option, optionIndex))
+    ? field.options.map((option, optionIndex) =>
+        normalizeOptionForUi(option, optionIndex),
+      )
     : [],
   legacyBinding: field.legacyBinding || "",
   systemField: !!field.systemField,
@@ -113,11 +137,9 @@ function ProfileAddModify() {
   const history = useHistory();
   const location = useLocation();
   const intl = useIntl();
-  const { addNotification, setNotificationVisible } = useContext(NotificationContext);
+  const { addNotification, setNotificationVisible } =
+    useContext(NotificationContext);
   const [loading, setLoading] = useState(true);
-  const [orderRequesterProfileCodes, setOrderRequesterProfileCodes] = useState(
-    [],
-  );
   const [newSpecialtyOptionKey, setNewSpecialtyOptionKey] = useState("");
   const [newSpecialtyOptionLabel, setNewSpecialtyOptionLabel] = useState("");
   const [formData, setFormData] = useState({
@@ -133,9 +155,6 @@ function ProfileAddModify() {
   }, [location.search]);
 
   const isNew = profileCode === "new";
-  const isOrderRequesterProfile = orderRequesterProfileCodes.includes(
-    formData.code || profileCode,
-  );
 
   const specialtyOptions = useMemo(
     () => normalizeOptionsForPayload(formData.specialtyOptions),
@@ -151,20 +170,14 @@ function ProfileAddModify() {
         link: "/MasterListsPage/profileManagement",
       },
       {
-        label: isNew ? "professionalProfile.add.title" : "professionalProfile.edit.title",
+        label: isNew
+          ? "professionalProfile.add.title"
+          : "professionalProfile.edit.title",
         link: `/MasterListsPage/profileEdit?code=${profileCode}`,
       },
     ],
     [isNew, profileCode],
   );
-
-  useEffect(() => {
-    getFromOpenElisServer("/rest/professional-profiles/catalog", (response) => {
-      setOrderRequesterProfileCodes(
-        response?.settings?.orderProviderProfessionalProfileCodes || [],
-      );
-    });
-  }, []);
 
   useEffect(() => {
     if (isNew) {
@@ -173,19 +186,26 @@ function ProfileAddModify() {
       return;
     }
 
-    getFromOpenElisServer(`/rest/professional-profiles/${encodeURIComponent(profileCode)}`, (response) => {
-      setFormData({
-        code: response?.code || profileCode,
-        name: response?.name || "",
-        specialtyOptions: Array.isArray(response?.specialtyOptions)
-          ? response.specialtyOptions.map((option, index) => normalizeOptionForUi(option, index))
-          : [],
-        fields: Array.isArray(response?.fields)
-          ? response.fields.map((field, index) => normalizeFieldForUi(field, index))
-          : [],
-      });
-      setLoading(false);
-    });
+    getFromOpenElisServer(
+      `/rest/professional-profiles/${encodeURIComponent(profileCode)}`,
+      (response) => {
+        setFormData({
+          code: response?.code || profileCode,
+          name: response?.name || "",
+          specialtyOptions: Array.isArray(response?.specialtyOptions)
+            ? response.specialtyOptions.map((option, index) =>
+                normalizeOptionForUi(option, index),
+              )
+            : [],
+          fields: Array.isArray(response?.fields)
+            ? response.fields.map((field, index) =>
+                normalizeFieldForUi(field, index),
+              )
+            : [],
+        });
+        setLoading(false);
+      },
+    );
   }, [isNew, profileCode]);
 
   const showError = async (response) => {
@@ -249,13 +269,17 @@ function ProfileAddModify() {
     const payload = buildPayload();
 
     if (isNew) {
-      postToOpenElisServerJsonResponse("/rest/professional-profiles", payload, (response) => {
-        if (response?.code) {
-          handleSuccess();
-          return;
-        }
-        showError(response);
-      });
+      postToOpenElisServerJsonResponse(
+        "/rest/professional-profiles",
+        payload,
+        (response) => {
+          if (response?.code) {
+            handleSuccess();
+            return;
+          }
+          showError(response);
+        },
+      );
       return;
     }
 
@@ -284,7 +308,10 @@ function ProfileAddModify() {
   const addField = () => {
     setFormData((previousFormData) => ({
       ...previousFormData,
-      fields: [...previousFormData.fields, createEmptyField(previousFormData.fields.length)],
+      fields: [
+        ...previousFormData.fields,
+        createEmptyField(previousFormData.fields.length),
+      ],
     }));
   };
 
@@ -300,14 +327,19 @@ function ProfileAddModify() {
   const addFieldOption = (fieldIndex) => {
     updateField(fieldIndex, (currentField) => ({
       ...currentField,
-      options: [...currentField.options, createEmptyOption(currentField.options.length)],
+      options: [
+        ...currentField.options,
+        createEmptyOption(currentField.options.length),
+      ],
     }));
   };
 
   const removeFieldOption = (fieldIndex, optionIndex) => {
     updateField(fieldIndex, (currentField) => ({
       ...currentField,
-      options: currentField.options.filter((_, currentOptionIndex) => currentOptionIndex !== optionIndex),
+      options: currentField.options.filter(
+        (_, currentOptionIndex) => currentOptionIndex !== optionIndex,
+      ),
     }));
   };
 
@@ -382,7 +414,8 @@ function ProfileAddModify() {
     }));
   };
 
-  const shouldShowOptions = (fieldType) => fieldType === "SELECT" || fieldType === "MULTISELECT";
+  const shouldShowOptions = (fieldType) =>
+    fieldType === "SELECT" || fieldType === "MULTISELECT";
 
   const validateForm = () => {
     const normalizedFieldKeys = formData.fields
@@ -418,7 +451,8 @@ function ProfileAddModify() {
           message: intl.formatMessage(
             {
               id: "professionalProfile.fields.validation.optionsRequired",
-              defaultMessage: 'The field "{fieldName}" must have at least one option.',
+              defaultMessage:
+                'The field "{fieldName}" must have at least one option.',
             },
             { fieldName },
           ),
@@ -428,7 +462,9 @@ function ProfileAddModify() {
         return false;
       }
 
-      const normalizedOptionKeys = normalizedOptions.map((option) => option.optionKey);
+      const normalizedOptionKeys = normalizedOptions.map(
+        (option) => option.optionKey,
+      );
       if (new Set(normalizedOptionKeys).size !== normalizedOptionKeys.length) {
         addNotification({
           kind: NotificationKinds.error,
@@ -494,7 +530,8 @@ function ProfileAddModify() {
                       code:
                         isNew &&
                         (!previousFormData.code ||
-                          previousFormData.code === toCodeCandidate(previousFormData.name))
+                          previousFormData.code ===
+                            toCodeCandidate(previousFormData.name))
                           ? toCodeCandidate(name)
                           : previousFormData.code,
                     }));
@@ -540,7 +577,13 @@ function ProfileAddModify() {
                     minHeight: "100%",
                   }}
                 >
-                  <p style={{ marginTop: 0, marginBottom: "1rem", fontWeight: 600 }}>
+                  <p
+                    style={{
+                      marginTop: 0,
+                      marginBottom: "1rem",
+                      fontWeight: 600,
+                    }}
+                  >
                     {intl.formatMessage({
                       id: "professionalProfile.specialty.options.formTitle",
                       defaultMessage: "Add a new specialty option",
@@ -557,7 +600,9 @@ function ProfileAddModify() {
                       defaultMessage: "Example: GENETICA",
                     })}
                     value={newSpecialtyOptionKey}
-                    onChange={(event) => setNewSpecialtyOptionKey(event.target.value)}
+                    onChange={(event) =>
+                      setNewSpecialtyOptionKey(event.target.value)
+                    }
                   />
                   <br />
                   <TextInput
@@ -570,11 +615,17 @@ function ProfileAddModify() {
                       id: "professionalProfile.specialty.options.newLabel.placeholder",
                       defaultMessage: "Example: Genética",
                     })}
-                    onChange={(event) => setNewSpecialtyOptionLabel(event.target.value)}
+                    onChange={(event) =>
+                      setNewSpecialtyOptionLabel(event.target.value)
+                    }
                     value={newSpecialtyOptionLabel}
                   />
                   <br />
-                  <Button type="button" kind="secondary" onClick={addSpecialtyOption}>
+                  <Button
+                    type="button"
+                    kind="secondary"
+                    onClick={addSpecialtyOption}
+                  >
                     <FormattedMessage
                       id="professionalProfile.specialty.options.add"
                       defaultMessage="Add specialty option"
@@ -590,7 +641,13 @@ function ProfileAddModify() {
                     padding: "1rem",
                   }}
                 >
-                  <p style={{ marginTop: 0, marginBottom: "1rem", fontWeight: 600 }}>
+                  <p
+                    style={{
+                      marginTop: 0,
+                      marginBottom: "1rem",
+                      fontWeight: 600,
+                    }}
+                  >
                     {intl.formatMessage({
                       id: "professionalProfile.specialty.options.current",
                       defaultMessage: "Current specialty options",
@@ -619,7 +676,9 @@ function ProfileAddModify() {
                         }}
                       >
                         <div>
-                          <div style={{ fontWeight: 600 }}>{option.optionLabel}</div>
+                          <div style={{ fontWeight: 600 }}>
+                            {option.optionLabel}
+                          </div>
                           <div style={{ marginTop: "0.35rem" }}>
                             <Tag type="gray">{option.optionKey}</Tag>
                           </div>
@@ -628,7 +687,9 @@ function ProfileAddModify() {
                           type="button"
                           kind="ghost"
                           size="sm"
-                          onClick={() => removeSpecialtyOption(option.optionKey)}
+                          onClick={() =>
+                            removeSpecialtyOption(option.optionKey)
+                          }
                         >
                           <FormattedMessage
                             id="professionalProfile.specialty.options.remove"
@@ -678,7 +739,8 @@ function ProfileAddModify() {
                           fieldKey:
                             !currentField.systemField &&
                             (!currentField.fieldKey ||
-                              currentField.fieldKey === toCodeCandidate(currentField.displayName))
+                              currentField.fieldKey ===
+                                toCodeCandidate(currentField.displayName))
                               ? toCodeCandidate(event.target.value)
                               : currentField.fieldKey,
                         }))
@@ -746,7 +808,9 @@ function ProfileAddModify() {
                       }}
                     >
                       <div style={{ marginBottom: "0.75rem" }}>
-                        <div style={{ fontWeight: 600, marginBottom: "0.25rem" }}>
+                        <div
+                          style={{ fontWeight: 600, marginBottom: "0.25rem" }}
+                        >
                           {intl.formatMessage({
                             id: "professionalProfile.fields.options",
                             defaultMessage: "Options",
@@ -797,22 +861,34 @@ function ProfileAddModify() {
                               value={option.optionLabel}
                               readOnly={field.hasSavedValues}
                               onChange={(event) =>
-                                updateFieldOption(index, optionIndex, (currentOption) => {
-                                  const nextLabel = event.target.value;
-                                  const nextGeneratedKey = toCodeCandidate(nextLabel);
-                                  return {
-                                    ...currentOption,
-                                    optionLabel: nextLabel,
-                                    optionKey:
-                                      currentOption.isNew && currentOption.isAutoGeneratedKey
-                                      ? nextGeneratedKey
-                                      : currentOption.optionKey,
-                                  };
-                                })
+                                updateFieldOption(
+                                  index,
+                                  optionIndex,
+                                  (currentOption) => {
+                                    const nextLabel = event.target.value;
+                                    const nextGeneratedKey =
+                                      toCodeCandidate(nextLabel);
+                                    return {
+                                      ...currentOption,
+                                      optionLabel: nextLabel,
+                                      optionKey:
+                                        currentOption.isNew &&
+                                        currentOption.isAutoGeneratedKey
+                                          ? nextGeneratedKey
+                                          : currentOption.optionKey,
+                                    };
+                                  },
+                                )
                               }
                             />
                             <div style={{ marginTop: "0.5rem" }}>
-                              <span style={{ color: "#525252", fontSize: "0.875rem", marginRight: "0.5rem" }}>
+                              <span
+                                style={{
+                                  color: "#525252",
+                                  fontSize: "0.875rem",
+                                  marginRight: "0.5rem",
+                                }}
+                              >
                                 {intl.formatMessage({
                                   id: "professionalProfile.fields.optionKeyPreview",
                                   defaultMessage: "Saved key",
@@ -826,7 +902,9 @@ function ProfileAddModify() {
                             kind="ghost"
                             size="sm"
                             disabled={field.hasSavedValues}
-                            onClick={() => removeFieldOption(index, optionIndex)}
+                            onClick={() =>
+                              removeFieldOption(index, optionIndex)
+                            }
                           >
                             <FormattedMessage
                               id="professionalProfile.fields.optionRemove"
@@ -886,24 +964,24 @@ function ProfileAddModify() {
                       }
                     />
                   </Column>
-                  {isOrderRequesterProfile ? (
-                    <Column lg={4} md={4} sm={4}>
-                      <Checkbox
-                        id={`field-show-in-order-${index}`}
-                        labelText={intl.formatMessage({
-                          id: "professionalProfile.fields.showInOrderEntry",
-                          defaultMessage: "Show in order entry",
-                        })}
-                        checked={!!field.showInOrderEntry}
-                        onChange={(_event, { checked }) =>
-                          updateField(index, (currentField) => ({
-                            ...currentField,
-                            showInOrderEntry: !!checked,
-                          }))
-                        }
-                      />
-                    </Column>
-                  ) : null}
+
+                  <Column lg={4} md={4} sm={4}>
+                    <Checkbox
+                      id={`field-show-in-order-${index}`}
+                      labelText={intl.formatMessage({
+                        id: "professionalProfile.fields.showInOrderEntry",
+                        defaultMessage: "Show in order entry",
+                      })}
+                      checked={!!field.showInOrderEntry}
+                      onChange={(_event, { checked }) =>
+                        updateField(index, (currentField) => ({
+                          ...currentField,
+                          showInOrderEntry: !!checked,
+                        }))
+                      }
+                    />
+                  </Column>
+
                   <Column lg={5} md={4} sm={4}>
                     {!field.systemField && !field.hasSavedValues ? (
                       <Button
@@ -920,7 +998,13 @@ function ProfileAddModify() {
                   </Column>
                 </Grid>
                 {field.hasSavedValues ? (
-                  <p style={{ color: "#525252", fontSize: "0.875rem", margin: "0.75rem 0 0 0" }}>
+                  <p
+                    style={{
+                      color: "#525252",
+                      fontSize: "0.875rem",
+                      margin: "0.75rem 0 0 0",
+                    }}
+                  >
                     {intl.formatMessage({
                       id: "professionalProfile.fields.lockedByData",
                       defaultMessage:
@@ -941,7 +1025,11 @@ function ProfileAddModify() {
             <br />
             <br />
 
-            <Button type="button" disabled={!formData.name.trim()} onClick={handleSave}>
+            <Button
+              type="button"
+              disabled={!formData.name.trim()}
+              onClick={handleSave}
+            >
               <FormattedMessage id="label.button.save" />
             </Button>
             <Button

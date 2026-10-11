@@ -1,3 +1,4 @@
+import HistoricalUserSelectItem from "../common/HistoricalUserSelectItem";
 import {
   Checkbox,
   FormGroup,
@@ -979,6 +980,11 @@ const SampleType = (props) => {
           <SelectItem
             text={intl.formatMessage({ id: "label.select" })}
             value=""
+          />
+          <HistoricalUserSelectItem
+            fieldType={fieldType}
+            value={value}
+            options={options}
           />
           {options.map((option, optionIndex) => (
             <SelectItem
