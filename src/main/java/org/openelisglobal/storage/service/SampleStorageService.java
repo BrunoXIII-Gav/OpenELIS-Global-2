@@ -24,6 +24,10 @@ public interface SampleStorageService {
      */
     List<Map<String, Object>> getAllSamplesWithAssignments();
 
+    Map<String, Object> getStorageMetrics();
+
+    Map<String, Object> getSampleItemLocationForStorage(String sampleItemId);
+
     /**
      * Assign a SampleItem to a location using simplified polymorphic relationship
      * (locationId + locationType). Supports assignment to device, shelf, or rack

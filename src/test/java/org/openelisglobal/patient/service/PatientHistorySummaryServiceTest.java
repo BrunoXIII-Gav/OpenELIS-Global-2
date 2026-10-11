@@ -6,11 +6,16 @@ import static org.junit.Assert.assertTrue;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyString;
 import static org.mockito.ArgumentMatchers.eq;
+import static org.mockito.Mockito.lenient;
+import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
 
 import java.sql.Timestamp;
 import java.util.List;
+import java.util.Locale;
 import java.util.Map;
+import org.junit.After;
+import org.junit.Before;
 import org.junit.Test;
 import org.junit.runner.RunWith;
 import org.mockito.InjectMocks;
@@ -19,23 +24,34 @@ import org.mockito.junit.MockitoJUnitRunner;
 import org.openelisglobal.analysis.service.AnalysisService;
 import org.openelisglobal.analysis.valueholder.Analysis;
 import org.openelisglobal.common.services.IStatusService;
+import org.openelisglobal.common.services.SampleOrderService;
 import org.openelisglobal.common.services.StatusService.AnalysisStatus;
 import org.openelisglobal.common.services.StatusService.OrderStatus;
 import org.openelisglobal.common.services.StatusSet;
+import org.openelisglobal.common.util.ConfigurationProperties;
+import org.openelisglobal.common.util.DefaultConfigurationProperties;
+import org.openelisglobal.internationalization.MessageUtil;
 import org.openelisglobal.observationhistory.service.ObservationHistoryService;
 import org.openelisglobal.organization.valueholder.Organization;
 import org.openelisglobal.patient.form.PatientHistorySummary;
 import org.openelisglobal.patient.valueholder.Patient;
 import org.openelisglobal.person.service.PersonService;
 import org.openelisglobal.person.valueholder.Person;
+import org.openelisglobal.result.action.util.ResultsLoadUtility;
+import org.openelisglobal.result.service.ResultService;
 import org.openelisglobal.sample.service.SampleService;
+import org.openelisglobal.sample.service.SampleTypeAdditionalFieldService;
 import org.openelisglobal.sample.valueholder.OrderPriority;
 import org.openelisglobal.sample.valueholder.Sample;
 import org.openelisglobal.samplehuman.service.SampleHumanService;
 import org.openelisglobal.sampleitem.dao.SampleItemDAO;
 import org.openelisglobal.sampleitem.valueholder.SampleItem;
+import org.openelisglobal.spring.util.SpringContext;
 import org.openelisglobal.storage.service.SampleStorageService;
-import org.openelisglobal.test.valueholder.Test;
+import org.springframework.beans.factory.ObjectProvider;
+import org.springframework.beans.factory.config.AutowireCapableBeanFactory;
+import org.springframework.context.support.StaticMessageSource;
+import org.springframework.test.util.ReflectionTestUtils;
 
 @RunWith(MockitoJUnitRunner.class)
 public class PatientHistorySummaryServiceTest {
@@ -69,6 +85,44 @@ public class PatientHistorySummaryServiceTest {
 
     @Mock
     private PersonService personService;
+
+    @Mock
+    private ResultService resultService;
+    @Mock
+    private ObjectProvider<SampleOrderService> sampleOrderServiceProvider;
+    @Mock
+    private ObjectProvider<ResultsLoadUtility> resultsLoadUtilityProvider;
+    @Mock
+    private SampleTypeAdditionalFieldService sampleTypeAdditionalFieldService;
+
+    private Object previousFactory;
+    private Object previousMessages;
+
+    @Before
+    public void configureDateFormatting() {
+        // Keep this unit test independent of Spring startup and execution order.
+        previousFactory = ReflectionTestUtils.getField(SpringContext.class, "factory");
+        previousMessages = ReflectionTestUtils.getField(MessageUtil.class, "instance");
+        var factory = mock(AutowireCapableBeanFactory.class);
+        var config = mock(DefaultConfigurationProperties.class);
+        lenient().when(factory.getBean(DefaultConfigurationProperties.class)).thenReturn(config);
+        lenient().when(config.getPropertyValue(ConfigurationProperties.Property.AmbiguousDateHolder)).thenReturn("X");
+        lenient().when(config.getPropertyValue(ConfigurationProperties.Property.DEFAULT_DATE_LOCALE))
+                .thenReturn("en-US");
+        ReflectionTestUtils.setField(SpringContext.class, "factory", factory);
+        var messages = new StaticMessageSource();
+        messages.addMessage("date.format.formatKey", Locale.US, "MM/dd/yyyy");
+        messages.addMessage("time.format.formatKey", Locale.US, "HH:mm");
+        MessageUtil.setMessageSource(messages);
+        SampleOrderService orderFields = mock(SampleOrderService.class);
+        lenient().when(sampleOrderServiceProvider.getObject()).thenReturn(orderFields);
+    }
+
+    @After
+    public void restoreDateFormatting() {
+        ReflectionTestUtils.setField(SpringContext.class, "factory", previousFactory);
+        ReflectionTestUtils.setField(MessageUtil.class, "instance", previousMessages);
+    }
 
     @Test
     public void getSummary_compilesOrdersSamplesStorageAndMetrics() {
@@ -104,15 +158,21 @@ public class PatientHistorySummaryServiceTest {
         Analysis finalized = new Analysis();
         finalized.setId("1");
         finalized.setStatusId("analysis-finalized");
-        Test finalizedTest = new Test();
+        org.openelisglobal.test.valueholder.Test finalizedTest = new org.openelisglobal.test.valueholder.Test();
         finalizedTest.setDescription("Hemoglobin");
+        org.openelisglobal.localization.valueholder.Localization finalizedName = new org.openelisglobal.localization.valueholder.Localization();
+        finalizedName.setEnglish("Hemoglobin");
+        finalizedTest.setLocalizedTestName(finalizedName);
         finalized.setTest(finalizedTest);
 
         Analysis inProgress = new Analysis();
         inProgress.setId("2");
         inProgress.setStatusId("analysis-in-progress");
-        Test inProgressTest = new Test();
+        org.openelisglobal.test.valueholder.Test inProgressTest = new org.openelisglobal.test.valueholder.Test();
         inProgressTest.setDescription("Platelets");
+        org.openelisglobal.localization.valueholder.Localization inProgressName = new org.openelisglobal.localization.valueholder.Localization();
+        inProgressName.setEnglish("Platelets");
+        inProgressTest.setLocalizedTestName(inProgressName);
         inProgress.setTest(inProgressTest);
 
         StatusSet statusSet = new StatusSet();
@@ -128,23 +188,12 @@ public class PatientHistorySummaryServiceTest {
         when(personService.getLastFirstName(requester)).thenReturn("Garcia, Ana");
         when(sampleItemDAO.getSampleItemsBySampleId("501")).thenReturn(List.of(sampleItem));
         when(sampleItemDAO.getSampleItemsWithHierarchy(List.of("9001"))).thenReturn(List.of(sampleItem));
-        when(sampleStorageService.getSampleItemLocation("9001")).thenReturn(Map.of(
-                "hierarchicalPath", "Room A > Rack 1 > Box 2",
-                "assignedDate", "2026-07-11 09:00:00",
-                "positionCoordinate", "A2",
-                "notes", "Frozen"));
+        when(sampleStorageService.getSampleItemLocation("9001"))
+                .thenReturn(Map.of("hierarchicalPath", "Room A > Rack 1 > Box 2", "assignedDate", "2026-07-11 09:00:00",
+                        "positionCoordinate", "A2", "notes", "Frozen"));
         when(statusService.getStatusNameFromId("sample-entered")).thenReturn("Entered");
         when(analysisService.getAnalysesBySampleItem(sampleItem)).thenReturn(List.of(finalized, inProgress));
         when(statusService.matches("analysis-finalized", AnalysisStatus.Finalized)).thenReturn(true);
-        when(statusService.matches("analysis-in-progress", AnalysisStatus.Finalized)).thenReturn(false);
-        when(statusService.matches("analysis-finalized", AnalysisStatus.Canceled)).thenReturn(false);
-        when(statusService.matches("analysis-in-progress", AnalysisStatus.Canceled)).thenReturn(false);
-        when(statusService.matches("analysis-finalized", AnalysisStatus.SampleRejected)).thenReturn(false);
-        when(statusService.matches("analysis-in-progress", AnalysisStatus.SampleRejected)).thenReturn(false);
-        when(statusService.matches("analysis-finalized", AnalysisStatus.TechnicalRejected)).thenReturn(false);
-        when(statusService.matches("analysis-in-progress", AnalysisStatus.TechnicalRejected)).thenReturn(false);
-        when(statusService.matches("analysis-finalized", AnalysisStatus.BiologistRejected)).thenReturn(false);
-        when(statusService.matches("analysis-in-progress", AnalysisStatus.BiologistRejected)).thenReturn(false);
 
         PatientHistorySummary summary = service.getSummary("77");
 

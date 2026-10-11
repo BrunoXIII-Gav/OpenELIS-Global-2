@@ -1,10 +1,11 @@
 package org.openelisglobal.storage.service;
 
+import jakarta.servlet.http.HttpServletRequest;
 import java.sql.Timestamp;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
-import jakarta.servlet.http.HttpServletRequest;
+import java.util.Set;
 import org.hibernate.StaleObjectStateException;
 import org.openelisglobal.common.exception.LIMSRuntimeException;
 import org.openelisglobal.common.services.IStatusService;
@@ -15,14 +16,15 @@ import org.openelisglobal.sample.valueholder.Sample;
 import org.openelisglobal.sampleitem.dao.SampleItemDAO;
 import org.openelisglobal.sampleitem.service.SampleItemService;
 import org.openelisglobal.sampleitem.valueholder.SampleItem;
-import org.openelisglobal.systemuser.service.SystemUserService;
-import org.openelisglobal.systemuser.valueholder.SystemUser;
 import org.openelisglobal.storage.dao.*;
 import org.openelisglobal.storage.valueholder.*;
+import org.openelisglobal.systemuser.service.SystemUserService;
+import org.openelisglobal.systemuser.valueholder.SystemUser;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.data.domain.Page;
+import org.springframework.data.domain.PageImpl;
 import org.springframework.data.domain.Pageable;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -42,6 +44,9 @@ public class SampleStorageServiceImpl implements SampleStorageService {
 
     @Autowired
     private SampleItemDAO sampleItemDAO;
+
+    @Autowired
+    private StorageAuthorizationService storageAuthorizationService;
 
     @Autowired
     private SampleItemService sampleItemService;
@@ -115,7 +120,9 @@ public class SampleStorageServiceImpl implements SampleStorageService {
     @Transactional(readOnly = true)
     public List<Map<String, Object>> getAllSamplesWithAssignments() {
         // Get ALL sample items first, then LEFT JOIN with assignments
-        List<SampleItem> allSampleItems = sampleItemDAO.getAllSampleItems();
+        Set<String> permitted = storageAuthorizationService.getAccessibleSampleItemIdsForCurrentUser("read");
+        List<SampleItem> allSampleItems = sampleItemDAO.getAllSampleItems().stream()
+                .filter(item -> item != null && (permitted == null || permitted.contains(item.getId()))).toList();
         logger.info("getAllSamplesWithAssignments: Found {} total sample items", allSampleItems.size());
 
         // Get all assignments and build a map by sampleItemId for efficient lookup
@@ -235,6 +242,24 @@ public class SampleStorageServiceImpl implements SampleStorageService {
         return response;
     }
 
+    @Override
+    @Transactional(readOnly = true)
+    public Map<String, Object> getStorageMetrics() {
+        List<Map<String, Object>> samples = getAllSamplesWithAssignments();
+        long disposed = samples.stream().filter(sample -> Boolean.TRUE.equals(sample.get("isDisposed"))).count();
+        long locations = storageLocationService.getRooms().size() + storageLocationService.getAllDevices().size()
+                + storageLocationService.getAllShelves().size() + storageLocationService.getAllRacks().size();
+        return Map.of("totalSampleItems", samples.size(), "active", samples.size() - disposed, "disposed", disposed,
+                "storageLocations", locations);
+    }
+
+    @Override
+    @Transactional(readOnly = true)
+    public Map<String, Object> getSampleItemLocationForStorage(String sampleItemId) {
+        storageAuthorizationService.requireSampleAccess(sampleItemId, "read");
+        return getSampleItemLocation(sampleItemId);
+    }
+
     private String resolveUserDisplayName(Integer userId, Map<Integer, String> cache) {
         if (userId == null) {
             return null;
@@ -298,9 +323,19 @@ public class SampleStorageServiceImpl implements SampleStorageService {
         if (sampleItemId == null || sampleItemId.trim().isEmpty()) {
             throw new LIMSRuntimeException("SampleItem ID is required");
         }
+        storageAuthorizationService.requireSampleAccess(sampleItemId, "update");
         SampleStorageAssignment existingAssignment = sampleStorageAssignmentDAO.findBySampleItemId(sampleItemId);
         if (existingAssignment == null) {
             throw new LIMSRuntimeException("No storage assignment found for SampleItem: " + sampleItemId);
+        }
+
+        if ("box".equals(existingAssignment.getLocationType()) && positionCoordinate != null
+                && !positionCoordinate.trim().isEmpty()) {
+            SampleStorageAssignment occupant = sampleStorageAssignmentDAO
+                    .findByBoxAndCoordinate(existingAssignment.getLocationId(), positionCoordinate.trim());
+            if (occupant != null && !occupant.getSampleItemId().equals(existingAssignment.getSampleItemId())) {
+                throw new LIMSRuntimeException("Position is already occupied by another sample");
+            }
         }
 
         if (positionCoordinate != null) {
@@ -349,6 +384,7 @@ public class SampleStorageServiceImpl implements SampleStorageService {
 
             // Resolve SampleItem (handles internal ID, accession number, or external ID)
             SampleItem sampleItem = resolveSampleItem(sampleItemId);
+            storageAuthorizationService.requireSampleAccess(sampleItem.getId(), "manage");
 
             // Check if already disposed
             if (statusService.matches(sampleItem.getStatusId(),
@@ -618,6 +654,7 @@ public class SampleStorageServiceImpl implements SampleStorageService {
 
             // Resolve SampleItem: accept either SampleItem ID or accession number
             SampleItem sampleItem = resolveSampleItem(sampleItemId);
+            storageAuthorizationService.requireSampleAccess(sampleItem.getId(), "update");
             if (sampleItem.getSample() != null && sampleItem.getSample().getId() != null) {
                 orderAdditionalFieldService.getStorageAssignmentBlockReason(sampleItem.getSample().getId())
                         .ifPresent(message -> {
@@ -879,6 +916,7 @@ public class SampleStorageServiceImpl implements SampleStorageService {
 
             // Resolve SampleItem: accept either accession number or external ID
             SampleItem sampleItem = resolveSampleItem(sampleItemId);
+            storageAuthorizationService.requireSampleAccess(sampleItem.getId(), "update");
             // Get the actual numeric ID from the resolved SampleItem for database lookups
             String resolvedSampleItemId = sampleItem.getId();
 
@@ -1406,6 +1444,16 @@ public class SampleStorageServiceImpl implements SampleStorageService {
     @Override
     @Transactional(readOnly = true)
     public Page<SampleStorageAssignment> getSampleAssignments(Pageable pageable) {
-        return sampleStorageAssignmentDAO.findAll(pageable);
+        Set<String> permitted = storageAuthorizationService.getAccessibleSampleItemIdsForCurrentUser("read");
+        if (permitted == null) {
+            return sampleStorageAssignmentDAO.findAll(pageable);
+        }
+        List<SampleStorageAssignment> assignments = sampleStorageAssignmentDAO.getAll().stream()
+                .filter(assignment -> assignment.getSampleItemId() != null
+                        && permitted.contains(assignment.getSampleItemId().toString()))
+                .toList();
+        int from = (int) Math.min(pageable.getOffset(), assignments.size());
+        int to = Math.min(from + pageable.getPageSize(), assignments.size());
+        return new PageImpl<>(assignments.subList(from, to), pageable, assignments.size());
     }
 }

@@ -35,8 +35,8 @@ public class ModuleAccessServiceImpl implements ModuleAccessService {
     private static final List<String> RESULT_ACCESS_ACTIONS = List.of("read", "enter", "update", "correct");
 
     private static final Map<String, String> ORDER_ACTIONS_BY_PATH = Map.of("/SamplePatientEntry", "create",
-            "/ModifyOrder", "update", "/SampleEdit", "read", "/SampleBatchEntrySetup", "create",
-            "/ElectronicOrders", "read", "/PrintBarcode", "print");
+            "/ModifyOrder", "update", "/SampleEdit", "read", "/SampleBatchEntrySetup", "create", "/ElectronicOrders",
+            "read", "/PrintBarcode", "print");
 
     private static final Map<String, String> PATIENT_ACTIONS_BY_PATH = Map.of("/PatientHistory", "read",
             "/PatientMerge", "merge");
@@ -138,7 +138,8 @@ public class ModuleAccessServiceImpl implements ModuleAccessService {
             if (decision.source() == AuthorizationSource.MODULE_PERMISSION) {
                 boolean requiresGlobalScope = "merge".equals(patientAction);
                 return decision.allowed() && (!requiresGlobalScope || decision.allLabUnits())
-                        ? ModuleAccessResult.allowed() : ModuleAccessResult.denied();
+                        ? ModuleAccessResult.allowed()
+                        : ModuleAccessResult.denied();
             }
         }
         String validationAction = VALIDATION_ACTIONS_BY_PATH.get(normalizedPath);
@@ -149,8 +150,15 @@ public class ModuleAccessServiceImpl implements ModuleAccessService {
                 return decision.allowed() ? ModuleAccessResult.allowed() : ModuleAccessResult.denied();
             }
         }
-        if ("/Storage".equals(normalizedPath) || normalizedPath.startsWith("/Storage/")
-                || "/FreezerMonitoring".equals(normalizedPath)) {
+        if ("/Storage".equals(normalizedPath) || normalizedPath.startsWith("/Storage/")) {
+            AuthorizationDecision decision = moduleAuthorizationService.getAuthorization(userId, "storage", "read");
+            if (decision.source() == AuthorizationSource.MODULE_PERMISSION) {
+                return decision.allowed() && (decision.allLabUnits() || !decision.labUnitIds().isEmpty())
+                        ? ModuleAccessResult.allowed()
+                        : ModuleAccessResult.denied();
+            }
+        }
+        if ("/FreezerMonitoring".equals(normalizedPath)) {
             AuthorizationDecision decision = moduleAuthorizationService.getAuthorization(userId, "storage", "read");
             if (decision.source() == AuthorizationSource.MODULE_PERMISSION) {
                 return decision.allowed() && decision.allLabUnits() ? ModuleAccessResult.allowed()
@@ -216,13 +224,13 @@ public class ModuleAccessServiceImpl implements ModuleAccessService {
             return false;
         }
 
-        return List.of("/admin", "/SampleManagement", "/SamplePatientEntry", "/ModifyOrder", "/SampleEdit",
-                "/PatientManagement", "/PatientHistory", "/PatientMerge", "/LogbookResults", "/PatientResults",
-                "/AccessionResults", "/validation", "/ResultValidation", "/AccessionValidation",
-                "/AccessionValidationRange", "/ResultValidationByTestDate").contains(normalizedPath)
-                || "/rest/SamplePatientEntry".equals(normalizedPath)
-                || "/rest/SampleEdit".equals(normalizedPath)
-                || "/Storage".equals(normalizedPath)
+        return List
+                .of("/admin", "/SampleManagement", "/SamplePatientEntry", "/ModifyOrder", "/SampleEdit",
+                        "/PatientManagement", "/PatientHistory", "/PatientMerge", "/LogbookResults", "/PatientResults",
+                        "/AccessionResults", "/validation", "/ResultValidation", "/AccessionValidation",
+                        "/AccessionValidationRange", "/ResultValidationByTestDate")
+                .contains(normalizedPath) || "/rest/SamplePatientEntry".equals(normalizedPath)
+                || "/rest/SampleEdit".equals(normalizedPath) || "/Storage".equals(normalizedPath)
                 || normalizedPath.startsWith("/Storage/");
     }
 
@@ -291,8 +299,8 @@ public class ModuleAccessServiceImpl implements ModuleAccessService {
         if ("/AnalyzerResults".equals(normalizedPath)) {
             return SystemPermission.ANALYSER_IMPORT;
         }
-        if (List.of("/SamplePatientEntry", "/ModifyOrder", "/SampleEdit", "/SampleBatchEntrySetup",
-                "/ElectronicOrders", "/PrintBarcode").contains(normalizedPath)) {
+        if (List.of("/SamplePatientEntry", "/ModifyOrder", "/SampleEdit", "/SampleBatchEntrySetup", "/ElectronicOrders",
+                "/PrintBarcode").contains(normalizedPath)) {
             return SystemPermission.ORDER;
         }
         if (normalizedPath.startsWith("/PatientResults/")) {
@@ -305,8 +313,7 @@ public class ModuleAccessServiceImpl implements ModuleAccessService {
             return SystemPermission.ALIQUOT;
         }
         if (List.of("/RoutineReports", "/RoutineReport", "/StudyReports", "/StudyReport", "/Report",
-                "/AuditTrailReport").contains(normalizedPath)
-                || normalizedPath.startsWith("/reports")) {
+                "/AuditTrailReport").contains(normalizedPath) || normalizedPath.startsWith("/reports")) {
             return SystemPermission.REPORTS;
         }
         if (isReportPrintPath(normalizedPath)) {
@@ -344,14 +351,13 @@ public class ModuleAccessServiceImpl implements ModuleAccessService {
                 "/SampleTypeCreate", "/SampleTypeRenameEntry", "/SampleTypeTestAssign", "/SampleTypeUomAssign",
                 "/SampleTypeOrder", "/MethodRenameEntry", "/MethodTestAssign", "/UomCreate", "/UomRenameEntry",
                 "/SelectListRenameEntry", "/ResultSelectListAdd", "/SaveResultSelectList", "/EntityNamesProvider",
-                "/TestNamesProvider", "/UnifiedSystemUserMenu", "/SearchUnifiedSystemUserMenu",
-                "/UnifiedSystemUser", "/DeleteUnifiedSystemUser", "/OrganizationMenu", "/SearchOrganizationMenu",
-                "/Organization", "/DeleteOrganization", "/NextPreviousOrganization", "/CancelOrganization",
+                "/TestNamesProvider", "/UnifiedSystemUserMenu", "/SearchUnifiedSystemUserMenu", "/UnifiedSystemUser",
+                "/DeleteUnifiedSystemUser", "/OrganizationMenu", "/SearchOrganizationMenu", "/Organization",
+                "/DeleteOrganization", "/NextPreviousOrganization", "/CancelOrganization",
                 "/NonConformityConfigurationMenu", "/MenuStatementConfigMenu", "/WorkplanConfigurationMenu",
                 "/PrintedReportsConfigurationMenu", "/SampleEntryConfigMenu", "/ResultConfigurationMenu",
                 "/PatientConfigurationMenu", "/ValidationConfigurationMenu", "/SiteInformationMenu",
-                "/BarcodeConfiguration", "/ResultReportingConfiguration")
-                .contains(normalizedPath);
+                "/BarcodeConfiguration", "/ResultReportingConfiguration").contains(normalizedPath);
     }
 
     private boolean isPatientAnalysisReportRequest(String normalizedPath, Map<String, String> targetParams) {
