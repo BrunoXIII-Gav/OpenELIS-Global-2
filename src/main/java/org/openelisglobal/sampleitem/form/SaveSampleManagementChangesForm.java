@@ -29,6 +29,16 @@ public class SaveSampleManagementChangesForm {
         private String quantity;
         private String unitOfMeasureId;
         private String collector;
+        private String collectorUserId;
+
+        public String getCollectorUserId() {
+            return collectorUserId;
+        }
+
+        public void setCollectorUserId(String value) {
+            collectorUserId = value;
+        }
+
         private String collectionDate;
         private String collectionTime;
         private Boolean removeSample;

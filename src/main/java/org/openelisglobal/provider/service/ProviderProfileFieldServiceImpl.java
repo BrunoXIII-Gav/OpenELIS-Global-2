@@ -2,8 +2,8 @@ package org.openelisglobal.provider.service;
 
 import com.fasterxml.jackson.core.type.TypeReference;
 import com.fasterxml.jackson.databind.ObjectMapper;
-import java.util.Arrays;
 import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.Collections;
 import java.util.LinkedHashMap;
 import java.util.List;
@@ -28,9 +28,8 @@ public class ProviderProfileFieldServiceImpl implements ProviderProfileFieldServ
     private static final String MULTISELECT_DELIMITER = "||";
     private static final Pattern NUMBER_PATTERN = Pattern.compile("^\\d*([.,]\\d*)?$");
 
-    private static final TypeReference<LinkedHashMap<String, LinkedHashMap<String, Object>>> PROFILE_VALUES_TYPE =
-            new TypeReference<>() {
-            };
+    private static final TypeReference<LinkedHashMap<String, LinkedHashMap<String, Object>>> PROFILE_VALUES_TYPE = new TypeReference<>() {
+    };
 
     @Autowired
     private ProfessionalProfileFieldConfigService professionalProfileFieldConfigService;
@@ -39,7 +38,8 @@ public class ProviderProfileFieldServiceImpl implements ProviderProfileFieldServ
 
     @Override
     @Transactional(readOnly = true)
-    public List<ProfessionalProfileFieldDefinitionForm> getFieldDefinitionsForProvider(String profileCode, Provider provider) {
+    public List<ProfessionalProfileFieldDefinitionForm> getFieldDefinitionsForProvider(String profileCode,
+            Provider provider) {
         Map<String, Object> currentValues = getProfileValues(provider, profileCode);
         return professionalProfileFieldConfigService.getFieldsForProfile(profileCode, false).stream().map(field -> {
             ProfessionalProfileFieldDefinitionForm copy = new ProfessionalProfileFieldDefinitionForm();
@@ -61,7 +61,8 @@ public class ProviderProfileFieldServiceImpl implements ProviderProfileFieldServ
 
     @Override
     @Transactional(readOnly = true)
-    public Map<String, Object> normalizeAndValidateProfileFieldValues(String profileCode, Map<String, Object> submittedValues) {
+    public Map<String, Object> normalizeAndValidateProfileFieldValues(String profileCode,
+            Map<String, Object> submittedValues) {
         String normalizedProfileCode = normalizeProfileCode(profileCode);
         LinkedHashMap<String, Object> currentProfileValues = new LinkedHashMap<>();
         professionalProfileFieldConfigService.getFieldsForProfile(normalizedProfileCode, false).forEach(field -> {
@@ -85,8 +86,14 @@ public class ProviderProfileFieldServiceImpl implements ProviderProfileFieldServ
         }
 
         String normalizedProfileCode = normalizeProfileCode(profileCode);
-        Map<String, Object> normalizedValues = normalizeAndValidateProfileFieldValues(normalizedProfileCode, submittedValues);
-        providerProfileFieldValueDAO.deleteByProviderId(providerId);
+        Map<String, Object> normalizedValues = normalizeAndValidateProfileFieldValues(normalizedProfileCode,
+                submittedValues);
+        java.util.Set<String> editableFieldKeys = professionalProfileFieldConfigService
+                .getFieldsForProfile(normalizedProfileCode, false).stream()
+                .map(ProfessionalProfileFieldDefinitionForm::getFieldKey).collect(java.util.stream.Collectors.toSet());
+        providerProfileFieldValueDAO.findByProviderIdAndProfessionalProfileCode(providerId, normalizedProfileCode)
+                .stream().filter(value -> editableFieldKeys.contains(value.getFieldKey()))
+                .forEach(providerProfileFieldValueDAO::delete);
 
         normalizedValues.forEach((fieldKey, normalizedValue) -> {
             ProviderProfileFieldValue value = new ProviderProfileFieldValue();
@@ -120,9 +127,8 @@ public class ProviderProfileFieldServiceImpl implements ProviderProfileFieldServ
                 .filter(Objects::nonNull).distinct().toList();
 
         Map<Integer, List<ProviderProfileFieldValue>> rowsByProviderId = providerIds.isEmpty() ? Collections.emptyMap()
-                : providerProfileFieldValueDAO.findByProviderIds(providerIds).stream()
-                        .collect(Collectors.groupingBy(ProviderProfileFieldValue::getProviderId, LinkedHashMap::new,
-                                Collectors.toList()));
+                : providerProfileFieldValueDAO.findByProviderIds(providerIds).stream().collect(Collectors
+                        .groupingBy(ProviderProfileFieldValue::getProviderId, LinkedHashMap::new, Collectors.toList()));
 
         providers.forEach(provider -> {
             Integer providerId = normalizeProviderId(provider.getId());
@@ -139,8 +145,8 @@ public class ProviderProfileFieldServiceImpl implements ProviderProfileFieldServ
                             (left, _right) -> left, LinkedHashMap::new));
 
             LinkedHashMap<String, Object> currentValues = new LinkedHashMap<>();
-            rowsByProviderId.getOrDefault(providerId, Collections.emptyList()).stream()
-                    .filter(value -> normalizedProfileCode.equals(normalizeProfileCode(value.getProfessionalProfileCode())))
+            rowsByProviderId.getOrDefault(providerId, Collections.emptyList()).stream().filter(
+                    value -> normalizedProfileCode.equals(normalizeProfileCode(value.getProfessionalProfileCode())))
                     .forEach(value -> {
                         Object currentValue = deserializeStoredValue(fieldDefinitionsByKey.get(value.getFieldKey()),
                                 value.getFieldValue());
@@ -176,9 +182,9 @@ public class ProviderProfileFieldServiceImpl implements ProviderProfileFieldServ
             return;
         }
 
-        Map<Integer, List<ProviderProfileFieldValue>> rowsByProviderId = providerProfileFieldValueDAO.findByProviderIds(providerIds).stream()
-                .collect(Collectors.groupingBy(ProviderProfileFieldValue::getProviderId, LinkedHashMap::new,
-                        Collectors.toList()));
+        Map<Integer, List<ProviderProfileFieldValue>> rowsByProviderId = providerProfileFieldValueDAO
+                .findByProviderIds(providerIds).stream().collect(Collectors
+                        .groupingBy(ProviderProfileFieldValue::getProviderId, LinkedHashMap::new, Collectors.toList()));
 
         providers.forEach(provider -> {
             Integer providerId = normalizeProviderId(provider.getId());
@@ -220,8 +226,7 @@ public class ProviderProfileFieldServiceImpl implements ProviderProfileFieldServ
         }
 
         String fieldName = StringUtils.defaultIfBlank(field.getDisplayName(), field.getFieldKey());
-        throw new IllegalArgumentException(
-                "The field " + fieldName + " only accepts numbers and optional decimals.");
+        throw new IllegalArgumentException("The field " + fieldName + " only accepts numbers and optional decimals.");
     }
 
     private Map<String, Object> getProfileValues(Provider provider, String profileCode) {
@@ -231,12 +236,13 @@ public class ProviderProfileFieldServiceImpl implements ProviderProfileFieldServ
         List<ProfessionalProfileFieldDefinitionForm> fieldDefinitions = professionalProfileFieldConfigService
                 .getFieldsForProfile(normalizedProfileCode, true);
         Map<String, ProfessionalProfileFieldDefinitionForm> fieldDefinitionsByKey = fieldDefinitions.stream()
-                .collect(Collectors.toMap(ProfessionalProfileFieldDefinitionForm::getFieldKey, field -> field, (left, _right) -> left,
-                        LinkedHashMap::new));
+                .collect(Collectors.toMap(ProfessionalProfileFieldDefinitionForm::getFieldKey, field -> field,
+                        (left, _right) -> left, LinkedHashMap::new));
         Map<String, String> storedProfileValues = getStoredProfileValues(provider, normalizedProfileCode);
         fieldDefinitions.forEach(field -> {
             String rawStoredValue = storedProfileValues.get(field.getFieldKey());
-            Object currentValue = deserializeStoredValue(fieldDefinitionsByKey.get(field.getFieldKey()), rawStoredValue);
+            Object currentValue = deserializeStoredValue(fieldDefinitionsByKey.get(field.getFieldKey()),
+                    rawStoredValue);
             if (currentValue != null) {
                 currentValues.put(field.getFieldKey(), currentValue);
             }
@@ -268,7 +274,8 @@ public class ProviderProfileFieldServiceImpl implements ProviderProfileFieldServ
 
     private Object normalizeMultiSelect(Object rawValue) {
         if (rawValue instanceof List<?> rawList) {
-            return rawList.stream().map(String::valueOf).map(StringUtils::trimToNull).filter(StringUtils::isNotBlank).toList();
+            return rawList.stream().map(String::valueOf).map(StringUtils::trimToNull).filter(StringUtils::isNotBlank)
+                    .toList();
         }
         String stringValue = StringUtils.trimToNull(String.valueOf(rawValue));
         return stringValue == null ? List.of() : List.of(stringValue);
@@ -296,8 +303,8 @@ public class ProviderProfileFieldServiceImpl implements ProviderProfileFieldServ
                 .filter(entry -> StringUtils.isNotBlank(entry.getKey()))
                 .collect(Collectors.toMap(Map.Entry::getKey, entry -> entry.getValue() == null ? new LinkedHashMap<>()
                         : entry.getValue().entrySet().stream().filter(valueEntry -> valueEntry.getValue() != null)
-                                .collect(Collectors.toMap(Map.Entry::getKey, Map.Entry::getValue, (left, _right) -> left,
-                                        LinkedHashMap::new)),
+                                .collect(Collectors.toMap(Map.Entry::getKey, Map.Entry::getValue,
+                                        (left, _right) -> left, LinkedHashMap::new)),
                         (left, _right) -> left, LinkedHashMap::new));
         try {
             return OBJECT_MAPPER.writeValueAsString(cleaned);
@@ -309,18 +316,18 @@ public class ProviderProfileFieldServiceImpl implements ProviderProfileFieldServ
     private Map<String, String> getStoredProfileValues(Provider provider, String profileCode) {
         Integer providerId = normalizeProviderId(provider == null ? null : provider.getId());
         if (providerId != null && StringUtils.isNotBlank(profileCode)) {
-            List<ProviderProfileFieldValue> storedRows = providerProfileFieldValueDAO.findByProviderIdAndProfessionalProfileCode(
-                    providerId, profileCode);
+            List<ProviderProfileFieldValue> storedRows = providerProfileFieldValueDAO
+                    .findByProviderIdAndProfessionalProfileCode(providerId, profileCode);
             if (!storedRows.isEmpty()) {
                 return storedRows.stream().collect(Collectors.toMap(ProviderProfileFieldValue::getFieldKey,
                         ProviderProfileFieldValue::getFieldValue, (left, _right) -> left, LinkedHashMap::new));
             }
         }
 
-        Map<String, LinkedHashMap<String, Object>> parsedValues = parseProfileValues(provider == null ? null : provider.getProfileFieldsJson());
+        Map<String, LinkedHashMap<String, Object>> parsedValues = parseProfileValues(
+                provider == null ? null : provider.getProfileFieldsJson());
         Map<String, Object> storedProfileValues = parsedValues.getOrDefault(profileCode, new LinkedHashMap<>());
-        return storedProfileValues.entrySet().stream()
-                .filter(entry -> entry.getValue() != null)
+        return storedProfileValues.entrySet().stream().filter(entry -> entry.getValue() != null)
                 .collect(Collectors.toMap(Map.Entry::getKey, entry -> serializeStoredValue(entry.getValue()),
                         (left, _right) -> left, LinkedHashMap::new));
     }
@@ -335,7 +342,8 @@ public class ProviderProfileFieldServiceImpl implements ProviderProfileFieldServ
 
     private Map<String, LinkedHashMap<String, Object>> buildCompatibilityProfileValues(Provider provider,
             List<ProviderProfileFieldValue> storedRows) {
-        String normalizedProfileCode = normalizeProfileCode(provider == null ? null : provider.getProfessionalProfileCode());
+        String normalizedProfileCode = normalizeProfileCode(
+                provider == null ? null : provider.getProfessionalProfileCode());
         if (provider == null || StringUtils.isBlank(normalizedProfileCode)) {
             return new LinkedHashMap<>();
         }
@@ -343,13 +351,13 @@ public class ProviderProfileFieldServiceImpl implements ProviderProfileFieldServ
         List<ProfessionalProfileFieldDefinitionForm> fieldDefinitions = professionalProfileFieldConfigService
                 .getFieldsForProfile(normalizedProfileCode, true);
         Map<String, ProfessionalProfileFieldDefinitionForm> fieldDefinitionsByKey = fieldDefinitions.stream()
-                .collect(Collectors.toMap(ProfessionalProfileFieldDefinitionForm::getFieldKey, field -> field, (left, _right) -> left,
-                        LinkedHashMap::new));
+                .collect(Collectors.toMap(ProfessionalProfileFieldDefinitionForm::getFieldKey, field -> field,
+                        (left, _right) -> left, LinkedHashMap::new));
 
         LinkedHashMap<String, Object> profileValues = new LinkedHashMap<>();
         if (storedRows != null && !storedRows.isEmpty()) {
-            storedRows.stream()
-                    .filter(value -> normalizedProfileCode.equals(normalizeProfileCode(value.getProfessionalProfileCode())))
+            storedRows.stream().filter(
+                    value -> normalizedProfileCode.equals(normalizeProfileCode(value.getProfessionalProfileCode())))
                     .forEach(value -> {
                         ProfessionalProfileFieldDefinitionForm field = fieldDefinitionsByKey.get(value.getFieldKey());
                         Object normalizedValue = deserializeStoredValue(field, value.getFieldValue());
@@ -360,7 +368,8 @@ public class ProviderProfileFieldServiceImpl implements ProviderProfileFieldServ
         }
 
         if (profileValues.isEmpty()) {
-            Map<String, LinkedHashMap<String, Object>> legacyValues = parseProfileValues(provider.getProfileFieldsJson());
+            Map<String, LinkedHashMap<String, Object>> legacyValues = parseProfileValues(
+                    provider.getProfileFieldsJson());
             LinkedHashMap<String, Object> legacyProfileValues = legacyValues.get(normalizedProfileCode);
             if (legacyProfileValues != null) {
                 profileValues.putAll(legacyProfileValues);

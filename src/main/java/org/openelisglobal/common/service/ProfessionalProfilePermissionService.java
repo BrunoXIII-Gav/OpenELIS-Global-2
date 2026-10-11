@@ -1,33 +1,26 @@
 package org.openelisglobal.common.service;
 
 import java.util.Arrays;
-import java.util.LinkedHashSet;
 import java.util.LinkedHashMap;
+import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
 import org.apache.commons.lang3.StringUtils;
-import org.openelisglobal.common.action.IActionConstants;
-import org.openelisglobal.common.constants.Constants;
-import org.openelisglobal.common.constants.SystemPermission;
 import org.openelisglobal.common.log.LogEvent;
-import org.openelisglobal.common.util.ConfigurationProperties;
 import org.openelisglobal.common.util.ConfigurationProperties.Property;
-import org.openelisglobal.login.service.LoginUserService;
-import org.openelisglobal.login.valueholder.LoginUser;
 import org.openelisglobal.person.service.PersonService;
 import org.openelisglobal.person.valueholder.Person;
 import org.openelisglobal.provider.service.ProviderService;
 import org.openelisglobal.provider.valueholder.Provider;
-import org.openelisglobal.security.service.UserPermissionService;
 import org.openelisglobal.systemuser.service.SystemUserService;
 import org.openelisglobal.systemuser.valueholder.SystemUser;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
 
 /**
- * Service to validate if a user has the required professional profile to perform actions
- * in different modules (order, patient, result, validation, sample collection)
+ * Compatibility adapter: role permissions determine who may perform actions in
+ * different modules (order, patient, result, validation, sample collection)
  */
 @Service
 public class ProfessionalProfilePermissionService {
@@ -65,15 +58,13 @@ public class ProfessionalProfilePermissionService {
     }
 
     @Autowired
+    private org.openelisglobal.authorization.service.ModuleAuthorizationService moduleAuthorizationService;
+    @Autowired
     private SystemUserService systemUserService;
     @Autowired
     private ProviderService providerService;
     @Autowired
     private PersonService personService;
-    @Autowired
-    private UserPermissionService userPermissionService;
-    @Autowired
-    private LoginUserService loginUserService;
 
     /**
      * Check if user has permission for order creation/editing
@@ -111,7 +102,15 @@ public class ProfessionalProfilePermissionService {
     }
 
     public boolean hasPermission(String systemUserId, PermissionFlow flow) {
-        return hasPermission(systemUserId, flow.getConfigProperty(), flow.getLogLabel());
+        if (StringUtils.isBlank(systemUserId))
+            return false;
+        return switch (flow) {
+        case ORDER_REQUESTER -> allowed(systemUserId, "orders", "create", "update");
+        case PATIENT_MANAGER -> allowed(systemUserId, "patients", "create", "update");
+        case RESULT_ENTRY -> allowed(systemUserId, "results", "enter", "update", "correct");
+        case VALIDATION_INTERPRETER -> allowed(systemUserId, "validation", "validate");
+        case SAMPLE_COLLECTOR -> allowed(systemUserId, "sample-management", "receive", "update");
+        };
     }
 
     public Map<String, Boolean> getPermissionsByFlow(String systemUserId) {
@@ -128,8 +127,7 @@ public class ProfessionalProfilePermissionService {
         Map<String, List<String>> configuredProfileCodesByFlow = new LinkedHashMap<>();
 
         for (PermissionFlow flow : PermissionFlow.values()) {
-            String rawProfileCodes = ConfigurationProperties.getInstance().getPropertyValue(flow.getConfigProperty());
-            configuredProfileCodesByFlow.put(flow.name(), parseProfileCodes(rawProfileCodes));
+            configuredProfileCodesByFlow.put(flow.name(), List.of());
         }
 
         return configuredProfileCodesByFlow;
@@ -152,49 +150,9 @@ public class ProfessionalProfilePermissionService {
     /**
      * Generic permission check
      */
-    private boolean hasPermission(String systemUserId, Property configProperty, String moduleName) {
-        if (StringUtils.isBlank(systemUserId)) {
-            LogEvent.logWarn(this.getClass().getSimpleName(), "hasPermission",
-                    "Attempted " + moduleName + " permission check with blank systemUserId");
-            return false;
-        }
-
-        // Admin users always have permission
-        if (isAdminUser(systemUserId)) {
-            return true;
-        }
-
-        String rawProfileCodes = ConfigurationProperties.getInstance().getPropertyValue(configProperty);
-        
-        // If no profiles configured, allow all (backward compatibility)
-        if (StringUtils.isBlank(rawProfileCodes)) {
-            return true;
-        }
-
-        List<String> allowedProfileCodes = parseProfileCodes(rawProfileCodes);
-        
-        // If empty list after parsing, allow all
-        if (allowedProfileCodes.isEmpty()) {
-            return true;
-        }
-
-        Set<String> userProfileCodes = getUserProfileCodes(systemUserId);
-
-        if (userProfileCodes.isEmpty()) {
-            LogEvent.logWarn(this.getClass().getSimpleName(), "hasPermission",
-                    "User " + systemUserId + " has no professional profile linked, denying " + moduleName + " permission");
-            return false;
-        }
-
-        boolean hasPermission = userProfileCodes.stream().anyMatch(allowedProfileCodes::contains);
-
-        if (!hasPermission) {
-            String denialMessage = "User " + systemUserId + " with profiles " + userProfileCodes + " denied "
-                    + moduleName + " permission. Allowed profiles: " + allowedProfileCodes;
-            LogEvent.logInfo(this.getClass().getSimpleName(), "hasPermission", denialMessage);
-        }
-        
-        return hasPermission;
+    private boolean allowed(String userId, String module, String... actions) {
+        return Arrays.stream(actions)
+                .anyMatch(action -> moduleAuthorizationService.hasPermission(userId, module, action));
     }
 
     /**
@@ -246,51 +204,4 @@ public class ProfessionalProfilePermissionService {
         }
     }
 
-    /**
-     * Check if user is admin
-     */
-    private boolean isAdminUser(String systemUserId) {
-        try {
-            if (userPermissionService.hasPermission(systemUserId, SystemPermission.GLOBAL_ADMIN)
-                    || userPermissionService.hasPermission(systemUserId, SystemPermission.ADMINISTRATION)) {
-                return true;
-            }
-
-            Set<String> effectiveRoleNames = userPermissionService.getEffectiveRoleNames(systemUserId);
-            if (effectiveRoleNames.contains(Constants.ROLE_USER_ACCOUNT_ADMIN)
-                    || effectiveRoleNames.contains(Constants.ROLE_GLOBAL_ADMIN)
-                    || effectiveRoleNames.contains(Constants.ROLE_ADMINISTRATION)
-                    || effectiveRoleNames.contains("Admin")
-                    || effectiveRoleNames.contains("ROLE_ADMIN")) {
-                return true;
-            }
-
-            SystemUser systemUser = systemUserService.get(systemUserId);
-            if (systemUser != null && StringUtils.isNotBlank(systemUser.getLoginName())) {
-                LoginUser loginUser = loginUserService.getUserProfile(systemUser.getLoginName());
-                return loginUser != null && IActionConstants.YES.equalsIgnoreCase(loginUser.getIsAdmin());
-            }
-
-            return false;
-        } catch (Exception e) {
-            LogEvent.logError(this.getClass().getSimpleName(), "isAdminUser",
-                    "Error checking admin status for user " + systemUserId + ": " + e.getMessage());
-            return false;
-        }
-    }
-
-    /**
-     * Parse comma-separated profile codes
-     */
-    private List<String> parseProfileCodes(String rawValue) {
-        if (StringUtils.isBlank(rawValue)) {
-            return List.of();
-        }
-
-        return Arrays.stream(StringUtils.split(rawValue, ','))
-                .map(code -> StringUtils.upperCase(StringUtils.trimToNull(code)))
-                .filter(StringUtils::isNotBlank)
-                .distinct()
-                .toList();
-    }
 }

@@ -10,8 +10,8 @@ import java.time.format.DateTimeFormatter;
 import java.time.format.DateTimeParseException;
 import java.util.ArrayList;
 import java.util.Base64;
-import java.util.Comparator;
 import java.util.Collections;
+import java.util.Comparator;
 import java.util.HashMap;
 import java.util.HashSet;
 import java.util.LinkedHashMap;
@@ -25,8 +25,8 @@ import java.util.stream.Collectors;
 import org.apache.commons.lang3.StringUtils;
 import org.openelisglobal.common.documentupload.TemporaryDocumentUploadPayload;
 import org.openelisglobal.common.documentupload.TemporaryDocumentUploadService;
-import org.openelisglobal.common.service.UserFieldOptionResolver;
 import org.openelisglobal.common.exception.LIMSRuntimeException;
+import org.openelisglobal.common.service.UserFieldOptionResolver;
 import org.openelisglobal.systemuser.service.SystemUserService;
 import org.openelisglobal.testadditionalfield.bean.TestAdditionalFieldOptionPayload;
 import org.openelisglobal.testadditionalfield.bean.TestAdditionalFieldPayload;
@@ -223,6 +223,8 @@ public class TestAdditionalFieldServiceImpl implements TestAdditionalFieldServic
                     payload.getSortOrder() == null ? fallbackSortOrder : Math.max(payload.getSortOrder(), 0));
             definition.setDefaultValue(StringUtils.defaultIfBlank(payload.getDefaultValue(), null));
             definition.setMaxLength(payload.getMaxLength());
+            userFieldOptionResolver.validateConfiguration(definition.getFieldType(), payload.getMetadataJson(),
+                    "results");
             definition.setMetadataJson(StringUtils.defaultIfBlank(payload.getMetadataJson(), null));
             definition.setSysUserId(currentUserId);
 
@@ -252,6 +254,8 @@ public class TestAdditionalFieldServiceImpl implements TestAdditionalFieldServic
                             payload.getSortOrder() == null ? fallbackSortOrder : Math.max(payload.getSortOrder(), 0));
                     definition.setDefaultValue(StringUtils.defaultIfBlank(payload.getDefaultValue(), null));
                     definition.setMaxLength(payload.getMaxLength());
+                    userFieldOptionResolver.validateConfiguration(definition.getFieldType(), payload.getMetadataJson(),
+                            "results");
                     definition.setMetadataJson(StringUtils.defaultIfBlank(payload.getMetadataJson(), null));
                     definition.setSysUserId(currentUserId);
                     definitionDAO.update(definition);
@@ -376,6 +380,10 @@ public class TestAdditionalFieldServiceImpl implements TestAdditionalFieldServic
                 normalizedValue = normalizeAndValidateValue(fieldDefinition, fieldDefinition.getDefaultValue());
             }
 
+            userFieldOptionResolver.validateAssignment(fieldDefinition.getFieldType(),
+                    fieldDefinition.getMetadataJson(), "results", testId, normalizedValue,
+                    existingValue.map(AnalysisAdditionalFieldValue::getFieldValue).orElse(null));
+
             boolean fieldVisible = isFieldVisible(fieldDefinition, fieldDefinitions, fieldValues);
             if (normalizedValue == null) {
                 if (fieldVisible && enforceRequired && Boolean.TRUE.equals(fieldDefinition.getRequired())) {
@@ -431,6 +439,7 @@ public class TestAdditionalFieldServiceImpl implements TestAdditionalFieldServic
                 payload.getSortOrder() == null ? getNextSortOrder(testNumericId) : Math.max(payload.getSortOrder(), 0));
         definition.setDefaultValue(StringUtils.defaultIfBlank(payload.getDefaultValue(), null));
         definition.setMaxLength(payload.getMaxLength());
+        userFieldOptionResolver.validateConfiguration(definition.getFieldType(), payload.getMetadataJson(), "results");
         definition.setMetadataJson(StringUtils.defaultIfBlank(payload.getMetadataJson(), null));
         definition.setSysUserId(currentUserId);
 
@@ -455,13 +464,11 @@ public class TestAdditionalFieldServiceImpl implements TestAdditionalFieldServic
                 : parseFieldType(payload.getFieldType());
 
         if (hasSavedValues && requestedFieldType != existingFieldType) {
-            throw new IllegalStateException(
-                    "This field already has saved data and its type cannot be changed.");
+            throw new IllegalStateException("This field already has saved data and its type cannot be changed.");
         }
         if (hasSavedValues && payload.getOptions() != null && isStaticOptionFieldType(requestedFieldType)
                 && haveOptionsChanged(fieldId, payload.getOptions())) {
-            throw new IllegalStateException(
-                    "This field already has saved data and its options cannot be changed.");
+            throw new IllegalStateException("This field already has saved data and its options cannot be changed.");
         }
 
         if (StringUtils.isNotBlank(payload.getDisplayName())) {
@@ -493,6 +500,8 @@ public class TestAdditionalFieldServiceImpl implements TestAdditionalFieldServic
             definition.setMaxLength(payload.getMaxLength());
         }
         if (payload.getMetadataJson() != null) {
+            userFieldOptionResolver.validateConfiguration(definition.getFieldType(), payload.getMetadataJson(),
+                    "results");
             definition.setMetadataJson(StringUtils.defaultIfBlank(payload.getMetadataJson(), null));
         }
 
@@ -624,7 +633,8 @@ public class TestAdditionalFieldServiceImpl implements TestAdditionalFieldServic
             TestAdditionalFieldPayload payload = mapDefinitionToPayload(definition);
             List<TestAdditionalFieldOptionPayload> resolvedOptions = Collections.emptyList();
             if (resolveUserOptions && isUserFieldType(definition)) {
-                resolvedOptions = resolveUserFieldOptions(definition.getFieldType(), definition.getMetadataJson());
+                resolvedOptions = resolveUserFieldOptions(definition.getFieldType(), definition.getMetadataJson(),
+                        String.valueOf(definition.getTestId()));
             } else {
                 resolvedOptions = optionsByDefinitionId.getOrDefault(definition.getId(), Collections.emptyList());
             }
@@ -659,9 +669,8 @@ public class TestAdditionalFieldServiceImpl implements TestAdditionalFieldServic
         }
 
         List<TestAdditionalFieldDefinition> sortedDefinitions = new ArrayList<>(definitions);
-        sortedDefinitions.sort(Comparator
-                .comparing(TestAdditionalFieldDefinition::getLastupdated,
-                        Comparator.nullsLast(Comparator.reverseOrder()))
+        sortedDefinitions.sort(Comparator.comparing(TestAdditionalFieldDefinition::getLastupdated,
+                Comparator.nullsLast(Comparator.reverseOrder()))
                 .thenComparing(TestAdditionalFieldDefinition::getId, Comparator.nullsLast(Comparator.reverseOrder())));
 
         Map<String, TestAdditionalFieldDefinition> dedupedByFieldKey = new LinkedHashMap<>();
@@ -677,9 +686,9 @@ public class TestAdditionalFieldServiceImpl implements TestAdditionalFieldServic
         }
 
         List<TestAdditionalFieldDefinition> collapsedDefinitions = new ArrayList<>(dedupedByFieldKey.values());
-        collapsedDefinitions.sort(Comparator.comparing(TestAdditionalFieldDefinition::getSortOrder,
-                Comparator.nullsLast(Comparator.naturalOrder())).thenComparing(TestAdditionalFieldDefinition::getId,
-                        Comparator.nullsLast(Comparator.naturalOrder())));
+        collapsedDefinitions.sort(Comparator
+                .comparing(TestAdditionalFieldDefinition::getSortOrder, Comparator.nullsLast(Comparator.naturalOrder()))
+                .thenComparing(TestAdditionalFieldDefinition::getId, Comparator.nullsLast(Comparator.naturalOrder())));
         return collapsedDefinitions;
     }
 
@@ -698,7 +707,8 @@ public class TestAdditionalFieldServiceImpl implements TestAdditionalFieldServic
                 .orElseThrow(() -> new IllegalArgumentException("Field definition not found: " + fieldId));
         TestAdditionalFieldPayload payload = mapDefinitionToPayload(definition);
         if (isUserFieldType(definition)) {
-            payload.setOptions(resolveUserFieldOptions(definition.getFieldType(), definition.getMetadataJson()));
+            payload.setOptions(resolveUserFieldOptions(definition.getFieldType(), definition.getMetadataJson(),
+                    String.valueOf(definition.getTestId())));
             return payload;
         }
         List<TestAdditionalFieldOption> options = optionDAO.findByDefinitionId(fieldId, includeInactiveOptions);
@@ -964,9 +974,10 @@ public class TestAdditionalFieldServiceImpl implements TestAdditionalFieldServic
 
     private boolean haveOptionsChanged(Integer fieldId, List<TestAdditionalFieldOptionPayload> requestedOptions) {
         List<String> existing = optionDAO.findByDefinitionId(fieldId, true).stream().filter(option -> option != null)
-                .filter(option -> option.getActive() == null || option.getActive()).sorted((left, right) -> Integer
-                        .compare(left.getSortOrder() == null ? Integer.MAX_VALUE : left.getSortOrder(),
-                                right.getSortOrder() == null ? Integer.MAX_VALUE : right.getSortOrder()))
+                .filter(option -> option.getActive() == null || option.getActive())
+                .sorted((left, right) -> Integer.compare(
+                        left.getSortOrder() == null ? Integer.MAX_VALUE : left.getSortOrder(),
+                        right.getSortOrder() == null ? Integer.MAX_VALUE : right.getSortOrder()))
                 .map(option -> option.getOptionKey() + "|" + StringUtils.trimToEmpty(option.getOptionLabel()))
                 .collect(Collectors.toList());
 
@@ -1023,8 +1034,9 @@ public class TestAdditionalFieldServiceImpl implements TestAdditionalFieldServic
             return trimmedValue.toLowerCase();
         case SELECT:
         case RADIO:
-        case USER:
             validateSingleOption(fieldDefinition, trimmedValue);
+            return trimmedValue;
+        case USER:
             return trimmedValue;
         case MULTISELECT:
             return normalizeAndValidateMultiSelect(fieldDefinition, trimmedValue);
@@ -1064,15 +1076,13 @@ public class TestAdditionalFieldServiceImpl implements TestAdditionalFieldServic
             int maxSizeMb = resolveDocumentMaxSizeMb(fieldDefinition.getMetadataJson());
             long maxBytes = maxSizeMb * 1024L * 1024L;
             if (contentBytes.length > maxBytes) {
-                throw new LIMSRuntimeException(
-                        "File exceeds max size for field: " + fieldDefinition.getDisplayName());
+                throw new LIMSRuntimeException("File exceeds max size for field: " + fieldDefinition.getDisplayName());
             }
 
             Map<String, String> normalized = new HashMap<>();
             normalized.put("fileName", fileName);
-            normalized.put("fileType",
-                    StringUtils.defaultIfBlank(fileType, allowedMimeTypes.isEmpty() ? DEFAULT_DOCUMENT_MIME_TYPE
-                            : allowedMimeTypes.get(0)));
+            normalized.put("fileType", StringUtils.defaultIfBlank(fileType,
+                    allowedMimeTypes.isEmpty() ? DEFAULT_DOCUMENT_MIME_TYPE : allowedMimeTypes.get(0)));
             normalized.put("base64Content", base64Content);
             return OBJECT_MAPPER.writeValueAsString(normalized);
         } catch (LIMSRuntimeException e) {
@@ -1144,19 +1154,19 @@ public class TestAdditionalFieldServiceImpl implements TestAdditionalFieldServic
             int minValue = selectorNode.path("min").isInt() ? selectorNode.path("min").asInt() : 1;
             int maxValue = selectorNode.path("max").isInt() ? selectorNode.path("max").asInt() : 2;
             if (parsedValue.scale() > 0 && parsedValue.stripTrailingZeros().scale() > 0) {
-                throw new LIMSRuntimeException("Tube selector must be a whole number for field: "
-                        + fieldDefinition.getDisplayName());
+                throw new LIMSRuntimeException(
+                        "Tube selector must be a whole number for field: " + fieldDefinition.getDisplayName());
             }
             int intValue = parsedValue.intValue();
             if (intValue < minValue || intValue > maxValue) {
-                throw new LIMSRuntimeException("Tube selector is outside allowed range for field: "
-                        + fieldDefinition.getDisplayName());
+                throw new LIMSRuntimeException(
+                        "Tube selector is outside allowed range for field: " + fieldDefinition.getDisplayName());
             }
         }
     }
 
-    private boolean isFieldVisible(TestAdditionalFieldPayload fieldDefinition, List<TestAdditionalFieldPayload> allFields,
-            Map<String, String> currentValues) {
+    private boolean isFieldVisible(TestAdditionalFieldPayload fieldDefinition,
+            List<TestAdditionalFieldPayload> allFields, Map<String, String> currentValues) {
         if (fieldDefinition == null) {
             return false;
         }
@@ -1167,7 +1177,8 @@ public class TestAdditionalFieldServiceImpl implements TestAdditionalFieldServic
             return true;
         }
 
-        Integer activationCount = tubeBlockNode.path("activationCount").isInt() ? tubeBlockNode.path("activationCount").asInt()
+        Integer activationCount = tubeBlockNode.path("activationCount").isInt()
+                ? tubeBlockNode.path("activationCount").asInt()
                 : null;
         if (activationCount == null || activationCount.intValue() <= 0) {
             return true;
@@ -1280,7 +1291,8 @@ public class TestAdditionalFieldServiceImpl implements TestAdditionalFieldServic
         // For USER fields, options are resolved dynamically from active system users
         // and are not stored in the database. Validating against the in-memory options
         // list is unreliable at save time (the list may be empty or the user may have
-        // been deactivated between page load and save). Instead, we accept any non-blank
+        // been deactivated between page load and save). Instead, we accept any
+        // non-blank
         // value — the system-user ID is stored as-is and resolved at display time.
         if (userFieldOptionResolver.isUserFieldType(fieldDefinition.getFieldType())) {
             return;
@@ -1295,10 +1307,11 @@ public class TestAdditionalFieldServiceImpl implements TestAdditionalFieldServic
         }
     }
 
-    private List<TestAdditionalFieldOptionPayload> resolveUserFieldOptions(String fieldType, String metadataJson) {
+    private List<TestAdditionalFieldOptionPayload> resolveUserFieldOptions(String fieldType, String metadataJson,
+            String testId) {
         List<TestAdditionalFieldOptionPayload> payloads = new ArrayList<>();
         List<UserFieldOptionResolver.ResolvedUserOption> resolvedOptions = userFieldOptionResolver
-                .resolveUserOptions(fieldType, metadataJson);
+                .resolveUserOptions(fieldType, metadataJson, "results", testId);
         for (int i = 0; i < resolvedOptions.size(); i++) {
             UserFieldOptionResolver.ResolvedUserOption option = resolvedOptions.get(i);
             TestAdditionalFieldOptionPayload payload = new TestAdditionalFieldOptionPayload();

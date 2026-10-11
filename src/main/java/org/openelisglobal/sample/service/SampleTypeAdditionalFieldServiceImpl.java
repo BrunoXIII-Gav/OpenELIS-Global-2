@@ -8,7 +8,6 @@ import java.time.format.DateTimeFormatter;
 import java.time.format.DateTimeParseException;
 import java.util.ArrayList;
 import java.util.Collections;
-import java.util.Comparator;
 import java.util.HashMap;
 import java.util.HashSet;
 import java.util.LinkedHashSet;
@@ -19,8 +18,8 @@ import java.util.Set;
 import java.util.regex.Pattern;
 import java.util.stream.Collectors;
 import org.apache.commons.lang3.StringUtils;
-import org.openelisglobal.common.service.UserFieldOptionResolver;
 import org.openelisglobal.common.exception.LIMSRuntimeException;
+import org.openelisglobal.common.service.UserFieldOptionResolver;
 import org.openelisglobal.sample.bean.SampleTypeAdditionalFieldOptionPayload;
 import org.openelisglobal.sample.bean.SampleTypeAdditionalFieldPayload;
 import org.openelisglobal.sample.dao.SampleItemAdditionalFieldValueDAO;
@@ -112,7 +111,8 @@ public class SampleTypeAdditionalFieldServiceImpl implements SampleTypeAdditiona
         List<SampleTypeAdditionalFieldOption> options = optionDAO.findByDefinitionIds(definitionIds, true);
 
         Map<Integer, List<SampleTypeAdditionalFieldPayload>> bySampleType = mapDefinitionsToPayload(definitions,
-                options, true).stream().collect(Collectors.groupingBy(payload -> Integer.valueOf(payload.getSampleTypeId())));
+                options, true).stream()
+                .collect(Collectors.groupingBy(payload -> Integer.valueOf(payload.getSampleTypeId())));
 
         for (Integer numericId : numericIds) {
             String key = String.valueOf(numericId);
@@ -177,6 +177,8 @@ public class SampleTypeAdditionalFieldServiceImpl implements SampleTypeAdditiona
                 : Math.max(payload.getSortOrder(), 0));
         definition.setDefaultValue(StringUtils.defaultIfBlank(payload.getDefaultValue(), null));
         definition.setMaxLength(payload.getMaxLength());
+        userFieldOptionResolver.validateConfiguration(definition.getFieldType(), payload.getMetadataJson(),
+                "sample-management");
         definition.setMetadataJson(StringUtils.defaultIfBlank(payload.getMetadataJson(), null));
         definition.setSysUserId(currentUserId);
 
@@ -201,13 +203,11 @@ public class SampleTypeAdditionalFieldServiceImpl implements SampleTypeAdditiona
                 : parseFieldType(payload.getFieldType());
 
         if (hasSavedValues && requestedFieldType != existingFieldType) {
-            throw new IllegalStateException(
-                    "This field already has saved data and its type cannot be changed.");
+            throw new IllegalStateException("This field already has saved data and its type cannot be changed.");
         }
         if (hasSavedValues && payload.getOptions() != null && isStaticOptionFieldType(requestedFieldType)
                 && haveOptionsChanged(fieldId, payload.getOptions())) {
-            throw new IllegalStateException(
-                    "This field already has saved data and its options cannot be changed.");
+            throw new IllegalStateException("This field already has saved data and its options cannot be changed.");
         }
 
         if (StringUtils.isNotBlank(payload.getDisplayName())) {
@@ -219,7 +219,7 @@ public class SampleTypeAdditionalFieldServiceImpl implements SampleTypeAdditiona
             definition.setFieldType(fieldType.name());
 
             if (payload.getDisplaySection() != null) {
-                    definition.setDisplaySection(normalizeDisplaySection(payload.getDisplaySection()));
+                definition.setDisplaySection(normalizeDisplaySection(payload.getDisplaySection()));
             }
 
             if (!isStaticOptionFieldType(fieldType)) {
@@ -248,6 +248,8 @@ public class SampleTypeAdditionalFieldServiceImpl implements SampleTypeAdditiona
             definition.setMaxLength(payload.getMaxLength());
         }
         if (payload.getMetadataJson() != null) {
+            userFieldOptionResolver.validateConfiguration(definition.getFieldType(), payload.getMetadataJson(),
+                    "sample-management");
             definition.setMetadataJson(StringUtils.defaultIfBlank(payload.getMetadataJson(), null));
         }
 
@@ -407,13 +409,34 @@ public class SampleTypeAdditionalFieldServiceImpl implements SampleTypeAdditiona
 
         for (SampleTypeAdditionalFieldPayload fieldDefinition : fieldDefinitions) {
             String rawValue = fieldValues.get(fieldDefinition.getFieldKey());
+            Optional<SampleItemAdditionalFieldValue> previous = valueDAO
+                    .findBySampleItemIdAndFieldDefinitionId(sampleItemNumericId, fieldDefinition.getId());
+            if (!fieldValues.containsKey(fieldDefinition.getFieldKey()) && previous.isPresent())
+                continue;
             String normalizedValue = normalizeAndValidateValue(fieldDefinition, rawValue);
+            if (userFieldOptionResolver.isUserFieldType(fieldDefinition.getFieldType())) {
+                String previousValue = previous.map(SampleItemAdditionalFieldValue::getFieldValue).orElse(null);
+                if (!java.util.Objects.equals(normalizedValue, previousValue)
+                        && StringUtils.isNotBlank(normalizedValue)) {
+                    userFieldOptionResolver.validateFieldAssignment(
+                            userFieldOptionResolver.filterForFieldAccess(
+                                    userFieldOptionResolver.resolveSampleUserOptions(fieldDefinition.getMetadataJson(),
+                                            "sample-management", sampleItemId),
+                                    fieldDefinition.getMetadataJson(), "sample-management",
+                                    "COLLECTION".equals(fieldDefinition.getDisplaySection()) ? "collection"
+                                            : "reception",
+                                    "additional-field-" + fieldDefinition.getId()),
+                            normalizedValue, previousValue);
+                }
+            }
 
             if (StringUtils.isBlank(normalizedValue)) {
                 if (enforceRequired && Boolean.TRUE.equals(fieldDefinition.getRequired())) {
                     throw new LIMSRuntimeException("Additional field is required: "
                             + StringUtils.defaultString(fieldDefinition.getDisplayName()));
                 }
+                if (fieldValues.containsKey(fieldDefinition.getFieldKey()))
+                    previous.ifPresent(valueDAO::delete);
                 continue;
             }
 
@@ -491,7 +514,8 @@ public class SampleTypeAdditionalFieldServiceImpl implements SampleTypeAdditiona
         if (isUserFieldType(definition.getFieldType())) {
             payload.setOptions(resolveUserFieldOptions(definition.getFieldType(), definition.getMetadataJson()));
         } else {
-            List<SampleTypeAdditionalFieldOption> options = optionDAO.findByDefinitionId(fieldId, includeInactiveOptions);
+            List<SampleTypeAdditionalFieldOption> options = optionDAO.findByDefinitionId(fieldId,
+                    includeInactiveOptions);
             payload.setOptions(options.stream().map(this::mapOptionToPayload).collect(Collectors.toList()));
         }
         return payload;
@@ -701,9 +725,10 @@ public class SampleTypeAdditionalFieldServiceImpl implements SampleTypeAdditiona
 
     private boolean haveOptionsChanged(Integer fieldId, List<SampleTypeAdditionalFieldOptionPayload> requestedOptions) {
         List<String> existing = optionDAO.findByDefinitionId(fieldId, true).stream().filter(option -> option != null)
-                .filter(option -> option.getActive() == null || option.getActive()).sorted((left, right) -> Integer
-                        .compare(left.getSortOrder() == null ? Integer.MAX_VALUE : left.getSortOrder(),
-                                right.getSortOrder() == null ? Integer.MAX_VALUE : right.getSortOrder()))
+                .filter(option -> option.getActive() == null || option.getActive())
+                .sorted((left, right) -> Integer.compare(
+                        left.getSortOrder() == null ? Integer.MAX_VALUE : left.getSortOrder(),
+                        right.getSortOrder() == null ? Integer.MAX_VALUE : right.getSortOrder()))
                 .map(option -> option.getOptionKey() + "|" + StringUtils.trimToEmpty(option.getOptionLabel()))
                 .collect(Collectors.toList());
 
@@ -751,8 +776,9 @@ public class SampleTypeAdditionalFieldServiceImpl implements SampleTypeAdditiona
             return trimmedValue.toLowerCase();
         case SELECT:
         case RADIO:
-        case USER:
             validateSingleOption(fieldDefinition, trimmedValue);
+            return trimmedValue;
+        case USER:
             return trimmedValue;
         case MULTISELECT:
             return normalizeAndValidateMultiSelect(fieldDefinition, trimmedValue);
@@ -837,7 +863,8 @@ public class SampleTypeAdditionalFieldServiceImpl implements SampleTypeAdditiona
         // For USER fields, options are resolved dynamically from active system users
         // and are not stored in the database. Validating against the in-memory options
         // list is unreliable at save time (the list may be empty or the user may have
-        // been deactivated between page load and save). Instead, we accept any non-blank
+        // been deactivated between page load and save). Instead, we accept any
+        // non-blank
         // value — the system-user ID is stored as-is and resolved at display time.
         if (userFieldOptionResolver.isUserFieldType(fieldDefinition.getFieldType())) {
             return;
@@ -852,10 +879,11 @@ public class SampleTypeAdditionalFieldServiceImpl implements SampleTypeAdditiona
         }
     }
 
-    private List<SampleTypeAdditionalFieldOptionPayload> resolveUserFieldOptions(String fieldType, String metadataJson) {
+    private List<SampleTypeAdditionalFieldOptionPayload> resolveUserFieldOptions(String fieldType,
+            String metadataJson) {
         List<SampleTypeAdditionalFieldOptionPayload> payloads = new ArrayList<>();
         List<UserFieldOptionResolver.ResolvedUserOption> resolvedOptions = userFieldOptionResolver
-                .resolveUserOptions(fieldType, metadataJson);
+                .resolveUserOptions(fieldType, metadataJson, "sample-management", null);
         for (int index = 0; index < resolvedOptions.size(); index++) {
             UserFieldOptionResolver.ResolvedUserOption option = resolvedOptions.get(index);
             SampleTypeAdditionalFieldOptionPayload payload = new SampleTypeAdditionalFieldOptionPayload();

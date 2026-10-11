@@ -164,7 +164,8 @@ public class ValidationTemplateOverrideRestController extends BaseRestController
     }
 
     @GetMapping("/user-field-options")
-    public ResponseEntity<?> getUserFieldOptions(@RequestParam(value = "testIds", required = false) List<String> testIds) {
+    public ResponseEntity<?> getUserFieldOptions(
+            @RequestParam(value = "testIds", required = false) List<String> testIds) {
         try {
             List<String> sanitizedTestIds = sanitizeList(testIds);
             JSONObject payload = new JSONObject();
@@ -174,8 +175,7 @@ public class ValidationTemplateOverrideRestController extends BaseRestController
             return ResponseEntity.ok(payload.toMap());
         } catch (Exception e) {
             logger.error("Error retrieving user field options", e);
-            return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR)
-                    .body("Error retrieving user field options");
+            return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR).body("Error retrieving user field options");
         }
     }
 
@@ -234,8 +234,7 @@ public class ValidationTemplateOverrideRestController extends BaseRestController
                 filename = filename + ".jrxml";
             }
 
-            return ResponseEntity.ok()
-                    .contentType(MediaType.APPLICATION_OCTET_STREAM)
+            return ResponseEntity.ok().contentType(MediaType.APPLICATION_OCTET_STREAM)
                     .header(HttpHeaders.CONTENT_DISPOSITION, "attachment; filename=\"" + filename + "\"")
                     .body(templateContent.getBytes(StandardCharsets.UTF_8));
         } catch (Exception e) {
@@ -532,8 +531,8 @@ public class ValidationTemplateOverrideRestController extends BaseRestController
     }
 
     /**
-     * Build list of USER field options from test configuration.
-     * Each USER field represents an analyst/technician selector in result entry.
+     * Build list of USER field options from test configuration. Each USER field
+     * represents an analyst/technician selector in result entry.
      */
     private List<Map<String, Object>> buildUserFieldOptions(List<String> testIds) {
         if (testIds == null || testIds.isEmpty()) {
@@ -619,29 +618,14 @@ public class ValidationTemplateOverrideRestController extends BaseRestController
      * Extract profile codes from metadataJson field.
      */
     private List<String> extractProfileCodes(String metadataJson) {
-        if (StringUtils.isBlank(metadataJson)) {
-            return Collections.emptyList();
-        }
+        return allProfessionalProfileCodes();
+    }
 
-        try {
-            JSONObject metadata = new JSONObject(metadataJson);
-            JSONArray codes = metadata.optJSONArray("userProfileCodes");
-            if (codes == null) {
-                return Collections.emptyList();
-            }
-
-            List<String> profileCodes = new ArrayList<>();
-            for (int i = 0; i < codes.length(); i++) {
-                String code = codes.optString(i);
-                if (StringUtils.isNotBlank(code)) {
-                    profileCodes.add(code.trim().toUpperCase());
-                }
-            }
-            return profileCodes;
-        } catch (Exception e) {
-            logger.warn("Failed to parse metadataJson for profile codes", e);
-            return Collections.emptyList();
-        }
+    private List<String> allProfessionalProfileCodes() {
+        return org.openelisglobal.spring.util.SpringContext
+                .getBean(org.openelisglobal.professionalprofile.service.ProfessionalProfileDefinitionService.class)
+                .getProfiles().stream()
+                .map(org.openelisglobal.professionalprofile.form.ProfessionalProfileDefinitionForm::getCode).toList();
     }
 
     /**
@@ -659,13 +643,7 @@ public class ValidationTemplateOverrideRestController extends BaseRestController
 
     private List<String> getConfiguredProfessionalProfileCodes(
             org.openelisglobal.common.util.ConfigurationProperties.Property property) {
-        String rawValue = org.openelisglobal.common.util.ConfigurationProperties.getInstance().getPropertyValue(property);
-        if (StringUtils.isBlank(rawValue)) {
-            return Collections.emptyList();
-        }
-
-        return Arrays.stream(rawValue.split(",")).map(String::trim).map(String::toUpperCase)
-                .filter(StringUtils::isNotBlank).distinct().collect(Collectors.toList());
+        return allProfessionalProfileCodes();
     }
 
     /**
@@ -680,14 +658,12 @@ public class ValidationTemplateOverrideRestController extends BaseRestController
         allProfileCodes.addAll(getOrderProviderProfileCodes());
 
         // Add profile codes from configured professional profiles
-        String rawProfiles = org.openelisglobal.common.util.ConfigurationProperties.getInstance()
-                .getPropertyValue(org.openelisglobal.common.util.ConfigurationProperties.Property.professionalProfileOptions);
+        String rawProfiles = org.openelisglobal.common.util.ConfigurationProperties.getInstance().getPropertyValue(
+                org.openelisglobal.common.util.ConfigurationProperties.Property.professionalProfileOptions);
         if (StringUtils.isNotBlank(rawProfiles)) {
             Arrays.stream(rawProfiles.split(","))
                     .map(part -> part.contains("|") ? part.split("\\|")[0].trim() : part.trim())
-                    .map(String::toUpperCase)
-                    .filter(StringUtils::isNotBlank)
-                    .forEach(allProfileCodes::add);
+                    .map(String::toUpperCase).filter(StringUtils::isNotBlank).forEach(allProfileCodes::add);
         }
 
         // Build fields for each profile
@@ -711,26 +687,23 @@ public class ValidationTemplateOverrideRestController extends BaseRestController
         fields.add(buildProfileField("name", "Name", "text", true, null));
         fields.add(buildProfileField("specialty", "Specialty", "text", true, "specialty"));
         fields.add(buildProfileField("cbpCode", "CBP Code", "text", true, "cbpCode"));
-        fields.add(buildProfileField("professionalInitials", "Professional Initials", "text", true, "professionalInitials"));
+        fields.add(buildProfileField("professionalInitials", "Professional Initials", "text", true,
+                "professionalInitials"));
         fields.add(buildProfileField("dni", "DNI", "text", true, "dni"));
         fields.add(buildProfileField("npi", "NPI", "text", true, "npi"));
         fields.add(buildProfileField("signature", "Signature", "image", true, null));
 
         // Add custom fields configured for this profile
         try {
-            List<org.openelisglobal.professionalprofile.form.ProfessionalProfileFieldDefinitionForm> customFields = 
-                    professionalProfileFieldConfigService.getFieldsForProfile(profileCode, false);
+            List<org.openelisglobal.professionalprofile.form.ProfessionalProfileFieldDefinitionForm> customFields = professionalProfileFieldConfigService
+                    .getFieldsForProfile(profileCode, false);
 
             for (org.openelisglobal.professionalprofile.form.ProfessionalProfileFieldDefinitionForm customField : customFields) {
-                if (Boolean.TRUE.equals(customField.getActive()) && !Boolean.TRUE.equals(customField.getSystemField())) {
+                if (Boolean.TRUE.equals(customField.getActive())
+                        && !Boolean.TRUE.equals(customField.getSystemField())) {
                     String dataType = mapFieldTypeToDataType(customField.getFieldType());
-                    fields.add(buildProfileField(
-                            customField.getFieldKey(),
-                            customField.getDisplayName(),
-                            dataType,
-                            false,
-                            null
-                    ));
+                    fields.add(buildProfileField(customField.getFieldKey(), customField.getDisplayName(), dataType,
+                            false, null));
                 }
             }
         } catch (Exception e) {
@@ -743,8 +716,8 @@ public class ValidationTemplateOverrideRestController extends BaseRestController
     /**
      * Build a single profile field map.
      */
-    private Map<String, Object> buildProfileField(String fieldKey, String displayName, String dataType, 
-                                                    boolean isSystemField, String legacyBinding) {
+    private Map<String, Object> buildProfileField(String fieldKey, String displayName, String dataType,
+            boolean isSystemField, String legacyBinding) {
         Map<String, Object> field = new LinkedHashMap<>();
         field.put("fieldKey", fieldKey);
         field.put("displayName", displayName);
@@ -764,12 +737,12 @@ public class ValidationTemplateOverrideRestController extends BaseRestController
 
         String normalized = fieldType.trim().toUpperCase();
         return switch (normalized) {
-            case "NUMBER", "DECIMAL" -> "number";
-            case "BOOLEAN", "CHECKBOX" -> "boolean";
-            case "DATE" -> "date";
-            case "DATETIME" -> "datetime";
-            case "IMAGE", "FILE" -> "image";
-            default -> "text";
+        case "NUMBER", "DECIMAL" -> "number";
+        case "BOOLEAN", "CHECKBOX" -> "boolean";
+        case "DATE" -> "date";
+        case "DATETIME" -> "datetime";
+        case "IMAGE", "FILE" -> "image";
+        default -> "text";
         };
     }
 
@@ -820,8 +793,7 @@ public class ValidationTemplateOverrideRestController extends BaseRestController
         int analystSlotCount = resolveAnalystSlotCount(testIds);
         for (int slotIndex = 1; slotIndex <= analystSlotCount; slotIndex++) {
             addSourceOption(options, "biologist" + slotIndex + "Name", "Analyst #" + slotIndex + " Name");
-            addSourceOption(options, "biologist" + slotIndex + "Specialty",
-                    "Analyst #" + slotIndex + " Specialty");
+            addSourceOption(options, "biologist" + slotIndex + "Specialty", "Analyst #" + slotIndex + " Specialty");
             addSourceOption(options, "biologist" + slotIndex + "CbpCode", "Analyst #" + slotIndex + " CBP Code");
         }
     }
@@ -851,8 +823,7 @@ public class ValidationTemplateOverrideRestController extends BaseRestController
     }
 
     private boolean isAnalystSelectorField(TestAdditionalFieldPayload field) {
-        return field != null && Boolean.TRUE.equals(field.getActive())
-                && isUserSelectorFieldType(field.getFieldType())
+        return field != null && Boolean.TRUE.equals(field.getActive()) && isUserSelectorFieldType(field.getFieldType())
                 && StringUtils.isNotBlank(field.getFieldKey());
     }
 
@@ -929,7 +900,8 @@ public class ValidationTemplateOverrideRestController extends BaseRestController
     }
 
     private boolean isDynamicJasperConfig(Map<String, Object> config) {
-        return config != null && StringUtils.equals(CONFIG_MODE_DYNAMIC_JASPER, readString(config.get(CONFIG_MODE_KEY)));
+        return config != null
+                && StringUtils.equals(CONFIG_MODE_DYNAMIC_JASPER, readString(config.get(CONFIG_MODE_KEY)));
     }
 
     private boolean hasDynamicTemplateContent(Map<String, Object> config) {
@@ -948,8 +920,8 @@ public class ValidationTemplateOverrideRestController extends BaseRestController
 
         Map<String, Map<String, Object>> sourceOptionsById = buildSourceOptions(testIds).stream()
                 .filter(option -> !GenericValidator.isBlankOrNull(readString(option.get("id"))))
-                .collect(Collectors.toMap(option -> readString(option.get("id")), option -> option, (left, right) -> left,
-                        LinkedHashMap::new));
+                .collect(Collectors.toMap(option -> readString(option.get("id")), option -> option,
+                        (left, right) -> left, LinkedHashMap::new));
 
         Map<String, Object> mappings = (Map<String, Object>) mappingsObject;
         for (Map.Entry<String, Object> entry : mappings.entrySet()) {
@@ -982,11 +954,10 @@ public class ValidationTemplateOverrideRestController extends BaseRestController
                     return "Conditional mapping for " + parameterName + " has an unsupported operator";
                 }
                 if (parseDecimal(readString(rule.get("compareTo"))) == null) {
-                    return "Conditional mapping for " + parameterName
-                            + " requires a valid numeric comparison value";
+                    return "Conditional mapping for " + parameterName + " requires a valid numeric comparison value";
                 }
-                String branchError = validateConditionalBranch(parameterName, "rule", readString(rule.get("resultType")),
-                        readString(rule.get("resultValue")), sourceOptionsById);
+                String branchError = validateConditionalBranch(parameterName, "rule",
+                        readString(rule.get("resultType")), readString(rule.get("resultValue")), sourceOptionsById);
                 if (branchError != null) {
                     return branchError;
                 }
@@ -1041,8 +1012,7 @@ public class ValidationTemplateOverrideRestController extends BaseRestController
 
         if ("constant".equalsIgnoreCase(branchType)) {
             return GenericValidator.isBlankOrNull(branchValue)
-                    ? "Conditional mapping for " + parameterName + " requires a value for the " + branchName
-                            + " branch"
+                    ? "Conditional mapping for " + parameterName + " requires a value for the " + branchName + " branch"
                     : null;
         }
 
@@ -1143,9 +1113,10 @@ public class ValidationTemplateOverrideRestController extends BaseRestController
             return false;
         }
         String normalized = dataType.trim().toUpperCase();
-        return DATA_TYPE_NUMBER.equalsIgnoreCase(normalized) || "NUMBER".equals(normalized) || "DECIMAL".equals(normalized)
-                || "DOUBLE".equals(normalized) || "FLOAT".equals(normalized) || "INTEGER".equals(normalized)
-                || "LONG".equals(normalized) || "SHORT".equals(normalized) || "BIGDECIMAL".equals(normalized);
+        return DATA_TYPE_NUMBER.equalsIgnoreCase(normalized) || "NUMBER".equals(normalized)
+                || "DECIMAL".equals(normalized) || "DOUBLE".equals(normalized) || "FLOAT".equals(normalized)
+                || "INTEGER".equals(normalized) || "LONG".equals(normalized) || "SHORT".equals(normalized)
+                || "BIGDECIMAL".equals(normalized);
     }
 
     private boolean isSupportedImage(MultipartFile file) {
@@ -1283,8 +1254,9 @@ public class ValidationTemplateOverrideRestController extends BaseRestController
                                     if (GenericValidator.isBlankOrNull(displayName)) {
                                         displayName = fieldKey;
                                     }
-                                    addSourceOption(options, sourceId, "Sample Additional: " + displayName + " ("
-                                            + fieldKey + ") [" + sampleTypeName + "]",
+                                    addSourceOption(
+                                            options, sourceId, "Sample Additional: " + displayName + " (" + fieldKey
+                                                    + ") [" + sampleTypeName + "]",
                                             resolveFieldDataType(field.getFieldType()));
                                 });
                     });

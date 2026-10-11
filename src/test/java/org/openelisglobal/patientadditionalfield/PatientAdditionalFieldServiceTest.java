@@ -4,6 +4,8 @@ import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertNotNull;
 import static org.junit.Assert.assertTrue;
 import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.Mockito.doReturn;
+import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
@@ -14,13 +16,18 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
+import java.util.Set;
 import org.junit.Test;
 import org.junit.runner.RunWith;
 import org.mockito.ArgumentCaptor;
 import org.mockito.InjectMocks;
 import org.mockito.Mock;
+import org.mockito.Spy;
 import org.mockito.junit.MockitoJUnitRunner;
+import org.openelisglobal.authorization.service.ModuleAuthorizationService;
 import org.openelisglobal.common.exception.LIMSRuntimeException;
+import org.openelisglobal.common.service.UserFieldOptionResolver;
+import org.openelisglobal.common.service.UserFieldOptionResolver.ResolvedUserOption;
 import org.openelisglobal.patientadditionalfield.bean.PatientAdditionalFieldOptionPayload;
 import org.openelisglobal.patientadditionalfield.bean.PatientAdditionalFieldPayload;
 import org.openelisglobal.patientadditionalfield.dao.PatientAdditionalFieldDefinitionDAO;
@@ -30,6 +37,8 @@ import org.openelisglobal.patientadditionalfield.service.PatientAdditionalFieldS
 import org.openelisglobal.patientadditionalfield.valueholder.PatientAdditionalFieldDefinition;
 import org.openelisglobal.patientadditionalfield.valueholder.PatientAdditionalFieldOption;
 import org.openelisglobal.patientadditionalfield.valueholder.PatientAdditionalFieldValue;
+import org.openelisglobal.security.service.AuthorizationCatalogService;
+import org.springframework.test.util.ReflectionTestUtils;
 
 @RunWith(MockitoJUnitRunner.class)
 public class PatientAdditionalFieldServiceTest {
@@ -42,6 +51,9 @@ public class PatientAdditionalFieldServiceTest {
 
     @Mock
     private PatientAdditionalFieldValueDAO valueDAO;
+
+    @Spy
+    private UserFieldOptionResolver resolver = new UserFieldOptionResolver();
 
     @InjectMocks
     private PatientAdditionalFieldServiceImpl service;
@@ -81,14 +93,13 @@ public class PatientAdditionalFieldServiceTest {
         payload.setOptions(Arrays.asList(active, inactive));
 
         when(definitionDAO.findByFieldKey("patient_status")).thenReturn(Optional.empty());
-        when(definitionDAO.findAll(false))
-                .thenReturn(Collections.singletonList(definition(9, "existing", "Existing", "TEXT", false, true, 2,
-                        null, null)));
+        when(definitionDAO.findAll(false)).thenReturn(
+                Collections.singletonList(definition(9, "existing", "Existing", "TEXT", false, true, 2, null, null)));
         when(definitionDAO.insert(any(PatientAdditionalFieldDefinition.class))).thenReturn(101);
         when(definitionDAO.get(101)).thenReturn(
                 Optional.of(definition(101, "patient_status", "Patient Status", "SELECT", true, true, 3, null, null)));
-        when(optionDAO.findByDefinitionId(101, true)).thenReturn(Arrays.asList(option(200, 101, "active", "Active", 1,
-                true), option(201, 101, "inactive", "Inactive", 2, true)));
+        when(optionDAO.findByDefinitionId(101, true)).thenReturn(Arrays.asList(
+                option(200, 101, "active", "Active", 1, true), option(201, 101, "inactive", "Inactive", 2, true)));
 
         PatientAdditionalFieldPayload created = service.createField(payload, "77");
 
@@ -173,6 +184,23 @@ public class PatientAdditionalFieldServiceTest {
         assertEquals("stored", result.get("known_key"));
         assertTrue(!result.containsKey("99"));
         verify(definitionDAO, never()).findAll(any(Boolean.class));
+    }
+
+    @Test
+    public void getPatientValues_shouldLoadSavedUserAssignmentWithoutAFieldGroup() {
+        ModuleAuthorizationService authorization = mock(ModuleAuthorizationService.class);
+        ReflectionTestUtils.setField(resolver, "moduleAuthorizationService", authorization);
+        ReflectionTestUtils.setField(resolver, "authorizationCatalogService", new AuthorizationCatalogService());
+        doReturn(List.of(new ResolvedUserOption("17", "Ana Perez"))).when(resolver).resolveUserOptions("USER", null,
+                "patients", null);
+        when(authorization.getRestrictedFieldGroupKeys("17", "patients")).thenReturn(Set.of());
+        when(authorization.getRestrictedFieldTagKeys("17", "patients")).thenReturn(Set.of());
+        when(definitionDAO.findAll(true))
+                .thenReturn(List.of(definition(10, "responsable", "Responsable", "USER", false, true, 1, null, null)));
+        when(optionDAO.findByDefinitionIds(List.of(10), true)).thenReturn(List.of());
+        when(valueDAO.findByPatientId(200)).thenReturn(List.of(valueEntity(1, 200, 10, "17")));
+
+        assertEquals(Map.of("responsable", "17"), service.getPatientValues("200", null));
     }
 
     private PatientAdditionalFieldDefinition definition(Integer id, String fieldKey, String displayName,

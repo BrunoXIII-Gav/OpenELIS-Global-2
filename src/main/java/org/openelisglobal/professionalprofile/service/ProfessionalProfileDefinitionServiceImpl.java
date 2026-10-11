@@ -16,10 +16,8 @@ import java.util.Objects;
 import java.util.Set;
 import java.util.stream.Collectors;
 import org.apache.commons.lang3.StringUtils;
-import org.openelisglobal.common.services.DisplayListService;
 import org.openelisglobal.common.util.ConfigurationProperties;
 import org.openelisglobal.common.util.ConfigurationProperties.Property;
-import org.openelisglobal.notification.valueholder.NotificationConfigOption;
 import org.openelisglobal.professionalprofile.form.ProfessionalProfileDefinitionForm;
 import org.openelisglobal.professionalprofile.form.ProfessionalProfileFieldDefinitionForm;
 import org.openelisglobal.professionalprofile.form.ProfessionalProfileFieldOptionForm;
@@ -41,9 +39,8 @@ public class ProfessionalProfileDefinitionServiceImpl implements ProfessionalPro
 
     private static final ObjectMapper OBJECT_MAPPER = new ObjectMapper();
 
-    private static final TypeReference<LinkedHashMap<String, List<ProfessionalProfileFieldOptionForm>>> SPECIALTY_OPTIONS_TYPE =
-            new TypeReference<>() {
-            };
+    private static final TypeReference<LinkedHashMap<String, List<ProfessionalProfileFieldOptionForm>>> SPECIALTY_OPTIONS_TYPE = new TypeReference<>() {
+    };
 
     @Autowired
     private SiteInformationService siteInformationService;
@@ -64,8 +61,8 @@ public class ProfessionalProfileDefinitionServiceImpl implements ProfessionalPro
     @Override
     @Transactional(readOnly = true)
     public List<ProfessionalProfileDefinitionForm> getProfiles() {
-        return parseProfiles(ConfigurationProperties.getInstance().getPropertyValue(Property.professionalProfileOptions))
-                .stream()
+        return parseProfiles(
+                ConfigurationProperties.getInstance().getPropertyValue(Property.professionalProfileOptions)).stream()
                 .sorted(Comparator.comparing(ProfessionalProfileDefinitionForm::getName, String.CASE_INSENSITIVE_ORDER))
                 .toList();
     }
@@ -75,9 +72,7 @@ public class ProfessionalProfileDefinitionServiceImpl implements ProfessionalPro
     public ProfessionalProfileDefinitionForm getProfile(String code) {
         String normalizedCode = normalizeCode(code);
         ProfessionalProfileDefinitionForm profile = getProfiles().stream()
-                .filter(existingProfile -> normalizedCode.equals(existingProfile.getCode()))
-                .findFirst()
-                .orElse(null);
+                .filter(existingProfile -> normalizedCode.equals(existingProfile.getCode())).findFirst().orElse(null);
         if (profile == null) {
             return null;
         }
@@ -88,7 +83,8 @@ public class ProfessionalProfileDefinitionServiceImpl implements ProfessionalPro
     }
 
     @Override
-    public ProfessionalProfileDefinitionForm createProfile(ProfessionalProfileDefinitionForm form, String currentUserId) {
+    public ProfessionalProfileDefinitionForm createProfile(ProfessionalProfileDefinitionForm form,
+            String currentUserId) {
         List<ProfessionalProfileDefinitionForm> profiles = new ArrayList<>(getProfiles());
         ProfessionalProfileDefinitionForm normalizedForm = normalizeForm(form);
         if (normalizedForm == null) {
@@ -100,9 +96,11 @@ public class ProfessionalProfileDefinitionServiceImpl implements ProfessionalPro
         }
         profiles.add(normalizedForm);
         saveProfiles(profiles, currentUserId);
-        professionalProfileFieldConfigService.saveFieldsForProfile(normalizedForm.getCode(), form.getFields(), currentUserId);
+        professionalProfileFieldConfigService.saveFieldsForProfile(normalizedForm.getCode(), form.getFields(),
+                currentUserId);
         saveSpecialtyOptions(normalizedForm.getCode(), form.getSpecialtyOptions(), currentUserId);
-        normalizedForm.setFields(professionalProfileFieldConfigService.getFieldsForProfile(normalizedForm.getCode(), true));
+        normalizedForm
+                .setFields(professionalProfileFieldConfigService.getFieldsForProfile(normalizedForm.getCode(), true));
         normalizedForm.setSpecialtyOptions(getSpecialtyOptions(normalizedForm.getCode()));
         return normalizedForm;
     }
@@ -164,44 +162,20 @@ public class ProfessionalProfileDefinitionServiceImpl implements ProfessionalPro
         ProfessionalProfileSettingsForm form = new ProfessionalProfileSettingsForm();
         form.setOrderProviderProfessionalProfileCodes(parseConfiguredCodes(
                 ConfigurationProperties.getInstance().getPropertyValue(Property.orderProviderProfessionalProfileCode)));
-        form.setSampleCollectorProfessionalProfileCodes(parseConfiguredCodes(
-                ConfigurationProperties.getInstance().getPropertyValue(Property.sampleCollectorProfessionalProfileCode)));
+        form.setSampleCollectorProfessionalProfileCodes(parseConfiguredCodes(ConfigurationProperties.getInstance()
+                .getPropertyValue(Property.sampleCollectorProfessionalProfileCode)));
         form.setPatientEntryProfessionalProfileCodes(parseConfiguredCodes(
                 ConfigurationProperties.getInstance().getPropertyValue(Property.patientEntryProfessionalProfileCode)));
         form.setResultEntryProfessionalProfileCodes(parseConfiguredCodes(
                 ConfigurationProperties.getInstance().getPropertyValue(Property.resultEntryProfessionalProfileCode)));
-        form.setValidationInterpreterProfessionalProfileCodes(parseConfiguredCodes(
-                ConfigurationProperties.getInstance().getPropertyValue(Property.validationInterpreterProfessionalProfileCode)));
+        form.setValidationInterpreterProfessionalProfileCodes(parseConfiguredCodes(ConfigurationProperties.getInstance()
+                .getPropertyValue(Property.validationInterpreterProfessionalProfileCode)));
         return form;
     }
 
     @Override
     public ProfessionalProfileSettingsForm updateSettings(ProfessionalProfileSettingsForm form, String currentUserId) {
-        List<String> availableCodes = getProfiles().stream().map(ProfessionalProfileDefinitionForm::getCode).toList();
-        String orderProviderCodes = serializeConfiguredCodes(normalizeOptionalConfiguredCodes(
-                form.getOrderProviderProfessionalProfileCodes(), availableCodes, "Order requester profiles"));
-        String sampleCollectorCodes = serializeConfiguredCodes(normalizeOptionalConfiguredCodes(
-                form.getSampleCollectorProfessionalProfileCodes(), availableCodes, "Sample collector profiles"));
-        String patientEntryCodes = serializeConfiguredCodes(normalizeOptionalConfiguredCodes(
-                form.getPatientEntryProfessionalProfileCodes(), availableCodes, "Patient entry profiles"));
-        String resultEntryCodes = serializeConfiguredCodes(normalizeOptionalConfiguredCodes(
-                form.getResultEntryProfessionalProfileCodes(), availableCodes, "Result entry profiles"));
-        String validationInterpreterCodes = serializeConfiguredCodes(normalizeOptionalConfiguredCodes(
-                form.getValidationInterpreterProfessionalProfileCodes(), availableCodes, "Validation interpreter profiles"));
-
-        updateSiteInformation(Property.orderProviderProfessionalProfileCode, orderProviderCodes, currentUserId);
-        updateSiteInformation(Property.sampleCollectorProfessionalProfileCode, sampleCollectorCodes, currentUserId);
-        updateSiteInformation(Property.patientEntryProfessionalProfileCode, patientEntryCodes, currentUserId);
-        updateSiteInformation(Property.resultEntryProfessionalProfileCode, resultEntryCodes, currentUserId);
-        updateSiteInformation(Property.validationInterpreterProfessionalProfileCode, validationInterpreterCodes,
-                currentUserId);
-        ConfigurationProperties.loadDBValuesIntoConfiguration();
-        
-        // Refresh DisplayListService cache to apply new professional profile filters immediately
-        DisplayListService.getInstance().refreshList(DisplayListService.ListType.ORDER_PROVIDER_PERSONS);
-        DisplayListService.getInstance().refreshList(DisplayListService.ListType.PRACTITIONER_PERSONS);
-        
-        return getSettings();
+        throw new IllegalArgumentException("Workflow permissions are configured through roles");
     }
 
     private ProfessionalProfileDefinitionForm normalizeForm(ProfessionalProfileDefinitionForm form) {
@@ -219,16 +193,14 @@ public class ProfessionalProfileDefinitionServiceImpl implements ProfessionalPro
         return normalizedForm;
     }
 
-    private List<String> normalizeOptionalConfiguredCodes(List<String> codes, List<String> availableCodes, String label) {
+    private List<String> normalizeOptionalConfiguredCodes(List<String> codes, List<String> availableCodes,
+            String label) {
         if (codes == null || codes.isEmpty()) {
             return List.of();
         }
 
-        List<String> normalizedCodes = codes.stream()
-                .map(this::normalizeCode)
-                .filter(StringUtils::isNotBlank)
-                .distinct()
-                .toList();
+        List<String> normalizedCodes = codes.stream().map(this::normalizeCode).filter(StringUtils::isNotBlank)
+                .distinct().toList();
 
         for (String normalizedCode : normalizedCodes) {
             if (!availableCodes.contains(normalizedCode)) {
@@ -244,35 +216,28 @@ public class ProfessionalProfileDefinitionServiceImpl implements ProfessionalPro
             return List.of();
         }
 
-        return List.of(StringUtils.split(rawValue, ',')).stream()
-                .map(this::normalizeCode)
-                .filter(StringUtils::isNotBlank)
-                .distinct()
-                .toList();
+        return List.of(StringUtils.split(rawValue, ',')).stream().map(this::normalizeCode)
+                .filter(StringUtils::isNotBlank).distinct().toList();
     }
 
     private String serializeConfiguredCodes(List<String> codes) {
         if (codes == null || codes.isEmpty()) {
             return "";
         }
-        return codes.stream()
-                .map(this::normalizeCode)
-                .filter(StringUtils::isNotBlank)
-                .distinct()
+        return codes.stream().map(this::normalizeCode).filter(StringUtils::isNotBlank).distinct()
                 .collect(Collectors.joining(","));
     }
 
     private void saveProfiles(List<ProfessionalProfileDefinitionForm> profiles, String currentUserId) {
-        Map<String, ProfessionalProfileDefinitionForm> uniqueProfiles = profiles.stream()
-                .filter(Objects::nonNull)
-                .filter(profile -> StringUtils.isNotBlank(profile.getCode()) && StringUtils.isNotBlank(profile.getName()))
-                .collect(Collectors.toMap(ProfessionalProfileDefinitionForm::getCode, profile -> profile, (left, _right) -> left,
-                        LinkedHashMap::new));
+        Map<String, ProfessionalProfileDefinitionForm> uniqueProfiles = profiles.stream().filter(Objects::nonNull)
+                .filter(profile -> StringUtils.isNotBlank(profile.getCode())
+                        && StringUtils.isNotBlank(profile.getName()))
+                .collect(Collectors.toMap(ProfessionalProfileDefinitionForm::getCode, profile -> profile,
+                        (left, _right) -> left, LinkedHashMap::new));
 
         String serializedProfiles = uniqueProfiles.values().stream()
                 .sorted(Comparator.comparing(ProfessionalProfileDefinitionForm::getName, String.CASE_INSENSITIVE_ORDER))
-                .map(profile -> profile.getCode() + "|" + profile.getName())
-                .collect(Collectors.joining(","));
+                .map(profile -> profile.getCode() + "|" + profile.getName()).collect(Collectors.joining(","));
 
         updateSiteInformation(Property.professionalProfileOptions, serializedProfiles, currentUserId);
         ConfigurationProperties.loadDBValuesIntoConfiguration();
@@ -285,24 +250,22 @@ public class ProfessionalProfileDefinitionServiceImpl implements ProfessionalPro
                 .collect(Collectors.toMap(ProfessionalProfileFieldDefinitionForm::getFieldKey, field -> field,
                         (left, _right) -> left, LinkedHashMap::new));
 
-        Set<String> submittedFieldKeys = (submittedFields == null ? List.<ProfessionalProfileFieldDefinitionForm>of() : submittedFields)
-                .stream()
-                .filter(Objects::nonNull)
+        Set<String> submittedFieldKeys = (submittedFields == null ? List.<ProfessionalProfileFieldDefinitionForm>of()
+                : submittedFields).stream().filter(Objects::nonNull)
                 .map(ProfessionalProfileFieldDefinitionForm::getFieldKey)
                 .map(key -> StringUtils.upperCase(StringUtils.trimToEmpty(key)).replaceAll("[^A-Z0-9_]", "_"))
-                .filter(StringUtils::isNotBlank)
-                .collect(Collectors.toCollection(LinkedHashSet::new));
+                .filter(StringUtils::isNotBlank).collect(Collectors.toCollection(LinkedHashSet::new));
 
         for (Map.Entry<String, ProfessionalProfileFieldDefinitionForm> entry : currentFieldsByKey.entrySet()) {
             String existingFieldKey = entry.getKey();
             ProfessionalProfileFieldDefinitionForm existingField = entry.getValue();
-            ProfessionalProfileFieldDefinitionForm submittedField = (submittedFields == null ? List.<ProfessionalProfileFieldDefinitionForm>of() : submittedFields)
-                    .stream()
-                    .filter(Objects::nonNull)
-                    .filter(field -> existingFieldKey.equals(StringUtils.upperCase(StringUtils.trimToEmpty(field.getFieldKey()))
-                            .replaceAll("[^A-Z0-9_]", "_")))
-                    .findFirst()
-                    .orElse(null);
+            ProfessionalProfileFieldDefinitionForm submittedField = (submittedFields == null
+                    ? List.<ProfessionalProfileFieldDefinitionForm>of()
+                    : submittedFields)
+                    .stream().filter(Objects::nonNull)
+                    .filter(field -> existingFieldKey.equals(StringUtils
+                            .upperCase(StringUtils.trimToEmpty(field.getFieldKey())).replaceAll("[^A-Z0-9_]", "_")))
+                    .findFirst().orElse(null);
 
             if (submittedField == null) {
                 ensureFieldHasNoStoredValues(profileCode, existingField,
@@ -349,8 +312,7 @@ public class ProfessionalProfileDefinitionServiceImpl implements ProfessionalPro
                 .filter(Objects::nonNull)
                 .map(option -> StringUtils.trimToEmpty(option.getOptionKey()).toUpperCase(Locale.ROOT) + "|"
                         + StringUtils.trimToEmpty(option.getOptionLabel()))
-                .filter(token -> !token.equals("|"))
-                .toList();
+                .filter(token -> !token.equals("|")).toList();
     }
 
     private void ensureFieldHasNoStoredValues(String profileCode, ProfessionalProfileFieldDefinitionForm field,
@@ -384,8 +346,8 @@ public class ProfessionalProfileDefinitionServiceImpl implements ProfessionalPro
             copy.setShowInOrderEntry(field.getShowInOrderEntry());
             copy.setCurrentValue(field.getCurrentValue());
             copy.setOptions(field.getOptions());
-            copy.setHasSavedValues(
-                    providerProfileFieldValueDAO.countByProfessionalProfileCodeAndFieldKey(profileCode, field.getFieldKey()) > 0);
+            copy.setHasSavedValues(providerProfileFieldValueDAO.countByProfessionalProfileCodeAndFieldKey(profileCode,
+                    field.getFieldKey()) > 0);
             return copy;
         }).toList();
     }
@@ -404,13 +366,16 @@ public class ProfessionalProfileDefinitionServiceImpl implements ProfessionalPro
         return loadAllSpecialtyOptions().getOrDefault(normalizeCode(profileCode), List.of()).stream()
                 .map(this::copyOption)
                 .sorted(Comparator
-                        .comparing(ProfessionalProfileFieldOptionForm::getSortOrder, Comparator.nullsLast(Integer::compareTo))
-                        .thenComparing(ProfessionalProfileFieldOptionForm::getOptionLabel, String.CASE_INSENSITIVE_ORDER))
+                        .comparing(ProfessionalProfileFieldOptionForm::getSortOrder,
+                                Comparator.nullsLast(Integer::compareTo))
+                        .thenComparing(ProfessionalProfileFieldOptionForm::getOptionLabel,
+                                String.CASE_INSENSITIVE_ORDER))
                 .toList();
     }
 
     private Map<String, List<ProfessionalProfileFieldOptionForm>> loadAllSpecialtyOptions() {
-        String rawValue = ConfigurationProperties.getInstance().getPropertyValue(Property.professionalProfileSpecialtyOptions);
+        String rawValue = ConfigurationProperties.getInstance()
+                .getPropertyValue(Property.professionalProfileSpecialtyOptions);
         Map<String, List<ProfessionalProfileFieldOptionForm>> parsed = new LinkedHashMap<>();
         if (StringUtils.isBlank(rawValue)) {
             return parsed;
@@ -422,17 +387,20 @@ public class ProfessionalProfileDefinitionServiceImpl implements ProfessionalPro
             if (deserialized == null) {
                 return parsed;
             }
-            deserialized.forEach((profileCode, options) -> parsed.put(normalizeCode(profileCode), normalizeSpecialtyOptions(options)));
+            deserialized.forEach((profileCode, options) -> parsed.put(normalizeCode(profileCode),
+                    normalizeSpecialtyOptions(options)));
             return parsed;
         } catch (Exception e) {
             throw new IllegalStateException("Unable to parse professional profile specialty options.", e);
         }
     }
 
-    private List<ProfessionalProfileFieldOptionForm> normalizeSpecialtyOptions(List<ProfessionalProfileFieldOptionForm> options) {
+    private List<ProfessionalProfileFieldOptionForm> normalizeSpecialtyOptions(
+            List<ProfessionalProfileFieldOptionForm> options) {
         Map<String, ProfessionalProfileFieldOptionForm> normalized = new LinkedHashMap<>();
         int sortOrder = 0;
-        for (ProfessionalProfileFieldOptionForm option : options == null ? List.<ProfessionalProfileFieldOptionForm>of() : options) {
+        for (ProfessionalProfileFieldOptionForm option : options == null ? List.<ProfessionalProfileFieldOptionForm>of()
+                : options) {
             if (option == null) {
                 continue;
             }
@@ -450,10 +418,9 @@ public class ProfessionalProfileDefinitionServiceImpl implements ProfessionalPro
             normalized.put(normalizedOption.getOptionKey(), normalizedOption);
         }
 
-        return normalized.values().stream()
-                .sorted(Comparator
-                        .comparing(ProfessionalProfileFieldOptionForm::getSortOrder, Comparator.nullsLast(Integer::compareTo))
-                        .thenComparing(ProfessionalProfileFieldOptionForm::getOptionLabel, String.CASE_INSENSITIVE_ORDER))
+        return normalized.values().stream().sorted(Comparator
+                .comparing(ProfessionalProfileFieldOptionForm::getSortOrder, Comparator.nullsLast(Integer::compareTo))
+                .thenComparing(ProfessionalProfileFieldOptionForm::getOptionLabel, String.CASE_INSENSITIVE_ORDER))
                 .toList();
     }
 
@@ -487,7 +454,8 @@ public class ProfessionalProfileDefinitionServiceImpl implements ProfessionalPro
         }
     }
 
-    private void persistSpecialtyOptions(Map<String, List<ProfessionalProfileFieldOptionForm>> allOptions, String currentUserId) {
+    private void persistSpecialtyOptions(Map<String, List<ProfessionalProfileFieldOptionForm>> allOptions,
+            String currentUserId) {
         try {
             String serialized = OBJECT_MAPPER.writeValueAsString(allOptions.entrySet().stream()
                     .filter(entry -> StringUtils.isNotBlank(entry.getKey()))
@@ -524,39 +492,23 @@ public class ProfessionalProfileDefinitionServiceImpl implements ProfessionalPro
     }
 
     private String buildUsageMessage(String normalizedCode) {
-        long userCount = systemUserService.getAll().stream()
-                .map(SystemUser::getProfessionalProfileCode)
-                .map(this::normalizeCode)
-                .filter(normalizedCode::equals)
-                .count();
+        long userCount = systemUserService.getAll().stream().map(SystemUser::getProfessionalProfileCode)
+                .map(this::normalizeCode).filter(normalizedCode::equals).count();
         if (userCount > 0) {
             return "This professional profile is assigned to one or more users.";
         }
 
-        long providerCount = providerService.getAll().stream()
-                .map(Provider::getProfessionalProfileCode)
-                .map(this::normalizeCode)
-                .filter(normalizedCode::equals)
-                .count();
+        long providerCount = providerService.getAll().stream().map(Provider::getProfessionalProfileCode)
+                .map(this::normalizeCode).filter(normalizedCode::equals).count();
         if (providerCount > 0) {
             return "This professional profile is assigned to one or more provider records.";
         }
 
-        Long notificationCount = entityManager
-                .createQuery(
-                        "select count(configOption) from NotificationConfigOption configOption where upper(coalesce(configOption.professionalProfileCode, '')) = :profileCode",
-                        Long.class)
-                .setParameter("profileCode", normalizedCode)
-                .getSingleResult();
+        Long notificationCount = entityManager.createQuery(
+                "select count(configOption) from NotificationConfigOption configOption where upper(coalesce(configOption.professionalProfileCode, '')) = :profileCode",
+                Long.class).setParameter("profileCode", normalizedCode).getSingleResult();
         if (notificationCount != null && notificationCount > 0) {
             return "This professional profile is used by notification configuration.";
-        }
-
-        ProfessionalProfileSettingsForm settings = getSettings();
-        if (settings.getOrderProviderProfessionalProfileCodes().contains(normalizedCode)
-                || settings.getSampleCollectorProfessionalProfileCodes().contains(normalizedCode)
-                || settings.getValidationInterpreterProfessionalProfileCodes().contains(normalizedCode)) {
-            return "This professional profile is still referenced by system configuration.";
         }
 
         return null;
@@ -567,12 +519,8 @@ public class ProfessionalProfileDefinitionServiceImpl implements ProfessionalPro
         if (trimmed.isEmpty()) {
             return "";
         }
-        String normalized = Normalizer.normalize(trimmed, Normalizer.Form.NFD)
-                .replaceAll("\\p{M}", "")
-                .toUpperCase(Locale.ROOT)
-                .replaceAll("[^A-Z0-9]+", "_")
-                .replaceAll("^_+|_+$", "")
-                .replaceAll("_+", "_");
+        String normalized = Normalizer.normalize(trimmed, Normalizer.Form.NFD).replaceAll("\\p{M}", "")
+                .toUpperCase(Locale.ROOT).replaceAll("[^A-Z0-9]+", "_").replaceAll("^_+|_+$", "").replaceAll("_+", "_");
         return normalized;
     }
 }

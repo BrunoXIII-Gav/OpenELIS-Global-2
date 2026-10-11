@@ -117,9 +117,10 @@ public class SampleManagementRestController extends BaseRestController {
                 throw new AccessDeniedException("User does not have a Generic Samples module operation");
             }
             SearchSamplesResponse response = sampleManagementService.searchByAccessionNumber(accessionNumber,
-                    includeTests, moduleAuthorizationService.getRestrictedFieldGroupKeys(getSysUserId(request),
-                            "sample-management"), moduleAuthorizationService.getRestrictedFieldTagKeys(
-                                    getSysUserId(request), "sample-management"), access);
+                    includeTests,
+                    moduleAuthorizationService.getRestrictedFieldGroupKeys(getSysUserId(request), "sample-management"),
+                    moduleAuthorizationService.getRestrictedFieldTagKeys(getSysUserId(request), "sample-management"),
+                    access);
 
             return ResponseEntity.ok(response);
 
@@ -138,12 +139,16 @@ public class SampleManagementRestController extends BaseRestController {
                 .map(TypeOfSampleUnitOfMeasure::getUnitOfMeasureId).toList();
     }
 
+    @Autowired
+    private org.openelisglobal.common.service.UserFieldOptionResolver userFieldOptionResolver;
+
     @GetMapping(value = "/collectors", produces = MediaType.APPLICATION_JSON_VALUE)
     @ResponseBody
-    public List<IdValuePair> getCollectors(@RequestParam String professionalProfileCode, HttpServletRequest request) {
+    public List<IdValuePair> getCollectors(@RequestParam(required = false) String sampleItemId,
+            HttpServletRequest request) {
         requireSampleManagementAccess(getSysUserId(request));
-        return professionalProfileRecipientService.getEligibleUserOptionsForProfessionalProfile(professionalProfileCode,
-                true, false, false);
+        return userFieldOptionResolver.resolveCollectorOptions(sampleItemId).stream()
+                .map(option -> new IdValuePair(option.optionKey(), option.label())).toList();
     }
 
     /**
@@ -325,7 +330,7 @@ public class SampleManagementRestController extends BaseRestController {
     private void ensureSampleCollectionPermission(String sysUserId) {
         if (!profilePermissionService.hasSampleCollectionPermission(sysUserId)) {
             throw new AccessDeniedException(
-                    "User " + sysUserId + " does not have required professional profile for sample management");
+                    "User " + sysUserId + " does not have an operational sample-management permission");
         }
     }
 

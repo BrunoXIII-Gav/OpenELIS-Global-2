@@ -5,7 +5,6 @@ import java.util.HashMap;
 import java.util.Map;
 import org.openelisglobal.common.rest.BaseRestController;
 import org.openelisglobal.professionalprofile.form.ProfessionalProfileDefinitionForm;
-import org.openelisglobal.professionalprofile.form.ProfessionalProfileSettingsForm;
 import org.openelisglobal.professionalprofile.service.ProfessionalProfileDefinitionService;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.http.HttpStatus;
@@ -32,7 +31,6 @@ public class ProfessionalProfileDefinitionRestController extends BaseRestControl
     public Map<String, Object> getCatalog() {
         Map<String, Object> response = new HashMap<>();
         response.put("profiles", professionalProfileDefinitionService.getProfiles());
-        response.put("settings", professionalProfileDefinitionService.getSettings());
         return response;
     }
 
@@ -46,16 +44,17 @@ public class ProfessionalProfileDefinitionRestController extends BaseRestControl
     }
 
     @PostMapping
-    public ResponseEntity<?> createProfile(HttpServletRequest request, @RequestBody ProfessionalProfileDefinitionForm form) {
-        return execute(() -> ResponseEntity.ok(
-                professionalProfileDefinitionService.createProfile(form, getSysUserId(request))));
+    public ResponseEntity<?> createProfile(HttpServletRequest request,
+            @RequestBody ProfessionalProfileDefinitionForm form) {
+        return execute(() -> ResponseEntity
+                .ok(professionalProfileDefinitionService.createProfile(form, getSysUserId(request))));
     }
 
     @PutMapping("/{code}")
     public ResponseEntity<?> updateProfile(HttpServletRequest request, @PathVariable String code,
             @RequestBody ProfessionalProfileDefinitionForm form) {
-        return execute(() -> ResponseEntity.ok(
-                professionalProfileDefinitionService.updateProfile(code, form, getSysUserId(request))));
+        return execute(() -> ResponseEntity
+                .ok(professionalProfileDefinitionService.updateProfile(code, form, getSysUserId(request))));
     }
 
     @DeleteMapping("/{code}")
@@ -64,12 +63,6 @@ public class ProfessionalProfileDefinitionRestController extends BaseRestControl
             professionalProfileDefinitionService.deleteProfile(code, getSysUserId(request));
             return ResponseEntity.noContent().build();
         });
-    }
-
-    @PutMapping("/settings")
-    public ResponseEntity<?> updateSettings(HttpServletRequest request, @RequestBody ProfessionalProfileSettingsForm form) {
-        return execute(() -> ResponseEntity.ok(
-                professionalProfileDefinitionService.updateSettings(form, getSysUserId(request))));
     }
 
     private ResponseEntity<?> execute(Action action) {

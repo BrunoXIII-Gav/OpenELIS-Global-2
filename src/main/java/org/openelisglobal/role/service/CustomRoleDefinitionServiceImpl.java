@@ -15,10 +15,10 @@ import java.util.Set;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
 import org.apache.commons.lang3.StringUtils;
-import org.openelisglobal.authorization.service.RoleModulePermissionService;
-import org.openelisglobal.authorization.service.RolePatientSearchRestrictionService;
 import org.openelisglobal.authorization.service.RoleFieldRestrictionService;
 import org.openelisglobal.authorization.service.RoleFieldTagRestrictionService;
+import org.openelisglobal.authorization.service.RoleModulePermissionService;
+import org.openelisglobal.authorization.service.RolePatientSearchRestrictionService;
 import org.openelisglobal.authorization.valueholder.RoleFieldRestriction;
 import org.openelisglobal.authorization.valueholder.RoleFieldTagRestriction;
 import org.openelisglobal.authorization.valueholder.RoleModulePermission;
@@ -32,9 +32,9 @@ import org.openelisglobal.role.valueholder.CustomRoleLabUnitScope;
 import org.openelisglobal.role.valueholder.Role;
 import org.openelisglobal.role.valueholder.RolePermissionMapping;
 import org.openelisglobal.rolemodule.service.RoleModuleService;
+import org.openelisglobal.security.service.AuthorizationCatalogService;
 import org.openelisglobal.systemusermodule.valueholder.RoleModule;
 import org.openelisglobal.userrole.service.UserRoleService;
-import org.openelisglobal.security.service.AuthorizationCatalogService;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -42,14 +42,12 @@ import org.springframework.transaction.annotation.Transactional;
 @Service
 public class CustomRoleDefinitionServiceImpl implements CustomRoleDefinitionService {
 
-    private static final Map<String, List<String>> LAB_ROLE_GROUPS = Map.of(
-            Constants.ROLE_GENERIC_SAMPLE, List.of(Constants.ROLE_SAMPLE_MANAGEMENT),
-            Constants.ROLE_ORDER, List.of(Constants.ROLE_ORDER_ADD, Constants.ROLE_ORDER_EDIT),
-            Constants.ROLE_PATIENT, List.of(Constants.ROLE_PATIENT_MANAGEMENT, Constants.ROLE_PATIENT_HISTORY),
-            Constants.ROLE_STORAGE, List.of(Constants.ROLE_STORAGE_MANAGEMENT),
-            Constants.ROLE_RESULTS,
-            List.of(Constants.ROLE_RESULTS_BY_UNIT, Constants.ROLE_RESULTS_BY_PATIENT,
-                    Constants.ROLE_RESULTS_BY_ORDER),
+    private static final Map<String, List<String>> LAB_ROLE_GROUPS = Map.of(Constants.ROLE_GENERIC_SAMPLE,
+            List.of(Constants.ROLE_SAMPLE_MANAGEMENT), Constants.ROLE_ORDER,
+            List.of(Constants.ROLE_ORDER_ADD, Constants.ROLE_ORDER_EDIT), Constants.ROLE_PATIENT,
+            List.of(Constants.ROLE_PATIENT_MANAGEMENT, Constants.ROLE_PATIENT_HISTORY), Constants.ROLE_STORAGE,
+            List.of(Constants.ROLE_STORAGE_MANAGEMENT), Constants.ROLE_RESULTS,
+            List.of(Constants.ROLE_RESULTS_BY_UNIT, Constants.ROLE_RESULTS_BY_PATIENT, Constants.ROLE_RESULTS_BY_ORDER),
             Constants.ROLE_VALIDATION, List.of(Constants.ROLE_VALIDATION_ROUTINE, Constants.ROLE_VALIDATION_BY_ORDER));
 
     @PersistenceContext
@@ -86,8 +84,7 @@ public class CustomRoleDefinitionServiceImpl implements CustomRoleDefinitionServ
         if (customGroupId == null) {
             return Collections.emptyList();
         }
-        return roleService.getAllActiveRoles().stream()
-                .filter(role -> customGroupId.equals(role.getGroupingParent()))
+        return roleService.getAllActiveRoles().stream().filter(role -> customGroupId.equals(role.getGroupingParent()))
                 .sorted((left, right) -> StringUtils.compareIgnoreCase(left.getName(), right.getName())).toList();
     }
 
@@ -120,9 +117,10 @@ public class CustomRoleDefinitionServiceImpl implements CustomRoleDefinitionServ
     @Override
     @Transactional(readOnly = true)
     public List<String> getPermissionRoleIdsForCustomRole(String roleId) {
-        return entityManager.createQuery(
-                "from RolePermissionMapping rpm where rpm.customRoleId = :roleId order by rpm.id",
-                RolePermissionMapping.class).setParameter("roleId", Integer.parseInt(roleId)).getResultList().stream()
+        return entityManager
+                .createQuery("from RolePermissionMapping rpm where rpm.customRoleId = :roleId order by rpm.id",
+                        RolePermissionMapping.class)
+                .setParameter("roleId", Integer.parseInt(roleId)).getResultList().stream()
                 .map(RolePermissionMapping::getPermissionRoleId).map(String::valueOf).collect(Collectors.toList());
     }
 
@@ -139,17 +137,17 @@ public class CustomRoleDefinitionServiceImpl implements CustomRoleDefinitionServ
             return Collections.emptyMap();
         }
 
-        List<RolePermissionMapping> mappings = entityManager.createQuery(
-                "from RolePermissionMapping rpm where rpm.customRoleId in :roleIds order by rpm.id",
-                RolePermissionMapping.class)
-                .setParameter("roleIds",
-                        normalizedRoleIds.stream().map(Integer::parseInt).collect(Collectors.toList()))
+        List<RolePermissionMapping> mappings = entityManager
+                .createQuery("from RolePermissionMapping rpm where rpm.customRoleId in :roleIds order by rpm.id",
+                        RolePermissionMapping.class)
+                .setParameter("roleIds", normalizedRoleIds.stream().map(Integer::parseInt).collect(Collectors.toList()))
                 .getResultList();
 
         Map<String, List<String>> result = new LinkedHashMap<>();
         normalizedRoleIds.forEach(roleId -> result.put(roleId, new ArrayList<>()));
-        mappings.forEach(mapping -> result.computeIfAbsent(String.valueOf(mapping.getCustomRoleId()),
-                ignored -> new ArrayList<>()).add(String.valueOf(mapping.getPermissionRoleId())));
+        mappings.forEach(mapping -> result
+                .computeIfAbsent(String.valueOf(mapping.getCustomRoleId()), ignored -> new ArrayList<>())
+                .add(String.valueOf(mapping.getPermissionRoleId())));
         return result;
     }
 
@@ -160,9 +158,10 @@ public class CustomRoleDefinitionServiceImpl implements CustomRoleDefinitionServ
             return Collections.emptyList();
         }
 
-        return entityManager.createQuery(
-                "from CustomRoleLabUnitScope scope where scope.customRoleId = :roleId order by scope.id",
-                CustomRoleLabUnitScope.class).setParameter("roleId", Integer.parseInt(roleId)).getResultList().stream()
+        return entityManager
+                .createQuery("from CustomRoleLabUnitScope scope where scope.customRoleId = :roleId order by scope.id",
+                        CustomRoleLabUnitScope.class)
+                .setParameter("roleId", Integer.parseInt(roleId)).getResultList().stream()
                 .map(CustomRoleLabUnitScope::getLabUnitId).collect(Collectors.toList());
     }
 
@@ -179,17 +178,17 @@ public class CustomRoleDefinitionServiceImpl implements CustomRoleDefinitionServ
             return Collections.emptyMap();
         }
 
-        List<CustomRoleLabUnitScope> scopes = entityManager.createQuery(
-                "from CustomRoleLabUnitScope scope where scope.customRoleId in :roleIds order by scope.id",
-                CustomRoleLabUnitScope.class)
-                .setParameter("roleIds",
-                        normalizedRoleIds.stream().map(Integer::parseInt).collect(Collectors.toList()))
+        List<CustomRoleLabUnitScope> scopes = entityManager
+                .createQuery("from CustomRoleLabUnitScope scope where scope.customRoleId in :roleIds order by scope.id",
+                        CustomRoleLabUnitScope.class)
+                .setParameter("roleIds", normalizedRoleIds.stream().map(Integer::parseInt).collect(Collectors.toList()))
                 .getResultList();
 
         Map<String, List<String>> result = new LinkedHashMap<>();
         normalizedRoleIds.forEach(roleId -> result.put(roleId, new ArrayList<>()));
-        scopes.forEach(scope -> result.computeIfAbsent(String.valueOf(scope.getCustomRoleId()), ignored -> new ArrayList<>())
-                .add(scope.getLabUnitId()));
+        scopes.forEach(
+                scope -> result.computeIfAbsent(String.valueOf(scope.getCustomRoleId()), ignored -> new ArrayList<>())
+                        .add(scope.getLabUnitId()));
         return result;
     }
 
@@ -202,14 +201,14 @@ public class CustomRoleDefinitionServiceImpl implements CustomRoleDefinitionServ
 
         List<RoleModulePermission> permissions = roleModulePermissionService.getByRoleId(Integer.parseInt(roleId));
         if (permissions.isEmpty()) {
-            return deriveModulePermissionsFromLegacy(roleId);
+            return Collections.emptyList();
         }
 
         Map<String, ModulePermissionForm> permissionsByModule = new LinkedHashMap<>();
         permissions.forEach(permission -> {
             ModulePermissionForm modulePermission = permissionsByModule.computeIfAbsent(permission.getModuleKey(),
-                    ignored -> newModulePermission(permission.getModuleKey(), permission.isAllLabUnits(),
-                            permission.getLabUnitScopes().stream().map(RoleModulePermissionLabUnitScope::getLabUnitId).toList()));
+                    ignored -> newModulePermission(permission.getModuleKey(), permission.isAllLabUnits(), permission
+                            .getLabUnitScopes().stream().map(RoleModulePermissionLabUnitScope::getLabUnitId).toList()));
             modulePermission.getActionKeys().add(permission.getActionKey());
         });
         roleFieldRestrictionService.getByRoleId(Integer.parseInt(roleId)).forEach(restriction -> {
@@ -248,7 +247,8 @@ public class CustomRoleDefinitionServiceImpl implements CustomRoleDefinitionServ
 
         boolean usesModulePermissions = form.getModulePermissions() != null;
         List<ModulePermissionForm> modulePermissions = usesModulePermissions
-                ? normalizeModulePermissions(form.getModulePermissions()) : Collections.emptyList();
+                ? normalizeModulePermissions(form.getModulePermissions())
+                : Collections.emptyList();
         List<String> permissionRoleIds = usesModulePermissions
                 ? legacyPermissionRoleIdsFromModulePermissions(modulePermissions)
                 : normalizePermissionRoleIds(form.getPermissionRoleIds());
@@ -269,7 +269,8 @@ public class CustomRoleDefinitionServiceImpl implements CustomRoleDefinitionServ
         }
 
         customRole.setName(trimmedName);
-        customRole.setDescription(StringUtils.defaultIfBlank(StringUtils.trimToNull(form.getDescription()), trimmedName));
+        customRole
+                .setDescription(StringUtils.defaultIfBlank(StringUtils.trimToNull(form.getDescription()), trimmedName));
         customRole.setGroupingRole(false);
         customRole.setGroupingParent(getRoleIdByName(Constants.CUSTOM_ROLES_GROUP));
         customRole.setActive(true);
@@ -292,6 +293,11 @@ public class CustomRoleDefinitionServiceImpl implements CustomRoleDefinitionServ
             replaceFieldTagRestrictions(customRole.getId(), modulePermissions, sysUserId);
             replacePatientSearchRestrictions(customRole.getId(),
                     normalizePatientSearchCriteria(form.getRestrictedPatientSearchCriteria()), sysUserId);
+        } else {
+            // An explicit save by an older client converts its submitted grants.
+            // Reading an empty role must never recreate grants from obsolete mappings.
+            replaceModulePermissions(customRole.getId(), deriveModulePermissionsFromLegacy(customRole.getId()),
+                    sysUserId);
         }
         return customRole;
     }
@@ -311,11 +317,13 @@ public class CustomRoleDefinitionServiceImpl implements CustomRoleDefinitionServ
         }
         replacePermissionMappings(roleId, Collections.emptyList());
         replaceLabUnitScopes(roleId, Collections.emptyList());
-        List<RoleModulePermission> modulePermissions = roleModulePermissionService.getByRoleId(Integer.parseInt(roleId));
+        List<RoleModulePermission> modulePermissions = roleModulePermissionService
+                .getByRoleId(Integer.parseInt(roleId));
         if (!modulePermissions.isEmpty()) {
             roleModulePermissionService.deleteAll(modulePermissions);
         }
-        List<RoleFieldRestriction> fieldRestrictions = roleFieldRestrictionService.getByRoleId(Integer.parseInt(roleId));
+        List<RoleFieldRestriction> fieldRestrictions = roleFieldRestrictionService
+                .getByRoleId(Integer.parseInt(roleId));
         if (!fieldRestrictions.isEmpty()) {
             roleFieldRestrictionService.deleteAll(fieldRestrictions);
         }
@@ -351,7 +359,8 @@ public class CustomRoleDefinitionServiceImpl implements CustomRoleDefinitionServ
     }
 
     private void replaceLabUnitScopes(String roleId, List<String> applicableLabUnitIds) {
-        entityManager.createNativeQuery("delete from clinlims.custom_role_lab_unit_scope where custom_role_id = :roleId")
+        entityManager
+                .createNativeQuery("delete from clinlims.custom_role_lab_unit_scope where custom_role_id = :roleId")
                 .setParameter("roleId", Integer.parseInt(roleId)).executeUpdate();
 
         applicableLabUnitIds.forEach(labUnitId -> {
@@ -363,8 +372,10 @@ public class CustomRoleDefinitionServiceImpl implements CustomRoleDefinitionServ
         entityManager.flush();
     }
 
-    private void replaceModulePermissions(String roleId, List<ModulePermissionForm> modulePermissions, String sysUserId) {
-        List<RoleModulePermission> existingPermissions = roleModulePermissionService.getByRoleId(Integer.parseInt(roleId));
+    private void replaceModulePermissions(String roleId, List<ModulePermissionForm> modulePermissions,
+            String sysUserId) {
+        List<RoleModulePermission> existingPermissions = roleModulePermissionService
+                .getByRoleId(Integer.parseInt(roleId));
         if (!existingPermissions.isEmpty()) {
             roleModulePermissionService.deleteAll(existingPermissions);
         }
@@ -386,14 +397,16 @@ public class CustomRoleDefinitionServiceImpl implements CustomRoleDefinitionServ
         }));
     }
 
-    private void replaceFieldRestrictions(String roleId, List<ModulePermissionForm> modulePermissions, String sysUserId) {
-        List<RoleFieldRestriction> existingRestrictions = roleFieldRestrictionService.getByRoleId(Integer.parseInt(roleId));
+    private void replaceFieldRestrictions(String roleId, List<ModulePermissionForm> modulePermissions,
+            String sysUserId) {
+        List<RoleFieldRestriction> existingRestrictions = roleFieldRestrictionService
+                .getByRoleId(Integer.parseInt(roleId));
         if (!existingRestrictions.isEmpty()) {
             roleFieldRestrictionService.deleteAll(existingRestrictions);
         }
 
-        modulePermissions.forEach(modulePermission -> modulePermission.getRestrictedFieldGroupKeys()
-                .forEach(fieldGroupKey -> {
+        modulePermissions
+                .forEach(modulePermission -> modulePermission.getRestrictedFieldGroupKeys().forEach(fieldGroupKey -> {
                     RoleFieldRestriction restriction = new RoleFieldRestriction();
                     restriction.setRoleId(Integer.parseInt(roleId));
                     restriction.setModuleKey(modulePermission.getModuleKey());
@@ -474,10 +487,11 @@ public class CustomRoleDefinitionServiceImpl implements CustomRoleDefinitionServ
     }
 
     private void validatePermissionRoleIds(List<String> permissionRoleIds) {
-        Set<String> validPermissionRoleIds = getPermissionCatalog().values().stream().flatMap(List::stream).map(Role::getId)
-                .collect(Collectors.toSet());
+        Set<String> validPermissionRoleIds = getPermissionCatalog().values().stream().flatMap(List::stream)
+                .map(Role::getId).collect(Collectors.toSet());
         if (!validPermissionRoleIds.containsAll(permissionRoleIds)) {
-            throw new IllegalArgumentException("Custom roles can only include existing global or lab-unit permission roles");
+            throw new IllegalArgumentException(
+                    "Custom roles can only include existing global or lab-unit permission roles");
         }
     }
 
@@ -487,7 +501,8 @@ public class CustomRoleDefinitionServiceImpl implements CustomRoleDefinitionServ
         }
 
         if (applicableLabUnitIds.isEmpty()) {
-            throw new IllegalArgumentException("At least one lab unit is required when lab-unit permissions are selected");
+            throw new IllegalArgumentException(
+                    "At least one lab unit is required when lab-unit permissions are selected");
         }
     }
 
@@ -495,7 +510,8 @@ public class CustomRoleDefinitionServiceImpl implements CustomRoleDefinitionServ
         if (parentId == null) {
             return Collections.emptyList();
         }
-        return roles.stream().filter(role -> parentId.equals(role.getGroupingParent())).filter(role -> !role.getGroupingRole())
+        return roles.stream().filter(role -> parentId.equals(role.getGroupingParent()))
+                .filter(role -> !role.getGroupingRole())
                 .sorted((left, right) -> StringUtils.compareIgnoreCase(left.getName(), right.getName())).toList();
     }
 
@@ -545,8 +561,8 @@ public class CustomRoleDefinitionServiceImpl implements CustomRoleDefinitionServ
         List<String> normalizedCriteria = criteria == null ? Collections.emptyList()
                 : criteria.stream().filter(StringUtils::isNotBlank).map(StringUtils::trim)
                         .flatMap(this::expandLegacyNameCriterion).distinct().toList();
-        if (normalizedCriteria.stream().anyMatch(
-                criterion -> !authorizationCatalogService.isKnownPatientSearchCriterion(criterion))) {
+        if (normalizedCriteria.stream()
+                .anyMatch(criterion -> !authorizationCatalogService.isKnownPatientSearchCriterion(criterion))) {
             throw new IllegalArgumentException("An unknown patient search criterion was selected");
         }
         Set<String> identifyingCriteria = Set.of("first-name", "last-name", "birth-date", "gender", "national-id");
@@ -576,12 +592,13 @@ public class CustomRoleDefinitionServiceImpl implements CustomRoleDefinitionServ
             }
 
             List<String> actionKeys = submittedPermission.getActionKeys() == null ? Collections.emptyList()
-                    : submittedPermission.getActionKeys().stream().filter(StringUtils::isNotBlank).map(StringUtils::trim)
-                            .distinct().collect(Collectors.toList());
+                    : submittedPermission.getActionKeys().stream().filter(StringUtils::isNotBlank)
+                            .map(StringUtils::trim).distinct().collect(Collectors.toList());
             if (actionKeys.isEmpty()) {
                 continue;
             }
-            if (actionKeys.stream().anyMatch(actionKey -> !authorizationCatalogService.isKnownPermission(moduleKey, actionKey))) {
+            if (actionKeys.stream()
+                    .anyMatch(actionKey -> !authorizationCatalogService.isKnownPermission(moduleKey, actionKey))) {
                 throw new IllegalArgumentException("An unknown module action was selected");
             }
 
@@ -600,11 +617,12 @@ public class CustomRoleDefinitionServiceImpl implements CustomRoleDefinitionServ
 
             ModulePermissionForm existingPermission = normalizedPermissions.get(moduleKey);
             if (existingPermission == null) {
-                normalizedPermissions.put(moduleKey,
-                        newModulePermission(moduleKey, administration || submittedPermission.isAllLabUnits(), labUnitIds));
+                normalizedPermissions.put(moduleKey, newModulePermission(moduleKey,
+                        administration || submittedPermission.isAllLabUnits(), labUnitIds));
                 existingPermission = normalizedPermissions.get(moduleKey);
             } else if (existingPermission.isAllLabUnits() != (administration || submittedPermission.isAllLabUnits())
-                    || !new LinkedHashSet<>(existingPermission.getLabUnitIds()).equals(new LinkedHashSet<>(labUnitIds))) {
+                    || !new LinkedHashSet<>(existingPermission.getLabUnitIds())
+                            .equals(new LinkedHashSet<>(labUnitIds))) {
                 throw new IllegalArgumentException("Each module must use one consistent lab-unit scope");
             }
             existingPermission.getActionKeys().addAll(actionKeys);
@@ -639,9 +657,8 @@ public class CustomRoleDefinitionServiceImpl implements CustomRoleDefinitionServ
                 if (actionKeys.contains("update") || actionKeys.contains("cancel")) {
                     roleNames.add(Constants.ROLE_ORDER_EDIT);
                 }
-                if ((actionKeys.contains("read") || actionKeys.contains("print"))
-                        && !actionKeys.contains("create") && !actionKeys.contains("update")
-                        && !actionKeys.contains("cancel")) {
+                if ((actionKeys.contains("read") || actionKeys.contains("print")) && !actionKeys.contains("create")
+                        && !actionKeys.contains("update") && !actionKeys.contains("cancel")) {
                     roleNames.add(Constants.ROLE_ORDER);
                 }
                 break;
@@ -709,8 +726,9 @@ public class CustomRoleDefinitionServiceImpl implements CustomRoleDefinitionServ
     }
 
     private List<ModulePermissionForm> deriveModulePermissionsFromLegacy(String roleId) {
-        Set<String> permissionRoleNames = getPermissionRoleIdsForCustomRole(roleId).stream().map(roleService::getRoleById)
-                .filter(Objects::nonNull).map(Role::getName).filter(StringUtils::isNotBlank).collect(Collectors.toSet());
+        Set<String> permissionRoleNames = getPermissionRoleIdsForCustomRole(roleId).stream()
+                .map(roleService::getRoleById).filter(Objects::nonNull).map(Role::getName)
+                .filter(StringUtils::isNotBlank).collect(Collectors.toSet());
         List<String> labUnitIds = getApplicableLabUnitIdsForCustomRole(roleId);
         List<ModulePermissionForm> modulePermissions = new ArrayList<>();
 
@@ -744,17 +762,17 @@ public class CustomRoleDefinitionServiceImpl implements CustomRoleDefinitionServ
         if (permissionRoleNames.contains(Constants.ROLE_VALIDATION)
                 || permissionRoleNames.contains(Constants.ROLE_VALIDATION_ROUTINE)
                 || permissionRoleNames.contains(Constants.ROLE_VALIDATION_BY_ORDER)) {
-            modulePermissions.add(newModulePermission("validation", false, labUnitIds,
-                    List.of("read", "validate", "revoke")));
+            modulePermissions
+                    .add(newModulePermission("validation", false, labUnitIds, List.of("read", "validate", "revoke")));
         }
         if (permissionRoleNames.contains(Constants.ROLE_STORAGE)
                 || permissionRoleNames.contains(Constants.ROLE_STORAGE_MANAGEMENT)) {
-            modulePermissions.add(newModulePermission("storage", false, labUnitIds,
-                    List.of("read", "update", "manage")));
+            modulePermissions
+                    .add(newModulePermission("storage", false, labUnitIds, List.of("read", "update", "manage")));
         }
         if (permissionRoleNames.contains(Constants.ROLE_ADMINISTRATION)) {
-            modulePermissions.add(newModulePermission("administration", true, Collections.emptyList(),
-                    List.of("read", "manage")));
+            modulePermissions.add(
+                    newModulePermission("administration", true, Collections.emptyList(), List.of("read", "manage")));
         }
         return modulePermissions;
     }

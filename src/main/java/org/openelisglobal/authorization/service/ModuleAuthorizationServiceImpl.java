@@ -6,10 +6,13 @@ import java.util.stream.Collectors;
 import org.apache.commons.lang3.StringUtils;
 import org.openelisglobal.authorization.service.ModuleAuthorizationService.AuthorizationDecision;
 import org.openelisglobal.authorization.service.ModuleAuthorizationService.AuthorizationSource;
-import org.openelisglobal.authorization.valueholder.RoleModulePermission;
 import org.openelisglobal.authorization.valueholder.RoleFieldRestriction;
 import org.openelisglobal.authorization.valueholder.RoleFieldTagRestriction;
+import org.openelisglobal.authorization.valueholder.RoleModulePermission;
+import org.openelisglobal.common.constants.Constants;
 import org.openelisglobal.common.constants.SystemPermission;
+import org.openelisglobal.role.service.RoleService;
+import org.openelisglobal.role.valueholder.Role;
 import org.openelisglobal.security.service.AuthorizationCatalogService;
 import org.openelisglobal.security.service.UserPermissionService;
 import org.openelisglobal.userrole.service.UserRoleService;
@@ -18,10 +21,12 @@ import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 /**
- * Resolves module permissions without changing existing authorization behavior.
+ * Resolves configured module permissions, retaining legacy access for built-in
+ * roles.
  *
- * <p>Once a user has a role configured through module permissions, that configuration is authoritative for every
- * module. This prevents legacy permissions inherited by the custom role from restoring access to an omitted module.
+ * <p>
+ * Custom roles are authoritative even when their configuration is empty. Legacy
+ * aliases and old derived role assignments cannot restore omitted actions.
  */
 @Service
 @Transactional(readOnly = true)
@@ -45,6 +50,9 @@ public class ModuleAuthorizationServiceImpl implements ModuleAuthorizationServic
     @Autowired
     private UserRoleService userRoleService;
 
+    @Autowired
+    private RoleService roleService;
+
     @Override
     public AuthorizationDecision getAuthorization(String userId, String moduleKey, String actionKey) {
         if (StringUtils.isBlank(userId) || !authorizationCatalogService.isKnownPermission(moduleKey, actionKey)) {
@@ -53,8 +61,8 @@ public class ModuleAuthorizationServiceImpl implements ModuleAuthorizationServic
 
         List<Integer> roleIds = userRoleService.getRoleIdsForUser(userId).stream().filter(StringUtils::isNumeric)
                 .map(Integer::valueOf).toList();
-        List<RoleModulePermission> modulePermissions = roleModulePermissionService
-                .getByRoleIdsAndModuleKey(roleIds, moduleKey);
+        List<RoleModulePermission> modulePermissions = roleModulePermissionService.getByRoleIdsAndModuleKey(roleIds,
+                moduleKey);
 
         if (!modulePermissions.isEmpty()) {
             return explicitDecision(modulePermissions, actionKey);
@@ -62,13 +70,25 @@ public class ModuleAuthorizationServiceImpl implements ModuleAuthorizationServic
 
         boolean hasExplicitRoleConfiguration = roleIds.stream()
                 .anyMatch(roleId -> !roleModulePermissionService.getByRoleId(roleId).isEmpty());
-        if (hasExplicitRoleConfiguration) {
+        if (hasExplicitRoleConfiguration || hasCustomRole(roleIds)) {
             return denied(AuthorizationSource.MODULE_PERMISSION);
         }
 
         SystemPermission legacyPermission = legacyPermission(moduleKey, actionKey);
         boolean allowed = legacyPermission != null && userPermissionService.hasPermission(userId, legacyPermission);
         return new AuthorizationDecision(allowed, AuthorizationSource.LEGACY_PERMISSION, true, Set.of());
+    }
+
+    private boolean hasCustomRole(List<Integer> roleIds) {
+        if (roleIds.isEmpty()) {
+            return false;
+        }
+        Role customGroup = roleService.getRoleByName(Constants.CUSTOM_ROLES_GROUP);
+        if (customGroup == null || StringUtils.isBlank(customGroup.getId())) {
+            return false;
+        }
+        return roleIds.stream().map(roleId -> roleService.getRoleById(String.valueOf(roleId)))
+                .anyMatch(role -> role != null && customGroup.getId().equals(role.getGroupingParent()));
     }
 
     @Override
@@ -107,8 +127,9 @@ public class ModuleAuthorizationServiceImpl implements ModuleAuthorizationServic
         }
 
         boolean allLabUnits = matchingPermissions.stream().anyMatch(RoleModulePermission::isAllLabUnits);
-        Set<String> labUnitIds = matchingPermissions.stream().flatMap(permission -> permission.getLabUnitScopes().stream())
-                .map(scope -> scope.getLabUnitId()).filter(StringUtils::isNotBlank).collect(Collectors.toUnmodifiableSet());
+        Set<String> labUnitIds = matchingPermissions.stream()
+                .flatMap(permission -> permission.getLabUnitScopes().stream()).map(scope -> scope.getLabUnitId())
+                .filter(StringUtils::isNotBlank).collect(Collectors.toUnmodifiableSet());
         return new AuthorizationDecision(true, AuthorizationSource.MODULE_PERMISSION, allLabUnits, labUnitIds);
     }
 

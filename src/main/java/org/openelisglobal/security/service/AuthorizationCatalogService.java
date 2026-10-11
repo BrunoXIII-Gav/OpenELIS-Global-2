@@ -1,7 +1,6 @@
 package org.openelisglobal.security.service;
 
 import java.util.List;
-import org.openelisglobal.common.service.ProfessionalProfilePermissionService.PermissionFlow;
 import org.springframework.stereotype.Service;
 
 /**
@@ -26,17 +25,9 @@ public class AuthorizationCatalogService {
             module("patients", "authorization.module.patients", List.of("read", "create", "update", "merge", "export"),
                     List.of("patient-identity", "patient-contact", "patient-demographics", "patient-history")),
             resultsModule(),
-            module("validation", "authorization.module.validation", List.of("read", "validate", "revoke"),
-                    List.of()),
+            module("validation", "authorization.module.validation", List.of("read", "validate", "revoke"), List.of()),
             module("storage", "authorization.module.storage", List.of("read", "update", "manage"), List.of()),
             module("administration", "authorization.module.administration", List.of("read", "manage"), List.of()));
-
-    private static final List<ProfessionalProfileFlow> PROFESSIONAL_PROFILE_FLOWS = List.of(
-            professionalProfileFlow(PermissionFlow.ORDER_REQUESTER),
-            professionalProfileFlow(PermissionFlow.PATIENT_MANAGER),
-            professionalProfileFlow(PermissionFlow.RESULT_ENTRY),
-            professionalProfileFlow(PermissionFlow.VALIDATION_INTERPRETER),
-            professionalProfileFlow(PermissionFlow.SAMPLE_COLLECTOR));
 
     private static final List<AuthorizationFieldTag> SAMPLE_MANAGEMENT_FIELD_TAGS = List.of(
             fieldTag("cug-code", "authorization.fieldTag.sample-management.cug-code"),
@@ -80,12 +71,12 @@ public class AuthorizationCatalogService {
             searchCriterion("external-search", "authorization.patientSearchCriterion.externalSearch"));
 
     public AuthorizationCatalog getCatalog() {
-        return new AuthorizationCatalog(MODULES, PROFESSIONAL_PROFILE_FLOWS);
+        return new AuthorizationCatalog(MODULES, List.of());
     }
 
     public boolean isKnownPermission(String moduleKey, String actionKey) {
-        return MODULES.stream().filter(module -> module.key().equals(moduleKey)).flatMap(module -> module.actions().stream())
-                .anyMatch(action -> action.key().equals(actionKey));
+        return MODULES.stream().filter(module -> module.key().equals(moduleKey))
+                .flatMap(module -> module.actions().stream()).anyMatch(action -> action.key().equals(actionKey));
     }
 
     public boolean isKnownFieldGroup(String moduleKey, String fieldGroupKey) {
@@ -134,10 +125,6 @@ public class AuthorizationCatalogService {
                         new AuthorizationAction("correct", "authorization.action.correct"),
                         new AuthorizationAction("export", "authorization.action.printWorkplan")),
                 List.of());
-    }
-
-    private static ProfessionalProfileFlow professionalProfileFlow(PermissionFlow flow) {
-        return new ProfessionalProfileFlow(flow.name(), "authorization.profileFlow." + flow.name().toLowerCase());
     }
 
     private static AuthorizationFieldTag fieldTag(String key, String labelKey) {
