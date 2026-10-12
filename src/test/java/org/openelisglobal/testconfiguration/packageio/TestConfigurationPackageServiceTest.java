@@ -276,6 +276,136 @@ public class TestConfigurationPackageServiceTest {
         verify(dao, never()).insert(anyString(), anyMap(), anyMap(), anyString());
     }
 
+    private Map<String, TestConfigurationRevision> rememberImports() {
+        Map<String, TestConfigurationRevision> revisions = new HashMap<>();
+        when(dao.findRevision(anyString())).thenAnswer(a -> Optional.ofNullable(revisions.get(a.getArgument(0))));
+        doAnswer(a -> {
+            TestConfigurationRevision revision = a.getArgument(0);
+            revisions.put(revision.fingerprint, revision);
+            return null;
+        }).when(dao).saveRevision(any(TestConfigurationRevision.class));
+        return revisions;
+    }
+
+    private ImportResult importReviewed() {
+        Preview preview = service.preview(request);
+        assertTrue(preview.ready);
+        request.previewToken = preview.token;
+        return service.importPackage(request, "17");
+    }
+
+    private void useIdentity(String name, String code) {
+        request.overrides.put("test-a",
+                Map.of("description", TextNode.valueOf(name), "localCode", TextNode.valueOf(code)));
+    }
+
+    private ImportResult rememberLegacyImport(Map<String, TestConfigurationRevision> revisions) {
+        ImportResult saved = importReviewed();
+        TestConfigurationRevision revision = revisions.values().iterator().next();
+        revisions.clear();
+        revision.fingerprint = ReflectionTestUtils.invokeMethod(service, "packageFingerprint", request.bundle);
+        revisions.put(revision.fingerprint, revision);
+        return saved;
+    }
+
+    @Test
+    public void sameJsonCanCreateDifferentTestsAndEachReplayReturnsItsOwnIds() {
+        rememberImports();
+        useIdentity("First DNA test", "DNA1");
+        ImportResult first = importReviewed();
+        useIdentity("Second DNA test", "DNA2");
+        Preview preview = service.preview(request);
+        assertFalse(preview.alreadyImported);
+        ImportResult second = importReviewed();
+        assertFalse(second.alreadyImported());
+        assertNotEquals(first.testIds(), second.testIds());
+        assertEquals(second.testIds(), importReviewed().testIds());
+        useIdentity("First DNA test", "DNA1");
+        assertTrue(service.preview(request).alreadyImported);
+        assertEquals(first.testIds(), importReviewed().testIds());
+        verify(dao, times(2)).insert(eq("Test"), anyMap(), anyMap(), anyString());
+        verify(dao, times(2)).saveRevision(any(TestConfigurationRevision.class));
+    }
+
+    @Test
+    public void replayUsesEffectiveIdentityAndIgnoresJsonNodeOrder() {
+        rememberImports();
+        ImportResult saved = importReviewed();
+        Collections.reverse(request.bundle.nodes);
+        useIdentity("DNA test", "DNA");
+        assertTrue(service.preview(request).alreadyImported);
+        assertEquals(saved.testIds(), importReviewed().testIds());
+        verify(dao, times(1)).insert(eq("Test"), anyMap(), anyMap(), anyString());
+    }
+
+    @Test
+    public void legacyReplayStillReturnsExistingTestWithoutInserting() {
+        Map<String, TestConfigurationRevision> revisions = rememberImports();
+        useIdentity("Previously imported test", "OLD");
+        ImportResult saved = rememberLegacyImport(revisions);
+        assertTrue(service.preview(request).alreadyImported);
+        ImportResult replay = importReviewed();
+        assertTrue(replay.alreadyImported());
+        assertEquals(saved.testIds(), replay.testIds());
+        verify(dao, times(1)).insert(eq("Test"), anyMap(), anyMap(), anyString());
+    }
+
+    @Test
+    public void legacyImportOfSameJsonDoesNotBlockANewIdentity() {
+        Map<String, TestConfigurationRevision> revisions = rememberImports();
+        useIdentity("Previously imported test", "OLD");
+        ImportResult first = rememberLegacyImport(revisions);
+        useIdentity("New test from same JSON", "NEW");
+        assertFalse(service.preview(request).alreadyImported);
+        ImportResult second = importReviewed();
+        assertFalse(second.alreadyImported());
+        assertNotEquals(first.testIds(), second.testIds());
+        assertTrue(importReviewed().alreadyImported());
+        verify(dao, times(2)).insert(eq("Test"), anyMap(), anyMap(), anyString());
+    }
+
+    @Test
+    public void changingOnlyNameOrCodeStillBlocksDuplicatesOfLegacyImport() {
+        Map<String, TestConfigurationRevision> revisions = rememberImports();
+        ImportResult saved = rememberLegacyImport(revisions);
+        when(dao.list("Test")).thenReturn(List.of(new Snapshot("Test", saved.testIds().get("test-a"), "test-a",
+                Map.of("description", "DNA test", "localCode", "DNA"), Map.of())));
+        useIdentity("Another name", "DNA");
+        Preview nameChanged = service.preview(request);
+        assertFalse(nameChanged.alreadyImported);
+        assertFalse(nameChanged.ready);
+        assertTrue(nameChanged.issues.stream().anyMatch(i -> "code".equals(i.code())));
+        request.previewToken = nameChanged.token;
+        failure("conflicts", () -> service.importPackage(request, "17"));
+        useIdentity("DNA test", "DNA2");
+        Preview codeChanged = service.preview(request);
+        assertFalse(codeChanged.alreadyImported);
+        assertFalse(codeChanged.ready);
+        assertTrue(codeChanged.issues.stream().anyMatch(i -> "name".equals(i.code())));
+        verify(dao, times(1)).insert(eq("Test"), anyMap(), anyMap(), anyString());
+    }
+
+    @Test
+    public void changingCatalogDestinationDoesNotReturnAnUnrelatedPreviousImport() {
+        Map<String, TestConfigurationRevision> revisions = rememberImports();
+        node("unit-a", "TestSection", Map.of("testSectionName", "Genetics", "description", "Genetics"), Map.of());
+        request.bundle.nodes.get(0).references.put("testSection", "unit-a");
+        when(dao.list("TestSection")).thenReturn(List.of(
+                new Snapshot("TestSection", "88", "unit-one", Map.of("testSectionName", "Genetics"), Map.of()),
+                new Snapshot("TestSection", "99", "unit-two", Map.of("testSectionName", "Other unit"), Map.of())));
+        request.catalogs.put("unit-a", "88");
+        ImportResult saved = rememberLegacyImport(revisions);
+        when(dao.list("Test")).thenReturn(List.of(new Snapshot("Test", saved.testIds().get("test-a"), "test-a",
+                Map.of("description", "DNA test", "localCode", "DNA"), Map.of())));
+        request.catalogs.put("unit-a", "99");
+        Preview preview = service.preview(request);
+        assertFalse(preview.alreadyImported);
+        assertFalse(preview.ready);
+        request.previewToken = preview.token;
+        failure("conflicts", () -> service.importPackage(request, "17"));
+        verify(dao, times(1)).insert(eq("Test"), anyMap(), anyMap(), anyString());
+    }
+
     @Test
     public void editingAfterReviewInvalidatesConfirmationToken() {
         request.previewToken = service.preview(request).token;

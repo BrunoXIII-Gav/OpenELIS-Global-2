@@ -169,7 +169,7 @@ public class TestModifyEntryRestController extends BaseController {
     private List<TestCatalogBean> createTestCatBeanList(String sampleTypeParam, String testSectionParam) {
         List<TestCatalogBean> beanList = new ArrayList<>();
 
-        List<Test> testList = testService.getAllTests(false);
+        List<Test> testList = testService.getAllActiveTests(false);
 
         // Apply server-side filtering if parameters are provided
         if (StringUtils.isNotBlank(sampleTypeParam)) {

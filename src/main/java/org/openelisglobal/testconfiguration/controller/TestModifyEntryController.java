@@ -133,7 +133,7 @@ public class TestModifyEntryController extends BaseController {
     private List<TestCatalogBean> createTestCatBeanList() {
         List<TestCatalogBean> beanList = new ArrayList<>();
 
-        List<Test> testList = testService.getAllTests(false);
+        List<Test> testList = testService.getAllActiveTests(false);
 
         for (Test test : testList) {
 
