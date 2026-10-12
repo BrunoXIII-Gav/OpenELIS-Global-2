@@ -72,6 +72,45 @@ public class TestConfigurationHandler implements DomainConfigurationHandler {
     @Autowired
     private UnitOfMeasureService unitOfMeasureService;
 
+    @Autowired
+    private TestCreationOriginService testCreationOriginService;
+
+    @Override
+    public void reconcileConfigurationOrigin(InputStream inputStream, String fileName) throws Exception {
+        try (BufferedReader reader = new BufferedReader(new InputStreamReader(inputStream, StandardCharsets.UTF_8))) {
+            String header = reader.readLine();
+            if (header == null)
+                return;
+            String[] headers = parseCsvLine(header);
+            validateHeaders(headers, fileName);
+            int nameIndex = findColumnIndex(headers, "testName");
+            int sampleIndex = findColumnIndex(headers, "sampleType");
+            String line;
+            while ((line = reader.readLine()) != null) {
+                if (line.isBlank() || line.trim().startsWith("#"))
+                    continue;
+                String[] values = parseCsvLine(line);
+                String name = getValueOrEmpty(values, nameIndex);
+                if (name.isEmpty())
+                    continue;
+                String samples = getValueOrEmpty(values, sampleIndex);
+                if (samples.isEmpty())
+                    recognizeConfiguredDescription(name);
+                else
+                    for (String sample : samples.split("\\|")) {
+                        if (!sample.isBlank())
+                            recognizeConfiguredDescription(name + "(" + sample.trim() + ")");
+                    }
+            }
+        }
+    }
+
+    private void recognizeConfiguredDescription(String description) {
+        Test existing = testService.getTestByNormalizedDescription(description);
+        if (existing != null)
+            testCreationOriginService.recognizeConfigurationTest(existing.getId());
+    }
+
     @Override
     public String getDomainName() {
         return "tests";
@@ -354,6 +393,7 @@ public class TestConfigurationHandler implements DomainConfigurationHandler {
 
         test.setSysUserId("1");
         testService.update(test);
+        testCreationOriginService.recognizeConfigurationTest(test.getId());
         return test;
     }
 
@@ -389,6 +429,7 @@ public class TestConfigurationHandler implements DomainConfigurationHandler {
 
         // Create test
         Test test = new Test();
+        test.setUserCreated(false);
         test.setDescription(testName);
         test.setStoredName(testName);
         test.setTestSection(testSection);

@@ -39,6 +39,47 @@ public class TestConfigurationHandlerTest {
     }
 
     @Test
+    public void unchangedConfigurationRecognizesOldRandomGuidsWithoutReloadingTestValues() throws Exception {
+        var tests = org.mockito.Mockito.mock(TestService.class);
+        var origins = org.mockito.Mockito.mock(TestCreationOriginService.class);
+        org.springframework.test.util.ReflectionTestUtils.setField(handler, "testService", tests);
+        org.springframework.test.util.ReflectionTestUtils.setField(handler, "testCreationOriginService", origins);
+        var old = new org.openelisglobal.test.valueholder.Test();
+        old.setId("987");
+        old.setGuid(java.util.UUID.randomUUID().toString());
+        org.mockito.Mockito.when(tests.getTestByNormalizedDescription("Config test(Serum)")).thenReturn(old);
+        String csv = "testName,testSection,sampleType\nConfig test,Unit,Serum|Plasma\n# comment\n";
+        handler.reconcileConfigurationOrigin(
+                new ByteArrayInputStream(csv.getBytes(java.nio.charset.StandardCharsets.UTF_8)), "tests.csv");
+        org.mockito.Mockito.verify(origins).recognizeConfigurationTest("987");
+        org.mockito.Mockito.verify(tests).getTestByNormalizedDescription("Config test(Plasma)");
+        org.mockito.Mockito.verify(tests, org.mockito.Mockito.never()).insert(org.mockito.ArgumentMatchers.any());
+        org.mockito.Mockito.verify(tests, org.mockito.Mockito.never()).update(org.mockito.ArgumentMatchers.any());
+    }
+
+    @Test
+    public void startupCsvCreatesSystemTestsWhileManualDefinitionsDefaultToUserCreated() throws Exception {
+        var tests = org.mockito.Mockito.mock(TestService.class);
+        var sections = org.mockito.Mockito.mock(TestSectionService.class);
+        var localizations = org.mockito.Mockito.mock(org.openelisglobal.localization.service.LocalizationService.class);
+        org.springframework.test.util.ReflectionTestUtils.setField(handler, "testService", tests);
+        org.springframework.test.util.ReflectionTestUtils.setField(handler, "testSectionService", sections);
+        org.springframework.test.util.ReflectionTestUtils.setField(handler, "localizationService", localizations);
+        var section = new org.openelisglobal.test.valueholder.TestSection();
+        org.mockito.Mockito.when(sections.getTestSectionByName("Genetics")).thenReturn(section);
+        org.mockito.Mockito.when(tests.insert(org.mockito.ArgumentMatchers.any())).thenReturn("999");
+        Method process = TestConfigurationHandler.class.getDeclaredMethod("processCsvLine", String[].class, int.class,
+                int.class, int.class, int.class, int.class, int.class, int.class, int.class, int.class, int.class,
+                int.class, String.class, int.class);
+        process.setAccessible(true);
+        var created = (org.openelisglobal.test.valueholder.Test) process.invoke(handler,
+                new String[] { "Startup test", "Genetics" }, 0, 1, -1, -1, -1, -1, -1, -1, -1, -1, 2, "tests.csv", 1);
+        org.junit.Assert.assertFalse(created.isUserCreated());
+        assertTrue(new org.openelisglobal.test.valueholder.Test().isUserCreated());
+        org.mockito.Mockito.verify(tests).insert(created);
+    }
+
+    @Test
     public void testProcessConfiguration_EmptyFile_ThrowsException() throws Exception {
         // Given
         String csv = "";

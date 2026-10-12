@@ -59,4 +59,11 @@ public interface DomainConfigurationHandler {
      * @throws Exception if processing fails
      */
     void processConfiguration(InputStream inputStream, String fileName) throws Exception;
+
+    /**
+     * Reconcile metadata for an already loaded file without reapplying
+     * configuration values.
+     */
+    default void reconcileConfigurationOrigin(InputStream inputStream, String fileName) throws Exception {
+    }
 }

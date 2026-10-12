@@ -15,6 +15,18 @@
         </id>
         <version name="lastupdated" column="LASTUPDATED"
             type="timestamp" access="field" />
+        <property name="userCreated" type="boolean" update="false">
+            <column name="user_created" not-null="true" default="false" />
+        </property>
+        <property name="creationOriginVerified" type="boolean" update="false">
+            <column name="creation_origin_verified" not-null="true" default="true" />
+        </property>
+        <property name="creationOriginVerifiedBy" type="java.lang.String" update="false">
+            <column name="creation_origin_verified_by" length="40" />
+        </property>
+        <property name="creationOriginVerifiedAt" type="timestamp" update="false">
+            <column name="creation_origin_verified_at" default="CURRENT_TIMESTAMP" />
+        </property>
         <many-to-one name="testSection"
             class="org.openelisglobal.test.valueholder.TestSection"
             fetch="select" lazy="false">
