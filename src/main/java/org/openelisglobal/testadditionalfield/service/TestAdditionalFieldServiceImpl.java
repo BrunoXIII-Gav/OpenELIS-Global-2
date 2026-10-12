@@ -159,9 +159,6 @@ public class TestAdditionalFieldServiceImpl implements TestAdditionalFieldServic
                 .collect(Collectors.toMap(TestAdditionalFieldDefinition::getId, d -> d));
         Map<String, TestAdditionalFieldDefinition> existingByFieldKey = canonicalDefinitions.stream().collect(Collectors
                 .toMap(d -> StringUtils.trimToEmpty(d.getFieldKey()).toLowerCase(), d -> d, (left, right) -> left));
-        Map<String, TestAdditionalFieldDefinition> existingByDisplayName = canonicalDefinitions.stream()
-                .collect(Collectors.toMap(d -> StringUtils.trimToEmpty(d.getDisplayName()).toLowerCase(), d -> d,
-                        (left, right) -> left));
 
         Set<Integer> touchedDefinitionIds = new HashSet<>();
         Set<String> payloadFieldKeys = new HashSet<>();
@@ -186,9 +183,8 @@ public class TestAdditionalFieldServiceImpl implements TestAdditionalFieldServic
             if (definition == null) {
                 definition = existingByFieldKey.get(normalizedFieldKey.toLowerCase());
             }
-            if (definition == null && StringUtils.isNotBlank(payload.getDisplayName())) {
-                definition = existingByDisplayName.get(payload.getDisplayName().trim().toLowerCase());
-            }
+            // Display names are labels and may repeat across independent fields.
+            // Only the ID or key within this test identifies an existing definition.
             if (definition == null) {
                 // Defensive DB lookup to avoid duplicate inserts when payload does
                 // not carry IDs for existing fields in modify flow.
