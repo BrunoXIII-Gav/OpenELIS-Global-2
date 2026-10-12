@@ -133,7 +133,7 @@ public class TestConfigurationPackageServiceImpl implements TestConfigurationPac
         Map<String, Node> graph = validate(request.bundle);
         Preview preview = new Preview();
         preview.token = fingerprint(request);
-        preview.alreadyImported = !request.copy && dao.findRevision(packageFingerprint(request.bundle)).isPresent();
+        preview.alreadyImported = previousImport(request).isPresent();
         Map<String, List<Snapshot>> catalogs = new HashMap<>();
         for (Node node : graph.values()) {
             if (!node.catalog)
@@ -243,11 +243,9 @@ public class TestConfigurationPackageServiceImpl implements TestConfigurationPac
         if (request.previewToken == null || !request.previewToken.equals(fingerprint(request)))
             throw bad("preview");
         dao.lockImports();
-        if (!request.copy) {
-            Optional<TestConfigurationRevision> previous = dao.findRevision(packageFingerprint(request.bundle));
-            if (previous.isPresent())
-                return result(previous.get(), true);
-        }
+        Optional<TestConfigurationRevision> previous = previousImport(request);
+        if (previous.isPresent())
+            return result(previous.get(), true);
         Preview preview = preview(request);
         if (!preview.ready)
             throw bad("conflicts");
@@ -298,13 +296,9 @@ public class TestConfigurationPackageServiceImpl implements TestConfigurationPac
         dao.flush();
         TestConfigurationRevision revision = new TestConfigurationRevision();
         revision.id = UUID.randomUUID().toString();
-        revision.fingerprint = request.copy ? hash(fingerprint(request) + revision.id)
-                : packageFingerprint(request.bundle);
+        revision.fingerprint = request.copy ? hash(fingerprint(request) + revision.id) : importFingerprint(request);
         revision.familyKey = request.copy ? hash(revision.id) : family(request.bundle);
-        TestConfigurationPackage applied = new TestConfigurationPackage();
-        applied.roots = request.bundle.roots;
-        applied.nodes = request.bundle.nodes.stream().map(n -> effectiveNode(n, request)).toList();
-        revision.packageJson = serialize(applied);
+        revision.packageJson = serialize(appliedPackage(request));
         revision.mappingJson = serialize(Map.of("nodes", mapped, "tests",
                 request.bundle.nodes.stream().filter(n -> "Test".equals(n.kind))
                         .collect(Collectors.toMap(n -> n.key, n -> mapped.get(n.key))),
@@ -728,6 +722,40 @@ public class TestConfigurationPackageServiceImpl implements TestConfigurationPac
     private String fingerprint(ImportRequest request) {
         return hash(serialize(canonical(JSON.valueToTree(Map.of("bundle", request.bundle, "catalogs", request.catalogs,
                 "overrides", request.overrides, "copy", request.copy)))));
+    }
+
+    private TestConfigurationPackage appliedPackage(ImportRequest request) {
+        TestConfigurationPackage applied = new TestConfigurationPackage();
+        applied.roots = request.bundle.roots;
+        applied.nodes = request.bundle.nodes.stream().map(n -> effectiveNode(n, request)).toList();
+        return applied;
+    }
+
+    private String importFingerprint(ImportRequest request) {
+        // The same source file can define several independent destination tests.
+        // Only an identical reviewed configuration and catalog selection is a replay.
+        return hash(serialize(canonical(JSON.valueToTree(Map.of("package",
+                packageFingerprint(appliedPackage(request)), "catalogs", request.catalogs)))));
+    }
+
+    private Optional<TestConfigurationRevision> previousImport(ImportRequest request) {
+        if (request.copy)
+            return Optional.empty();
+        Optional<TestConfigurationRevision> previous = dao.findRevision(importFingerprint(request));
+        if (previous.isPresent())
+            return previous;
+        // Older revisions used only the source file as their fingerprint. Preserve
+        // their replay protection without treating a renamed test as already created.
+        return dao.findRevision(packageFingerprint(request.bundle)).filter(revision -> {
+            try {
+                TestConfigurationPackage applied = JSON.readValue(revision.packageJson, TestConfigurationPackage.class);
+                return packageFingerprint(applied).equals(packageFingerprint(appliedPackage(request)))
+                        && JSON.readTree(revision.mappingJson).path("catalogs")
+                                .equals(JSON.valueToTree(request.catalogs));
+            } catch (Exception e) {
+                throw new IllegalStateException("testPackage.issue.history", e);
+            }
+        });
     }
 
     private String packageFingerprint(TestConfigurationPackage bundle) {
