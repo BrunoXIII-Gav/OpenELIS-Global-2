@@ -38,6 +38,7 @@ import org.openelisglobal.dataexchange.service.order.ElectronicOrderService;
 import org.openelisglobal.internationalization.MessageUtil;
 import org.openelisglobal.notifications.dao.NotificationDAO;
 import org.openelisglobal.notifications.entity.Notification;
+import org.openelisglobal.orderadditionalfield.service.AlternateOrderFlowService;
 import org.openelisglobal.organization.service.OrganizationService;
 import org.openelisglobal.organization.valueholder.Organization;
 import org.openelisglobal.patient.action.IPatientUpdate;
@@ -198,6 +199,8 @@ public class SamplePatientEntryRestController extends BaseSampleEntryController 
     private SystemUserService systemUserService;
     @Autowired
     private SampleService sampleService;
+    @Autowired
+    private AlternateOrderFlowService alternateOrderFlowService;
 
     @Autowired
     private OrderAuthorizationService orderAuthorizationService;
@@ -309,6 +312,8 @@ public class SamplePatientEntryRestController extends BaseSampleEntryController 
         updateData.setAccessionNumber(sampleOrder.getLabNo());
         updateData.setReferringId(sampleOrder.getExternalOrderNumber());
         updateData.setPriority(sampleOrder.getPriority());
+        updateData.setAlternateOrderFlow(
+                alternateOrderFlowService.isAlternateOrderFlow(sampleOrder.getAdditionalFieldValues()));
         updateData.initProvider(sampleOrder);
         if (!GenericValidator.isBlankOrNull(sampleOrder.getProgramId())) {
             updateData.initProgramQuestions(sampleOrder.getProgramId(), sampleOrder.getAdditionalQuestions());

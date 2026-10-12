@@ -109,6 +109,8 @@ const defaultNewField = {
   documentMaxSizeMb: "5",
   showInSampleReception: false,
   storageAssignmentRequired: false,
+  alternateOrderFlow: false,
+  alternateOrderFlowTriggerValue: "",
   userProfileCodes: [],
   userDisplayMode: USER_DISPLAY_MODE_BOTH,
 };
@@ -184,6 +186,13 @@ const OrderAdditionalFieldsManagement = () => {
       ),
     [sampleFixedConfigs],
   );
+
+  const getSampleFixedFieldDisplayLabel = (fieldKey) => {
+    if (String(fieldKey || "").toLowerCase() === "cug") {
+      return intl.formatMessage({ id: "sample.cug.label" });
+    }
+    return fieldKey;
+  };
   const fixedRows = useMemo(
     () =>
       [...fixedConfigs].sort((left, right) => {
@@ -280,6 +289,7 @@ const OrderAdditionalFieldsManagement = () => {
 
     const documentMetadata = metadata?.document || {};
     const sampleReceptionMetadata = metadata?.sampleReception || {};
+    const workflowMetadata = metadata?.workflow || {};
     return {
       displayName: field?.displayName || "",
       fieldKey: field?.fieldKey || "",
@@ -318,6 +328,12 @@ const OrderAdditionalFieldsManagement = () => {
         metadata?.storage?.requireCheckedForStorageAssignment,
       ),
       userTask: userTaskFromMetadata(metadata, "orders"),
+      alternateOrderFlow: Boolean(workflowMetadata.alternateOrderFlow),
+      alternateOrderFlowTriggerValue:
+        workflowMetadata.triggerValue !== undefined &&
+        workflowMetadata.triggerValue !== null
+          ? String(workflowMetadata.triggerValue)
+          : "",
       userProfileCodes: resolveUserProfileCodes(field?.fieldType, metadata),
       userDisplayMode: resolveUserDisplayMode(metadata),
     };
@@ -459,6 +475,22 @@ const OrderAdditionalFieldsManagement = () => {
         ...(metadata.storage || {}),
         requireCheckedForStorageAssignment: true,
       };
+    }
+
+    if (formValue.alternateOrderFlow) {
+      const triggerValue =
+        String(formValue.fieldType || "").toUpperCase() === "BOOLEAN"
+          ? "true"
+          : String(formValue.alternateOrderFlowTriggerValue || "").trim();
+      metadata.workflow = {
+        ...(metadata.workflow || {}),
+        alternateOrderFlow: true,
+      };
+      if (triggerValue !== "") {
+        metadata.workflow.triggerValue = triggerValue;
+      }
+    } else if (metadata.workflow) {
+      delete metadata.workflow;
     }
 
     if (String(formValue.fieldType || "").toUpperCase() === "USER") {
@@ -727,11 +759,35 @@ const OrderAdditionalFieldsManagement = () => {
 
   const updateSampleFixedConfig = (fieldKey, property, rawValue) => {
     setSampleFixedConfigs((previous) =>
-      previous.map((config) =>
-        config.fieldKey !== fieldKey
-          ? config
-          : { ...config, [property]: rawValue },
-      ),
+      previous.map((config) => {
+        if (config.fieldKey !== fieldKey) {
+          return config;
+        }
+
+        if (
+          String(fieldKey || "").toLowerCase() === "cug" &&
+          property === "visible" &&
+          rawValue === false
+        ) {
+          return {
+            ...config,
+            visible: false,
+            readonly: true,
+          };
+        }
+
+        if (
+          String(fieldKey || "").toLowerCase() === "cug" &&
+          property === "required"
+        ) {
+          return {
+            ...config,
+            required: true,
+          };
+        }
+
+        return { ...config, [property]: rawValue };
+      }),
     );
   };
 
@@ -1229,6 +1285,26 @@ const OrderAdditionalFieldsManagement = () => {
                   }
                 />
               </Column>
+              <Column lg={8} md={4} sm={4}>
+                <Checkbox
+                  id="order-additional-alternate-order-flow"
+                  labelText={intl.formatMessage({
+                    id: "order.additional.fields.alternateOrderFlow",
+                  })}
+                  checked={newField.alternateOrderFlow}
+                  onChange={(_event, { checked }) =>
+                    setNewField((previous) => ({
+                      ...previous,
+                      alternateOrderFlow: checked,
+                      alternateOrderFlowTriggerValue: checked
+                        ? previous.fieldType === "BOOLEAN"
+                          ? "true"
+                          : previous.alternateOrderFlowTriggerValue
+                        : "",
+                    }))
+                  }
+                />
+              </Column>
               {newField.fieldType === "BOOLEAN" ? (
                 <Column lg={8} md={4} sm={4}>
                   <Checkbox
@@ -1241,6 +1317,27 @@ const OrderAdditionalFieldsManagement = () => {
                       setNewField((previous) => ({
                         ...previous,
                         storageAssignmentRequired: checked,
+                      }))
+                    }
+                  />
+                </Column>
+              ) : null}
+              {newField.alternateOrderFlow &&
+              newField.fieldType !== "BOOLEAN" ? (
+                <Column lg={8} md={4} sm={4}>
+                  <TextInput
+                    id="order-additional-alternate-order-flow-trigger-value"
+                    labelText={intl.formatMessage({
+                      id: "order.additional.fields.alternateOrderFlowTriggerValue",
+                    })}
+                    helperText={intl.formatMessage({
+                      id: "order.additional.fields.alternateOrderFlowTriggerValue.helper",
+                    })}
+                    value={newField.alternateOrderFlowTriggerValue}
+                    onChange={(event) =>
+                      setNewField((previous) => ({
+                        ...previous,
+                        alternateOrderFlowTriggerValue: event.target.value,
                       }))
                     }
                   />
@@ -1443,6 +1540,19 @@ const OrderAdditionalFieldsManagement = () => {
                     }
                   })(),
                 ),
+                alternateOrderFlow: Boolean(
+                  (() => {
+                    if (!field?.metadataJson) {
+                      return false;
+                    }
+                    try {
+                      const parsed = JSON.parse(field.metadataJson);
+                      return Boolean(parsed?.workflow?.alternateOrderFlow);
+                    } catch (_error) {
+                      return false;
+                    }
+                  })(),
+                ),
                 options: field.options || [],
               }))}
               headers={[
@@ -1498,6 +1608,12 @@ const OrderAdditionalFieldsManagement = () => {
                   key: "showInSampleReception",
                   header: intl.formatMessage({
                     id: "order.additional.fields.showInSampleReception",
+                  }),
+                },
+                {
+                  key: "alternateOrderFlow",
+                  header: intl.formatMessage({
+                    id: "order.additional.fields.alternateOrderFlow",
                   }),
                 },
                 {
@@ -1633,6 +1749,17 @@ const OrderAdditionalFieldsManagement = () => {
                               )}
                             </TableCell>
                             <TableCell>
+                              {row.cells[9].value ? (
+                                <Tag type="blue">
+                                  <FormattedMessage id="yes.option" />
+                                </Tag>
+                              ) : (
+                                <Tag type="gray">
+                                  <FormattedMessage id="no.option" />
+                                </Tag>
+                              )}
+                            </TableCell>
+                            <TableCell>
                               <Stack gap={2}>
                                 <Button
                                   kind="ghost"
@@ -1710,7 +1837,9 @@ const OrderAdditionalFieldsManagement = () => {
                 <TableBody>
                   {sampleFixedRows.map((config) => (
                     <TableRow key={config.fieldKey}>
-                      <TableCell>{config.fieldKey}</TableCell>
+                      <TableCell>
+                        {getSampleFixedFieldDisplayLabel(config.fieldKey)}
+                      </TableCell>
                       <TableCell>
                         <Checkbox
                           id={`sample-fixed-visible-${config.fieldKey}`}
@@ -1730,6 +1859,10 @@ const OrderAdditionalFieldsManagement = () => {
                           id={`sample-fixed-required-${config.fieldKey}`}
                           labelText=""
                           checked={!!config.required}
+                          disabled={
+                            String(config.fieldKey || "").toLowerCase() ===
+                            "cug"
+                          }
                           onChange={(_event, { checked }) =>
                             updateSampleFixedConfig(
                               config.fieldKey,
@@ -1744,6 +1877,10 @@ const OrderAdditionalFieldsManagement = () => {
                           id={`sample-fixed-readonly-${config.fieldKey}`}
                           labelText=""
                           checked={!!config.readonly}
+                          disabled={
+                            String(config.fieldKey || "").toLowerCase() ===
+                              "cug" && config.visible === false
+                          }
                           onChange={(_event, { checked }) =>
                             updateSampleFixedConfig(
                               config.fieldKey,

@@ -33,6 +33,7 @@ import org.openelisglobal.note.service.NoteServiceImpl.NoteType;
 import org.openelisglobal.note.valueholder.Note;
 import org.openelisglobal.observationhistory.service.ObservationHistoryService;
 import org.openelisglobal.observationhistory.valueholder.ObservationHistory;
+import org.openelisglobal.orderadditionalfield.service.AlternateOrderFlowService;
 import org.openelisglobal.orderadditionalfield.service.OrderAdditionalFieldService;
 import org.openelisglobal.organization.service.OrganizationService;
 import org.openelisglobal.organization.valueholder.Organization;
@@ -124,6 +125,8 @@ public class SampleEditServiceImpl implements SampleEditService {
     @Autowired
     private OrderAdditionalFieldService orderAdditionalFieldService;
     @Autowired
+    private AlternateOrderFlowService alternateOrderFlowService;
+    @Autowired
     private UnitOfMeasureService unitOfMeasureService;
     @Autowired
     private SampleCugService sampleCugService;
@@ -139,14 +142,23 @@ public class SampleEditServiceImpl implements SampleEditService {
         List<Analysis> cancelAnalysisList = createRemoveList(existingTests, sysUserId);
         List<SampleItem> updateSampleItemList = createSampleItemUpdateList(existingTests, sysUserId);
         List<SampleItem> cancelSampleItemList = createCancelSampleList(existingTests, cancelAnalysisList, sysUserId);
-        List<Analysis> addAnalysisList = createAddAanlysisList(
-                form.getPossibleTests() != null ? form.getPossibleTests() : new ArrayList<>(), sysUserId);
+        List<Analysis> addAnalysisList = new ArrayList<>();
 
         List<IResultUpdate> updaters = ResultUpdateRegister.getRegisteredUpdaters();
         ResultsUpdateDataSet actionDataSet = new ResultsUpdateDataSet(sysUserId);
 
         if (updatedSample == null) {
             updatedSample = sampleService.getSampleByAccessionNumber(form.getAccessionNumber());
+        }
+        boolean alternateOrderFlow = alternateOrderFlowService
+                .isAlternateOrderFlow(form.getSampleOrderItems() == null ? null
+                        : form.getSampleOrderItems().getAdditionalFieldValues());
+        if (!alternateOrderFlow && updatedSample != null) {
+            alternateOrderFlow = alternateOrderFlowService.isAlternateOrderFlow(updatedSample.getId());
+        }
+        if (!alternateOrderFlow) {
+            addAnalysisList = createAddAanlysisList(
+                    form.getPossibleTests() != null ? form.getPossibleTests() : new ArrayList<>(), sysUserId);
         }
         updatedSample.setPriority(form.getSampleOrderItems().getPriority());
         String receivedDateForDisplay = updatedSample.getReceivedDateForDisplay();
@@ -254,6 +266,10 @@ public class SampleEditServiceImpl implements SampleEditService {
                         break;
                     }
                 }
+            }
+
+            if (alternateOrderFlow) {
+                continue;
             }
 
             for (Test test : sampleTestCollection.tests) {
