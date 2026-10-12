@@ -148,21 +148,9 @@ const normalizeMappings = (mappings) => {
     const mappingType = String(mapping?.type || "").trim();
     
     if (mappingType === CONDITIONAL_MAPPING_TYPE) {
-      acc[parameter] = {
-        type: CONDITIONAL_MAPPING_TYPE,
-        value: "",
-        defaultType: String(mapping?.defaultType || "source").trim(),
-        defaultValue: String(mapping?.defaultValue || "").trim(),
-        conditionSource: String(mapping?.conditionSource || "").trim(),
-        operator: String(
-          mapping?.operator || DEFAULT_CONDITIONAL_OPERATOR,
-        ).trim(),
-        compareTo: String(mapping?.compareTo || "").trim(),
-        trueType: String(mapping?.trueType || "constant").trim(),
-        trueValue: String(mapping?.trueValue || "").trim(),
-        falseType: String(mapping?.falseType || "constant").trim(),
-        falseValue: String(mapping?.falseValue || "").trim(),
-      };
+      // Use the same normalizer as the editor to retain ordered rules and fallback,
+      // while still accepting the older single-rule format.
+      acc[parameter] = buildConditionalMapping(mapping, "source", "", []);
       return acc;
     }
     
