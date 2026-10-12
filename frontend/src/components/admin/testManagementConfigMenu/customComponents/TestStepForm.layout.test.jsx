@@ -9,7 +9,8 @@ import {
 } from "@testing-library/react";
 import { IntlProvider } from "react-intl";
 import { NotificationContext } from "../../../layout/Layout";
-import { StepThreeTestResultTypeAndLoinc } from "./TestStepForm";
+import { StepThreeTestResultTypeAndLoinc, TestStepForm } from "./TestStepForm";
+import { getFromOpenElisServer } from "../../../utils/Utils";
 import { TestFormData } from "./TestFormData";
 import messages from "../../../../languages/en.json";
 import spanishMessages from "../../../../languages/es.json";
@@ -22,6 +23,39 @@ jest.mock("../../../utils/Utils", () => ({ getFromOpenElisServer: jest.fn() }));
 jest.mock("../sortableListComponent/SortableList", () => ({
   CustomCommonSortableOrderList: () => null,
 }));
+
+it("handles missing TestAdd data without reading labUnitList from undefined", () => {
+  const addNotification = jest.fn();
+  const setNotificationVisible = jest.fn();
+  getFromOpenElisServer.mockImplementation((endpoint, callback) => {
+    callback(undefined);
+  });
+
+  try {
+    render(
+      <IntlProvider locale="en" messages={messages}>
+        <NotificationContext.Provider
+          value={{ addNotification, setNotificationVisible }}
+        >
+          <TestStepForm
+            initialData={{ ...TestFormData }}
+            postCall={jest.fn()}
+            cancelCall={jest.fn()}
+          />
+        </NotificationContext.Provider>
+      </IntlProvider>,
+    );
+
+    expect(addNotification).toHaveBeenCalledWith({
+      title: messages["notification.title"],
+      message: messages["server.error.msg"],
+      kind: "error",
+    });
+    expect(setNotificationVisible).toHaveBeenCalledWith(true);
+  } finally {
+    getFromOpenElisServer.mockReset();
+  }
+});
 
 const click = async (element) =>
   act(async () => {

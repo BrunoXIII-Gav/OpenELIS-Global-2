@@ -7,7 +7,12 @@ import { useIdleTimer } from "react-idle-timer";
 import "react-confirm-alert/src/react-confirm-alert.css"; // Import css
 import { Loading, Modal } from "@carbon/react/";
 import config from "../../config.json";
-import { Roles, redirectToPortalOnSamlExpiry } from "../utils/Utils";
+import { Roles } from "../utils/Utils";
+import {
+  isSessionExpiredResponse,
+  isSessionRecoveryPending,
+  requestSamlSessionRecovery,
+} from "./sessionRecovery";
 import { FormattedMessage, useIntl } from "react-intl";
 import AccessDeniedPanel from "./AccessDeniedPanel";
 import { emitAccessDeniedEvent } from "./accessDenied";
@@ -63,9 +68,11 @@ function SecureRoute(props) {
         },
       );
 
-      if (response.status === 401) {
-        redirectToPortalOnSamlExpiry();
-        return false;
+      if (
+        isSessionExpiredResponse(response) &&
+        requestSamlSessionRecovery(userSessionDetails.loginMethod)
+      ) {
+        return null;
       }
 
       if (!response.ok) {
@@ -109,6 +116,9 @@ function SecureRoute(props) {
         if (cancelled) {
           return;
         }
+        if (routeAllowed === null) {
+          return;
+        }
         if (!routeAllowed) {
           showAccessDenied();
           return;
@@ -117,7 +127,7 @@ function SecureRoute(props) {
         setPermissionGranted(true);
         setAccessDenied(false);
       } else if ("authenticated" in userSessionDetails) {
-        if (!redirectToPortalOnSamlExpiry()) {
+        if (!requestSamlSessionRecovery()) {
           window.location.replace(config.loginRedirect);
         }
       }
@@ -161,6 +171,9 @@ function SecureRoute(props) {
   };
 
   const onIdle = () => {
+    if (isSessionRecoveryPending()) {
+      return;
+    }
     setStillThereOpen(false);
     console.debug("idleTimer now idle");
     logout();
@@ -207,7 +220,9 @@ function SecureRoute(props) {
       {!loading &&
         !userSessionDetails.authenticated &&
         intl.formatMessage({ id: "notAuthenticated" })}
-      {!loading && userSessionDetails.authenticated && accessDenied && <AccessDeniedPanel />}
+      {!loading && userSessionDetails.authenticated && accessDenied && (
+        <AccessDeniedPanel />
+      )}
       {!loading && userSessionDetails.authenticated && permissionGranted && (
         <>{!stillThereOpen && <Route {...props} />}</>
       )}

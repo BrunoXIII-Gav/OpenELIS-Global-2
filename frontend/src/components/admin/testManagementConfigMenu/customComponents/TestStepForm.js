@@ -291,6 +291,16 @@ export const TestStepForm = ({
     componentMounted.current = true;
     setIsLoading(true);
     getFromOpenElisServer(`/rest/TestAdd`, (res) => {
+      if (!res) {
+        setIsLoading(false);
+        addNotification({
+          title: intl.formatMessage({ id: "notification.title" }),
+          message: intl.formatMessage({ id: "server.error.msg" }),
+          kind: NotificationKinds.error,
+        });
+        setNotificationVisible(true);
+        return;
+      }
       setLabUnitList(res.labUnitList || []);
       setPanelList(res.panelList || []);
       setUomList(res.uomList || []);
