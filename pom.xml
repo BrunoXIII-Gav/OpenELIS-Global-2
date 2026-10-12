@@ -758,6 +758,13 @@
             <resource>
                 <directory>src/main/resources</directory>
             </resource>
+            <!-- Read installation identities from the original seed data, rather than
+                 maintaining a second list of test names or GUIDs. -->
+            <resource>
+                <directory>db/dbInit</directory>
+                <targetPath>configuration/installation</targetPath>
+                <includes><include>OpenELIS-Global.sql</include></includes>
+            </resource>
         </resources>
         <plugins>
             <plugin>

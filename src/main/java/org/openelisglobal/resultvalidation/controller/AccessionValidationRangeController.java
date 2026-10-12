@@ -227,9 +227,9 @@ public class AccessionValidationRangeController extends BaseResultValidationCont
         String sysUserId = getSysUserId(request);
         if (!profilePermissionService.hasValidationPermission(sysUserId)) {
             LogEvent.logWarn(this.getClass().getSimpleName(), "showAccessionValidationRangeSave",
-                    "User " + sysUserId + " does not have required professional profile for validation");
+                    "User " + sysUserId + " does not have required role permission for validation");
             result.reject("professionalProfile.validation.permission.denied",
-                    "You do not have the required professional profile to validate results");
+                    "You do not have the required role permission to validate results");
             saveErrors(result);
             return findForward(FWD_FAIL_INSERT, form);
         }

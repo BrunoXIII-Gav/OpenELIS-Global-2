@@ -1,3 +1,6 @@
+import UserFieldPermissionConfig, {
+  userTaskFromMetadata,
+} from "./customComponents/UserFieldPermissionConfig.js";
 import React, { useContext, useEffect, useMemo, useState } from "react";
 import {
   Button,
@@ -146,7 +149,7 @@ const OrderAdditionalFieldsManagement = () => {
   const [savingSortFieldId, setSavingSortFieldId] = useState(null);
   const [sampleFixedConfigs, setSampleFixedConfigs] = useState([]);
   const [savingSampleFixed, setSavingSampleFixed] = useState(false);
-  const [professionalProfileOptions, setProfessionalProfileOptions] = useState([]);
+
   const structureLocked = editingFieldId !== null && newField.hasSavedValues;
 
   const loadFields = () => {
@@ -174,16 +177,6 @@ const OrderAdditionalFieldsManagement = () => {
     loadFields();
     loadFixedConfigs();
     loadSampleFixedConfigs();
-    getFromOpenElisServer("/rest/professional-profiles/catalog", (response) => {
-      setProfessionalProfileOptions(
-        Array.isArray(response?.profiles)
-          ? response.profiles.map((profile) => ({
-              id: profile.code,
-              label: profile.label || profile.name || profile.code,
-            }))
-          : [],
-      );
-    });
   }, []);
 
   const sampleFixedRows = useMemo(
@@ -334,6 +327,7 @@ const OrderAdditionalFieldsManagement = () => {
       storageAssignmentRequired: Boolean(
         metadata?.storage?.requireCheckedForStorageAssignment,
       ),
+      userTask: userTaskFromMetadata(metadata, "orders"),
       alternateOrderFlow: Boolean(workflowMetadata.alternateOrderFlow),
       alternateOrderFlowTriggerValue:
         workflowMetadata.triggerValue !== undefined &&
@@ -500,9 +494,11 @@ const OrderAdditionalFieldsManagement = () => {
     }
 
     if (String(formValue.fieldType || "").toUpperCase() === "USER") {
-      metadata.userProfileCodes = Array.isArray(formValue.userProfileCodes)
-        ? formValue.userProfileCodes.filter(Boolean)
-        : [];
+      delete metadata.userProfileCodes;
+      Object.assign(
+        metadata,
+        formValue.userTask || userTaskFromMetadata(null, "orders"),
+      );
       metadata.userDisplayMode =
         formValue.userDisplayMode || USER_DISPLAY_MODE_BOTH;
     } else if (metadata.userProfileCodes) {
@@ -1362,36 +1358,14 @@ const OrderAdditionalFieldsManagement = () => {
             {newField.fieldType === "USER" ? (
               <Grid fullWidth condensed>
                 <Column lg={8} md={4} sm={4}>
-                  <div style={{ maxWidth: "32rem" }}>
-                    <label
-                      htmlFor="order-additional-user-profiles"
-                      style={{ display: "block", marginBottom: "0.5rem" }}
-                    >
-                      {intl.formatMessage({
-                        id: "order.additional.fields.userProfiles",
-                        defaultMessage: "Allowed professional profiles",
-                      })}
-                    </label>
-                    <MultiSelect
-                      id="order-additional-user-profiles"
-                      items={professionalProfileOptions}
-                      itemToString={(item) => item?.label || ""}
-                      selectedItems={professionalProfileOptions.filter((item) =>
-                        (newField.userProfileCodes || []).includes(item.id),
-                      )}
-                      onChange={({ selectedItems }) =>
-                        setNewField((previous) => ({
-                          ...previous,
-                          userProfileCodes: selectedItems.map(
-                            (item) => item.id,
-                          ),
-                        }))
-                      }
-                      label=""
-                      titleText=""
-                      selectionFeedback="top-after-reopen"
-                    />
-                  </div>
+                  <UserFieldPermissionConfig
+                    id={`user-task-${"orders"}`}
+                    value={newField.userTask}
+                    module="orders"
+                    onChange={(userTask) =>
+                      setNewField((previous) => ({ ...previous, userTask }))
+                    }
+                  />
                 </Column>
                 <Column lg={4} md={4} sm={4}>
                   <Select
@@ -1800,7 +1774,9 @@ const OrderAdditionalFieldsManagement = () => {
                                   disabled={
                                     savingSortFieldId === sourceField?.id
                                   }
-                                  onClick={() => saveFieldSortOrder(sourceField)}
+                                  onClick={() =>
+                                    saveFieldSortOrder(sourceField)
+                                  }
                                 >
                                   <FormattedMessage id="button.save" />
                                 </Button>

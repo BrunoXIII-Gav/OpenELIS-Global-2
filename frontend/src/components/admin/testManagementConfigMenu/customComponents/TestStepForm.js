@@ -1,3 +1,6 @@
+import UserFieldPermissionConfig, {
+  userTaskFromMetadata,
+} from "./UserFieldPermissionConfig.js";
 import React, { useState, useEffect, useRef, useContext } from "react";
 import {
   Heading,
@@ -128,9 +131,7 @@ export const TestStepForm = ({
   );
   const [multiSelectDictionaryListTag, setMultiSelectDictionaryListTag] =
     useState([]);
-  const [professionalProfileOptions, setProfessionalProfileOptions] = useState(
-    [],
-  );
+
   const [currentStep, setCurrentStep] = useState(0);
   const [ageRangeFields, setAgeRangeFields] = useState([0]);
   const [ageRanges, setAgeRanges] = useState([{ raw: "Infinity", unit: "Y" }]);
@@ -290,6 +291,16 @@ export const TestStepForm = ({
     componentMounted.current = true;
     setIsLoading(true);
     getFromOpenElisServer(`/rest/TestAdd`, (res) => {
+      if (!res) {
+        setIsLoading(false);
+        addNotification({
+          title: intl.formatMessage({ id: "notification.title" }),
+          message: intl.formatMessage({ id: "server.error.msg" }),
+          kind: NotificationKinds.error,
+        });
+        setNotificationVisible(true);
+        return;
+      }
       setLabUnitList(res.labUnitList || []);
       setPanelList(res.panelList || []);
       setUomList(res.uomList || []);
@@ -303,16 +314,7 @@ export const TestStepForm = ({
     getFromOpenElisServer(`/rest/displayList/RESULT_TYPE_CODES`, (res) => {
       setResultTypeCodes(res || []);
     });
-    getFromOpenElisServer("/rest/professional-profiles/catalog", (response) => {
-      setProfessionalProfileOptions(
-        Array.isArray(response?.profiles)
-          ? response.profiles.map((profile) => ({
-              id: profile.code,
-              label: profile.label || profile.name || profile.code,
-            }))
-          : [],
-      );
-    });
+
     return () => {
       componentMounted.current = false;
       setIsLoading(false);
@@ -755,7 +757,6 @@ export const TestStepForm = ({
       resultTypeList={resultTypeList}
       resultTypeCodes={resultTypeCodes}
       setSelectedResultTypeList={setSelectedResultTypeList}
-      professionalProfileOptions={professionalProfileOptions}
     />,
     <StepFourSelectSampleTypeAndTestDisplayOrder
       key="step-4"
@@ -1408,7 +1409,6 @@ export const StepThreeTestResultTypeAndLoinc = ({
   resultTypeList,
   resultTypeCodes,
   setSelectedResultTypeList,
-  professionalProfileOptions = [],
 }) => {
   const intl = useIntl();
   const { setNotificationVisible, addNotification } =
@@ -1577,6 +1577,8 @@ export const StepThreeTestResultTypeAndLoinc = ({
         field.childTubeUsageBlockEnabled,
         parsedMetadata?.tubeUsage?.childBlockEnabled,
       ),
+      userTask:
+        field.userTask || userTaskFromMetadata(parsedMetadata, "results"),
       userProfileCodes,
       userDisplayMode: resolveUserDisplayMode(parsedMetadata),
     };
@@ -1708,9 +1710,11 @@ export const StepThreeTestResultTypeAndLoinc = ({
     }
 
     if (String(field.fieldType || "").toUpperCase() === "USER") {
-      metadata.userProfileCodes = Array.isArray(field.userProfileCodes)
-        ? field.userProfileCodes.filter(Boolean)
-        : [];
+      delete metadata.userProfileCodes;
+      Object.assign(
+        metadata,
+        field.userTask || userTaskFromMetadata(null, "results"),
+      );
       metadata.userDisplayMode =
         field.userDisplayMode || USER_DISPLAY_MODE_BOTH;
     } else if (metadata.userProfileCodes) {
@@ -3366,49 +3370,19 @@ export const StepThreeTestResultTypeAndLoinc = ({
                                         {fieldType === "USER" ? (
                                           <>
                                             <Column lg={8} md={4} sm={4}>
-                                              <div>
-                                                <label
-                                                  className="cds--label"
-                                                  htmlFor={`additional-field-user-profiles-${fieldIndex}`}
-                                                >
-                                                  {intl.formatMessage({
-                                                    id: "test.additionalFields.userProfiles",
-                                                    defaultMessage:
-                                                      "Allowed professional profiles",
-                                                  })}
-                                                </label>
-                                                <MultiSelect
-                                                  id={`additional-field-user-profiles-${fieldIndex}`}
-                                                  items={
-                                                    professionalProfileOptions
-                                                  }
-                                                  itemToString={(item) =>
-                                                    item?.label || ""
-                                                  }
-                                                  selectedItems={professionalProfileOptions.filter(
-                                                    (item) =>
-                                                      (
-                                                        field?.userProfileCodes ||
-                                                        []
-                                                      ).includes(item.id),
-                                                  )}
-                                                  onChange={({
-                                                    selectedItems,
-                                                  }) =>
-                                                    handleAdditionalFieldChange(
-                                                      fieldIndex,
-                                                      "userProfileCodes",
-                                                      selectedItems.map(
-                                                        (item) => item.id,
-                                                      ),
-                                                    )
-                                                  }
-                                                  label=""
-                                                  titleText=""
-                                                  selectionFeedback="top-after-reopen"
-                                                  disabled={!isEditable}
-                                                />
-                                              </div>
+                                              <UserFieldPermissionConfig
+                                                id={`user-task-${fieldIndex}`}
+                                                value={field.userTask}
+                                                module="results"
+                                                onChange={(userTask) =>
+                                                  handleAdditionalFieldChange(
+                                                    fieldIndex,
+                                                    "userTask",
+                                                    userTask,
+                                                  )
+                                                }
+                                                disabled={!isEditable}
+                                              />
                                             </Column>
                                             <Column lg={8} md={4} sm={4}>
                                               <Select

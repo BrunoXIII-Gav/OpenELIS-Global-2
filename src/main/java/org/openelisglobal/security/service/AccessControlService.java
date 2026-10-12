@@ -23,6 +23,9 @@ public class AccessControlService {
     private UserPermissionService userPermissionService;
 
     @Autowired
+    private org.openelisglobal.authorization.service.ModuleAuthorizationService moduleAuthorizationService;
+
+    @Autowired
     private StorageAuthorizationService storageAuthorizationService;
 
     public boolean hasPermission(SystemPermission permission) {
@@ -62,6 +65,15 @@ public class AccessControlService {
         UserSessionData userSessionData = getUserSessionData(request);
         return userSessionData != null && storageAuthorizationService
                 .hasPermission(Integer.toString(userSessionData.getSystemUserId()), actionKey);
+    }
+
+    public boolean hasModulePermission(String moduleKey, String actionKey) {
+        HttpServletRequest request = getCurrentRequest();
+        if (request == null || userModuleService.isSessionExpired(request))
+            return false;
+        UserSessionData sessionData = getUserSessionData(request);
+        return sessionData != null && moduleAuthorizationService
+                .hasPermission(Integer.toString(sessionData.getSystemUserId()), moduleKey, actionKey);
     }
 
     private HttpServletRequest getCurrentRequest() {

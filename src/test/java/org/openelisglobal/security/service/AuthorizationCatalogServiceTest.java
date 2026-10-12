@@ -6,7 +6,6 @@ import static org.junit.Assert.assertTrue;
 
 import java.util.List;
 import org.junit.Test;
-import org.openelisglobal.common.service.ProfessionalProfilePermissionService.PermissionFlow;
 import org.openelisglobal.security.service.AuthorizationCatalogService.AuthorizationCatalog;
 import org.openelisglobal.security.service.AuthorizationCatalogService.AuthorizationModule;
 
@@ -46,11 +45,9 @@ public class AuthorizationCatalogServiceTest {
     }
 
     @Test
-    public void getCatalog_listsExistingProfessionalProfileFlowsSeparately() {
+    public void getCatalog_doesNotExposeProfessionalProfilesAsAuthorization() {
         AuthorizationCatalog catalog = authorizationCatalogService.getCatalog();
 
-        assertEquals(PermissionFlow.values().length, catalog.professionalProfileFlows().size());
-        assertTrue(catalog.professionalProfileFlows().stream()
-                .anyMatch(flow -> PermissionFlow.VALIDATION_INTERPRETER.name().equals(flow.key())));
+        assertTrue(catalog.professionalProfileFlows().isEmpty());
     }
 }

@@ -2,6 +2,7 @@ import React from "react";
 import { ClickableTile, Column, Grid, Heading, Section } from "@carbon/react";
 import {
   CicsSystemGroup,
+  Copy,
   Edit,
   ListDropdown,
   ResultNew,
@@ -87,6 +88,12 @@ function AdminHome() {
       labelId: "sidenav.label.admin.formEntry.validationTemplateOverrides",
       href: `${path}/ValidationTemplateOverrides`,
       icon: Settings,
+    },
+    {
+      id: "adminQuickTestConfigurationPackages",
+      labelId: "testPackage.title",
+      href: `${path}/TestConfigurationPackages`,
+      icon: Copy,
     },
   ];
 

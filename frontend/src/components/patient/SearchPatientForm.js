@@ -223,7 +223,23 @@ function SearchPatientForm(props) {
     setIsToggled((prev) => !prev);
   };
 
+  const notifyPatientLoadFailure = (messageId) => {
+    addNotification({
+      title: intl.formatMessage({ id: "notification.title" }),
+      message: intl.formatMessage({ id: messageId }),
+      kind: NotificationKinds.error,
+    });
+    setNotificationVisible(true);
+  };
+
   const fetchPatientResults = (res) => {
+    setLoading(false);
+    if (!Array.isArray(res?.patientSearchResults)) {
+      setPatientSearchResults([]);
+      setPagination(false);
+      notifyPatientLoadFailure("patient.search.unavailable");
+      return;
+    }
     let patientsResults = res.patientSearchResults;
     if (patientsResults.length > 0) {
       patientsResults.forEach((item) => (item.id = item.patientID));
@@ -259,6 +275,10 @@ function SearchPatientForm(props) {
   };
 
   const fetchPatientDetails = (patientDetails) => {
+    if (!String(patientDetails?.patientPK ?? "").trim()) {
+      notifyPatientLoadFailure("patient.details.unavailable");
+      return;
+    }
     getFromOpenElisServer(
       `/rest/patient-photos/${patientDetails.patientPK}/${false}`,
       (response) => {
@@ -304,6 +324,10 @@ function SearchPatientForm(props) {
     const patientSelected = patientSearchResults.find((patient) => {
       return patient.patientID == e.target.id;
     });
+    if (!patientSelected) {
+      notifyPatientLoadFailure("patient.details.unavailable");
+      return;
+    }
     const searchEndPoint =
       "/rest/patient-details?patientID=" + patientSelected.patientID;
     getFromOpenElisServer(searchEndPoint, fetchPatientDetails);

@@ -288,7 +288,8 @@ public class AccessionValidationRestController extends BaseResultValidationContr
         if (StringUtils.isBlank(userId)) {
             return false;
         }
-        // Validation is a single final operation; the former sign action is no longer separate.
+        // Validation is a single final operation; the former sign action is no longer
+        // separate.
         return validationAuthorizationService.hasPermission(userId, "validate");
     }
 
@@ -334,8 +335,8 @@ public class AccessionValidationRestController extends BaseResultValidationContr
     }
 
     private List<String> getValidationRoleNamesForScope(String userId) {
-        List<String> roleNames = new ArrayList<>(userPermissionService.getGrantedLegacyRoleNames(userId,
-                SystemPermission.VALIDATION));
+        List<String> roleNames = new ArrayList<>(
+                userPermissionService.getGrantedLegacyRoleNames(userId, SystemPermission.VALIDATION));
         if (roleNames.isEmpty()) {
             roleNames.add(Constants.ROLE_VALIDATION);
         }
@@ -355,7 +356,7 @@ public class AccessionValidationRestController extends BaseResultValidationContr
         requirePermission(sysUserId, "validate");
         if (!profilePermissionService.hasValidationPermission(sysUserId)) {
             throw new AccessDeniedException(
-                    "User " + sysUserId + " does not have required professional profile for validation");
+                    "User " + sysUserId + " does not have required role permission for validation");
         }
 
         form.setSearchFinished(false);

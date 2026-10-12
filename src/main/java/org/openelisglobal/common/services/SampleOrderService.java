@@ -307,6 +307,9 @@ public class SampleOrderService {
     private void createProviderArtifacts(SampleOrderItem sampleOrder, String currentUserId,
             SampleOrderPersistenceArtifacts artifacts) {
         RequesterService requesterService = new RequesterService(sampleOrder.getSampleId());
+        SpringContext.getBean(org.openelisglobal.common.service.UserFieldOptionResolver.class)
+                .validateOrderProviderAssignment(sampleOrder.getProviderPersonId(),
+                        requesterService.getRequesterPersonId());
         createPersonProviderArtifacts(sampleOrder, currentUserId, artifacts, requesterService);
         createObservationHistoryArtifacts(sampleOrder, currentUserId, artifacts);
         createOrganizationProviderArtifacts(sampleOrder, currentUserId, artifacts, requesterService);

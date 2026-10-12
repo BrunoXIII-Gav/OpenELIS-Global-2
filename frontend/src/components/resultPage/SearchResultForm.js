@@ -1,3 +1,4 @@
+import HistoricalUserSelectItem from "../common/HistoricalUserSelectItem";
 import React, { useContext, useEffect, useState, useRef } from "react";
 import { FormattedMessage, injectIntl, useIntl } from "react-intl";
 import "../Style.css";
@@ -302,6 +303,11 @@ const AdditionalFieldEditor = ({
           }}
         >
           <SelectItem value="" text="" />
+          <HistoricalUserSelectItem
+            fieldType={fieldType}
+            value={draftValue}
+            options={activeOptions}
+          />
           {activeOptions.map((option) => (
             <SelectItem
               key={`${inputId}-${option.optionKey}`}

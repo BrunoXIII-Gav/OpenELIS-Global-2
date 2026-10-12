@@ -16,6 +16,10 @@
         <class>org.openelisglobal.security.converter.EncryptionConverter</class>
 
         <!-- entities -->
+        <class>org.openelisglobal.testconfiguration.packageio.valueholder.TestConfigurationRevision</class>
+        <class>org.openelisglobal.testconfiguration.packageio.valueholder.TestConfigurationImportLock</class>
+        <class>org.openelisglobal.testconfiguration.packageio.valueholder.TestConfigurationIdentity</class>
+        <class>org.openelisglobal.test.valueholder.TestCreationOrigin</class>
         <class>org.openelisglobal.login.valueholder.LoginUser</class>
         <class>org.openelisglobal.gender.valueholder.Gender</class>
         <class>org.openelisglobal.externalconnections.valueholder.ExternalConnection</class>

@@ -21,6 +21,7 @@ import org.openelisglobal.storage.form.response.StorageRackResponse;
 import org.openelisglobal.storage.form.response.StorageRoomResponse;
 import org.openelisglobal.storage.form.response.StorageShelfResponse;
 import org.openelisglobal.storage.service.DeletionValidationResult;
+import org.openelisglobal.storage.service.StorageAuthorizationService;
 import org.openelisglobal.storage.service.StorageDashboardService;
 import org.openelisglobal.storage.service.StorageLocationService;
 import org.openelisglobal.storage.service.StorageSearchService;
@@ -31,6 +32,7 @@ import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
+import org.springframework.security.access.AccessDeniedException;
 import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.web.bind.annotation.*;
 
@@ -42,6 +44,9 @@ import org.springframework.web.bind.annotation.*;
 @RequestMapping("/rest/storage")
 @PreAuthorize("@accessControl.hasStoragePermission('read')")
 public class StorageLocationRestController extends BaseRestController {
+
+    @Autowired
+    private StorageAuthorizationService storageAuthorizationService;
 
     private static final Logger logger = LoggerFactory.getLogger(StorageLocationRestController.class);
 
@@ -88,6 +93,8 @@ public class StorageLocationRestController extends BaseRestController {
                 return false;
             }
             return userRoleService.userInRole(sysUserId, Constants.ROLE_GLOBAL_ADMIN);
+        } catch (AccessDeniedException e) {
+            throw e;
         } catch (Exception e) {
             logger.debug("Could not determine admin status, treating as non-admin: " + e.getMessage());
             return false;
@@ -129,6 +136,8 @@ public class StorageLocationRestController extends BaseRestController {
             Map<String, Object> error = new HashMap<>();
             error.put("error", e.getMessage());
             return ResponseEntity.status(HttpStatus.BAD_REQUEST).body(error);
+        } catch (AccessDeniedException e) {
+            throw e;
         } catch (Exception e) {
             logger.error("Error creating room", e);
             Map<String, Object> error = new HashMap<>();
@@ -154,6 +163,8 @@ public class StorageLocationRestController extends BaseRestController {
                 response = storageLocationService.getRoomsForAPI();
             }
             return ResponseEntity.ok(response);
+        } catch (AccessDeniedException e) {
+            throw e;
         } catch (Exception e) {
             logger.error("Error getting rooms", e);
             return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR).build();
@@ -169,6 +180,8 @@ public class StorageLocationRestController extends BaseRestController {
                 return ResponseEntity.status(HttpStatus.NOT_FOUND).build();
             }
             return ResponseEntity.ok(toRoomResponse(room));
+        } catch (AccessDeniedException e) {
+            throw e;
         } catch (Exception e) {
             logger.error("Error getting room by id", e);
             return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR).build();
@@ -223,6 +236,8 @@ public class StorageLocationRestController extends BaseRestController {
             Map<String, Object> error = new HashMap<>();
             error.put("error", e.getMessage());
             return ResponseEntity.status(HttpStatus.BAD_REQUEST).body(error);
+        } catch (AccessDeniedException e) {
+            throw e;
         } catch (Exception e) {
             logger.error("Error updating room", e);
             return ResponseEntity.status(HttpStatus.BAD_REQUEST).build();
@@ -258,6 +273,8 @@ public class StorageLocationRestController extends BaseRestController {
                 // override
                 return ResponseEntity.status(HttpStatus.CONFLICT).body(response);
             }
+        } catch (AccessDeniedException e) {
+            throw e;
         } catch (Exception e) {
             logger.error("Error checking room delete constraints", e);
             return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR).build();
@@ -278,6 +295,8 @@ public class StorageLocationRestController extends BaseRestController {
 
             Map<String, Object> summary = storageLocationService.getCascadeDeleteSummary(room);
             return ResponseEntity.ok(summary);
+        } catch (AccessDeniedException e) {
+            throw e;
         } catch (Exception e) {
             logger.error("Error getting room cascade delete summary", e);
             return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR).build();
@@ -315,6 +334,8 @@ public class StorageLocationRestController extends BaseRestController {
             error.put("error", "Cannot delete room");
             error.put("message", e.getMessage());
             return ResponseEntity.status(HttpStatus.CONFLICT).body(error);
+        } catch (AccessDeniedException e) {
+            throw e;
         } catch (Exception e) {
             logger.error("Error deleting room", e);
             return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR).build();
@@ -372,6 +393,8 @@ public class StorageLocationRestController extends BaseRestController {
                         sysUserId = "1"; // Default system user for tests/REST API without session
                     }
                     createFreezerMonitoringStub(device, sysUserId);
+                } catch (AccessDeniedException e) {
+                    throw e;
                 } catch (Exception e) {
                     logger.warn("Failed to auto-create freezer monitoring stub for device {}: {}", device.getName(),
                             e.getMessage());
@@ -390,6 +413,8 @@ public class StorageLocationRestController extends BaseRestController {
             Map<String, Object> error = new HashMap<>();
             error.put("error", e.getMessage());
             return ResponseEntity.status(HttpStatus.BAD_REQUEST).body(error);
+        } catch (AccessDeniedException e) {
+            throw e;
         } catch (Exception e) {
             logger.error("Error creating device", e);
             Map<String, Object> error = new HashMap<>();
@@ -420,6 +445,8 @@ public class StorageLocationRestController extends BaseRestController {
                 response = storageLocationService.getDevicesForAPI(roomIdInt);
             }
             return ResponseEntity.ok(response);
+        } catch (AccessDeniedException e) {
+            throw e;
         } catch (Exception e) {
             logger.error("Error getting devices", e);
             return ResponseEntity.ok(new ArrayList<>());
@@ -435,6 +462,8 @@ public class StorageLocationRestController extends BaseRestController {
                 return ResponseEntity.status(HttpStatus.NOT_FOUND).build();
             }
             return ResponseEntity.ok(toDeviceResponse(device));
+        } catch (AccessDeniedException e) {
+            throw e;
         } catch (Exception e) {
             logger.error("Error getting device by id", e);
             return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR).build();
@@ -518,6 +547,8 @@ public class StorageLocationRestController extends BaseRestController {
             Map<String, Object> error = new HashMap<>();
             error.put("error", e.getMessage());
             return ResponseEntity.status(HttpStatus.BAD_REQUEST).body(error);
+        } catch (AccessDeniedException e) {
+            throw e;
         } catch (Exception e) {
             logger.error("Error updating device", e);
             return ResponseEntity.status(HttpStatus.BAD_REQUEST).build();
@@ -550,6 +581,8 @@ public class StorageLocationRestController extends BaseRestController {
                 response.put("message", message);
                 return ResponseEntity.status(HttpStatus.CONFLICT).body(response);
             }
+        } catch (AccessDeniedException e) {
+            throw e;
         } catch (Exception e) {
             logger.error("Error checking device delete constraints", e);
             return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR).build();
@@ -570,6 +603,8 @@ public class StorageLocationRestController extends BaseRestController {
 
             Map<String, Object> summary = storageLocationService.getCascadeDeleteSummary(device);
             return ResponseEntity.ok(summary);
+        } catch (AccessDeniedException e) {
+            throw e;
         } catch (Exception e) {
             logger.error("Error getting device cascade delete summary", e);
             return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR).build();
@@ -593,6 +628,8 @@ public class StorageLocationRestController extends BaseRestController {
             Integer newParentId = newParentRoomId != null ? Integer.parseInt(newParentRoomId) : null;
             Map<String, Object> result = storageLocationService.canMoveLocation(device, newParentId);
             return ResponseEntity.ok(result);
+        } catch (AccessDeniedException e) {
+            throw e;
         } catch (Exception e) {
             logger.error("Error checking device move constraints", e);
             return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR).build();
@@ -629,6 +666,8 @@ public class StorageLocationRestController extends BaseRestController {
             error.put("error", "Cannot delete device");
             error.put("message", e.getMessage());
             return ResponseEntity.status(HttpStatus.CONFLICT).body(error);
+        } catch (AccessDeniedException e) {
+            throw e;
         } catch (Exception e) {
             logger.error("Error deleting device", e);
             return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR).build();
@@ -666,6 +705,8 @@ public class StorageLocationRestController extends BaseRestController {
             shelf.setId(id);
 
             return ResponseEntity.status(HttpStatus.CREATED).body(toShelfResponse(shelf));
+        } catch (AccessDeniedException e) {
+            throw e;
         } catch (Exception e) {
             logger.error("Error creating shelf", e);
             return ResponseEntity.status(HttpStatus.BAD_REQUEST).build();
@@ -695,6 +736,8 @@ public class StorageLocationRestController extends BaseRestController {
                 response = storageLocationService.getShelvesForAPI(deviceIdInt);
             }
             return ResponseEntity.ok(response);
+        } catch (AccessDeniedException e) {
+            throw e;
         } catch (Exception e) {
             logger.error("Error getting shelves", e);
             return ResponseEntity.ok(new ArrayList<>());
@@ -710,6 +753,8 @@ public class StorageLocationRestController extends BaseRestController {
                 return ResponseEntity.status(HttpStatus.NOT_FOUND).build();
             }
             return ResponseEntity.ok(toShelfResponse(shelf));
+        } catch (AccessDeniedException e) {
+            throw e;
         } catch (Exception e) {
             logger.error("Error getting shelf by id", e);
             return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR).build();
@@ -733,6 +778,8 @@ public class StorageLocationRestController extends BaseRestController {
             Integer newParentId = newParentDeviceId != null ? Integer.parseInt(newParentDeviceId) : null;
             Map<String, Object> result = storageLocationService.canMoveLocation(shelf, newParentId);
             return ResponseEntity.ok(result);
+        } catch (AccessDeniedException e) {
+            throw e;
         } catch (Exception e) {
             logger.error("Error checking shelf move constraints", e);
             return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR).build();
@@ -807,6 +854,8 @@ public class StorageLocationRestController extends BaseRestController {
             Map<String, Object> error = new HashMap<>();
             error.put("error", e.getMessage());
             return ResponseEntity.status(HttpStatus.BAD_REQUEST).body(error);
+        } catch (AccessDeniedException e) {
+            throw e;
         } catch (Exception e) {
             logger.error("Error updating shelf", e);
             return ResponseEntity.status(HttpStatus.BAD_REQUEST).build();
@@ -839,6 +888,8 @@ public class StorageLocationRestController extends BaseRestController {
                 response.put("message", message);
                 return ResponseEntity.status(HttpStatus.CONFLICT).body(response);
             }
+        } catch (AccessDeniedException e) {
+            throw e;
         } catch (Exception e) {
             logger.error("Error checking shelf delete constraints", e);
             return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR).build();
@@ -859,6 +910,8 @@ public class StorageLocationRestController extends BaseRestController {
 
             Map<String, Object> summary = storageLocationService.getCascadeDeleteSummary(shelf);
             return ResponseEntity.ok(summary);
+        } catch (AccessDeniedException e) {
+            throw e;
         } catch (Exception e) {
             logger.error("Error getting shelf cascade delete summary", e);
             return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR).build();
@@ -895,6 +948,8 @@ public class StorageLocationRestController extends BaseRestController {
             error.put("error", "Cannot delete shelf");
             error.put("message", e.getMessage());
             return ResponseEntity.status(HttpStatus.CONFLICT).body(error);
+        } catch (AccessDeniedException e) {
+            throw e;
         } catch (Exception e) {
             logger.error("Error deleting shelf", e);
             return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR).build();
@@ -930,6 +985,8 @@ public class StorageLocationRestController extends BaseRestController {
             rack.setId(id);
 
             return ResponseEntity.status(HttpStatus.CREATED).body(toRackResponse(rack));
+        } catch (AccessDeniedException e) {
+            throw e;
         } catch (Exception e) {
             logger.error("Error creating rack", e);
             return ResponseEntity.status(HttpStatus.BAD_REQUEST).build();
@@ -961,6 +1018,8 @@ public class StorageLocationRestController extends BaseRestController {
                 response = storageLocationService.getRacksForAPI(shelfIdInt);
             }
             return ResponseEntity.ok(response);
+        } catch (AccessDeniedException e) {
+            throw e;
         } catch (Exception e) {
             logger.error("Error getting racks", e);
             return ResponseEntity.ok(new ArrayList<>());
@@ -976,6 +1035,8 @@ public class StorageLocationRestController extends BaseRestController {
                 return ResponseEntity.status(HttpStatus.NOT_FOUND).build();
             }
             return ResponseEntity.ok(toRackResponse(rack));
+        } catch (AccessDeniedException e) {
+            throw e;
         } catch (Exception e) {
             logger.error("Error getting rack by id", e);
             return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR).build();
@@ -999,6 +1060,8 @@ public class StorageLocationRestController extends BaseRestController {
             Integer newParentId = newParentShelfId != null ? Integer.parseInt(newParentShelfId) : null;
             Map<String, Object> result = storageLocationService.canMoveLocation(rack, newParentId);
             return ResponseEntity.ok(result);
+        } catch (AccessDeniedException e) {
+            throw e;
         } catch (Exception e) {
             logger.error("Error checking rack move constraints", e);
             return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR).build();
@@ -1076,6 +1139,8 @@ public class StorageLocationRestController extends BaseRestController {
             Map<String, Object> error = new HashMap<>();
             error.put("error", e.getMessage());
             return ResponseEntity.status(HttpStatus.BAD_REQUEST).body(error);
+        } catch (AccessDeniedException e) {
+            throw e;
         } catch (Exception e) {
             logger.error("Error updating rack", e);
             return ResponseEntity.status(HttpStatus.BAD_REQUEST).build();
@@ -1109,6 +1174,8 @@ public class StorageLocationRestController extends BaseRestController {
                 response.put("message", message);
                 return ResponseEntity.status(HttpStatus.CONFLICT).body(response);
             }
+        } catch (AccessDeniedException e) {
+            throw e;
         } catch (Exception e) {
             logger.error("Error checking rack delete constraints", e);
             return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR).build();
@@ -1129,6 +1196,8 @@ public class StorageLocationRestController extends BaseRestController {
 
             Map<String, Object> summary = storageLocationService.getCascadeDeleteSummary(rack);
             return ResponseEntity.ok(summary);
+        } catch (AccessDeniedException e) {
+            throw e;
         } catch (Exception e) {
             logger.error("Error getting rack cascade delete summary", e);
             return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR).build();
@@ -1165,6 +1234,8 @@ public class StorageLocationRestController extends BaseRestController {
             error.put("error", "Cannot delete rack");
             error.put("message", e.getMessage());
             return ResponseEntity.status(HttpStatus.CONFLICT).body(error);
+        } catch (AccessDeniedException e) {
+            throw e;
         } catch (Exception e) {
             logger.error("Error deleting rack", e);
             return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR).build();
@@ -1210,6 +1281,8 @@ public class StorageLocationRestController extends BaseRestController {
             box.setId(id);
 
             return ResponseEntity.status(HttpStatus.CREATED).body(toBoxResponse(box));
+        } catch (AccessDeniedException e) {
+            throw e;
         } catch (Exception e) {
             logger.error("Error creating box", e);
             return ResponseEntity.status(HttpStatus.BAD_REQUEST).build();
@@ -1240,6 +1313,8 @@ public class StorageLocationRestController extends BaseRestController {
                 response.add(toBoxResponse(box));
             }
             return ResponseEntity.ok(response);
+        } catch (AccessDeniedException e) {
+            throw e;
         } catch (Exception e) {
             logger.error("Error getting boxes", e);
             return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR).build();
@@ -1298,6 +1373,8 @@ public class StorageLocationRestController extends BaseRestController {
             Map<String, Object> error = new HashMap<>();
             error.put("error", e.getMessage());
             return ResponseEntity.status(HttpStatus.BAD_REQUEST).body(error);
+        } catch (AccessDeniedException e) {
+            throw e;
         } catch (Exception e) {
             logger.error("Error updating box", e);
             return ResponseEntity.status(HttpStatus.BAD_REQUEST).build();
@@ -1331,6 +1408,8 @@ public class StorageLocationRestController extends BaseRestController {
                 response.put("message", message);
                 return ResponseEntity.status(HttpStatus.CONFLICT).body(response);
             }
+        } catch (AccessDeniedException e) {
+            throw e;
         } catch (Exception e) {
             logger.error("Error checking box delete constraints", e);
             return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR).build();
@@ -1363,6 +1442,8 @@ public class StorageLocationRestController extends BaseRestController {
 
             storageLocationService.delete(box);
             return ResponseEntity.noContent().build();
+        } catch (AccessDeniedException e) {
+            throw e;
         } catch (Exception e) {
             logger.error("Error deleting box", e);
             return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR).build();
@@ -1505,6 +1586,8 @@ public class StorageLocationRestController extends BaseRestController {
                     logger.info("Synced device name to Freezer: {} (ID: {})", device.getName(), device.getId());
                 }
             }
+        } catch (AccessDeniedException e) {
+            throw e;
         } catch (Exception e) {
             logger.warn("Failed to sync device name to freezer for device {}: {}", device.getId(), e.getMessage());
         }
@@ -1625,8 +1708,8 @@ public class StorageLocationRestController extends BaseRestController {
         response.setCode(box.getCode());
         response.setActive(box.getActive());
 
-        Map<String, Map<String, String>> occupiedCoordinatesMap = sampleStorageAssignmentDAO
-                .getOccupiedCoordinatesWithSampleInfo(box.getId());
+        Map<String, Map<String, String>> occupiedCoordinatesMap = storageAuthorizationService
+                .getOccupiedCoordinatesForCurrentUser(box.getId());
         response.setOccupied(!occupiedCoordinatesMap.isEmpty());
         response.setOccupiedCoordinates(occupiedCoordinatesMap);
         response.setFhirUuid(box.getFhirUuidAsString());
@@ -1718,6 +1801,8 @@ public class StorageLocationRestController extends BaseRestController {
         try {
             List<Map<String, Object>> results = storageSearchService.searchSamples(q);
             return ResponseEntity.ok(results);
+        } catch (AccessDeniedException e) {
+            throw e;
         } catch (Exception e) {
             logger.error("Error searching sample items with query: " + q, e);
             Map<String, Object> error = new HashMap<>();
@@ -1746,6 +1831,8 @@ public class StorageLocationRestController extends BaseRestController {
         try {
             List<Map<String, Object>> response = storageSearchService.searchRooms(q);
             return ResponseEntity.ok(response);
+        } catch (AccessDeniedException e) {
+            throw e;
         } catch (Exception e) {
             logger.error("Error searching rooms", e);
             return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR).build();
@@ -1761,6 +1848,8 @@ public class StorageLocationRestController extends BaseRestController {
         try {
             List<Map<String, Object>> response = storageSearchService.searchDevices(q);
             return ResponseEntity.ok(response);
+        } catch (AccessDeniedException e) {
+            throw e;
         } catch (Exception e) {
             logger.error("Error searching devices", e);
             return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR).build();
@@ -1776,6 +1865,8 @@ public class StorageLocationRestController extends BaseRestController {
         try {
             List<Map<String, Object>> response = storageSearchService.searchShelves(q);
             return ResponseEntity.ok(response);
+        } catch (AccessDeniedException e) {
+            throw e;
         } catch (Exception e) {
             logger.error("Error searching shelves", e);
             return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR).build();
@@ -1790,6 +1881,8 @@ public class StorageLocationRestController extends BaseRestController {
         try {
             List<Map<String, Object>> response = storageSearchService.searchRacks(q);
             return ResponseEntity.ok(response);
+        } catch (AccessDeniedException e) {
+            throw e;
         } catch (Exception e) {
             logger.error("Error searching racks", e);
             return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR).build();
@@ -1812,6 +1905,8 @@ public class StorageLocationRestController extends BaseRestController {
         try {
             Map<String, Integer> counts = storageDashboardService.getLocationCountsByType();
             return ResponseEntity.ok(counts);
+        } catch (AccessDeniedException e) {
+            throw e;
         } catch (Exception e) {
             logger.error("Error getting location counts", e);
             // Return empty counts on error
@@ -1837,6 +1932,8 @@ public class StorageLocationRestController extends BaseRestController {
         try {
             List<Map<String, Object>> results = storageLocationService.searchLocations(q);
             return ResponseEntity.ok(results);
+        } catch (AccessDeniedException e) {
+            throw e;
         } catch (Exception e) {
             logger.error("Error searching locations", e);
             return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR).build();

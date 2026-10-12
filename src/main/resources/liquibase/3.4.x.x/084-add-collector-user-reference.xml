@@ -1,0 +1,29 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<databaseChangeLog xmlns="http://www.liquibase.org/xml/ns/dbchangelog"
+  xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+  xsi:schemaLocation="http://www.liquibase.org/xml/ns/dbchangelog http://www.liquibase.org/xml/ns/dbchangelog/dbchangelog-3.8.xsd">
+  <!-- Keep collector text intact: historical initials cannot identify a unique account. -->
+  <changeSet id="084-add-collector-user-reference" author="openelis">
+    <!-- Account labels may exceed the legacy 60-character limit. -->
+    <modifyDataType tableName="sample_item" schemaName="clinlims" columnName="collector" newDataType="TEXT" />
+    <addColumn tableName="sample_item" schemaName="clinlims"><column name="collector_user_id" type="NUMERIC(10,0)" /></addColumn>
+    <addForeignKeyConstraint baseTableName="sample_item" baseTableSchemaName="clinlims" baseColumnNames="collector_user_id"
+      referencedTableName="system_user" referencedTableSchemaName="clinlims" referencedColumnNames="id"
+      constraintName="fk_sample_item_collector_user" onDelete="SET NULL" />
+    <createIndex tableName="sample_item" schemaName="clinlims" indexName="idx_sample_item_collector_user"><column name="collector_user_id" /></createIndex>
+    <rollback>
+      <!-- Refuse a lossy downgrade rather than silently truncating attribution. -->
+      <sql splitStatements="false"><![CDATA[
+        DO $$ BEGIN
+          IF EXISTS (SELECT 1 FROM clinlims.sample_item WHERE length(collector) > 60) THEN
+            RAISE EXCEPTION 'Cannot restore collector VARCHAR(60): longer historical labels exist';
+          END IF;
+        END $$;
+      ]]></sql>
+      <dropIndex tableName="sample_item" schemaName="clinlims" indexName="idx_sample_item_collector_user" />
+      <dropForeignKeyConstraint baseTableName="sample_item" baseTableSchemaName="clinlims" constraintName="fk_sample_item_collector_user" />
+      <dropColumn tableName="sample_item" schemaName="clinlims" columnName="collector_user_id" />
+      <modifyDataType tableName="sample_item" schemaName="clinlims" columnName="collector" newDataType="VARCHAR(60)" />
+    </rollback>
+  </changeSet>
+</databaseChangeLog>

@@ -41,6 +41,48 @@ public class Test extends EnumValueItemImpl {
 
     private String id;
 
+    // Set only on creation; startup configuration explicitly sets this to false.
+    private boolean userCreated = true;
+    private boolean creationOriginVerified = true;
+    private String creationOriginVerifiedBy;
+    private java.sql.Timestamp creationOriginVerifiedAt = new java.sql.Timestamp(System.currentTimeMillis());
+
+    @JsonIgnore
+    public boolean isCreationOriginVerified() {
+        return creationOriginVerified;
+    }
+
+    public void setCreationOriginVerified(boolean verified) {
+        this.creationOriginVerified = verified;
+    }
+
+    @JsonIgnore
+    public String getCreationOriginVerifiedBy() {
+        return creationOriginVerifiedBy;
+    }
+
+    public void setCreationOriginVerifiedBy(String actorId) {
+        this.creationOriginVerifiedBy = actorId;
+    }
+
+    @JsonIgnore
+    public java.sql.Timestamp getCreationOriginVerifiedAt() {
+        return creationOriginVerifiedAt;
+    }
+
+    public void setCreationOriginVerifiedAt(java.sql.Timestamp time) {
+        this.creationOriginVerifiedAt = time;
+    }
+
+    @JsonIgnore
+    public boolean isUserCreated() {
+        return userCreated;
+    }
+
+    public void setUserCreated(boolean userCreated) {
+        this.userCreated = userCreated;
+    }
+
     private String methodName;
 
     private ValueHolderInterface method;

@@ -72,6 +72,7 @@ import ValidationTemplateOverrideConfig from "../reports/ValidationTemplateOverr
 import ConsentTemplateConfig from "../reports/ConsentTemplateConfig";
 import ResultSelectListAdd from "./testManagementConfigMenu/ResultSelectListAdd.js";
 import TestAdd from "./testManagementConfigMenu/TestAdd.js";
+import TestConfigurationPackagesPage from "./testManagementConfigMenu/TestConfigurationPackagesPage.js";
 import TestModifyEntry from "./testManagementConfigMenu/TestModifyEntry.js";
 import TestOrderability from "./testManagementConfigMenu/TestOrderability.js";
 import MethodCreate from "./testManagementConfigMenu/MethodCreate.js";
@@ -468,7 +469,10 @@ function Admin() {
         />
         <Route path={`${path}/userManagement`} component={UserManagement} />
         <Route path={`${path}/roleManagement`} component={RoleManagement} />
-        <Route path={`${path}/profileManagement`} component={ProfileManagement} />
+        <Route
+          path={`${path}/profileManagement`}
+          component={ProfileManagement}
+        />
         <Route
           path={`${path}/batchTestReassignment`}
           component={BatchTestReassignmentAndCancelation}
@@ -514,6 +518,10 @@ function Admin() {
           component={ResultSelectListAdd}
         />
         <Route path={`${path}/TestAdd`} component={TestAdd} />
+        <Route
+          path={`${path}/TestConfigurationPackages`}
+          component={TestConfigurationPackagesPage}
+        />
         <Route path={`${path}/TestModifyEntry`} component={TestModifyEntry} />
         <Route path={`${path}/TestOrderability`} component={TestOrderability} />
         <Route path={`${path}/MethodCreate`} component={MethodCreate} />

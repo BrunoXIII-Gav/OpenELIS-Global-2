@@ -25,6 +25,11 @@ import { loadAndApplyBranding } from "./components/utils/BrandingUtils";
 import "./App.css";
 import { languages } from "./languages";
 import config from "./config.json";
+import SessionRecoveryModal from "./components/security/SessionRecoveryModal";
+import {
+  finishSamlSessionRecovery,
+  requestSamlSessionRecovery,
+} from "./components/security/sessionRecovery";
 import { SecureRoute } from "./components/security";
 import "./index.scss";
 import RedirectOldUI from "./RedirectOldUI";
@@ -273,33 +278,12 @@ export default function App() {
     }
   };
 
-  const redirectExpiredSamlSessionToPortal = async () => {
-    if (sessionStorage.getItem(PORTAL_SAML_LAUNCH_FLAG) === "1") {
-      return false;
-    }
-
+  const offerExpiredSamlSessionRecovery = async () => {
     const lastLoginMethod =
       userSessionDetails.loginMethod ||
       sessionStorage.getItem("openelis.lastLoginMethod") ||
       "";
-    if (lastLoginMethod !== "SAML") {
-      return false;
-    }
-
-    const portalLogoutUrl = await fetchPortalLogoutUrl(false);
-    const targetUrl = buildPortalReturnUrl(
-      portalLogoutUrl,
-      "openelis",
-      "session_expired",
-    );
-    if (!targetUrl) {
-      return false;
-    }
-
-    sessionStorage.removeItem(PORTAL_LOGOUT_FLAG);
-    sessionStorage.removeItem("openelis.lastLoginMethod");
-    window.location.replace(targetUrl);
-    return true;
+    return requestSamlSessionRecovery(lastLoginMethod);
   };
 
   const redirectLoggedOutSamlSessionToPortal = async () => {
@@ -351,11 +335,12 @@ export default function App() {
                 jsonResp.loginMethod,
               );
             }
+            finishSamlSessionRecovery();
           } else {
             if (await redirectLoggedOutSamlSessionToPortal()) {
               return jsonResp;
             }
-            if (await redirectExpiredSamlSessionToPortal()) {
+            if (await offerExpiredSamlSessionRecovery()) {
               return jsonResp;
             }
             sessionStorage.removeItem(PORTAL_SAML_LAUNCH_FLAG);
@@ -378,9 +363,6 @@ export default function App() {
       } catch (error) {
         console.error(error);
         if (await redirectLoggedOutSamlSessionToPortal()) {
-          return userSessionDetails;
-        }
-        if (await redirectExpiredSamlSessionToPortal()) {
           return userSessionDetails;
         }
         if (counter === 10) {
@@ -630,6 +612,7 @@ export default function App() {
         }}
       >
         <>
+          <SessionRecoveryModal />
           <Router>
             <Layout onChangeLanguage={onChangeLanguage}>
               <Switch>

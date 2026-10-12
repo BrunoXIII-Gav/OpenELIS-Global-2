@@ -47,6 +47,9 @@ public class SampleStorageServiceFlexibleAssignmentTest {
     @Mock
     private org.openelisglobal.sampleitem.service.SampleItemService sampleItemService;
 
+    @Mock
+    private StorageAuthorizationService storageAuthorizationService;
+
     @InjectMocks
     private SampleStorageServiceImpl sampleStorageService;
 

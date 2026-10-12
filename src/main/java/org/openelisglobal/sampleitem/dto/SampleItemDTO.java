@@ -54,6 +54,15 @@ public class SampleItemDTO {
     private boolean editable;
     private Timestamp collectionDate;
     private String collector;
+    private String collectorUserId;
+
+    public String getCollectorUserId() {
+        return collectorUserId;
+    }
+
+    public void setCollectorUserId(String value) {
+        collectorUserId = value;
+    }
 
     // Parent-child relationship fields
     private String parentId;

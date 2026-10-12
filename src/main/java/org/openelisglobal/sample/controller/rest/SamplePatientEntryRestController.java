@@ -49,20 +49,20 @@ import org.openelisglobal.person.service.PersonService;
 import org.openelisglobal.person.valueholder.Person;
 import org.openelisglobal.provider.service.ProviderService;
 import org.openelisglobal.provider.valueholder.Provider;
-import org.openelisglobal.security.service.UserPermissionService;
 import org.openelisglobal.sample.action.util.SamplePatientUpdateData;
 import org.openelisglobal.sample.bean.SampleOrderItem;
 import org.openelisglobal.sample.controller.BaseSampleEntryController;
 import org.openelisglobal.sample.event.SamplePatientUpdateDataCreatedEvent;
 import org.openelisglobal.sample.form.SamplePatientEntryForm;
-import org.openelisglobal.sample.service.PatientManagementUpdate;
 import org.openelisglobal.sample.service.OrderAuthorizationService;
+import org.openelisglobal.sample.service.PatientManagementUpdate;
 import org.openelisglobal.sample.service.SamplePatientEntryService;
 import org.openelisglobal.sample.service.SampleService;
 import org.openelisglobal.sample.validator.SamplePatientEntryFormValidator;
 import org.openelisglobal.sample.valueholder.OrderPriority;
 import org.openelisglobal.sample.valueholder.SampleAdditionalField;
 import org.openelisglobal.sample.valueholder.SampleAdditionalField.AdditionalFieldName;
+import org.openelisglobal.security.service.UserPermissionService;
 import org.openelisglobal.spring.util.SpringContext;
 import org.openelisglobal.systemuser.service.SystemUserService;
 import org.openelisglobal.systemuser.service.UserService;
@@ -108,13 +108,13 @@ public class SamplePatientEntryRestController extends BaseSampleEntryController 
             "patientProperties.personLastUpdated", "patientProperties.patientUpdateStatus",
             "patientProperties.patientPK", "patientProperties.guid", "patientProperties.fhirUuid",
             "patientProperties.STnumber", "patientProperties.subjectNumber", "patientProperties.nationalId",
-            "patientProperties.primaryPatientIdentifierType",
-            "patientProperties.dni", "patientProperties.passportNumber", "patientProperties.foreignId",
-            "patientProperties.lastName", "patientProperties.firstName", "patientProperties.aka",
-            "patientProperties.mothersName", "patientProperties.mothersInitial", "patientProperties.streetAddress",
-            "patientProperties.commune", "patientProperties.city", "patientProperties.addressDepartment",
-            "patientProperties.addressDepartment", "patientPhone", "patientProperties.primaryPhone",
-            "patientProperties.email", "patientProperties.healthRegion", "patientProperties.healthDistrict",
+            "patientProperties.primaryPatientIdentifierType", "patientProperties.dni",
+            "patientProperties.passportNumber", "patientProperties.foreignId", "patientProperties.lastName",
+            "patientProperties.firstName", "patientProperties.aka", "patientProperties.mothersName",
+            "patientProperties.mothersInitial", "patientProperties.streetAddress", "patientProperties.commune",
+            "patientProperties.city", "patientProperties.addressDepartment", "patientProperties.addressDepartment",
+            "patientPhone", "patientProperties.primaryPhone", "patientProperties.email",
+            "patientProperties.healthRegion", "patientProperties.healthDistrict",
             "patientProperties.birthDateForDisplay", "patientProperties.age", "patientProperties.gender",
             "patientProperties.patientType", "patientProperties.insuranceNumber", "patientProperties.occupation",
             "patientProperties.education", "patientProperties.maritialStatus", "patientProperties.nationality",
@@ -140,19 +140,19 @@ public class SamplePatientEntryRestController extends BaseSampleEntryController 
             "sampleOrderItems.newRequesterName", "sampleOrderItems.modified", "sampleOrderItems.sampleId",
             "sampleOrderItems.labNo", "sampleOrderItems.requestDate", "sampleOrderItems.receivedDateForDisplay",
             "sampleOrderItems.requestTime", "sampleOrderItems.receivedTime", "sampleOrderItems.nextVisitDate",
-            "sampleOrderItems.requesterSampleID",
-            "sampleOrderItems.referringPatientNumber", "sampleOrderItems.referringSiteId",
-            "referringSiteDepartmentName", "sampleOrderItems.referringSiteDepartmentId",
-            "sampleOrderItems.referringSiteName", "sampleOrderItems.referringSiteCode", "sampleOrderItems.program",
-            "sampleOrderItems.providerPersonId", "sampleOrderItems.providerLastName",
-            "sampleOrderItems.providerFirstName", "sampleOrderItems.providerWorkPhone", "sampleOrderItems.providerFax",
-            "sampleOrderItems.providerEmail", "sampleOrderItems.providerCmp", "sampleOrderItems.providerRne",
-            "sampleOrderItems.providerDni", "sampleOrderItems.providerSpecialty",
-            "sampleOrderItems.facilityAddressStreet", "sampleOrderItems.facilityAddressCommune",
-            "sampleOrderItems.facilityPhone", "sampleOrderItems.facilityFax", "sampleOrderItems.paymentOptionSelection",
-            "sampleOrderItems.billingReferenceNumber", "sampleOrderItems.testLocationCode",
-            "sampleOrderItems.otherLocationCode", "sampleOrderItems.contactTracingIndexName",
-            "sampleOrderItems.contactTracingIndexRecordNumber", "sampleOrderItems.priority",
+            "sampleOrderItems.requesterSampleID", "sampleOrderItems.referringPatientNumber",
+            "sampleOrderItems.referringSiteId", "referringSiteDepartmentName",
+            "sampleOrderItems.referringSiteDepartmentId", "sampleOrderItems.referringSiteName",
+            "sampleOrderItems.referringSiteCode", "sampleOrderItems.program", "sampleOrderItems.providerPersonId",
+            "sampleOrderItems.providerLastName", "sampleOrderItems.providerFirstName",
+            "sampleOrderItems.providerWorkPhone", "sampleOrderItems.providerFax", "sampleOrderItems.providerEmail",
+            "sampleOrderItems.providerCmp", "sampleOrderItems.providerRne", "sampleOrderItems.providerDni",
+            "sampleOrderItems.providerSpecialty", "sampleOrderItems.facilityAddressStreet",
+            "sampleOrderItems.facilityAddressCommune", "sampleOrderItems.facilityPhone", "sampleOrderItems.facilityFax",
+            "sampleOrderItems.paymentOptionSelection", "sampleOrderItems.billingReferenceNumber",
+            "sampleOrderItems.testLocationCode", "sampleOrderItems.otherLocationCode",
+            "sampleOrderItems.contactTracingIndexName", "sampleOrderItems.contactTracingIndexRecordNumber",
+            "sampleOrderItems.priority",
             //
             "currentDate", "sampleOrderItems.newRequesterName", "sampleOrderItems.externalOrderNumber",
             // referral
@@ -276,14 +276,6 @@ public class SamplePatientEntryRestController extends BaseSampleEntryController 
         requireOrderPermission(request, "create");
 
         enforceSelfOnlyProviderPolicy(request, form, result);
-
-        String sysUserId = getSysUserId(request);
-        if (requiresLegacyProfessionalProfile(sysUserId, "orders", "create")
-                && !profilePermissionService.hasOrderPermission(sysUserId)) {
-            result.reject("professionalProfile.order.permission.denied",
-                    "User does not have required professional profile for order creation");
-            return buildErrorResponse(form, result, HttpStatus.FORBIDDEN);
-        }
 
         formValidator.validate(form, result);
         if (result.hasErrors()) {
@@ -505,10 +497,10 @@ public class SamplePatientEntryRestController extends BaseSampleEntryController 
             return null;
         }
 
-        // Check if user has required professional profile for order
+        // Check if user has required role permission for order
         if (!profilePermissionService.hasOrderPermission(sysUserId)) {
             LogEvent.logWarn(this.getClass().getSimpleName(), "getLinkedProviderIfSelfOnlyApplies",
-                    "User " + sysUserId + " does not have required professional profile for order creation");
+                    "User " + sysUserId + " does not have required role permission for order creation");
             return null;
         }
 

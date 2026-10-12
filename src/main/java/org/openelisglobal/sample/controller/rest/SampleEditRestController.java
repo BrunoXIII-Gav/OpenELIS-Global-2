@@ -38,8 +38,8 @@ import org.openelisglobal.sample.bean.SampleEditItem;
 import org.openelisglobal.sample.controller.BaseSampleEntryController;
 import org.openelisglobal.sample.form.SampleEditForm;
 import org.openelisglobal.sample.form.SampleEditForm.SampleEdit;
-import org.openelisglobal.sample.service.SampleEditService;
 import org.openelisglobal.sample.service.OrderAuthorizationService;
+import org.openelisglobal.sample.service.SampleEditService;
 import org.openelisglobal.sample.service.SampleService;
 import org.openelisglobal.sample.service.SampleTypeAdditionalFieldService;
 import org.openelisglobal.sample.util.AccessionNumberUtil;
@@ -249,10 +249,10 @@ public class SampleEditRestController extends BaseSampleEntryController {
         }
 
         return samples.stream().filter(sample -> !GenericValidator.isBlankOrNull(sample.getAccessionNumber()))
-                .filter(sample -> orderAuthorizationService.canAccessAllTests(getSysUserId(request), testIdsForSample(sample),
-                        "read"))
-                .sorted(
-                (sample1, sample2) -> Integer.compare(parseSampleId(sample2.getId()), parseSampleId(sample1.getId())))
+                .filter(sample -> orderAuthorizationService.canAccessAllTests(getSysUserId(request),
+                        testIdsForSample(sample), "read"))
+                .sorted((sample1, sample2) -> Integer.compare(parseSampleId(sample2.getId()),
+                        parseSampleId(sample1.getId())))
                 .map(sample -> new PatientOrderSummary(sample.getId(), sample.getAccessionNumber(),
                         sample.getEnteredDateForDisplay(), sample.getReceivedDateForDisplay()))
                 .toList();
@@ -271,16 +271,7 @@ public class SampleEditRestController extends BaseSampleEntryController {
         }
 
         String sysUserId = getSysUserId(request);
-        if (requiresLegacyProfessionalProfile(sysUserId, "orders", "update")
-                && !profilePermissionService.hasSampleCollectionPermission(sysUserId)) {
-            LogEvent.logWarn(this.getClass().getSimpleName(), "saveSampleEdit",
-                    "User " + sysUserId + " does not have required professional profile for sample editing");
-            result.reject("professionalProfile.sample.permission.denied",
-                    "You do not have the required professional profile to edit samples");
-            saveErrors(result);
-            return;
-        }
-        
+
         formValidator.validate(form, result);
         if (result.hasErrors()) {
             saveErrors(result);
@@ -336,8 +327,8 @@ public class SampleEditRestController extends BaseSampleEntryController {
     }
 
     private List<String> testIdsForSample(Sample sample) {
-        return analysisService.getAnalysesBySampleId(sample.getId()).stream().map(analysis -> analysis.getTest().getId())
-                .toList();
+        return analysisService.getAnalysesBySampleId(sample.getId()).stream()
+                .map(analysis -> analysis.getTest().getId()).toList();
     }
 
     @SafeVarargs
@@ -345,16 +336,16 @@ public class SampleEditRestController extends BaseSampleEntryController {
         List<String> testIds = new ArrayList<>();
         for (List<SampleEditItem> testList : testLists) {
             if (testList != null) {
-                testList.stream().map(SampleEditItem::getTestId).filter(testId -> !GenericValidator.isBlankOrNull(testId))
-                        .forEach(testIds::add);
+                testList.stream().map(SampleEditItem::getTestId)
+                        .filter(testId -> !GenericValidator.isBlankOrNull(testId)).forEach(testIds::add);
             }
         }
         return testIds;
     }
 
     private boolean cancellationRequested(SampleEditForm form) {
-        return form.getExistingTests() != null && form.getExistingTests().stream()
-                .anyMatch(item -> item.isCanceled() || item.isRemoveSample());
+        return form.getExistingTests() != null
+                && form.getExistingTests().stream().anyMatch(item -> item.isCanceled() || item.isRemoveSample());
     }
 
     @Override

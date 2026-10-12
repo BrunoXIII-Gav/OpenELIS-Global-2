@@ -264,9 +264,9 @@ public class LogbookResultsRestController extends LogbookResultsBaseController {
     @GetMapping(value = "LogbookResults", produces = MediaType.APPLICATION_JSON_VALUE)
     @ResponseBody
     public LogbookResultsForm showRestLogbookResults(HttpServletRequest request,
-            @RequestParam(required = false) String labNumber,
-            @RequestParam(required = false) String patientPK, @RequestParam(required = false) String collectionDate,
-            @RequestParam(required = false) String recievedDate, @RequestParam(required = false) String selectedTest,
+            @RequestParam(required = false) String labNumber, @RequestParam(required = false) String patientPK,
+            @RequestParam(required = false) String collectionDate, @RequestParam(required = false) String recievedDate,
+            @RequestParam(required = false) String selectedTest,
             @RequestParam(required = false) String selectedSampleStatus,
             @RequestParam(required = false) String selectedAnalysisStatus,
             @RequestParam(required = false) String upperRangeAccessionNumber,
@@ -445,7 +445,8 @@ public class LogbookResultsRestController extends LogbookResultsBaseController {
                             + patient.getBirthDateForDisplay();
                 }
 
-                filteredTests = filterResultsForCurrentAccess(request, tests, resolveResultsFilterRole(form, patientPK));
+                filteredTests = filterResultsForCurrentAccess(request, tests,
+                        resolveResultsFilterRole(form, patientPK));
                 LogEvent.logInfo(this.getClass().getSimpleName(), "getLogbookResults",
                         "After filterResultsByLabUnitRoles: tests.size()=" + tests.size() + ", filteredTests.size()="
                                 + filteredTests.size());
@@ -588,13 +589,6 @@ public class LogbookResultsRestController extends LogbookResultsBaseController {
         }
 
         String sysUserId = getSysUserId(request);
-        if (requiresLegacyProfessionalProfile(sysUserId) && !profilePermissionService.hasResultEntryPermission(sysUserId)) {
-            LogEvent.logWarn(this.getClass().getSimpleName(), "showReactLogbookResultsUpdate",
-                    "User " + sysUserId + " does not have required professional profile for result entry");
-            Map<String, List<String>> errorMap = new HashMap<>();
-            errorMap.put("error", List.of("You do not have the required professional profile to enter results"));
-            return errorMap;
-        }
 
         boolean useTechnicianName = ConfigurationProperties.getInstance()
                 .isPropertyValueEqual(Property.resultTechnicianName, "true");

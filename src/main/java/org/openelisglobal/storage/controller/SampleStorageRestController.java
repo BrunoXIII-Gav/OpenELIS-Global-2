@@ -1,25 +1,17 @@
 package org.openelisglobal.storage.controller;
 
 import jakarta.validation.Valid;
-import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
-import java.util.Optional;
 import org.openelisglobal.common.rest.BaseRestController;
-import org.openelisglobal.common.services.IStatusService;
-import org.openelisglobal.common.services.StatusService.SampleStatus;
-import org.openelisglobal.sampleitem.dao.SampleItemDAO;
-import org.openelisglobal.sampleitem.valueholder.SampleItem;
-import org.openelisglobal.storage.dao.SampleStorageAssignmentDAO;
 import org.openelisglobal.storage.form.SampleAssignmentForm;
 import org.openelisglobal.storage.form.SampleDisposalForm;
 import org.openelisglobal.storage.form.SampleMovementForm;
 import org.openelisglobal.storage.service.SampleStorageService;
 import org.openelisglobal.storage.service.StorageDashboardService;
 import org.openelisglobal.storage.service.StorageLocationService;
-import org.openelisglobal.storage.valueholder.SampleStorageAssignment;
 import org.openelisglobal.storage.valueholder.StorageDevice;
 import org.openelisglobal.storage.valueholder.StorageRack;
 import org.openelisglobal.storage.valueholder.StorageShelf;
@@ -28,6 +20,7 @@ import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
+import org.springframework.security.access.AccessDeniedException;
 import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.util.StringUtils;
 import org.springframework.web.bind.annotation.GetMapping;
@@ -57,16 +50,7 @@ public class SampleStorageRestController extends BaseRestController {
     private StorageLocationService storageLocationService;
 
     @Autowired
-    private SampleStorageAssignmentDAO sampleStorageAssignmentDAO;
-
-    @Autowired
-    private SampleItemDAO sampleItemDAO;
-
-    @Autowired
     private StorageDashboardService storageDashboardService;
-
-    @Autowired
-    private IStatusService statusService;
 
     /**
      * Get all SampleItems with storage assignments GET /rest/storage/sample-items
@@ -107,46 +91,7 @@ public class SampleStorageRestController extends BaseRestController {
             }
 
             if ("true".equals(countOnly)) {
-                // Return count metrics only
-                List<SampleStorageAssignment> allAssignments = sampleStorageAssignmentDAO.getAll();
-
-                long totalSampleItems = allAssignments.size();
-                long active = 0;
-                long disposed = 0;
-
-                // Load SampleItem for each assignment to check status
-                // sampleItem is now @Transient, so we need to load it manually
-                // assignment.getSampleItemId() is Integer, sampleItemDAO.get() expects String
-                for (SampleStorageAssignment assignment : allAssignments) {
-                    if (assignment.getSampleItemId() != null) {
-                        String sampleItemIdStr = assignment.getSampleItemId().toString();
-                        Optional<SampleItem> sampleItemOpt = sampleItemDAO.get(sampleItemIdStr);
-                        if (sampleItemOpt.isPresent()) {
-                            SampleItem sampleItem = sampleItemOpt.get();
-                            if (sampleItem.getStatusId() == null
-                                    || !statusService.matches(sampleItem.getStatusId(), SampleStatus.Disposed)) {
-                                active++;
-                            } else {
-                                disposed++;
-                            }
-                        }
-                    }
-                }
-
-                // Count unique storage locations (rooms, devices, shelves, racks)
-                long storageLocations = storageLocationService.getRooms().size()
-                        + storageLocationService.getAllDevices().size() + storageLocationService.getAllShelves().size()
-                        + storageLocationService.getAllRacks().size();
-
-                Map<String, Object> metrics = new HashMap<>();
-                metrics.put("totalSampleItems", totalSampleItems);
-                metrics.put("active", active);
-                metrics.put("disposed", disposed);
-                metrics.put("storageLocations", storageLocations);
-
-                List<Map<String, Object>> response = new ArrayList<>();
-                response.add(metrics);
-                return ResponseEntity.ok(response);
+                return ResponseEntity.ok(List.of(sampleStorageService.getStorageMetrics()));
             } else if (StringUtils.hasText(location) || StringUtils.hasText(status)) {
                 // Filter branch: wrap filtered results with pagination metadata to keep
                 // response
@@ -190,6 +135,8 @@ public class SampleStorageRestController extends BaseRestController {
 
                 return ResponseEntity.ok(response);
             }
+        } catch (AccessDeniedException e) {
+            throw e;
         } catch (Exception e) {
             logger.error("Error getting SampleItems", e);
             return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR).build();
@@ -207,7 +154,7 @@ public class SampleStorageRestController extends BaseRestController {
                 return ResponseEntity.badRequest().build();
             }
 
-            Map<String, Object> location = sampleStorageService.getSampleItemLocation(sampleItemId);
+            Map<String, Object> location = sampleStorageService.getSampleItemLocationForStorage(sampleItemId);
             if (location == null || location.isEmpty()) {
                 // Return empty location (not assigned yet)
                 Map<String, Object> response = new HashMap<>();
@@ -217,6 +164,8 @@ public class SampleStorageRestController extends BaseRestController {
                 return ResponseEntity.ok(response);
             }
             return ResponseEntity.ok(location);
+        } catch (AccessDeniedException e) {
+            throw e;
         } catch (Exception e) {
             logger.error("Error getting location for SampleItem: " + sampleItemId, e);
             return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR).build();
@@ -282,6 +231,8 @@ public class SampleStorageRestController extends BaseRestController {
             Map<String, Object> error = new HashMap<>();
             error.put("message", e.getMessage());
             return ResponseEntity.status(HttpStatus.BAD_REQUEST).body(error);
+        } catch (AccessDeniedException e) {
+            throw e;
         } catch (Exception e) {
             logger.error("Error during sample assignment: " + e.getMessage(), e);
             Map<String, Object> error = new HashMap<>();
@@ -439,6 +390,8 @@ public class SampleStorageRestController extends BaseRestController {
             Map<String, Object> error = new HashMap<>();
             error.put("message", e.getMessage());
             return ResponseEntity.status(HttpStatus.BAD_REQUEST).body(error);
+        } catch (AccessDeniedException e) {
+            throw e;
         } catch (Exception e) {
             logger.error("Error moving SampleItem", e);
             Map<String, Object> error = new HashMap<>();
@@ -488,6 +441,8 @@ public class SampleStorageRestController extends BaseRestController {
             Map<String, Object> error = new HashMap<>();
             error.put("message", e.getMessage());
             return ResponseEntity.status(HttpStatus.BAD_REQUEST).body(error);
+        } catch (AccessDeniedException e) {
+            throw e;
         } catch (Exception e) {
             logger.error("Error updating SampleItem metadata", e);
             Map<String, Object> error = new HashMap<>();
@@ -536,6 +491,8 @@ public class SampleStorageRestController extends BaseRestController {
             Map<String, Object> error = new HashMap<>();
             error.put("message", e.getMessage());
             return ResponseEntity.status(HttpStatus.BAD_REQUEST).body(error);
+        } catch (AccessDeniedException e) {
+            throw e;
         } catch (Exception e) {
             logger.error("Error disposing SampleItem", e);
             Map<String, Object> error = new HashMap<>();

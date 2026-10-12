@@ -95,4 +95,8 @@
   <include relativeToChangelogFile="true" file="081-add-role-patient-search-restriction-audit-column.xml"/>
   <include relativeToChangelogFile="true" file="082-merge-validation-sign-permission.xml"/>
   <include relativeToChangelogFile="true" file="083-add-simplified-test-names-config.xml"/>
+  <include relativeToChangelogFile="true" file="084-add-collector-user-reference.xml"/>
+  <include relativeToChangelogFile="true" file="085-test-configuration-packages.xml"/>
+  <include relativeToChangelogFile="true" file="086-test-creation-origin.xml"/>
+  <include relativeToChangelogFile="true" file="087-verify-test-creation-origin.xml"/>
 </databaseChangeLog>

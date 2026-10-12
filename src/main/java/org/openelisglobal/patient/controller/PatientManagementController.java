@@ -50,11 +50,11 @@ public class PatientManagementController extends BaseController {
             "patientProperties.patientLastUpdated", "patientProperties.personLastUpdated",
             "patientProperties.patientUpdateStatus", "patientProperties.patientPK", "patientProperties.guid",
             "patientProperties.fhirUuid", "patientProperties.STnumber", "patientProperties.subjectNumber",
-            "patientProperties.nationalId", "patientProperties.primaryPatientIdentifierType", "patientProperties.dni", "patientProperties.passportNumber",
-            "patientProperties.foreignId", "patientProperties.lastName", "patientProperties.firstName",
-            "patientProperties.aka", "patientProperties.mothersName", "patientProperties.mothersInitial",
-            "patientProperties.streetAddress", "patientProperties.commune", "patientProperties.city",
-            "patientProperties.addressDepartment", "patientProperties.addressDepartment",
+            "patientProperties.nationalId", "patientProperties.primaryPatientIdentifierType", "patientProperties.dni",
+            "patientProperties.passportNumber", "patientProperties.foreignId", "patientProperties.lastName",
+            "patientProperties.firstName", "patientProperties.aka", "patientProperties.mothersName",
+            "patientProperties.mothersInitial", "patientProperties.streetAddress", "patientProperties.commune",
+            "patientProperties.city", "patientProperties.addressDepartment", "patientProperties.addressDepartment",
             "patientProperties.primaryPhone", "patientProperties.email", "patientProperties.healthRegion",
             "patientProperties.healthDistrict", "patientProperties.birthDateForDisplay", "patientProperties.age",
             "patientProperties.gender", "patientProperties.patientType", "patientProperties.insuranceNumber",
@@ -109,9 +109,9 @@ public class PatientManagementController extends BaseController {
         String sysUserId = getSysUserId(request);
         if (!profilePermissionService.hasPatientEntryPermission(sysUserId)) {
             LogEvent.logWarn(this.getClass().getSimpleName(), "showPatientManagementUpdate",
-                    "User " + sysUserId + " does not have required professional profile for patient management");
+                    "User " + sysUserId + " does not have required role permission for patient management");
             result.reject("professionalProfile.patient.permission.denied",
-                    "You do not have the required professional profile to manage patients");
+                    "You do not have the required role permission to manage patients");
             saveErrors(result);
             return findForward(FWD_FAIL_INSERT, form);
         }

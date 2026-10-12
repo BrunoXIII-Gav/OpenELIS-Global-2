@@ -1,3 +1,4 @@
+import HistoricalUserSelectItem from "../common/HistoricalUserSelectItem";
 import React, { useContext, useEffect, useRef, useState } from "react";
 import {
   Checkbox,
@@ -926,6 +927,11 @@ const AddOrder = (props) => {
               disabled={readonly}
             >
               <SelectItem value="" text="" />
+              <HistoricalUserSelectItem
+                fieldType={fieldType}
+                value={value}
+                options={options}
+              />
               {options.map((option) => (
                 <SelectItem
                   key={`${field.fieldKey}-${option.optionKey}`}

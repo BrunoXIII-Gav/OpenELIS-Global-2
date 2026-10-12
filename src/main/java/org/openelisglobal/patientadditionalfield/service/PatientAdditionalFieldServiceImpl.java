@@ -47,16 +47,12 @@ public class PatientAdditionalFieldServiceImpl implements PatientAdditionalField
             .ofPattern("yyyy-MM-dd HH:mm:ss");
     private static final Set<FieldType> OPTION_TYPES = Set.of(FieldType.SELECT, FieldType.RADIO, FieldType.MULTISELECT);
     private static final List<FixedFieldDefault> FIXED_FIELD_DEFAULTS = List.of(
-            new FixedFieldDefault("photo", 10, false, false),
-            new FixedFieldDefault("subjectNumber", 20, false, false),
+            new FixedFieldDefault("photo", 10, false, false), new FixedFieldDefault("subjectNumber", 20, false, false),
             new FixedFieldDefault("nationalId", 30, false, true),
             new FixedFieldDefault("optionalIdentifiers", 40, false, false),
-            new FixedFieldDefault("lastName", 50, false, false),
-            new FixedFieldDefault("firstName", 60, false, false),
-            new FixedFieldDefault("primaryPhone", 70, false, false),
-            new FixedFieldDefault("email", 80, false, false),
-            new FixedFieldDefault("gender", 90, true, false),
-            new FixedFieldDefault("birthDateAge", 100, true, false),
+            new FixedFieldDefault("lastName", 50, false, false), new FixedFieldDefault("firstName", 60, false, false),
+            new FixedFieldDefault("primaryPhone", 70, false, false), new FixedFieldDefault("email", 80, false, false),
+            new FixedFieldDefault("gender", 90, true, false), new FixedFieldDefault("birthDateAge", 100, true, false),
             new FixedFieldDefault("emergencyContact", 110, false, false),
             new FixedFieldDefault("additionalInfo", 120, false, false));
     private static final Set<String> FIXED_FIELD_KEYS = FIXED_FIELD_DEFAULTS.stream().map(f -> f.fieldKey.toLowerCase())
@@ -118,7 +114,8 @@ public class PatientAdditionalFieldServiceImpl implements PatientAdditionalField
 
     @Override
     @Transactional(readOnly = true)
-    public Map<String, String> getPatientValues(String patientId, List<PatientAdditionalFieldPayload> fieldDefinitions) {
+    public Map<String, String> getPatientValues(String patientId,
+            List<PatientAdditionalFieldPayload> fieldDefinitions) {
         Integer numericPatientId = parseNumericId(patientId, "patientId");
         List<PatientAdditionalFieldPayload> definitions = fieldDefinitions == null ? getFields(false, true)
                 : fieldDefinitions;
@@ -126,8 +123,8 @@ public class PatientAdditionalFieldServiceImpl implements PatientAdditionalField
             return Collections.emptyMap();
         }
         Map<Integer, String> fieldKeyByDefinitionId = definitions.stream()
-                .collect(Collectors.toMap(PatientAdditionalFieldPayload::getId, PatientAdditionalFieldPayload::getFieldKey,
-                        (left, right) -> left));
+                .collect(Collectors.toMap(PatientAdditionalFieldPayload::getId,
+                        PatientAdditionalFieldPayload::getFieldKey, (left, right) -> left));
         Map<String, String> valuesByFieldKey = new HashMap<>();
         for (PatientAdditionalFieldValue savedValue : valueDAO.findByPatientId(numericPatientId)) {
             String fieldKey = fieldKeyByDefinitionId.get(savedValue.getFieldDefinitionId());
@@ -156,10 +153,11 @@ public class PatientAdditionalFieldServiceImpl implements PatientAdditionalField
         definition.setFieldType(fieldType.name());
         definition.setRequired(Boolean.TRUE.equals(payload.getRequired()));
         definition.setActive(payload.getActive() == null || payload.getActive());
-        definition.setSortOrder(payload.getSortOrder() == null ? getNextSortOrder()
-                : Math.max(payload.getSortOrder(), 0));
+        definition.setSortOrder(
+                payload.getSortOrder() == null ? getNextSortOrder() : Math.max(payload.getSortOrder(), 0));
         definition.setDefaultValue(StringUtils.defaultIfBlank(payload.getDefaultValue(), null));
         definition.setMaxLength(payload.getMaxLength());
+        userFieldOptionResolver.validateConfiguration(definition.getFieldType(), payload.getMetadataJson(), "patients");
         definition.setMetadataJson(StringUtils.defaultIfBlank(payload.getMetadataJson(), null));
         definition.setSysUserId(currentUserId);
 
@@ -182,13 +180,11 @@ public class PatientAdditionalFieldServiceImpl implements PatientAdditionalField
                 : parseFieldType(payload.getFieldType());
 
         if (hasSavedValues && requestedFieldType != existingFieldType) {
-            throw new IllegalStateException(
-                    "This field already has saved data and its type cannot be changed.");
+            throw new IllegalStateException("This field already has saved data and its type cannot be changed.");
         }
         if (hasSavedValues && payload.getOptions() != null && isOptionFieldType(requestedFieldType)
                 && haveOptionsChanged(fieldId, payload.getOptions())) {
-            throw new IllegalStateException(
-                    "This field already has saved data and its options cannot be changed.");
+            throw new IllegalStateException("This field already has saved data and its options cannot be changed.");
         }
 
         if (StringUtils.isNotBlank(payload.getFieldKey())) {
@@ -228,6 +224,8 @@ public class PatientAdditionalFieldServiceImpl implements PatientAdditionalField
             definition.setMaxLength(payload.getMaxLength());
         }
         if (payload.getMetadataJson() != null) {
+            userFieldOptionResolver.validateConfiguration(definition.getFieldType(), payload.getMetadataJson(),
+                    "patients");
             definition.setMetadataJson(StringUtils.defaultIfBlank(payload.getMetadataJson(), null));
         }
         definition.setSysUserId(currentUserId);
@@ -250,8 +248,8 @@ public class PatientAdditionalFieldServiceImpl implements PatientAdditionalField
     }
 
     @Override
-    public PatientAdditionalFieldOptionPayload createOption(Integer fieldId, PatientAdditionalFieldOptionPayload payload,
-            String currentUserId) {
+    public PatientAdditionalFieldOptionPayload createOption(Integer fieldId,
+            PatientAdditionalFieldOptionPayload payload, String currentUserId) {
         if (fieldId == null) {
             throw new IllegalArgumentException("fieldId is required");
         }
@@ -265,17 +263,16 @@ public class PatientAdditionalFieldServiceImpl implements PatientAdditionalField
             throw new IllegalArgumentException("optionLabel is required");
         }
         String normalizedOptionKey = normalizeOptionKey(payload.getOptionKey(), payload.getOptionLabel());
-        optionDAO.findByDefinitionIdAndOptionKey(fieldId, normalizedOptionKey)
-                .ifPresent(existing -> {
-                    throw new IllegalArgumentException("Option key already exists: " + normalizedOptionKey);
-                });
+        optionDAO.findByDefinitionIdAndOptionKey(fieldId, normalizedOptionKey).ifPresent(existing -> {
+            throw new IllegalArgumentException("Option key already exists: " + normalizedOptionKey);
+        });
 
         PatientAdditionalFieldOption option = new PatientAdditionalFieldOption();
         option.setFieldDefinitionId(fieldId);
         option.setOptionKey(normalizedOptionKey);
         option.setOptionLabel(payload.getOptionLabel().trim());
-        option.setSortOrder(payload.getSortOrder() == null ? getNextOptionSortOrder(fieldId)
-                : Math.max(payload.getSortOrder(), 0));
+        option.setSortOrder(
+                payload.getSortOrder() == null ? getNextOptionSortOrder(fieldId) : Math.max(payload.getSortOrder(), 0));
         option.setActive(payload.getActive() == null || payload.getActive());
         option.setSysUserId(currentUserId);
         Integer optionId = optionDAO.insert(option);
@@ -292,8 +289,8 @@ public class PatientAdditionalFieldServiceImpl implements PatientAdditionalField
                 .orElseThrow(() -> new IllegalArgumentException("Option not found: " + optionId));
         if (payload != null && StringUtils.isNotBlank(payload.getOptionKey())) {
             String normalizedOptionKey = normalizeOptionKey(payload.getOptionKey(), payload.getOptionLabel());
-            optionDAO.findByDefinitionIdAndOptionKey(option.getFieldDefinitionId(), normalizedOptionKey).ifPresent(
-                    existing -> {
+            optionDAO.findByDefinitionIdAndOptionKey(option.getFieldDefinitionId(), normalizedOptionKey)
+                    .ifPresent(existing -> {
                         if (!existing.getId().equals(optionId)) {
                             throw new IllegalArgumentException("Option key already exists: " + normalizedOptionKey);
                         }
@@ -345,8 +342,8 @@ public class PatientAdditionalFieldServiceImpl implements PatientAdditionalField
             entity.setVisible(payload.getVisible() == null || payload.getVisible());
             entity.setRequired(payload.getRequired() != null && payload.getRequired());
             entity.setReadonly(payload.getReadonly() != null && payload.getReadonly());
-            entity.setSortOrder(
-                    payload.getSortOrder() == null ? getDefaultFixedFieldSortOrder(normalizedKey) : payload.getSortOrder());
+            entity.setSortOrder(payload.getSortOrder() == null ? getDefaultFixedFieldSortOrder(normalizedKey)
+                    : payload.getSortOrder());
             entity.setSysUserId(currentUserId);
 
             if (entity.getId() == null) {
@@ -358,8 +355,8 @@ public class PatientAdditionalFieldServiceImpl implements PatientAdditionalField
     }
 
     @Override
-    public void validateAndPersistPatientValues(String patientId, Map<String, String> fieldValues,
-            String currentUserId, List<PatientAdditionalFieldPayload> activeFieldCache) {
+    public void validateAndPersistPatientValues(String patientId, Map<String, String> fieldValues, String currentUserId,
+            List<PatientAdditionalFieldPayload> activeFieldCache) {
         if (StringUtils.isBlank(patientId) || fieldValues == null) {
             return;
         }
@@ -373,9 +370,23 @@ public class PatientAdditionalFieldServiceImpl implements PatientAdditionalField
 
         for (PatientAdditionalFieldPayload fieldDefinition : fieldDefinitions) {
             String rawValue = fieldValues.get(fieldDefinition.getFieldKey());
+            Optional<PatientAdditionalFieldValue> existing = valueDAO
+                    .findByPatientIdAndFieldDefinitionId(numericPatientId, fieldDefinition.getId());
+            if (!fieldValues.containsKey(fieldDefinition.getFieldKey()) && existing.isPresent())
+                continue;
             String normalizedValue = normalizeAndValidateValue(fieldDefinition, rawValue);
-            Optional<PatientAdditionalFieldValue> existing = valueDAO.findByPatientIdAndFieldDefinitionId(numericPatientId,
-                    fieldDefinition.getId());
+
+            if (userFieldOptionResolver.isUserFieldType(fieldDefinition.getFieldType())
+                    && StringUtils.isNotBlank(normalizedValue) && !java.util.Objects.equals(normalizedValue,
+                            existing.map(PatientAdditionalFieldValue::getFieldValue).orElse(null))) {
+                userFieldOptionResolver.validateFieldAssignment(
+                        userFieldOptionResolver.filterForFieldAccess(
+                                userFieldOptionResolver.resolveUserOptions("USER", fieldDefinition.getMetadataJson(),
+                                        "patients", null),
+                                fieldDefinition.getMetadataJson(), "patients", null,
+                                "patient-additional-field-" + fieldDefinition.getId()),
+                        normalizedValue, existing.map(PatientAdditionalFieldValue::getFieldValue).orElse(null));
+            }
 
             if (StringUtils.isBlank(normalizedValue)) {
                 if (Boolean.TRUE.equals(fieldDefinition.getRequired())) {
@@ -412,7 +423,8 @@ public class PatientAdditionalFieldServiceImpl implements PatientAdditionalField
         for (PatientAdditionalFieldDefinition definition : definitions) {
             PatientAdditionalFieldPayload payload = mapDefinitionToPayload(definition);
             if (resolveUserOptions && isUserFieldType(definition.getFieldType())) {
-                payload.setOptions(resolveUserFieldOptions(definition.getFieldType(), definition.getMetadataJson()));
+                payload.setOptions(resolveUserFieldOptions(definition.getFieldType(), definition.getMetadataJson(),
+                        definition.getId()));
             } else {
                 payload.setOptions(optionsByDefinitionId.getOrDefault(definition.getId(), Collections.emptyList()));
             }
@@ -585,7 +597,8 @@ public class PatientAdditionalFieldServiceImpl implements PatientAdditionalField
             if (optionPayload == null || StringUtils.isBlank(optionPayload.getOptionLabel())) {
                 continue;
             }
-            String normalizedOptionKey = normalizeOptionKey(optionPayload.getOptionKey(), optionPayload.getOptionLabel());
+            String normalizedOptionKey = normalizeOptionKey(optionPayload.getOptionKey(),
+                    optionPayload.getOptionLabel());
             if (!uniqueOptionKeys.add(normalizedOptionKey)) {
                 throw new IllegalArgumentException("Duplicate option key in request payload: " + normalizedOptionKey);
             }
@@ -593,7 +606,8 @@ public class PatientAdditionalFieldServiceImpl implements PatientAdditionalField
             option.setFieldDefinitionId(definitionId);
             option.setOptionKey(normalizedOptionKey);
             option.setOptionLabel(optionPayload.getOptionLabel().trim());
-            option.setSortOrder(optionPayload.getSortOrder() == null ? fallbackSortOrder : optionPayload.getSortOrder());
+            option.setSortOrder(
+                    optionPayload.getSortOrder() == null ? fallbackSortOrder : optionPayload.getSortOrder());
             option.setActive(optionPayload.getActive() == null || optionPayload.getActive());
             option.setSysUserId(currentUserId);
             optionDAO.insert(option);
@@ -613,9 +627,10 @@ public class PatientAdditionalFieldServiceImpl implements PatientAdditionalField
 
     private boolean haveOptionsChanged(Integer fieldId, List<PatientAdditionalFieldOptionPayload> requestedOptions) {
         List<String> existing = optionDAO.findByDefinitionId(fieldId, true).stream().filter(option -> option != null)
-                .filter(option -> option.getActive() == null || option.getActive()).sorted((left, right) -> Integer
-                        .compare(left.getSortOrder() == null ? Integer.MAX_VALUE : left.getSortOrder(),
-                                right.getSortOrder() == null ? Integer.MAX_VALUE : right.getSortOrder()))
+                .filter(option -> option.getActive() == null || option.getActive())
+                .sorted((left, right) -> Integer.compare(
+                        left.getSortOrder() == null ? Integer.MAX_VALUE : left.getSortOrder(),
+                        right.getSortOrder() == null ? Integer.MAX_VALUE : right.getSortOrder()))
                 .map(option -> option.getOptionKey() + "|" + StringUtils.trimToEmpty(option.getOptionLabel()))
                 .collect(Collectors.toList());
 
@@ -671,8 +686,9 @@ public class PatientAdditionalFieldServiceImpl implements PatientAdditionalField
             return trimmedValue.toLowerCase();
         case SELECT:
         case RADIO:
-        case USER:
             validateSingleOption(fieldDefinition, trimmedValue);
+            return trimmedValue;
+        case USER:
             return trimmedValue;
         case MULTISELECT:
             return normalizeAndValidateMultiSelect(fieldDefinition, trimmedValue);
@@ -748,7 +764,8 @@ public class PatientAdditionalFieldServiceImpl implements PatientAdditionalField
     }
 
     private void validateSingleOption(PatientAdditionalFieldPayload fieldDefinition, String value) {
-        Set<String> validOptions = fieldDefinition.getOptions().stream().filter(option -> Boolean.TRUE.equals(option.getActive()))
+        Set<String> validOptions = fieldDefinition.getOptions().stream()
+                .filter(option -> Boolean.TRUE.equals(option.getActive()))
                 .map(PatientAdditionalFieldOptionPayload::getOptionKey).collect(Collectors.toSet());
         if (!validOptions.contains(value)) {
             throw new LIMSRuntimeException("Invalid option selected for field: " + fieldDefinition.getDisplayName());
@@ -756,7 +773,8 @@ public class PatientAdditionalFieldServiceImpl implements PatientAdditionalField
     }
 
     private String normalizeAndValidateMultiSelect(PatientAdditionalFieldPayload fieldDefinition, String value) {
-        Set<String> validOptions = fieldDefinition.getOptions().stream().filter(option -> Boolean.TRUE.equals(option.getActive()))
+        Set<String> validOptions = fieldDefinition.getOptions().stream()
+                .filter(option -> Boolean.TRUE.equals(option.getActive()))
                 .map(PatientAdditionalFieldOptionPayload::getOptionKey).collect(Collectors.toSet());
         LinkedHashSet<String> normalizedOptions = new LinkedHashSet<>();
         for (String option : value.split(",")) {
@@ -765,17 +783,21 @@ public class PatientAdditionalFieldServiceImpl implements PatientAdditionalField
                 continue;
             }
             if (!validOptions.contains(trimmed)) {
-                throw new LIMSRuntimeException("Invalid option selected for field: " + fieldDefinition.getDisplayName());
+                throw new LIMSRuntimeException(
+                        "Invalid option selected for field: " + fieldDefinition.getDisplayName());
             }
             normalizedOptions.add(trimmed);
         }
         return normalizedOptions.isEmpty() ? null : String.join(",", normalizedOptions);
     }
 
-    private List<PatientAdditionalFieldOptionPayload> resolveUserFieldOptions(String fieldType, String metadataJson) {
+    private List<PatientAdditionalFieldOptionPayload> resolveUserFieldOptions(String fieldType, String metadataJson,
+            Integer fieldId) {
         List<PatientAdditionalFieldOptionPayload> payloads = new ArrayList<>();
         List<UserFieldOptionResolver.ResolvedUserOption> resolvedOptions = userFieldOptionResolver
-                .resolveUserOptions(fieldType, metadataJson);
+                .resolveUserOptions(fieldType, metadataJson, "patients", null);
+        resolvedOptions = userFieldOptionResolver.filterForFieldAccess(resolvedOptions, metadataJson, "patients", null,
+                "patient-additional-field-" + fieldId);
         for (int index = 0; index < resolvedOptions.size(); index++) {
             UserFieldOptionResolver.ResolvedUserOption option = resolvedOptions.get(index);
             PatientAdditionalFieldOptionPayload payload = new PatientAdditionalFieldOptionPayload();

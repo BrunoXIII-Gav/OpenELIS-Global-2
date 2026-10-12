@@ -1,0 +1,17 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<databaseChangeLog xmlns="http://www.liquibase.org/xml/ns/dbchangelog"
+  xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+  xsi:schemaLocation="http://www.liquibase.org/xml/ns/dbchangelog http://www.liquibase.org/xml/ns/dbchangelog/dbchangelog-3.8.xsd">
+  <changeSet id="086-test-creation-origin" author="openelis">
+    <!-- Accept only the checksum of the previously deployed GUID-based backfill.
+         087 replaces its inferred origins with verifiable provenance. -->
+    <validCheckSum>8:562bdebbb09bf50b75bf1810c8d1e5e3</validCheckSum>
+    <comment>Persist origin without identifying tests by fixed names, codes, IDs or GUIDs.</comment>
+    <addColumn tableName="test" schemaName="clinlims">
+      <column name="user_created" type="BOOLEAN" defaultValueBoolean="false">
+        <constraints nullable="false"/>
+      </column>
+    </addColumn>
+    <rollback><dropColumn tableName="test" schemaName="clinlims" columnName="user_created"/></rollback>
+  </changeSet>
+</databaseChangeLog>

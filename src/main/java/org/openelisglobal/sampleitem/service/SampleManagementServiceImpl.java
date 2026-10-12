@@ -36,9 +36,9 @@ import org.openelisglobal.common.services.IStatusService;
 import org.openelisglobal.common.services.SampleOrderService;
 import org.openelisglobal.common.services.StatusService;
 import org.openelisglobal.common.services.StatusService.SampleStatus;
+import org.openelisglobal.sample.bean.SampleTypeAdditionalFieldPayload;
 import org.openelisglobal.sample.service.SampleService;
 import org.openelisglobal.sample.service.SampleTypeAdditionalFieldService;
-import org.openelisglobal.sample.bean.SampleTypeAdditionalFieldPayload;
 import org.openelisglobal.sample.valueholder.Sample;
 import org.openelisglobal.sampleitem.dao.SampleItemDAO;
 import org.openelisglobal.sampleitem.dto.AddTestsResponse;
@@ -53,8 +53,8 @@ import org.openelisglobal.sampleitem.form.AddTestsForm;
 import org.openelisglobal.sampleitem.form.CancelTestForm;
 import org.openelisglobal.sampleitem.form.CreateAliquotForm;
 import org.openelisglobal.sampleitem.form.SaveSampleManagementChangesForm;
-import org.openelisglobal.sampleitem.valueholder.SampleItem;
 import org.openelisglobal.sampleitem.valueholder.SampleDataCompletionStatus;
+import org.openelisglobal.sampleitem.valueholder.SampleItem;
 import org.openelisglobal.test.service.TestService;
 import org.openelisglobal.test.valueholder.Test;
 import org.openelisglobal.unitofmeasure.service.UnitOfMeasureService;
@@ -95,6 +95,12 @@ public class SampleManagementServiceImpl implements SampleManagementService {
 
     @Autowired
     private AnalysisService analysisService;
+
+    @Autowired
+    private org.openelisglobal.authorization.service.ModuleAuthorizationService moduleAuthorizationService;
+
+    @Autowired
+    private org.openelisglobal.common.service.UserFieldOptionResolver userFieldOptionResolver;
 
     @Autowired
     private TestService testService;
@@ -167,8 +173,7 @@ public class SampleManagementServiceImpl implements SampleManagementService {
         }
         // Step 5: Convert entities to DTOs WITHIN transaction boundary
         List<SampleItemDTO> dtos = sampleItems.stream().filter(item -> access.canView(item.getDataCompletionState()))
-                .map(item -> convertToDTO(item, includeTests, access))
-                .collect(Collectors.toList());
+                .map(item -> convertToDTO(item, includeTests, access)).collect(Collectors.toList());
 
         // Step 6: Compile reception details here so this module never needs the
         // legacy SampleEdit endpoint, which is protected by Order permissions.
@@ -206,6 +211,7 @@ public class SampleManagementServiceImpl implements SampleManagementService {
             if (restrictions.contains("collection")) {
                 sampleItem.setCollectionDate(null);
                 sampleItem.setCollector(null);
+                sampleItem.setCollectorUserId(null);
                 removeAdditionalFields(sampleItem, "COLLECTION");
             }
             if (tagRestrictions.contains("cug-code")) {
@@ -221,6 +227,7 @@ public class SampleManagementServiceImpl implements SampleManagementService {
             }
             if (tagRestrictions.contains("collector")) {
                 sampleItem.setCollector(null);
+                sampleItem.setCollectorUserId(null);
             }
             if (tagRestrictions.contains("collection-date")) {
                 sampleItem.setCollectionDate(null);
@@ -251,8 +258,9 @@ public class SampleManagementServiceImpl implements SampleManagementService {
         if (fields == null || fields.isEmpty()) {
             return;
         }
-        Set<String> removedFieldKeys = fields.stream().filter(shouldRemove).map(SampleTypeAdditionalFieldPayload::getFieldKey)
-                .filter(key -> key != null && !key.isBlank()).collect(Collectors.toSet());
+        Set<String> removedFieldKeys = fields.stream().filter(shouldRemove)
+                .map(SampleTypeAdditionalFieldPayload::getFieldKey).filter(key -> key != null && !key.isBlank())
+                .collect(Collectors.toSet());
         sampleItem.setAdditionalFields(fields.stream().filter(shouldRemove.negate()).collect(Collectors.toList()));
         if (!removedFieldKeys.isEmpty()) {
             Map<String, String> values = new HashMap<>(sampleItem.getAdditionalFieldValues());
@@ -265,8 +273,8 @@ public class SampleManagementServiceImpl implements SampleManagementService {
         if (tagRestrictions.isEmpty()) {
             return;
         }
-        removeAdditionalFieldsMatching(sampleItem, field -> field.getId() != null
-                && tagRestrictions.contains("additional-field-" + field.getId()));
+        removeAdditionalFieldsMatching(sampleItem,
+                field -> field.getId() != null && tagRestrictions.contains("additional-field-" + field.getId()));
     }
 
     @Override
@@ -427,10 +435,28 @@ public class SampleManagementServiceImpl implements SampleManagementService {
         // Collection date
         dto.setCollectionDate(sampleItem.getCollectionDate());
         dto.setCollector(sampleItem.getCollector());
+        dto.setCollectorUserId(sampleItem.getCollectorUserId());
 
         if (sampleItem.getTypeOfSample() != null) {
             dto.setAdditionalFields(sampleTypeAdditionalFieldService
                     .getFieldsForSampleType(sampleItem.getTypeOfSample().getId(), false, true));
+            dto.getAdditionalFields().stream()
+                    .filter(field -> userFieldOptionResolver.isUserFieldType(field.getFieldType())).forEach(field -> {
+                        List<org.openelisglobal.common.service.UserFieldOptionResolver.ResolvedUserOption> candidates = userFieldOptionResolver
+                                .filterForFieldAccess(
+                                        userFieldOptionResolver.resolveSampleUserOptions(field.getMetadataJson(),
+                                                "sample-management", sampleItem.getId()),
+                                        field.getMetadataJson(), "sample-management",
+                                        "COLLECTION".equals(field.getDisplaySection()) ? "collection" : "reception",
+                                        "additional-field-" + field.getId());
+                        field.setOptions(candidates.stream().map(candidate -> {
+                            org.openelisglobal.sample.bean.SampleTypeAdditionalFieldOptionPayload option = new org.openelisglobal.sample.bean.SampleTypeAdditionalFieldOptionPayload();
+                            option.setOptionKey(candidate.optionKey());
+                            option.setOptionLabel(candidate.label());
+                            option.setActive(true);
+                            return option;
+                        }).toList());
+                    });
             dto.setAdditionalFieldValues(sampleTypeAdditionalFieldService
                     .getFieldValuesForSampleItem(sampleItem.getTypeOfSample().getId(), sampleItem.getId()));
         }
@@ -669,9 +695,13 @@ public class SampleManagementServiceImpl implements SampleManagementService {
                         "User cannot modify this sample in its current completion state");
             }
 
-            applySampleItemCoreUpdates(sampleItem, update);
+            applySampleItemCoreUpdates(sampleItem, update, sysUserId);
             sampleItem.setSysUserId(sysUserId);
-            sampleItemService.update(sampleItem);
+            // Auditing detaches the input. Keep it detached for the next audit comparison,
+            // but use the version returned by merge for subsequent updates in this
+            // transaction.
+            SampleItem persistedSampleItem = sampleItemService.update(sampleItem);
+            sampleItem.setLastupdated(persistedSampleItem.getLastupdated());
             updatedSamples++;
 
             Map<String, String> additionalFieldValues = update.getAdditionalFieldValues();
@@ -749,8 +779,8 @@ public class SampleManagementServiceImpl implements SampleManagementService {
                 .allMatch(field -> !GenericValidator.isBlankOrNull(values.get(field.getFieldKey())));
     }
 
-    private void applySampleItemCoreUpdates(SampleItem sampleItem,
-            SaveSampleManagementChangesForm.SampleUpdate update) {
+    private void applySampleItemCoreUpdates(SampleItem sampleItem, SaveSampleManagementChangesForm.SampleUpdate update,
+            String actorId) {
         applyCugUpdate(sampleItem, update);
 
         BigDecimal previousQuantity = sampleItem.getQuantity() == null ? null
@@ -769,8 +799,28 @@ public class SampleManagementServiceImpl implements SampleManagementService {
             sampleItem.setUnitOfMeasure(unitOfMeasure);
         }
 
-        sampleItem.setCollector(
-                GenericValidator.isBlankOrNull(update.getCollector()) ? null : update.getCollector().trim());
+        if (!moduleAuthorizationService.getRestrictedFieldGroupKeys(actorId, "sample-management").contains("collection")
+                && !moduleAuthorizationService.getRestrictedFieldTagKeys(actorId, "sample-management")
+                        .contains("collector")) {
+            String collectorId = org.apache.commons.lang3.StringUtils.trimToNull(update.getCollectorUserId());
+            String previousId = sampleItem.getCollectorUserId();
+            if (collectorId != null && !java.util.Objects.equals(collectorId, previousId)) {
+                String label = userFieldOptionResolver.resolveCollectorOptions(sampleItem.getId()).stream()
+                        .filter(option -> collectorId.equals(option.optionKey())).findFirst()
+                        .orElseThrow(() -> new IllegalArgumentException(
+                                "Selected collector is not eligible for this sample"))
+                        .label();
+                sampleItem.setCollector(label);
+                sampleItem.setCollectorUserId(collectorId);
+            } else if (collectorId == null && org.apache.commons.lang3.StringUtils.isBlank(update.getCollector())) {
+                sampleItem.setCollectorUserId(null);
+                sampleItem.setCollector(null);
+            } else if (collectorId == null
+                    && !java.util.Objects.equals(update.getCollector(), sampleItem.getCollector())) {
+                throw new IllegalArgumentException("A new collector assignment requires an eligible user ID");
+            }
+
+        }
 
         sampleItem.setCollectionDate(parseCollectionTimestamp(update.getCollectionDate(), update.getCollectionTime()));
     }

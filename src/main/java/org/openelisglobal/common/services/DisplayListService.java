@@ -27,7 +27,6 @@ import org.apache.commons.validator.GenericValidator;
 import org.openelisglobal.address.service.AddressHierarchyConfigurationHandler;
 import org.openelisglobal.analyzer.service.AnalyzerService;
 import org.openelisglobal.analyzer.valueholder.Analyzer;
-import org.openelisglobal.common.log.LogEvent;
 import org.openelisglobal.common.util.ConfigurationProperties;
 import org.openelisglobal.common.util.ConfigurationProperties.Property;
 import org.openelisglobal.common.util.IdValuePair;
@@ -99,16 +98,16 @@ public class DisplayListService implements LocaleChangeListener {
         LAB_COMPONENT, SEVERITY_CONSEQUENCES_LIST, SEVERITY_RECURRENCE_LIST, ACTION_TYPE_LIST, LABORATORY_COMPONENT,
         SAMPLE_NATURE, ELECTRONIC_ORDER_STATUSES, METHODS, METHODS_INACTIVE, METHOD_BY_NAME, PRACTITIONER_PERSONS,
         ORDER_PROVIDER_PERSONS, ORDER_PRIORITY, PROGRAM, IMMUNOHISTOCHEMISTRY_STATUS, PATHOLOGY_STATUS,
-        CYTOLOGY_SPECIMEN_ADEQUACY_SATISFACTION,
-        PATHOLOGY_TECHNIQUES, PATHOLOGIST_REQUESTS, PATHOLOGY_REQUEST_STATUS, PATHOLOGIST_CONCLUSIONS,
-        IMMUNOHISTOCHEMISTRY_REPORT_TYPES, IMMUNOHISTOCHEMISTRY_MARKERS_TESTS, CYTOLOGY_STATUS, NOTEBOOK_STATUS,
-        CYTOLOGY_SATISFACTORY_FOR_EVALUATION, CYTOLOGY_UN_SATISFACTORY_FOR_EVALUATION, CYTOLOGY_REPORT_TYPES,
-        CYTOLOGY_DIAGNOSIS_RESULT_EPITHELIAL_CELL_SQUAMOUS, CYTOLOGY_DIAGNOSIS_RESULT_EPITHELIAL_CELL_GLANDULAR,
-        CYTOLOGY_DIAGNOSIS_RESULT_NON_NEO_PLASTIC_CELLULAR, CYTOLOGY_DIAGNOSIS_RESULT_REACTIVE_CELLULAR,
-        NOTEBOOK_EXPT_TYPE, ANALYZER_LIST, CYTOLOGY_DIAGNOSIS_RESULT_ORGANISMS, CYTOLOGY_DIAGNOSIS_RESULT_OTHER,
-        TB_ORDER_REASONS, TB_DIAGNOSTIC_REASONS, TB_FOLLOWUP_REASONS, TB_ANALYSIS_METHODS, TB_SAMPLE_ASPECTS,
-        TB_FOLLOWUP_LINE1, TB_FOLLOWUP_LINE2, ARV_ORG_LIST, ACTIVE_ORG_LIST, IHC_BREAST_CANCER_REPORT_INTENSITY,
-        IHC_BREAST_CANCER_REPORT_CERBB2_PATTERN, IHC_BREAST_CANCER_REPORT_MOLE_SUBTYPE;
+        CYTOLOGY_SPECIMEN_ADEQUACY_SATISFACTION, PATHOLOGY_TECHNIQUES, PATHOLOGIST_REQUESTS, PATHOLOGY_REQUEST_STATUS,
+        PATHOLOGIST_CONCLUSIONS, IMMUNOHISTOCHEMISTRY_REPORT_TYPES, IMMUNOHISTOCHEMISTRY_MARKERS_TESTS, CYTOLOGY_STATUS,
+        NOTEBOOK_STATUS, CYTOLOGY_SATISFACTORY_FOR_EVALUATION, CYTOLOGY_UN_SATISFACTORY_FOR_EVALUATION,
+        CYTOLOGY_REPORT_TYPES, CYTOLOGY_DIAGNOSIS_RESULT_EPITHELIAL_CELL_SQUAMOUS,
+        CYTOLOGY_DIAGNOSIS_RESULT_EPITHELIAL_CELL_GLANDULAR, CYTOLOGY_DIAGNOSIS_RESULT_NON_NEO_PLASTIC_CELLULAR,
+        CYTOLOGY_DIAGNOSIS_RESULT_REACTIVE_CELLULAR, NOTEBOOK_EXPT_TYPE, ANALYZER_LIST,
+        CYTOLOGY_DIAGNOSIS_RESULT_ORGANISMS, CYTOLOGY_DIAGNOSIS_RESULT_OTHER, TB_ORDER_REASONS, TB_DIAGNOSTIC_REASONS,
+        TB_FOLLOWUP_REASONS, TB_ANALYSIS_METHODS, TB_SAMPLE_ASPECTS, TB_FOLLOWUP_LINE1, TB_FOLLOWUP_LINE2, ARV_ORG_LIST,
+        ACTIVE_ORG_LIST, IHC_BREAST_CANCER_REPORT_INTENSITY, IHC_BREAST_CANCER_REPORT_CERBB2_PATTERN,
+        IHC_BREAST_CANCER_REPORT_MOLE_SUBTYPE;
     }
 
     private static Map<ListType, List<IdValuePair>> typeToListMap;
@@ -321,6 +320,11 @@ public class DisplayListService implements LocaleChangeListener {
     }
 
     public List<IdValuePair> getList(ListType listType) {
+        if (listType == ListType.ORDER_PROVIDER_PERSONS) {
+            return org.openelisglobal.spring.util.SpringContext
+                    .getBean(org.openelisglobal.common.service.UserFieldOptionResolver.class)
+                    .resolveOrderProviderOptions();
+        }
         return typeToListMap.get(listType);
     }
 
@@ -680,36 +684,25 @@ public class DisplayListService implements LocaleChangeListener {
     }
 
     private List<IdValuePair> createActiveOrderProviderPersonsList() {
-        String rawPropertyValue = ConfigurationProperties.getInstance().getPropertyValue(Property.orderProviderProfessionalProfileCode);
-        LogEvent.logInfo(this.getClass().getSimpleName(), "createActiveOrderProviderPersonsList", 
-                "Loading ORDER_PROVIDER_PERSONS with orderProviderProfessionalProfileCode: '" + rawPropertyValue + "'");
-        List<String> configuredProfileCodes = parseConfiguredProfessionalProfileCodes(rawPropertyValue);
-        LogEvent.logInfo(this.getClass().getSimpleName(), "createActiveOrderProviderPersonsList", 
-                "Parsed profile codes: " + configuredProfileCodes);
-        List<IdValuePair> result = createActivePractitionerPersonsList(configuredProfileCodes);
-        LogEvent.logInfo(this.getClass().getSimpleName(), "createActiveOrderProviderPersonsList", 
-                "Returning " + result.size() + " providers");
-        return result;
+        return createActivePractitionerPersonsList(Collections.emptyList());
     }
 
     private List<IdValuePair> createActivePractitionerPersonsList(String requiredProfileCode) {
-        return createActivePractitionerPersonsList(StringUtils.isBlank(requiredProfileCode) ? Collections.emptyList()
-                : List.of(requiredProfileCode));
+        return createActivePractitionerPersonsList(
+                StringUtils.isBlank(requiredProfileCode) ? Collections.emptyList() : List.of(requiredProfileCode));
     }
 
     private List<IdValuePair> createActivePractitionerPersonsList(List<String> requiredProfileCodes) {
         List<IdValuePair> providerDisplayList = new ArrayList<>();
         List<String> normalizedRequiredProfileCodes = requiredProfileCodes == null ? Collections.emptyList()
-                : requiredProfileCodes.stream()
-                        .map(code -> StringUtils.upperCase(StringUtils.trimToNull(code)))
-                        .filter(StringUtils::isNotBlank)
-                        .distinct()
-                        .toList();
+                : requiredProfileCodes.stream().map(code -> StringUtils.upperCase(StringUtils.trimToNull(code)))
+                        .filter(StringUtils::isNotBlank).distinct().toList();
 
         List<Provider> providerList = providerService.getAllActiveProviders();
         if (!normalizedRequiredProfileCodes.isEmpty()) {
-            providerList = providerList.stream().filter(provider -> normalizedRequiredProfileCodes.contains(
-                    StringUtils.upperCase(StringUtils.trimToEmpty(provider.getProfessionalProfileCode()))))
+            providerList = providerList.stream()
+                    .filter(provider -> normalizedRequiredProfileCodes.contains(
+                            StringUtils.upperCase(StringUtils.trimToEmpty(provider.getProfessionalProfileCode()))))
                     .collect(Collectors.toList());
         }
 
@@ -741,10 +734,8 @@ public class DisplayListService implements LocaleChangeListener {
         }
 
         return Arrays.stream(StringUtils.split(rawValue, ','))
-                .map(code -> StringUtils.upperCase(StringUtils.trimToNull(code)))
-                .filter(StringUtils::isNotBlank)
-                .distinct()
-                .toList();
+                .map(code -> StringUtils.upperCase(StringUtils.trimToNull(code))).filter(StringUtils::isNotBlank)
+                .distinct().toList();
     }
 
     private List<IdValuePair> createReferringClinicList() {
@@ -1091,7 +1082,8 @@ public class DisplayListService implements LocaleChangeListener {
             if (displayValue == null) {
                 displayValue = StringUtils.trimToNull(section.getDescription());
             }
-            testSectionsPairs.add(new IdValuePair(section.getId(), displayValue != null ? displayValue : section.getId()));
+            testSectionsPairs
+                    .add(new IdValuePair(section.getId(), displayValue != null ? displayValue : section.getId()));
         }
 
         return testSectionsPairs;
