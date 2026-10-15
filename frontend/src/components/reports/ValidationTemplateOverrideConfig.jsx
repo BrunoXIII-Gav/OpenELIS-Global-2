@@ -507,6 +507,7 @@ const ValidationTemplateOverrideConfig = () => {
   const [uploadingParameter, setUploadingParameter] = useState("");
   const [message, setMessage] = useState(null);
   const templateFileInputRef = useRef(null);
+  const editingContextRef = useRef(0);
   const numericSourceOptions = useMemo(
     () => (sourceOptions || []).filter((option) => isNumericDataType(option?.dataType)),
     [sourceOptions],
@@ -538,7 +539,10 @@ const ValidationTemplateOverrideConfig = () => {
     [overrides],
   );
 
-  const loadData = (selectedOverrideId = "") => {
+  const loadData = (
+    selectedOverrideId = "",
+    editingContext = editingContextRef.current,
+  ) => {
     setLoading(true);
     getAllTests((testData) => {
       setTests(Array.isArray(testData) ? testData : []);
@@ -546,14 +550,18 @@ const ValidationTemplateOverrideConfig = () => {
         const nextSourceOptions = Array.isArray(fieldOptions?.sources)
           ? fieldOptions.sources.map(normalizeOption).filter((option) => option.id)
           : [];
-        setSourceOptions(nextSourceOptions);
         const nextImageOptions = normalizeImageOptions(fieldOptions?.imageOptions);
-        setImageOptions(nextImageOptions);
+        if (editingContext === editingContextRef.current) {
+          setSourceOptions(nextSourceOptions);
+          setImageOptions(nextImageOptions);
+        }
         getValidationTemplateOverrides((overrideData) => {
           const parsed = Array.isArray(overrideData) ? overrideData : [];
           setOverrides(parsed);
           setForm((prev) =>
-            selectedOverrideId || prev?.id
+            editingContext !== editingContextRef.current
+              ? prev
+              : selectedOverrideId || prev?.id
               ? toFormState(
                   parsed.find(
                     (item) => item.id === (selectedOverrideId || prev.id),
@@ -582,7 +590,13 @@ const ValidationTemplateOverrideConfig = () => {
   }, []);
 
   useEffect(() => {
+    let active = true;
+    const editingContext = editingContextRef.current;
+    const isCurrent = () => active && editingContext === editingContextRef.current;
     getValidationFieldOptions(form.testIds, (fieldOptions) => {
+      if (!isCurrent()) {
+        return;
+      }
       const nextSourceOptions = Array.isArray(fieldOptions?.sources)
         ? fieldOptions.sources.map(normalizeOption).filter((option) => option.id)
         : [];
@@ -603,15 +617,22 @@ const ValidationTemplateOverrideConfig = () => {
 
     // Load user field options for cascading dropdowns
     getUserFieldOptions(form.testIds, (data) => {
+      if (!isCurrent()) {
+        return;
+      }
       setUserFieldOptions({
         userFields: Array.isArray(data?.userFields) ? data.userFields : [],
         validatorProfiles: Array.isArray(data?.validatorProfiles) ? data.validatorProfiles : [],
         profileFieldsByProfile: data?.profileFieldsByProfile || {},
       });
     });
+    return () => {
+      active = false;
+    };
   }, [form.testIds]);
 
   const onCreateNew = () => {
+    editingContextRef.current += 1;
     setForm({
       ...emptyForm,
       parameterMappings: ensureMappingsForParameters(
@@ -625,6 +646,7 @@ const ValidationTemplateOverrideConfig = () => {
   };
 
   const onSelectOverride = (override) => {
+    editingContextRef.current += 1;
     setForm(toFormState(override, imageOptions, sourceOptions));
     setMessage(null);
   };
@@ -1201,6 +1223,7 @@ const ValidationTemplateOverrideConfig = () => {
 
     try {
       setSaving(true);
+      const editingContext = editingContextRef.current;
       const savedOverride = await saveValidationTemplateOverride(payload);
       setMessage({
         kind: "success",
@@ -1213,7 +1236,8 @@ const ValidationTemplateOverrideConfig = () => {
           defaultMessage: "Template override saved successfully.",
         }),
       });
-      loadData(savedOverride?.id || form.id || "");
+      // Refresh the cards without replacing a different template's current edits.
+      loadData(savedOverride?.id || form.id || "", editingContext);
     } catch (error) {
       setMessage({
         kind: "error",
