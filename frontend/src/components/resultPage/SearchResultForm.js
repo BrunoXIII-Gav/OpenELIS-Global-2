@@ -1,3 +1,8 @@
+import {
+  captureAdditionalFieldBaseline,
+  buildAdditionalFieldPatch,
+  resolveAdditionalFieldConflict,
+} from "./additionalFieldConcurrency";
 import HistoricalUserSelectItem from "../common/HistoricalUserSelectItem";
 import React, { useContext, useEffect, useState, useRef } from "react";
 import { FormattedMessage, injectIntl, useIntl } from "react-intl";
@@ -23,6 +28,7 @@ import {
   Link,
   FileUploader,
   InlineNotification,
+  Tile,
   RadioButtonGroup,
   RadioButton,
 } from "@carbon/react";
@@ -1016,6 +1022,9 @@ export function SearchResultForm(props) {
   const setResultsWithId = (results) => {
     if (results?.testResult) {
       var i = 0;
+      results.testResult = results.testResult.map(
+        captureAdditionalFieldBaseline,
+      );
       results.testResult.forEach((item) => (item.id = "" + i++));
       results.testResult.forEach((item) => {
         const configuredBlocks = getConfiguredTubeLabelBlocks(item, intl);
@@ -1754,6 +1763,7 @@ export function SearchResults(props) {
   const saveStatus = "";
   const [referTest, setReferTest] = useState({});
   const [isSubmitting, setIsSubmitting] = useState(false);
+  const [fieldConflicts, setFieldConflicts] = useState([]);
   const [sampleLocations, setSampleLocations] = useState({}); // Track location by analysisId
   const [tubeLabelDraftsByRowId, setTubeLabelDraftsByRowId] = useState({});
   const [resultActionPermissions, setResultActionPermissions] = useState({
@@ -4025,6 +4035,10 @@ export function SearchResults(props) {
       return;
     }
 
+    if (fieldConflicts.length > 0) {
+      setNotificationVisible(true);
+      return;
+    }
     setIsSubmitting(true);
     values.status = saveStatus;
     var searchEndPoint = "/rest/LogbookResults";
@@ -4038,7 +4052,7 @@ export function SearchResults(props) {
         };
         const rowHasTubeLabelDraft = Object.keys(rowDraftLabels).length > 0;
         return {
-          ...result,
+          ...buildAdditionalFieldPatch(result),
           tubeLabels: mergedTubeLabels,
           isModified: rowHasTubeLabelDraft ? "true" : result.isModified,
           reportable: result.reportable === "N" ? false : true,
@@ -4059,7 +4073,18 @@ export function SearchResults(props) {
   const setResponse = (resp) => {
     console.debug("setStatus" + JSON.stringify(resp));
     setIsSubmitting(false);
+    if (resp?.code === "RESULT_FIELD_CONFLICT") {
+      setFieldConflicts(resp.conflicts || []);
+      addNotification({
+        title: intl.formatMessage({ id: "result.entry.conflict.title" }),
+        message: intl.formatMessage({ id: "result.entry.conflict.message" }),
+        kind: NotificationKinds.error,
+      });
+      setNotificationVisible(true);
+      return;
+    }
     if (resp && !resp.error && !(resp.status && resp.status >= 400)) {
+      setFieldConflicts([]);
       addNotification({
         title: intl.formatMessage({ id: "notification.title" }),
         message: createMesssage(resp),
@@ -4077,9 +4102,9 @@ export function SearchResults(props) {
       addNotification({
         title: intl.formatMessage({ id: "notification.title" }),
         message:
-          resp?.message ||
-          resp?.statusText ||
-          intl.formatMessage({ id: "error.save.msg" }),
+          resp?.code === "RESULT_FIELD_SNAPSHOT_REQUIRED"
+            ? intl.formatMessage({ id: "result.entry.conflict.reload" })
+            : resp?.message || intl.formatMessage({ id: "error.save.msg" }),
         kind: NotificationKinds.error,
       });
     }
@@ -4106,6 +4131,36 @@ export function SearchResults(props) {
     return message;
   };
 
+  const resolveFieldConflict = (conflict, keepDraft) => {
+    props.setResultForm({
+      ...props.results,
+      testResult: props.results.testResult.map((row) =>
+        row.analysisId === conflict.analysisId
+          ? resolveAdditionalFieldConflict(row, conflict, keepDraft)
+          : row,
+      ),
+    });
+    setFieldConflicts((previous) =>
+      previous.filter(
+        (item) =>
+          item.analysisId !== conflict.analysisId ||
+          item.fieldKey !== conflict.fieldKey,
+      ),
+    );
+  };
+
+  const displayConflictValue = (value) => {
+    if (value == null || value === "")
+      return intl.formatMessage({ id: "result.entry.conflict.empty" });
+    try {
+      const document = JSON.parse(value);
+      if (document?.fileName) return document.fileName;
+    } catch {
+      /* Text fields are displayed directly. */
+    }
+    return String(value);
+  };
+
   const handlePageChange = (pageInfo) => {
     if (page != pageInfo.page) {
       setPage(pageInfo.page);
@@ -4119,6 +4174,44 @@ export function SearchResults(props) {
     <>
       {notificationVisible === true ? <AlertDialog /> : ""}
       {addRejectResult()}
+      {fieldConflicts.map((conflict) => {
+        const row = props.results.testResult.find(
+          (item) => item.analysisId === conflict.analysisId,
+        );
+        return (
+          <Tile key={`${conflict.analysisId}-${conflict.fieldKey}`}>
+            <p>
+              <strong>
+                {row?.testName}: {conflict.displayName}
+              </strong>
+            </p>
+            <p>
+              {intl.formatMessage({ id: "result.entry.conflict.current" })}:{" "}
+              {displayConflictValue(conflict.currentValue)}
+            </p>
+            <p>
+              {intl.formatMessage({ id: "result.entry.conflict.draft" })}:{" "}
+              {displayConflictValue(
+                row?.additionalFieldValues?.[conflict.fieldKey],
+              )}
+            </p>
+            <Button
+              kind="secondary"
+              size="sm"
+              onClick={() => resolveFieldConflict(conflict, false)}
+            >
+              {intl.formatMessage({ id: "result.entry.conflict.useCurrent" })}
+            </Button>
+            <Button
+              kind="tertiary"
+              size="sm"
+              onClick={() => resolveFieldConflict(conflict, true)}
+            >
+              {intl.formatMessage({ id: "result.entry.conflict.keepDraft" })}
+            </Button>
+          </Tile>
+        );
+      })}
       {resultEntryPermissionLoaded && !hasResultEntryModulePermission && (
         <InlineNotification
           kind="warning"
