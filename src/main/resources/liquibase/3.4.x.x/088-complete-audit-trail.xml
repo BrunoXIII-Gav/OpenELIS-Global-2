@@ -1,0 +1,84 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<databaseChangeLog xmlns="http://www.liquibase.org/xml/ns/dbchangelog"
+ xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+ xsi:schemaLocation="http://www.liquibase.org/xml/ns/dbchangelog https://www.liquibase.org/xml/ns/dbchangelog/dbchangelog-4.8.xsd">
+ <changeSet id="088-create-immutable-audit-event-ledger" author="openelis">
+  <createTable schemaName="clinlims" tableName="audit_event">
+   <column name="id" type="varchar(255)"><constraints primaryKey="true" nullable="false"/></column>
+   <column name="operation_id" type="varchar(255)"><constraints nullable="false"/></column>
+   <column name="request_id" type="varchar(255)"></column>
+   <column name="module" type="varchar(255)"><constraints nullable="false"/></column>
+   <column name="entity_name" type="varchar(255)"><constraints nullable="false"/></column>
+   <column name="entity_id" type="varchar(255)"><constraints nullable="false"/></column>
+   <column name="action" type="varchar(255)"><constraints nullable="false"/></column>
+   <column name="field" type="varchar(255)"><constraints nullable="false"/></column>
+   <column name="field_label" type="varchar(255)"></column>
+   <column name="old_value" type="text"></column>
+   <column name="new_value" type="text"></column>
+   <column name="actor_id" type="varchar(255)"></column>
+   <column name="actor_name" type="varchar(255)"></column>
+   <column name="actor_source" type="varchar(255)"><constraints nullable="false"/></column>
+   <column name="occurred_at" type="timestamp with time zone"><constraints nullable="false"/></column>
+   <column name="source" type="varchar(255)"></column>
+   <column name="sample_id" type="varchar(255)"></column>
+   <column name="sample_item_id" type="varchar(255)"></column>
+   <column name="analysis_id" type="varchar(255)"></column>
+   <column name="patient_id" type="varchar(255)"></column>
+   <column name="person_id" type="varchar(255)"></column>
+   <column name="field_definition_id" type="varchar(255)"></column>
+   <column name="last_updated" type="timestamp"></column>
+   <column name="result_id" type="varchar(255)"/>
+   <column name="parent_analysis_id" type="varchar(255)"/>
+   <column name="old_display_value" type="text"/>
+   <column name="new_display_value" type="text"/>
+  </createTable>
+  <createIndex schemaName="clinlims" tableName="audit_event" indexName="audit_event_occurred_at_idx"><column name="occurred_at"/></createIndex>
+  <createIndex schemaName="clinlims" tableName="audit_event" indexName="audit_event_actor_id_idx"><column name="actor_id"/></createIndex>
+  <createIndex schemaName="clinlims" tableName="audit_event" indexName="audit_event_module_idx"><column name="module"/></createIndex>
+  <createIndex schemaName="clinlims" tableName="audit_event" indexName="audit_event_sample_id_idx"><column name="sample_id"/></createIndex>
+  <createIndex schemaName="clinlims" tableName="audit_event" indexName="audit_event_sample_item_id_idx"><column name="sample_item_id"/></createIndex>
+  <createIndex schemaName="clinlims" tableName="audit_event" indexName="audit_event_analysis_id_idx"><column name="analysis_id"/></createIndex>
+  <createIndex schemaName="clinlims" tableName="audit_event" indexName="audit_event_patient_id_idx"><column name="patient_id"/></createIndex>
+  <createIndex schemaName="clinlims" tableName="audit_event" indexName="audit_event_person_id_idx"><column name="person_id"/></createIndex>
+  <createIndex schemaName="clinlims" tableName="audit_event" indexName="audit_event_request_id_idx"><column name="request_id"/></createIndex>
+  <createIndex schemaName="clinlims" tableName="audit_event" indexName="audit_event_result_idx"><column name="result_id"/></createIndex>
+  <createIndex schemaName="clinlims" tableName="audit_event" indexName="audit_event_parent_analysis_idx"><column name="parent_analysis_id"/></createIndex>
+  <createIndex schemaName="clinlims" tableName="audit_event" indexName="audit_event_entity_idx"><column name="entity_name"/><column name="entity_id"/></createIndex>
+  <sql splitStatements="false">CREATE FUNCTION clinlims.protect_audit_event() RETURNS trigger LANGUAGE plpgsql AS $$
+   BEGIN RAISE EXCEPTION 'Audit events cannot be changed or deleted'; END;
+  $$;</sql>
+  <sql>CREATE TRIGGER audit_event_no_change BEFORE UPDATE OR DELETE ON clinlims.audit_event FOR EACH ROW EXECUTE FUNCTION clinlims.protect_audit_event()</sql>
+  <sql>CREATE TRIGGER audit_event_no_truncate BEFORE TRUNCATE ON clinlims.audit_event FOR EACH STATEMENT EXECUTE FUNCTION clinlims.protect_audit_event()</sql>
+  <rollback>
+   <sql splitStatements="false">DO $$ BEGIN
+    IF EXISTS (SELECT 1 FROM clinlims.audit_event) THEN
+     RAISE EXCEPTION 'Archive audit events before rollback; history must not be discarded';
+    END IF;
+   END $$;</sql>
+   <dropTable schemaName="clinlims" tableName="audit_event"/>
+   <sql>DROP FUNCTION clinlims.protect_audit_event()</sql>
+  </rollback>
+ </changeSet>
+ <changeSet id="088-preserve-invalidated-approvals" author="openelis">
+  <addColumn schemaName="clinlims" tableName="analysis_validation_approval">
+   <column name="revoked_at" type="timestamp"/>
+   <column name="revoked_by" type="varchar(255)"/>
+   <column name="revocation_reason" type="varchar(255)"/>
+  </addColumn>
+  <dropUniqueConstraint schemaName="clinlims" tableName="analysis_validation_approval" constraintName="uk_analysis_validation_approval_analysis_user"/>
+  <sql>CREATE UNIQUE INDEX uk_analysis_validation_approval_active ON clinlims.analysis_validation_approval (analysis_id, approver_user_id) WHERE revoked_at IS NULL</sql>
+  <rollback>
+   <sql splitStatements="false">DO $$ BEGIN
+    IF EXISTS (SELECT 1 FROM clinlims.analysis_validation_approval WHERE revoked_at IS NOT NULL)
+      OR EXISTS (SELECT 1 FROM clinlims.audit_event) THEN
+     RAISE EXCEPTION 'Archive approval history before rollback; invalidations must not be discarded';
+    END IF;
+   END $$;</sql>
+   <dropIndex schemaName="clinlims" tableName="analysis_validation_approval" indexName="uk_analysis_validation_approval_active"/>
+   <addUniqueConstraint schemaName="clinlims" tableName="analysis_validation_approval" columnNames="analysis_id,approver_user_id" constraintName="uk_analysis_validation_approval_analysis_user"/>
+   <dropColumn schemaName="clinlims" tableName="analysis_validation_approval" columnName="revocation_reason"/>
+   <dropColumn schemaName="clinlims" tableName="analysis_validation_approval" columnName="revoked_by"/>
+   <dropColumn schemaName="clinlims" tableName="analysis_validation_approval" columnName="revoked_at"/>
+  </rollback>
+ </changeSet>
+</databaseChangeLog>

@@ -252,6 +252,26 @@ public class TestResultItem implements ResultItem, Serializable {
     private List<TestAdditionalFieldPayload> additionalFieldDefinitions = new ArrayList<>();
     private Map<String, String> additionalFieldValues = new HashMap<>();
     private Map<String, String> additionalFieldShadowValues = new HashMap<>();
+    private Map<String, String> additionalFieldVersions;
+    @JsonIgnore
+    private Map<String, String> additionalFieldChanges;
+
+    public Map<String, String> getAdditionalFieldVersions() {
+        return additionalFieldVersions;
+    }
+
+    public void setAdditionalFieldVersions(Map<String, String> versions) {
+        this.additionalFieldVersions = versions;
+    }
+
+    @JsonIgnore
+    public Map<String, String> getAdditionalFieldChanges() {
+        return additionalFieldChanges;
+    }
+
+    public void setAdditionalFieldChanges(Map<String, String> changes) {
+        this.additionalFieldChanges = changes;
+    }
 
     private String qualifiedResultId;
     private boolean hasQualifiedResult = false;

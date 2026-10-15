@@ -4,7 +4,6 @@ import jakarta.servlet.http.HttpServletRequest;
 import java.util.ArrayList;
 import java.util.Comparator;
 import java.util.List;
-import java.util.Map;
 import java.util.Optional;
 import org.apache.commons.lang3.StringUtils;
 import org.openelisglobal.common.documentupload.TemporaryDocumentUploadPayload;
@@ -15,10 +14,10 @@ import org.openelisglobal.testadditionalfield.bean.TestAdditionalFieldOptionPayl
 import org.openelisglobal.testadditionalfield.bean.TestAdditionalFieldPayload;
 import org.openelisglobal.testadditionalfield.service.TestAdditionalFieldService;
 import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.http.HttpHeaders;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.MediaType;
 import org.springframework.http.ResponseEntity;
-import org.springframework.http.HttpHeaders;
 import org.springframework.stereotype.Controller;
 import org.springframework.web.bind.annotation.DeleteMapping;
 import org.springframework.web.bind.annotation.GetMapping;
@@ -29,8 +28,8 @@ import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.ResponseBody;
-import org.springframework.web.server.ResponseStatusException;
 import org.springframework.web.multipart.MultipartFile;
+import org.springframework.web.server.ResponseStatusException;
 
 @Controller
 @RequestMapping(value = "/rest/")
@@ -155,7 +154,8 @@ public class TestAdditionalFieldRestController extends BaseRestController {
     @ResponseBody
     public ResponseEntity<?> openTemporaryFile(@PathVariable String uploadToken,
             @RequestParam(name = "download", defaultValue = "false") boolean download) {
-        Optional<TemporaryDocumentUploadPayload> file = testAdditionalFieldService.getTemporaryDocumentUpload(uploadToken);
+        Optional<TemporaryDocumentUploadPayload> file = testAdditionalFieldService
+                .getTemporaryDocumentUpload(uploadToken);
         return buildFileResponse(file, download, uploadToken);
     }
 

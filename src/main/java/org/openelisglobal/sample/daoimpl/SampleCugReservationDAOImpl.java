@@ -1,6 +1,7 @@
 package org.openelisglobal.sample.daoimpl;
 
 import java.sql.Timestamp;
+import java.util.List;
 import java.util.Optional;
 import org.apache.commons.lang3.StringUtils;
 import org.hibernate.Session;
@@ -31,8 +32,7 @@ public class SampleCugReservationDAOImpl extends BaseDAOImpl<SampleCugReservatio
 
         String sql = "insert into sample_cug_reservation ("
                 + "id, reserved_value, reservation_token, reservation_context_id, sample_id, patient_id, "
-                + "reserved_by_user_id, status, expires_at, sys_user_id, last_updated"
-                + ") values ("
+                + "reserved_by_user_id, status, expires_at, sys_user_id, last_updated" + ") values ("
                 + "nextval('sample_cug_reservation_seq'), :reservedValue, :reservationToken, "
                 + ":reservationContextId, :sampleId, :patientId, :reservedByUserId, :status, :expiresAt, :sysUserId, now()"
                 + ") on conflict (reserved_value) do nothing returning id";
@@ -94,12 +94,12 @@ public class SampleCugReservationDAOImpl extends BaseDAOImpl<SampleCugReservatio
 
     @Override
     public int expireReservations(Timestamp asOf) {
-        String sql = "update sample_cug_reservation set status = :expiredStatus, last_updated = now() "
-                + "where status = :reservedStatus and expires_at <= :asOf";
-        Query<?> query = entityManager.unwrap(Session.class).createNativeQuery(sql);
-        query.setParameter("expiredStatus", ReservationStatus.EXPIRED.name());
-        query.setParameter("reservedStatus", ReservationStatus.RESERVED.name());
-        query.setParameter("asOf", asOf);
-        return query.executeUpdate();
+        List<SampleCugReservation> reservations = entityManager
+                .createQuery("FROM SampleCugReservation r WHERE r.status = :status AND r.expiresAt <= :asOf",
+                        SampleCugReservation.class)
+                .setParameter("status", ReservationStatus.RESERVED.name()).setParameter("asOf", asOf).getResultList();
+        reservations.forEach(reservation -> reservation.setStatus(ReservationStatus.EXPIRED.name()));
+        entityManager.flush();
+        return reservations.size();
     }
 }

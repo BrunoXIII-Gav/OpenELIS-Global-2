@@ -4,6 +4,8 @@ import java.util.List;
 import java.util.Map;
 import java.util.Optional;
 import org.openelisglobal.common.documentupload.TemporaryDocumentUploadPayload;
+import org.openelisglobal.test.beanItems.TestResultItem;
+import org.openelisglobal.testadditionalfield.bean.AnalysisFieldSnapshot;
 import org.openelisglobal.testadditionalfield.bean.TestAdditionalFieldOptionPayload;
 import org.openelisglobal.testadditionalfield.bean.TestAdditionalFieldPayload;
 
@@ -13,13 +15,19 @@ public interface TestAdditionalFieldService {
         return getFieldsForTest(testId, includeInactive, false);
     }
 
-    List<TestAdditionalFieldPayload> getFieldsForTest(String testId, boolean includeInactive, boolean resolveUserOptions);
+    List<TestAdditionalFieldPayload> getFieldsForTest(String testId, boolean includeInactive,
+            boolean resolveUserOptions);
 
     Map<String, List<TestAdditionalFieldPayload>> getActiveFieldsForTests(List<String> testIds);
 
     void replaceFieldsForTest(String testId, List<TestAdditionalFieldPayload> payloads, String currentUserId);
 
     void replaceFieldsForTests(List<String> testIds, List<TestAdditionalFieldPayload> payloads, String currentUserId);
+
+    AnalysisFieldSnapshot getAnalysisFieldSnapshot(String analysisId,
+            List<TestAdditionalFieldPayload> fieldDefinitions);
+
+    void prepareConcurrentUpdates(List<TestResultItem> items);
 
     Map<String, String> getAnalysisValuesForFields(String analysisId,
             List<TestAdditionalFieldPayload> fieldDefinitions);

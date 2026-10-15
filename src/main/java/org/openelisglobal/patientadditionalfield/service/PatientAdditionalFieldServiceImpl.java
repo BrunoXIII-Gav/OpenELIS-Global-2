@@ -397,6 +397,9 @@ public class PatientAdditionalFieldServiceImpl implements PatientAdditionalField
                 continue;
             }
 
+            if (existing.isPresent() && java.util.Objects.equals(existing.get().getFieldValue(), normalizedValue)) {
+                continue;
+            }
             PatientAdditionalFieldValue entity = existing.orElseGet(PatientAdditionalFieldValue::new);
             entity.setPatientId(numericPatientId);
             entity.setFieldDefinitionId(fieldDefinition.getId());

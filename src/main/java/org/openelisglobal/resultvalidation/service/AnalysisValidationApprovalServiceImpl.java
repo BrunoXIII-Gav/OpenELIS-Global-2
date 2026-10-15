@@ -55,7 +55,17 @@ public class AnalysisValidationApprovalServiceImpl implements AnalysisValidation
 
     @Override
     public void clearApprovals(String analysisId) {
-        approvalDAO.deleteByAnalysisId(analysisId);
+        org.openelisglobal.audittrail.persistence.AuditActor actor = org.openelisglobal.audittrail.persistence.AuditActor
+                .current(null);
+        clearApprovals(analysisId, actor.id(), "RESET");
+    }
+
+    @Override
+    public void clearApprovals(String analysisId, String actorId, String reason) {
+        if (actorId == null || actorId.isBlank() || reason == null || reason.isBlank()) {
+            throw new IllegalArgumentException("Actor and reason are required to invalidate approvals");
+        }
+        approvalDAO.invalidateByAnalysisId(analysisId, actorId, reason);
     }
 
     @Override

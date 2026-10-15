@@ -1,0 +1,7 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<dataset>
+    <menu id="18" presentation_order="100" element_id="menu_reports" action_url="" display_key="banner.menu.reports" tool_tip_key="banner.menu.reports" new_window="false" is_active="false" hide_in_old_ui="false"/>
+    <menu id="58" parent_id="18" presentation_order="1" element_id="menu_reports_routine" action_url="" display_key="banner.menu.reports.routine" tool_tip_key="banner.menu.reports.routine" new_window="false" is_active="false" hide_in_old_ui="false"/>
+    <menu id="20" parent_id="58" presentation_order="3" element_id="menu_reports_management" action_url="" display_key="openreports.management.title" tool_tip_key="openreports.management.title" new_window="false" is_active="false" hide_in_old_ui="false"/>
+    <menu id="25" parent_id="20" presentation_order="70" element_id="menu_reports_auditTrail" action_url="/AuditTrailReport" display_key="reports.auditTrail" tool_tip_key="reports.auditTrail" new_window="false" is_active="true" hide_in_old_ui="false"/>
+</dataset>

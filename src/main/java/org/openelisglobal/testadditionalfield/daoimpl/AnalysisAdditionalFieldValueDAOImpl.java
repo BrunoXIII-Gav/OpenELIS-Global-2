@@ -1,11 +1,13 @@
 package org.openelisglobal.testadditionalfield.daoimpl;
 
+import jakarta.persistence.LockModeType;
 import java.util.Collections;
 import java.util.List;
 import java.util.Optional;
 import org.hibernate.Session;
 import org.hibernate.query.Query;
 import org.openelisglobal.common.daoimpl.BaseDAOImpl;
+import org.openelisglobal.common.util.NumericStringIdQuery;
 import org.openelisglobal.testadditionalfield.dao.AnalysisAdditionalFieldValueDAO;
 import org.openelisglobal.testadditionalfield.valueholder.AnalysisAdditionalFieldValue;
 import org.springframework.stereotype.Component;
@@ -56,6 +58,19 @@ public class AnalysisAdditionalFieldValueDAOImpl extends BaseDAOImpl<AnalysisAdd
         query.setParameter("analysisId", analysisId);
         query.setParameter("fieldDefinitionId", fieldDefinitionId);
         return Optional.ofNullable(query.uniqueResult());
+    }
+
+    @Override
+    public void lockAnalyses(List<String> analysisIds) {
+        if (analysisIds.isEmpty()) {
+            return;
+        }
+        // A parent row exists even before any field values exist. Stable ordering
+        // avoids lock-order inversions for multi-analysis saves.
+        var query = entityManager.createQuery("SELECT a.id FROM Analysis a WHERE a.id IN :ids ORDER BY a.id",
+                String.class);
+        NumericStringIdQuery.bindMany(query, "ids", analysisIds);
+        query.setLockMode(LockModeType.PESSIMISTIC_WRITE).getResultList();
     }
 
     @Override

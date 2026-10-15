@@ -284,8 +284,8 @@ public class CustomRoleDefinitionServiceImpl implements CustomRoleDefinitionServ
             roleService.update(customRole);
         }
 
-        replacePermissionMappings(customRole.getId(), permissionRoleIds);
-        replaceLabUnitScopes(customRole.getId(), applicableLabUnitIds);
+        replacePermissionMappings(customRole.getId(), permissionRoleIds, sysUserId);
+        replaceLabUnitScopes(customRole.getId(), applicableLabUnitIds, sysUserId);
         syncRoleModules(customRole, permissionRoleIds, sysUserId);
         if (usesModulePermissions) {
             replaceModulePermissions(customRole.getId(), modulePermissions, sysUserId);
@@ -315,8 +315,8 @@ public class CustomRoleDefinitionServiceImpl implements CustomRoleDefinitionServ
         if (!roleService.getReferencingRoles(role).isEmpty()) {
             throw new IllegalStateException("Custom role still has child references");
         }
-        replacePermissionMappings(roleId, Collections.emptyList());
-        replaceLabUnitScopes(roleId, Collections.emptyList());
+        replacePermissionMappings(roleId, Collections.emptyList(), sysUserId);
+        replaceLabUnitScopes(roleId, Collections.emptyList(), sysUserId);
         List<RoleModulePermission> modulePermissions = roleModulePermissionService
                 .getByRoleId(Integer.parseInt(roleId));
         if (!modulePermissions.isEmpty()) {
@@ -345,12 +345,15 @@ public class CustomRoleDefinitionServiceImpl implements CustomRoleDefinitionServ
         roleService.delete(role);
     }
 
-    private void replacePermissionMappings(String roleId, List<String> permissionRoleIds) {
-        entityManager.createNativeQuery("delete from clinlims.role_permission_mapping where custom_role_id = :roleId")
-                .setParameter("roleId", Integer.parseInt(roleId)).executeUpdate();
+    private void replacePermissionMappings(String roleId, List<String> permissionRoleIds, String sysUserId) {
+        entityManager
+                .createQuery("FROM RolePermissionMapping m WHERE m.customRoleId = :roleId", RolePermissionMapping.class)
+                .setParameter("roleId", Integer.parseInt(roleId)).getResultList().forEach(entityManager::remove);
+        entityManager.flush();
 
         permissionRoleIds.forEach(permissionRoleId -> {
             RolePermissionMapping mapping = new RolePermissionMapping();
+            mapping.setSysUserId(sysUserId);
             mapping.setCustomRoleId(Integer.parseInt(roleId));
             mapping.setPermissionRoleId(Integer.parseInt(permissionRoleId));
             entityManager.persist(mapping);
@@ -358,13 +361,16 @@ public class CustomRoleDefinitionServiceImpl implements CustomRoleDefinitionServ
         entityManager.flush();
     }
 
-    private void replaceLabUnitScopes(String roleId, List<String> applicableLabUnitIds) {
+    private void replaceLabUnitScopes(String roleId, List<String> applicableLabUnitIds, String sysUserId) {
         entityManager
-                .createNativeQuery("delete from clinlims.custom_role_lab_unit_scope where custom_role_id = :roleId")
-                .setParameter("roleId", Integer.parseInt(roleId)).executeUpdate();
+                .createQuery("FROM CustomRoleLabUnitScope s WHERE s.customRoleId = :roleId",
+                        CustomRoleLabUnitScope.class)
+                .setParameter("roleId", Integer.parseInt(roleId)).getResultList().forEach(entityManager::remove);
+        entityManager.flush();
 
         applicableLabUnitIds.forEach(labUnitId -> {
             CustomRoleLabUnitScope scope = new CustomRoleLabUnitScope();
+            scope.setSysUserId(sysUserId);
             scope.setCustomRoleId(Integer.parseInt(roleId));
             scope.setLabUnitId(labUnitId);
             entityManager.persist(scope);

@@ -1,8 +1,8 @@
 package org.openelisglobal.resultvalidation.service;
 
-import java.util.ArrayList;
 import java.sql.Date;
 import java.time.LocalDate;
+import java.util.ArrayList;
 import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Set;
@@ -31,6 +31,8 @@ import org.springframework.transaction.annotation.Transactional;
 @Service
 public class ResultValidationServiceImpl implements ResultValidationService {
 
+    private final AnalysisValidationApprovalService approvalService;
+    private final IStatusService statusService;
     private AnalysisService analysisService;
     private ResultService resultService;
     private NoteService noteService;
@@ -38,7 +40,10 @@ public class ResultValidationServiceImpl implements ResultValidationService {
     private TestNotificationService testNotificationService;
 
     public ResultValidationServiceImpl(AnalysisService analysisService, ResultService resultService,
-            NoteService noteService, SampleService sampleService, TestNotificationService testNotificationService) {
+            NoteService noteService, SampleService sampleService, TestNotificationService testNotificationService,
+            AnalysisValidationApprovalService approvalService, IStatusService statusService) {
+        this.approvalService = approvalService;
+        this.statusService = statusService;
         this.analysisService = analysisService;
         this.resultService = resultService;
         this.noteService = noteService;
@@ -57,6 +62,8 @@ public class ResultValidationServiceImpl implements ResultValidationService {
         }
 
         applyValidationDates(analysisUpdateList, resultItemList);
+
+        synchronizeApprovals(analysisUpdateList, sysUserId);
 
         // update analysis
         for (Analysis analysis : analysisUpdateList) {
@@ -99,6 +106,19 @@ public class ResultValidationServiceImpl implements ResultValidationService {
 
         for (IResultUpdate updater : updaters) {
             updater.transactionalUpdate(resultSaveService);
+        }
+    }
+
+    void synchronizeApprovals(List<Analysis> analyses, String actorId) {
+        String finalized = statusService.getStatusID(AnalysisStatus.Finalized);
+        String rejected = statusService.getStatusID(AnalysisStatus.BiologistRejected);
+        for (Analysis analysis : analyses) {
+            if (finalized != null && finalized.equals(analysis.getStatusId())) {
+                approvalService.clearApprovals(analysis.getId(), actorId, "REVALIDATION");
+                approvalService.registerApprovalAndGetCount(analysis.getId(), actorId);
+            } else if (rejected != null && rejected.equals(analysis.getStatusId())) {
+                approvalService.clearApprovals(analysis.getId(), actorId, "REJECTION");
+            }
         }
     }
 

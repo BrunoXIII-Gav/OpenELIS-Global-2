@@ -1,0 +1,7 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<dataset>
+    <audit_event id="audit-test-snapshot" operation_id="audit-test-snapshot-operation"
+        module="result" entity_name="Result" entity_id="9201" action="U" field="value"
+        actor_source="USER" actor_id="7" occurred_at="2026-10-14 12:00:00"
+        old_value="1.2" new_value="4.2" test_id="9201" />
+</dataset>

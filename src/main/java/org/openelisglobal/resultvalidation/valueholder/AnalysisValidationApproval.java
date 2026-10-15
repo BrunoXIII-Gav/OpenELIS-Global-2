@@ -31,6 +31,37 @@ public class AnalysisValidationApproval extends BaseObject<String> {
     @Column(name = "approved_at", nullable = false)
     private Timestamp approvedAt;
 
+    @Column(name = "revoked_at")
+    private Timestamp revokedAt;
+    @Column(name = "revoked_by")
+    private String revokedBy;
+    @Column(name = "revocation_reason")
+    private String revocationReason;
+
+    public Timestamp getRevokedAt() {
+        return revokedAt;
+    }
+
+    public void setRevokedAt(Timestamp value) {
+        revokedAt = value;
+    }
+
+    public String getRevokedBy() {
+        return revokedBy;
+    }
+
+    public void setRevokedBy(String value) {
+        revokedBy = value;
+    }
+
+    public String getRevocationReason() {
+        return revocationReason;
+    }
+
+    public void setRevocationReason(String value) {
+        revocationReason = value;
+    }
+
     @PrePersist
     protected void prePersist() {
         if (id == null || id.trim().isEmpty()) {

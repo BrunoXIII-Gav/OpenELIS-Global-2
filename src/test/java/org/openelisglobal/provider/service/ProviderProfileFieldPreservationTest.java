@@ -44,12 +44,12 @@ public class ProviderProfileFieldPreservationTest {
 
         service.saveProfileFieldValues(provider, "medical_doctor", Map.of("license", "new"));
 
-        verify(providerProfileFieldValueDAO).delete(oldLicense);
+        verify(providerProfileFieldValueDAO, never()).delete(oldLicense);
         verify(providerProfileFieldValueDAO, never()).delete(retired);
         verify(providerProfileFieldValueDAO, never()).deleteByProviderId(anyInt());
         verify(providerProfileFieldValueDAO, never()).findByProviderIdAndProfessionalProfileCode(7, "BIOLOGIST");
         ArgumentCaptor<ProviderProfileFieldValue> inserted = ArgumentCaptor.forClass(ProviderProfileFieldValue.class);
-        verify(providerProfileFieldValueDAO).insert(inserted.capture());
+        verify(providerProfileFieldValueDAO).update(inserted.capture());
         assertEquals("MEDICAL_DOCTOR", inserted.getValue().getProfessionalProfileCode());
         assertEquals("new", inserted.getValue().getFieldValue());
         assertEquals("17", inserted.getValue().getSysUserId());
@@ -57,6 +57,7 @@ public class ProviderProfileFieldPreservationTest {
 
     private ProviderProfileFieldValue row(String key, String text) {
         ProviderProfileFieldValue value = new ProviderProfileFieldValue();
+        value.setId(100);
         value.setProviderId(7);
         value.setProfessionalProfileCode("MEDICAL_DOCTOR");
         value.setFieldKey(key);

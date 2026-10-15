@@ -14,7 +14,7 @@ import org.springframework.transaction.annotation.Transactional;
  * Service for consolidating clinical and demographic data during patient merge.
  * Implements FR-004 (FK updates) and FR-009 (demographic conflict resolution).
  * 
- * FR-020: Uses batch UPDATE statements for performance.
+ * Uses Hibernate batching while preserving entity lifecycle audit events.
  */
 @Service
 @Transactional
@@ -25,12 +25,8 @@ public class PatientMergeConsolidationService {
 
     /**
      * FR-004: Reassigns all clinical data from merged patient to primary patient.
-     * Uses batch UPDATE statements for performance (FR-020). Updates FKs in:
-     * sample_human, patient_contact, electronic_order
-     *
-     * Note: Native SQL is used for bulk updates and is fully compliant with JPA's
-     * 
-     * @Transactional annotation, ensuring ACID properties are maintained.
+     * Updates managed sample, contact, electronic-order and relation records in the
+     * enclosing transaction, preserving their previous values in the audit ledger.
      *
      * @param primaryPatientId the patient that will keep all data
      * @param mergedPatientId  the patient being merged (data moves FROM here)
@@ -158,60 +154,69 @@ public class PatientMergeConsolidationService {
     }
 
     /**
-     * FR-020: Bulk UPDATE for sample_human table using native SQL. Single statement
-     * - no loading of entities into memory. Note: Using native SQL due to Hibernate
-     * issues with UPDATE queries on String IDs. Schema name omitted - uses
-     * Hibernate's default_schema configuration.
+     * Reassign managed entities so optimistic versions and per-field audit events
+     * are preserved.
      */
     private int bulkUpdateSampleHuman(String primaryPatientId, String mergedPatientId, String sysUserId) {
-        String sql = "UPDATE sample_human SET patient_id = :primaryId WHERE patient_id = :mergedId";
-        return entityManager.createNativeQuery(sql).setParameter("primaryId", Long.parseLong(primaryPatientId))
-                .setParameter("mergedId", Long.parseLong(mergedPatientId)).executeUpdate();
+        var rows = org.openelisglobal.common.util.NumericStringIdQuery
+                .bind(entityManager.createQuery("FROM SampleHuman h WHERE h.patientId = :id",
+                        org.openelisglobal.samplehuman.valueholder.SampleHuman.class), "id", mergedPatientId)
+                .getResultList();
+        rows.forEach(row -> {
+            row.setPatientId(primaryPatientId);
+            row.setSysUserId(sysUserId);
+        });
+        entityManager.flush();
+        return rows.size();
     }
 
-    /**
-     * FR-020: Bulk UPDATE for patient_contact table using native SQL. Single
-     * statement - no loading of entities into memory. Note: Using native SQL due to
-     * Hibernate issues with UPDATE queries on String IDs. Schema name omitted -
-     * uses Hibernate's default_schema configuration.
-     */
     private int bulkUpdatePatientContact(String primaryPatientId, String mergedPatientId, String sysUserId) {
-        String sql = "UPDATE patient_contact SET patient_id = :primaryId WHERE patient_id = :mergedId";
-        return entityManager.createNativeQuery(sql).setParameter("primaryId", Long.parseLong(primaryPatientId))
-                .setParameter("mergedId", Long.parseLong(mergedPatientId)).executeUpdate();
+        var rows = org.openelisglobal.common.util.NumericStringIdQuery
+                .bind(entityManager.createQuery("FROM PatientContact c WHERE c.patientId = :id",
+                        org.openelisglobal.patient.valueholder.PatientContact.class), "id", mergedPatientId)
+                .getResultList();
+        rows.forEach(row -> {
+            row.setPatientId(primaryPatientId);
+            row.setSysUserId(sysUserId);
+        });
+        entityManager.flush();
+        return rows.size();
     }
 
-    /**
-     * FR-020: Bulk UPDATE for electronic_order table. NOTE: ElectronicOrder uses
-     * ValueHolder pattern which doesn't support JPQL bulk updates. Native SQL is
-     * necessary for this legacy table structure. Single statement - no loading of
-     * entities into memory. Schema name omitted - uses Hibernate's default_schema
-     * configuration.
-     */
     private int bulkUpdateElectronicOrder(String primaryPatientId, String mergedPatientId, String sysUserId) {
-        String sql = "UPDATE electronic_order SET patient_id = :primaryId WHERE patient_id = :mergedId";
-        return entityManager.createNativeQuery(sql).setParameter("primaryId", Long.parseLong(primaryPatientId))
-                .setParameter("mergedId", Long.parseLong(mergedPatientId)).executeUpdate();
+        var rows = org.openelisglobal.common.util.NumericStringIdQuery
+                .bind(entityManager.createQuery("FROM ElectronicOrder o WHERE o.patient.id = :id",
+                        org.openelisglobal.dataexchange.order.valueholder.ElectronicOrder.class), "id", mergedPatientId)
+                .getResultList();
+        Patient primary = entityManager.getReference(Patient.class, primaryPatientId);
+        rows.forEach(row -> {
+            row.setPatient(primary);
+            row.setSysUserId(sysUserId);
+        });
+        entityManager.flush();
+        return rows.size();
     }
 
-    /**
-     * FR-020: Bulk UPDATE for patient_relations table using native SQL. Updates
-     * both pat_id and pat_id_source columns. Note: Using native SQL due to
-     * Hibernate issues with UPDATE queries on String IDs. Schema name omitted -
-     * uses Hibernate's default_schema configuration.
-     */
     private int bulkUpdatePatientRelations(String primaryPatientId, String mergedPatientId, String sysUserId) {
-        // Update pat_id column
-        String sql1 = "UPDATE patient_relations SET pat_id = :primaryId WHERE pat_id = :mergedId";
-        int count1 = entityManager.createNativeQuery(sql1).setParameter("primaryId", Long.parseLong(primaryPatientId))
-                .setParameter("mergedId", Long.parseLong(mergedPatientId)).executeUpdate();
-
-        // Update pat_id_source column (related patient references)
-        String sql2 = "UPDATE patient_relations SET pat_id_source = :primaryId WHERE pat_id_source = :mergedId";
-        int count2 = entityManager.createNativeQuery(sql2).setParameter("primaryId", Long.parseLong(primaryPatientId))
-                .setParameter("mergedId", Long.parseLong(mergedPatientId)).executeUpdate();
-
-        return count1 + count2;
+        var rows = org.openelisglobal.common.util.NumericStringIdQuery
+                .bind(entityManager.createQuery(
+                        "FROM PatientRelation r WHERE r.patientId = :id OR r.patientIdSource = :id",
+                        org.openelisglobal.patientrelation.valueholder.PatientRelation.class), "id", mergedPatientId)
+                .getResultList();
+        int count = 0;
+        for (var row : rows) {
+            if (mergedPatientId.equals(row.getPatientId())) {
+                row.setPatientId(primaryPatientId);
+                count++;
+            }
+            if (mergedPatientId.equals(row.getPatientIdSource())) {
+                row.setPatientIdSource(primaryPatientId);
+                count++;
+            }
+            row.setSysUserId(sysUserId);
+        }
+        entityManager.flush();
+        return count;
     }
 
     private boolean isEmpty(String value) {

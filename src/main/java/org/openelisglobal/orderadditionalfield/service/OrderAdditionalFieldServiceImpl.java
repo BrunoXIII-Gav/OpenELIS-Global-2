@@ -448,6 +448,9 @@ public class OrderAdditionalFieldServiceImpl implements OrderAdditionalFieldServ
                 continue;
             }
 
+            if (existing.isPresent() && java.util.Objects.equals(existing.get().getFieldValue(), normalizedValue)) {
+                continue;
+            }
             SampleOrderAdditionalFieldValue entity = existing.orElseGet(SampleOrderAdditionalFieldValue::new);
             entity.setSampleId(sampleNumericId);
             entity.setFieldDefinitionId(definition.getId());
