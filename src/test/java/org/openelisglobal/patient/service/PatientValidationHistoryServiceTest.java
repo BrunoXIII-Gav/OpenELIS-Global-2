@@ -68,6 +68,39 @@ public class PatientValidationHistoryServiceTest {
     }
 
     @Test
+    public void automaticallyFinalizedTestsAreExcludedBeforeLoadingValidationAuthors() {
+        var manuallyValidated = analysis("78", "56");
+        var automaticallyFinalized = analysis("79", "56");
+        when(automaticallyFinalized.getTest().getSkipValidationWhenParentComplete()).thenReturn(true);
+        // Both have the finalized status and a date; the configured workflow
+        // determines whether they belong in the validation history.
+        when(dao.findValidatedAnalyses("10", "6", null)).thenReturn(List.of(manuallyValidated, automaticallyFinalized));
+        assertEquals(List.of("78"), service.getRecords("10", "7").stream().map(r -> r.analysisId()).toList());
+        verify(dao).findActiveApprovers(List.of("78"));
+    }
+
+    @Test
+    public void directValidationPdfIsUnavailableForAutomaticallyFinalizedTests() {
+        var automaticallyFinalized = analysis("79", "56");
+        when(automaticallyFinalized.getTest().getSkipValidationWhenParentComplete()).thenReturn(true);
+        when(dao.findValidatedAnalyses("10", "6", "79")).thenReturn(List.of(automaticallyFinalized));
+        var error = assertThrows(ResponseStatusException.class, () -> service.requireReportAccess("10", "79", "7"));
+        assertEquals(org.springframework.http.HttpStatus.NOT_FOUND, error.getStatusCode());
+    }
+
+    @Test
+    public void validationEnabledAndLegacyNullConfigurationsRemainVisibleAndAllowPdf() {
+        var validated = analysis("78", "56");
+        when(dao.findValidatedAnalyses("10", "6", null)).thenReturn(List.of(validated));
+        when(dao.findValidatedAnalyses("10", "6", "78")).thenReturn(List.of(validated));
+        for (Boolean skipValidation : new Boolean[] { false, null }) {
+            when(validated.getTest().getSkipValidationWhenParentComplete()).thenReturn(skipValidation);
+            assertEquals(List.of("78"), service.getRecords("10", "7").stream().map(r -> r.analysisId()).toList());
+            service.requireReportAccess("10", "78", "7");
+        }
+    }
+
+    @Test
     public void restrictedGroupOrTabReturnsNoValidationDataAndDeniesPdf() {
         for (String group : List.of("patient-validations", "patient-history")) {
             when(authorization.getRestrictedFieldGroupKeys("7", "patients")).thenReturn(Set.of(group));
