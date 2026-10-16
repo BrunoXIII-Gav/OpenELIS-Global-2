@@ -23,7 +23,8 @@ public class AuthorizationCatalogService {
             module("orders", "authorization.module.orders", List.of("read", "create", "update", "cancel", "print"),
                     List.of()),
             module("patients", "authorization.module.patients", List.of("read", "create", "update", "merge", "export"),
-                    List.of("patient-identity", "patient-contact", "patient-demographics", "patient-history")),
+                    List.of("patient-identity", "patient-contact", "patient-demographics", "patient-history",
+                            "patient-validations")),
             resultsModule(),
             module("validation", "authorization.module.validation", List.of("read", "validate", "revoke"), List.of()),
             module("storage", "authorization.module.storage", List.of("read", "update", "manage"), List.of()),
@@ -58,7 +59,11 @@ public class AuthorizationCatalogService {
             fieldTag("patient-history-sample-details", "authorization.fieldTag.patients.history.sampleDetails"),
             fieldTag("patient-history-results", "authorization.fieldTag.patients.history.results"),
             fieldTag("patient-history-result-values", "authorization.fieldTag.patients.history.resultValues"),
-            fieldTag("patient-history-storage", "authorization.fieldTag.patients.history.storage"));
+            fieldTag("patient-history-storage", "authorization.fieldTag.patients.history.storage"),
+            fieldTag("patient-history-validations", "authorization.fieldTag.patients.history.validations"),
+            fieldTag("patient-validation-validator", "authorization.fieldTag.patients.validation.validator"),
+            fieldTag("patient-validation-date", "authorization.fieldTag.patients.validation.date"),
+            fieldTag("patient-validation-report", "authorization.fieldTag.patients.validation.report"));
 
     private static final List<AuthorizationSearchCriterion> PATIENT_SEARCH_CRITERIA = List.of(
             searchCriterion("patient-id", "authorization.patientSearchCriterion.patientId"),

@@ -10,6 +10,13 @@ import org.openelisglobal.security.service.AuthorizationCatalogService.Authoriza
 import org.openelisglobal.security.service.AuthorizationCatalogService.AuthorizationModule;
 
 public class AuthorizationCatalogServiceTest {
+    @Test
+    public void patientValidationGroupAndFieldsAreConfigurable() {
+        assertTrue(authorizationCatalogService.isKnownFieldGroup("patients", "patient-validations"));
+        for (String tag : List.of("patient-history-validations", "patient-validation-validator",
+                "patient-validation-date", "patient-validation-report"))
+            assertTrue(authorizationCatalogService.isKnownFieldTag("patients", tag));
+    }
 
     private final AuthorizationCatalogService authorizationCatalogService = new AuthorizationCatalogService();
 

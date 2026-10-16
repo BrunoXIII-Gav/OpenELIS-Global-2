@@ -4,14 +4,15 @@ import com.itextpdf.text.DocumentException;
 import jakarta.servlet.ServletContext;
 import jakarta.servlet.ServletOutputStream;
 import jakarta.servlet.http.HttpServletRequest;
+import jakarta.servlet.http.HttpServletRequestWrapper;
 import jakarta.servlet.http.HttpServletResponse;
 import jakarta.validation.Valid;
 import java.io.File;
 import java.io.IOException;
 import java.io.UnsupportedEncodingException;
 import java.lang.reflect.InvocationTargetException;
-import java.net.URLEncoder;
 import java.net.URLDecoder;
+import java.net.URLEncoder;
 import java.sql.SQLException;
 import java.sql.Timestamp;
 import java.text.ParseException;
@@ -36,7 +37,9 @@ import org.openelisglobal.common.form.BaseForm;
 import org.openelisglobal.common.log.LogEvent;
 import org.openelisglobal.common.services.IReportTrackingService;
 import org.openelisglobal.common.services.ReportTrackingService.ReportType;
+import org.openelisglobal.common.util.ConfigurationProperties;
 import org.openelisglobal.orderadditionalfield.service.OrderAdditionalFieldService;
+import org.openelisglobal.patient.service.PatientValidationHistoryService;
 import org.openelisglobal.reportdefinition.service.ReportDefinitionService;
 import org.openelisglobal.reportdefinition.valueholder.ReportDefinition;
 import org.openelisglobal.reports.action.implementation.IReportCreator;
@@ -88,6 +91,8 @@ public class ReportController extends BaseController {
     private AnalysisService analysisService;
     @Autowired
     private ReportDefinitionService reportDefinitionService;
+    @Autowired
+    private PatientValidationHistoryService patientValidationHistoryService;
 
     private String reportPath = null;
     private String imagesPath = null;
@@ -126,6 +131,50 @@ public class ReportController extends BaseController {
         return renderReportPrint(request, response, form, result, status);
     }
 
+    @RequestMapping(value = "/rest/patient-history/{patientId}/validations/{analysisId}/report", method = RequestMethod.GET)
+    public void showPatientHistoryValidationReport(HttpServletRequest request, HttpServletResponse response,
+            @PathVariable String patientId, @PathVariable String analysisId, SessionStatus status) {
+        patientValidationHistoryService.requireReportAccess(patientId, analysisId, getSysUserId(request));
+        ReportForm form = new ReportForm();
+        form.setType("patient");
+        form.setAnalysisIds(List.of(analysisId));
+        form.setReport(getDefaultValidationReportName());
+        // Only server-selected parameters reach the existing report renderer.
+        // Query strings cannot switch patients, analyses or enable draft preview.
+        Map<String, String[]> parameters = Map.of("type", new String[] { "patient" }, "analysisIds",
+                new String[] { analysisId }, "report", new String[] { form.getReport() });
+        HttpServletRequest reportRequest = new HttpServletRequestWrapper(request) {
+            @Override
+            public String getParameter(String name) {
+                String[] values = parameters.get(name);
+                return values == null ? null : values[0];
+            }
+
+            @Override
+            public String[] getParameterValues(String name) {
+                return parameters.get(name);
+            }
+
+            @Override
+            public Map<String, String[]> getParameterMap() {
+                return parameters;
+            }
+
+            @Override
+            public java.util.Enumeration<String> getParameterNames() {
+                return java.util.Collections.enumeration(parameters.keySet());
+            }
+        };
+        response.setHeader("Cache-Control", "no-store");
+        printReport(reportRequest, response, form);
+        status.setComplete();
+    }
+
+    protected String getDefaultValidationReportName() {
+        String configured = ConfigurationProperties.getInstance().getPropertyValue("validationReportName");
+        return GenericValidator.isBlankOrNull(configured) ? "patientCILNSP_vreduit" : configured;
+    }
+
     @RequestMapping(value = "/ReportPrintNamed", method = RequestMethod.GET)
     public ModelAndView showNamedReportPrint(HttpServletRequest request, HttpServletResponse response,
             @ModelAttribute("ReportPrintForm") @Valid ReportForm form, BindingResult result, SessionStatus status)
@@ -145,8 +194,8 @@ public class ReportController extends BaseController {
 
     @RequestMapping(value = "/ReportPrintFile/{filename:.+}", method = RequestMethod.GET)
     public ModelAndView showReportPrintFile(HttpServletRequest request, HttpServletResponse response,
-            @PathVariable("filename") String filename,
-            @ModelAttribute("ReportPrintForm") @Valid ReportForm form, BindingResult result, SessionStatus status)
+            @PathVariable("filename") String filename, @ModelAttribute("ReportPrintForm") @Valid ReportForm form,
+            BindingResult result, SessionStatus status)
             throws IllegalAccessException, InvocationTargetException, NoSuchMethodException {
         return renderReportPrint(request, response, form, result, status);
     }
@@ -168,7 +217,7 @@ public class ReportController extends BaseController {
         return null;
     }
 
-    private void printReport(HttpServletRequest request, HttpServletResponse response, ReportForm form) {
+    protected void printReport(HttpServletRequest request, HttpServletResponse response, ReportForm form) {
         String requestedReportName = request.getParameter("report");
         ResolvedValidationReport resolvedReport = resolveReportForRequest(request, form, requestedReportName);
         String effectiveReportName = resolvedReport.reportName;
@@ -509,7 +558,8 @@ public class ReportController extends BaseController {
 
     private String buildNamedReportRedirectUrl(HttpServletRequest request, String resolvedFilename)
             throws UnsupportedEncodingException {
-        String safeFilename = GenericValidator.isBlankOrNull(resolvedFilename) ? "validated-report.pdf" : resolvedFilename;
+        String safeFilename = GenericValidator.isBlankOrNull(resolvedFilename) ? "validated-report.pdf"
+                : resolvedFilename;
         String encodedFilename = URLEncoder.encode(safeFilename, "UTF-8").replace("+", "%20");
         StringBuilder redirectUrl = new StringBuilder();
         redirectUrl.append(request.getContextPath()).append("/ReportPrintFile/").append(encodedFilename);
