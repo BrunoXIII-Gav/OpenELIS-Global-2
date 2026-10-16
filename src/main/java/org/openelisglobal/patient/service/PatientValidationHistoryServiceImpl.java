@@ -44,7 +44,7 @@ public class PatientValidationHistoryServiceImpl implements PatientValidationHis
         var decision = moduleAuthorizationService.getAuthorization(userId, "patients", "read");
         List<Analysis> analyses = dao
                 .findValidatedAnalyses(patientId, statusService.getStatusID(AnalysisStatus.Finalized), null).stream()
-                .filter(a -> allowedUnit(decision, a)).toList();
+                .filter(this::isValidationRequired).filter(a -> allowedUnit(decision, a)).toList();
         Map<String, List<Validator>> validators = new HashMap<>();
         if (!tags.contains("patient-validation-validator")) {
             for (Object[] row : dao.findActiveApprovers(analyses.stream().map(Analysis::getId).toList())) {
@@ -81,7 +81,7 @@ public class PatientValidationHistoryServiceImpl implements PatientValidationHis
         var decision = moduleAuthorizationService.getAuthorization(userId, "patients", "read");
         var analyses = dao.findValidatedAnalyses(patientId, statusService.getStatusID(AnalysisStatus.Finalized),
                 analysisId);
-        if (analyses.isEmpty())
+        if (analyses.isEmpty() || !isValidationRequired(analyses.get(0)))
             throw new ResponseStatusException(HttpStatus.NOT_FOUND);
         if (!allowedUnit(decision, analyses.get(0)))
             throw new AccessDeniedException("Analysis outside assigned units");
@@ -91,6 +91,11 @@ public class PatientValidationHistoryServiceImpl implements PatientValidationHis
         if (!patientAuthorizationService.canAccessPatient(userId, patientId, "read")) {
             throw new AccessDeniedException("Patient history is not accessible");
         }
+    }
+
+    private boolean isValidationRequired(Analysis analysis) {
+        return analysis.getTest() != null
+                && !Boolean.TRUE.equals(analysis.getTest().getSkipValidationWhenParentComplete());
     }
 
     private boolean hidden(String userId, Set<String> tags) {

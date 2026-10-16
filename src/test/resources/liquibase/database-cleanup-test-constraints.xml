@@ -1,0 +1,36 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<databaseChangeLog
+    xmlns="http://www.liquibase.org/xml/ns/dbchangelog"
+    xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+    xsi:schemaLocation="http://www.liquibase.org/xml/ns/dbchangelog https://www.liquibase.org/xml/ns/dbchangelog/dbchangelog-4.8.xsd">
+    <changeSet id="cleanup-test-constraints" author="openelis">
+        <!-- Legacy scalar IDs do not emit foreign keys through Hibernate schema
+            export. -->
+        <sql>ALTER TABLE clinlims.system_user ADD CONSTRAINT
+            cleanup_user_person_fk FOREIGN KEY (linked_provider_person_id)
+            REFERENCES clinlims.person(id) ON DELETE SET NULL</sql>
+        <sql>ALTER TABLE clinlims.sample_environmental ADD CONSTRAINT
+            cleanup_env_sample_fk FOREIGN KEY (samp_id) REFERENCES
+            clinlims.sample(id)</sql>
+        <createTable schemaName="clinlims"
+            tableName="cleanup_test_hold">
+            <column name="person_id" type="numeric(10,0)" />
+        </createTable>
+        <sql>ALTER TABLE clinlims.cleanup_test_hold ADD CONSTRAINT
+            cleanup_hold_person_fk FOREIGN KEY (person_id) REFERENCES
+            clinlims.person(id)</sql>
+        <sql>CREATE SEQUENCE clinlims.sample_cug_prefix_seq START WITH 901</sql>
+        <sql>ALTER SEQUENCE clinlims.patient_seq RESTART WITH 1000</sql>
+        <sql splitStatements="false">CREATE FUNCTION
+            clinlims.cleanup_test_protect_audit() RETURNS trigger LANGUAGE
+            plpgsql AS $$
+            BEGIN RAISE EXCEPTION 'Audit events cannot be changed or deleted'; END;
+            $$;</sql>
+        <sql>CREATE TRIGGER audit_event_no_change BEFORE UPDATE OR DELETE ON
+            clinlims.audit_event FOR EACH ROW EXECUTE FUNCTION
+            clinlims.cleanup_test_protect_audit()</sql>
+        <sql>CREATE TRIGGER audit_event_no_truncate BEFORE TRUNCATE ON
+            clinlims.audit_event FOR EACH STATEMENT EXECUTE FUNCTION
+            clinlims.cleanup_test_protect_audit()</sql>
+    </changeSet>
+</databaseChangeLog>

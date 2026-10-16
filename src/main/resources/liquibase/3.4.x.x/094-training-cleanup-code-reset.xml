@@ -1,0 +1,25 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<databaseChangeLog xmlns="http://www.liquibase.org/xml/ns/dbchangelog"
+ xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+ xsi:schemaLocation="http://www.liquibase.org/xml/ns/dbchangelog https://www.liquibase.org/xml/ns/dbchangelog/dbchangelog-4.8.xsd">
+ <changeSet id="094-training-cleanup-code-reset" author="openelis">
+  <!-- Install the operation only. Applying this migration never resets data. -->
+  <sql splitStatements="false">CREATE FUNCTION clinlims.restart_training_cug_prefix() RETURNS integer
+   LANGUAGE plpgsql SECURITY INVOKER SET search_path = pg_catalog, clinlims AS $$
+   BEGIN
+    IF NOT EXISTS (SELECT 1 FROM clinlims.site_information
+                   WHERE name = 'TrainingInstallation' AND lower(trim(value)) = 'true') THEN
+     RAISE EXCEPTION 'Public codes may only be reset in a training installation';
+    END IF;
+    LOCK TABLE clinlims.sample, clinlims.sample_item, clinlims.sample_cug_reservation IN SHARE ROW EXCLUSIVE MODE;
+    IF EXISTS (SELECT 1 FROM clinlims.sample) OR EXISTS (SELECT 1 FROM clinlims.sample_item)
+       OR EXISTS (SELECT 1 FROM clinlims.sample_cug_reservation) THEN
+     RAISE EXCEPTION 'Clear clinical data and CUG reservations before resetting public codes';
+    END IF;
+    ALTER SEQUENCE clinlims.sample_cug_prefix_seq RESTART WITH 1;
+    RETURN 1;
+   END;
+   $$;</sql>
+  <rollback><sql>DROP FUNCTION clinlims.restart_training_cug_prefix()</sql></rollback>
+ </changeSet>
+</databaseChangeLog>

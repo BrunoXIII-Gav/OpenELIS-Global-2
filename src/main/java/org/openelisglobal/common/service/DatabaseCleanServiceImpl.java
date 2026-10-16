@@ -1,47 +1,85 @@
 package org.openelisglobal.common.service;
 
-import jakarta.persistence.EntityManager;
-import jakarta.persistence.PersistenceContext;
-import java.sql.Connection;
-import java.sql.SQLException;
-import org.hibernate.Session;
-import org.hibernate.jdbc.Work;
+import java.sql.Timestamp;
+import java.util.UUID;
+import org.openelisglobal.audittrail.dao.AuditEventDAO;
+import org.openelisglobal.audittrail.valueholder.AuditEvent;
+import org.openelisglobal.audittrail.valueholder.History;
+import org.openelisglobal.common.constants.SystemPermission;
+import org.openelisglobal.common.dao.DatabaseCleanDAO;
+import org.openelisglobal.common.util.ConfigurationProperties.Property;
+import org.openelisglobal.common.util.DefaultConfigurationProperties;
+import org.openelisglobal.history.service.HistoryService;
+import org.openelisglobal.security.service.UserPermissionService;
+import org.springframework.security.access.AccessDeniedException;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 @Service
 public class DatabaseCleanServiceImpl implements DatabaseCleanService {
 
-    private static final String CLEAN_SQL = "truncate sample_projects, " + "sample_human, " + "result_inventory, "
-            + "result_signature, " + "result, " + "analysis, " + "analyzer_results, " + "sample_item, "
-            + "observation_history, " + "sample_cug_reservation, " + "sample, " + "provider, " + "patient_identity, " + "patient_contact, "
-            + "patient_patient_type, " + "note, " + "sample_requester, " + "sample_qaevent, " + "referral, "
-            + "patient, " + "person, " + "person_address, " + "report_external_export, " + "report_external_import, "
-            + "document_track, " + "qa_observation," + "electronic_order," + "history CASCADE; "
-            + "ALTER SEQUENCE note_seq restart 1; " + "ALTER SEQUENCE sample_human_seq restart 1; "
-            + "ALTER SEQUENCE result_inventory_seq restart 1; " + "ALTER SEQUENCE result_signature_seq restart 1; "
-            + "ALTER SEQUENCE result_seq restart 1; " + "ALTER SEQUENCE analysis_seq restart 1; "
-            + "ALTER SEQUENCE sample_item_seq restart 1; " + "ALTER SEQUENCE sample_seq restart 1; "
-            + "ALTER SEQUENCE sample_cug_reservation_seq restart 1; "
-            + "ALTER SEQUENCE provider_seq restart 1; " + "ALTER SEQUENCE patient_identity_seq restart 1; "
-            + "ALTER SEQUENCE patient_patient_type_seq restart 1; " + "ALTER SEQUENCE patient_seq restart 1; "
-            + "ALTER SEQUENCE person_seq restart 1; " + "ALTER SEQUENCE report_external_import_seq restart 1; "
-            + "ALTER SEQUENCE report_queue_seq restart 1; " + "ALTER SEQUENCE sample_qaevent_seq restart 1; "
-            + "ALTER SEQUENCE sample_proj_seq restart 1; " + "ALTER SEQUENCE qa_observation_seq restart 1; "
-            + "ALTER SEQUENCE electronic_order_seq restart 1; " + "ALTER SEQUENCE history_seq restart 1; ";
+    private final DatabaseCleanDAO cleanup;
+    private final UserPermissionService permissions;
+    private final DefaultConfigurationProperties configuration;
+    private final HistoryService history;
+    private final AuditEventDAO audit;
 
-    @PersistenceContext
-    private EntityManager entityManager;
+    public DatabaseCleanServiceImpl(DatabaseCleanDAO cleanup, UserPermissionService permissions,
+            DefaultConfigurationProperties configuration, HistoryService history, AuditEventDAO audit) {
+        this.cleanup = cleanup;
+        this.permissions = permissions;
+        this.configuration = configuration;
+        this.history = history;
+        this.audit = audit;
+    }
+
+    @Override
+    @Transactional(readOnly = true)
+    public void requireCleanupAccess(String userId) {
+        if (userId == null || !permissions.hasPermission(userId, SystemPermission.GLOBAL_ADMIN)
+                || !"true".equals(configuration.getPropertyValueLowerCase(Property.TrainingInstallation))) {
+            throw new AccessDeniedException(
+                    "Clinical data cleanup requires a training installation and global administrator");
+        }
+    }
 
     @Override
     @Transactional
-    public void cleanDatabase() {
-        entityManager.unwrap(Session.class).doWork(new Work() {
+    public void cleanDatabase(String userId) {
+        requireCleanupAccess(userId);
+        String operationId = UUID.randomUUID().toString();
+        cleanup.archiveOperationalAuditEvents(operationId, userId);
+        cleanup.deleteOperationalData();
+        String laboratoryPrefix = null;
+        if ("PREFIXNUM".equals(configuration.getPropertyValueUpperCase(Property.AccessionFormat))) {
+            laboratoryPrefix = java.util.Objects
+                    .toString(configuration.getPropertyValueUpperCase(Property.ACCESSION_NUMBER_PREFIX), "");
+        }
+        cleanup.resetTrainingCodes(laboratoryPrefix);
 
-            @Override
-            public void execute(Connection connection) throws SQLException {
-                connection.prepareStatement(CLEAN_SQL).execute();
-            }
-        });
+        // Both receipts and the archive commit with the deletions, or all roll back.
+        History receipt = new History();
+        receipt.setActivity("T");
+        receipt.setTimestamp(new Timestamp(System.currentTimeMillis()));
+        receipt.setNameKey("Database");
+        receipt.setReferenceId("0");
+        receipt.setReferenceTable("0");
+        receipt.setSysUserId(userId);
+        history.save(receipt);
+
+        AuditEvent event = new AuditEvent();
+        event.setId(UUID.randomUUID().toString());
+        event.setOperationId(operationId);
+        event.setModule("systemuser");
+        event.setEntityName("DatabaseCleanup");
+        event.setEntityId(operationId);
+        event.setAction("D");
+        event.setField("clinicalData");
+        event.setNewValue(laboratoryPrefix == null ? "CLEARED_CUG_RESET" : "CLEARED_CODES_RESET");
+        event.setActorId(userId);
+        event.setActorSource("USER");
+        event.setOccurredAt(receipt.getTimestamp());
+        event.setSource("/DatabaseCleaningRequest");
+        audit.insert(event);
     }
 }

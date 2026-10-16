@@ -98,7 +98,7 @@ public class SampleOrderService {
         this.sample = sample;
     }
 
-    private SampleOrderItem getBaseSampleOrderItem() {
+    private SampleOrderItem getBaseSampleOrderItem(SampleOrderItem sharedCatalogs) {
         SampleOrderItem orderItems = new SampleOrderItem();
 
         String dateAsText = DateUtil.getCurrentDateAsText();
@@ -107,6 +107,22 @@ public class SampleOrderService {
         orderItems.setRequestDate(dateAsText);
         orderItems.setRequestTime(timeAsText);
         orderItems.setReceivedTime(timeAsText);
+
+        // History reads many orders in one request. Reuse only lookup definitions;
+        // dates, answers, files and requester data still belong to each new item.
+        if (sharedCatalogs != null) {
+            orderItems.setProvidersList(sharedCatalogs.getProvidersList());
+            orderItems.setPriorityList(sharedCatalogs.getPriorityList());
+            orderItems.setReferringSiteList(sharedCatalogs.getReferringSiteList());
+            orderItems.setPaymentOptions(sharedCatalogs.getPaymentOptions());
+            orderItems.setTestLocationCodeList(sharedCatalogs.getTestLocationCodeList());
+            orderItems.setProgramList(sharedCatalogs.getProgramList());
+            orderItems.setAdditionalFields(sharedCatalogs.getAdditionalFields());
+            orderItems.setFixedFieldConfigs(sharedCatalogs.getFixedFieldConfigs());
+            orderItems.setAdditionalFieldValues(buildDefaultAdditionalFieldValues(orderItems.getAdditionalFields()));
+            orderItems.setAdditionalFieldFiles(new HashMap<>());
+            return orderItems;
+        }
 
         orderItems.setProvidersList(
                 DisplayListService.getInstance().getFreshList(DisplayListService.ListType.ORDER_PROVIDER_PERSONS));
@@ -152,7 +168,11 @@ public class SampleOrderService {
      * @return The SampleOrderItem
      */
     public SampleOrderItem getSampleOrderItem() {
-        sampleOrder = getBaseSampleOrderItem();
+        return getSampleOrderItem(null);
+    }
+
+    public SampleOrderItem getSampleOrderItem(SampleOrderItem sharedCatalogs) {
+        sampleOrder = getBaseSampleOrderItem(sharedCatalogs);
 
         if (sample != null) {
             SampleService sampleService = SpringContext.getBean(SampleService.class);

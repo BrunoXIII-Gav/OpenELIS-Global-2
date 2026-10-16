@@ -4644,5 +4644,10 @@
   "testSection.origin.user": "Mark as user-created",
   "testSection.origin.system": "Mark as system or CSV",
   "testSection.origin.saved": "Origin saved. Unit selectors will use this classification.",
-  "testSection.origin.error": "Could not save the origin. Refresh the list and try again."
+  "testSection.origin.error": "Could not save the origin. Refresh the list and try again.",
+  "audit.events.entity.DatabaseCleanup": "Training data cleanup",
+  "audit.events.field.DatabaseCleanup.clinicalData": "Clinical data",
+  "audit.events.value.clinicalData.CLEARED": "Cleared; users, professionals, configuration and counters retained",
+  "audit.events.value.clinicalData.CLEARED_CODES_RESET": "Cleared; laboratory numbering by prefix and the CUG prefix reset, internal IDs retained",
+  "audit.events.value.clinicalData.CLEARED_CUG_RESET": "Cleared; CUG prefix reset, internal IDs and other laboratory numbering retained"
 }

@@ -17,6 +17,8 @@
 
         <!-- entities -->
         <class>org.openelisglobal.audittrail.valueholder.AuditEvent</class>
+        <class>org.openelisglobal.audittrail.valueholder.ArchivedAuditEvent</class>
+        <class>org.openelisglobal.sample.valueholder.SampleEnvironmental</class>
         <class>org.openelisglobal.testconfiguration.packageio.valueholder.TestConfigurationRevision</class>
         <class>org.openelisglobal.testconfiguration.packageio.valueholder.TestConfigurationImportLock</class>
         <class>org.openelisglobal.testconfiguration.packageio.valueholder.TestConfigurationIdentity</class>
