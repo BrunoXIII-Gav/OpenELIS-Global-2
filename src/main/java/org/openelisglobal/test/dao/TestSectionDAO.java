@@ -28,6 +28,12 @@ import org.openelisglobal.test.valueholder.TestSection;
  */
 public interface TestSectionDAO extends BaseDAO<TestSection, String> {
 
+    List<String> getUserCreatedTestSectionIds();
+
+    List<TestSection> getUnclassifiedTestSections();
+
+    TestSection getTestSectionForUpdate(String id);
+
     // public boolean insertData(TestSection testSection) throws
     // LIMSRuntimeException;
 

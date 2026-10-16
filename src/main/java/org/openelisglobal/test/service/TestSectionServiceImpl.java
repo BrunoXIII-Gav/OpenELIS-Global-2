@@ -3,10 +3,12 @@ package org.openelisglobal.test.service;
 import jakarta.annotation.PostConstruct;
 import java.util.ArrayList;
 import java.util.HashMap;
+import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
 import org.openelisglobal.common.exception.LIMSDuplicateRecordException;
 import org.openelisglobal.common.service.AuditableBaseObjectServiceImpl;
+import org.openelisglobal.common.util.IdValuePair;
 import org.openelisglobal.common.util.LocaleChangeListener;
 import org.openelisglobal.internationalization.GlobalLocaleResolver;
 import org.openelisglobal.systemusersection.service.SystemUserSectionService;
@@ -53,6 +55,45 @@ public class TestSectionServiceImpl extends AuditableBaseObjectServiceImpl<TestS
     @Override
     protected TestSectionDAO getBaseObjectDAO() {
         return baseObjectDAO;
+    }
+
+    @Override
+    @Transactional(readOnly = true)
+    public List<IdValuePair> filterUserCreatedTestSections(List<IdValuePair> authorizedSections) {
+        if (authorizedSections.isEmpty()) {
+            return List.of();
+        }
+        var userCreatedIds = new HashSet<>(baseObjectDAO.getUserCreatedTestSectionIds());
+        return authorizedSections.stream().filter(section -> userCreatedIds.contains(section.getId())).toList();
+    }
+
+    @Override
+    @Transactional(readOnly = true)
+    public List<Map<String, String>> getUnclassifiedTestSectionOrigins() {
+        return baseObjectDAO.getUnclassifiedTestSections().stream()
+                .map(section -> Map.of("id", section.getId(), "name", section.getTestSectionName())).toList();
+    }
+
+    @Override
+    @Transactional
+    public int classifyTestSectionOrigins(List<String> ids, boolean userCreated, String actorId) {
+        if (ids == null || ids.isEmpty() || ids.size() > 200 || new HashSet<>(ids).size() != ids.size()
+                || ids.stream().anyMatch(id -> id == null || !id.matches("[0-9]{1,22}")) || actorId == null
+                || actorId.isBlank()) {
+            throw new IllegalArgumentException("testPackage.issue.selection");
+        }
+        for (String id : ids.stream().sorted().toList()) {
+            TestSection section = baseObjectDAO.getTestSectionForUpdate(id);
+            if (section == null || !TestSection.ORIGIN_UNKNOWN.equals(section.getCreationOrigin())) {
+                throw new IllegalArgumentException("testPackage.issue.conflicts");
+            }
+            section.setCreationOrigin(userCreated ? TestSection.ORIGIN_USER : TestSection.ORIGIN_SYSTEM);
+            section.setCreationOriginBy(actorId);
+            section.setCreationOriginAt(new java.sql.Timestamp(System.currentTimeMillis()));
+            section.setSysUserId(actorId);
+            update(section);
+        }
+        return ids.size();
     }
 
     @Override

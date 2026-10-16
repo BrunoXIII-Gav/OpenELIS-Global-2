@@ -31,6 +31,9 @@ public class TestSectionCreateServiceImpl implements TestSectionCreateService {
             RoleModule resultResultModule, RoleModule validationValidationModule) {
         localizationService.insert(localization);
         testSection.setLocalization(localization);
+        testSection.setCreationOrigin(TestSection.ORIGIN_USER);
+        testSection.setCreationOriginBy(testSection.getSysUserId());
+        testSection.setCreationOriginAt(new java.sql.Timestamp(System.currentTimeMillis()));
         testSectionService.insert(testSection);
         systemModuleService.insert(workplanModule);
         systemModuleService.insert(resultModule);

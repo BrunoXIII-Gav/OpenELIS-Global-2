@@ -13,6 +13,7 @@
  */
 package org.openelisglobal.test.daoimpl;
 
+import jakarta.persistence.LockModeType;
 import java.lang.reflect.InvocationTargetException;
 import java.util.ArrayList;
 import java.util.List;
@@ -39,6 +40,28 @@ public class TestSectionDAOImpl extends BaseDAOImpl<TestSection, String> impleme
 
     public TestSectionDAOImpl() {
         super(TestSection.class);
+    }
+
+    @Override
+    @Transactional(readOnly = true)
+    public List<String> getUserCreatedTestSectionIds() {
+        return entityManager
+                .createQuery("select s.id from TestSection s where s.creationOrigin = :origin and s.isActive = 'Y'",
+                        String.class)
+                .setParameter("origin", TestSection.ORIGIN_USER).getResultList();
+    }
+
+    @Override
+    @Transactional(readOnly = true)
+    public List<TestSection> getUnclassifiedTestSections() {
+        return entityManager.createQuery(
+                "select s from TestSection s left join fetch s.localization where s.creationOrigin = :origin order by s.testSectionName",
+                TestSection.class).setParameter("origin", TestSection.ORIGIN_UNKNOWN).getResultList();
+    }
+
+    @Override
+    public TestSection getTestSectionForUpdate(String id) {
+        return entityManager.find(TestSection.class, id, LockModeType.PESSIMISTIC_WRITE);
     }
 
     @Override

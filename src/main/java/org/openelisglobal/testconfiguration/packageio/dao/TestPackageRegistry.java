@@ -72,7 +72,8 @@ public final class TestPackageRegistry {
     public static boolean omitted(String kind, String property) {
         return Set
                 .of("lastupdated", "sysUserId", "guid", "fhirUuid", "fhir_uuid", "normalizedDescription", "userCreated",
-                        "creationOriginVerified", "creationOriginVerifiedBy", "creationOriginVerifiedAt")
+                        "creationOriginVerified", "creationOriginVerifiedBy", "creationOriginVerifiedAt",
+                        "creationOrigin", "creationOriginBy", "creationOriginAt")
                 .contains(property) || ("Scriptlet".equals(kind) && !"scriptletName".equals(property))
         // The legacy unique panel alias is local identity; membership points to the new
         // Test.

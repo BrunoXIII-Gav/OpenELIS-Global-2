@@ -113,7 +113,7 @@ test.each([
     "SampleEntryConfig",
     "enabledOrderPriorities",
     "ROUTINE,ASAP,STAT",
-    "Rutina, Lo antes posible, Inmediata",
+    "Rutina, Lo antes posible, Urgencia",
   ],
   [
     "ValidationConfiguration",

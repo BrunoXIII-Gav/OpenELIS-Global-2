@@ -17,6 +17,9 @@ import java.util.stream.Collectors;
 import org.apache.commons.lang3.StringUtils;
 import org.apache.commons.validator.GenericValidator;
 import org.apache.logging.log4j.core.util.KeyValuePair;
+import org.openelisglobal.authorization.service.ModuleAuthorizationService;
+import org.openelisglobal.authorization.service.ModuleAuthorizationService.AuthorizationDecision;
+import org.openelisglobal.authorization.service.ModuleAuthorizationService.AuthorizationSource;
 import org.openelisglobal.common.action.IActionConstants;
 import org.openelisglobal.common.constants.Constants;
 import org.openelisglobal.common.formfields.FormFields;
@@ -34,9 +37,6 @@ import org.openelisglobal.common.util.ConfigurationProperties.Property;
 import org.openelisglobal.common.util.DateUtil;
 import org.openelisglobal.common.util.IdValuePair;
 import org.openelisglobal.common.util.LabelValuePair;
-import org.openelisglobal.authorization.service.ModuleAuthorizationService;
-import org.openelisglobal.authorization.service.ModuleAuthorizationService.AuthorizationDecision;
-import org.openelisglobal.authorization.service.ModuleAuthorizationService.AuthorizationSource;
 import org.openelisglobal.dictionary.service.DictionaryService;
 import org.openelisglobal.dictionary.valueholder.Dictionary;
 import org.openelisglobal.localization.service.LocalizationService;
@@ -497,12 +497,12 @@ public class DisplayListController extends BaseRestController {
                 ConfigurationProperties.getInstance().getPropertyValue(Property.providerSpecialtyOptions));
         configs.put(Property.professionalProfileOptions.toString(),
                 ConfigurationProperties.getInstance().getPropertyValue(Property.professionalProfileOptions));
-        configs.put(Property.orderProviderProfessionalProfileCode.toString(), ConfigurationProperties.getInstance()
-                .getPropertyValue(Property.orderProviderProfessionalProfileCode));
-        configs.put(Property.patientEntryProfessionalProfileCode.toString(), ConfigurationProperties.getInstance()
-                .getPropertyValue(Property.patientEntryProfessionalProfileCode));
-        configs.put(Property.resultEntryProfessionalProfileCode.toString(), ConfigurationProperties.getInstance()
-                .getPropertyValue(Property.resultEntryProfessionalProfileCode));
+        configs.put(Property.orderProviderProfessionalProfileCode.toString(),
+                ConfigurationProperties.getInstance().getPropertyValue(Property.orderProviderProfessionalProfileCode));
+        configs.put(Property.patientEntryProfessionalProfileCode.toString(),
+                ConfigurationProperties.getInstance().getPropertyValue(Property.patientEntryProfessionalProfileCode));
+        configs.put(Property.resultEntryProfessionalProfileCode.toString(),
+                ConfigurationProperties.getInstance().getPropertyValue(Property.resultEntryProfessionalProfileCode));
         configs.put(Property.sampleCollectorProfessionalProfileCode.toString(), ConfigurationProperties.getInstance()
                 .getPropertyValue(Property.sampleCollectorProfessionalProfileCode));
         configs.put(Property.validationInterpreterProfessionalProfileCode.toString(), ConfigurationProperties
@@ -513,10 +513,12 @@ public class DisplayListController extends BaseRestController {
                 ConfigurationProperties.getInstance().getPropertyValue(Property.patientEntryProfessionalProfileCode)));
         configs.put("resultEntryProfessionalProfileCodes", parseConfiguredProfessionalProfileCodes(
                 ConfigurationProperties.getInstance().getPropertyValue(Property.resultEntryProfessionalProfileCode)));
-        configs.put("sampleCollectorProfessionalProfileCodes", parseConfiguredProfessionalProfileCodes(
-                ConfigurationProperties.getInstance().getPropertyValue(Property.sampleCollectorProfessionalProfileCode)));
-        configs.put("validationInterpreterProfessionalProfileCodes", parseConfiguredProfessionalProfileCodes(
-                ConfigurationProperties.getInstance().getPropertyValue(Property.validationInterpreterProfessionalProfileCode)));
+        configs.put("sampleCollectorProfessionalProfileCodes",
+                parseConfiguredProfessionalProfileCodes(ConfigurationProperties.getInstance()
+                        .getPropertyValue(Property.sampleCollectorProfessionalProfileCode)));
+        configs.put("validationInterpreterProfessionalProfileCodes",
+                parseConfiguredProfessionalProfileCodes(ConfigurationProperties.getInstance()
+                        .getPropertyValue(Property.validationInterpreterProfessionalProfileCode)));
         configs.put(Property.VALIDATION_MIN_APPROVERS.toString(),
                 ConfigurationProperties.getInstance().getPropertyValue(Property.VALIDATION_MIN_APPROVERS));
         return configs;
@@ -528,10 +530,8 @@ public class DisplayListController extends BaseRestController {
         }
 
         return Arrays.stream(StringUtils.split(rawValue, ','))
-                .map(code -> StringUtils.upperCase(StringUtils.trimToNull(code)))
-                .filter(StringUtils::isNotBlank)
-                .distinct()
-                .toList();
+                .map(code -> StringUtils.upperCase(StringUtils.trimToNull(code))).filter(StringUtils::isNotBlank)
+                .distinct().toList();
     }
 
     @GetMapping(value = "practitioner", produces = MediaType.APPLICATION_JSON_VALUE)
@@ -597,26 +597,34 @@ public class DisplayListController extends BaseRestController {
 
     @GetMapping(value = "user-test-sections/{roleName}", produces = MediaType.APPLICATION_JSON_VALUE)
     @ResponseBody
-    public List<IdValuePair> createUserTestSectionsList(HttpServletRequest request, @PathVariable String roleName) {
+    public List<IdValuePair> createUserTestSectionsList(HttpServletRequest request, @PathVariable String roleName,
+            @RequestParam(name = "userCreatedOnly", defaultValue = "false") boolean userCreatedOnly) {
+        List<IdValuePair> authorizedSections = getAuthorizedUserTestSections(request, roleName);
+        return userCreatedOnly || Constants.ROLE_RESULTS.equals(roleName) || Constants.ROLE_VALIDATION.equals(roleName)
+                ? testSectionService.filterUserCreatedTestSections(authorizedSections)
+                : authorizedSections;
+    }
+
+    private List<IdValuePair> getAuthorizedUserTestSections(HttpServletRequest request, String roleName) {
         if (roleName.equals("ALL")) {
             return userService.getUserTestSections(getSysUserId(request), null);
         } else if (Constants.ROLE_RESULTS.equals(roleName)) {
-            AuthorizationDecision decision = moduleAuthorizationService.getAuthorization(getSysUserId(request), "results",
-                    "read");
+            AuthorizationDecision decision = moduleAuthorizationService.getAuthorization(getSysUserId(request),
+                    "results", "read");
             if (decision.source() == AuthorizationSource.MODULE_PERMISSION) {
                 if (!decision.allowed()) {
                     return new ArrayList<>();
                 }
                 List<IdValuePair> testSections = DisplayListService.getInstance().getList(ListType.TEST_SECTION_ACTIVE);
                 return decision.allLabUnits() ? testSections
-                        : testSections.stream().filter(section -> decision.labUnitIds().contains(section.getId())).toList();
+                        : testSections.stream().filter(section -> decision.labUnitIds().contains(section.getId()))
+                                .toList();
             }
             return getUserTestSectionsForRoles(request, List.of(Constants.ROLE_RESULTS, Constants.ROLE_RESULTS_BY_UNIT,
                     Constants.ROLE_RESULTS_BY_PATIENT, Constants.ROLE_RESULTS_BY_ORDER));
         } else if (Constants.ROLE_VALIDATION.equals(roleName)) {
-            return getUserTestSectionsForRoles(request,
-                    List.of(Constants.ROLE_VALIDATION, Constants.ROLE_VALIDATION_ROUTINE,
-                            Constants.ROLE_VALIDATION_BY_ORDER, Constants.ROLE_PATHOLOGIST));
+            return getUserTestSectionsForRoles(request, List.of(Constants.ROLE_VALIDATION,
+                    Constants.ROLE_VALIDATION_ROUTINE, Constants.ROLE_VALIDATION_BY_ORDER, Constants.ROLE_PATHOLOGIST));
         } else {
             Role role = roleService.getRoleByName(roleName);
             if (role == null) {

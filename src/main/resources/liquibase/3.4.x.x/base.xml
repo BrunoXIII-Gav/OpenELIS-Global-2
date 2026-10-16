@@ -102,4 +102,6 @@
   <include relativeToChangelogFile="true" file="088-complete-audit-trail.xml"/>
   <include relativeToChangelogFile="true" file="089-audit-test-filter.xml"/>
   <include relativeToChangelogFile="true" file="090-add-traceability-menu.xml"/>
+  <include relativeToChangelogFile="true" file="091-default-routine-stat-priorities.xml"/>
+  <include relativeToChangelogFile="true" file="092-test-section-creation-origin.xml"/>
 </databaseChangeLog>
