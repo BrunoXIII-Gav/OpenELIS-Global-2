@@ -15,6 +15,9 @@
         </id>
         <version name="lastupdated" column="LASTUPDATED"
             type="timestamp" access="field" />
+        <property name="creationOrigin" column="creation_origin" type="string" not-null="true" />
+        <property name="creationOriginBy" column="creation_origin_by" type="string" />
+        <property name="creationOriginAt" column="creation_origin_at" type="timestamp" />
 
         <many-to-one name="organization"
             class="org.openelisglobal.organization.valueholder.Organization"

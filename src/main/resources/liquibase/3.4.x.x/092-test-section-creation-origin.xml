@@ -1,0 +1,28 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<databaseChangeLog xmlns="http://www.liquibase.org/xml/ns/dbchangelog"
+  xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+  xsi:schemaLocation="http://www.liquibase.org/xml/ns/dbchangelog http://www.liquibase.org/xml/ns/dbchangelog/dbchangelog-3.8.xsd">
+  <changeSet id="092-test-section-creation-origin" author="codex">
+    <comment>Record laboratory unit provenance without inferring historical origins from names, IDs or modification dates.</comment>
+    <addColumn schemaName="clinlims" tableName="test_section">
+      <column name="creation_origin" type="VARCHAR(10)" defaultValue="UNKNOWN"><constraints nullable="false"/></column>
+      <column name="creation_origin_by" type="VARCHAR(40)"/>
+      <column name="creation_origin_at" type="TIMESTAMP"/>
+    </addColumn>
+    <!-- Direct installation SQL must not create user-owned units. Application
+         creation records USER explicitly; CSV creation records SYSTEM. -->
+    <addDefaultValue schemaName="clinlims" tableName="test_section" columnName="creation_origin" defaultValue="SYSTEM"/>
+    <sql>
+      UPDATE clinlims.test_section s
+      SET creation_origin = 'USER', creation_origin_by = r.actor_id, creation_origin_at = r.created_at
+      FROM clinlims.test_configuration_identity i
+      JOIN clinlims.test_configuration_revision r ON r.id = i.revision_id
+      WHERE i.entity_key = 'TestSection:' || CAST(s.id AS TEXT);
+    </sql>
+    <rollback>
+      <dropColumn schemaName="clinlims" tableName="test_section" columnName="creation_origin_at"/>
+      <dropColumn schemaName="clinlims" tableName="test_section" columnName="creation_origin_by"/>
+      <dropColumn schemaName="clinlims" tableName="test_section" columnName="creation_origin"/>
+    </rollback>
+  </changeSet>
+</databaseChangeLog>

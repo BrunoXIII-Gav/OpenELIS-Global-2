@@ -162,6 +162,11 @@ public class TestConfigurationPackageDAOImpl implements TestConfigurationPackage
                 test.setGuid(UUID.randomUUID().toString());
                 test.setCreationOriginVerifiedBy(actorId);
             }
+            if (entity instanceof org.openelisglobal.test.valueholder.TestSection section) {
+                section.setCreationOrigin(org.openelisglobal.test.valueholder.TestSection.ORIGIN_USER);
+                section.setCreationOriginBy(actorId);
+                section.setCreationOriginAt(new java.sql.Timestamp(System.currentTimeMillis()));
+            }
             entityManager.persist(entity);
             return String
                     .valueOf(p.getIdentifier(entity, entityManager.unwrap(SharedSessionContractImplementor.class)));

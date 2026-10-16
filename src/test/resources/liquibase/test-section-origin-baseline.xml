@@ -1,0 +1,21 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<databaseChangeLog xmlns="http://www.liquibase.org/xml/ns/dbchangelog"
+  xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+  xsi:schemaLocation="http://www.liquibase.org/xml/ns/dbchangelog http://www.liquibase.org/xml/ns/dbchangelog/dbchangelog-3.8.xsd">
+  <changeSet id="test-section-origin-test-baseline" author="codex">
+    <sql>CREATE SCHEMA clinlims</sql>
+    <createTable schemaName="clinlims" tableName="test_section">
+      <column name="id" type="NUMERIC(10,0)"><constraints primaryKey="true" nullable="false"/></column>
+      <column name="name" type="VARCHAR(60)"/>
+    </createTable>
+    <createTable schemaName="clinlims" tableName="test_configuration_revision">
+      <column name="id" type="VARCHAR(36)"><constraints primaryKey="true" nullable="false"/></column>
+      <column name="actor_id" type="VARCHAR(40)"/>
+      <column name="created_at" type="TIMESTAMP"/>
+    </createTable>
+    <createTable schemaName="clinlims" tableName="test_configuration_identity">
+      <column name="entity_key" type="VARCHAR(140)"><constraints primaryKey="true" nullable="false"/></column>
+      <column name="revision_id" type="VARCHAR(36)"/>
+    </createTable>
+  </changeSet>
+</databaseChangeLog>

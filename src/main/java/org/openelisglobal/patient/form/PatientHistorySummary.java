@@ -14,6 +14,8 @@ public class PatientHistorySummary {
     private List<OrderRecord> orders = new ArrayList<>();
     private List<SampleRecord> samples = new ArrayList<>();
     private List<ResultRecord> results = new ArrayList<>();
+    private List<PatientValidationRecord> validations = new ArrayList<>();
+    private Set<String> restrictedFieldGroupKeys = Set.of();
     private Set<String> restrictedFieldTagKeys = Set.of();
 
     public String getPatientId() {
@@ -58,6 +60,22 @@ public class PatientHistorySummary {
 
     public Set<String> getRestrictedFieldTagKeys() {
         return restrictedFieldTagKeys;
+    }
+
+    public List<PatientValidationRecord> getValidations() {
+        return validations;
+    }
+
+    public void setValidations(List<PatientValidationRecord> value) {
+        validations = value;
+    }
+
+    public Set<String> getRestrictedFieldGroupKeys() {
+        return restrictedFieldGroupKeys;
+    }
+
+    public void setRestrictedFieldGroupKeys(Set<String> value) {
+        restrictedFieldGroupKeys = Set.copyOf(value);
     }
 
     public void setRestrictedFieldTagKeys(Set<String> restrictedFieldTagKeys) {

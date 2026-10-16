@@ -1,6 +1,7 @@
 import React, { useEffect, useMemo, useState } from "react";
 import {
   Button,
+  Link,
   DataTableSkeleton,
   Tab,
   TabList,
@@ -128,9 +129,22 @@ type PatientHistoryResult = {
   additionalFieldValues: Record<string, string>;
 };
 
+type PatientValidation = {
+  analysisId: string;
+  accessionNumber: string;
+  clinicalOrderId: string;
+  cugCode: string;
+  testName: string;
+  validationDate?: string;
+  validators: Array<{ name: string; approvedAt?: string }>;
+  reportAvailable: boolean;
+};
+
 type PatientHistorySummary = {
   patientId: string;
   restrictedFieldTagKeys?: string[];
+  restrictedFieldGroupKeys?: string[];
+  validations?: PatientValidation[];
   metrics: PatientHistoryMetrics;
   orders: PatientHistoryOrder[];
   samples: PatientHistorySample[];
@@ -229,6 +243,7 @@ const emptySummary: PatientHistorySummary = {
   orders: [],
   samples: [],
   results: [],
+  validations: [],
 };
 
 const emptyFilters: FilterState = {
@@ -600,6 +615,115 @@ const PatientHistorySummaryPanel: React.FC<{ patientId: string }> = ({
   const showResults = !hasRestrictedTag("patient-history-results");
   const showResultValues = !hasRestrictedTag("patient-history-result-values");
   const showStorage = !hasRestrictedTag("patient-history-storage");
+  const showValidations =
+    !hasRestrictedTag("patient-history-validations") &&
+    !(summary.restrictedFieldGroupKeys || []).some((group) =>
+      ["patient-history", "patient-validations"].includes(group),
+    );
+  const showValidationReport = ![
+    "patient-validation-report",
+    "patient-validation-validator",
+    "patient-validation-date",
+    "patient-history-result-values",
+  ].some(hasRestrictedTag);
+
+  const filteredValidations = useMemo(
+    () =>
+      (summary.validations || []).filter((row) =>
+        matchesFilters(
+          filters,
+          [
+            row.accessionNumber,
+            row.clinicalOrderId,
+            row.cugCode,
+            row.testName,
+            ...(row.validators || []).map((validator) => validator.name),
+          ],
+          [row.validationDate],
+        ),
+      ),
+    [filters, summary.validations],
+  );
+
+  const validationColumns = useMemo<Column<PatientValidation>[]>(
+    () => [
+      {
+        key: "accessionNumber",
+        header: intl.formatMessage({
+          id: "patientHistory.table.accessionNumber",
+        }),
+        render: (row) => row.accessionNumber || "-",
+      },
+      {
+        key: "cugCode",
+        header: intl.formatMessage({ id: "patientHistory.table.cugCode" }),
+        render: (row) => row.cugCode || "-",
+      },
+      {
+        key: "testName",
+        header: intl.formatMessage({ id: "patientHistory.table.testName" }),
+        render: (row) => row.testName || "-",
+      },
+      ...(!hasRestrictedTag("patient-validation-date")
+        ? [
+            {
+              key: "validationDate",
+              header: intl.formatMessage({
+                id: "patientHistory.validation.date",
+              }),
+              render: (row: PatientValidation) =>
+                row.validationDate
+                  ? intl.formatDate(new Date(row.validationDate + "T00:00:00"))
+                  : "-",
+            },
+          ]
+        : []),
+      ...(!hasRestrictedTag("patient-validation-validator")
+        ? [
+            {
+              key: "validators",
+              header: intl.formatMessage({
+                id: "patientHistory.validation.validator",
+              }),
+              render: (row: PatientValidation) =>
+                row.validators?.length
+                  ? row.validators
+                      .map((v) => v.name)
+                      .filter(Boolean)
+                      .join(", ")
+                  : intl.formatMessage({
+                      id: "patientHistory.validation.unknownValidator",
+                    }),
+            },
+          ]
+        : []),
+      ...(showValidationReport
+        ? [
+            {
+              key: "report",
+              header: intl.formatMessage({
+                id: "patientHistory.validation.report",
+              }),
+              render: (row: PatientValidation) =>
+                row.reportAvailable ? (
+                  <Link
+                    href={`${config.serverBaseUrl}/rest/patient-history/${encodeURIComponent(patientId)}/validations/${encodeURIComponent(row.analysisId)}/report`}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                  >
+                    {intl.formatMessage({
+                      id: "patientHistory.validation.openPdf",
+                    })}
+                  </Link>
+                ) : (
+                  "-"
+                ),
+            },
+          ]
+        : []),
+    ],
+    [intl, patientId, summary.restrictedFieldTagKeys, showValidationReport],
+  );
 
   const filteredSamples = useMemo(
     () =>
@@ -990,6 +1114,11 @@ const PatientHistorySummaryPanel: React.FC<{ patientId: string }> = ({
                 {intl.formatMessage({ id: "patientHistory.tabs.storage" })}
               </Tab>
             ) : null,
+            showValidations ? (
+              <Tab key="validation">
+                {intl.formatMessage({ id: "patientHistory.tabs.validation" })}
+              </Tab>
+            ) : null,
           ].filter(Boolean)}
         </TabList>
         <TabPanels>
@@ -1100,6 +1229,20 @@ const PatientHistorySummaryPanel: React.FC<{ patientId: string }> = ({
                   rows={filteredStoredSamples}
                   emptyMessage={intl.formatMessage({
                     id: "patientHistory.empty.storage",
+                  })}
+                />
+              </TabPanel>
+            ) : null,
+            showValidations ? (
+              <TabPanel key="validation">
+                <SimpleHistoryTable
+                  title={intl.formatMessage({
+                    id: "patientHistory.tabs.validation",
+                  })}
+                  columns={validationColumns}
+                  rows={filteredValidations}
+                  emptyMessage={intl.formatMessage({
+                    id: "patientHistory.empty.validations",
                   })}
                 />
               </TabPanel>

@@ -59,10 +59,7 @@ const RETIRED_PROVIDER_FIXED_FIELDS = new Set(["providercmp", "providerrne"]);
 const REQUESTER_PROFILE_FIELD_SORT_ORDER_BASE = 160;
 const DEFAULT_ORDER_PRIORITIES = [
   { id: "ROUTINE", value: "ROUTINE" },
-  { id: "ASAP", value: "ASAP" },
   { id: "STAT", value: "STAT" },
-  { id: "TIMED", value: "TIMED" },
-  { id: "FUTURE_STAT", value: "FUTURE STAT" },
 ];
 
 const parseProviderSpecialtyOptions = (rawValue) => {
@@ -1395,11 +1392,28 @@ const AddOrder = (props) => {
                 return (
                   <SelectItem
                     key={priority.id}
-                    text={priority.value}
+                    text={intl.formatMessage({
+                      id: `config.display.value.${priority.id}`,
+                      defaultMessage: priority.value,
+                    })}
                     value={priority.id}
                   />
                 );
               })}
+              {isModifyOrder &&
+                orderFormValues.sampleOrderItems.priority &&
+                !priorityOptions.some(
+                  (priority) =>
+                    priority.id === orderFormValues.sampleOrderItems.priority,
+                ) && (
+                  <SelectItem
+                    text={intl.formatMessage({
+                      id: `config.display.value.${orderFormValues.sampleOrderItems.priority}`,
+                      defaultMessage: orderFormValues.sampleOrderItems.priority,
+                    })}
+                    value={orderFormValues.sampleOrderItems.priority}
+                  />
+                )}
             </Select>
           </Column>
         );

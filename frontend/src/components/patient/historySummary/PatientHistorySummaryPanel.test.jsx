@@ -1,8 +1,9 @@
 import React from "react";
-import { fireEvent, render, screen } from "@testing-library/react";
+import { act, fireEvent, render, screen } from "@testing-library/react";
 import { waitFor } from "@testing-library/dom";
 import { IntlProvider } from "react-intl";
 import PatientHistorySummaryPanel from "./PatientHistorySummaryPanel";
+import englishMessages from "../../../languages/en.json";
 
 jest.mock("../../utils/Utils", () => ({
   getFromOpenElisServer: jest.fn(),
@@ -11,6 +12,7 @@ jest.mock("../../utils/Utils", () => ({
 const { getFromOpenElisServer } = require("../../utils/Utils");
 
 const messages = {
+  ...englishMessages,
   "label.page.patientHistory": "Patient History",
   "patientHistory.empty.orders": "No patient orders found.",
   "patientHistory.empty.results": "No patient results found.",
@@ -95,6 +97,12 @@ const renderComponent = () =>
       <PatientHistorySummaryPanel patientId="77" />
     </IntlProvider>,
   );
+
+const click = async (element) => {
+  await act(async () => {
+    fireEvent.click(element);
+  });
+};
 
 describe("PatientHistorySummaryPanel", () => {
   beforeEach(() => {
@@ -207,7 +215,7 @@ describe("PatientHistorySummaryPanel", () => {
       }).parentElement,
     ).toHaveTextContent("Stored samples1");
     expect(screen.getAllByText("LAB-1001").length).toBeGreaterThan(0);
-    fireEvent.click(screen.getByRole("button", { name: "View" }));
+    await click(screen.getByRole("button", { name: "View" }));
     expect(screen.getByText("Central Clinic")).not.toBeNull();
   });
 
@@ -252,8 +260,8 @@ describe("PatientHistorySummaryPanel", () => {
       });
     });
     renderComponent();
-    fireEvent.click(await screen.findByRole("tab", { name: "Results" }));
-    fireEvent.click(await screen.findByRole("button", { name: "View" }));
+    await click(await screen.findByRole("tab", { name: "Results" }));
+    await click(await screen.findByRole("button", { name: "View" }));
     const link = await screen.findByRole("link", {
       name: "saved-document.pdf",
     });
@@ -263,5 +271,110 @@ describe("PatientHistorySummaryPanel", () => {
     );
     expect(link).toHaveAttribute("target", "_blank");
     expect(link).toHaveAttribute("rel", "noopener noreferrer");
+  });
+
+  const validationSummary = (overrides = {}) => ({
+    patientId: "77",
+    metrics: {},
+    orders: [],
+    samples: [],
+    results: [],
+    validations: [
+      {
+        analysisId: "78",
+        accessionNumber: "LAB-1",
+        clinicalOrderId: "ORD-1",
+        cugCode: "13.1",
+        testName: "Extraction",
+        validationDate: "2026-10-15",
+        validators: [{ name: "Carla Enciso" }, { name: "Mario Cornejo" }],
+        reportAvailable: true,
+      },
+      {
+        analysisId: "79",
+        accessionNumber: "LAB-2",
+        clinicalOrderId: "ORD-2",
+        cugCode: "13.2",
+        testName: "DMPK",
+        validationDate: "2026-10-14",
+        validators: [],
+        reportAvailable: true,
+      },
+    ],
+    ...overrides,
+  });
+
+  const loadValidationSummary = async (overrides = {}) => {
+    getFromOpenElisServer.mockImplementation((endpoint, callback) =>
+      callback(validationSummary(overrides)),
+    );
+    renderComponent();
+    await click(await screen.findByRole("tab", { name: "Validation" }));
+  };
+
+  it("shows validators and a separate PDF link for each validated test", async () => {
+    await loadValidationSummary();
+    expect(screen.getByText("Carla Enciso, Mario Cornejo")).toBeInTheDocument();
+    expect(screen.getByText("Not recorded")).toBeInTheDocument();
+    const links = screen.getAllByRole("link", { name: "Open PDF" });
+    expect(links[0]).toHaveAttribute(
+      "href",
+      "/api/OpenELIS-Global/rest/patient-history/77/validations/78/report",
+    );
+    expect(links[1]).toHaveAttribute(
+      "href",
+      "/api/OpenELIS-Global/rest/patient-history/77/validations/79/report",
+    );
+    fireEvent.change(screen.getByLabelText("Lab or order number"), {
+      target: { value: "Extraction" },
+    });
+    expect(screen.queryByText("DMPK")).not.toBeInTheDocument();
+    expect(screen.getAllByRole("link", { name: "Open PDF" })).toHaveLength(1);
+  });
+
+  it.each(["patient-validations", "patient-history"])(
+    "hides validation when the %s group is restricted",
+    async (group) => {
+      getFromOpenElisServer.mockImplementation((endpoint, callback) =>
+        callback(validationSummary({ restrictedFieldGroupKeys: [group] })),
+      );
+      renderComponent();
+      await screen.findByText("Patient history overview");
+      expect(
+        screen.queryByRole("tab", { name: "Validation" }),
+      ).not.toBeInTheDocument();
+      expect(
+        screen.queryByText("Carla Enciso, Mario Cornejo"),
+      ).not.toBeInTheDocument();
+    },
+  );
+
+  it("hides restricted validation fields and PDF links", async () => {
+    await loadValidationSummary({
+      restrictedFieldTagKeys: [
+        "patient-validation-validator",
+        "patient-validation-date",
+      ],
+    });
+    expect(
+      screen.queryByRole("columnheader", { name: "Validated by" }),
+    ).not.toBeInTheDocument();
+    expect(
+      screen.queryByRole("columnheader", { name: "Validation date" }),
+    ).not.toBeInTheDocument();
+    expect(
+      screen.queryByRole("link", { name: "Open PDF" }),
+    ).not.toBeInTheDocument();
+    expect(screen.getByText("Extraction")).toBeInTheDocument();
+  });
+
+  it("keeps validator information when only the PDF is restricted", async () => {
+    await loadValidationSummary({
+      restrictedFieldTagKeys: ["patient-validation-report"],
+    });
+    expect(screen.getByText("Carla Enciso, Mario Cornejo")).toBeInTheDocument();
+    expect(
+      screen.queryByRole("link", { name: "Open PDF" }),
+    ).not.toBeInTheDocument();
   });
 });

@@ -6,6 +6,7 @@ import org.openelisglobal.common.rest.BaseRestController;
 import org.openelisglobal.patient.form.PatientHistorySummary;
 import org.openelisglobal.patient.service.PatientAuthorizationService;
 import org.openelisglobal.patient.service.PatientHistorySummaryService;
+import org.openelisglobal.patient.service.PatientValidationHistoryService;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.http.MediaType;
 import org.springframework.security.access.AccessDeniedException;
@@ -28,6 +29,9 @@ public class PatientHistorySummaryRestController extends BaseRestController {
     @Autowired
     private ModuleAuthorizationService moduleAuthorizationService;
 
+    @Autowired
+    private PatientValidationHistoryService patientValidationHistoryService;
+
     @GetMapping(value = "patient-history/{patientId}/summary", produces = MediaType.APPLICATION_JSON_VALUE)
     @ResponseBody
     public PatientHistorySummary getPatientHistorySummary(HttpServletRequest request, @PathVariable String patientId) {
@@ -37,6 +41,9 @@ public class PatientHistorySummaryRestController extends BaseRestController {
         PatientHistorySummary summary = patientHistorySummaryService.getSummary(patientId);
         summary.setRestrictedFieldTagKeys(
                 moduleAuthorizationService.getRestrictedFieldTagKeys(getSysUserId(request), "patients"));
+        summary.setRestrictedFieldGroupKeys(
+                moduleAuthorizationService.getRestrictedFieldGroupKeys(getSysUserId(request), "patients"));
+        summary.setValidations(patientValidationHistoryService.getRecords(patientId, getSysUserId(request)));
         return summary;
     }
 }
