@@ -261,7 +261,7 @@ const HomeDashBoard: React.FC<DashBoardProps> = () => {
 
   useEffect(() => {
     getFromOpenElisServer(
-      "/rest/user-test-sections/ALL",
+      "/rest/user-test-sections/ALL?userCreatedOnly=true",
       (fetchedTestSections) => {
         fetchTestSections(fetchedTestSections);
       },
