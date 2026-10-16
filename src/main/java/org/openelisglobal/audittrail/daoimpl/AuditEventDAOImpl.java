@@ -30,6 +30,7 @@ public class AuditEventDAOImpl extends org.openelisglobal.common.daoimpl.BaseDAO
     public AuditEventPage search(AuditEventFilter filter) {
         Map<String, Object> parameters = new LinkedHashMap<>();
         StringBuilder where = new StringBuilder(" WHERE 1=1");
+        where.append(" AND NOT EXISTS (SELECT archived.id FROM ArchivedAuditEvent archived WHERE archived.id = e.id)");
         AuditFieldPolicy.restrict(where, parameters);
         AuditModule.restrict(where, parameters, filter.module());
         exact(where, parameters, "entityName", filter.entityName());
@@ -96,8 +97,10 @@ public class AuditEventDAOImpl extends org.openelisglobal.common.daoimpl.BaseDAO
                 + " AND link.field = 'test' AND (link.oldValue = :selectedTestId OR link.newValue = :selectedTestId)";
         List<String> legacy = new ArrayList<>();
         for (String relationship : List.of("analysisId", "parentAnalysisId"))
-            legacy.add("e." + relationship + " IN (" + analyses + ") OR e." + relationship + " IN (" + historical + ")");
-        legacy.add("(e.entityName = 'Analysis' AND (e.entityId IN (" + analyses + ") OR e.entityId IN (" + historical + ")))");
+            legacy.add(
+                    "e." + relationship + " IN (" + analyses + ") OR e." + relationship + " IN (" + historical + ")");
+        legacy.add("(e.entityName = 'Analysis' AND (e.entityId IN (" + analyses + ") OR e.entityId IN (" + historical
+                + ")))");
         String results = "SELECT concat(r.id, '') FROM Result r WHERE r.analysis.id IN ("
                 + "SELECT a.id FROM Analysis a WHERE a.test.id = :clinicalTestId)";
         legacy.add("(e.entityName = 'Result' AND e.entityId IN (" + results + ")) OR e.resultId IN (" + results + ")");
@@ -106,8 +109,8 @@ public class AuditEventDAOImpl extends org.openelisglobal.common.daoimpl.BaseDAO
         legacy.add("(e.entityName = 'Test' AND e.entityId = :selectedTestId)");
         // The database evaluates ownership and limits the page. Never materialize
         // all analyses/results or rewrite historical immutable ledger rows.
-        where.append(" AND (e.testId = :selectedTestId OR (e.testId IS NULL AND (")
-                .append(String.join(" OR ", legacy)).append(")))");
+        where.append(" AND (e.testId = :selectedTestId OR (e.testId IS NULL AND (").append(String.join(" OR ", legacy))
+                .append(")))");
     }
 
     private void exact(StringBuilder where, Map<String, Object> parameters, String field, String value) {

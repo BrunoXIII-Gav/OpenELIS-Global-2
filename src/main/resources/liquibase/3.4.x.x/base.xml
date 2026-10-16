@@ -104,4 +104,6 @@
   <include relativeToChangelogFile="true" file="090-add-traceability-menu.xml"/>
   <include relativeToChangelogFile="true" file="091-default-routine-stat-priorities.xml"/>
   <include relativeToChangelogFile="true" file="092-test-section-creation-origin.xml"/>
+  <include relativeToChangelogFile="true" file="093-training-cleanup-audit-archive.xml"/>
+  <include relativeToChangelogFile="true" file="094-training-cleanup-code-reset.xml"/>
 </databaseChangeLog>

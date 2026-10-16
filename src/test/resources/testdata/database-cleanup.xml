@@ -1,0 +1,54 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<dataset>
+ <person lastupdated="2026-10-15 08:00:00" id="100" first_name="Professional" last_name="Retained"/>
+ <person lastupdated="2026-10-15 08:00:00" id="101" first_name="User" last_name="Retained"/>
+ <person lastupdated="2026-10-15 08:00:00" id="102" first_name="Organization" last_name="Retained"/>
+ <person lastupdated="2026-10-15 08:00:00" id="103" first_name="Patient" last_name="Removed"/>
+ <person lastupdated="2026-10-15 08:00:00" id="104" first_name="Contact" last_name="Removed"/>
+ <provider lastupdated="2026-10-15 08:00:00" id="9" person_id="100" professional_profile_code="GENETIST" specialty="Genetics"/>
+ <system_user lastupdated="2026-10-15 08:00:00" id="7" login_name="admin" first_name="Admin" last_name="Retained" is_active="Y" is_employee="Y" linked_provider_person_id="100" signature_image_data="signature"/>
+ <system_user lastupdated="2026-10-15 08:00:00" id="8" login_name="staff" first_name="Staff" last_name="Retained" is_active="Y" is_employee="Y" linked_provider_person_id="101"/>
+ <login_user last_updated="2026-10-15 08:00:00" id="1" login_name="admin" password="synthetic-hash" is_admin="Y" account_locked="N" account_disabled="N"/>
+ <system_role id="1" name="Retained role"/>
+ <system_user_role role_id="1" system_user_id="7"/>
+ <organization_contact id="1" person_id="102"/>
+ <person_address person_id="100" address_part_id="1" type="TEXT" value="Professional address"/>
+ <person_address person_id="101" address_part_id="1" type="TEXT" value="User address"/>
+ <person_address person_id="102" address_part_id="1" type="TEXT" value="Organization address"/>
+ <person_address person_id="103" address_part_id="1" type="TEXT" value="Patient address"/>
+ <person_address person_id="104" address_part_id="1" type="TEXT" value="Contact address"/>
+ <patient lastupdated="2026-10-15 08:00:00" id="10" person_id="103" is_merged="false"/>
+ <patient lastupdated="2026-10-15 08:00:00" id="11" person_id="100" is_merged="false"/>
+ <patient lastupdated="2026-10-15 08:00:00" id="12" person_id="101" is_merged="false"/>
+ <patient lastupdated="2026-10-15 08:00:00" id="13" person_id="102" is_merged="false"/>
+ <patient_identity lastupdated="2026-10-15 08:00:00" id="1" patient_id="10" identity_data="SYNTHETIC"/>
+ <patient_contact lastupdated="2026-10-15 08:00:00" id="1" patient_id="10" person_id="104"/>
+ <test_section lastupdated="2026-10-15 08:00:00" id="1" description="User laboratory" creation_origin="USER"/>
+ <test lastupdated="2026-10-15 08:00:00" id="1" description="User test" notify_results="false" in_lab_only="false" user_created="true" creation_origin_verified="true"/>
+ <site_information lastupdated="2026-10-15 08:00:00" id="1" name="TrainingInstallation" value="true" value_type="text"/>
+ <accession_number_info prefix="LNG26" type="ALPHANUM" cur_val="500"/>
+ <accession_number_info prefix="LNG" type="PREFIXNUM" cur_val="67"/>
+ <accession_number_info prefix="OTHER" type="PREFIXNUM" cur_val="700"/>
+ <accession_number_info prefix="LNG" type="ALPHANUM" cur_val="900"/>
+ <storage_room last_updated="2026-10-15 08:00:00" id="1" fhir_uuid="d2c44a59-6b7f-4bfd-80c3-e0eeaf8595af" name="Retained room" code="ROOM" active="true" sys_user_id="7"/>
+ <sample lastupdated="2026-10-15 08:00:00" id="1" accession_number="LNG0000000000001" entered_date="2026-10-15" received_date="2026-10-15 08:00:00"/>
+ <sample_environmental last_updated="2026-10-15 08:00:00" id="1" samp_id="1"/>
+ <sample_human lastupdated="2026-10-15 08:00:00" id="1" samp_id="1" patient_id="10" provider_id="9"/>
+ <sample_item lastupdated="2026-10-15 08:00:00" id="1" samp_id="1" sort_order="1" quantity="1.0" rejected="false" voided="false" cug_code="1.1"/>
+ <result_file last_updated="2026-10-15 08:00:00" id="1" file_name="synthetic.pdf"/>
+ <analysis lastupdated="2026-10-15 08:00:00" id="1" sampitem_id="1" test_id="1" result_file_id="1" analysis_type="MANUAL" referred_out="false" corrected="false"/>
+ <result lastupdated="2026-10-15 08:00:00" id="1" analysis_id="1" value="Synthetic result"/>
+ <test_additional_field_def last_updated="2026-10-15 08:00:00" id="1" test_id="1" field_key="document" display_name="Document" field_type="DOCUMENT" required="false" active="true" sort_order="1" sys_user_id="7"/>
+ <analysis_additional_field_value last_updated="2026-10-15 08:00:00" id="1" analysis_id="1" field_def_id="1" field_value="Synthetic document" sys_user_id="7"/>
+ <sample_storage_assignment last_updated="2026-10-15 08:00:00" id="1" sample_item_id="1" assigned_by_user_id="7" assigned_date="2026-10-15 08:00:00" location_type="room" location_id="1"/>
+ <sample_storage_movement last_updated="2026-10-15 08:00:00" id="1" sample_item_id="1" moved_by_user_id="7" movement_date="2026-10-15 08:00:00" new_location_type="room" new_location_id="1"/>
+ <history id="10" sys_user_id="7" reference_id="1" reference_table="1" timestamp="2026-10-15 08:00:00" activity="I"/>
+ <cleanup_test_hold person_id="103"/>
+ <audit_event last_updated="2026-10-15 08:00:00" id="clinical-order" operation_id="old" module="sample" entity_name="Sample" entity_id="1" action="I" field="accessionNumber" new_value="LNG0000000000001" old_display_value="Absent" new_display_value="LNG0000000000001" actor_id="7" actor_source="USER" occurred_at="2026-10-15 08:00:00" sample_id="1"/>
+ <audit_event last_updated="2026-10-15 08:00:00" id="clinical-result" operation_id="old" module="result" entity_name="Result" entity_id="1" action="I" field="value" new_value="Synthetic result" old_display_value="Absent" new_display_value="Synthetic result" actor_id="7" actor_source="USER" occurred_at="2026-10-15 08:00:00" analysis_id="1" test_id="1"/>
+ <audit_event last_updated="2026-10-15 08:00:00" id="clinical-patient" operation_id="old" module="patient" entity_name="Patient" entity_id="10" action="I" field="birthDate" actor_id="7" actor_source="USER" occurred_at="2026-10-15 08:00:00"/>
+ <audit_event last_updated="2026-10-15 08:00:00" id="clinical-person" operation_id="old" module="patient" entity_name="Person" entity_id="103" action="I" field="firstName" new_value="Patient" old_display_value="Absent" new_display_value="Patient" actor_id="7" actor_source="USER" occurred_at="2026-10-15 08:00:00"/>
+ <audit_event last_updated="2026-10-15 08:00:00" id="retained-professional" operation_id="old" module="person" entity_name="Person" entity_id="100" action="U" field="firstName" source="/rest/providers/9" new_value="Professional" old_display_value="Previous" new_display_value="Professional" actor_id="7" actor_source="USER" occurred_at="2026-10-15 08:00:00"/>
+ <audit_event last_updated="2026-10-15 08:00:00" id="retained-user" operation_id="old" module="systemuser" entity_name="SystemUser" entity_id="7" action="U" field="firstName" new_value="Admin" old_display_value="Previous" new_display_value="Admin" actor_id="7" actor_source="USER" occurred_at="2026-10-15 08:00:00"/>
+ <audit_event last_updated="2026-10-15 08:00:00" id="retained-configuration" operation_id="old" module="testconfiguration" entity_name="Test" entity_id="1" action="I" field="description" new_value="User test" old_display_value="Absent" new_display_value="User test" actor_id="7" actor_source="USER" occurred_at="2026-10-15 08:00:00" test_id="1"/>
+</dataset>

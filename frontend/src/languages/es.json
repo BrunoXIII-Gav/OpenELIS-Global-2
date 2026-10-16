@@ -4723,5 +4723,10 @@
   "testSection.origin.user": "Marcar como creadas por usuario",
   "testSection.origin.system": "Marcar como del sistema o CSV",
   "testSection.origin.saved": "Origen guardado. Los selectores de unidades usarán esta clasificación.",
-  "testSection.origin.error": "No se pudo guardar el origen. Actualiza la lista e inténtalo nuevamente."
+  "testSection.origin.error": "No se pudo guardar el origen. Actualiza la lista e inténtalo nuevamente.",
+  "audit.events.entity.DatabaseCleanup": "Limpieza de datos de entrenamiento",
+  "audit.events.field.DatabaseCleanup.clinicalData": "Datos clínicos",
+  "audit.events.value.clinicalData.CLEARED": "Eliminados; usuarios, profesionales, configuración y contadores conservados",
+  "audit.events.value.clinicalData.CLEARED_CODES_RESET": "Eliminados; numeración de laboratorio por prefijo y prefijo CUG reiniciados, IDs internos conservados",
+  "audit.events.value.clinicalData.CLEARED_CUG_RESET": "Eliminados; prefijo CUG reiniciado, IDs internos y otras numeraciones de laboratorio conservados"
 }

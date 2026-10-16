@@ -1,0 +1,11 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<dataset>
+ <person lastupdated="2026-10-15 09:00:00" id="200" first_name="New" last_name="Patient"/>
+ <patient lastupdated="2026-10-15 09:00:00" id="1001" person_id="200" is_merged="false"/>
+ <sample lastupdated="2026-10-15 09:00:00" id="2" accession_number="LNG0000000000001" entered_date="2026-10-15" received_date="2026-10-15 09:00:00"/>
+ <sample_human lastupdated="2026-10-15 09:00:00" id="2" samp_id="2" patient_id="1001" provider_id="9"/>
+ <sample_item lastupdated="2026-10-15 09:00:00" id="2" samp_id="2" sort_order="1" quantity="1.0" rejected="false" voided="false" cug_code="1.1"/>
+ <analysis lastupdated="2026-10-15 09:00:00" id="2" sampitem_id="2" test_id="1" analysis_type="MANUAL" referred_out="false" corrected="false"/>
+ <result lastupdated="2026-10-15 09:00:00" id="999" analysis_id="2" value="New result"/>
+ <audit_event last_updated="2026-10-15 09:00:00" id="subsequent-result" operation_id="new" module="result" entity_name="Result" entity_id="999" action="I" field="value" new_value="New result" old_display_value="Absent" new_display_value="New result" actor_id="7" actor_source="USER" occurred_at="2026-10-15 09:00:00" test_id="1" sample_id="2" sample_item_id="2" analysis_id="2" patient_id="1001"/>
+</dataset>

@@ -1,0 +1,28 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<databaseChangeLog xmlns="http://www.liquibase.org/xml/ns/dbchangelog"
+ xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+ xsi:schemaLocation="http://www.liquibase.org/xml/ns/dbchangelog https://www.liquibase.org/xml/ns/dbchangelog/dbchangelog-4.8.xsd">
+ <changeSet id="093-map-legacy-environmental-sample-version" author="openelis">
+  <preConditions onFail="MARK_RAN"><not><columnExists schemaName="clinlims" tableName="sample_environmental" columnName="last_updated"/></not></preConditions>
+  <addColumn schemaName="clinlims" tableName="sample_environmental"><column name="last_updated" type="timestamp"/></addColumn>
+  <rollback><dropColumn schemaName="clinlims" tableName="sample_environmental" columnName="last_updated"/></rollback>
+ </changeSet>
+ <changeSet id="093-training-cleanup-audit-archive" author="openelis">
+  <createTable schemaName="clinlims" tableName="archived_audit_event">
+   <column name="id" type="varchar(255)"><constraints primaryKey="true" nullable="false"/></column>
+   <column name="cleanup_id" type="varchar(255)"><constraints nullable="false"/></column>
+   <column name="actor_id" type="varchar(255)"><constraints nullable="false"/></column>
+   <column name="archived_at" type="timestamp"><constraints nullable="false"/></column>
+   <column name="last_updated" type="timestamp"/>
+  </createTable>
+  <createIndex schemaName="clinlims" tableName="archived_audit_event" indexName="archived_audit_event_cleanup_idx"><column name="cleanup_id"/></createIndex>
+  <rollback>
+   <sql splitStatements="false">DO $$ BEGIN
+    IF EXISTS (SELECT 1 FROM clinlims.archived_audit_event) THEN
+     RAISE EXCEPTION 'Archive cleanup receipts before rollback; clinical history must not be exposed again';
+    END IF;
+   END $$;</sql>
+   <dropTable schemaName="clinlims" tableName="archived_audit_event"/>
+  </rollback>
+ </changeSet>
+</databaseChangeLog>

@@ -44,6 +44,7 @@ public class AuditEventPersistenceTest {
         }
         Configuration configuration = new Configuration();
         configuration.addAnnotatedClass(AuditEvent.class);
+        configuration.addAnnotatedClass(org.openelisglobal.audittrail.valueholder.ArchivedAuditEvent.class);
         configuration.addResource("hibernate/hbm/SystemUser.hbm.xml");
         configuration.addResource("hibernate/hbm/Note.hbm.xml");
         configuration.addResource("hibernate/hbm/ReferenceTables.hbm.xml");

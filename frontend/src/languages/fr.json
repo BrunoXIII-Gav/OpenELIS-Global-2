@@ -4542,5 +4542,10 @@
   "testSection.origin.user": "Indiquer une création utilisateur",
   "testSection.origin.system": "Indiquer une origine système ou CSV",
   "testSection.origin.saved": "Origine enregistrée. Les sélecteurs utiliseront ce classement.",
-  "testSection.origin.error": "Impossible d’enregistrer l’origine. Actualisez la liste et réessayez."
+  "testSection.origin.error": "Impossible d’enregistrer l’origine. Actualisez la liste et réessayez.",
+  "audit.events.entity.DatabaseCleanup": "Nettoyage des données de formation",
+  "audit.events.field.DatabaseCleanup.clinicalData": "Données cliniques",
+  "audit.events.value.clinicalData.CLEARED": "Supprimées ; utilisateurs, professionnels, configuration et compteurs conservés",
+  "audit.events.value.clinicalData.CLEARED_CODES_RESET": "Supprimées ; numérotation du laboratoire par préfixe et préfixe CUG réinitialisés, identifiants internes conservés",
+  "audit.events.value.clinicalData.CLEARED_CUG_RESET": "Supprimées ; préfixe CUG réinitialisé, identifiants internes et autres numérotations de laboratoire conservés"
 }
