@@ -15,6 +15,8 @@ public interface AnalysisAdditionalFieldValueDAO extends BaseDAO<AnalysisAdditio
     Optional<AnalysisAdditionalFieldValue> findByAnalysisIdAndFieldDefinitionId(Integer analysisId,
             Integer fieldDefinitionId);
 
+    Optional<AnalysisAdditionalFieldValue> findDocumentByAnalysisIdAndFieldKey(Integer analysisId, String fieldKey);
+
     void lockAnalyses(List<String> analysisIds);
 
     long countByFieldDefinitionId(Integer fieldDefinitionId);

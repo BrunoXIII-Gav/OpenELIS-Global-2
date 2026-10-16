@@ -41,6 +41,7 @@ import org.openelisglobal.testadditionalfield.valueholder.TestAdditionalFieldDef
 import org.openelisglobal.testadditionalfield.valueholder.TestAdditionalFieldDefinition.FieldType;
 import org.openelisglobal.testadditionalfield.valueholder.TestAdditionalFieldOption;
 import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.http.MediaType;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -1435,6 +1436,32 @@ public class TestAdditionalFieldServiceImpl implements TestAdditionalFieldServic
     @Override
     @Transactional(readOnly = true)
     public Optional<TemporaryDocumentUploadPayload> getAnalysisDocument(String analysisId, String fieldKey) {
-        return temporaryDocumentUploadService.get("test-additional-field", analysisId + "-" + fieldKey);
+        if (StringUtils.isBlank(analysisId) || StringUtils.isBlank(fieldKey)) {
+            return Optional.empty();
+        }
+        Optional<AnalysisAdditionalFieldValue> saved = valueDAO
+                .findDocumentByAnalysisIdAndFieldKey(parseNumericId(analysisId, "analysisId"), fieldKey);
+        if (saved.isEmpty() || StringUtils.isBlank(saved.get().getFieldValue())) {
+            return Optional.empty();
+        }
+        try {
+            JsonNode document = OBJECT_MAPPER.readTree(saved.get().getFieldValue());
+            String fileName = StringUtils.trimToNull(asText(document, "fileName"));
+            String base64Content = StringUtils.trimToNull(asText(document, "base64Content"));
+            if (fileName == null || base64Content == null) {
+                return Optional.empty();
+            }
+            byte[] content = Base64.getDecoder().decode(base64Content);
+            TemporaryDocumentUploadPayload payload = new TemporaryDocumentUploadPayload();
+            payload.setFileName(fileName);
+            payload.setFileType(
+                    StringUtils.defaultIfBlank(asText(document, "fileType"), MediaType.APPLICATION_OCTET_STREAM_VALUE));
+            payload.setFileSize((long) content.length);
+            payload.setContent(content);
+            return Optional.of(payload);
+        } catch (java.io.IOException | IllegalArgumentException e) {
+            throw new LIMSRuntimeException("Invalid saved document for analysis " + analysisId + ", field " + fieldKey,
+                    e);
+        }
     }
 }

@@ -1,0 +1,15 @@
+<?xml version="1.0" encoding="utf-8"?>
+<databaseChangeLog xmlns="http://www.liquibase.org/xml/ns/dbchangelog"
+    xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+    xsi:schemaLocation="http://www.liquibase.org/xml/ns/dbchangelog http://www.liquibase.org/xml/ns/dbchangelog/dbchangelog-3.8.xsd">
+    <changeSet id="analysis-document-test-baseline" author="codex">
+        <sql>CREATE SCHEMA clinlims</sql>
+        <createTable schemaName="clinlims" tableName="test">
+            <column name="id" type="numeric(10,0)"><constraints primaryKey="true"/></column>
+        </createTable>
+        <createTable schemaName="clinlims" tableName="analysis">
+            <column name="id" type="numeric(10,0)"><constraints primaryKey="true"/></column>
+        </createTable>
+    </changeSet>
+    <include file="liquibase/3.4.x.x/013-create-test-additional-fields.xml"/>
+</databaseChangeLog>

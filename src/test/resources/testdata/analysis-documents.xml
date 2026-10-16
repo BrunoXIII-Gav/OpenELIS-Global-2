@@ -1,0 +1,15 @@
+<?xml version='1.0' encoding='utf-8'?>
+<dataset>
+  <test id="100" />
+  <test id="101" />
+  <analysis id="78" />
+  <analysis id="79" />
+  <test_additional_field_def id="10" test_id="100" field_key="doccc1" display_name="doccc1" field_type="DOCUMENT" required="false" active="false" sort_order="1" sys_user_id="1" />
+  <test_additional_field_def id="11" test_id="101" field_key="doccc1" display_name="doccc1" field_type="DOCUMENT" required="false" active="true" sort_order="1" sys_user_id="1" />
+  <test_additional_field_def id="12" test_id="100" field_key="plain_text" display_name="plain_text" field_type="TEXT" required="false" active="true" sort_order="1" sys_user_id="1" />
+  <test_additional_field_def id="13" test_id="100" field_key="cleared_document" display_name="cleared_document" field_type="DOCUMENT" required="false" active="true" sort_order="1" sys_user_id="1" />
+  <analysis_additional_field_value id="1" analysis_id="78" field_def_id="10" field_value="{&quot;fileName&quot;: &quot;saved-document.pdf&quot;, &quot;fileType&quot;: &quot;application/pdf&quot;, &quot;base64Content&quot;: &quot;JVBERi0xLjQKMSAwIG9iago8PCAvVHlwZSAvQ2F0YWxvZyAvUGFnZXMgMiAwIFIgPj4KZW5kb2JqCjIgMCBvYmoKPDwgL1R5cGUgL1BhZ2VzIC9LaWRzIFszIDAgUl0gL0NvdW50IDEgPj4KZW5kb2JqCjMgMCBvYmoKPDwgL1R5cGUgL1BhZ2UgL1BhcmVudCAyIDAgUiAvTWVkaWFCb3ggWzAgMCA2MTIgNzkyXSAvUmVzb3VyY2VzIDw8IC9Gb250IDw8IC9GMSA1IDAgUiA+PiA+PiAvQ29udGVudHMgNCAwIFIgPj4KZW5kb2JqCjQgMCBvYmoKPDwgL0xlbmd0aCA1OSA+PgpzdHJlYW0KQlQgL0YxIDE4IFRmIDYwIDc0MCBUZCAoU3ludGhldGljIGF0dGFjaG1lbnQgcHJldmlldykgVGogRVQKZW5kc3RyZWFtCmVuZG9iago1IDAgb2JqCjw8IC9UeXBlIC9Gb250IC9TdWJ0eXBlIC9UeXBlMSAvQmFzZUZvbnQgL0hlbHZldGljYSA+PgplbmRvYmoKeHJlZgowIDYKMDAwMDAwMDAwMCA2NTUzNSBmIAowMDAwMDAwMDA5IDAwMDAwIG4gCjAwMDAwMDAwNTggMDAwMDAgbiAKMDAwMDAwMDExNSAwMDAwMCBuIAowMDAwMDAwMjQxIDAwMDAwIG4gCjAwMDAwMDAzNTAgMDAwMDAgbiAKdHJhaWxlcgo8PCAvU2l6ZSA2IC9Sb290IDEgMCBSID4+CnN0YXJ0eHJlZgo0MjAKJSVFT0YK&quot;}" sys_user_id="1" />
+  <analysis_additional_field_value id="2" analysis_id="79" field_def_id="11" field_value="{&quot;fileName&quot;: &quot;other-document.bin&quot;, &quot;base64Content&quot;: &quot;T3RoZXIgdGVzdCBkb2N1bWVudA==&quot;}" sys_user_id="1" />
+  <analysis_additional_field_value id="3" analysis_id="78" field_def_id="12" field_value="not a document" sys_user_id="1" />
+  <analysis_additional_field_value id="4" analysis_id="78" field_def_id="13" field_value=" " sys_user_id="1" />
+</dataset>

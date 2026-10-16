@@ -1,5 +1,6 @@
 import React from "react";
-import { render, screen, waitFor } from "@testing-library/react";
+import { fireEvent, render, screen } from "@testing-library/react";
+import { waitFor } from "@testing-library/dom";
 import { IntlProvider } from "react-intl";
 import PatientHistorySummaryPanel from "./PatientHistorySummaryPanel";
 
@@ -53,6 +54,7 @@ const messages = {
   "patientHistory.table.accessionNumber": "Accession number",
   "patientHistory.table.assignedDate": "Assigned date",
   "patientHistory.table.clinicalOrderId": "Order reference",
+  "patientHistory.table.cugCode": "CUG",
   "patientHistory.table.collectionDate": "Collection date",
   "patientHistory.table.completedTests": "Completed tests",
   "patientHistory.table.details": "Details",
@@ -65,6 +67,7 @@ const messages = {
   "patientHistory.table.priority": "Priority",
   "patientHistory.table.receivedDate": "Received date",
   "patientHistory.table.referringSite": "Facility",
+  "sample.management.order.fixed.referringSiteName": "Facility",
   "patientHistory.table.requestDate": "Request date",
   "patientHistory.table.requester": "Requester",
   "patientHistory.table.resultDate": "Result date",
@@ -81,6 +84,7 @@ const messages = {
   "patientHistory.tabs.samples": "Samples",
   "patientHistory.tabs.storage": "Stored samples",
   "patientHistory.table.viewDetails": "View",
+  "label.clear": "Clear filters",
   "yes.option": "Yes",
   "no.option": "No",
 };
@@ -121,7 +125,15 @@ describe("PatientHistorySummaryPanel", () => {
             status: "Finished",
             referringSiteName: "Central Clinic",
             requesterName: "Garcia, Ana",
-            orderFields: [],
+            orderFields: [
+              {
+                key: "referringSiteName",
+                label: "Facility",
+                value: "Central Clinic",
+                fieldType: "TEXT",
+                source: "ORDER_FIXED",
+              },
+            ],
           },
         ],
         samples: [
@@ -183,10 +195,73 @@ describe("PatientHistorySummaryPanel", () => {
       expect(screen.getByText("Patient history overview")).not.toBeNull(),
     );
 
-    expect(screen.getByText("2")).not.toBeNull();
-    expect(screen.getByText("3")).not.toBeNull();
-    expect(screen.getByText("7")).not.toBeNull();
-    expect(screen.getByText("LAB-1001")).not.toBeNull();
+    // The overview counts the returned rows after filtering, not server totals.
+    expect(
+      screen.getByText("Total tests", {
+        selector: ".patient-history-summary__metric-label",
+      }).parentElement,
+    ).toHaveTextContent("Total tests1");
+    expect(
+      screen.getByText("Stored samples", {
+        selector: ".patient-history-summary__metric-label",
+      }).parentElement,
+    ).toHaveTextContent("Stored samples1");
+    expect(screen.getAllByText("LAB-1001").length).toBeGreaterThan(0);
+    fireEvent.click(screen.getByRole("button", { name: "View" }));
     expect(screen.getByText("Central Clinic")).not.toBeNull();
+  });
+
+  it("links saved result documents to the analysis and field endpoint", async () => {
+    getFromOpenElisServer.mockImplementation((endpoint, callback) => {
+      callback({
+        patientId: "77",
+        metrics: {
+          totalOrders: 0,
+          totalSamples: 0,
+          storedSamples: 0,
+          totalTests: 1,
+          completedTests: 1,
+          pendingTests: 0,
+        },
+        orders: [],
+        samples: [],
+        results: [
+          {
+            id: "78",
+            accessionNumber: "LAB-1001",
+            testName: "Document test",
+            fixedFields: [],
+            sampleOrderFields: [],
+            sampleAdditionalFields: [],
+            resultValues: [],
+            additionalFieldDefinitions: [
+              {
+                id: 10,
+                fieldKey: "doccc1",
+                displayName: "Attachment",
+                fieldType: "DOCUMENT",
+                blockName: "Official",
+                entryScope: "OFFICIAL",
+              },
+            ],
+            additionalFieldValues: {
+              doccc1: JSON.stringify({ fileName: "saved-document.pdf" }),
+            },
+          },
+        ],
+      });
+    });
+    renderComponent();
+    fireEvent.click(await screen.findByRole("tab", { name: "Results" }));
+    fireEvent.click(await screen.findByRole("button", { name: "View" }));
+    const link = await screen.findByRole("link", {
+      name: "saved-document.pdf",
+    });
+    expect(link).toHaveAttribute(
+      "href",
+      "/api/OpenELIS-Global/rest/test-additional-fields/files/78/doccc1?download=false",
+    );
+    expect(link).toHaveAttribute("target", "_blank");
+    expect(link).toHaveAttribute("rel", "noopener noreferrer");
   });
 });

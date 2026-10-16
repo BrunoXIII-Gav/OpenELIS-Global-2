@@ -4,6 +4,7 @@ import {
   resolveAdditionalFieldConflict,
 } from "./additionalFieldConcurrency";
 import HistoricalUserSelectItem from "../common/HistoricalUserSelectItem";
+import { openDocumentFieldValue } from "./documentPreview";
 import React, { useContext, useEffect, useState, useRef } from "react";
 import { FormattedMessage, injectIntl, useIntl } from "react-intl";
 import "../Style.css";
@@ -106,17 +107,6 @@ const readFileAsBase64 = (file) =>
       reject(new Error("Failed to convert selected file to base64"));
     reader.readAsDataURL(file);
   });
-
-const openDocumentFieldValue = (filePayload) => {
-  const fileType = String(filePayload?.fileType || "").trim();
-  const base64Content = String(filePayload?.base64Content || "").trim();
-  if (!base64Content) {
-    return;
-  }
-  const safeFileType = fileType || "application/octet-stream";
-  const source = `data:${safeFileType};base64,${base64Content}`;
-  window.open(source, "_blank", "noopener,noreferrer");
-};
 
 const AdditionalFieldEditor = ({
   inputId,

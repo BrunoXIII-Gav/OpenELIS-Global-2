@@ -61,6 +61,21 @@ public class AnalysisAdditionalFieldValueDAOImpl extends BaseDAOImpl<AnalysisAdd
     }
 
     @Override
+    @Transactional(readOnly = true)
+    public Optional<AnalysisAdditionalFieldValue> findDocumentByAnalysisIdAndFieldKey(Integer analysisId,
+            String fieldKey) {
+        // Include inactive definitions so a saved attachment remains readable.
+        String hql = "FROM AnalysisAdditionalFieldValue v WHERE v.analysisId = :analysisId "
+                + "AND EXISTS (SELECT d.id FROM TestAdditionalFieldDefinition d "
+                + "WHERE d.id = v.fieldDefinitionId AND d.fieldKey = :fieldKey AND d.fieldType = :fieldType) "
+                + "ORDER BY v.id DESC";
+        return Optional
+                .ofNullable(entityManager.unwrap(Session.class).createQuery(hql, AnalysisAdditionalFieldValue.class)
+                        .setParameter("analysisId", analysisId).setParameter("fieldKey", fieldKey)
+                        .setParameter("fieldType", "DOCUMENT").setMaxResults(1).uniqueResult());
+    }
+
+    @Override
     public void lockAnalyses(List<String> analysisIds) {
         if (analysisIds.isEmpty()) {
             return;
