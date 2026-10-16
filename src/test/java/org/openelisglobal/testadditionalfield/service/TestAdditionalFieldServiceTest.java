@@ -50,8 +50,9 @@ public class TestAdditionalFieldServiceTest {
         when(definitionDAO.insert(any(TestAdditionalFieldDefinition.class))).thenReturn(12);
         TestAdditionalFieldPayload newField = payload(null, "responsible_validator", newType);
 
-        service.replaceFieldsForTest("100", List.of(payload(10, first.getFieldKey(), "TEXT"),
-                payload(11, second.getFieldKey(), "TEXT"), newField), "1");
+        service.replaceFieldsForTest("100",
+                List.of(payload(10, first.getFieldKey(), "TEXT"), payload(11, second.getFieldKey(), "TEXT"), newField),
+                "1");
 
         ArgumentCaptor<TestAdditionalFieldDefinition> created = ArgumentCaptor
                 .forClass(TestAdditionalFieldDefinition.class);
@@ -117,6 +118,43 @@ public class TestAdditionalFieldServiceTest {
         assertEquals("TEXT", existing.getFieldType());
         verify(definitionDAO, never()).insert(any(TestAdditionalFieldDefinition.class));
         verify(definitionDAO, never()).update(any(TestAdditionalFieldDefinition.class));
+    }
+
+    @Test
+    public void bulkLookupRetainsSameKeyOnDifferentTests() {
+        TestAdditionalFieldDefinition first = definition(10, "shared_key", "TEXT", 1);
+        TestAdditionalFieldDefinition second = definition(11, "shared_key", "TEXT", 1);
+        second.setTestId(101);
+        when(definitionDAO.findByTestIds(List.of(100, 101), true)).thenReturn(List.of(first, second));
+        java.util.Map<String, List<TestAdditionalFieldPayload>> actual = service
+                .getActiveFieldsForTests(List.of("100", "101"));
+        assertEquals(1, actual.get("100").size());
+        assertEquals(1, actual.get("101").size());
+        assertEquals(Integer.valueOf(10), actual.get("100").get(0).getId());
+        assertEquals(Integer.valueOf(11), actual.get("101").get(0).getId());
+    }
+
+    @Test(expected = IllegalArgumentException.class)
+    public void cannotSilentlyDiscardSubmittedValuesWithoutDefinitions() {
+        service.validateAndPersistAnalysisValues("100", "50", java.util.Map.of("missing", "answer"), "1",
+                java.util.Map.of("100", List.of()), false);
+    }
+
+    @Test(expected = IllegalArgumentException.class)
+    public void rejectsARepeatedKeyInsideTheSameTest() {
+        TestAdditionalFieldDefinition existing = definition(10, "shared_key", "TEXT", 1);
+        when(definitionDAO.findByTestIdAndFieldKey(100, "shared_key")).thenReturn(java.util.Optional.of(existing));
+        TestAdditionalFieldPayload incoming = payload(null, "shared_key", "TEXT");
+        incoming.setTestId("100");
+        service.createField(incoming, "1");
+    }
+
+    @Test(expected = IllegalArgumentException.class)
+    public void rejectsDefinitionsFromAnotherTest() {
+        TestAdditionalFieldPayload other = payload(10, "shared_key", "TEXT");
+        other.setTestId("101");
+        service.validateAndPersistAnalysisValues("100", "50", java.util.Map.of("shared_key", "answer"), "1",
+                java.util.Map.of("100", List.of(other)), false);
     }
 
     private TestAdditionalFieldDefinition definition(int id, String key, String type, int order) {

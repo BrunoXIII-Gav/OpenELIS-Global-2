@@ -185,3 +185,92 @@ test("keeps older single-rule configurations editable and saves them in the curr
   );
   expect(input(container, "compareTo").value).toBe("56");
 });
+
+const setupTwoTemplates = () => {
+  let secondTemplate;
+  getValidationTemplateOverrides.mockImplementation((callback) => {
+    if (!secondTemplate) {
+      secondTemplate = JSON.parse(JSON.stringify(storedTemplate));
+      secondTemplate.id = "second-template-id";
+      secondTemplate.name = "Ataxia template";
+      secondTemplate.testIds = ["other-test-id"];
+      secondTemplate.config.mappings[parameter].rules[0].compareTo = "43";
+    }
+    callback([storedTemplate, secondTemplate]);
+  });
+  saveValidationTemplateOverride.mockImplementation(async (payload) => {
+    if (payload.id === storedTemplate.id) {
+      storedTemplate = JSON.parse(JSON.stringify(payload));
+    } else {
+      secondTemplate = JSON.parse(JSON.stringify(payload));
+    }
+    return payload;
+  });
+  return openTemplate(mappingFixture());
+};
+
+test("isolates edits and saves between templates using the same parameter name", async () => {
+  const { container } = setupTwoTemplates();
+  fireEvent.change(input(container, "compareTo"), { target: { value: "40" } });
+  fireEvent.click(screen.getByText("Ataxia template"));
+  expect(input(container, "compareTo").value).toBe("43");
+  fireEvent.click(screen.getByText("Conditional template"));
+  expect(input(container, "compareTo").value).toBe("30");
+  fireEvent.change(input(container, "compareTo"), { target: { value: "40" } });
+  await act(async () => fireEvent.click(screen.getByText("Save")));
+  fireEvent.click(screen.getByText("Ataxia template"));
+  expect(input(container, "compareTo").value).toBe("43");
+  expect(saveValidationTemplateOverride.mock.calls[0][0].id).toBe(
+    "template-id",
+  );
+});
+
+test("a delayed save does not replace the template selected while it was pending", async () => {
+  const { container } = setupTwoTemplates();
+  let finishSave;
+  saveValidationTemplateOverride.mockImplementation((payload) => {
+    storedTemplate = JSON.parse(JSON.stringify(payload));
+    return new Promise((resolve) => {
+      finishSave = () => resolve(storedTemplate);
+    });
+  });
+  fireEvent.change(input(container, "compareTo"), { target: { value: "40" } });
+  fireEvent.click(screen.getByText("Save"));
+  fireEvent.click(screen.getByText("Ataxia template"));
+  fireEvent.change(input(container, "compareTo"), { target: { value: "44" } });
+  await act(async () => finishSave());
+  expect(container.querySelector(".is-selected strong").textContent).toBe(
+    "Ataxia template",
+  );
+  expect(input(container, "compareTo").value).toBe("44");
+});
+
+test("ignores field options from a previously selected template when responses arrive out of order", () => {
+  const pendingOptions = {};
+  getValidationFieldOptions.mockImplementation((ids, callback) => {
+    if (ids.length === 0) {
+      callback({
+        sources: [{ id: source, label: source, dataType: "number" }],
+      });
+    } else {
+      pendingOptions[ids[0]] = callback;
+    }
+  });
+  const { container } = setupTwoTemplates();
+  fireEvent.click(screen.getByText("Ataxia template"));
+  act(() =>
+    pendingOptions["other-test-id"]({
+      sources: [{ id: source, label: "Ataxia result", dataType: "number" }],
+    }),
+  );
+  act(() =>
+    pendingOptions["test-id"]({
+      sources: [{ id: source, label: "HTT result", dataType: "number" }],
+    }),
+  );
+  const selection = container.querySelector(
+    `[id="mapping-conditional-source-${parameter}"]`,
+  );
+  expect(selection.selectedOptions[0].textContent).toBe("Ataxia result");
+  expect(input(container, "compareTo").value).toBe("43");
+});

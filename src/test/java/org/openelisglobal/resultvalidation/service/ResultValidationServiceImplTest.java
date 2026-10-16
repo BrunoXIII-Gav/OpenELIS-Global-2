@@ -37,6 +37,11 @@ public class ResultValidationServiceImplTest {
     @Mock
     private TestNotificationService testNotificationService;
 
+    @Mock
+    private AnalysisValidationApprovalService approvalService;
+    @Mock
+    private org.openelisglobal.common.services.IStatusService statusService;
+
     @InjectMocks
     private ResultValidationServiceImpl resultValidationService;
 
@@ -54,4 +59,17 @@ public class ResultValidationServiceImplTest {
 
         verify(analysis).setValidationDate(Date.valueOf("2026-05-28"));
     }
+
+    @Test
+    public void invalidatesAndRegistersApprovalsInsideValidationTransaction() {
+        when(statusService.getStatusID(org.openelisglobal.common.services.StatusService.AnalysisStatus.Finalized)).thenReturn("final");
+        when(statusService.getStatusID(org.openelisglobal.common.services.StatusService.AnalysisStatus.BiologistRejected)).thenReturn("rejected");
+        Analysis finalized = new Analysis(); finalized.setId("101"); finalized.setStatusId("final");
+        Analysis rejected = new Analysis(); rejected.setId("102"); rejected.setStatusId("rejected");
+        resultValidationService.synchronizeApprovals(List.of(finalized, rejected), "7");
+        verify(approvalService).clearApprovals("101", "7", "REVALIDATION");
+        verify(approvalService).registerApprovalAndGetCount("101", "7");
+        verify(approvalService).clearApprovals("102", "7", "REJECTION");
+    }
+
 }

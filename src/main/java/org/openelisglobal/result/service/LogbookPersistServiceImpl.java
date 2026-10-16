@@ -9,6 +9,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.Set;
 import java.util.UUID;
+import java.util.function.Consumer;
 import org.openelisglobal.analysis.service.AnalysisService;
 import org.openelisglobal.analysis.valueholder.Analysis;
 import org.openelisglobal.common.services.IStatusService;
@@ -68,8 +69,28 @@ public class LogbookPersistServiceImpl implements LogbookResultsPersistService {
 
     @Override
     @Transactional
+    public List<Analysis> prepareAndPersistDataSet(ResultsUpdateDataSet actionDataSet, List<IResultUpdate> updaters,
+            String sysUserId, Consumer<ResultsUpdateDataSet> preparation) {
+        List<TestResultItem> items = new ArrayList<>(actionDataSet.getModifiedItems());
+        items.addAll(actionDataSet.getAnalysisOnlyChangeResults());
+        testAdditionalFieldService.prepareConcurrentUpdates(items);
+        // Keep the existing preparation rules under the same transaction and
+        // row locks as persistence, before analyses or results are materialized.
+        preparation.accept(actionDataSet);
+        return persistDataSet(actionDataSet, updaters, sysUserId);
+    }
+
+    @Override
+    @Transactional
     public List<Analysis> persistDataSet(ResultsUpdateDataSet actionDataSet, List<IResultUpdate> updaters,
             String sysUserId) {
+        List<TestResultItem> unprepared = new ArrayList<>(actionDataSet.getModifiedItems());
+        unprepared.addAll(actionDataSet.getAnalysisOnlyChangeResults());
+        unprepared.removeIf(
+                item -> item.getAdditionalFieldChanges() != null || item.getAdditionalFieldValues().isEmpty());
+        if (!unprepared.isEmpty()) {
+            testAdditionalFieldService.prepareConcurrentUpdates(unprepared);
+        }
         for (Note note : actionDataSet.getNoteList()) {
             noteService.insert(note);
         }
@@ -166,11 +187,14 @@ public class LogbookPersistServiceImpl implements LogbookResultsPersistService {
                 : testAdditionalFieldService.getActiveFieldsForTests(testIds);
 
         for (TestResultItem item : allModifiedItems) {
-            if (item.getAdditionalFieldDefinitions() == null || item.getAdditionalFieldDefinitions().isEmpty()) {
+            if ((item.getAdditionalFieldDefinitions() == null || item.getAdditionalFieldDefinitions().isEmpty())
+                    && item.getAdditionalFieldValues().isEmpty()) {
                 continue;
             }
             testAdditionalFieldService.validateAndPersistAnalysisValues(item.getTestId(), item.getAnalysisId(),
-                    item.getAdditionalFieldValues(), sysUserId, activeFieldsByTestCache, false);
+                    item.getAdditionalFieldChanges() != null ? item.getAdditionalFieldChanges()
+                            : item.getAdditionalFieldValues(),
+                    sysUserId, activeFieldsByTestCache, false);
         }
     }
 

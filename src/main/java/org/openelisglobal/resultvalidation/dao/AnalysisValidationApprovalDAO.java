@@ -10,7 +10,7 @@ public interface AnalysisValidationApprovalDAO extends BaseDAO<AnalysisValidatio
 
     boolean existsByAnalysisAndUser(String analysisId, String approverUserId);
 
-    void deleteByAnalysisId(String analysisId);
+    void invalidateByAnalysisId(String analysisId, String actorId, String reason);
 
     Map<String, Integer> countByAnalysisIds(List<String> analysisIds);
 

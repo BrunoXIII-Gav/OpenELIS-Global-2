@@ -28,16 +28,20 @@ import org.openelisglobal.common.documentupload.TemporaryDocumentUploadService;
 import org.openelisglobal.common.exception.LIMSRuntimeException;
 import org.openelisglobal.common.service.UserFieldOptionResolver;
 import org.openelisglobal.systemuser.service.SystemUserService;
+import org.openelisglobal.test.beanItems.TestResultItem;
+import org.openelisglobal.testadditionalfield.bean.AnalysisFieldSnapshot;
 import org.openelisglobal.testadditionalfield.bean.TestAdditionalFieldOptionPayload;
 import org.openelisglobal.testadditionalfield.bean.TestAdditionalFieldPayload;
 import org.openelisglobal.testadditionalfield.dao.AnalysisAdditionalFieldValueDAO;
 import org.openelisglobal.testadditionalfield.dao.TestAdditionalFieldDefinitionDAO;
 import org.openelisglobal.testadditionalfield.dao.TestAdditionalFieldOptionDAO;
+import org.openelisglobal.testadditionalfield.util.FieldVersion;
 import org.openelisglobal.testadditionalfield.valueholder.AnalysisAdditionalFieldValue;
 import org.openelisglobal.testadditionalfield.valueholder.TestAdditionalFieldDefinition;
 import org.openelisglobal.testadditionalfield.valueholder.TestAdditionalFieldDefinition.FieldType;
 import org.openelisglobal.testadditionalfield.valueholder.TestAdditionalFieldOption;
 import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.http.MediaType;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -299,32 +303,77 @@ public class TestAdditionalFieldServiceImpl implements TestAdditionalFieldServic
     @Transactional(readOnly = true)
     public Map<String, String> getAnalysisValuesForFields(String analysisId,
             List<TestAdditionalFieldPayload> fieldDefinitions) {
-        if (fieldDefinitions == null || fieldDefinitions.isEmpty() || StringUtils.isBlank(analysisId)) {
-            return Collections.emptyMap();
-        }
+        return getAnalysisFieldSnapshot(analysisId, fieldDefinitions).values();
+    }
 
-        Integer numericAnalysisId = parseNumericId(analysisId, "analysisId");
-        List<Integer> fieldDefIds = fieldDefinitions.stream().map(TestAdditionalFieldPayload::getId)
-                .filter(id -> id != null).collect(Collectors.toList());
-        if (fieldDefIds.isEmpty()) {
-            return Collections.emptyMap();
-        }
-
-        Map<Integer, String> fieldKeyById = fieldDefinitions.stream().filter(def -> def.getId() != null)
-                .collect(Collectors.toMap(TestAdditionalFieldPayload::getId, TestAdditionalFieldPayload::getFieldKey,
-                        (left, right) -> left));
-
-        Map<String, String> valuesByFieldKey = new HashMap<>();
-        List<AnalysisAdditionalFieldValue> entities = valueDAO.findByAnalysisIdAndFieldDefinitionIds(numericAnalysisId,
-                fieldDefIds);
-        for (AnalysisAdditionalFieldValue valueEntity : entities) {
-            String fieldKey = fieldKeyById.get(valueEntity.getFieldDefinitionId());
-            if (StringUtils.isNotBlank(fieldKey)) {
-                valuesByFieldKey.put(fieldKey, valueEntity.getFieldValue());
+    @Override
+    @Transactional(readOnly = true)
+    public AnalysisFieldSnapshot getAnalysisFieldSnapshot(String analysisId,
+            List<TestAdditionalFieldPayload> definitions) {
+        Map<String, String> values = new HashMap<>();
+        Map<String, String> versions = new HashMap<>();
+        if (definitions != null && !definitions.isEmpty() && StringUtils.isNotBlank(analysisId)) {
+            List<Integer> ids = definitions.stream().map(TestAdditionalFieldPayload::getId).toList();
+            Map<Integer, AnalysisAdditionalFieldValue> rows = valueDAO
+                    .findByAnalysisIdAndFieldDefinitionIds(parseNumericId(analysisId, "analysisId"), ids).stream()
+                    .collect(Collectors.toMap(AnalysisAdditionalFieldValue::getFieldDefinitionId, v -> v));
+            for (TestAdditionalFieldPayload definition : definitions) {
+                AnalysisAdditionalFieldValue row = rows.get(definition.getId());
+                if (row != null) {
+                    values.put(definition.getFieldKey(), row.getFieldValue());
+                }
+                versions.put(definition.getFieldKey(), FieldVersion.of(row));
             }
         }
+        return new AnalysisFieldSnapshot(values, versions);
+    }
 
-        return valuesByFieldKey;
+    @Override
+    public void prepareConcurrentUpdates(List<TestResultItem> items) {
+        List<String> ids = items.stream().map(TestResultItem::getAnalysisId).filter(StringUtils::isNotBlank).distinct()
+                .sorted().toList();
+        valueDAO.lockAnalyses(ids);
+        List<String> testIds = items.stream().map(TestResultItem::getTestId).filter(StringUtils::isNotBlank).distinct()
+                .toList();
+        Map<String, List<TestAdditionalFieldPayload>> definitionsByTest = getActiveFieldsForTests(testIds);
+        List<AdditionalFieldConflictException.Conflict> conflicts = new ArrayList<>();
+        for (TestResultItem item : items) {
+            List<TestAdditionalFieldPayload> definitions = definitionsByTest.getOrDefault(item.getTestId(), List.of());
+            Map<String, TestAdditionalFieldPayload> byKey = definitions.stream()
+                    .collect(Collectors.toMap(TestAdditionalFieldPayload::getFieldKey, d -> d));
+            Map<String, String> submitted = item.getAdditionalFieldValues();
+            if (!byKey.keySet().containsAll(submitted.keySet())) {
+                throw new IllegalArgumentException("Unknown additional field key for test " + item.getTestId());
+            }
+            var current = getAnalysisFieldSnapshot(item.getAnalysisId(), definitions);
+            Map<String, String> changes = new HashMap<>();
+            for (Map.Entry<String, String> entry : submitted.entrySet()) {
+                String key = entry.getKey();
+                String expected = item.getAdditionalFieldVersions() == null ? null
+                        : item.getAdditionalFieldVersions().get(key);
+                if (expected == null) {
+                    throw new AdditionalFieldConflictException("RESULT_FIELD_SNAPSHOT_REQUIRED", List.of());
+                }
+                // Full older clients may submit unchanged values. They must not
+                // write them back over changes made since their own snapshot.
+                if (FieldVersion.unchanged(expected, entry.getValue())) {
+                    continue;
+                }
+                if (!expected.equals(current.versions().get(key))) {
+                    conflicts.add(new AdditionalFieldConflictException.Conflict(item.getAnalysisId(), key,
+                            byKey.get(key).getDisplayName(), current.values().get(key), current.versions().get(key)));
+                }
+                changes.put(key, entry.getValue());
+            }
+            Map<String, String> merged = new HashMap<>(current.values());
+            merged.putAll(changes);
+            item.setAdditionalFieldValues(merged);
+            item.setAdditionalFieldChanges(changes);
+            item.setAdditionalFieldDefinitions(definitions);
+        }
+        if (!conflicts.isEmpty()) {
+            throw new AdditionalFieldConflictException("RESULT_FIELD_CONFLICT", conflicts);
+        }
     }
 
     @Override
@@ -344,7 +393,14 @@ public class TestAdditionalFieldServiceImpl implements TestAdditionalFieldServic
         }
 
         if (fieldDefinitions == null || fieldDefinitions.isEmpty()) {
+            if (fieldValues != null && !fieldValues.isEmpty()) {
+                throw new IllegalArgumentException("Additional field definitions unavailable for test " + testId);
+            }
             return;
+        }
+        if (fieldDefinitions.stream()
+                .anyMatch(d -> !String.valueOf(parseNumericId(testId, "testId")).equals(d.getTestId()))) {
+            throw new IllegalArgumentException("Additional field definition belongs to another test");
         }
 
         Integer analysisNumericId = parseNumericId(analysisId, "analysisId");
@@ -387,7 +443,8 @@ public class TestAdditionalFieldServiceImpl implements TestAdditionalFieldServic
                             + StringUtils.defaultString(fieldDefinition.getDisplayName()));
                 }
 
-                if (keyProvided && existingValue.isPresent()) {
+                if (keyProvided && existingValue.isPresent()
+                        && !java.util.Objects.equals("", existingValue.get().getFieldValue())) {
                     AnalysisAdditionalFieldValue existing = existingValue.get();
                     existing.setFieldValue("");
                     existing.setSysUserId(currentUserId);
@@ -396,6 +453,10 @@ public class TestAdditionalFieldServiceImpl implements TestAdditionalFieldServic
                 continue;
             }
 
+            if (existingValue.isPresent()
+                    && java.util.Objects.equals(existingValue.get().getFieldValue(), normalizedValue)) {
+                continue;
+            }
             AnalysisAdditionalFieldValue valueEntity = existingValue.orElseGet(AnalysisAdditionalFieldValue::new);
             valueEntity.setAnalysisId(analysisNumericId);
             valueEntity.setFieldDefinitionId(fieldDefinition.getId());
@@ -674,10 +735,11 @@ public class TestAdditionalFieldServiceImpl implements TestAdditionalFieldServic
             if (definition == null) {
                 continue;
             }
-            String dedupeKey = StringUtils.trimToEmpty(definition.getFieldKey()).toLowerCase();
+            String dedupeKey = StringUtils.trimToEmpty(definition.getFieldKey()).toLowerCase(java.util.Locale.ROOT);
             if (StringUtils.isBlank(dedupeKey)) {
                 dedupeKey = "id:" + definition.getId();
             }
+            dedupeKey = definition.getTestId() + ":" + dedupeKey;
             dedupedByFieldKey.putIfAbsent(dedupeKey, definition);
         }
 
@@ -1374,6 +1436,32 @@ public class TestAdditionalFieldServiceImpl implements TestAdditionalFieldServic
     @Override
     @Transactional(readOnly = true)
     public Optional<TemporaryDocumentUploadPayload> getAnalysisDocument(String analysisId, String fieldKey) {
-        return temporaryDocumentUploadService.get("test-additional-field", analysisId + "-" + fieldKey);
+        if (StringUtils.isBlank(analysisId) || StringUtils.isBlank(fieldKey)) {
+            return Optional.empty();
+        }
+        Optional<AnalysisAdditionalFieldValue> saved = valueDAO
+                .findDocumentByAnalysisIdAndFieldKey(parseNumericId(analysisId, "analysisId"), fieldKey);
+        if (saved.isEmpty() || StringUtils.isBlank(saved.get().getFieldValue())) {
+            return Optional.empty();
+        }
+        try {
+            JsonNode document = OBJECT_MAPPER.readTree(saved.get().getFieldValue());
+            String fileName = StringUtils.trimToNull(asText(document, "fileName"));
+            String base64Content = StringUtils.trimToNull(asText(document, "base64Content"));
+            if (fileName == null || base64Content == null) {
+                return Optional.empty();
+            }
+            byte[] content = Base64.getDecoder().decode(base64Content);
+            TemporaryDocumentUploadPayload payload = new TemporaryDocumentUploadPayload();
+            payload.setFileName(fileName);
+            payload.setFileType(
+                    StringUtils.defaultIfBlank(asText(document, "fileType"), MediaType.APPLICATION_OCTET_STREAM_VALUE));
+            payload.setFileSize((long) content.length);
+            payload.setContent(content);
+            return Optional.of(payload);
+        } catch (java.io.IOException | IllegalArgumentException e) {
+            throw new LIMSRuntimeException("Invalid saved document for analysis " + analysisId + ", field " + fieldKey,
+                    e);
+        }
     }
 }

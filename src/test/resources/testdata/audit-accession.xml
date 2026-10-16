@@ -1,0 +1,53 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<dataset>
+    <status_of_sample id="9201" name="Audit fixture"
+        code="991" status_type="SAMPLE" is_active="Y"
+        lastupdated="2026-01-01 12:00:00" />
+    <person id="9201" first_name="Audit" last_name="Fixture"
+        lastupdated="2026-01-01 12:00:00" />
+    <patient id="9201" person_id="9201"
+        lastupdated="2026-01-01 12:00:00" />
+    <sample id="9201" accession_number="AUDIT-LAB-0066"
+        entered_date="2026-01-01 12:00:00" received_date="2026-01-01 12:00:00"
+        lastupdated="2026-01-01 12:00:00" />
+    <sample_item id="9201" samp_id="9201" sort_order="1"
+        status_id="9201" cug_code="AUDIT-CUG-0066"
+        lastupdated="2026-01-01 12:00:00" />
+    <result_file id="9201" file_name="audit-fixture.pdf"
+        file_type="application/pdf" file_content="JVBERg=="
+        uploaded_at="2026-01-01 12:00:00" last_updated="2026-01-01 12:00:00" />
+    <test id="9201" name="Audit manual test" description="Audit manual test" local_code="AUD-MAN"
+        guid="audit-manual" user_created="true" creation_origin_verified="true" is_active="Y"
+        lastupdated="2026-01-01 12:00:00" />
+    <test id="9202" name="Audit other manual test" description="Audit other manual test" local_code="AUD-OTHER"
+        guid="audit-other" user_created="true" creation_origin_verified="true" is_active="N"
+        lastupdated="2026-01-01 12:00:00" />
+    <test id="9203" name="Audit startup CSV test" description="Audit startup CSV test" local_code="AUD-CSV"
+        guid="audit-csv" user_created="false" creation_origin_verified="true" is_active="Y"
+        lastupdated="2026-01-01 12:00:00" />
+    <test id="9204" name="Audit system test" description="Audit system test" local_code="AUD-SEED"
+        guid="audit-system" user_created="true" creation_origin_verified="true" is_active="Y"
+        lastupdated="2026-01-01 12:00:00" />
+    <analysis id="9201" sampitem_id="9201" test_id="9201" analysis_type="MANUAL"
+        result_file_id="9201" lastupdated="2026-01-01 12:00:00" />
+    <result id="9201" analysis_id="9201" result_type="N"
+        value="9.28" lastupdated="2026-01-01 12:00:00" />
+    <test_additional_field_def id="9201" test_id="9201" field_key="audit_measurement"
+        display_name="Audit additional measurement" field_type="TEXT" required="false"
+        active="true" sort_order="1" sys_user_id="1" />
+    <sample_human id="9201" samp_id="9201" patient_id="9201"
+        lastupdated="2026-01-01 12:00:00" />
+    <sample id="9202" accession_number="AUDIT-LAB-OTHER"
+        entered_date="2026-01-01 12:00:00" received_date="2026-01-01 12:00:00"
+        lastupdated="2026-01-01 12:00:00" />
+    <sample_item id="9202" samp_id="9202" sort_order="1" status_id="9201"
+        cug_code="AUDIT-CUG-OTHER" lastupdated="2026-01-01 12:00:00" />
+    <analysis id="9202" sampitem_id="9202" test_id="9201" analysis_type="MANUAL"
+        lastupdated="2026-01-01 12:00:00" />
+    <analysis id="9203" sampitem_id="9201" test_id="9202" analysis_type="MANUAL"
+        lastupdated="2026-01-01 12:00:00" />
+    <result id="9202" analysis_id="9202" result_type="N" value="12.3"
+        lastupdated="2026-01-01 12:00:00" />
+    <result id="9203" analysis_id="9203" result_type="N" value="88.1"
+        lastupdated="2026-01-01 12:00:00" />
+</dataset>

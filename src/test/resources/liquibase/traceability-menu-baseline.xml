@@ -1,0 +1,21 @@
+<?xml version="1.0" encoding="utf-8"?>
+<databaseChangeLog xmlns="http://www.liquibase.org/xml/ns/dbchangelog"
+    xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+    xsi:schemaLocation="http://www.liquibase.org/xml/ns/dbchangelog http://www.liquibase.org/xml/ns/dbchangelog/dbchangelog-3.8.xsd">
+    <changeSet id="traceability-menu-test-baseline" author="codex">
+        <sql>CREATE SCHEMA clinlims</sql>
+        <createSequence schemaName="clinlims" sequenceName="menu_seq" startValue="100"/>
+        <createTable schemaName="clinlims" tableName="menu">
+            <column name="id" type="integer"><constraints primaryKey="true" nullable="false"/></column>
+            <column name="parent_id" type="integer"><constraints referencedTableSchemaName="clinlims" referencedTableName="menu" referencedColumnNames="id" foreignKeyName="menu_parent_fk"/></column>
+            <column name="presentation_order" type="integer"/>
+            <column name="element_id" type="varchar(100)"><constraints unique="true"/></column>
+            <column name="action_url" type="varchar(255)"/>
+            <column name="display_key" type="varchar(100)"/>
+            <column name="tool_tip_key" type="varchar(100)"/>
+            <column name="new_window" type="boolean"/>
+            <column name="is_active" type="boolean"/>
+            <column name="hide_in_old_ui" type="boolean"/>
+        </createTable>
+    </changeSet>
+</databaseChangeLog>

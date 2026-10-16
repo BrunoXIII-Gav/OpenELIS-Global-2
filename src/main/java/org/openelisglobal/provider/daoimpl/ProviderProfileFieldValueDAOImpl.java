@@ -23,7 +23,8 @@ public class ProviderProfileFieldValueDAOImpl extends BaseDAOImpl<ProviderProfil
 
     @Override
     @Transactional(readOnly = true)
-    public List<ProviderProfileFieldValue> findByProviderIdAndProfessionalProfileCode(Integer providerId, String profileCode) {
+    public List<ProviderProfileFieldValue> findByProviderIdAndProfessionalProfileCode(Integer providerId,
+            String profileCode) {
         if (providerId == null || profileCode == null || profileCode.trim().isEmpty()) {
             return Collections.emptyList();
         }
@@ -44,7 +45,8 @@ public class ProviderProfileFieldValueDAOImpl extends BaseDAOImpl<ProviderProfil
             return Collections.emptyList();
         }
 
-        String hql = "FROM " + ENTITY_NAME + " v WHERE v.providerId IN (:providerIds) ORDER BY v.providerId ASC, v.id ASC";
+        String hql = "FROM " + ENTITY_NAME
+                + " v WHERE v.providerId IN (:providerIds) ORDER BY v.providerId ASC, v.id ASC";
         Query<ProviderProfileFieldValue> query = entityManager.unwrap(Session.class).createQuery(hql,
                 ProviderProfileFieldValue.class);
         query.setParameterList("providerIds", providerIds);
@@ -76,9 +78,10 @@ public class ProviderProfileFieldValueDAOImpl extends BaseDAOImpl<ProviderProfil
             return;
         }
 
-        String sql = "DELETE FROM provider_profile_field_value WHERE provider_id = :providerId";
-        jakarta.persistence.Query query = entityManager.createNativeQuery(sql);
-        query.setParameter("providerId", providerId);
-        query.executeUpdate();
+        entityManager
+                .createQuery("FROM ProviderProfileFieldValue v WHERE v.providerId = :providerId",
+                        ProviderProfileFieldValue.class)
+                .setParameter("providerId", providerId).getResultList().forEach(entityManager::remove);
+        entityManager.flush();
     }
 }

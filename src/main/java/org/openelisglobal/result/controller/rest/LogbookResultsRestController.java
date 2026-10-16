@@ -119,6 +119,7 @@ import org.openelisglobal.test.service.TestService;
 import org.openelisglobal.test.valueholder.Test;
 import org.openelisglobal.test.valueholder.TestSection;
 import org.openelisglobal.testadditionalfield.bean.TestAdditionalFieldPayload;
+import org.openelisglobal.testadditionalfield.service.AdditionalFieldConflictException;
 import org.openelisglobal.testadditionalfield.service.TestAdditionalFieldService;
 import org.openelisglobal.testdependency.service.TestParentChildDependencyService;
 import org.openelisglobal.testdependency.valueholder.TestParentChildDependency;
@@ -171,7 +172,7 @@ public class LogbookResultsRestController extends LogbookResultsBaseController {
             "testResult*.resultFile.base64Content", "testResult*.refer", "testResult*.referralItem.referralReasonId",
             "testResult*.referralItem.referredInstituteId", "testResult*.referralItem.referredTestId",
             "testResult*.referralItem.referredSendDate", "testResult*.additionalFieldValues",
-            "testResult*.additionalFieldShadowValues" };
+            "testResult*.additionalFieldVersions", "testResult*.additionalFieldShadowValues" };
 
     @Autowired
     private DictionaryService dictionaryService;
@@ -651,12 +652,13 @@ public class LogbookResultsRestController extends LogbookResultsBaseController {
             saveErrors(errors);
         }
 
-        createResultsFromItems(actionDataSet, supportReferrals, alwaysValidate, useTechnicianName, statusRuleSet);
-        createAnalysisOnlyUpdates(actionDataSet);
-
         try {
-            List<Analysis> reflexAnalysises = logbookPersistService.persistDataSet(actionDataSet, updaters,
-                    getSysUserId(request));
+            List<Analysis> reflexAnalysises = logbookPersistService.prepareAndPersistDataSet(actionDataSet, updaters,
+                    getSysUserId(request), data -> {
+                        createResultsFromItems(data, supportReferrals, alwaysValidate, useTechnicianName,
+                                statusRuleSet);
+                        createAnalysisOnlyUpdates(data);
+                    });
             reflexMap.put("reflex", reflexAnalysises.stream().filter(e -> !e.getResultCalculated())
                     .map(e -> analysisService.getOrderAccessionNumber(e)).collect(Collectors.toList()));
             reflexMap.put("calculated", reflexAnalysises.stream().filter(e -> e.getResultCalculated())
@@ -711,6 +713,8 @@ public class LogbookResultsRestController extends LogbookResultsBaseController {
 
             errors.reject(errorMsg, errorMsg);
             saveErrors(errors);
+            reflexMap.put("error", List.of(errorMsg));
+            return reflexMap;
         }
 
         for (IResultUpdate updater : updaters) {
@@ -975,12 +979,12 @@ public class LogbookResultsRestController extends LogbookResultsBaseController {
                 totalUsage = totalUsage.add(usageQuantity);
             }
 
-            analysisTubeUsageService.deleteByAnalysisId(analysis.getId());
-            for (BlockSampleUsageItem blockUsage : submittedBlockUsages) {
-                analysisTubeUsageService.createUsage(analysis, parentAnalysis, blockUsage.getChildBlockName(),
-                        blockUsage.getParentTubeBlockName(), new BigDecimal(blockUsage.getUsedQuantity()),
-                        getSysUserId(request));
-            }
+            analysisTubeUsageService.replaceUsages(analysis, parentAnalysis,
+                    submittedBlockUsages.stream()
+                            .map(usage -> new AnalysisTubeUsageService.UsageInput(usage.getChildBlockName(),
+                                    usage.getParentTubeBlockName(), new BigDecimal(usage.getUsedQuantity())))
+                            .toList(),
+                    getSysUserId(request));
             analysis.setParentUsageBlockName(null);
             analysis.setSampleUsedQuantity(totalUsage);
             return;
@@ -2199,6 +2203,13 @@ public class LogbookResultsRestController extends LogbookResultsBaseController {
         file.setLastupdated(now);
 
         return file;
+    }
+
+    @ExceptionHandler(AdditionalFieldConflictException.class)
+    @ResponseBody
+    public ResponseEntity<Map<String, Object>> handleAdditionalFieldConflict(AdditionalFieldConflictException e) {
+        return ResponseEntity.status(HttpStatus.CONFLICT)
+                .body(Map.of("error", true, "code", e.getCode(), "conflicts", e.getConflicts()));
     }
 
     @ExceptionHandler(IllegalArgumentException.class)

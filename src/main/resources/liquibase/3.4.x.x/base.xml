@@ -99,4 +99,7 @@
   <include relativeToChangelogFile="true" file="085-test-configuration-packages.xml"/>
   <include relativeToChangelogFile="true" file="086-test-creation-origin.xml"/>
   <include relativeToChangelogFile="true" file="087-verify-test-creation-origin.xml"/>
+  <include relativeToChangelogFile="true" file="088-complete-audit-trail.xml"/>
+  <include relativeToChangelogFile="true" file="089-audit-test-filter.xml"/>
+  <include relativeToChangelogFile="true" file="090-add-traceability-menu.xml"/>
 </databaseChangeLog>

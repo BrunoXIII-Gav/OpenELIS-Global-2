@@ -530,9 +530,6 @@ public class AccessionValidationRestController extends BaseResultValidationContr
 
                         if (medicalValidator && medicalPreviewConfirmed
                                 && !finalizedStatus.equals(analysis.getStatusId())) {
-                            analysisValidationApprovalService.clearApprovals(analysis.getId());
-                            analysisValidationApprovalService.registerApprovalAndGetCount(analysis.getId(),
-                                    currentUserId);
                             analysis.setStatusId(finalizedStatus);
                             if (!analysisIdList.contains(analysis.getId())) {
                                 analysisIdList.add(analysis.getId());
@@ -542,7 +539,6 @@ public class AccessionValidationRestController extends BaseResultValidationContr
                     }
 
                     if (analysisItem.getIsRejected()) {
-                        analysisValidationApprovalService.clearApprovals(analysis.getId());
                         analysis.setStatusId(biologistRejectedStatus);
                         analysisIdList.add(analysis.getId());
                         analysisUpdateList.add(analysis);

@@ -91,18 +91,30 @@ public class ProviderProfileFieldServiceImpl implements ProviderProfileFieldServ
         java.util.Set<String> editableFieldKeys = professionalProfileFieldConfigService
                 .getFieldsForProfile(normalizedProfileCode, false).stream()
                 .map(ProfessionalProfileFieldDefinitionForm::getFieldKey).collect(java.util.stream.Collectors.toSet());
-        providerProfileFieldValueDAO.findByProviderIdAndProfessionalProfileCode(providerId, normalizedProfileCode)
-                .stream().filter(value -> editableFieldKeys.contains(value.getFieldKey()))
+        Map<String, ProviderProfileFieldValue> existing = providerProfileFieldValueDAO
+                .findByProviderIdAndProfessionalProfileCode(providerId, normalizedProfileCode).stream()
+                .filter(value -> editableFieldKeys.contains(value.getFieldKey()))
+                .collect(Collectors.toMap(ProviderProfileFieldValue::getFieldKey, value -> value));
+        existing.values().stream().filter(value -> !normalizedValues.containsKey(value.getFieldKey()))
                 .forEach(providerProfileFieldValueDAO::delete);
-
         normalizedValues.forEach((fieldKey, normalizedValue) -> {
-            ProviderProfileFieldValue value = new ProviderProfileFieldValue();
+            String serialized = serializeStoredValue(normalizedValue);
+            ProviderProfileFieldValue value = existing.get(fieldKey);
+            if (value != null && Objects.equals(value.getFieldValue(), serialized)) {
+                return;
+            }
+            if (value == null)
+                value = new ProviderProfileFieldValue();
             value.setProviderId(providerId);
             value.setProfessionalProfileCode(normalizedProfileCode);
             value.setFieldKey(fieldKey);
-            value.setFieldValue(serializeStoredValue(normalizedValue));
+            value.setFieldValue(serialized);
             value.setSysUserId(provider == null ? null : provider.getSysUserId());
-            providerProfileFieldValueDAO.insert(value);
+            if (value.getId() == null) {
+                providerProfileFieldValueDAO.insert(value);
+            } else {
+                providerProfileFieldValueDAO.update(value);
+            }
         });
     }
 

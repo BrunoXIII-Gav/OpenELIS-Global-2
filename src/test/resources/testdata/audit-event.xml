@@ -1,0 +1,8 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<dataset>
+    <audit_event id="audit-test-event"
+        operation_id="audit-test-operation" module="sampleitem"
+        entity_name="SampleItem" entity_id="100" action="U" field="collector"
+        actor_source="USER" actor_id="7" occurred_at="2026-10-14 12:00:00"
+        old_value="Ana" new_value="Luis" />
+</dataset>

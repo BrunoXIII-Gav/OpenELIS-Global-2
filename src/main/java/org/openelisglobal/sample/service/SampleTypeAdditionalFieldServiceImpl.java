@@ -440,6 +440,9 @@ public class SampleTypeAdditionalFieldServiceImpl implements SampleTypeAdditiona
                 continue;
             }
 
+            if (previous.isPresent() && java.util.Objects.equals(previous.get().getFieldValue(), normalizedValue)) {
+                continue;
+            }
             SampleItemAdditionalFieldValue valueEntity = valueDAO
                     .findBySampleItemIdAndFieldDefinitionId(sampleItemNumericId, fieldDefinition.getId())
                     .orElseGet(SampleItemAdditionalFieldValue::new);

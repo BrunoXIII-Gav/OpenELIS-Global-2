@@ -16,6 +16,17 @@
         <class>org.openelisglobal.security.converter.EncryptionConverter</class>
 
         <!-- entities -->
+        <class>org.openelisglobal.audittrail.valueholder.AuditEvent</class>
+        <class>org.openelisglobal.test.valueholder.TestCreationOrigin</class>
+        <class>org.openelisglobal.testconfiguration.packageio.valueholder.TestConfigurationIdentity</class>
+        <class>org.openelisglobal.testconfiguration.packageio.valueholder.TestConfigurationRevision</class>
+        <class>org.openelisglobal.testconfiguration.packageio.valueholder.TestConfigurationImportLock</class>
+        <class>org.openelisglobal.testadditionalfield.valueholder.TestAdditionalFieldDefinition</class>
+        <class>org.openelisglobal.testadditionalfield.valueholder.TestAdditionalFieldOption</class>
+        <class>org.openelisglobal.testadditionalfield.valueholder.AnalysisAdditionalFieldValue</class>
+        <class>org.openelisglobal.orderadditionalfield.valueholder.OrderAdditionalFieldDefinition</class>
+        <class>org.openelisglobal.orderadditionalfield.valueholder.SampleOrderAdditionalFieldValue</class>
+        <class>org.openelisglobal.orderadditionalfield.valueholder.SampleOrderAdditionalFieldFile</class>
         <class>org.openelisglobal.testcalculated.valueholder.Operation</class>
         <class>org.openelisglobal.analysis.valueholder.ResultFile</class>
         <class>org.openelisglobal.testcalculated.valueholder.ResultCalculation</class>

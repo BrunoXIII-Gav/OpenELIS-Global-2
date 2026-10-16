@@ -1,0 +1,26 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<databaseChangeLog xmlns="http://www.liquibase.org/xml/ns/dbchangelog"
+ xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+ xsi:schemaLocation="http://www.liquibase.org/xml/ns/dbchangelog https://www.liquibase.org/xml/ns/dbchangelog/dbchangelog-4.8.xsd">
+ <changeSet id="089-index-audit-test-history" author="openelis">
+  <comment>New events snapshot test ownership. Historical immutable events are resolved during consultation, without rewriting them.</comment>
+  <addColumn schemaName="clinlims" tableName="audit_event">
+   <column name="test_id" type="varchar(255)"/>
+  </addColumn>
+  <createIndex schemaName="clinlims" tableName="audit_event" indexName="audit_event_test_history_idx">
+   <column name="test_id"/>
+   <column name="occurred_at" descending="true"/>
+   <column name="operation_id" descending="true"/>
+   <column name="id" descending="true"/>
+  </createIndex>
+  <rollback>
+   <sql splitStatements="false">DO $$ BEGIN
+    IF EXISTS (SELECT 1 FROM clinlims.audit_event WHERE test_id IS NOT NULL) THEN
+     RAISE EXCEPTION 'Archive audit test ownership before rollback; history must not be discarded';
+    END IF;
+   END $$;</sql>
+   <dropIndex schemaName="clinlims" tableName="audit_event" indexName="audit_event_test_history_idx"/>
+   <dropColumn schemaName="clinlims" tableName="audit_event" columnName="test_id"/>
+  </rollback>
+ </changeSet>
+</databaseChangeLog>
