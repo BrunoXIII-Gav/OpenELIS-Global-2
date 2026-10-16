@@ -337,17 +337,36 @@ public class ResultsLoadUtility {
 
     public List<TestResultItem> getGroupedTestsForAnalysisList(List<Analysis> filteredAnalysisList, boolean forwardSort)
             throws LIMSRuntimeException {
+        return getGroupedTestsForAnalysisList(filteredAnalysisList, forwardSort, false);
+    }
+
+    /**
+     * Use a fresh prototype per history request; share catalog lookups across its
+     * orders only.
+     */
+    public List<TestResultItem> getGroupedTestsForHistory(List<Analysis> analyses) {
+        return getGroupedTestsForAnalysisList(analyses, SORT_FORWARD, true);
+    }
+
+    private List<TestResultItem> getGroupedTestsForAnalysisList(List<Analysis> filteredAnalysisList,
+            boolean forwardSort, boolean reuseCatalogs) {
 
         // TODO: Re-enable after new inventory frontend integration
         // activeKits = null;
         inventoryNeeded = false;
         reflexGroup = 1;
-        additionalFieldDefinitionCache.clear();
-        methodOptionsByTestIdCache.clear();
-        methodLabelByIdCache.clear();
+        if (!reuseCatalogs) {
+            additionalFieldDefinitionCache.clear();
+            methodOptionsByTestIdCache.clear();
+            methodLabelByIdCache.clear();
+        }
         clearDependencyCaches();
 
         List<TestResultItem> selectedTestList = new ArrayList<>();
+
+        if (filteredAnalysisList.isEmpty()) {
+            return selectedTestList;
+        }
 
         for (Analysis analysis : filteredAnalysisList) {
             patientService = SpringContext.getBean(PatientService.class);

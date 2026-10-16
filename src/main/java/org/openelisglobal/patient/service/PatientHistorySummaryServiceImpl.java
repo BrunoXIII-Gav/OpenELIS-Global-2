@@ -14,19 +14,20 @@ import org.apache.commons.lang3.StringUtils;
 import org.openelisglobal.analysis.service.AnalysisService;
 import org.openelisglobal.analysis.valueholder.Analysis;
 import org.openelisglobal.common.services.IStatusService;
+import org.openelisglobal.common.services.SampleOrderService;
 import org.openelisglobal.common.services.StatusService.AnalysisStatus;
 import org.openelisglobal.common.services.StatusService.OrderStatus;
 import org.openelisglobal.common.services.StatusSet;
 import org.openelisglobal.common.services.TableIdService;
 import org.openelisglobal.common.util.DateUtil;
 import org.openelisglobal.common.util.IdValuePair;
+import org.openelisglobal.observationhistory.service.ObservationHistoryService;
+import org.openelisglobal.observationhistory.service.ObservationHistoryServiceImpl.ObservationType;
 import org.openelisglobal.orderadditionalfield.bean.OrderAdditionalFieldFilePayload;
 import org.openelisglobal.orderadditionalfield.bean.OrderAdditionalFieldOptionPayload;
 import org.openelisglobal.orderadditionalfield.bean.OrderAdditionalFieldPayload;
 import org.openelisglobal.orderadditionalfield.bean.OrderFixedFieldConfigPayload;
 import org.openelisglobal.organization.valueholder.Organization;
-import org.openelisglobal.observationhistory.service.ObservationHistoryService;
-import org.openelisglobal.observationhistory.service.ObservationHistoryServiceImpl.ObservationType;
 import org.openelisglobal.patient.form.PatientHistorySummary;
 import org.openelisglobal.patient.form.PatientHistorySummary.FieldRecord;
 import org.openelisglobal.patient.form.PatientHistorySummary.Metrics;
@@ -36,10 +37,9 @@ import org.openelisglobal.patient.form.PatientHistorySummary.SampleRecord;
 import org.openelisglobal.patient.valueholder.Patient;
 import org.openelisglobal.person.service.PersonService;
 import org.openelisglobal.person.valueholder.Person;
+import org.openelisglobal.result.action.util.ResultsLoadUtility;
 import org.openelisglobal.result.service.ResultService;
 import org.openelisglobal.result.valueholder.Result;
-import org.openelisglobal.common.services.SampleOrderService;
-import org.openelisglobal.result.action.util.ResultsLoadUtility;
 import org.openelisglobal.sample.bean.SampleOrderItem;
 import org.openelisglobal.sample.bean.SampleTypeAdditionalFieldOptionPayload;
 import org.openelisglobal.sample.bean.SampleTypeAdditionalFieldPayload;
@@ -50,11 +50,11 @@ import org.openelisglobal.samplehuman.service.SampleHumanService;
 import org.openelisglobal.sampleitem.dao.SampleItemDAO;
 import org.openelisglobal.sampleitem.valueholder.SampleItem;
 import org.openelisglobal.storage.service.SampleStorageService;
+import org.openelisglobal.test.beanItems.TestResultItem;
 import org.springframework.beans.factory.ObjectProvider;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
-import org.openelisglobal.test.beanItems.TestResultItem;
 
 @Service
 @Transactional(readOnly = true)
@@ -119,20 +119,26 @@ public class PatientHistorySummaryServiceImpl implements PatientHistorySummarySe
         List<SampleRecord> sampleRecords = new ArrayList<>();
         List<ResultRecord> resultRecords = new ArrayList<>();
         Metrics metrics = new Metrics();
+        HistoryReadContext context = new HistoryReadContext();
 
         for (Sample sample : samples) {
-            List<FieldRecord> orderFields = buildOrderFields(sample);
+            List<FieldRecord> orderFields = buildOrderFields(sample, context);
             orderRecords.add(buildOrderRecord(sample, orderFields));
             List<SampleItem> sampleItems = loadSampleItems(sample);
-            Map<String, TestResultItem> configuredResultsByAnalysisId = loadConfiguredResultsByAnalysisId(sample);
+            List<Analysis> orderAnalyses = loadOrderAnalyses(sample, sampleItems);
+            Map<String, List<Analysis>> analysesByItem = orderAnalyses.stream()
+                    .collect(Collectors.groupingBy(a -> a.getSampleItem().getId()));
+            Map<String, TestResultItem> configuredResultsByAnalysisId = loadConfiguredResultsByAnalysisId(orderAnalyses,
+                    context);
 
             for (SampleItem sampleItem : sampleItems) {
-                List<Analysis> analyses = analysisService.getAnalysesBySampleItem(sampleItem);
-                List<FieldRecord> sampleAdditionalFields = buildSampleAdditionalFields(sampleItem);
-                SampleRecord record = buildSampleRecord(sample, sampleItem, analyses, orderFields, sampleAdditionalFields);
+                List<Analysis> analyses = analysesByItem.getOrDefault(sampleItem.getId(), List.of());
+                List<FieldRecord> sampleAdditionalFields = buildSampleAdditionalFields(sampleItem, context);
+                SampleRecord record = buildSampleRecord(sample, sampleItem, analyses, orderFields,
+                        sampleAdditionalFields);
                 sampleRecords.add(record);
-                resultRecords.addAll(buildResultRecords(sample, sampleItem, analyses, orderFields, sampleAdditionalFields,
-                        configuredResultsByAnalysisId));
+                resultRecords.addAll(buildResultRecords(sample, sampleItem, analyses, orderFields,
+                        sampleAdditionalFields, configuredResultsByAnalysisId));
                 metrics.setTotalSamples(metrics.getTotalSamples() + 1);
                 metrics.setTotalTests(metrics.getTotalTests() + record.getTotalTests());
                 metrics.setCompletedTests(metrics.getCompletedTests() + record.getCompletedTests());
@@ -149,6 +155,28 @@ public class PatientHistorySummaryServiceImpl implements PatientHistorySummarySe
         summary.setSamples(sampleRecords);
         summary.setResults(resultRecords);
         return summary;
+    }
+
+    private static class HistoryReadContext {
+        private SampleOrderItem orderCatalogs;
+        private ResultsLoadUtility resultsLoader;
+        private final Map<String, List<SampleTypeAdditionalFieldPayload>> sampleFieldsByType = new HashMap<>();
+    }
+
+    private List<Analysis> loadOrderAnalyses(Sample sample, List<SampleItem> items) {
+        try {
+            List<Analysis> analyses = analysisService.getAnalysesBySampleId(sample.getId());
+            if (analyses != null) {
+                return analyses;
+            }
+        } catch (RuntimeException ignored) {
+            // Preserve the former per-item read if the order-wide lookup fails.
+        }
+        List<Analysis> analyses = new ArrayList<>();
+        for (SampleItem item : items) {
+            analyses.addAll(analysisService.getAnalysesBySampleItem(item));
+        }
+        return analyses;
     }
 
     private OrderRecord buildOrderRecord(Sample sample, List<FieldRecord> orderFields) {
@@ -177,11 +205,12 @@ public class PatientHistorySummaryServiceImpl implements PatientHistorySummarySe
         record.setClinicalOrderId(sample.getClinicalOrderId());
         record.setSampleItemExternalId(sampleItem.getExternalId());
         record.setCugCode(sampleItem.getCugCode());
-        record.setSampleType(sampleItem.getTypeOfSample() == null ? "" : sampleItem.getTypeOfSample().getLocalizedName());
+        record.setSampleType(
+                sampleItem.getTypeOfSample() == null ? "" : sampleItem.getTypeOfSample().getLocalizedName());
         record.setCollectionDate(resolveCollectionDate(sample, sampleItem));
         record.setStatus(statusService.getStatusNameFromId(sampleItem.getStatusId()));
-        record.setParentSampleItemExternalId(sampleItem.getParentSampleItem() == null ? ""
-                : sampleItem.getParentSampleItem().getExternalId());
+        record.setParentSampleItemExternalId(
+                sampleItem.getParentSampleItem() == null ? "" : sampleItem.getParentSampleItem().getExternalId());
 
         Map<String, Object> location = sampleStorageService.getSampleItemLocation(sampleItem.getId());
         record.setStorageLocation(asString(location.get("hierarchicalPath")));
@@ -209,6 +238,7 @@ public class PatientHistorySummaryServiceImpl implements PatientHistorySummarySe
 
         for (Analysis analysis : analyses) {
             TestResultItem configuredResult = configuredResultsByAnalysisId.get(analysis.getId());
+            List<FieldRecord> resultValues = buildResultValueFields(analysis);
             ResultRecord resultRecord = new ResultRecord();
             resultRecord.setId(analysis.getId());
             resultRecord.setAccessionNumber(sample.getAccessionNumber());
@@ -222,13 +252,13 @@ public class PatientHistorySummaryServiceImpl implements PatientHistorySummarySe
             resultRecord.setTestName(resolveTestName(analysis));
             resultRecord.setResultDate(resolveResultDate(analysis));
             resultRecord.setResultName(resolveResultName(configuredResult, analysis));
-            resultRecord.setResultValue(resolveConfiguredPrimaryResultValue(configuredResult, analysis));
+            resultRecord.setResultValue(resolveConfiguredPrimaryResultValue(configuredResult, resultValues));
             resultRecord.setResultType(configuredResult == null ? "" : defaultString(configuredResult.getResultType()));
             resultRecord.setResultDisplayConfigJson(resolveResultDisplayConfigJson(configuredResult, analysis));
             resultRecord.setFixedFields(buildResultFixedFields(resultRecord));
             resultRecord.setSampleOrderFields(copyFields(orderFields));
             resultRecord.setSampleAdditionalFields(copyFields(sampleAdditionalFields));
-            resultRecord.setResultValues(buildResultValueFields(analysis));
+            resultRecord.setResultValues(resultValues);
             resultRecord.setAdditionalFieldDefinitions(copyAdditionalFieldDefinitions(configuredResult));
             resultRecord.setAdditionalFieldValues(copyAdditionalFieldValues(configuredResult));
             resultRecords.add(resultRecord);
@@ -237,23 +267,21 @@ public class PatientHistorySummaryServiceImpl implements PatientHistorySummarySe
         return resultRecords;
     }
 
-    private Map<String, TestResultItem> loadConfiguredResultsByAnalysisId(Sample sample) {
-        if (sample == null) {
+    private Map<String, TestResultItem> loadConfiguredResultsByAnalysisId(List<Analysis> analyses,
+            HistoryReadContext context) {
+        if (analyses.isEmpty()) {
             return new HashMap<>();
         }
 
         try {
-            List<Analysis> analyses = analysisService.getAnalysesBySampleId(sample.getId());
-            if (analyses == null || analyses.isEmpty()) {
-                return new HashMap<>();
+            if (context.resultsLoader == null) {
+                context.resultsLoader = resultsLoadUtilityProvider.getObject();
             }
+            List<TestResultItem> configuredResults = context.resultsLoader.getGroupedTestsForHistory(analyses);
 
-            ResultsLoadUtility resultsLoadUtility = resultsLoadUtilityProvider.getObject();
-            List<TestResultItem> configuredResults = resultsLoadUtility.getGroupedTestsForAnalysisList(analyses, true);
-
-            return configuredResults.stream().filter(item -> item != null && StringUtils.isNotBlank(item.getAnalysisId()))
-                    .collect(Collectors.toMap(TestResultItem::getAnalysisId, item -> item, (left, right) -> left,
-                            HashMap::new));
+            return configuredResults.stream()
+                    .filter(item -> item != null && StringUtils.isNotBlank(item.getAnalysisId())).collect(Collectors
+                            .toMap(TestResultItem::getAnalysisId, item -> item, (left, right) -> left, HashMap::new));
         } catch (Exception e) {
             return new HashMap<>();
         }
@@ -264,14 +292,18 @@ public class PatientHistorySummaryServiceImpl implements PatientHistorySummarySe
         if (sampleItems == null || sampleItems.isEmpty()) {
             return new ArrayList<>();
         }
-        return sampleItemDAO.getSampleItemsWithHierarchy(
-                sampleItems.stream().map(SampleItem::getId).collect(Collectors.toList()));
+        return sampleItemDAO
+                .getSampleItemsWithHierarchy(sampleItems.stream().map(SampleItem::getId).collect(Collectors.toList()));
     }
 
-    private List<FieldRecord> buildOrderFields(Sample sample) {
+    private List<FieldRecord> buildOrderFields(Sample sample, HistoryReadContext context) {
         SampleOrderService sampleOrderService = sampleOrderServiceProvider.getObject();
         sampleOrderService.setSample(sample);
-        SampleOrderItem sampleOrderItem = sampleOrderService.getSampleOrderItem();
+        SampleOrderItem sampleOrderItem = context.orderCatalogs == null ? sampleOrderService.getSampleOrderItem()
+                : sampleOrderService.getSampleOrderItem(context.orderCatalogs);
+        if (sampleOrderItem != null && context.orderCatalogs == null) {
+            context.orderCatalogs = sampleOrderItem;
+        }
 
         List<FieldRecord> fields = new ArrayList<>();
         if (sampleOrderItem == null) {
@@ -281,9 +313,8 @@ public class PatientHistorySummaryServiceImpl implements PatientHistorySummarySe
         List<OrderFixedFieldConfigPayload> fixedConfigs = sampleOrderItem.getFixedFieldConfigs() == null
                 ? new ArrayList<>()
                 : sampleOrderItem.getFixedFieldConfigs();
-        fixedConfigs.stream()
-                .filter(config -> config != null && config.getFieldKey() != null
-                        && !Boolean.FALSE.equals(config.getVisible()))
+        fixedConfigs.stream().filter(
+                config -> config != null && config.getFieldKey() != null && !Boolean.FALSE.equals(config.getVisible()))
                 .sorted(Comparator.comparing(config -> config.getSortOrder() == null ? 0 : config.getSortOrder()))
                 .forEach(config -> {
                     String value = resolveFixedFieldDisplayValue(sampleOrderItem, config.getFieldKey());
@@ -293,8 +324,8 @@ public class PatientHistorySummaryServiceImpl implements PatientHistorySummarySe
         List<OrderAdditionalFieldPayload> additionalFields = sampleOrderItem.getAdditionalFields() == null
                 ? new ArrayList<>()
                 : sampleOrderItem.getAdditionalFields();
-        additionalFields.stream()
-                .filter(field -> field != null && field.getFieldKey() != null && !Boolean.FALSE.equals(field.getActive()))
+        additionalFields.stream().filter(
+                field -> field != null && field.getFieldKey() != null && !Boolean.FALSE.equals(field.getActive()))
                 .sorted(Comparator.comparing(field -> field.getSortOrder() == null ? 0 : field.getSortOrder()))
                 .forEach(field -> {
                     String value = resolveCustomFieldDisplayValue(field, sampleOrderItem);
@@ -306,13 +337,17 @@ public class PatientHistorySummaryServiceImpl implements PatientHistorySummarySe
         return fields;
     }
 
-    private List<FieldRecord> buildSampleAdditionalFields(SampleItem sampleItem) {
+    private List<FieldRecord> buildSampleAdditionalFields(SampleItem sampleItem, HistoryReadContext context) {
         if (sampleItem == null || StringUtils.isBlank(sampleItem.getTypeOfSampleId())) {
             return new ArrayList<>();
         }
 
-        List<SampleTypeAdditionalFieldPayload> definitions = sampleTypeAdditionalFieldService
-                .getFieldsForSampleType(sampleItem.getTypeOfSampleId(), false);
+        List<SampleTypeAdditionalFieldPayload> definitions = context.sampleFieldsByType
+                .computeIfAbsent(sampleItem.getTypeOfSampleId(), typeId -> {
+                    List<SampleTypeAdditionalFieldPayload> fields = sampleTypeAdditionalFieldService
+                            .getFieldsForSampleType(typeId, false);
+                    return fields == null ? List.of() : fields;
+                });
         if (definitions == null || definitions.isEmpty()) {
             return new ArrayList<>();
         }
@@ -320,9 +355,10 @@ public class PatientHistorySummaryServiceImpl implements PatientHistorySummarySe
         Map<String, String> valuesByKey = sampleTypeAdditionalFieldService
                 .getFieldValuesForSampleItem(sampleItem.getTypeOfSampleId(), sampleItem.getId());
 
-        return definitions.stream().filter(field -> field != null && field.getFieldKey() != null
-                && !Boolean.FALSE.equals(field.getActive())).sorted(
-                        Comparator.comparing(field -> field.getSortOrder() == null ? 0 : field.getSortOrder()))
+        return definitions.stream()
+                .filter(field -> field != null && field.getFieldKey() != null
+                        && !Boolean.FALSE.equals(field.getActive()))
+                .sorted(Comparator.comparing(field -> field.getSortOrder() == null ? 0 : field.getSortOrder()))
                 .map(field -> {
                     String value = resolveSampleAdditionalFieldDisplayValue(field, valuesByKey);
                     if (StringUtils.isBlank(value)) {
@@ -335,7 +371,8 @@ public class PatientHistorySummaryServiceImpl implements PatientHistorySummarySe
                 }).filter(field -> field != null).collect(Collectors.toList());
     }
 
-    private List<FieldRecord> buildSampleCollectionFields(SampleItem sampleItem, List<FieldRecord> sampleAdditionalFields) {
+    private List<FieldRecord> buildSampleCollectionFields(SampleItem sampleItem,
+            List<FieldRecord> sampleAdditionalFields) {
         List<FieldRecord> fields = new ArrayList<>();
         addField(fields, "quantity", "quantity", formatQuantity(sampleItem), "NUMBER", "collection");
         addField(fields, "uom", "uom", resolveUnitOfMeasure(sampleItem), "TEXT", "collection");
@@ -353,7 +390,8 @@ public class PatientHistorySummaryServiceImpl implements PatientHistorySummarySe
         return fields;
     }
 
-    private List<FieldRecord> buildSampleReceptionFields(SampleRecord record, List<FieldRecord> sampleAdditionalFields) {
+    private List<FieldRecord> buildSampleReceptionFields(SampleRecord record,
+            List<FieldRecord> sampleAdditionalFields) {
         return filterFieldsBySource(sampleAdditionalFields, "sampleAdditionalReception");
     }
 
@@ -459,8 +497,7 @@ public class PatientHistorySummaryServiceImpl implements PatientHistorySummarySe
     }
 
     private boolean isPendingAnalysis(Analysis analysis) {
-        return analysis != null
-                && !statusService.matches(analysis.getStatusId(), AnalysisStatus.Finalized)
+        return analysis != null && !statusService.matches(analysis.getStatusId(), AnalysisStatus.Finalized)
                 && !statusService.matches(analysis.getStatusId(), AnalysisStatus.Canceled)
                 && !statusService.matches(analysis.getStatusId(), AnalysisStatus.SampleRejected)
                 && !statusService.matches(analysis.getStatusId(), AnalysisStatus.TechnicalRejected)
@@ -524,12 +561,12 @@ public class PatientHistorySummaryServiceImpl implements PatientHistorySummarySe
         return resolveTestName(analysis);
     }
 
-    private String resolveConfiguredPrimaryResultValue(TestResultItem configuredResult, Analysis analysis) {
+    private String resolveConfiguredPrimaryResultValue(TestResultItem configuredResult,
+            List<FieldRecord> resultValues) {
         if (configuredResult != null && StringUtils.isNotBlank(configuredResult.getResultValue())) {
             return configuredResult.getResultValue();
         }
 
-        List<FieldRecord> resultValues = buildResultValueFields(analysis);
         if (resultValues.isEmpty()) {
             return "";
         }
@@ -540,7 +577,8 @@ public class PatientHistorySummaryServiceImpl implements PatientHistorySummarySe
         if (configuredResult != null && StringUtils.isNotBlank(configuredResult.getResultDisplayConfigJson())) {
             return configuredResult.getResultDisplayConfigJson();
         }
-        return analysis == null || analysis.getTest() == null ? "" : defaultString(analysis.getTest().getResultDisplayConfigJson());
+        return analysis == null || analysis.getTest() == null ? ""
+                : defaultString(analysis.getTest().getResultDisplayConfigJson());
     }
 
     private List<org.openelisglobal.testadditionalfield.bean.TestAdditionalFieldPayload> copyAdditionalFieldDefinitions(
@@ -555,7 +593,30 @@ public class PatientHistorySummaryServiceImpl implements PatientHistorySummarySe
         if (configuredResult == null || configuredResult.getAdditionalFieldValues() == null) {
             return new HashMap<>();
         }
-        return new HashMap<>(configuredResult.getAdditionalFieldValues());
+        Map<String, String> values = new HashMap<>(configuredResult.getAdditionalFieldValues());
+        if (configuredResult.getAdditionalFieldDefinitions() != null) {
+            for (var definition : configuredResult.getAdditionalFieldDefinitions()) {
+                if (definition != null && "DOCUMENT".equalsIgnoreCase(definition.getFieldType())) {
+                    String raw = values.get(definition.getFieldKey());
+                    if (StringUtils.isBlank(raw)) {
+                        continue;
+                    }
+                    try {
+                        JsonNode document = OBJECT_MAPPER.readTree(raw);
+                        if (document.isObject() && document.has("base64Content")
+                                && StringUtils.isNotBlank(document.path("fileName").asText())) {
+                            // The existing per-analysis file endpoint serves the original
+                            // content on click. Never embed every PDF in the history response.
+                            ((com.fasterxml.jackson.databind.node.ObjectNode) document).remove("base64Content");
+                            values.put(definition.getFieldKey(), OBJECT_MAPPER.writeValueAsString(document));
+                        }
+                    } catch (java.io.IOException ignored) {
+                        // Keep legacy values readable rather than dropping malformed metadata.
+                    }
+                }
+            }
+        }
+        return values;
     }
 
     private String resolveFixedFieldDisplayValue(SampleOrderItem sampleOrderItem, String fieldKey) {
