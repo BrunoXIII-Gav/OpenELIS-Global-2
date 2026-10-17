@@ -1,0 +1,140 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<databaseChangeLog xmlns="http://www.liquibase.org/xml/ns/dbchangelog"
+ xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+ xsi:schemaLocation="http://www.liquibase.org/xml/ns/dbchangelog https://www.liquibase.org/xml/ns/dbchangelog/dbchangelog-4.8.xsd">
+ <changeSet id="095-configurable-cug-prefix" author="openelis">
+  <createTable tableName="sample_cug_counter">
+   <column name="id" type="VARCHAR(32)"><constraints primaryKey="true" nullable="false"/></column>
+   <column name="configured_start" type="BIGINT"><constraints nullable="false"/></column>
+   <column name="next_candidate" type="BIGINT"><constraints nullable="false"/></column>
+   <column name="sys_user_id" type="INTEGER"/>
+   <column name="last_updated" type="TIMESTAMP" defaultValueComputed="CURRENT_TIMESTAMP"><constraints nullable="false"/></column>
+  </createTable>
+  <createTable tableName="sample_cug_prefix">
+   <column name="id" type="VARCHAR(32)"><constraints primaryKey="true" nullable="false"/></column>
+   <column name="prefix" type="BIGINT"><constraints unique="true" nullable="false"/></column>
+   <column name="sys_user_id" type="INTEGER"/>
+   <column name="last_updated" type="TIMESTAMP" defaultValueComputed="CURRENT_TIMESTAMP"><constraints nullable="false"/></column>
+  </createTable>
+  <createTable tableName="sample_cug_prefix_range">
+   <column name="id" type="VARCHAR(32)"><constraints primaryKey="true" nullable="false"/></column>
+   <column name="start_prefix" type="BIGINT"><constraints unique="true" nullable="false"/></column>
+   <column name="end_prefix" type="BIGINT"><constraints nullable="false"/></column>
+   <column name="sys_user_id" type="INTEGER"/>
+   <column name="last_updated" type="TIMESTAMP" defaultValueComputed="CURRENT_TIMESTAMP"><constraints nullable="false"/></column>
+  </createTable>
+  <createIndex tableName="sample_cug_reservation" indexName="idx_sample_cug_reservation_patient_active">
+   <column name="patient_id"/><column name="status"/><column name="expires_at"/>
+  </createIndex>
+  <!-- PostgreSQL triggers are necessary to cover legacy imports and all other
+       writers of CUG strings, including records without a .1 suffix. Java uses
+       only ORM/HQL; occupied intervals avoid one query per occupied prefix. -->
+  <sql splitStatements="false"><![CDATA[
+   CREATE FUNCTION clinlims.cug_numeric_prefix(code text) RETURNS bigint
+   LANGUAGE plpgsql IMMUTABLE STRICT AS $$
+   DECLARE n numeric;
+   BEGIN
+    IF trim(code) !~ '^[0-9]+[.][0-9]+$' THEN RETURN NULL; END IF;
+    n := split_part(trim(code), '.', 1)::numeric;
+    IF n > 9223372036854775807 THEN RETURN NULL; END IF;
+    RETURN n::bigint;
+   END $$;
+
+   LOCK TABLE clinlims.sample_item, clinlims.sample_cug_reservation IN SHARE ROW EXCLUSIVE MODE;
+   INSERT INTO clinlims.sample_cug_counter(id, configured_start, next_candidate)
+    SELECT '1', last_value + CASE WHEN is_called AND last_value < 9223372036854775807 THEN 1 ELSE 0 END,
+                last_value + CASE WHEN is_called AND last_value < 9223372036854775807 THEN 1 ELSE 0 END
+    FROM clinlims.sample_cug_prefix_seq;
+
+   INSERT INTO clinlims.sample_cug_prefix(id, prefix)
+    SELECT n::text, n FROM (
+     SELECT clinlims.cug_numeric_prefix(cug_code) n FROM clinlims.sample_item
+     UNION SELECT clinlims.cug_numeric_prefix(reserved_value) n FROM clinlims.sample_cug_reservation
+    ) existing WHERE n IS NOT NULL;
+   INSERT INTO clinlims.sample_cug_prefix_range(id, start_prefix, end_prefix)
+    SELECT min(prefix)::text, min(prefix), max(prefix) FROM (
+     SELECT prefix, prefix - row_number() OVER (ORDER BY prefix) AS island
+     FROM clinlims.sample_cug_prefix
+    ) occupied GROUP BY island;
+
+   CREATE FUNCTION clinlims.lock_cug_prefix_counter() RETURNS trigger
+   LANGUAGE plpgsql SET search_path = pg_catalog, clinlims AS $$
+   BEGIN
+    PERFORM id FROM clinlims.sample_cug_counter WHERE id = '1' FOR UPDATE;
+    RETURN NEW;
+   END $$;
+   CREATE TRIGGER lock_cug_prefix_counter BEFORE INSERT ON clinlims.sample_cug_prefix
+    FOR EACH ROW EXECUTE FUNCTION clinlims.lock_cug_prefix_counter();
+
+   CREATE FUNCTION clinlims.merge_cug_prefix_range() RETURNS trigger
+   LANGUAGE plpgsql SET search_path = pg_catalog, clinlims AS $$
+   DECLARE lo bigint := NEW.prefix; hi bigint := NEW.prefix;
+           prev clinlims.sample_cug_prefix_range%ROWTYPE;
+           nxt clinlims.sample_cug_prefix_range%ROWTYPE;
+   BEGIN
+    SELECT * INTO prev FROM clinlims.sample_cug_prefix_range
+     WHERE start_prefix <= NEW.prefix ORDER BY start_prefix DESC LIMIT 1;
+    IF prev.id IS NOT NULL AND prev.end_prefix >= NEW.prefix - 1 THEN
+     lo := prev.start_prefix; hi := greatest(hi, prev.end_prefix);
+     DELETE FROM clinlims.sample_cug_prefix_range WHERE id = prev.id;
+    END IF;
+    SELECT * INTO nxt FROM clinlims.sample_cug_prefix_range
+     WHERE start_prefix > NEW.prefix ORDER BY start_prefix LIMIT 1;
+    IF nxt.id IS NOT NULL AND nxt.start_prefix::numeric <= NEW.prefix::numeric + 1 THEN
+     hi := greatest(hi, nxt.end_prefix);
+     DELETE FROM clinlims.sample_cug_prefix_range WHERE id = nxt.id;
+    END IF;
+    INSERT INTO clinlims.sample_cug_prefix_range(id, start_prefix, end_prefix, sys_user_id)
+     VALUES (lo::text, lo, hi, NEW.sys_user_id);
+    RETURN NEW;
+   END $$;
+   CREATE TRIGGER merge_cug_prefix_range AFTER INSERT ON clinlims.sample_cug_prefix
+    FOR EACH ROW EXECUTE FUNCTION clinlims.merge_cug_prefix_range();
+
+   CREATE FUNCTION clinlims.record_cug_prefix() RETURNS trigger
+   LANGUAGE plpgsql SET search_path = pg_catalog, clinlims AS $$
+   DECLARE n bigint; actor integer;
+   BEGIN
+    IF TG_OP = 'UPDATE' AND (to_jsonb(OLD)->>TG_ARGV[0]) IS NOT DISTINCT FROM (to_jsonb(NEW)->>TG_ARGV[0]) THEN
+     RETURN NEW;
+    END IF;
+    n := clinlims.cug_numeric_prefix(to_jsonb(NEW)->>TG_ARGV[0]);
+    IF n IS NOT NULL THEN
+     -- A normal order uses an already reserved prefix and needs no global lock.
+     IF EXISTS (SELECT 1 FROM clinlims.sample_cug_prefix WHERE prefix = n) THEN
+      RETURN NEW;
+     END IF;
+     PERFORM id FROM clinlims.sample_cug_counter WHERE id = '1' FOR UPDATE;
+     actor := (to_jsonb(NEW)->>'sys_user_id')::integer;
+     INSERT INTO clinlims.sample_cug_prefix(id, prefix, sys_user_id)
+      VALUES (n::text, n, actor) ON CONFLICT (prefix) DO NOTHING;
+    END IF;
+    RETURN NEW;
+   END $$;
+   CREATE TRIGGER record_sample_item_cug_prefix AFTER INSERT OR UPDATE OF cug_code ON clinlims.sample_item
+    FOR EACH ROW EXECUTE FUNCTION clinlims.record_cug_prefix('cug_code');
+   CREATE TRIGGER record_reservation_cug_prefix AFTER INSERT OR UPDATE OF reserved_value ON clinlims.sample_cug_reservation
+    FOR EACH ROW EXECUTE FUNCTION clinlims.record_cug_prefix('reserved_value');
+  ]]></sql>
+  <rollback>
+   <dropIndex tableName="sample_cug_reservation" indexName="idx_sample_cug_reservation_patient_active"/>
+   <sql splitStatements="false"><![CDATA[
+    -- Never let an older application issue prefixes assigned after this migration.
+    SELECT setval('clinlims.sample_cug_prefix_seq', greatest(last_value,
+      coalesce((SELECT max(prefix) FROM clinlims.sample_cug_prefix), last_value)),
+      is_called OR EXISTS(SELECT 1 FROM clinlims.sample_cug_prefix)) FROM clinlims.sample_cug_prefix_seq;
+    DROP TRIGGER record_sample_item_cug_prefix ON clinlims.sample_item;
+    DROP TRIGGER record_reservation_cug_prefix ON clinlims.sample_cug_reservation;
+    DROP FUNCTION clinlims.record_cug_prefix();
+    DROP TRIGGER merge_cug_prefix_range ON clinlims.sample_cug_prefix;
+    DROP FUNCTION clinlims.merge_cug_prefix_range();
+    DROP TRIGGER lock_cug_prefix_counter ON clinlims.sample_cug_prefix;
+    DROP FUNCTION clinlims.lock_cug_prefix_counter();
+    DROP FUNCTION clinlims.cug_numeric_prefix(text);
+   ]]></sql>
+   <dropTable tableName="sample_cug_prefix_range"/>
+   <dropTable tableName="sample_cug_prefix"/>
+   <dropTable tableName="sample_cug_counter"/>
+  </rollback>
+ </changeSet>
+</databaseChangeLog>

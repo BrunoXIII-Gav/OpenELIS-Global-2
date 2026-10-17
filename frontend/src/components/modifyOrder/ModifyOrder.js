@@ -9,6 +9,7 @@ import {
 } from "@carbon/react";
 import EditSample from "./EditSample";
 import AddOrder from "../addOrder/AddOrder";
+import ConsentDownloadButton from "../addOrder/ConsentDownloadButton";
 import "../addOrder/add-order.scss";
 import { ModifyOrderFormValues } from "../formModel/innitialValues/OrderEntryFormValues";
 import { NotificationContext, ConfigurationContext } from "../layout/Layout";
@@ -439,21 +440,44 @@ const ModifyOrder = () => {
                     )}
 
                     {page <= orderPageNumber && (
-                      <Button
-                        data-cy="submit-order"
-                        kind="primary"
-                        className="forwardButton"
-                        onClick={handleSubmitOrderForm}
-                        disabled={
-                          isOrderReadOnly ||
-                          isSubmitting ||
-                          errors?.errors?.length > 0
-                            ? true
-                            : false
+                      <div
+                        className={
+                          page === orderPageNumber
+                            ? "orderPageActionButtons"
+                            : undefined
                         }
                       >
-                        <FormattedMessage id="label.button.submit" />
-                      </Button>
+                        {page === orderPageNumber && (
+                          <ConsentDownloadButton
+                            orderFormValues={orderFormValues}
+                            samples={samples.filter(
+                              (sample) =>
+                                !removedExistingSampleItemIds.includes(
+                                  String(sample.existingSampleItemId),
+                                ),
+                            )}
+                            patientId={patientId}
+                            disabled={
+                              !patientId || !orderFormValues.accessionNumber
+                            }
+                          />
+                        )}
+                        <Button
+                          data-cy="submit-order"
+                          kind="primary"
+                          className="forwardButton"
+                          onClick={handleSubmitOrderForm}
+                          disabled={
+                            isOrderReadOnly ||
+                            isSubmitting ||
+                            errors?.errors?.length > 0
+                              ? true
+                              : false
+                          }
+                        >
+                          <FormattedMessage id="label.button.submit" />
+                        </Button>
+                      </div>
                     )}
                   </div>
                 </div>

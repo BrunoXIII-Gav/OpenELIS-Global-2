@@ -1,3 +1,4 @@
+import { evaluateConditions } from "../utils/fieldConditions";
 import HistoricalUserSelectItem from "../common/HistoricalUserSelectItem";
 import React, { useContext, useEffect, useRef, useState } from "react";
 import {
@@ -51,7 +52,6 @@ const DEFAULT_FIXED_FIELD_ORDER = [
   { fieldKey: "rememberSiteAndRequester", sortOrder: 200 },
 ];
 
-const DEFAULT_CONDITION_OPERATOR = "equals";
 const DEFAULT_CONDITION_LOGIC = "ALL";
 const DEFAULT_DOCUMENT_MAX_SIZE_MB = 5;
 const BYTES_PER_MEGABYTE = 1024 * 1024;
@@ -443,62 +443,6 @@ const AddOrder = (props) => {
         ? "true"
         : "false",
     };
-  };
-
-  const evaluateSingleCondition = (condition, context) => {
-    if (!condition || !condition.fieldKey) {
-      return false;
-    }
-
-    const operator = (
-      condition.operator || DEFAULT_CONDITION_OPERATOR
-    ).toLowerCase();
-    const leftValue = String(context?.[condition.fieldKey] ?? "").trim();
-    const rightValue = String(condition.value ?? "").trim();
-    const rightValues = Array.isArray(condition.values)
-      ? condition.values.map((value) => String(value ?? "").trim())
-      : rightValue
-        ? [rightValue]
-        : [];
-
-    switch (operator) {
-      case "equals":
-        return leftValue.toLowerCase() === rightValue.toLowerCase();
-      case "notequals":
-        return leftValue.toLowerCase() !== rightValue.toLowerCase();
-      case "in":
-        return rightValues.some(
-          (value) => leftValue.toLowerCase() === value.toLowerCase(),
-        );
-      case "notin":
-        return rightValues.every(
-          (value) => leftValue.toLowerCase() !== value.toLowerCase(),
-        );
-      case "hasvalue":
-        return !!leftValue;
-      case "istrue":
-        return ["true", "yes", "1"].includes(leftValue.toLowerCase());
-      case "isfalse":
-        return ["false", "no", "0"].includes(leftValue.toLowerCase());
-      default:
-        return false;
-    }
-  };
-
-  const evaluateConditions = (conditions, logic, context) => {
-    if (!Array.isArray(conditions) || conditions.length === 0) {
-      return true;
-    }
-    const useAny =
-      String(logic || DEFAULT_CONDITION_LOGIC).toUpperCase() === "ANY";
-    if (useAny) {
-      return conditions.some((condition) =>
-        evaluateSingleCondition(condition, context),
-      );
-    }
-    return conditions.every((condition) =>
-      evaluateSingleCondition(condition, context),
-    );
   };
 
   const isDynamicFieldVisible = (field) => {
@@ -2255,6 +2199,7 @@ const AddOrder = (props) => {
   }
   const loadDepartments = (data) => {
     setDepartments(data);
+    updateSampleOrderItems({ referringSiteDepartmentList: data || [] });
   };
 
   function handleLabNo(e, rawVal) {
@@ -2441,6 +2386,8 @@ const AddOrder = (props) => {
           ...previous,
           sampleOrderItems: {
             ...previous.sampleOrderItems,
+            paymentOptions: responseOrderItems.paymentOptions || [],
+            testLocationCodeList: responseOrderItems.testLocationCodeList || [],
             additionalFields: shouldAdoptAdditionalFields
               ? responseAdditionalFields
               : previous.sampleOrderItems.additionalFields,

@@ -13,6 +13,7 @@ import {
   Column,
   Section,
 } from "@carbon/react";
+import CugPrefixConfiguration from "./CugPrefixConfiguration";
 import LabNumberFormValues from "./LabNumberFormValues";
 import {
   getFromOpenElisServer,
@@ -269,6 +270,7 @@ function LabNumberManagement() {
             </Grid>
           </Form>
         </div>
+        <CugPrefixConfiguration />
       </div>
     </>
   );

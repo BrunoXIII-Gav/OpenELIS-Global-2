@@ -1,0 +1,11 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE hibernate-mapping PUBLIC "-//Hibernate/Hibernate Mapping DTD 3.0//EN" "http://www.hibernate.org/dtd/hibernate-mapping-3.0.dtd">
+<!-- The production Patient uses this same numeric String id type. Only its id
+     is needed to test real row locks without the unrelated patient graph. -->
+<hibernate-mapping>
+ <class name="org.openelisglobal.patient.valueholder.Patient" table="patient" lazy="false">
+  <id name="id" type="org.openelisglobal.hibernate.resources.usertype.LIMSStringNumberUserType">
+   <column name="id" precision="10" scale="0"/>
+  </id>
+ </class>
+</hibernate-mapping>

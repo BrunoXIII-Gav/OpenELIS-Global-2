@@ -137,6 +137,9 @@
         <class>org.openelisglobal.sitebranding.valueholder.SiteBranding</class>
         <!-- Generic Reporting Framework entities (reporting-framework) -->
         <class>org.openelisglobal.reportdefinition.valueholder.ReportDefinition</class>
+        <class>org.openelisglobal.sample.valueholder.SampleCugCounter</class>
+        <class>org.openelisglobal.sample.valueholder.SampleCugPrefix</class>
+        <class>org.openelisglobal.sample.valueholder.SampleCugPrefixRange</class>
 
         <properties>
             <property name="hibernate.ejb.cfgfile"

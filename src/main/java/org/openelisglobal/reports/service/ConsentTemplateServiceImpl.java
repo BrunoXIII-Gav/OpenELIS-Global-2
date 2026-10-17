@@ -1,15 +1,5 @@
 package org.openelisglobal.reports.service;
 
-import com.itextpdf.text.BaseColor;
-import com.itextpdf.text.Element;
-import com.itextpdf.text.Font;
-import com.itextpdf.text.Phrase;
-import com.itextpdf.text.pdf.BaseFont;
-import com.itextpdf.text.pdf.ColumnText;
-import com.itextpdf.text.pdf.PdfContentByte;
-import com.itextpdf.text.pdf.PdfReader;
-import com.itextpdf.text.pdf.PdfStamper;
-import java.io.ByteArrayOutputStream;
 import java.io.InputStream;
 import java.sql.Timestamp;
 import java.time.Instant;
@@ -46,7 +36,7 @@ public class ConsentTemplateServiceImpl implements ConsentTemplateService {
 
     private static final String CATEGORY = "consent_template";
     private static final String REPORT_ID = "RPT-CONSENT-TEMPLATE";
-    private static final String TEMPLATE_RESOURCE = "reports/consent/consent-template.pdf";
+    private static final String TEMPLATE_RESOURCE = "reports/consent/consent-template.jrxml";
 
     private static final String FIELDS_KEY = "fields";
     private static final String FIELD_CUG = "cug";
@@ -66,38 +56,11 @@ public class ConsentTemplateServiceImpl implements ConsentTemplateService {
     private static final String SOURCE_SAMPLE_CUG = "sample.cug";
     private static final String SOURCE_ORDER_ADDITIONAL_PREFIX = "orderAdditional.";
 
-    private static final float SMALL_TEXT_HEIGHT = 7.617357f;
-    private static final float SMALL_TEXT_FONT_SIZE = 8f;
-    private static final float SMALL_TEXT_CLEAR_WIDTH = 320f;
-    private static final float SMALL_TEXT_CLEAR_PADDING = 1.5f;
+    @Autowired
+    private ConsentJasperService jasper;
 
-    private static final float CUG_X = 396.333452f;
-    private static final float CUG_Y_MIN = 69.538726f;
-    private static final float CUG_Y_MAX = 89.126219f;
-    private static final float CUG_FONT_SIZE = 18f;
-    private static final float CUG_CLEAR_WIDTH = 95f;
-    private static final float CUG_CLEAR_PADDING = 2f;
-    private static final BaseColor CUG_CLEAR_COLOR = new BaseColor(217, 217, 217);
-
-    private static final float PATIENT_NAME_X = 137.090880f;
-    private static final float PATIENT_NAME_Y_MAX = 538.113283f;
-    private static final float PATIENT_DNI_X = 137.090880f;
-    private static final float PATIENT_DNI_Y_MAX = 547.929696f;
-    private static final float PROVIDER_NAME_X = 137.090880f;
-    private static final float PROVIDER_NAME_Y_MAX = 580.948541f;
-    private static final float PROVIDER_DNI_X = 137.090880f;
-    private static final float PROVIDER_DNI_Y_MAX = 590.764954f;
-    private static final float DATE_X = 79.531002f;
-    private static final float DATE_Y_MAX = 600.581367f;
-
-    private static final float TESTS_START_X = 79.531002f;
-    private static final float TESTS_START_Y_MAX = 465.382585f;
-    private static final float TESTS_LINE_SPACING = 9.854845f;
-    private static final float TESTS_MAX_Y_MAX = 520.0f;
-    private static final float TESTS_CLEAR_WIDTH = 500f;
-    private static final float TESTS_TEXT_MAX_WIDTH = TESTS_CLEAR_WIDTH - (SMALL_TEXT_CLEAR_PADDING * 2);
-    private static final String ELLIPSIS = "...";
-    private static final int TESTS_SAMPLE_LINES = 2;
+    @Autowired
+    private ConsentSourceService sources;
 
     @Autowired
     private ReportDefinitionService reportDefinitionService;
@@ -116,7 +79,42 @@ public class ConsentTemplateServiceImpl implements ConsentTemplateService {
         } else {
             form.setFields(normalizeFieldSources(form.getFields()));
         }
+        applyTemplate(form);
         return form;
+    }
+
+    private void applyTemplate(ConsentTemplateConfigForm form) {
+        String content = form.getTemplateContent();
+        String filename = form.getTemplateFilename();
+        if (StringUtils.isBlank(content)) {
+            try (InputStream in = new ClassPathResource(TEMPLATE_RESOURCE).getInputStream()) {
+                content = new String(in.readAllBytes(), java.nio.charset.StandardCharsets.UTF_8);
+                filename = "consent-template.jrxml";
+            } catch (Exception e) {
+                throw new IllegalStateException("Unable to load consent template", e);
+            }
+        }
+        ConsentTemplateConfigForm parsed = jasper.parse(filename, content);
+        form.setTemplateContent(parsed.getTemplateContent());
+        form.setTemplateFilename(parsed.getTemplateFilename());
+        form.setParameters(parsed.getParameters());
+        Map<String, String> mappings = new LinkedHashMap<>();
+        for (Map<String, String> parameter : parsed.getParameters()) {
+            String id = parameter.get("id");
+            mappings.put(id, form.getFields() == null ? "" : StringUtils.trimToEmpty(form.getFields().get(id)));
+        }
+        form.setFields(mappings);
+    }
+
+    @Override
+    public ConsentTemplateConfigForm parseTemplate(String filename, String content) {
+        return jasper.parse(filename, content);
+    }
+
+    @Override
+    @Transactional(readOnly = true)
+    public Map<String, Object> getOptions() {
+        return Map.of("sources", sources.getSources());
     }
 
     @Override
@@ -125,7 +123,13 @@ public class ConsentTemplateServiceImpl implements ConsentTemplateService {
         if (form == null) {
             return null;
         }
-        Map<String, String> fields = normalizeFieldSources(form.getFields());
+        applyTemplate(form);
+        Map<String, String> fields = form.getFields();
+        Set<String> allowed = new LinkedHashSet<>();
+        sources.getSources().forEach(source -> allowed.add((String) source.get("id")));
+        if (fields.values().stream().anyMatch(value -> StringUtils.isNotBlank(value) && !allowed.contains(value))) {
+            throw new IllegalArgumentException("consent.template.error.source");
+        }
         Optional<ReportDefinition> existingDefinition = reportDefinitionService.getMatch("id", REPORT_ID);
         ReportDefinition definition = existingDefinition.orElse(null);
         boolean isCreate = definition == null;
@@ -138,7 +142,7 @@ public class ConsentTemplateServiceImpl implements ConsentTemplateService {
         definition.setCategory(CATEGORY);
         definition.setName(StringUtils.defaultIfBlank(form.getName(), "Consent Template"));
         definition.setDescription("Informed consent template");
-        definition.setDefinitionJson(buildDefinitionJson(fields));
+        definition.setDefinitionJson(buildDefinitionJson(form));
         definition.setIsActive(form.getIsActive() == null ? Boolean.TRUE : form.getIsActive());
         definition.setSysUserId(sysUserId);
 
@@ -151,6 +155,7 @@ public class ConsentTemplateServiceImpl implements ConsentTemplateService {
         ConsentTemplateConfigForm saved = toForm(definition);
         if (saved != null) {
             saved.setFields(fields);
+            saved.setParameters(form.getParameters());
         }
         return saved;
     }
@@ -159,60 +164,64 @@ public class ConsentTemplateServiceImpl implements ConsentTemplateService {
     @Transactional(readOnly = true)
     public byte[] generateConsentPdf(ConsentPreviewForm form) {
         ConsentTemplateConfigForm config = getConfig();
-        Map<String, String> fields = normalizeFieldSources(config == null ? null : config.getFields());
-        ResolvedConsentValues values = resolveValues(fields, form);
-
-        PdfReader reader = null;
-        PdfStamper stamper = null;
-        try (InputStream templateStream = new ClassPathResource(TEMPLATE_RESOURCE).getInputStream()) {
-            reader = new PdfReader(templateStream);
-            ByteArrayOutputStream outputStream = new ByteArrayOutputStream();
-            stamper = new PdfStamper(reader, outputStream);
-            BaseFont baseFont = BaseFont.createFont(BaseFont.HELVETICA, BaseFont.CP1252, BaseFont.NOT_EMBEDDED);
-
-            float pageHeight = reader.getPageSize(1).getHeight();
-
-            PdfContentByte page1 = stamper.getOverContent(1);
-            clearAndDrawText(page1, baseFont, CUG_FONT_SIZE, CUG_X, CUG_Y_MIN, CUG_Y_MAX, CUG_CLEAR_WIDTH,
-                    CUG_CLEAR_PADDING, CUG_CLEAR_COLOR, pageHeight, values.cug);
-            clearAndDrawText(page1, baseFont, SMALL_TEXT_FONT_SIZE, PATIENT_NAME_X,
-                    PATIENT_NAME_Y_MAX - SMALL_TEXT_HEIGHT, PATIENT_NAME_Y_MAX, SMALL_TEXT_CLEAR_WIDTH,
-                    SMALL_TEXT_CLEAR_PADDING, BaseColor.WHITE, pageHeight, values.patientName);
-            clearAndDrawText(page1, baseFont, SMALL_TEXT_FONT_SIZE, PATIENT_DNI_X,
-                    PATIENT_DNI_Y_MAX - SMALL_TEXT_HEIGHT, PATIENT_DNI_Y_MAX, SMALL_TEXT_CLEAR_WIDTH,
-                    SMALL_TEXT_CLEAR_PADDING, BaseColor.WHITE, pageHeight, values.patientDni);
-            clearAndDrawText(page1, baseFont, SMALL_TEXT_FONT_SIZE, PROVIDER_NAME_X,
-                    PROVIDER_NAME_Y_MAX - SMALL_TEXT_HEIGHT, PROVIDER_NAME_Y_MAX, SMALL_TEXT_CLEAR_WIDTH,
-                    SMALL_TEXT_CLEAR_PADDING, BaseColor.WHITE, pageHeight, values.providerName);
-            clearAndDrawText(page1, baseFont, SMALL_TEXT_FONT_SIZE, PROVIDER_DNI_X,
-                    PROVIDER_DNI_Y_MAX - SMALL_TEXT_HEIGHT, PROVIDER_DNI_Y_MAX, SMALL_TEXT_CLEAR_WIDTH,
-                    SMALL_TEXT_CLEAR_PADDING, BaseColor.WHITE, pageHeight, values.providerDni);
-            clearAndDrawText(page1, baseFont, SMALL_TEXT_FONT_SIZE, DATE_X, DATE_Y_MAX - SMALL_TEXT_HEIGHT, DATE_Y_MAX,
-                    SMALL_TEXT_CLEAR_WIDTH, SMALL_TEXT_CLEAR_PADDING, BaseColor.WHITE, pageHeight, values.orderDate);
-
-            clearSampleTestLines(page1, pageHeight);
-            renderTests(stamper, reader, baseFont, pageHeight, values.tests);
-
-            stamper.close();
-            stamper = null;
-            reader.close();
-            reader = null;
-            return outputStream.toByteArray();
-        } catch (Exception e) {
-            logger.error("Error generating consent template PDF", e);
-            return new byte[0];
-        } finally {
-            if (stamper != null) {
-                try {
-                    stamper.close();
-                } catch (Exception e) {
-                    logger.debug("Error closing consent PDF stamper", e);
+        if (Boolean.FALSE.equals(config.getIsActive())) {
+            throw new IllegalArgumentException("consent.template.error.inactive");
+        }
+        Map<String, String> resolved = new LinkedHashMap<>();
+        Set<String> allowed = new LinkedHashSet<>();
+        Map<String, Map<String, Object>> catalog = new LinkedHashMap<>();
+        sources.getSources(false).forEach(source -> {
+            allowed.add((String) source.get("id"));
+            catalog.put((String) source.get("id"), source);
+        });
+        config.getFields().values().stream().filter(v -> v.startsWith("questionnaire.")).forEach(allowed::add);
+        config.getFields().forEach((target, source) -> {
+            String value = "";
+            if (allowed.contains(source)) {
+                if (form != null && form.getSourceValues() != null && form.getSourceValues().containsKey(source)) {
+                    value = sanitizeValue(form.getSourceValues().get(source));
+                } else if (SOURCE_TESTS_SELECTED.equals(source)) {
+                    value = String.join("\n", resolveTests(source, form));
+                } else {
+                    value = resolveLegacyDisplayValue(source, form, catalog.get(source));
                 }
             }
-            if (reader != null) {
-                reader.close();
+            boolean booleanTarget = config.getParameters().stream()
+                    .anyMatch(p -> target.equals(p.get("id")) && "java.lang.Boolean".equals(p.get("className")));
+            if (booleanTarget && !value.isBlank() && form != null && form.getBooleanValues() != null
+                    && form.getBooleanValues().containsKey(source)) {
+                value = String.valueOf(form.getBooleanValues().get(source));
             }
+            resolved.put(target, value);
+        });
+        return jasper.render(config, resolved);
+    }
+
+    private String resolveLegacyDisplayValue(String source, ConsentPreviewForm form, Map<String, Object> definition) {
+        String raw = resolveValue(source, form);
+        if (definition == null || !"additional".equals(definition.get("format"))) {
+            return raw;
         }
+        if ("DOCUMENT".equals(definition.get("fieldType"))) {
+            return "";
+        }
+        Object options = definition.get("options");
+        if (options instanceof List<?> && (!((List<?>) options).isEmpty()
+                || Set.of("SELECT", "MULTISELECT", "RADIO", "USER", "SYSTEM_USER_BIOLOGIST_SELECT")
+                        .contains(String.valueOf(definition.get("fieldType"))))) {
+            List<String> labels = new ArrayList<>();
+            for (String entry : raw.split(",")) {
+                for (Object item : (List<?>) options) {
+                    if (item instanceof Map<?, ?> && entry.trim().equals(((Map<?, ?>) item).get("optionKey"))) {
+                        Object label = ((Map<?, ?>) item).get("optionLabel");
+                        if (label != null)
+                            labels.add(label.toString());
+                    }
+                }
+            }
+            return String.join(", ", labels);
+        }
+        return raw;
     }
 
     private ReportDefinition selectLatestDefinition() {
@@ -252,14 +261,14 @@ public class ConsentTemplateServiceImpl implements ConsentTemplateService {
             form.setId(definition.getId());
             form.setName(definition.getName());
             form.setIsActive(definition.getIsActive());
+            form.setTemplateContent(parsed.optString("templateContent", null));
+            form.setTemplateFilename(parsed.optString("templateFilename", null));
             JSONObject fields = parsed.optJSONObject(FIELDS_KEY);
             if (fields != null) {
                 Map<String, String> fieldSources = new LinkedHashMap<>();
                 for (String key : fields.keySet()) {
                     String value = StringUtils.trimToNull(fields.optString(key));
-                    if (value != null) {
-                        fieldSources.put(key, value);
-                    }
+                    fieldSources.put(key, StringUtils.defaultString(value));
                 }
                 form.setFields(fieldSources);
             }
@@ -272,7 +281,7 @@ public class ConsentTemplateServiceImpl implements ConsentTemplateService {
 
     private Map<String, String> defaultFieldSources() {
         Map<String, String> defaults = new LinkedHashMap<>();
-        defaults.put(FIELD_CUG, SOURCE_ORDER_ADDITIONAL_PREFIX + "cug");
+        defaults.put(FIELD_CUG, SOURCE_SAMPLE_CUG);
         defaults.put(FIELD_PATIENT_NAME, SOURCE_PATIENT_NAME);
         defaults.put(FIELD_PATIENT_DNI, SOURCE_PATIENT_NATIONAL_ID);
         defaults.put(FIELD_PROVIDER_NAME, SOURCE_PROVIDER_NAME);
@@ -290,34 +299,19 @@ public class ConsentTemplateServiceImpl implements ConsentTemplateService {
         raw.forEach((key, value) -> {
             String cleanedKey = StringUtils.trimToNull(key);
             String cleanedValue = StringUtils.trimToNull(value);
-            if (cleanedKey != null && cleanedValue != null) {
-                normalized.put(cleanedKey, cleanedValue);
+            if (cleanedKey != null) {
+                normalized.put(cleanedKey, StringUtils.defaultString(cleanedValue));
             }
         });
         return normalized;
     }
 
-    private String buildDefinitionJson(Map<String, String> fields) {
+    private String buildDefinitionJson(ConsentTemplateConfigForm form) {
         JSONObject root = new JSONObject();
-        JSONObject fieldsJson = new JSONObject();
-        if (fields != null) {
-            fields.forEach(fieldsJson::put);
-        }
-        root.put(FIELDS_KEY, fieldsJson);
+        root.put(FIELDS_KEY, new JSONObject(form.getFields()));
+        root.put("templateContent", form.getTemplateContent());
+        root.put("templateFilename", form.getTemplateFilename());
         return root.toString();
-    }
-
-    private ResolvedConsentValues resolveValues(Map<String, String> fields, ConsentPreviewForm form) {
-        Map<String, String> sources = fields == null ? defaultFieldSources() : fields;
-        ResolvedConsentValues values = new ResolvedConsentValues();
-        values.cug = resolveValue(sources.get(FIELD_CUG), form);
-        values.patientName = resolveValue(sources.get(FIELD_PATIENT_NAME), form);
-        values.patientDni = resolveValue(sources.get(FIELD_PATIENT_DNI), form);
-        values.providerName = resolveValue(sources.get(FIELD_PROVIDER_NAME), form);
-        values.providerDni = resolveValue(sources.get(FIELD_PROVIDER_DNI), form);
-        values.orderDate = resolveValue(sources.get(FIELD_DATE), form);
-        values.tests = resolveTests(sources.get(FIELD_TESTS), form);
-        return values;
     }
 
     private String resolveValue(String source, ConsentPreviewForm form) {
@@ -417,126 +411,4 @@ public class ConsentTemplateServiceImpl implements ConsentTemplateService {
         }
     }
 
-    private void clearAndDrawText(PdfContentByte canvas, BaseFont font, float fontSize, float xMin, float yMin,
-            float yMax, float clearWidth, float padding, BaseColor color, float pageHeight, String value) {
-        clearRect(canvas, xMin, yMin, yMax, clearWidth, padding, color, pageHeight);
-        if (!GenericValidator.isBlankOrNull(value)) {
-            drawText(canvas, font, fontSize, xMin, yMax, value, pageHeight);
-        }
-    }
-
-    private void drawText(PdfContentByte canvas, BaseFont font, float fontSize, float x, float yMax, String text,
-            float pageHeight) {
-        float y = pageHeight - yMax;
-        Font pdfFont = new Font(font, fontSize);
-        ColumnText.showTextAligned(canvas, Element.ALIGN_LEFT, new Phrase(text, pdfFont), x, y, 0f);
-    }
-
-    private void clearRect(PdfContentByte canvas, float xMin, float yMin, float yMax, float width, float padding,
-            BaseColor color, float pageHeight) {
-        float rectHeight = yMax - yMin;
-        float rectX = xMin - padding;
-        float rectY = pageHeight - yMax - padding;
-        float rectWidth = width + (padding * 2);
-        float rectHeightWithPadding = rectHeight + (padding * 2);
-        canvas.saveState();
-        canvas.setColorFill(color);
-        canvas.rectangle(rectX, rectY, rectWidth, rectHeightWithPadding);
-        canvas.fill();
-        canvas.restoreState();
-    }
-
-    private void clearSampleTestLines(PdfContentByte canvas, float pageHeight) {
-        for (int i = 0; i < TESTS_SAMPLE_LINES; i++) {
-            float yMax = TESTS_START_Y_MAX + (TESTS_LINE_SPACING * i);
-            float yMin = yMax - SMALL_TEXT_HEIGHT;
-            clearRect(canvas, TESTS_START_X, yMin, yMax, TESTS_CLEAR_WIDTH, SMALL_TEXT_CLEAR_PADDING, BaseColor.WHITE,
-                    pageHeight);
-        }
-    }
-
-    private void renderTests(PdfStamper stamper, PdfReader reader, BaseFont font, float pageHeight,
-            List<String> tests) {
-        List<String> values = tests == null ? Collections.emptyList() : tests;
-        if (values.isEmpty()) {
-            return;
-        }
-        int linesPerPage = (int) Math.floor((TESTS_MAX_Y_MAX - TESTS_START_Y_MAX) / TESTS_LINE_SPACING) + 1;
-        int linesToRender = Math.min(values.size(), linesPerPage);
-        float yMax = TESTS_START_Y_MAX;
-        PdfContentByte canvas = stamper.getOverContent(1);
-
-        for (int i = 0; i < linesToRender; i++) {
-            String testName = sanitizeValue(values.get(i));
-            if (GenericValidator.isBlankOrNull(testName)) {
-                yMax += TESTS_LINE_SPACING;
-                continue;
-            }
-
-            String displayText = truncateToWidth(testName, font, SMALL_TEXT_FONT_SIZE, TESTS_TEXT_MAX_WIDTH);
-            boolean hasMoreTests = values.size() > linesPerPage;
-            if (hasMoreTests && i == linesToRender - 1) {
-                displayText = truncateWithEllipsis(displayText, font, SMALL_TEXT_FONT_SIZE, TESTS_TEXT_MAX_WIDTH);
-            }
-
-            float yMin = yMax - SMALL_TEXT_HEIGHT;
-            clearRect(canvas, TESTS_START_X, yMin, yMax, TESTS_CLEAR_WIDTH, SMALL_TEXT_CLEAR_PADDING, BaseColor.WHITE,
-                    pageHeight);
-            drawText(canvas, font, SMALL_TEXT_FONT_SIZE, TESTS_START_X, yMax, displayText, pageHeight);
-            yMax += TESTS_LINE_SPACING;
-        }
-    }
-
-    private String truncateToWidth(String value, BaseFont font, float fontSize, float maxWidth) {
-        if (GenericValidator.isBlankOrNull(value)) {
-            return "";
-        }
-        String text = value.trim();
-        if (font.getWidthPoint(text, fontSize) <= maxWidth) {
-            return text;
-        }
-
-        StringBuilder builder = new StringBuilder();
-        for (int i = 0; i < text.length(); i++) {
-            char ch = text.charAt(i);
-            String candidate = builder.toString() + ch;
-            if (font.getWidthPoint(candidate, fontSize) > maxWidth) {
-                break;
-            }
-            builder.append(ch);
-        }
-        return builder.toString().trim();
-    }
-
-    private String truncateWithEllipsis(String value, BaseFont font, float fontSize, float maxWidth) {
-        String base = GenericValidator.isBlankOrNull(value) ? "" : value.trim();
-        if (GenericValidator.isBlankOrNull(base)) {
-            return ELLIPSIS;
-        }
-
-        String candidate = base + " " + ELLIPSIS;
-        if (font.getWidthPoint(candidate, fontSize) <= maxWidth) {
-            return candidate;
-        }
-
-        StringBuilder builder = new StringBuilder(base);
-        while (builder.length() > 0) {
-            builder.setLength(builder.length() - 1);
-            candidate = builder.toString().trim() + " " + ELLIPSIS;
-            if (font.getWidthPoint(candidate, fontSize) <= maxWidth) {
-                return candidate;
-            }
-        }
-        return ELLIPSIS;
-    }
-
-    private static class ResolvedConsentValues {
-        private String cug;
-        private String patientName;
-        private String patientDni;
-        private String providerName;
-        private String providerDni;
-        private String orderDate;
-        private List<String> tests = Collections.emptyList();
-    }
 }

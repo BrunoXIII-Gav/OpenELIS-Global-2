@@ -1,0 +1,410 @@
+[
+  {
+    "id": "patient.fullName",
+    "labelKey": "consent.template.source.patientFullName",
+    "format": "patientName"
+  },
+  {
+    "id": "patient.nationalId",
+    "labelKey": "consent.template.source.patientNationalId",
+    "path": "patientProperties.nationalId"
+  },
+  {
+    "id": "provider.fullName",
+    "labelKey": "consent.template.source.providerFullName",
+    "format": "providerName"
+  },
+  {
+    "id": "provider.dni",
+    "labelKey": "consent.template.source.providerDni",
+    "path": "sampleOrderItems.providerDni"
+  },
+  {
+    "id": "order.date",
+    "labelKey": "consent.template.source.orderDate",
+    "path": "sampleOrderItems.requestDate",
+    "format": "date"
+  },
+  {
+    "id": "tests.selectedNames",
+    "labelKey": "consent.template.source.testsSelectedNames",
+    "format": "tests"
+  },
+  {
+    "id": "sample.cug",
+    "labelKey": "consent.template.source.sampleCug",
+    "path": "sampleXML.cug",
+    "scope": "samples"
+  },
+  {
+    "id": "patient.firstName",
+    "labelKey": "patient.fixed.fields.firstName",
+    "path": "patientProperties.firstName"
+  },
+  {
+    "id": "patient.lastName",
+    "labelKey": "patient.fixed.fields.lastName",
+    "path": "patientProperties.lastName"
+  },
+  {
+    "id": "patient.subjectNumber",
+    "labelKey": "patient.fixed.fields.subjectNumber",
+    "path": "patientProperties.subjectNumber"
+  },
+  {
+    "id": "patient.primaryPhone",
+    "labelKey": "patient.fixed.fields.primaryPhone",
+    "path": "patientProperties.primaryPhone"
+  },
+  {
+    "id": "patient.email",
+    "labelKey": "patient.fixed.fields.email",
+    "path": "patientProperties.email"
+  },
+  {
+    "id": "patient.gender",
+    "labelKey": "patient.fixed.fields.gender",
+    "path": "patientProperties.gender",
+    "format": "gender"
+  },
+  {
+    "id": "patient.birthDateForDisplay",
+    "labelKey": "patient.fixed.fields.birthDateAge",
+    "path": "patientProperties.birthDateForDisplay"
+  },
+  {
+    "id": "patient.ageYears",
+    "labelKey": "patient.age.years",
+    "path": "patientProperties.ageYears",
+    "format": "age",
+    "agePart": "years"
+  },
+  {
+    "id": "patient.ageMonths",
+    "labelKey": "patient.age.months",
+    "path": "patientProperties.ageMonths",
+    "format": "age",
+    "agePart": "months"
+  },
+  {
+    "id": "patient.ageDays",
+    "labelKey": "patient.age.days",
+    "path": "patientProperties.ageDays",
+    "format": "age",
+    "agePart": "days"
+  },
+  {
+    "id": "patient.streetAddress",
+    "labelKey": "patient.street.address",
+    "path": "patientProperties.streetAddress"
+  },
+  {
+    "id": "patient.city",
+    "labelKey": "patient.city",
+    "path": "patientProperties.city"
+  },
+  {
+    "id": "patient.mothersName",
+    "labelKey": "patient.mother.name",
+    "path": "patientProperties.mothersName"
+  },
+  {
+    "id": "patient.occupation",
+    "labelKey": "patient.occupation",
+    "path": "patientProperties.occupation"
+  },
+  {
+    "id": "patient.nationality",
+    "labelKey": "patient.nationality",
+    "path": "patientProperties.nationality",
+    "format": "nationality"
+  },
+  {
+    "id": "patient.insuranceNumber",
+    "labelKey": "patient.insurance.number",
+    "path": "patientProperties.insuranceNumber"
+  },
+  {
+    "id": "patient.education",
+    "labelKey": "patient.education",
+    "path": "patientProperties.education"
+  },
+  {
+    "id": "patient.maritialStatus",
+    "labelKey": "patient.marital.status",
+    "path": "patientProperties.maritialStatus"
+  },
+  {
+    "id": "patient.contact.firstName",
+    "labelKey": "consent.source.contact.firstName",
+    "path": "patientProperties.patientContact.person.firstName"
+  },
+  {
+    "id": "patient.contact.lastName",
+    "labelKey": "consent.source.contact.lastName",
+    "path": "patientProperties.patientContact.person.lastName"
+  },
+  {
+    "id": "patient.contact.email",
+    "labelKey": "consent.source.contact.email",
+    "path": "patientProperties.patientContact.person.email"
+  },
+  {
+    "id": "patient.contact.primaryPhone",
+    "labelKey": "consent.source.contact.primaryPhone",
+    "path": "patientProperties.patientContact.person.primaryPhone"
+  },
+  {
+    "id": "order.labNo",
+    "labelKey": "sample.label.labnumber",
+    "path": "sampleOrderItems.labNo",
+    "scope": "order",
+    "fieldKey": "labNo"
+  },
+  {
+    "id": "order.externalOrderNumber",
+    "labelKey": "eorder.external.order.number",
+    "path": "sampleOrderItems.externalOrderNumber",
+    "scope": "order",
+    "fieldKey": "externalOrderNumber"
+  },
+  {
+    "id": "order.requestTime",
+    "labelKey": "order.request.time.label",
+    "path": "sampleOrderItems.requestTime",
+    "scope": "order",
+    "fieldKey": "requestTime"
+  },
+  {
+    "id": "order.receivedDateForDisplay",
+    "labelKey": "order.received.date.label",
+    "path": "sampleOrderItems.receivedDateForDisplay",
+    "scope": "order",
+    "fieldKey": "receivedDateForDisplay"
+  },
+  {
+    "id": "order.receivedTime",
+    "labelKey": "order.received.time.label",
+    "path": "sampleOrderItems.receivedTime",
+    "scope": "order",
+    "fieldKey": "receivedTime"
+  },
+  {
+    "id": "order.nextVisitDate",
+    "labelKey": "order.next.visit.date.label",
+    "path": "sampleOrderItems.nextVisitDate",
+    "scope": "order",
+    "fieldKey": "nextVisitDate"
+  },
+  {
+    "id": "order.priority",
+    "labelKey": "workplan.priority.list",
+    "path": "sampleOrderItems.priority",
+    "scope": "order",
+    "fieldKey": "priority",
+    "format": "priority"
+  },
+  {
+    "id": "order.referringSiteName",
+    "labelKey": "order.site.name.label",
+    "path": "sampleOrderItems.referringSiteName",
+    "scope": "order",
+    "fieldKey": "referringSiteName"
+  },
+  {
+    "id": "order.referringSiteDepartmentId",
+    "labelKey": "order.site.department.label",
+    "path": "sampleOrderItems.referringSiteDepartmentId",
+    "scope": "order",
+    "fieldKey": "referringSiteDepartmentId",
+    "format": "option",
+    "optionsPath": "sampleOrderItems.referringSiteDepartmentList"
+  },
+  {
+    "id": "order.provisionalClinicalDiagnosis",
+    "labelKey": "order.provisional.clinical.diagnosis",
+    "path": "sampleOrderItems.provisionalClinicalDiagnosis",
+    "scope": "order",
+    "fieldKey": "provisionalClinicalDiagnosis"
+  },
+  {
+    "id": "order.providerFirstName",
+    "labelKey": "order.requester.firstname.label",
+    "path": "sampleOrderItems.providerFirstName",
+    "scope": "order",
+    "fieldKey": "providerFirstName"
+  },
+  {
+    "id": "order.providerLastName",
+    "labelKey": "order.requester.lastname.label",
+    "path": "sampleOrderItems.providerLastName",
+    "scope": "order",
+    "fieldKey": "providerLastName"
+  },
+  {
+    "id": "order.providerSpecialty",
+    "labelKey": "provider.specialty.label",
+    "path": "sampleOrderItems.providerSpecialty",
+    "scope": "order",
+    "fieldKey": "providerSpecialty",
+    "format": "specialty"
+  },
+  {
+    "id": "order.providerWorkPhone",
+    "labelKey": "order.requester.phone.label",
+    "path": "sampleOrderItems.providerWorkPhone",
+    "scope": "order",
+    "fieldKey": "providerWorkPhone"
+  },
+  {
+    "id": "order.providerFax",
+    "labelKey": "order.requester.fax.label",
+    "path": "sampleOrderItems.providerFax",
+    "scope": "order",
+    "fieldKey": "providerFax"
+  },
+  {
+    "id": "order.providerEmail",
+    "labelKey": "order.requester.email.label",
+    "path": "sampleOrderItems.providerEmail",
+    "scope": "order",
+    "fieldKey": "providerEmail"
+  },
+  {
+    "id": "order.paymentOptionSelection",
+    "labelKey": "order.payment.status.label",
+    "path": "sampleOrderItems.paymentOptionSelection",
+    "scope": "order",
+    "fieldKey": "paymentOptionSelection",
+    "format": "option",
+    "optionsPath": "sampleOrderItems.paymentOptions"
+  },
+  {
+    "id": "order.testLocationCode",
+    "labelKey": "order.sampling.performed.label",
+    "path": "sampleOrderItems.testLocationCode",
+    "scope": "order",
+    "fieldKey": "testLocationCode",
+    "format": "option",
+    "optionsPath": "sampleOrderItems.testLocationCodeList"
+  },
+  {
+    "id": "order.otherLocationCode",
+    "labelKey": "order.if.other.label",
+    "path": "sampleOrderItems.otherLocationCode",
+    "scope": "order",
+    "fieldKey": "otherLocationCode"
+  },
+  {
+    "id": "order.programId",
+    "labelKey": "program.name.label",
+    "path": "sampleOrderItems.programId",
+    "scope": "order",
+    "fieldKey": "programId",
+    "format": "option",
+    "optionsPath": "sampleOrderItems.programList"
+  },
+  {
+    "id": "sample.quantity",
+    "labelKey": "sample.quantity.label",
+    "path": "sampleXML.quantity",
+    "scope": "samples",
+    "fieldKey": "quantity"
+  },
+  {
+    "id": "sample.collector",
+    "labelKey": "sample.collector",
+    "path": "sampleXML.collector",
+    "scope": "samples",
+    "fieldKey": "collector"
+  },
+  {
+    "id": "sample.collectionDate",
+    "labelKey": "sample.collection.date",
+    "path": "sampleXML.collectionDate",
+    "scope": "samples",
+    "fieldKey": "collectionDate"
+  },
+  {
+    "id": "sample.collectionTime",
+    "labelKey": "sample.collection.time",
+    "path": "sampleXML.collectionTime",
+    "scope": "samples",
+    "fieldKey": "collectionTime"
+  },
+  {
+    "id": "sample.uom",
+    "labelKey": "sample.uom",
+    "path": "sampleXML.uom",
+    "scope": "samples",
+    "fieldKey": "uom",
+    "format": "option"
+  },
+  {
+    "id": "sample.location",
+    "labelKey": "storage.location.label",
+    "path": "sampleXML.storageLocation",
+    "scope": "samples",
+    "fieldKey": "location",
+    "format": "storage"
+  },
+  {
+    "id": "sample.gpsLatitude",
+    "labelKey": "sample.gps.latitude",
+    "path": "sampleXML.gpsLatitude",
+    "scope": "samples",
+    "fieldKey": "gpsLatitude"
+  },
+  {
+    "id": "sample.gpsLongitude",
+    "labelKey": "sample.gps.longitude",
+    "path": "sampleXML.gpsLongitude",
+    "scope": "samples",
+    "fieldKey": "gpsLongitude"
+  },
+  {
+    "id": "sample.gpsAccuracy",
+    "labelKey": "sample.gps.accuracy",
+    "path": "sampleXML.gpsAccuracy",
+    "scope": "samples",
+    "fieldKey": "gpsAccuracy"
+  },
+  {
+    "id": "sample.type",
+    "labelKey": "sample.type",
+    "path": "sampleType",
+    "scope": "samples",
+    "format": "sampleType"
+  },
+  {
+    "id": "panels.selectedNames",
+    "labelKey": "panel.panel",
+    "format": "panels"
+  },
+  {
+    "id": "patient.dni",
+    "labelKey": "patient.identifier.dni",
+    "path": "patientProperties.dni"
+  },
+  {
+    "id": "patient.passportNumber",
+    "labelKey": "patient.identifier.passport",
+    "path": "patientProperties.passportNumber"
+  },
+  {
+    "id": "patient.foreignId",
+    "labelKey": "patient.identifier.foreign.card",
+    "path": "patientProperties.foreignId"
+  },
+  {
+    "id": "patient.primaryPatientIdentifierType",
+    "labelKey": "patient.identifier.primary",
+    "path": "patientProperties.primaryPatientIdentifierType",
+    "format": "identifierType"
+  },
+  {
+    "id": "patient.otherNationality",
+    "labelKey": "patient.nationality.other",
+    "path": "patientProperties.otherNationality"
+  }
+]

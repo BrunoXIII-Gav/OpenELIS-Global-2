@@ -1,9 +1,38 @@
 package org.openelisglobal.reportdefinition.form;
 
+import java.util.List;
 import java.util.Map;
 import org.openelisglobal.common.form.BaseForm;
 
 public class ConsentTemplateConfigForm extends BaseForm {
+
+    private String templateContent;
+    private String templateFilename;
+    private List<Map<String, String>> parameters;
+
+    public String getTemplateContent() {
+        return templateContent;
+    }
+
+    public void setTemplateContent(String value) {
+        templateContent = value;
+    }
+
+    public String getTemplateFilename() {
+        return templateFilename;
+    }
+
+    public void setTemplateFilename(String value) {
+        templateFilename = value;
+    }
+
+    public List<Map<String, String>> getParameters() {
+        return parameters;
+    }
+
+    public void setParameters(List<Map<String, String>> value) {
+        parameters = value;
+    }
 
     private String id;
     private String name;
