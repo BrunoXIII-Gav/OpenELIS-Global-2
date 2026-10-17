@@ -10,7 +10,6 @@ import { AlertDialog, NotificationKinds } from "../common/CustomNotification";
 import {
   getFromOpenElisServer,
   postToOpenElisServerFullResponse,
-  postToOpenElisServerForBlob,
 } from "../utils/Utils";
 import OrderEntryAdditionalQuestions from "./OrderEntryAdditionalQuestions";
 import OrderSuccessMessage from "./OrderSuccessMessage";
@@ -18,6 +17,7 @@ import { FormattedMessage, useIntl } from "react-intl";
 import OrderEntryValidationSchema from "../formModel/validationSchema/OrderEntryValidationSchema";
 import config from "../../config.json";
 import PageBreadCrumb from "../common/PageBreadCrumb";
+import ConsentDownloadButton from "./ConsentDownloadButton";
 let breadcrumbs = [
   { label: "home.label", link: "/" },
   { label: "sidenav.label.addorder", link: "/SamplePatientEntry" },
@@ -67,7 +67,6 @@ const Index = () => {
   const [samples, setSamples] = useState([createSampleObject()]);
   const [errors, setErrors] = useState([]);
   const [isSubmitting, setIsSubmitting] = useState(false);
-  const [isConsentDownloading, setIsConsentDownloading] = useState(false);
   const [hasOrderPermission, setHasOrderPermission] = useState(false);
   const [permissionsLoaded, setPermissionsLoaded] = useState(false);
   const [phoneValidation, setPhoneValidation] = useState({
@@ -931,107 +930,6 @@ const Index = () => {
     setPage(e);
   };
 
-  const formatFullName = (firstName, lastName, fullName) => {
-    const safeFullName = (fullName || "").trim();
-    if (safeFullName) {
-      return safeFullName;
-    }
-    const safeFirst = (firstName || "").trim();
-    const safeLast = (lastName || "").trim();
-    if (safeLast && safeFirst) {
-      return `${safeLast}, ${safeFirst}`;
-    }
-    return safeLast || safeFirst;
-  };
-
-  const collectSelectedTests = () => {
-    const names = [];
-    (samples || []).forEach((sample) => {
-      (sample?.tests || []).forEach((test) => {
-        if (test?.name) {
-          names.push(String(test.name).trim());
-        }
-      });
-    });
-    return Array.from(new Set(names.filter(Boolean)));
-  };
-
-  const buildConsentPayload = () => {
-    const patient = orderFormValues?.patientProperties || {};
-    const orderItems = orderFormValues?.sampleOrderItems || {};
-    const providerFirst = orderItems.providerFirstName || "";
-    const providerLast = orderItems.providerLastName || "";
-    const providerDni = orderItems.providerDni || "";
-    const firstSampleWithCug = (samples || []).find(
-      (sample) => (sample?.sampleXML?.cug || "").trim() !== "",
-    );
-    return {
-      patient: {
-        firstName: patient.firstName || "",
-        lastName: patient.lastName || "",
-        fullName: formatFullName(
-          patient.firstName,
-          patient.lastName,
-          patient.fullName,
-        ),
-        nationalId: patient.nationalId || "",
-      },
-      provider: {
-        firstName: providerFirst,
-        lastName: providerLast,
-        fullName: formatFullName(providerFirst, providerLast),
-        dni: providerDni,
-      },
-      selectedTests: collectSelectedTests(),
-      orderAdditionalFieldValues: orderItems.additionalFieldValues || {},
-      orderDate:
-        orderItems.requestDate || configurationProperties?.currentDateAsText,
-      cug: firstSampleWithCug?.sampleXML?.cug || "",
-    };
-  };
-
-  const handleDownloadConsent = () => {
-    if (isConsentDownloading) {
-      return;
-    }
-    const payload = buildConsentPayload();
-    if (!payload.selectedTests || payload.selectedTests.length === 0) {
-      addNotification({
-        title: intl.formatMessage({ id: "notification.title" }),
-        message: intl.formatMessage({ id: "consent.download.noTests" }),
-        kind: NotificationKinds.error,
-      });
-      setNotificationVisible(true);
-      return;
-    }
-    setIsConsentDownloading(true);
-    postToOpenElisServerForBlob(
-      "/rest/reports/consent-template/preview",
-      JSON.stringify(payload),
-      (blob) => {
-        const url = window.URL.createObjectURL(blob);
-        const link = document.createElement("a");
-        link.href = url;
-        link.target = "_blank";
-        link.download = "consent-template.pdf";
-        document.body.appendChild(link);
-        link.click();
-        document.body.removeChild(link);
-        window.URL.revokeObjectURL(url);
-        setIsConsentDownloading(false);
-      },
-      () => {
-        addNotification({
-          title: intl.formatMessage({ id: "notification.title" }),
-          message: intl.formatMessage({ id: "consent.download.error" }),
-          kind: NotificationKinds.error,
-        });
-        setNotificationVisible(true);
-        setIsConsentDownloading(false);
-      },
-    );
-  };
-
   return (
     <>
       <PageBreadCrumb breadcrumbs={breadcrumbs} />
@@ -1161,13 +1059,10 @@ const Index = () => {
 
               {page === orderPageNumber && (
                 <div className="orderPageActionButtons">
-                  <Button
-                    kind="secondary"
-                    onClick={handleDownloadConsent}
-                    disabled={isConsentDownloading}
-                  >
-                    <FormattedMessage id="consent.download.button" />
-                  </Button>
+                  <ConsentDownloadButton
+                    orderFormValues={orderFormValues}
+                    samples={samples}
+                  />
                   <Button
                     kind="primary"
                     className="forwardButton"
