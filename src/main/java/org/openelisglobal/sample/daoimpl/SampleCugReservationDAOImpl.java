@@ -1,5 +1,6 @@
 package org.openelisglobal.sample.daoimpl;
 
+import jakarta.persistence.LockModeType;
 import java.sql.Timestamp;
 import java.util.List;
 import java.util.Optional;
@@ -9,6 +10,7 @@ import org.hibernate.query.NativeQuery;
 import org.hibernate.query.Query;
 import org.hibernate.type.StandardBasicTypes;
 import org.openelisglobal.common.daoimpl.BaseDAOImpl;
+import org.openelisglobal.patient.valueholder.Patient;
 import org.openelisglobal.sample.dao.SampleCugReservationDAO;
 import org.openelisglobal.sample.valueholder.SampleCugReservation;
 import org.openelisglobal.sample.valueholder.SampleCugReservation.ReservationStatus;
@@ -22,6 +24,13 @@ public class SampleCugReservationDAOImpl extends BaseDAOImpl<SampleCugReservatio
 
     public SampleCugReservationDAOImpl() {
         super(SampleCugReservation.class);
+    }
+
+    @Override
+    public void lockPatientForCug(String patientId) {
+        if (StringUtils.isNotBlank(patientId)) {
+            entityManager.find(Patient.class, patientId.trim(), LockModeType.PESSIMISTIC_WRITE);
+        }
     }
 
     @Override
@@ -69,6 +78,7 @@ public class SampleCugReservationDAOImpl extends BaseDAOImpl<SampleCugReservatio
         Query<SampleCugReservation> query = entityManager.unwrap(Session.class).createQuery(hql,
                 SampleCugReservation.class);
         query.setParameter("reservationToken", token);
+        query.setLockMode(LockModeType.PESSIMISTIC_WRITE);
         return Optional.ofNullable(query.uniqueResult());
     }
 
@@ -90,6 +100,17 @@ public class SampleCugReservationDAOImpl extends BaseDAOImpl<SampleCugReservatio
         query.setParameter("now", new Timestamp(System.currentTimeMillis()));
         query.setMaxResults(1);
         return Optional.ofNullable(query.uniqueResult());
+    }
+
+    @Override
+    public List<String> findActiveValuesForPatient(Integer patientId, Timestamp asOf) {
+        return entityManager
+                .createQuery(
+                        "select r.reservedValue from SampleCugReservation r "
+                                + "where r.patientId = :patient and r.status = :status and r.expiresAt > :now",
+                        String.class)
+                .setParameter("patient", patientId).setParameter("status", ReservationStatus.RESERVED.name())
+                .setParameter("now", asOf).getResultList();
     }
 
     @Override

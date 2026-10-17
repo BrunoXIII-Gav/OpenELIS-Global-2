@@ -254,7 +254,9 @@ const SampleType = (props) => {
             kind: NotificationKinds.error,
             title: intl.formatMessage({ id: "notification.title" }),
             message:
-              response?.message ||
+              (intl.messages[response?.message]
+                ? intl.formatMessage({ id: response.message })
+                : response?.message) ||
               intl.formatMessage({ id: "sample.cug.generate.error" }),
           });
           return;

@@ -1,0 +1,18 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<dataset>
+ <patient id="10"/>
+ <sample id="20"/>
+ <sample_item id="1" cug_code="140.2" sys_user_id="42"/>
+ <sample_item id="2" cug_code="5000.2" sys_user_id="42"/>
+ <sample_item id="3" cug_code="5001.9" sys_user_id="42"/>
+ <sample_item id="4" cug_code="5002.4" sys_user_id="42"/>
+ <sample_item id="5" cug_code="5003.7" sys_user_id="42"/>
+ <sample_item id="6" cug_code="5004.3" sys_user_id="42"/>
+ <sample_item id="7" cug_code="5005.5" sys_user_id="42"/>
+ <sample_item id="8" cug_code="5006.8" sys_user_id="42"/>
+ <sample_item id="9" cug_code="5007.2" sys_user_id="42"/>
+ <sample_item id="10" cug_code="5008.3" sys_user_id="42"/>
+ <sample_item id="11" cug_code="5009.6" sys_user_id="42"/>
+ <sample_cug_reservation id="10" reserved_value="5010.2" reservation_token="active-5010" reservation_context_id="historical" patient_id="10" reserved_by_user_id="42" status="RESERVED" expires_at="2099-01-01 00:00:00" sys_user_id="42" last_updated="2026-01-01 00:00:00"/>
+ <sample_cug_reservation id="11" reserved_value="6000.2" reservation_token="expired-6000" reserved_by_user_id="42" status="EXPIRED" expires_at="2020-01-01 00:00:00" sys_user_id="42" last_updated="2020-01-01 00:00:00"/>
+</dataset>

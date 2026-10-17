@@ -1,0 +1,14 @@
+package org.openelisglobal.sample.dao;
+
+import org.openelisglobal.common.dao.BaseDAO;
+import org.openelisglobal.sample.valueholder.SampleCugCounter;
+
+public interface SampleCugPrefixDAO extends BaseDAO<SampleCugCounter, String> {
+    SampleCugCounter lockCounter();
+
+    Long occupiedRangeEnd(long candidate);
+
+    boolean isAssigned(long prefix);
+
+    void register(long prefix, String actorId);
+}
