@@ -11,6 +11,7 @@ import {
   getFromOpenElisServer,
   postToOpenElisServerFullResponse,
 } from "../utils/Utils";
+import { isAlternateOrderFlowSelected } from "../../utils/alternateOrderFlow";
 import OrderEntryAdditionalQuestions from "./OrderEntryAdditionalQuestions";
 import OrderSuccessMessage from "./OrderSuccessMessage";
 import { FormattedMessage, useIntl } from "react-intl";
@@ -619,7 +620,40 @@ const Index = () => {
     ) {
       return "";
     }
-    return trimmedMessage;
+    return trimmedMessage.replace(/\s+@\s+[\w.$]+:\d+\s*$/, "").trim();
+  };
+
+  const formatOrderSubmissionError = (message) => {
+    const normalizedMessage = String(message || "").trim();
+    if (!normalizedMessage) {
+      return normalizedMessage;
+    }
+
+    const duplicateExistingMatch = normalizedMessage.match(
+      /Duplicate CUG value already exists:\s*([0-9]+\.[0-9]+)/i,
+    );
+    if (duplicateExistingMatch) {
+      return intl.formatMessage(
+        { id: "sample.cug.duplicate.existing.error" },
+        { cugCode: duplicateExistingMatch[1] },
+      );
+    }
+
+    const duplicateInRequestMatch = normalizedMessage.match(
+      /Duplicate CUG value in request:\s*([0-9]+\.[0-9]+)/i,
+    );
+    if (duplicateInRequestMatch) {
+      return intl.formatMessage(
+        { id: "sample.cug.duplicate.request.error" },
+        { cugCode: duplicateInRequestMatch[1] },
+      );
+    }
+
+    if (/Invalid CUG format/i.test(normalizedMessage)) {
+      return intl.formatMessage({ id: "sample.cug.manual.format.error" });
+    }
+
+    return normalizedMessage;
   };
 
   const handlePost = async (response) => {
@@ -649,6 +683,7 @@ const Index = () => {
         }
       }
       detailedMessage = sanitizeServerMessage(detailedMessage);
+      detailedMessage = formatOrderSubmissionError(detailedMessage);
       const genericMessage = intl.formatMessage({ id: "server.error.msg" });
       const fallbackWithStatus = `${genericMessage} (HTTP ${response.status})`;
       showAlertMessage(
@@ -697,7 +732,13 @@ const Index = () => {
       return;
     }
     setIsSubmitting(true);
-    const payload = JSON.parse(JSON.stringify(orderFormValues));
+    const attachedSamplePayload = buildAttachedSamplesPayload();
+    const payload = JSON.parse(
+      JSON.stringify({
+        ...orderFormValues,
+        ...attachedSamplePayload,
+      }),
+    );
     payload.patientProperties = payload.patientProperties || {};
     payload.patientProperties.patientUpdateStatus =
       payload.patientProperties.patientUpdateStatus ||
@@ -765,7 +806,7 @@ const Index = () => {
     }));
   }, []);
 
-  const attacheSamplesToFormValues = () => {
+  const buildAttachedSamplesPayload = () => {
     const escapeXmlAttribute = (value) => {
       if (value === undefined || value === null) {
         return "";
@@ -788,123 +829,131 @@ const Index = () => {
         .replace(/>/g, "&gt;");
     };
 
+    const alternateOrderFlowActive = isAlternateOrderFlowSelected(
+      orderFormValues?.sampleOrderItems,
+    );
     let sampleXmlString = "";
     let referralItems = [];
-    if (samples.length > 0) {
-      if (samples[0].tests.length > 0) {
-        sampleXmlString = '<?xml version="1.0" encoding="utf-8"?>';
-        sampleXmlString += "<samples>";
-        let tests = null;
-        let panels = "";
-        samples.map((sampleItem) => {
-          if (sampleItem.tests.length > 0) {
-            tests = Object.keys(sampleItem.tests)
-              .map(function (i) {
-                return sampleItem.tests[i].id;
-              })
-              .join(",");
-
-            if (sampleItem?.panels.length > 0) {
-              panels = Object.keys(sampleItem.panels)
-                .map(function (i) {
-                  return sampleItem.panels[i].id;
-                })
-                .join(",");
-            }
-            // Extract storage location data if present
-            const storageLocation = sampleItem.sampleXML?.storageLocation;
-            const storageLocationId =
-              storageLocation?.locationId ||
-              storageLocation?.box?.id ||
-              storageLocation?.id ||
-              "";
-            const storageLocationType =
-              storageLocation?.locationType ||
-              (storageLocation?.box?.id ? "box" : storageLocation?.type || "");
-            const storagePositionCoordinate =
-              storageLocation?.positionCoordinate ||
-              storageLocation?.position?.coordinate ||
-              "";
-
-            // Extract GPS coordinates data if present
-            const gpsLatitude = sampleItem.sampleXML?.gpsLatitude || "";
-            const gpsLongitude = sampleItem.sampleXML?.gpsLongitude || "";
-            const gpsAccuracy = sampleItem.sampleXML?.gpsAccuracy || "";
-            const gpsCaptureMethod =
-              sampleItem.sampleXML?.gpsCaptureMethod || "";
-            const cugCode = sampleItem.sampleXML?.cug || "";
-            const cugReservationToken =
-              sampleItem.sampleXML?.cugReservationToken || "";
-            const cugReservationContextId =
-              sampleItem.sampleXML?.cugReservationContextId || "";
-
-            const additionalFieldValues =
-              sampleItem.sampleXML?.additionalFieldValues || {};
-            const additionalFieldEntries = Object.entries(additionalFieldValues)
-              .filter(([key, value]) => {
-                return (
-                  key !== undefined &&
-                  key !== null &&
-                  key !== "" &&
-                  value !== undefined &&
-                  value !== null &&
-                  String(value).trim() !== ""
-                );
-              })
-              .map(([key, value]) => {
-                return `<field key='${escapeXmlAttribute(key)}'>${escapeXmlText(
-                  value,
-                )}</field>`;
-              })
-              .join("");
-
-            sampleXmlString += `<sample sampleID='${escapeXmlAttribute(sampleItem.sampleTypeId)}' date='${escapeXmlAttribute(sampleItem.sampleXML.collectionDate)}' time='${escapeXmlAttribute(sampleItem.sampleXML.collectionTime)}' collector='${escapeXmlAttribute(sampleItem.sampleXML.collector)}' quantity='${escapeXmlAttribute(sampleItem.sampleXML.quantity)}' uom='${escapeXmlAttribute(sampleItem.sampleXML.uom)}' tests='${escapeXmlAttribute(tests)}' testSectionMap='' testSampleTypeMap='' panels='${escapeXmlAttribute(panels)}' rejected='${escapeXmlAttribute(sampleItem.sampleXML.rejected)}' rejectReasonId='${escapeXmlAttribute(sampleItem.sampleXML.rejectionReason)}' cug='${escapeXmlAttribute(cugCode)}' cugReservationToken='${escapeXmlAttribute(cugReservationToken)}' cugReservationContextId='${escapeXmlAttribute(cugReservationContextId)}' initialConditionIds='' storageLocationId='${escapeXmlAttribute(storageLocationId)}' storageLocationType='${escapeXmlAttribute(storageLocationType)}' storagePositionCoordinate='${escapeXmlAttribute(storagePositionCoordinate)}' gpsLatitude='${escapeXmlAttribute(gpsLatitude)}' gpsLongitude='${escapeXmlAttribute(gpsLongitude)}' gpsAccuracy='${escapeXmlAttribute(gpsAccuracy)}' gpsCaptureMethod='${escapeXmlAttribute(gpsCaptureMethod)}'>`;
-            if (additionalFieldEntries !== "") {
-              sampleXmlString += `<additionalFields>${additionalFieldEntries}</additionalFields>`;
-            }
-            sampleXmlString += `</sample>`;
-          }
-          if (sampleItem.referralItems.length > 0) {
-            const referredInstitutes = Object.keys(sampleItem.referralItems)
-              .map(function (i) {
-                return sampleItem.referralItems[i].institute;
-              })
-              .join(",");
-
-            const sentDates = Object.keys(sampleItem.referralItems)
-              .map(function (i) {
-                return sampleItem.referralItems[i].sentDate;
-              })
-              .join(",");
-
-            const referralReasonIds = Object.keys(sampleItem.referralItems)
-              .map(function (i) {
-                return sampleItem.referralItems[i].reasonForReferral;
-              })
-              .join(",");
-
-            const referrers = Object.keys(sampleItem.referralItems)
-              .map(function (i) {
-                return sampleItem.referralItems[i].referrer;
-              })
-              .join(",");
-            referralItems.push({
-              referrer: referrers,
-              referredInstituteId: referredInstitutes,
-              referredTestId: tests,
-              referredSendDate: sentDates,
-              referralReasonId: referralReasonIds,
-            });
-          }
-        });
-        sampleXmlString += "</samples>";
+    const samplesToPersist = (samples || []).filter((sampleItem) => {
+      if (!sampleItem || !sampleItem.sampleXML || !sampleItem.sampleTypeId) {
+        return false;
       }
+      return alternateOrderFlowActive || (sampleItem.tests || []).length > 0;
+    });
+
+    if (samplesToPersist.length > 0) {
+      sampleXmlString = '<?xml version="1.0" encoding="utf-8"?>';
+      sampleXmlString += "<samples>";
+      samplesToPersist.forEach((sampleItem) => {
+        const tests = Object.keys(sampleItem.tests || {})
+          .map(function (i) {
+            return sampleItem.tests[i].id;
+          })
+          .join(",");
+
+        const panels = Object.keys(sampleItem.panels || {})
+          .map(function (i) {
+            return sampleItem.panels[i].id;
+          })
+          .join(",");
+
+        const storageLocation = sampleItem.sampleXML?.storageLocation;
+        const storageLocationId =
+          storageLocation?.locationId ||
+          storageLocation?.box?.id ||
+          storageLocation?.id ||
+          "";
+        const storageLocationType =
+          storageLocation?.locationType ||
+          (storageLocation?.box?.id ? "box" : storageLocation?.type || "");
+        const storagePositionCoordinate =
+          storageLocation?.positionCoordinate ||
+          storageLocation?.position?.coordinate ||
+          "";
+
+        const gpsLatitude = sampleItem.sampleXML?.gpsLatitude || "";
+        const gpsLongitude = sampleItem.sampleXML?.gpsLongitude || "";
+        const gpsAccuracy = sampleItem.sampleXML?.gpsAccuracy || "";
+        const gpsCaptureMethod = sampleItem.sampleXML?.gpsCaptureMethod || "";
+        const cugCode = sampleItem.sampleXML?.cug || "";
+        const cugReservationToken =
+          sampleItem.sampleXML?.cugReservationToken || "";
+        const cugReservationContextId =
+          sampleItem.sampleXML?.cugReservationContextId || "";
+
+        const additionalFieldValues =
+          sampleItem.sampleXML?.additionalFieldValues || {};
+        const additionalFieldEntries = Object.entries(additionalFieldValues)
+          .filter(([key, value]) => {
+            return (
+              key !== undefined &&
+              key !== null &&
+              key !== "" &&
+              value !== undefined &&
+              value !== null &&
+              String(value).trim() !== ""
+            );
+          })
+          .map(([key, value]) => {
+            return `<field key='${escapeXmlAttribute(key)}'>${escapeXmlText(
+              value,
+            )}</field>`;
+          })
+          .join("");
+
+        sampleXmlString += `<sample sampleID='${escapeXmlAttribute(sampleItem.sampleTypeId)}' date='${escapeXmlAttribute(sampleItem.sampleXML.collectionDate)}' time='${escapeXmlAttribute(sampleItem.sampleXML.collectionTime)}' collector='${escapeXmlAttribute(sampleItem.sampleXML.collector)}' quantity='${escapeXmlAttribute(sampleItem.sampleXML.quantity)}' uom='${escapeXmlAttribute(sampleItem.sampleXML.uom)}' tests='${escapeXmlAttribute(tests)}' testSectionMap='' testSampleTypeMap='' panels='${escapeXmlAttribute(panels)}' rejected='${escapeXmlAttribute(sampleItem.sampleXML.rejected)}' rejectReasonId='${escapeXmlAttribute(sampleItem.sampleXML.rejectionReason)}' cug='${escapeXmlAttribute(cugCode)}' cugReservationToken='${escapeXmlAttribute(cugReservationToken)}' cugReservationContextId='${escapeXmlAttribute(cugReservationContextId)}' initialConditionIds='' storageLocationId='${escapeXmlAttribute(storageLocationId)}' storageLocationType='${escapeXmlAttribute(storageLocationType)}' storagePositionCoordinate='${escapeXmlAttribute(storagePositionCoordinate)}' gpsLatitude='${escapeXmlAttribute(gpsLatitude)}' gpsLongitude='${escapeXmlAttribute(gpsLongitude)}' gpsAccuracy='${escapeXmlAttribute(gpsAccuracy)}' gpsCaptureMethod='${escapeXmlAttribute(gpsCaptureMethod)}'>`;
+        if (additionalFieldEntries !== "") {
+          sampleXmlString += `<additionalFields>${additionalFieldEntries}</additionalFields>`;
+        }
+        sampleXmlString += `</sample>`;
+
+        if ((sampleItem.referralItems || []).length > 0) {
+          const referredInstitutes = Object.keys(sampleItem.referralItems)
+            .map(function (i) {
+              return sampleItem.referralItems[i].institute;
+            })
+            .join(",");
+
+          const sentDates = Object.keys(sampleItem.referralItems)
+            .map(function (i) {
+              return sampleItem.referralItems[i].sentDate;
+            })
+            .join(",");
+
+          const referralReasonIds = Object.keys(sampleItem.referralItems)
+            .map(function (i) {
+              return sampleItem.referralItems[i].reasonForReferral;
+            })
+            .join(",");
+
+          const referrers = Object.keys(sampleItem.referralItems)
+            .map(function (i) {
+              return sampleItem.referralItems[i].referrer;
+            })
+            .join(",");
+          referralItems.push({
+            referrer: referrers,
+            referredInstituteId: referredInstitutes,
+            referredTestId: tests,
+            referredSendDate: sentDates,
+            referralReasonId: referralReasonIds,
+          });
+        }
+      });
+      sampleXmlString += "</samples>";
     }
-    setOrderFormValues({
-      ...orderFormValues,
+
+    return {
       useReferral: true,
       sampleXML: sampleXmlString,
       referralItems: referralItems,
+    };
+  };
+
+  const attacheSamplesToFormValues = () => {
+    setOrderFormValues({
+      ...orderFormValues,
+      ...buildAttachedSamplesPayload(),
     });
   };
 

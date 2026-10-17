@@ -40,6 +40,7 @@ import org.openelisglobal.notification.valueholder.TestNotificationConfig;
 import org.openelisglobal.observationhistory.service.ObservationHistoryService;
 import org.openelisglobal.observationhistory.valueholder.ObservationHistory;
 import org.openelisglobal.orderadditionalfield.bean.OrderAdditionalFieldFilePayload;
+import org.openelisglobal.orderadditionalfield.service.AlternateOrderFlowService;
 import org.openelisglobal.orderadditionalfield.service.OrderAdditionalFieldService;
 import org.openelisglobal.organization.service.OrganizationService;
 import org.openelisglobal.organization.valueholder.Organization;
@@ -120,6 +121,8 @@ public class SamplePatientEntryServiceImpl implements SamplePatientEntryService 
     private SampleTypeAdditionalFieldService sampleTypeAdditionalFieldService;
     @Autowired
     private OrderAdditionalFieldService orderAdditionalFieldService;
+    @Autowired
+    private AlternateOrderFlowService alternateOrderFlowService;
     @Autowired
     private SampleCugService sampleCugService;
 
@@ -259,6 +262,7 @@ public class SamplePatientEntryServiceImpl implements SamplePatientEntryService 
         updateData.getSample().setPriority(updateData.getPriority());
         orderAdditionalFieldService.validateAndPersistSampleValues(updateData.getSample().getId(),
                 orderAdditionalFieldValues, orderAdditionalFieldFiles, updateData.getCurrentUserId(), null);
+        boolean alternateOrderFlow = alternateOrderFlowService.isAlternateOrderFlow(orderAdditionalFieldValues);
 
         for (SampleAdditionalField field : updateData.getSampleFields()) {
             field.setSample(updateData.getSample());
@@ -313,6 +317,9 @@ public class SamplePatientEntryServiceImpl implements SamplePatientEntryService 
                 }
             }
             sampleTestCollection.analysises = new ArrayList<>();
+            if (alternateOrderFlow) {
+                continue;
+            }
             for (Test test : sampleTestCollection.tests) {
                 test = testService.get(test.getId());
 

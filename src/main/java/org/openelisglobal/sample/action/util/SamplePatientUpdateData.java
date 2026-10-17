@@ -105,6 +105,7 @@ public class SamplePatientUpdateData {
     private List<String> patientSMSNotificationTestIds;
     private List<String> providerEmailNotificationTestIds;
     private List<String> providerSMSNotificationTestIds;
+    private boolean alternateOrderFlow;
 
     public SamplePatientUpdateData(String currentUserId) {
         this.currentUserId = currentUserId;
@@ -285,7 +286,7 @@ public class SamplePatientUpdateData {
         }
 
         // assure that all samples have tests
-        if (!allSamplesHaveTests()) {
+        if (!alternateOrderFlow && !allSamplesHaveTests()) {
             errors.reject("errors.samples.with.no.tests");
         }
 
@@ -627,6 +628,14 @@ public class SamplePatientUpdateData {
 
     public List<String> getProviderSMSNotificationTestIds() {
         return providerSMSNotificationTestIds;
+    }
+
+    public boolean isAlternateOrderFlow() {
+        return alternateOrderFlow;
+    }
+
+    public void setAlternateOrderFlow(boolean alternateOrderFlow) {
+        this.alternateOrderFlow = alternateOrderFlow;
     }
 
     public void setProviderSMSNotificationTestIds(List<String> providerSMSNotificationTestIds) {
