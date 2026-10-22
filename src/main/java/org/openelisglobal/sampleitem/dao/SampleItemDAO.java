@@ -62,6 +62,10 @@ public interface SampleItemDAO extends BaseDAO<SampleItem, String> {
 
     List<String> findCugCodesByPatientId(String patientId) throws LIMSRuntimeException;
 
+    List<SampleItem> lockPatientItemsForCugChange(String patientId);
+
+    void lockAndRefreshForCugChange(SampleItem item);
+
     boolean existsByCugCode(String cugCode) throws LIMSRuntimeException;
 
     Sample findSampleByCugCode(String cugCode) throws LIMSRuntimeException;

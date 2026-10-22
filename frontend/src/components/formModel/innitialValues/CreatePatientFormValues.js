@@ -1,5 +1,7 @@
 const CreatePatientFormValues = {
   cugPrefix: "",
+  requestedCugPrefix: null,
+  expectedCugPrefix: null,
   patientPK: "",
   patientUpdateStatus: "ADD",
   nationalId: "",

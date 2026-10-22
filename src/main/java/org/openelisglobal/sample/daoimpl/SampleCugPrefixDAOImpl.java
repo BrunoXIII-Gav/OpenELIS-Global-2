@@ -1,6 +1,7 @@
 package org.openelisglobal.sample.daoimpl;
 
 import jakarta.persistence.LockModeType;
+import java.sql.Timestamp;
 import org.openelisglobal.common.daoimpl.BaseDAOImpl;
 import org.openelisglobal.sample.dao.SampleCugPrefixDAO;
 import org.openelisglobal.sample.valueholder.PatientCugPrefix;
@@ -57,6 +58,46 @@ public class SampleCugPrefixDAOImpl extends BaseDAOImpl<SampleCugCounter, String
         row.setPrefix(prefix);
         row.setSysUserId(actorId);
         entityManager.persist(row);
+        entityManager.flush();
+    }
+
+    @Override
+    public void changePatientPrefix(String patientId, long prefix, String actorId) {
+        PatientCugPrefix binding = entityManager.find(PatientCugPrefix.class, patientId);
+        if (binding == null) {
+            bindPatientPrefix(patientId, prefix, actorId);
+        } else {
+            binding.setPrefix(prefix);
+            binding.setSysUserId(actorId);
+            entityManager.flush();
+        }
+    }
+
+    @Override
+    public boolean isPrefixReferenced(long prefix, Timestamp now) {
+        if (!entityManager.createQuery("select p.id from PatientCugPrefix p where p.prefix = :prefix", String.class)
+                .setParameter("prefix", prefix).setMaxResults(1).getResultList().isEmpty())
+            return true;
+        // Leading zeroes and surrounding whitespace can occur in legacy CUGs.
+        String pattern = prefix + ".%";
+        if (!entityManager
+                .createQuery("select i.id from SampleItem i where ltrim(trim(i.cugCode), '0') like :code", String.class)
+                .setParameter("code", pattern).setMaxResults(1).getResultList().isEmpty())
+            return true;
+        return !entityManager.createQuery("select r.id from SampleCugReservation r "
+                + "where ltrim(trim(r.reservedValue), '0') like :code and r.status = :status and r.expiresAt > :now",
+                Integer.class).setParameter("code", pattern).setParameter("status", "RESERVED").setParameter("now", now)
+                .setMaxResults(1).getResultList().isEmpty();
+    }
+
+    @Override
+    public void releasePrefix(long prefix) {
+        var rows = entityManager.createQuery("from SampleCugPrefix p where p.prefix = :prefix", SampleCugPrefix.class)
+                .setParameter("prefix", prefix).getResultList();
+        for (var row : rows)
+            entityManager.remove(row);
+        // Liquibase guards against remaining references and splits the occupied
+        // interval under the same counter lock as automatic/manual allocation.
         entityManager.flush();
     }
 

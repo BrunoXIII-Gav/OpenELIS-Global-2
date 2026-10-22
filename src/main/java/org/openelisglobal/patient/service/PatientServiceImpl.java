@@ -36,6 +36,7 @@ import org.openelisglobal.patienttype.util.PatientTypeMap;
 import org.openelisglobal.patienttype.valueholder.PatientPatientType;
 import org.openelisglobal.person.service.PersonService;
 import org.openelisglobal.person.valueholder.Person;
+import org.openelisglobal.sample.exception.PatientCugPrefixException;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -621,11 +622,32 @@ public class PatientServiceImpl extends AuditableBaseObjectServiceImpl<Patient, 
     @Transactional
     public void persistPatientData(PatientManagementInfo patientInfo, Patient patient, String sysUserId)
             throws LIMSRuntimeException {
+        persistPatientData(patientInfo, patient, sysUserId, false);
+    }
+
+    @Override
+    @Transactional
+    public void persistPatientDataFromPatientModule(PatientManagementInfo patientInfo, Patient patient,
+            String sysUserId) {
+        persistPatientData(patientInfo, patient, sysUserId, true);
+    }
+
+    private void persistPatientData(PatientManagementInfo patientInfo, Patient patient, String sysUserId,
+            boolean allowPrefixChange) {
         validateRequiredPatientFields(patientInfo);
         var documentErrors = org.openelisglobal.patient.validator.PatientDocumentValidator
                 .validateDocuments(patientInfo);
         if (!documentErrors.isEmpty())
             throw new IllegalArgumentException(documentErrors.values().iterator().next());
+        String changedPrefix = null;
+        if (patientInfo.getPatientUpdateStatus() == PatientUpdateStatus.UPDATE
+                && patientInfo.getRequestedCugPrefix() != null) {
+            if (!allowPrefixChange) {
+                throw new PatientCugPrefixException(PatientCugPrefixException.READONLY);
+            }
+            changedPrefix = sampleCugService.changePatientPrefix(patient.getId(), patientInfo.getExpectedCugPrefix(),
+                    patientInfo.getRequestedCugPrefix(), sysUserId);
+        }
         PatientIdentifierUtil.synchronizeDerivedNationalId(patientInfo);
         patient.setNationalId(patientInfo.getNationalId());
 
@@ -651,7 +673,18 @@ public class PatientServiceImpl extends AuditableBaseObjectServiceImpl<Patient, 
         patientAdditionalFieldService.validateAndPersistPatientValues(patient.getId(),
                 patientInfo.getPatientAdditionalFieldValues(), sysUserId, null);
         patientInfo.setPatientPK(patient.getId());
-        patientInfo.setCugPrefix(sampleCugService.ensurePatientPrefix(patient.getId(), sysUserId));
+        if (changedPrefix != null) {
+            patientInfo.setCugPrefix(changedPrefix);
+        } else if (patientInfo.getRequestedCugPrefix() != null) {
+            if (patientInfo.getPatientUpdateStatus() != PatientUpdateStatus.ADD && !patientInfo.getRequestedCugPrefix()
+                    .equals(sampleCugService.getPatientPrefix(patient.getId()))) {
+                throw new PatientCugPrefixException(PatientCugPrefixException.READONLY);
+            }
+            patientInfo.setCugPrefix(sampleCugService.assignPatientPrefix(patient.getId(),
+                    patientInfo.getRequestedCugPrefix(), sysUserId));
+        } else {
+            patientInfo.setCugPrefix(sampleCugService.ensurePatientPrefix(patient.getId(), sysUserId));
+        }
         patientInfo.setPatientLastUpdated(patient.getLastupdated().toString());
         patientInfo.setPersonLastUpdated(patient.getPerson().getLastupdated().toString());
     }

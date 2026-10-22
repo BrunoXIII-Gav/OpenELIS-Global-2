@@ -70,6 +70,7 @@ const SampleType = (props) => {
   );
 
   const { index, rejectSampleReasons, sample } = props;
+  const isExistingSample = Boolean(sample?.existingSampleItemId);
 
   const [sampleTypes, setSampleTypes] = useState([]);
   const [selectedSampleType, setSelectedSampleType] = useState({
@@ -222,7 +223,7 @@ const SampleType = (props) => {
   }
 
   const generateCugPreview = useCallback(() => {
-    if (!props.canGenerateCug) {
+    if (!props.canGenerateCug || isExistingSample) {
       return;
     }
     const patientId = String(props.patientId || "").trim();
@@ -303,6 +304,7 @@ const SampleType = (props) => {
   }, [
     addNotification,
     index,
+    isExistingSample,
     intl,
     props.canGenerateCug,
     props.existingCugs,
@@ -324,6 +326,7 @@ const SampleType = (props) => {
     }
 
     previousPatientCugKeyRef.current = currentPatientCugKey;
+    if (isExistingSample) return;
     cugGenerationKeyRef.current = "";
     cugGenerationInFlightRef.current = false;
     setSampleXml((previous) => ({
@@ -334,10 +337,10 @@ const SampleType = (props) => {
       cugReservationToken: "",
       cugReservationContextId: createCugReservationContextId(),
     }));
-  }, [props.patientCugKey, index, props.provisionalCug]);
+  }, [props.patientCugKey, index, props.provisionalCug, isExistingSample]);
 
   useEffect(() => {
-    if (props.canGenerateCug) {
+    if (props.canGenerateCug || isExistingSample) {
       return;
     }
     cugGenerationKeyRef.current = "";
@@ -357,7 +360,7 @@ const SampleType = (props) => {
         cugReservationToken: "",
       };
     });
-  }, [props.canGenerateCug]);
+  }, [props.canGenerateCug, isExistingSample]);
 
   useEffect(() => {
     if (!props.canGenerateCug) {
@@ -1118,7 +1121,9 @@ const SampleType = (props) => {
               value={sampleXml.cug || ""}
               labelText={intl.formatMessage({ id: "sample.cug.label" })}
               onChange={handleCugChange}
-              readOnly={props.provisionalCug || cugFieldReadonly}
+              readOnly={
+                isExistingSample || props.provisionalCug || cugFieldReadonly
+              }
               helperText={
                 props.provisionalCug
                   ? intl.formatMessage({ id: "sample.cug.provisional" })

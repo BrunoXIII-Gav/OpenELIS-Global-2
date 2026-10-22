@@ -9,15 +9,19 @@ import java.util.Map;
 import java.util.Optional;
 import java.util.UUID;
 import org.apache.commons.lang3.StringUtils;
+import org.openelisglobal.audittrail.dao.AuditEventDAO;
+import org.openelisglobal.audittrail.valueholder.AuditEvent;
 import org.openelisglobal.common.services.SampleAddService.SampleTestCollection;
 import org.openelisglobal.sample.bean.SampleCugPreviewRequest;
 import org.openelisglobal.sample.bean.SampleCugPreviewResponse;
 import org.openelisglobal.sample.dao.SampleCugPrefixDAO;
 import org.openelisglobal.sample.dao.SampleCugReservationDAO;
+import org.openelisglobal.sample.exception.PatientCugPrefixException;
 import org.openelisglobal.sample.exception.SampleCugConflictException;
 import org.openelisglobal.sample.valueholder.SampleCugReservation;
 import org.openelisglobal.sample.valueholder.SampleCugReservation.ReservationStatus;
 import org.openelisglobal.sampleitem.dao.SampleItemDAO;
+import org.openelisglobal.sampleitem.valueholder.SampleItem;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -41,6 +45,9 @@ public class SampleCugServiceImpl implements SampleCugService {
 
     @Autowired
     private SampleCugPrefixDAO patientPrefixes;
+
+    @Autowired
+    private AuditEventDAO auditEvents;
 
     @Override
     @Transactional(readOnly = true)
@@ -76,6 +83,114 @@ public class SampleCugServiceImpl implements SampleCugService {
         }
         patientPrefixes.bindPatientPrefix(patientId, prefix, currentUserId);
         return prefix.toString();
+    }
+
+    @Override
+    public String assignPatientPrefix(String patientId, String requestedPrefix, String currentUserId) {
+        if (StringUtils.isBlank(patientId) || StringUtils.isBlank(currentUserId)) {
+            throw new IllegalArgumentException("A saved patient and current user are required");
+        }
+        sampleCugReservationDAO.lockPatientForCug(patientId);
+        String assigned = getPatientPrefix(patientId);
+        if (assigned != null) {
+            if (!assigned.equals(requestedPrefix)) {
+                throw new PatientCugPrefixException(PatientCugPrefixException.READONLY);
+            }
+            return ensurePatientPrefix(patientId, currentUserId);
+        }
+        long prefix = prefixes.claim(requestedPrefix, currentUserId);
+        patientPrefixes.bindPatientPrefix(patientId, prefix, currentUserId);
+        return Long.toString(prefix);
+    }
+
+    @Override
+    public String changePatientPrefix(String patientId, String expectedPrefix, String requestedPrefix,
+            String currentUserId) {
+        if (StringUtils.isBlank(patientId) || StringUtils.isBlank(currentUserId)) {
+            throw new IllegalArgumentException("A saved patient and current user are required");
+        }
+        sampleCugReservationDAO.lockPatientForCug(patientId);
+        String previous = getPatientPrefix(patientId);
+        if (previous == null || !previous.equals(expectedPrefix)) {
+            throw new PatientCugPrefixException(PatientCugPrefixException.STALE);
+        }
+        if (previous.equals(requestedPrefix)) {
+            return previous;
+        }
+        if (StringUtils.isBlank(requestedPrefix)) {
+            throw new PatientCugPrefixException(PatientCugPrefixException.INVALID);
+        }
+        List<SampleItem> items = sampleItemDAO.lockPatientItemsForCugChange(patientId);
+        Map<SampleItem, String> replacements = new java.util.LinkedHashMap<>();
+        var codes = new java.util.HashSet<String>();
+        for (SampleItem item : items) {
+            if (StringUtils.isBlank(item.getCugCode()))
+                continue;
+            CugComponents parsed = tryParseCugComponents(item.getCugCode());
+            if (parsed == null || parsed.suffix < 1 || !previous.equals(Long.toString(parsed.prefix))
+                    || !item.getCugCode().equals(parsed.prefix + "." + parsed.suffix)) {
+                throw new PatientCugPrefixException(PatientCugPrefixException.INCONSISTENT);
+            }
+            String next = requestedPrefix + "." + parsed.suffix;
+            if (!codes.add(next) || sampleItemDAO.existsByCugCode(next)) {
+                throw new PatientCugPrefixException(PatientCugPrefixException.OCCUPIED);
+            }
+            replacements.put(item, next);
+        }
+        long nextPrefix = prefixes.claim(requestedPrefix, currentUserId);
+        String operation = UUID.randomUUID().toString();
+        for (var entry : replacements.entrySet()) {
+            SampleItem item = entry.getKey();
+            String old = item.getCugCode();
+            item.setCugCode(entry.getValue());
+            item.setSysUserId(currentUserId);
+            sampleItemDAO.update(item);
+            auditPrefixChange(operation, patientId, "SampleItem", item.getId(), "cugCode", "sample.cug.label", old,
+                    entry.getValue(), currentUserId, item);
+        }
+        patientPrefixes.changePatientPrefix(patientId, nextPrefix, currentUserId);
+        for (SampleCugReservation reservation : sampleCugReservationDAO.lockReservedForPatient(patientId)) {
+            reservation.setStatus(ReservationStatus.CANCELED.name());
+            reservation.setSysUserId(currentUserId);
+            sampleCugReservationDAO.update(reservation);
+        }
+        auditPrefixChange(operation, patientId, "PatientCugPrefix", patientId, "prefix", "patient.cug.prefix.label",
+                previous, requestedPrefix, currentUserId, null);
+        prefixes.releaseIfUnused(Long.parseLong(previous));
+        return requestedPrefix;
+    }
+
+    private void auditPrefixChange(String operation, String patientId, String entity, String entityId, String field,
+            String label, String old, String next, String actor, SampleItem item) {
+        AuditEvent event = new AuditEvent();
+        event.setId(UUID.randomUUID().toString());
+        event.setOperationId(operation);
+        event.setModule(item == null ? "patient" : "sampleitem");
+        event.setEntityName(entity);
+        event.setEntityId(entityId);
+        event.setPatientId(patientId);
+        if (item != null) {
+            event.setSampleItemId(item.getId());
+            event.setSampleId(item.getSample().getId());
+        }
+        event.setAction("U");
+        event.setField(field);
+        event.setFieldLabel(label);
+        event.setOldValue(old);
+        event.setNewValue(next);
+        event.setActorId(actor);
+        event.setActorSource("USER");
+        event.setOccurredAt(new Timestamp(System.currentTimeMillis()));
+        event.setSource("/rest/PatientManagement");
+        auditEvents.insert(event);
+    }
+
+    @Override
+    public void lockPatientAndCheckPrefix(String patientId, String expectedPrefix) {
+        sampleCugReservationDAO.lockPatientForCug(patientId);
+        if (StringUtils.isNotBlank(expectedPrefix) && !expectedPrefix.equals(getPatientPrefix(patientId))) {
+            throw new IllegalArgumentException("sample.cug.patient.prefix.mismatch");
+        }
     }
 
     @Override
@@ -184,6 +299,12 @@ public class SampleCugServiceImpl implements SampleCugService {
             }
 
             String cugCode = StringUtils.trimToNull(sampleTestCollection.item.getCugCode());
+            if (cugCode != null && StringUtils.isNotBlank(patientId)) {
+                Long assigned = patientPrefixes.findPatientPrefix(patientId);
+                if (assigned != null && assigned != parseCugComponents(cugCode).prefix) {
+                    throw new IllegalArgumentException("sample.cug.patient.prefix.mismatch");
+                }
+            }
             String reservationToken = StringUtils.trimToNull(sampleTestCollection.cugReservationToken);
             if (sampleTestCollection.cugProvisional) {
                 validateDisplayedCug(cugCode, patientId, userId, inTransactionCugs);

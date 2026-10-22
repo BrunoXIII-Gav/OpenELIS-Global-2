@@ -262,6 +262,28 @@ describe("SampleType additional fields", () => {
       expect(queryByLabelText(messages["sample.cug.label"])).toBeNull();
     },
   );
+  test("keeps the saved sample CUG visible and never clears or regenerates it when editing an order", async () => {
+    const sample = {
+      ...baseSample,
+      existingSampleItemId: "20",
+      sampleTypeId: "1",
+      sampleXML: { cug: "5000.2", additionalFieldValues: {} },
+    };
+    const { getByLabelText, props } = renderComponent({
+      sample,
+      patientId: "10",
+    });
+    await wait(() =>
+      expect(getByLabelText(messages["sample.cug.label"]).value).toBe("5000.2"),
+    );
+    expect(getByLabelText(messages["sample.cug.label"]).readOnly).toBe(true);
+    expect(postToOpenElisServerJsonResponse).not.toHaveBeenCalled();
+    const xmlUpdates = props.sampleTypeObject.mock.calls
+      .map(([update]) => update.sampleXML)
+      .filter(Boolean);
+    expect(xmlUpdates.length).toBeGreaterThan(0);
+    expect(xmlUpdates.every((xml) => xml.cug === "5000.2")).toBe(true);
+  });
 
   test("loads and applies additional fields defaults for selected sample type", async () => {
     const { container, props } = renderComponent();

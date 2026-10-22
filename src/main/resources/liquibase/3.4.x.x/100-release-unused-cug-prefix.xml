@@ -1,0 +1,96 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<databaseChangeLog xmlns="http://www.liquibase.org/xml/ns/dbchangelog"
+ xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+ xsi:schemaLocation="http://www.liquibase.org/xml/ns/dbchangelog https://www.liquibase.org/xml/ns/dbchangelog/dbchangelog-4.8.xsd">
+ <changeSet id="100-release-unused-cug-prefix" author="openelis">
+  <!-- Registry row locks coordinate release with legacy/import writers too.
+       Normal orders still avoid the global counter lock for assigned prefixes. -->
+  <sql splitStatements="false"><![CDATA[
+   CREATE OR REPLACE FUNCTION clinlims.record_cug_prefix() RETURNS trigger
+   LANGUAGE plpgsql SET search_path = pg_catalog, clinlims AS $$
+   DECLARE n bigint; actor integer;
+   BEGIN
+    IF TG_OP = 'UPDATE' AND (to_jsonb(OLD)->>TG_ARGV[0]) IS NOT DISTINCT FROM (to_jsonb(NEW)->>TG_ARGV[0]) THEN
+     RETURN NEW;
+    END IF;
+    n := clinlims.cug_numeric_prefix(to_jsonb(NEW)->>TG_ARGV[0]);
+    IF n IS NOT NULL THEN
+     PERFORM id FROM clinlims.sample_cug_prefix WHERE prefix = n FOR KEY SHARE;
+     IF FOUND THEN RETURN NEW; END IF;
+     PERFORM id FROM clinlims.sample_cug_counter WHERE id = '1' FOR UPDATE;
+     actor := (to_jsonb(NEW)->>'sys_user_id')::integer;
+     INSERT INTO clinlims.sample_cug_prefix(id, prefix, sys_user_id)
+      VALUES (n::text, n, actor) ON CONFLICT (prefix) DO NOTHING;
+    END IF;
+    RETURN NEW;
+   END $$;
+
+   CREATE FUNCTION clinlims.guard_cug_prefix_release() RETURNS trigger
+   LANGUAGE plpgsql SET search_path = pg_catalog, clinlims AS $$
+   BEGIN
+    PERFORM id FROM clinlims.sample_cug_counter WHERE id = '1' FOR UPDATE;
+    IF EXISTS (SELECT 1 FROM clinlims.patient_cug_prefix WHERE prefix = OLD.prefix)
+       OR EXISTS (SELECT 1 FROM clinlims.sample_item WHERE clinlims.cug_numeric_prefix(cug_code) = OLD.prefix)
+       OR EXISTS (SELECT 1 FROM clinlims.sample_cug_reservation
+          WHERE clinlims.cug_numeric_prefix(reserved_value) = OLD.prefix
+            AND status = 'RESERVED' AND expires_at > clock_timestamp()) THEN
+     RAISE EXCEPTION 'Cannot release a referenced CUG prefix' USING ERRCODE = '23503';
+    END IF;
+    -- Inactive tokens cannot be consumed. Remove these technical rows so their
+    -- unique reserved_value does not block reusing a released CUG. Clinical
+    -- records and immutable before/after audit events are preserved.
+    DELETE FROM clinlims.sample_cug_reservation
+     WHERE clinlims.cug_numeric_prefix(reserved_value) = OLD.prefix;
+    RETURN OLD;
+   END $$;
+   CREATE TRIGGER guard_cug_prefix_release BEFORE DELETE ON clinlims.sample_cug_prefix
+    FOR EACH ROW EXECUTE FUNCTION clinlims.guard_cug_prefix_release();
+
+   CREATE FUNCTION clinlims.split_released_cug_prefix_range() RETURNS trigger
+   LANGUAGE plpgsql SET search_path = pg_catalog, clinlims AS $$
+   DECLARE occupied clinlims.sample_cug_prefix_range%ROWTYPE;
+   BEGIN
+    SELECT * INTO occupied FROM clinlims.sample_cug_prefix_range
+     WHERE start_prefix <= OLD.prefix AND end_prefix >= OLD.prefix FOR UPDATE;
+    IF NOT FOUND THEN RAISE EXCEPTION 'Missing occupied CUG prefix range'; END IF;
+    DELETE FROM clinlims.sample_cug_prefix_range WHERE id = occupied.id;
+    IF occupied.start_prefix < OLD.prefix THEN
+     INSERT INTO clinlims.sample_cug_prefix_range(id, start_prefix, end_prefix, sys_user_id)
+      VALUES (occupied.start_prefix::text, occupied.start_prefix, OLD.prefix - 1, OLD.sys_user_id);
+    END IF;
+    IF occupied.end_prefix > OLD.prefix THEN
+     INSERT INTO clinlims.sample_cug_prefix_range(id, start_prefix, end_prefix, sys_user_id)
+      VALUES ((OLD.prefix + 1)::text, OLD.prefix + 1, occupied.end_prefix, OLD.sys_user_id);
+    END IF;
+    RETURN OLD;
+   END $$;
+   CREATE TRIGGER split_released_cug_prefix_range AFTER DELETE ON clinlims.sample_cug_prefix
+    FOR EACH ROW EXECUTE FUNCTION clinlims.split_released_cug_prefix_range();
+  ]]></sql>
+  <rollback>
+   <sql splitStatements="false"><![CDATA[
+    DROP TRIGGER split_released_cug_prefix_range ON clinlims.sample_cug_prefix;
+    DROP FUNCTION clinlims.split_released_cug_prefix_range();
+    DROP TRIGGER guard_cug_prefix_release ON clinlims.sample_cug_prefix;
+    DROP FUNCTION clinlims.guard_cug_prefix_release();
+    CREATE OR REPLACE FUNCTION clinlims.record_cug_prefix() RETURNS trigger
+    LANGUAGE plpgsql SET search_path = pg_catalog, clinlims AS $$
+    DECLARE n bigint; actor integer;
+    BEGIN
+     IF TG_OP = 'UPDATE' AND (to_jsonb(OLD)->>TG_ARGV[0]) IS NOT DISTINCT FROM (to_jsonb(NEW)->>TG_ARGV[0]) THEN
+      RETURN NEW;
+     END IF;
+     n := clinlims.cug_numeric_prefix(to_jsonb(NEW)->>TG_ARGV[0]);
+     IF n IS NOT NULL THEN
+      IF EXISTS (SELECT 1 FROM clinlims.sample_cug_prefix WHERE prefix = n) THEN RETURN NEW; END IF;
+      PERFORM id FROM clinlims.sample_cug_counter WHERE id = '1' FOR UPDATE;
+      actor := (to_jsonb(NEW)->>'sys_user_id')::integer;
+      INSERT INTO clinlims.sample_cug_prefix(id, prefix, sys_user_id)
+       VALUES (n::text, n, actor) ON CONFLICT (prefix) DO NOTHING;
+     END IF;
+     RETURN NEW;
+    END $$;
+   ]]></sql>
+  </rollback>
+ </changeSet>
+</databaseChangeLog>

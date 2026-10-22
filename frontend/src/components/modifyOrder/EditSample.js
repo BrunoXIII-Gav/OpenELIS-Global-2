@@ -999,7 +999,14 @@ const EditSample = (props) => {
           </h3>
           {samples.map((sample, i) => {
             return (
-              <div className="sampleType" key={i}>
+              <div
+                className="sampleType"
+                key={
+                  sample.existingSampleItemId
+                    ? `existing-${sample.existingSampleItemId}`
+                    : `new-${sample.index ?? i}`
+                }
+              >
                 <h4>
                   <FormattedMessage id="order.sample.card.label" /> {i + 1}
                 </h4>

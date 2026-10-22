@@ -12,6 +12,12 @@ public interface SampleCugService {
 
     String ensurePatientPrefix(String patientId, String currentUserId);
 
+    String assignPatientPrefix(String patientId, String requestedPrefix, String currentUserId);
+
+    String changePatientPrefix(String patientId, String expectedPrefix, String requestedPrefix, String currentUserId);
+
+    void lockPatientAndCheckPrefix(String patientId, String expectedPrefix);
+
     SampleCugPreviewResponse previewCugCode(SampleCugPreviewRequest request);
 
     SampleCugPreviewResponse reserveCugCode(SampleCugPreviewRequest request, String currentUserId);

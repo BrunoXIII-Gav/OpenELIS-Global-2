@@ -44,6 +44,10 @@ public class SampleManagementSaveVersionTest {
     @Mock
     private SampleItemService sampleItems;
     @Mock
+    private org.openelisglobal.sampleitem.dao.SampleItemDAO sampleItemDAO;
+    @Mock
+    private org.openelisglobal.samplehuman.service.SampleHumanService sampleHumanService;
+    @Mock
     private SampleManagementAuthorizationService authorization;
     @Mock
     private ModuleAuthorizationService moduleAuthorization;
@@ -167,6 +171,18 @@ public class SampleManagementSaveVersionTest {
         assertEquals("88", persisted.get().getStatusId());
         assertEquals("99", analysis.getStatusId());
         verify(analyses).update(analysis);
+    }
+
+    @Test
+    public void refreshingAfterPrefixChangeRejectsTheStaleSamplePayloadBeforeWriting() {
+        doAnswer(call -> {
+            original.setCugCode("8000.1");
+            return null;
+        }).when(sampleItemDAO).lockAndRefreshForCugChange(original);
+        assertEquals("sample.cug.prefix.readonly",
+                assertThrows(IllegalArgumentException.class, () -> service.saveSampleManagementChanges(form, "1"))
+                        .getMessage());
+        verify(sampleItems, never()).update(any(SampleItem.class));
     }
 
     @Test

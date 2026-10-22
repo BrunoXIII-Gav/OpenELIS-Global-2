@@ -137,6 +137,14 @@ public class SampleEditServiceImpl implements SampleEditService {
     public void editSample(SampleEditForm form, HttpServletRequest request, Sample updatedSample, boolean sampleChanged,
             String sysUserId) {
 
+        if (updatedSample == null) {
+            updatedSample = sampleService.getSampleByAccessionNumber(form.getAccessionNumber());
+        }
+        Patient patient = sampleService.getPatient(updatedSample);
+        if (patient != null) {
+            sampleCugService.lockPatientAndCheckPrefix(patient.getId(), null);
+        }
+
         List<SampleEditItem> existingTests = form.getExistingTests() != null ? form.getExistingTests()
                 : new ArrayList<>();
         List<Analysis> cancelAnalysisList = createRemoveList(existingTests, sysUserId);
@@ -147,9 +155,6 @@ public class SampleEditServiceImpl implements SampleEditService {
         List<IResultUpdate> updaters = ResultUpdateRegister.getRegisteredUpdaters();
         ResultsUpdateDataSet actionDataSet = new ResultsUpdateDataSet(sysUserId);
 
-        if (updatedSample == null) {
-            updatedSample = sampleService.getSampleByAccessionNumber(form.getAccessionNumber());
-        }
         boolean alternateOrderFlow = alternateOrderFlowService
                 .isAlternateOrderFlow(form.getSampleOrderItems() == null ? null
                         : form.getSampleOrderItems().getAdditionalFieldValues());
@@ -182,7 +187,6 @@ public class SampleEditServiceImpl implements SampleEditService {
             sampleChanged = true;
             updatedSample = orderArtifacts.getSample();
         }
-        Patient patient = sampleService.getPatient(updatedSample);
         sampleCugService.assignMissingCugCodes(addedSamples, patient == null ? null : patient.getId(), sysUserId,
                 updatedSample.getId());
         persistProviderData(orderArtifacts);

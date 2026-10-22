@@ -162,43 +162,46 @@ test("a manual laboratory number conflict preserves the form and shows its trans
   expect(view.getByText("Confirm order")).toBeTruthy();
 });
 
-test("a conflicting CUG preserves the order and never retries with another suffix", async () => {
-  postToOpenElisServerFullResponse.mockImplementation(
-    (url, payload, callback) =>
-      callback({
-        status: 409,
-        headers: new Headers({
-          "X-OpenELIS-Error-Code": "sample.cug.conflict",
+test.each(["sample.cug.conflict", "sample.cug.patient.prefix.mismatch"])(
+  "%s preserves the order and never retries with another suffix",
+  async (code) => {
+    postToOpenElisServerFullResponse.mockImplementation(
+      (url, payload, callback) =>
+        callback({
+          status: 409,
+          headers: new Headers({
+            "X-OpenELIS-Error-Code": code,
+          }),
         }),
-      }),
-  );
-  const view = renderOrder();
-  const next = () => view.getByText(messages["next.action.button"]);
-  fireEvent.click(view.getByText("Save test patient"));
-  fireEvent.click(next());
-  fireEvent.click(view.getByText("Select sample"));
-  fireEvent.click(next());
-  const submit = () =>
-    view.getByText(messages["label.button.submit"]).closest("button");
-  await wait(() => expect(submit().disabled).toBe(false));
-  fireEvent.click(submit());
-  await wait(() =>
-    expect(notifications.addNotification).toHaveBeenCalledWith(
-      expect.objectContaining({ message: messages["sample.cug.conflict"] }),
-    ),
-  );
-  expect(view.getByText("Confirm order")).toBeTruthy();
-  expect(postToOpenElisServerFullResponse).toHaveBeenCalledTimes(1);
-  // A deliberate retry retains both the patient and exactly the displayed CUG.
-  await wait(() => expect(submit().disabled).toBe(false));
-  fireEvent.click(submit());
-  await wait(() =>
-    expect(postToOpenElisServerFullResponse).toHaveBeenCalledTimes(2),
-  );
-  for (const call of postToOpenElisServerFullResponse.mock.calls) {
-    const payload = JSON.parse(call[1]);
-    expect(payload.patientProperties.patientPK).toBe("10");
-    expect(payload.sampleXML).toContain("cug='5001.1' cugProvisional='true'");
-    expect(payload.sampleXML).not.toContain("5001.2");
-  }
-});
+    );
+    const view = renderOrder();
+    const next = () => view.getByText(messages["next.action.button"]);
+    fireEvent.click(view.getByText("Save test patient"));
+    fireEvent.click(next());
+    fireEvent.click(view.getByText("Select sample"));
+    fireEvent.click(next());
+    const submit = () =>
+      view.getByText(messages["label.button.submit"]).closest("button");
+    await wait(() => expect(submit().disabled).toBe(false));
+    fireEvent.click(submit());
+    await wait(() =>
+      expect(notifications.addNotification).toHaveBeenCalledWith(
+        expect.objectContaining({ message: messages[code] }),
+      ),
+    );
+    expect(view.getByText("Confirm order")).toBeTruthy();
+    expect(postToOpenElisServerFullResponse).toHaveBeenCalledTimes(1);
+    // A deliberate retry retains both the patient and exactly the displayed CUG.
+    await wait(() => expect(submit().disabled).toBe(false));
+    fireEvent.click(submit());
+    await wait(() =>
+      expect(postToOpenElisServerFullResponse).toHaveBeenCalledTimes(2),
+    );
+    for (const call of postToOpenElisServerFullResponse.mock.calls) {
+      const payload = JSON.parse(call[1]);
+      expect(payload.patientProperties.patientPK).toBe("10");
+      expect(payload.sampleXML).toContain("cug='5001.1' cugProvisional='true'");
+      expect(payload.sampleXML).not.toContain("5001.2");
+    }
+  },
+);

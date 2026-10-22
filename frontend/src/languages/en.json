@@ -4738,5 +4738,17 @@
   "order.labnumber.invalid": "The laboratory number does not match a permitted format.",
   "order.labnumber.exhausted": "No more laboratory numbers are available in the configured sequence.",
   "order.labnumber.program.required": "Select a program with a four-character code to generate its laboratory number.",
-  "order.labnumber.format.unsupported": "Check the laboratory number format configuration."
+  "order.labnumber.format.unsupported": "Check the laboratory number format configuration.",
+  "sample.cug.suffix.label": "CUG suffix",
+  "sample.cug.prefix.readonly": "Only the CUG suffix can be changed here. The prefix must remain unchanged.",
+  "sample.cug.sample.duplicate": "This CUG is already assigned to another sample. The changes were not saved.",
+  "patient.cug.prefix.invalid": "Enter a whole number from 1 to 9223372036854775806, without dots or leading zeros.",
+  "patient.cug.prefix.duplicate": "This prefix was already assigned or used. The patient was not saved. Choose another prefix or use automatic assignment.",
+  "patient.cug.prefix.readonly": "An assigned patient prefix cannot be changed here.",
+  "patient.cug.prefix.manual": "Manual selection. Availability will be checked when the patient is saved.",
+  "patient.cug.prefix.automatic": "Use automatic prefix",
+  "patient.cug.prefix.stale": "The patient prefix changed after you opened this form. Reload the patient and samples before saving.",
+  "patient.cug.prefix.inconsistent": "Some sample CUGs do not match the patient prefix or have an invalid format. No changes were saved. Review the existing codes first.",
+  "patient.cug.prefix.change.help": "Saving changes the prefix on all this patient’s sample CUGs, preserving their suffixes.",
+  "patient.cug.prefix.cancel": "Cancel prefix change"
 }

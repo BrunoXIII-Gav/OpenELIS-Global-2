@@ -77,6 +77,32 @@ public class SampleCugServiceTest {
     }
 
     @Test
+    public void manualPrefixIsClaimedAndBoundToItsPatient() {
+        when(prefixes.claim("5006", "42")).thenReturn(5006L);
+        assertEquals("5006", service.assignPatientPrefix("10", "5006", "42"));
+        verify(patientPrefixes).bindPatientPrefix("10", 5006L, "42");
+        verify(prefixes, never()).allocate(anyString());
+    }
+
+    @Test
+    public void manualPrefixCannotRenumberAnExistingPatientOrItsHistory() {
+        when(patientPrefixes.findPatientPrefix("10")).thenReturn(5004L);
+        assertThrows(org.openelisglobal.sample.exception.PatientCugPrefixException.class,
+                () -> service.assignPatientPrefix("10", "8000", "42"));
+        assertEquals("5004", service.assignPatientPrefix("10", "5004", "42"));
+        verify(prefixes, never()).claim(anyString(), anyString());
+        verify(patientPrefixes, never()).bindPatientPrefix(anyString(), anyLong(), anyString());
+    }
+
+    @Test
+    public void legacyHistoryAlsoPreventsManualRenumbering() {
+        when(items.findCugCodesByPatientId("10")).thenReturn(List.of("140.1"));
+        assertThrows(org.openelisglobal.sample.exception.PatientCugPrefixException.class,
+                () -> service.assignPatientPrefix("10", "8000", "42"));
+        verify(prefixes, never()).claim(anyString(), anyString());
+    }
+
+    @Test
     public void legacyAssignmentWithoutPreviewStillUsesLatestHistory() {
         when(patientPrefixes.findPatientPrefix("10")).thenReturn(5000L);
         when(items.findCugCodesByPatientId("10")).thenReturn(List.of("5000.1"));

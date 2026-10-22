@@ -30,6 +30,7 @@ import org.openelisglobal.common.daoimpl.BaseDAOImpl;
 import org.openelisglobal.common.exception.LIMSRuntimeException;
 import org.openelisglobal.common.log.LogEvent;
 import org.openelisglobal.common.util.ConfigurationProperties;
+import org.openelisglobal.common.util.NumericStringIdQuery;
 import org.openelisglobal.sample.valueholder.Sample;
 import org.openelisglobal.sampleitem.dao.SampleItemDAO;
 import org.openelisglobal.sampleitem.valueholder.SampleItem;
@@ -44,6 +45,22 @@ import org.springframework.transaction.annotation.Transactional;
 @Component
 @Transactional
 public class SampleItemDAOImpl extends BaseDAOImpl<SampleItem, String> implements SampleItemDAO {
+
+    @Override
+    public List<SampleItem> lockPatientItemsForCugChange(String patientId) {
+        var query = entityManager.createQuery(
+                "select si from SampleItem si where si.sample.id in "
+                        + "(select sh.sampleId from SampleHuman sh where sh.patientId = :patient) order by si.id",
+                SampleItem.class).setLockMode(jakarta.persistence.LockModeType.PESSIMISTIC_WRITE);
+        // The classic HQL translator does not infer this custom numeric type
+        // inside the subquery. A plain String binding becomes VARCHAR in PostgreSQL.
+        return NumericStringIdQuery.bind(query, "patient", patientId).getResultList();
+    }
+
+    @Override
+    public void lockAndRefreshForCugChange(SampleItem item) {
+        entityManager.refresh(item, jakarta.persistence.LockModeType.PESSIMISTIC_WRITE);
+    }
 
     public SampleItemDAOImpl() {
         super(SampleItem.class);

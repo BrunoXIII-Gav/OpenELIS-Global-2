@@ -4642,5 +4642,17 @@
   "order.labnumber.invalid": "Le numéro de laboratoire ne correspond pas à un format autorisé.",
   "order.labnumber.exhausted": "Aucun numéro de laboratoire n’est disponible dans la séquence configurée.",
   "order.labnumber.program.required": "Sélectionnez un programme avec un code de quatre caractères pour générer son numéro.",
-  "order.labnumber.format.unsupported": "Vérifiez la configuration du format des numéros de laboratoire."
+  "order.labnumber.format.unsupported": "Vérifiez la configuration du format des numéros de laboratoire.",
+  "sample.cug.suffix.label": "Suffixe CUG",
+  "sample.cug.prefix.readonly": "Seul le suffixe du CUG peut être modifié ici. Le préfixe doit rester inchangé.",
+  "sample.cug.sample.duplicate": "Ce CUG est déjà attribué à un autre échantillon. Les modifications n’ont pas été enregistrées.",
+  "patient.cug.prefix.invalid": "Saisissez un entier de 1 à 9223372036854775806, sans point ni zéro initial.",
+  "patient.cug.prefix.duplicate": "Ce préfixe a déjà été attribué ou utilisé. Le patient n’a pas été enregistré. Choisissez un autre préfixe ou utilisez l’attribution automatique.",
+  "patient.cug.prefix.readonly": "Le préfixe déjà attribué au patient ne peut pas être modifié ici.",
+  "patient.cug.prefix.manual": "Sélection manuelle. La disponibilité sera vérifiée lors de l’enregistrement du patient.",
+  "patient.cug.prefix.automatic": "Utiliser un préfixe automatique",
+  "patient.cug.prefix.stale": "Le préfixe du patient a changé depuis l’ouverture du formulaire. Rechargez le patient et les échantillons avant d’enregistrer.",
+  "patient.cug.prefix.inconsistent": "Certains CUG d’échantillons ne correspondent pas au préfixe du patient ou ont un format invalide. Aucune modification n’a été enregistrée. Vérifiez les codes existants.",
+  "patient.cug.prefix.change.help": "L’enregistrement modifiera le préfixe des CUG de tous les échantillons de ce patient en conservant leurs suffixes.",
+  "patient.cug.prefix.cancel": "Annuler le changement de préfixe"
 }

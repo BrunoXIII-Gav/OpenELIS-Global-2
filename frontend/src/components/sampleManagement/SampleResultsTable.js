@@ -37,6 +37,7 @@ import {
   postToOpenElisServerJsonResponse,
 } from "../utils/Utils";
 import "./SampleResultsTable.css";
+import CugSuffixInput from "./CugSuffixInput";
 
 const ORDER_FIXED_FIELD_LABEL_MESSAGE_IDS = {
   priority: "sample.management.order.fixed.priority",
@@ -1105,9 +1106,10 @@ function SampleResultsTable({
               !response?.error &&
               !response?.statusCode &&
               response?.updatedSamplesCount !== undefined,
-            message:
-              response?.message ||
-              intl.formatMessage({ id: "sample.management.success.title" }),
+            message: response?.message?.startsWith("sample.cug.")
+              ? intl.formatMessage({ id: response.message })
+              : response?.message ||
+                intl.formatMessage({ id: "sample.management.success.title" }),
           });
         }
       },
@@ -2272,17 +2274,22 @@ function SampleResultsTable({
                                           }}
                                           onClick={(e) => e.stopPropagation()}
                                         >
-                                          <TextInput
+                                          <CugSuffixInput
                                             id={`${row.id}-table-cugCode`}
-                                            labelText=""
-                                            hideLabel
-                                            size="sm"
+                                            originalCug={originalRow?.cugCode}
+                                            patientPrefix={
+                                              originalRow?.cugPrefix
+                                            }
                                             value={editableCugValue}
-                                            onChange={(e) =>
+                                            readOnly={
+                                              isReadOnly ||
+                                              !originalRow?.editable
+                                            }
+                                            onChange={(cugCode) =>
                                               handleCurrentTestFieldChange(
                                                 primarySampleRowId,
                                                 "cugCode",
-                                                e.target.value,
+                                                cugCode,
                                               )
                                             }
                                           />

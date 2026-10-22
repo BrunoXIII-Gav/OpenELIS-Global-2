@@ -1,0 +1,12 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<databaseChangeLog xmlns="http://www.liquibase.org/xml/ns/dbchangelog"
+ xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+ xsi:schemaLocation="http://www.liquibase.org/xml/ns/dbchangelog https://www.liquibase.org/xml/ns/dbchangelog/dbchangelog-4.8.xsd">
+ <include file="liquibase/sample-cug-conflict-baseline.xml"/>
+ <changeSet id="patient-prefix-change-test-mappings" author="openelis">
+  <addColumn tableName="sample"><column name="accession_number" type="VARCHAR(60)"/></addColumn>
+  <addColumn tableName="sample_item"><column name="lastupdated" type="TIMESTAMP" defaultValueComputed="CURRENT_TIMESTAMP"/></addColumn>
+  <addColumn tableName="sample_human"><column name="id" type="NUMERIC(10,0)"><constraints unique="true"/></column></addColumn>
+ </changeSet>
+ <include file="liquibase/3.4.x.x/100-release-unused-cug-prefix.xml"/>
+</databaseChangeLog>

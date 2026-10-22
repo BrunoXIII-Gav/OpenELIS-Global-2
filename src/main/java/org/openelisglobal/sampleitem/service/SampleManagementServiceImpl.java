@@ -36,10 +36,13 @@ import org.openelisglobal.common.services.IStatusService;
 import org.openelisglobal.common.services.SampleOrderService;
 import org.openelisglobal.common.services.StatusService;
 import org.openelisglobal.common.services.StatusService.SampleStatus;
+import org.openelisglobal.patient.valueholder.Patient;
 import org.openelisglobal.sample.bean.SampleTypeAdditionalFieldPayload;
+import org.openelisglobal.sample.service.SampleCugService;
 import org.openelisglobal.sample.service.SampleService;
 import org.openelisglobal.sample.service.SampleTypeAdditionalFieldService;
 import org.openelisglobal.sample.valueholder.Sample;
+import org.openelisglobal.samplehuman.service.SampleHumanService;
 import org.openelisglobal.sampleitem.dao.SampleItemDAO;
 import org.openelisglobal.sampleitem.dto.AddTestsResponse;
 import org.openelisglobal.sampleitem.dto.AliquotSummaryDTO;
@@ -82,7 +85,16 @@ import org.springframework.transaction.annotation.Transactional;
 @Service
 public class SampleManagementServiceImpl implements SampleManagementService {
 
-    private static final Pattern CUG_PATTERN = Pattern.compile("^.+\\.\\d+$");
+    private static final Pattern CUG_PATTERN = Pattern.compile("^[1-9][0-9]*\\.[1-9][0-9]*$");
+
+    @Autowired
+    private SampleHumanService sampleHumanService;
+
+    @Autowired
+    private SampleCugService sampleCugService;
+
+    @Autowired
+    private org.openelisglobal.sample.dao.SampleCugReservationDAO cugReservations;
 
     @Autowired
     private SampleService sampleService;
@@ -404,6 +416,9 @@ public class SampleManagementServiceImpl implements SampleManagementService {
         dto.setId(sampleItem.getId());
         dto.setExternalId(sampleItem.getExternalId());
         dto.setCugCode(sampleItem.getCugCode());
+        if (GenericValidator.isBlankOrNull(sampleItem.getCugCode())) {
+            dto.setCugPrefix(getPatientCugPrefix(sampleItem));
+        }
         dto.setSampleAccessionNumber(
                 sampleItem.getSample() != null ? sampleItem.getSample().getAccessionNumber() : null);
 
@@ -690,6 +705,13 @@ public class SampleManagementServiceImpl implements SampleManagementService {
             if (sampleItem.getSample() == null) {
                 throw new IllegalArgumentException("Sample not found for sample item: " + update.getSampleItemId());
             }
+            Patient patient = sampleHumanService.getPatientForSample(sampleItem.getSample());
+            if (patient != null) {
+                cugReservations.lockPatientForCug(patient.getId());
+            }
+            // The row may have been read before waiting for a patient prefix
+            // change. Re-read it under a row lock before applying the payload.
+            sampleItemDAO.lockAndRefreshForCugChange(sampleItem);
             if (!access.canEdit(sampleItem.getDataCompletionState())) {
                 throw new org.springframework.security.access.AccessDeniedException(
                         "User cannot modify this sample in its current completion state");
@@ -869,21 +891,51 @@ public class SampleManagementServiceImpl implements SampleManagementService {
     private void applyCugUpdate(SampleItem sampleItem, SaveSampleManagementChangesForm.SampleUpdate update) {
         String cugCode = GenericValidator.isBlankOrNull(update.getCugCode()) ? null : update.getCugCode().trim();
         if (GenericValidator.isBlankOrNull(cugCode)) {
-            throw new IllegalArgumentException("CUG is required");
+            throw new IllegalArgumentException("sample.cug.required");
         }
-        if (!CUG_PATTERN.matcher(cugCode).matches()) {
-            throw new IllegalArgumentException("Invalid CUG format");
-        }
-
         String currentCugCode = GenericValidator.isBlankOrNull(sampleItem.getCugCode()) ? null
                 : sampleItem.getCugCode().trim();
-        if (currentCugCode == null || !currentCugCode.equalsIgnoreCase(cugCode)) {
-            if (sampleItemDAO.existsByCugCode(cugCode)) {
-                throw new IllegalArgumentException("CUG already exists");
-            }
+        // Editing collection data must not silently renumber historical samples.
+        if (cugCode.equals(currentCugCode)) {
+            return;
         }
-
+        String prefix = validatedCugPrefix(cugCode);
+        if (currentCugCode != null && !prefix.equals(validatedCugPrefix(currentCugCode))) {
+            throw new IllegalArgumentException("sample.cug.prefix.readonly");
+        }
+        String patientPrefix = getPatientCugPrefix(sampleItem);
+        if (patientPrefix != null && !prefix.equals(patientPrefix)) {
+            throw new IllegalArgumentException("sample.cug.patient.prefix.mismatch");
+        }
+        if (currentCugCode == null && patientPrefix == null) {
+            throw new IllegalArgumentException("sample.cug.patient.required");
+        }
+        if (sampleItemDAO.existsByCugCode(cugCode)) {
+            throw new IllegalArgumentException("sample.cug.sample.duplicate");
+        }
         sampleItem.setCugCode(cugCode);
+    }
+
+    private String getPatientCugPrefix(SampleItem sampleItem) {
+        Patient patient = sampleItem.getSample() == null ? null
+                : sampleHumanService.getPatientForSample(sampleItem.getSample());
+        return patient == null ? null : sampleCugService.getPatientPrefix(patient.getId());
+    }
+
+    private String validatedCugPrefix(String cugCode) {
+        if (!CUG_PATTERN.matcher(cugCode).matches()) {
+            throw new IllegalArgumentException("sample.cug.invalid.format");
+        }
+        int separator = cugCode.indexOf('.');
+        try {
+            if (Long.parseLong(cugCode.substring(0, separator)) == Long.MAX_VALUE) {
+                throw new NumberFormatException();
+            }
+            Long.parseLong(cugCode.substring(separator + 1));
+        } catch (NumberFormatException e) {
+            throw new IllegalArgumentException("sample.cug.invalid.format");
+        }
+        return cugCode.substring(0, separator);
     }
 
     private Timestamp parseCollectionTimestamp(String dateValue, String timeValue) {
