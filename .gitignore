@@ -99,5 +99,10 @@ specs/*/research/AnalyzerDocs/
 # 012 analyzer docs (PDFs, large - keep local, not in repo)
 docs/analyzers/012/
 specs/012-generic-astm-plugin-profiles/docs/
-
+docs/openelis-guides-es/
+docs/performance-results/
+docs/test-management/
+scripts/performance/
+*.md
+*.txt
 # Miscellaneous dev artifacts
