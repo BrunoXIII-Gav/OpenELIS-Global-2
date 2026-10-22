@@ -62,6 +62,37 @@ public class CugPrefixServiceTest {
     }
 
     @Test
+    public void manualChoiceLocksAndRegistersExactlyThatPrefixWithoutMovingTheCursor() {
+        assertEquals(5006L, service.claim("5006", "42"));
+        var order = inOrder(dao);
+        order.verify(dao).lockCounter();
+        order.verify(dao).isAssigned(5006L);
+        order.verify(dao).register(5006L, "42");
+        assertEquals(Long.valueOf(141), counter.getNextCandidate());
+    }
+
+    @Test
+    public void manualChoiceNeverSubstitutesAnOccupiedPrefix() {
+        when(dao.isAssigned(5006L)).thenReturn(true);
+        var error = assertThrows(org.openelisglobal.sample.exception.PatientCugPrefixException.class,
+                () -> service.claim("5006", "42"));
+        assertEquals("patient.cug.prefix.duplicate", error.getMessage());
+        verify(dao, never()).register(anyLong(), anyString());
+    }
+
+    @Test
+    public void invalidManualChoicesDoNotAllocateOrLock() {
+        for (String raw : new String[] { null, "", "0", "-1", "5006.1", "05006", " 5006", "abc", "9223372036854775807",
+                "999999999999999999999" }) {
+            var error = assertThrows(org.openelisglobal.sample.exception.PatientCugPrefixException.class,
+                    () -> service.claim(raw, "42"));
+            assertEquals("patient.cug.prefix.invalid", error.getMessage());
+        }
+        verify(dao, never()).lockCounter();
+        verify(dao, never()).register(anyLong(), anyString());
+    }
+
+    @Test
     public void rejectsInvalidAndOutOfRangeStartingPointsWithoutChangingTheCounter() {
         for (String start : new String[] { "0", "-1", "4.2", "", "abc", "9223372036854775807",
                 "999999999999999999999" }) {
@@ -74,6 +105,23 @@ public class CugPrefixServiceTest {
         }
         verify(dao, never()).lockCounter();
         verifyZeroInteractions(audit);
+    }
+
+    @Test
+    public void releaseChecksReferencesUnderTheAllocationLockWithoutRewindingCounter() {
+        assertTrue(service.releaseIfUnused(5007));
+        var order = inOrder(dao);
+        order.verify(dao).lockCounter();
+        order.verify(dao).isPrefixReferenced(eq(5007L), any());
+        order.verify(dao).releasePrefix(5007L);
+        assertEquals(Long.valueOf(141), counter.getNextCandidate());
+    }
+
+    @Test
+    public void referencedPrefixIsNeverReleased() {
+        when(dao.isPrefixReferenced(eq(5007L), any())).thenReturn(true);
+        assertFalse(service.releaseIfUnused(5007));
+        verify(dao, never()).releasePrefix(anyLong());
     }
 
     @Test

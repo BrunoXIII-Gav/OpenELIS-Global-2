@@ -136,6 +136,9 @@ public class SamplePatientEntryServiceImpl implements SamplePatientEntryService 
                 form.getSampleOrderItems().isLabNoGenerated());
         updateData.setAccessionNumber(assignedLabNo);
         updateData.getSample().setAccessionNumber(assignedLabNo);
+        if (!GenericValidator.isBlankOrNull(patientInfo.getPatientPK())) {
+            sampleCugService.lockPatientAndCheckPrefix(patientInfo.getPatientPK(), patientInfo.getCugPrefix());
+        }
         boolean useInitialSampleCondition = FormFields.getInstance().useField(Field.InitialSampleCondition);
         boolean useSampleNature = FormFields.getInstance().useField(Field.SampleNature);
 

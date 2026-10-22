@@ -1,0 +1,16 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<dataset>
+ <patient id="10"/>
+ <patient id="11"/>
+ <patient id="12"/>
+ <sample id="20" accession_number="LNG78"/>
+ <sample id="21" accession_number="LNG79"/>
+ <sample id="22" accession_number="LNG80"/>
+ <sample_human id="1" samp_id="20" patient_id="10"/>
+ <sample_human id="2" samp_id="21" patient_id="10"/>
+ <sample_human id="3" samp_id="22" patient_id="11"/>
+ <sample_item id="1" samp_id="20" cug_code="5004.1" sys_user_id="42"/>
+ <sample_item id="2" samp_id="21" cug_code="5004.2" sys_user_id="42"/>
+ <sample_item id="3" samp_id="20" cug_code="[NULL]" sys_user_id="42"/>
+ <sample_item id="4" samp_id="22" cug_code="6000.1" sys_user_id="42"/>
+</dataset>

@@ -1,0 +1,15 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE hibernate-mapping PUBLIC "-//Hibernate/Hibernate Mapping DTD 3.0//EN" "http://www.hibernate.org/dtd/hibernate-mapping-3.0.dtd">
+<hibernate-mapping>
+ <class name="org.openelisglobal.sampleitem.valueholder.SampleItem" table="sample_item" dynamic-update="true">
+  <id name="id" type="org.openelisglobal.hibernate.resources.usertype.LIMSStringNumberUserType"><column name="id" precision="10" scale="0"/></id>
+  <version name="lastupdated" column="lastupdated" type="timestamp" access="field"/>
+  <property name="cugCode" column="cug_code" type="string"/>
+  <many-to-one name="sample" class="org.openelisglobal.sample.valueholder.Sample" column="samp_id" lazy="false"/>
+ </class>
+ <class name="org.openelisglobal.samplehuman.valueholder.SampleHuman" table="sample_human" lazy="false">
+  <id name="id" type="org.openelisglobal.hibernate.resources.usertype.LIMSStringNumberUserType"><column name="id" precision="10" scale="0"/></id>
+  <property name="sampleId" column="samp_id" type="org.openelisglobal.hibernate.resources.usertype.LIMSStringNumberUserType"/>
+  <property name="patientId" column="patient_id" type="org.openelisglobal.hibernate.resources.usertype.LIMSStringNumberUserType"/>
+ </class>
+</hibernate-mapping>

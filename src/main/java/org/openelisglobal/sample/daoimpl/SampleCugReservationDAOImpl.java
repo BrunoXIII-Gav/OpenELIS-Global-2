@@ -123,4 +123,14 @@ public class SampleCugReservationDAOImpl extends BaseDAOImpl<SampleCugReservatio
         entityManager.flush();
         return reservations.size();
     }
+
+    @Override
+    public List<SampleCugReservation> lockReservedForPatient(String patientId) {
+        return entityManager
+                .createQuery("from SampleCugReservation r where r.patientId = :patient "
+                        + "and r.status = :status order by r.id", SampleCugReservation.class)
+                .setParameter("patient", Integer.valueOf(patientId))
+                .setParameter("status", ReservationStatus.RESERVED.name()).setLockMode(LockModeType.PESSIMISTIC_WRITE)
+                .getResultList();
+    }
 }

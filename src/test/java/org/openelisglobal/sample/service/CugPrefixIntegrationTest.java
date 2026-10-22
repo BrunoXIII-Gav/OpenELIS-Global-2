@@ -329,18 +329,22 @@ public class CugPrefixIntegrationTest {
         return new Liquibase(file, new ClassLoaderResourceAccessor(), database);
     }
 
-    SessionFactory factory(String url, String user, String password) {
+    SessionFactory factory(String url, String user, String password, String... mappings) {
         Configuration config = new Configuration().addAnnotatedClass(SampleCugCounter.class)
                 .addAnnotatedClass(PatientCugPrefix.class).addAnnotatedClass(SampleCugPrefix.class)
                 .addAnnotatedClass(SampleCugPrefixRange.class).addAnnotatedClass(SampleCugReservation.class)
                 .addAnnotatedClass(org.openelisglobal.audittrail.valueholder.AuditEvent.class)
                 .addResource("hibernate/cug-patient-lock.hbm.xml");
+        for (String mapping : mappings)
+            config.addResource(mapping);
         config.setProperty("hibernate.connection.url", url + "?currentSchema=clinlims");
         config.setProperty("hibernate.connection.username", user);
         config.setProperty("hibernate.connection.password", password);
         config.setProperty("hibernate.default_schema", "clinlims");
         config.setProperty("hibernate.dialect", "org.hibernate.dialect.PostgreSQLDialect");
         config.setProperty("hibernate.hbm2ddl.auto", "none");
+        config.setProperty("hibernate.query.factory_class",
+                "org.hibernate.hql.internal.classic.ClassicQueryTranslatorFactory");
         config.setProperty("hibernate.search.enabled", "false");
         config.setProperty("hibernate.generate_statistics", "true");
         config.setProperty("hibernate.connection.pool_size", "12");

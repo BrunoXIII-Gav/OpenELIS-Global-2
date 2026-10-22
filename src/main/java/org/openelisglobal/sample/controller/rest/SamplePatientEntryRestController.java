@@ -381,6 +381,10 @@ public class SamplePatientEntryRestController extends BaseSampleEntryController 
             // String fhir_json = fhirTransformService.CreateFhirFromOESample(updateData,
             // patientUpdate, patientInfo, form, request);
         } catch (IllegalArgumentException e) {
+            if ("sample.cug.patient.prefix.mismatch".equals(e.getMessage())) {
+                return ResponseEntity.status(HttpStatus.CONFLICT).header("X-OpenELIS-Error-Code", e.getMessage())
+                        .body(form);
+            }
             if (OrderAccessionConflictException.isConflict(e)) {
                 return ResponseEntity.status(HttpStatus.CONFLICT)
                         .header("X-OpenELIS-Error-Code", OrderAccessionConflictException.CODE).body(form);

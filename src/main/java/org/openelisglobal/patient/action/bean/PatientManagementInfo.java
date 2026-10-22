@@ -58,6 +58,24 @@ public class PatientManagementInfo implements Serializable {
     private static final long serialVersionUID = 1L;
 
     private String cugPrefix;
+    private String requestedCugPrefix;
+    private String expectedCugPrefix;
+
+    public String getExpectedCugPrefix() {
+        return expectedCugPrefix;
+    }
+
+    public void setExpectedCugPrefix(String value) {
+        expectedCugPrefix = value;
+    }
+
+    public String getRequestedCugPrefix() {
+        return requestedCugPrefix;
+    }
+
+    public void setRequestedCugPrefix(String value) {
+        requestedCugPrefix = value;
+    }
 
     public String getCugPrefix() {
         return cugPrefix;

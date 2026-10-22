@@ -21,6 +21,7 @@ import org.openelisglobal.patient.service.PatientService;
 import org.openelisglobal.patient.util.PatientUtil;
 import org.openelisglobal.patient.valueholder.Patient;
 import org.openelisglobal.patientidentity.service.PatientIdentityService;
+import org.openelisglobal.sample.exception.PatientCugPrefixException;
 import org.openelisglobal.sample.form.SamplePatientEntryForm;
 import org.openelisglobal.sample.service.OrderPatientContextService;
 import org.openelisglobal.search.service.SearchResultsService;
@@ -97,7 +98,11 @@ public class PatientManagementRestController extends BaseRestController {
                 throw new BindException(bindingResult);
             }
             try {
-                patientService.persistPatientData(patientInfo, patient, sysUserId);
+                if (orderRegistration) {
+                    patientService.persistPatientData(patientInfo, patient, sysUserId);
+                } else {
+                    patientService.persistPatientDataFromPatientModule(patientInfo, patient, sysUserId);
+                }
                 fhirTransformService.transformPersistPatient(patientInfo,
                         (patientInfo.getPatientUpdateStatus() == PatientUpdateStatus.ADD));
                 photoService.savePhoto(patient.getId(), patientInfo.getPhoto());
@@ -117,6 +122,12 @@ public class PatientManagementRestController extends BaseRestController {
 
     @ExceptionHandler(RuntimeException.class)
     public ResponseEntity<?> handleRegistrationFailure(RuntimeException error) {
+        if (error instanceof PatientCugPrefixException conflict) {
+            return ResponseEntity
+                    .status(PatientCugPrefixException.INVALID.equals(conflict.getMessage()) ? HttpStatus.BAD_REQUEST
+                            : HttpStatus.CONFLICT)
+                    .body(Map.of("code", conflict.getMessage()));
+        }
         if (PatientIdentifierConflict.isDuplicate(error))
             return duplicateIdentifierResponse();
         throw error;

@@ -11,7 +11,15 @@ public interface CugPrefixService {
 
     long allocate(String actorId);
 
+    long claim(String requestedPrefix, String actorId);
+
     boolean isAssigned(long prefix);
 
     void register(long prefix, String actorId);
+
+    /**
+     * Releases an unreferenced prefix and its inactive technical reservations under
+     * the allocation lock, without moving the counter backwards.
+     */
+    boolean releaseIfUnused(long prefix);
 }

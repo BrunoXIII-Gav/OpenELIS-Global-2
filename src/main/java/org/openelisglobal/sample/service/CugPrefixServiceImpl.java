@@ -5,6 +5,7 @@ import java.util.UUID;
 import org.openelisglobal.audittrail.dao.AuditEventDAO;
 import org.openelisglobal.audittrail.valueholder.AuditEvent;
 import org.openelisglobal.sample.dao.SampleCugPrefixDAO;
+import org.openelisglobal.sample.exception.PatientCugPrefixException;
 import org.openelisglobal.sample.form.CugPrefixSettingsForm;
 import org.openelisglobal.sample.valueholder.SampleCugCounter;
 import org.springframework.stereotype.Service;
@@ -69,6 +70,39 @@ public class CugPrefixServiceImpl implements CugPrefixService {
         counter.setNextCandidate(candidate + 1);
         counter.setSysUserId(actorId);
         return candidate;
+    }
+
+    @Override
+    public long claim(String requestedPrefix, String actorId) {
+        long candidate;
+        try {
+            candidate = parseStart(requestedPrefix);
+            if (!Long.toString(candidate).equals(requestedPrefix)) {
+                throw new IllegalArgumentException();
+            }
+        } catch (IllegalArgumentException e) {
+            throw new PatientCugPrefixException(PatientCugPrefixException.INVALID);
+        }
+        // The same lock protects automatic allocation and trigger-based imports.
+        prefixes.lockCounter();
+        if (prefixes.isAssigned(candidate)) {
+            throw new PatientCugPrefixException(PatientCugPrefixException.OCCUPIED);
+        }
+        prefixes.register(candidate, actorId);
+        // Do not move the cursor to an arbitrary manual choice. The allocator
+        // skips its occupied range when it reaches that prefix.
+        return candidate;
+    }
+
+    @Override
+    public boolean releaseIfUnused(long prefix) {
+        if (prefix < 1 || prefix > MAX_PREFIX)
+            throw new IllegalArgumentException("cug.prefix.error.invalid");
+        prefixes.lockCounter();
+        if (prefixes.isPrefixReferenced(prefix, new Timestamp(System.currentTimeMillis())))
+            return false;
+        prefixes.releasePrefix(prefix);
+        return true;
     }
 
     @Override
