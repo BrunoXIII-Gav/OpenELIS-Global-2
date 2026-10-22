@@ -241,6 +241,28 @@ describe("SampleType additional fields", () => {
     expect(postToOpenElisServerJsonResponse).not.toHaveBeenCalled();
   });
 
+  test.each([false, true])(
+    "respects hidden CUG configuration with provisionalCug=%s",
+    async (provisionalCug) => {
+      const defaultGet = getFromOpenElisServer.getMockImplementation();
+      getFromOpenElisServer.mockImplementation((url, callback) => {
+        if (url === "/rest/sample-additional-fields/fixed") {
+          callback([{ fieldKey: "cug", visible: false }]);
+          return;
+        }
+        defaultGet(url, callback);
+      });
+      const { queryByLabelText } = renderComponent({ provisionalCug });
+      await wait(() =>
+        expect(getFromOpenElisServer).toHaveBeenCalledWith(
+          "/rest/sample-additional-fields/fixed",
+          expect.any(Function),
+        ),
+      );
+      expect(queryByLabelText(messages["sample.cug.label"])).toBeNull();
+    },
+  );
+
   test("loads and applies additional fields defaults for selected sample type", async () => {
     const { container, props } = renderComponent();
 
