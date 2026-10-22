@@ -1,8 +1,13 @@
 const CreatePatientFormValues = {
+  cugPrefix: "",
+  patientPK: "",
   patientUpdateStatus: "ADD",
   nationalId: "",
   subjectNumber: "",
   dni: "",
+  dniEnabled: false,
+  passportEnabled: false,
+  foreignIdEnabled: false,
   passportNumber: "",
   foreignId: "",
   primaryPatientIdentifierType: "",

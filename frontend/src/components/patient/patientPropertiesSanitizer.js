@@ -33,7 +33,9 @@ const ALLOWED_PATIENT_PROPERTY_KEYS = new Set([
 ]);
 
 const cloneObject = (value) =>
-  value && typeof value === "object" && !Array.isArray(value) ? { ...value } : {};
+  value && typeof value === "object" && !Array.isArray(value)
+    ? { ...value }
+    : {};
 
 export const sanitizePatientProperties = (patientProperties = {}) => {
   const source = patientProperties || {};
@@ -46,6 +48,15 @@ export const sanitizePatientProperties = (patientProperties = {}) => {
     ) {
       sanitized[key] = value;
     }
+  });
+
+  [
+    ["dni", "dniEnabled"],
+    ["passportNumber", "passportEnabled"],
+    ["foreignId", "foreignIdEnabled"],
+  ].forEach(([field, enabled]) => {
+    sanitized[enabled] =
+      source[enabled] === true || Boolean(String(source[field] || "").trim());
   });
 
   sanitized.patientContact = {

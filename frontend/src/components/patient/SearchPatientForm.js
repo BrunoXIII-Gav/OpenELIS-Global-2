@@ -37,6 +37,7 @@ import CreatePatientFormValues from "../formModel/innitialValues/CreatePatientFo
 import AsyncAvatar from "./photoManagement/photoAvatar/AyncAvatar";
 
 function SearchPatientForm(props) {
+  const forOrderEntry = props.forOrderEntry === true;
   const { notificationVisible, setNotificationVisible, addNotification } =
     useContext(NotificationContext);
   const { configurationProperties } = useContext(ConfigurationContext);
@@ -204,6 +205,7 @@ function SearchPatientForm(props) {
     if (values.crSearch === true) {
       searchEndPoint += "&crSearch=true";
     }
+    if (forOrderEntry) searchEndPoint += "&forOrderEntry=true";
 
     getFromOpenElisServer(searchEndPoint, fetchPatientResults);
     setUrl(searchEndPoint);
@@ -280,7 +282,7 @@ function SearchPatientForm(props) {
       return;
     }
     getFromOpenElisServer(
-      `/rest/patient-photos/${patientDetails.patientPK}/${false}`,
+      `/rest/patient-photos/${patientDetails.patientPK}/${false}${forOrderEntry ? "?forOrderEntry=true" : ""}`,
       (response) => {
         if (response && response.data) {
           patientDetails.photo = response.data;
@@ -329,7 +331,9 @@ function SearchPatientForm(props) {
       return;
     }
     const searchEndPoint =
-      "/rest/patient-details?patientID=" + patientSelected.patientID;
+      "/rest/patient-details?patientID=" +
+      patientSelected.patientID +
+      (forOrderEntry ? "&forOrderEntry=true" : "");
     getFromOpenElisServer(searchEndPoint, fetchPatientDetails);
   };
 
@@ -718,6 +722,7 @@ function SearchPatientForm(props) {
                                 id={row.id}
                               />
                               <AsyncAvatar
+                                forOrderEntry={forOrderEntry}
                                 patientId={row.id}
                                 hasPhoto={true}
                                 patientName={patientName}

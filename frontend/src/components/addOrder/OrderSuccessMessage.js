@@ -11,7 +11,7 @@ const OrderSuccessMessage = (props) => {
   const handlePrintBarCode = () => {
     let barcodesPdf =
       config.serverBaseUrl +
-      `/LabelMakerServlet?labNo=${orderFormValues.sampleOrderItems.labNo}`;
+      `/LabelMakerServlet?labNo=${encodeURIComponent(props.assignedLabNo || orderFormValues.sampleOrderItems.labNo)}`;
     window.open(barcodesPdf);
   };
 
@@ -85,6 +85,17 @@ const OrderSuccessMessage = (props) => {
         <h4>
           <FormattedMessage id="save.success" />
         </h4>
+        {props.assignedLabNo && (
+          <p>
+            <FormattedMessage id="sample.label.labnumber" />:{" "}
+            {props.assignedLabNo}
+          </p>
+        )}
+        {(props.assignedCugs || []).map((cug) => (
+          <p key={cug}>
+            <FormattedMessage id="sample.cug.label" />: {cug}
+          </p>
+        ))}
         <Row>
           <Button
             data-cy="printBarCode"

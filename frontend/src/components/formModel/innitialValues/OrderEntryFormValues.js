@@ -14,6 +14,7 @@ export const SampleOrderFormValues = {
   sampleTypes: null,
   sampleXML: "",
   patientProperties: {
+    cugPrefix: "",
     currentDate: "",
     patientLastUpdated: "",
     personLastUpdated: "",
@@ -69,6 +70,7 @@ export const SampleOrderFormValues = {
     orderType: "",
     externalOrderNumber: "",
     labNo: "",
+    labNoGenerated: false,
     requestDate: "",
     requestTime: "",
     receivedDateForDisplay: "",

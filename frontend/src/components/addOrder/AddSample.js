@@ -7,6 +7,7 @@ import { FormattedMessage } from "react-intl";
 
 const buildEmptySample = (index) => ({
   index,
+  clientKey: `sample-${Date.now()}-${Math.random()}`,
   sampleRejected: false,
   rejectionReason: "",
   requestReferralEnabled: false,
@@ -32,13 +33,8 @@ const AddSample = (props) => {
   const patientPk = String(patientProperties?.patientPK || "").trim();
   const patientNationalId = String(patientProperties?.nationalId || "").trim();
 
-  const canGenerateCug =
-    patientNationalId !== "" &&
-    ((patientUpdateStatus === "UPDATE" && patientPk !== "") ||
-      patientUpdateStatus === "ADD");
-
-  const patientIdForCug =
-    patientUpdateStatus === "UPDATE" && patientPk !== "" ? patientPk : "";
+  const canGenerateCug = patientPk !== "" && patientUpdateStatus === "UPDATE";
+  const patientIdForCug = canGenerateCug ? patientPk : "";
   const patientCugKey = [
     patientUpdateStatus,
     patientPk,
@@ -165,7 +161,10 @@ const AddSample = (props) => {
           <div className="orderLegendBody">
             {samples.map((sample, i) => {
               return (
-                <div className="sampleType" key={i}>
+                <div
+                  className="sampleType"
+                  key={sample.clientKey || sample.index || i}
+                >
                   <h4>
                     <FormattedMessage id="order.sample.card.label" /> {i + 1}
                     <span className="requiredlabel">*</span>
@@ -187,6 +186,7 @@ const AddSample = (props) => {
                     error={error}
                     patientId={patientIdForCug}
                     canGenerateCug={canGenerateCug}
+                    provisionalCug={true}
                     patientCugKey={patientCugKey}
                     existingCugs={(samples || [])
                       .filter((_, sampleIndex) => sampleIndex !== i)
