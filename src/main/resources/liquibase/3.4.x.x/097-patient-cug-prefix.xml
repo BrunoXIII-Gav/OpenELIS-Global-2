@@ -1,0 +1,21 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<databaseChangeLog xmlns="http://www.liquibase.org/xml/ns/dbchangelog"
+ xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+ xsi:schemaLocation="http://www.liquibase.org/xml/ns/dbchangelog https://www.liquibase.org/xml/ns/dbchangelog/dbchangelog-4.8.xsd">
+ <changeSet id="097-patient-cug-prefix" author="openelis">
+  <createTable tableName="patient_cug_prefix">
+   <column name="id" type="VARCHAR(32)"><constraints primaryKey="true" nullable="false"/></column>
+   <column name="patient_id" type="INTEGER"><constraints unique="true" nullable="false"/></column>
+   <column name="prefix" type="BIGINT"><constraints nullable="false"/></column>
+   <column name="sys_user_id" type="INTEGER"/>
+   <column name="last_updated" type="TIMESTAMP" defaultValueComputed="CURRENT_TIMESTAMP"><constraints nullable="false"/></column>
+  </createTable>
+  <addForeignKeyConstraint baseTableName="patient_cug_prefix" baseColumnNames="patient_id"
+   referencedTableName="patient" referencedColumnNames="id" constraintName="fk_patient_cug_prefix_patient" onDelete="CASCADE"/>
+  <addForeignKeyConstraint baseTableName="patient_cug_prefix" baseColumnNames="prefix"
+   referencedTableName="sample_cug_prefix" referencedColumnNames="prefix" constraintName="fk_patient_cug_prefix_registry"/>
+  <!-- Historical prefixes are adopted lazily using the existing canonical selection.
+       Do not renumber history, including historical prefixes shared by patients. -->
+  <rollback><dropTable tableName="patient_cug_prefix"/></rollback>
+ </changeSet>
+</databaseChangeLog>

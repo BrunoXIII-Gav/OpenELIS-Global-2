@@ -108,4 +108,7 @@
   <include relativeToChangelogFile="true" file="094-training-cleanup-code-reset.xml"/>
   <include relativeToChangelogFile="true" file="095-configurable-cug-prefix.xml"/>
   <include relativeToChangelogFile="true" file="096-reset-configurable-cug-in-training.xml"/>
+  <include relativeToChangelogFile="true" file="097-patient-cug-prefix.xml"/>
+  <include relativeToChangelogFile="true" file="098-patient-document-uniqueness.xml"/>
+  <include relativeToChangelogFile="true" file="099-order-accession-confirmation.xml"/>
 </databaseChangeLog>

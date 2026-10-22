@@ -12,14 +12,15 @@ import org.openelisglobal.common.rest.provider.bean.PatientInfoBean;
 import org.openelisglobal.common.util.ConfigurationProperties;
 import org.openelisglobal.common.util.ConfigurationProperties.Property;
 import org.openelisglobal.common.util.DateUtil;
-import org.openelisglobal.patient.service.PatientContactService;
+import org.openelisglobal.patient.action.IPatientUpdate.PatientUpdateStatus;
 import org.openelisglobal.patient.service.PatientAuthorizationService;
+import org.openelisglobal.patient.service.PatientContactService;
 import org.openelisglobal.patient.service.PatientService;
-import org.openelisglobal.patientadditionalfield.service.PatientAdditionalFieldService;
 import org.openelisglobal.patient.util.PatientIdentifierUtil;
 import org.openelisglobal.patient.util.PatientUtil;
 import org.openelisglobal.patient.valueholder.Patient;
 import org.openelisglobal.patient.valueholder.PatientContact;
+import org.openelisglobal.patientadditionalfield.service.PatientAdditionalFieldService;
 import org.openelisglobal.patientidentity.valueholder.PatientIdentity;
 import org.openelisglobal.patientidentitytype.service.PatientIdentityTypeService;
 import org.openelisglobal.patientidentitytype.util.PatientIdentityTypeMap;
@@ -27,6 +28,7 @@ import org.openelisglobal.patienttype.service.PatientPatientTypeService;
 import org.openelisglobal.patienttype.valueholder.PatientType;
 import org.openelisglobal.person.valueholder.Person;
 import org.openelisglobal.sample.service.OrderAuthorizationService;
+import org.openelisglobal.sample.service.OrderPatientContextService;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.http.MediaType;
 import org.springframework.security.access.AccessDeniedException;
@@ -67,21 +69,26 @@ public class PatientSearchPopulateRestController extends BaseRestController {
     @Autowired
     OrderAuthorizationService orderAuthorizationService;
 
-    private String ADDRESS_PART_VILLAGE_ID;
-
-    private String ADDRESS_PART_COMMUNE_ID;
-
-    private String ADDRESS_PART_DEPT_ID;
+    @Autowired
+    OrderPatientContextService orderPatientContextService;
 
     @GetMapping(value = "patient-details", produces = MediaType.APPLICATION_JSON_VALUE)
     @ResponseBody
     public PatientInfoBean getPatientResults(HttpServletRequest request, @RequestParam String patientID) {
         String sysUserId = getSysUserId(request);
         requirePatientLookupPermission(sysUserId);
-        requirePatientRecordPermission(sysUserId, patientID);
+        orderPatientContextService.isOrderEntryLookup(request, sysUserId);
 
         if (!GenericValidator.isBlankOrNull(patientID)) {
-            return getPatientDetails(getPatientForID(patientID));
+            Patient patient = getPatientForID(patientID);
+            if (patient == null)
+                return new PatientInfoBean();
+            PatientInfoBean details = getPatientDetails(patient);
+            if (!patientAuthorizationService.hasPermission(sysUserId, "update")) {
+                details.setReadOnly(true);
+                details.setPatientUpdateStatus(PatientUpdateStatus.NO_ACTION);
+            }
+            return details;
         } else {
             return new PatientInfoBean();
         }
@@ -98,14 +105,6 @@ public class PatientSearchPopulateRestController extends BaseRestController {
         throw new AccessDeniedException("User does not have permission to read patient details");
     }
 
-    private void requirePatientRecordPermission(String sysUserId, String patientId) {
-        String scopeAction = patientAuthorizationService.hasPermission(sysUserId, "read") ? "read"
-                : patientAuthorizationService.hasPermission(sysUserId, "update") ? "update" : null;
-        if (scopeAction != null && !patientAuthorizationService.canAccessPatient(sysUserId, patientId, scopeAction)) {
-            throw new AccessDeniedException("User cannot access this patient outside assigned laboratory units");
-        }
-    }
-
     private Patient getPatientForID(String patientID) {
 
         Patient patient = new Patient();
@@ -119,15 +118,18 @@ public class PatientSearchPopulateRestController extends BaseRestController {
         }
     }
 
-    private PatientInfoBean getPatientDetails(Patient patient) {
+    protected PatientInfoBean getPatientDetails(Patient patient) {
+        String villageId = null;
+        String communeId = null;
+        String departmentId = null;
         List<AddressPart> partList = addressPartService.getAll();
         for (AddressPart addressPart : partList) {
             if ("department".equals(addressPart.getPartName())) {
-                ADDRESS_PART_DEPT_ID = addressPart.getId();
+                departmentId = addressPart.getId();
             } else if ("commune".equals(addressPart.getPartName())) {
-                ADDRESS_PART_COMMUNE_ID = addressPart.getId();
+                communeId = addressPart.getId();
             } else if ("village".equals(addressPart.getPartName())) {
-                ADDRESS_PART_VILLAGE_ID = addressPart.getId();
+                villageId = addressPart.getId();
             }
         }
 
@@ -138,12 +140,12 @@ public class PatientSearchPopulateRestController extends BaseRestController {
         List<PatientIdentity> identityList = PatientUtil.getIdentityListForPatient(patient.getId());
         List<PatientContact> patientContacts = patientContactService.getForPatient(patient.getId());
 
-        String city = getAddress(person, ADDRESS_PART_VILLAGE_ID);
+        String city = getAddress(person, villageId);
         if (GenericValidator.isBlankOrNull(city)) {
             city = person.getCity();
         }
-        String commune = getAddress(person, ADDRESS_PART_COMMUNE_ID);
-        String dept = getAddress(person, ADDRESS_PART_DEPT_ID);
+        String commune = getAddress(person, communeId);
+        String dept = getAddress(person, departmentId);
 
         PatientInfoBean patientInfo = new PatientInfoBean();
         patientInfo.setPatientPK(patient.getId());
@@ -187,8 +189,8 @@ public class PatientSearchPopulateRestController extends BaseRestController {
         }
         patientInfo.setPrimaryPatientIdentifierType(primaryPatientIdentifierType);
         patientInfo.setGuid(identityMap.getIdentityValue(identityList, "GUID"));
-        patientInfo.setPatientAdditionalFieldValues(
-                patientAdditionalFieldService.getPatientValues(patient.getId(), null));
+        patientInfo
+                .setPatientAdditionalFieldValues(patientAdditionalFieldService.getPatientValues(patient.getId(), null));
 
         // Retrieve dynamic address hierarchy values (ADDRESS_HIERARCHY_0,
         // ADDRESS_HIERARCHY_1, etc.)

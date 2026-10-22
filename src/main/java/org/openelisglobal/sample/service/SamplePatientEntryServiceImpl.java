@@ -123,10 +123,19 @@ public class SamplePatientEntryServiceImpl implements SamplePatientEntryService 
     @Autowired
     private SampleCugService sampleCugService;
 
+    @Autowired
+    private OrderAccessionService orderAccessionService;
+
     @Transactional
     @Override
     public void persistData(SamplePatientUpdateData updateData, PatientManagementUpdate patientUpdate,
             PatientManagementInfo patientInfo, SamplePatientEntryForm form, HttpServletRequest request) {
+        // Always take the accession lock before patient locks to keep a consistent
+        // order.
+        String assignedLabNo = orderAccessionService.confirm(form.getSampleOrderItems().getLabNo(),
+                form.getSampleOrderItems().isLabNoGenerated());
+        updateData.setAccessionNumber(assignedLabNo);
+        updateData.getSample().setAccessionNumber(assignedLabNo);
         boolean useInitialSampleCondition = FormFields.getInstance().useField(Field.InitialSampleCondition);
         boolean useSampleNature = FormFields.getInstance().useField(Field.SampleNature);
 
@@ -145,6 +154,8 @@ public class SamplePatientEntryServiceImpl implements SamplePatientEntryService 
                 ? null
                 : form.getSampleOrderItems().getAdditionalFieldFiles();
         persistSampleData(updateData, orderAdditionalFieldValues, orderAdditionalFieldFiles);
+        form.setAssignedCugs(updateData.getSampleItemsTests().stream().filter(item -> item != null && item.item != null)
+                .map(item -> item.item.getCugCode()).collect(Collectors.toList()));
         persistRequesterData(updateData);
         if (useInitialSampleCondition) {
             persistInitialSampleConditions(updateData);
@@ -157,6 +168,7 @@ public class SamplePatientEntryServiceImpl implements SamplePatientEntryService 
 
         request.getSession().setAttribute("lastAccessionNumber", updateData.getAccessionNumber());
         request.getSession().setAttribute("lastPatientId", updateData.getPatientId());
+        form.getSampleOrderItems().setLabNo(assignedLabNo);
     }
 
     private void persistObservations(SamplePatientUpdateData updateData) {
@@ -360,21 +372,18 @@ public class SamplePatientEntryServiceImpl implements SamplePatientEntryService 
         }
 
         this.persistAnalysisNotificationConfig(analysis, analysisNotificationConfig, testNotificationConfig,
-                NotificationMethod.EMAIL,
-                NotificationPersonType.PATIENT);
+                NotificationMethod.EMAIL, NotificationPersonType.PATIENT);
         this.persistAnalysisNotificationConfig(analysis, analysisNotificationConfig, testNotificationConfig,
-                NotificationMethod.SMS,
-                NotificationPersonType.PATIENT);
+                NotificationMethod.SMS, NotificationPersonType.PATIENT);
         this.persistAnalysisNotificationConfig(analysis, analysisNotificationConfig, testNotificationConfig,
-                NotificationMethod.EMAIL,
-                NotificationPersonType.PROVIDER);
+                NotificationMethod.EMAIL, NotificationPersonType.PROVIDER);
         this.persistAnalysisNotificationConfig(analysis, analysisNotificationConfig, testNotificationConfig,
-                NotificationMethod.SMS,
-                NotificationPersonType.PROVIDER);
+                NotificationMethod.SMS, NotificationPersonType.PROVIDER);
         analysisNotificationConfigService.save(analysisNotificationConfig);
     }
 
-    private void persistAnalysisNotificationConfig(Analysis analysis, AnalysisNotificationConfig analysisNotificationConfig,
+    private void persistAnalysisNotificationConfig(Analysis analysis,
+            AnalysisNotificationConfig analysisNotificationConfig,
             Optional<TestNotificationConfig> testNotificationConfig, NotificationMethod method,
             NotificationPersonType personType) {
         NotificationNature notificationNature = NotificationNature.RESULT_VALIDATION;

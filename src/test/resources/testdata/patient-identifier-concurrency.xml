@@ -1,0 +1,15 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<dataset>
+ <site_information name="Allow duplicate national ids" value="false"/>
+ <patient id="10" national_id="HIST-1"/>
+ <patient id="11" national_id=" hist-1 "/>
+ <patient_identity_type id="1" identity_type="DNI"/>
+ <patient_identity_type id="2" identity_type="PASSPORT"/>
+ <patient_identity_type id="3" identity_type="FOREIGN_ID"/>
+ <patient_identity_type id="4" identity_type="GUID"/>
+ <patient_identity_type id="5" identity_type="NATIONAL"/>
+ <patient_identity_type id="6" identity_type="SUBJECT"/>
+ <patient_identity id="1" patient_id="10" identity_type_id="1" identity_data="OLD-ALT"/>
+ <patient_identity id="2" patient_id="11" identity_type_id="1" identity_data="OLD-ALT"/>
+ <sample id="20"/>
+</dataset>

@@ -13,9 +13,16 @@ import org.openelisglobal.spring.util.SpringContext;
 
 public class PatientSearchResultsPaging {
 
-    private final PagingUtility<List<PatientSearchResults>> paging = new PagingUtility<>(
-            IActionConstants.PATIENT_SEARCH_RESULTS_SESSION_CACHE,
-            IActionConstants.PATIENT_SEARCH_RESULTS_PAGE_MAPPING_SESSION_CACHE);
+    private final PagingUtility<List<PatientSearchResults>> paging;
+
+    public PatientSearchResultsPaging() {
+        this("");
+    }
+
+    public PatientSearchResultsPaging(String scope) {
+        paging = new PagingUtility<>(IActionConstants.PATIENT_SEARCH_RESULTS_SESSION_CACHE + ":" + scope,
+                IActionConstants.PATIENT_SEARCH_RESULTS_PAGE_MAPPING_SESSION_CACHE + ":" + scope);
+    }
 
     private static final PatientSearchResultsPageHelper pagingHelper = new PatientSearchResultsPageHelper();
 

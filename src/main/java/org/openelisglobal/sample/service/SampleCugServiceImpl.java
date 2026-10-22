@@ -12,7 +12,9 @@ import org.apache.commons.lang3.StringUtils;
 import org.openelisglobal.common.services.SampleAddService.SampleTestCollection;
 import org.openelisglobal.sample.bean.SampleCugPreviewRequest;
 import org.openelisglobal.sample.bean.SampleCugPreviewResponse;
+import org.openelisglobal.sample.dao.SampleCugPrefixDAO;
 import org.openelisglobal.sample.dao.SampleCugReservationDAO;
+import org.openelisglobal.sample.exception.SampleCugConflictException;
 import org.openelisglobal.sample.valueholder.SampleCugReservation;
 import org.openelisglobal.sample.valueholder.SampleCugReservation.ReservationStatus;
 import org.openelisglobal.sampleitem.dao.SampleItemDAO;
@@ -36,6 +38,81 @@ public class SampleCugServiceImpl implements SampleCugService {
 
     @Autowired
     private SampleCugReservationDAO sampleCugReservationDAO;
+
+    @Autowired
+    private SampleCugPrefixDAO patientPrefixes;
+
+    @Override
+    @Transactional(readOnly = true)
+    public String getPatientPrefix(String patientId) {
+        Long prefix = patientPrefixes.findPatientPrefix(patientId);
+        if (prefix == null && StringUtils.isNotBlank(patientId)) {
+            prefix = selectCanonicalPrefix(sampleItemDAO.findCugCodesByPatientId(patientId));
+        }
+        return prefix == null ? null : prefix.toString();
+    }
+
+    @Override
+    @Transactional(readOnly = true)
+    public String previewPatientPrefix(String patientId) {
+        String prefix = getPatientPrefix(patientId);
+        return prefix == null ? prefixes.getSettings().getNextAvailablePrefix() : prefix;
+    }
+
+    @Override
+    public String ensurePatientPrefix(String patientId, String currentUserId) {
+        if (StringUtils.isBlank(patientId) || StringUtils.isBlank(currentUserId)) {
+            throw new IllegalArgumentException("A saved patient and current user are required");
+        }
+        sampleCugReservationDAO.lockPatientForCug(patientId);
+        Long prefix = patientPrefixes.findPatientPrefix(patientId);
+        if (prefix != null)
+            return prefix.toString();
+        prefix = selectCanonicalPrefix(sampleItemDAO.findCugCodesByPatientId(patientId));
+        if (prefix == null) {
+            prefix = prefixes.allocate(currentUserId);
+        } else if (!prefixes.isAssigned(prefix)) {
+            prefixes.register(prefix, currentUserId);
+        }
+        patientPrefixes.bindPatientPrefix(patientId, prefix, currentUserId);
+        return prefix.toString();
+    }
+
+    @Override
+    @Transactional(readOnly = true)
+    public SampleCugPreviewResponse previewCugCode(SampleCugPreviewRequest request) {
+        if (request == null || StringUtils.isBlank(request.getPatientId())) {
+            throw new IllegalArgumentException("A saved patient is required");
+        }
+        String patientId = request.getPatientId();
+        Long prefix = patientPrefixes.findPatientPrefix(patientId);
+        List<String> history = sampleItemDAO.findCugCodesByPatientId(patientId);
+        if (prefix == null)
+            prefix = selectCanonicalPrefix(history);
+        if (prefix == null) {
+            String candidate = prefixes.getSettings().getNextAvailablePrefix();
+            if (candidate == null)
+                throw new IllegalArgumentException("cug.prefix.error.exhausted");
+            prefix = Long.valueOf(candidate);
+        }
+        if (request.getSampleOffset() < 0 || request.getSampleOffset() > 1000) {
+            throw new IllegalArgumentException("Invalid sample offset");
+        }
+        String next = nextCode(prefix, history, getActiveReservedCugsForPatient(patientId), List.of());
+        long suffix = parseCugComponents(next).suffix;
+        if (Long.MAX_VALUE - suffix < request.getSampleOffset()) {
+            throw new IllegalArgumentException("sample.cug.suffix.exhausted");
+        }
+        return new SampleCugPreviewResponse(prefix + "." + (suffix + request.getSampleOffset()));
+    }
+
+    private String nextCode(long prefix, List<String> history, List<String> reserved, List<String> existing) {
+        long suffix = Math.max(extractMaxSuffixForPrefix(history, prefix),
+                Math.max(extractMaxSuffixForPrefix(reserved, prefix), extractMaxSuffixForPrefix(existing, prefix)));
+        if (suffix == Long.MAX_VALUE)
+            throw new IllegalArgumentException("sample.cug.suffix.exhausted");
+        return prefix + "." + (suffix + 1);
+    }
 
     @Override
     public SampleCugPreviewResponse reserveCugCode(SampleCugPreviewRequest request, String currentUserId) {
@@ -108,6 +185,11 @@ public class SampleCugServiceImpl implements SampleCugService {
 
             String cugCode = StringUtils.trimToNull(sampleTestCollection.item.getCugCode());
             String reservationToken = StringUtils.trimToNull(sampleTestCollection.cugReservationToken);
+            if (sampleTestCollection.cugProvisional) {
+                validateDisplayedCug(cugCode, patientId, userId, inTransactionCugs);
+                inTransactionCugs.add(cugCode);
+                continue;
+            }
             if (reservationToken != null) {
                 String resolvedValue = consumeReservationToken(reservationToken, cugCode, sampleId, userId);
                 validateCugUniqueness(resolvedValue, inTransactionCugs);
@@ -121,7 +203,9 @@ public class SampleCugServiceImpl implements SampleCugService {
                 long prefix = parseCugComponents(cugCode).prefix;
                 List<String> patientCugs = StringUtils.isBlank(patientId) ? List.of()
                         : sampleItemDAO.findCugCodesByPatientId(patientId);
-                if (prefixes.isAssigned(prefix) && extractMaxSuffixForPrefix(patientCugs, prefix) == 0
+                if (prefixes.isAssigned(prefix)
+                        && !Long.valueOf(prefix).equals(patientPrefixes.findPatientPrefix(patientId))
+                        && extractMaxSuffixForPrefix(patientCugs, prefix) == 0
                         && extractMaxSuffixForPrefix(inTransactionCugs, prefix) == 0) {
                     throw new IllegalArgumentException("sample.cug.prefix.alreadyAssigned");
                 }
@@ -131,10 +215,29 @@ public class SampleCugServiceImpl implements SampleCugService {
                 continue;
             }
 
+            if (StringUtils.isNotBlank(patientId))
+                ensurePatientPrefix(patientId, userId);
             String generated = generateNextCug(patientId, inTransactionCugs, userId);
+            validateCugUniqueness(generated, inTransactionCugs);
             sampleTestCollection.item.setCugCode(generated);
             inTransactionCugs.add(generated);
         }
+    }
+
+    private void validateDisplayedCug(String cugCode, String patientId, String userId, List<String> inTransactionCugs) {
+        if (cugCode == null)
+            throw new IllegalArgumentException("sample.cug.required");
+        if (StringUtils.isBlank(patientId))
+            throw new IllegalArgumentException("sample.cug.patient.required");
+        CugComponents parts = parseCugComponents(cugCode);
+        if (parts.prefix < 1 || parts.suffix < 1 || !cugCode.equals(parts.prefix + "." + parts.suffix)) {
+            throw new IllegalArgumentException("sample.cug.invalid.format");
+        }
+        String prefix = ensurePatientPrefix(patientId, userId);
+        if (!prefix.equals(Long.toString(parts.prefix))) {
+            throw new IllegalArgumentException("sample.cug.patient.prefix.mismatch");
+        }
+        validateCugUniqueness(cugCode, inTransactionCugs);
     }
 
     private SampleCugReservation createReservation(String patientId, List<String> existingCugs, String contextId,
@@ -239,10 +342,10 @@ public class SampleCugServiceImpl implements SampleCugService {
 
     private void validateCugUniqueness(String cugCode, List<String> inTransactionCugs) {
         if (containsIgnoreCase(inTransactionCugs, cugCode)) {
-            throw new IllegalArgumentException("Duplicate CUG value in request: " + cugCode);
+            throw new SampleCugConflictException();
         }
         if (sampleItemDAO.existsByCugCode(cugCode)) {
-            throw new IllegalArgumentException("Duplicate CUG value already exists: " + cugCode);
+            throw new SampleCugConflictException();
         }
     }
 
@@ -306,7 +409,9 @@ public class SampleCugServiceImpl implements SampleCugService {
             activeReservedCugs = getActiveReservedCugsForPatient(patientId);
         }
 
-        Long prefix = selectCanonicalPrefix(historicalCugs);
+        Long prefix = patientPrefixes.findPatientPrefix(patientId);
+        if (prefix == null)
+            prefix = selectCanonicalPrefix(historicalCugs);
         if (prefix == null) {
             prefix = selectCanonicalPrefix(activeReservedCugs);
         }

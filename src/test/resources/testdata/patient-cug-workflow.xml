@@ -1,0 +1,7 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<dataset>
+    <patient id="10" />
+    <patient id="11" />
+    <patient id="12" />
+    <sample id="20" />
+</dataset>

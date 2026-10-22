@@ -4,11 +4,11 @@ import java.util.List;
 import java.util.Set;
 import java.util.stream.Collectors;
 import org.apache.commons.lang3.StringUtils;
+import org.openelisglobal.analysis.service.AnalysisService;
 import org.openelisglobal.authorization.service.ModuleAuthorizationService;
-import org.openelisglobal.authorization.service.RolePatientSearchRestrictionService;
 import org.openelisglobal.authorization.service.ModuleAuthorizationService.AuthorizationDecision;
 import org.openelisglobal.authorization.service.ModuleAuthorizationService.AuthorizationSource;
-import org.openelisglobal.analysis.service.AnalysisService;
+import org.openelisglobal.authorization.service.RolePatientSearchRestrictionService;
 import org.openelisglobal.authorization.valueholder.RolePatientSearchRestriction;
 import org.openelisglobal.common.constants.SystemPermission;
 import org.openelisglobal.security.service.UserPermissionService;
@@ -18,8 +18,9 @@ import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 /**
- * Resolves access to patient records through their analyses. A restricted unit
- * scope grants access only when the patient has a test in an assigned section.
+ * Resolves module permissions for registration/demographics independently of
+ * analyses. Clinical record access additionally requires a test in an assigned
+ * section when the configured laboratory-unit scope is restricted.
  */
 @Service
 @Transactional(readOnly = true)
@@ -45,8 +46,8 @@ public class PatientAuthorizationServiceImpl implements PatientAuthorizationServ
     @Override
     public boolean hasPermission(String userId, String actionKey) {
         AuthorizationDecision decision = getDecision(userId, actionKey);
-        return decision.allowed() && (!"merge".equals(actionKey) || decision.source() != AuthorizationSource.MODULE_PERMISSION
-                || decision.allLabUnits());
+        return decision.allowed() && (!"merge".equals(actionKey)
+                || decision.source() != AuthorizationSource.MODULE_PERMISSION || decision.allLabUnits());
     }
 
     @Override

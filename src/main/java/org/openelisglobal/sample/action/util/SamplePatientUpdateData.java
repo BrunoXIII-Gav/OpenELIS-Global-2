@@ -268,14 +268,21 @@ public class SamplePatientUpdateData {
     }
 
     public void validateSample(Errors errors) {
+        validateSample(errors, false);
+    }
+
+    public void validateSample(Errors errors, boolean deferAccessionUsageCheck) {
         // assure accession number
 
         // TODO
-        IAccessionNumberValidator.ValidationResults result = AccessionNumberUtil
-                .checkAccessionNumberValidity(accessionNumber, null, null, null);
+        IAccessionNumberValidator.ValidationResults result = deferAccessionUsageCheck
+                ? AccessionNumberUtil.getGeneralAccessionNumberValidator().validFormat(accessionNumber, true)
+                : AccessionNumberUtil.checkAccessionNumberValidity(accessionNumber, null, null, null);
 
         if (result != IAccessionNumberValidator.ValidationResults.SUCCESS) {
-            String message = AccessionNumberUtil.getInvalidMessage(result);
+            String message = deferAccessionUsageCheck
+                    ? AccessionNumberUtil.getGeneralAccessionNumberValidator().getInvalidFormatMessage(result)
+                    : AccessionNumberUtil.getInvalidMessage(result);
             errors.reject(message);
         }
 

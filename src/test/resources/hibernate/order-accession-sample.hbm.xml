@@ -1,0 +1,10 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE hibernate-mapping PUBLIC "-//Hibernate/Hibernate Mapping DTD 3.0//EN" "http://www.hibernate.org/dtd/hibernate-mapping-3.0.dtd">
+<hibernate-mapping>
+ <class name="org.openelisglobal.sample.valueholder.Sample" table="sample" lazy="false">
+  <id name="id" type="org.openelisglobal.hibernate.resources.usertype.LIMSStringNumberUserType">
+   <column name="id" precision="10" scale="0"/>
+  </id>
+  <property name="accessionNumber" column="accession_number" type="string"/>
+ </class>
+</hibernate-mapping>

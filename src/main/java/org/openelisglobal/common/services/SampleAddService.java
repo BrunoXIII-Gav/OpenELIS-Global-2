@@ -190,12 +190,14 @@ public class SampleAddService {
                 Map<String, String> additionalFieldValues = parseAdditionalFieldValues(sampleItem);
                 item.setCugCode(StringUtils.trimToNull(cugCode));
 
-                sampleItemsTests.add(new SampleTestCollection(item, tests,
+                SampleTestCollection collection = new SampleTestCollection(item, tests,
                         USE_RECEIVE_DATE_FOR_COLLECTION_DATE ? collectionDateFromRecieveDate : collectionDateTime,
                         initialConditionList, testIdToUserSectionMap, testIdToSampleTypeMap, sampleNature,
                         storageLocationId, storageLocationType, storagePositionCoordinate, gpsLatitude, gpsLongitude,
                         gpsAccuracy, gpsCaptureMethod, additionalFieldValues,
-                        StringUtils.trimToNull(cugReservationToken), StringUtils.trimToNull(cugReservationContextId)));
+                        StringUtils.trimToNull(cugReservationToken), StringUtils.trimToNull(cugReservationContextId));
+                collection.cugProvisional = "true".equals(sampleItem.attributeValue("cugProvisional"));
+                sampleItemsTests.add(collection);
             }
         } catch (DocumentException e) {
             LogEvent.logDebug(e);
@@ -340,6 +342,7 @@ public class SampleAddService {
         public String gpsAccuracy;
         public String gpsCaptureMethod;
         public Map<String, String> additionalFieldValues;
+        public boolean cugProvisional;
         public String cugReservationToken;
         public String cugReservationContextId;
 
