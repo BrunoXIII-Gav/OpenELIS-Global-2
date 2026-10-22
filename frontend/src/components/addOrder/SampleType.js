@@ -70,6 +70,7 @@ const SampleType = (props) => {
   );
 
   const { index, rejectSampleReasons, sample } = props;
+  const isExistingSample = Boolean(sample?.existingSampleItemId);
 
   const [sampleTypes, setSampleTypes] = useState([]);
   const [selectedSampleType, setSelectedSampleType] = useState({
@@ -208,7 +209,7 @@ const SampleType = (props) => {
   }
 
   const generateCugPreview = useCallback(() => {
-    if (!props.canGenerateCug) {
+    if (!props.canGenerateCug || isExistingSample) {
       return;
     }
     const patientId = String(props.patientId || "").trim();
@@ -289,6 +290,7 @@ const SampleType = (props) => {
   }, [
     addNotification,
     index,
+    isExistingSample,
     intl,
     props.canGenerateCug,
     props.existingCugs,
@@ -310,6 +312,7 @@ const SampleType = (props) => {
     }
 
     previousPatientCugKeyRef.current = currentPatientCugKey;
+    if (isExistingSample) return;
     cugGenerationKeyRef.current = "";
     cugGenerationInFlightRef.current = false;
     setSampleXml((previous) => ({
@@ -320,10 +323,10 @@ const SampleType = (props) => {
       cugReservationToken: "",
       cugReservationContextId: createCugReservationContextId(),
     }));
-  }, [props.patientCugKey, index, props.provisionalCug]);
+  }, [props.patientCugKey, index, props.provisionalCug, isExistingSample]);
 
   useEffect(() => {
-    if (props.canGenerateCug) {
+    if (props.canGenerateCug || isExistingSample) {
       return;
     }
     cugGenerationKeyRef.current = "";
@@ -343,7 +346,7 @@ const SampleType = (props) => {
         cugReservationToken: "",
       };
     });
-  }, [props.canGenerateCug]);
+  }, [props.canGenerateCug, isExistingSample]);
 
   useEffect(() => {
     if (!props.canGenerateCug) {
@@ -1102,12 +1105,16 @@ const SampleType = (props) => {
             <SelectItem text={sampleType.value} value={sampleType.id} key={i} />
           ))}
         </Select>
-        {props.provisionalCug && (
+        {(props.provisionalCug || isExistingSample) && (
           <TextInput
             id={`sample-cug-${index}`}
             labelText={intl.formatMessage({ id: "sample.cug.label" })}
             value={sampleXml.cug || ""}
-            helperText={intl.formatMessage({ id: "sample.cug.provisional" })}
+            helperText={
+              isExistingSample
+                ? undefined
+                : intl.formatMessage({ id: "sample.cug.provisional" })
+            }
             readOnly
           />
         )}
