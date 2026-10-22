@@ -105,4 +105,5 @@ docs/test-management/
 scripts/performance/
 *.md
 *.txt
+*.py
 # Miscellaneous dev artifacts
