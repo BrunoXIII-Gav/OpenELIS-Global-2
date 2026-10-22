@@ -69,6 +69,16 @@ public class SampleOrderItem implements Serializable {
             SampleEditForm.SampleEdit.class })
     private String labNo;
 
+    private boolean labNoGenerated;
+
+    public boolean isLabNoGenerated() {
+        return labNoGenerated;
+    }
+
+    public void setLabNoGenerated(boolean labNoGenerated) {
+        this.labNoGenerated = labNoGenerated;
+    }
+
     @OptionalNotBlank(formFields = { Field.SampleEntryUseRequestDate }, groups = {
             SamplePatientEntryForm.SamplePatientEntry.class, SampleEditForm.SampleEdit.class })
     @ValidDate(relative = DateRelation.PAST, groups = { SamplePatientEntryForm.SamplePatientEntry.class,

@@ -28,6 +28,16 @@ public class SamplePatientEntryForm extends BaseForm {
     public interface SamplePatientEntry {
     }
 
+    private List<String> assignedCugs;
+
+    public List<String> getAssignedCugs() {
+        return assignedCugs;
+    }
+
+    public void setAssignedCugs(List<String> value) {
+        assignedCugs = value;
+    }
+
     private Boolean rememberSiteAndRequester;
 
     @ValidDate(relative = DateRelation.TODAY, groups = { SamplePatientEntry.class, SamplePatientEntryBatch.class })

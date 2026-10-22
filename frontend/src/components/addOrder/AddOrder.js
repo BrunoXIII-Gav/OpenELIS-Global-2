@@ -2082,7 +2082,9 @@ const AddOrder = (props) => {
       return;
     }
     getFromOpenElisServer(
-      "/rest/SampleEntryGenerateScanProvider",
+      isModifyOrder
+        ? "/rest/SampleEntryGenerateScanProvider"
+        : "/rest/orders/laboratory-number/suggest",
       fetchGeneratedAccessionNo,
     );
   };
@@ -2213,19 +2215,22 @@ const AddOrder = (props) => {
         ...orderFormValues,
         sampleOrderItems: {
           ...orderFormValues.sampleOrderItems,
-          labNo: rawVal ? rawVal : e?.target?.value,
+          labNo: rawVal !== undefined ? rawVal : e?.target?.value,
+          labNoGenerated: false,
         },
       });
     }
-    handleLabNoValidationOnChange(e?.target?.value);
+    handleLabNoValidationOnChange(
+      rawVal !== undefined ? rawVal : e?.target?.value,
+    );
     setNotificationVisible(false);
   }
 
   const handleLabNoValidationOnChange = (value) => {
     if (value) {
       getFromOpenElisServer(
-        "/rest/SampleEntryAccessionNumberValidation?ignoreYear=false&ignoreUsage=false&field=labNo&accessionNumber=" +
-          value,
+        `/rest/SampleEntryAccessionNumberValidation?ignoreYear=false&ignoreUsage=${!isModifyOrder}&field=labNo&accessionNumber=` +
+          encodeURIComponent(value),
         accessionNumberValidationResults,
       );
     }
@@ -2319,7 +2324,7 @@ const AddOrder = (props) => {
   }
 
   function fetchGeneratedAccessionNo(res) {
-    if (res.status) {
+    if (res?.status) {
       if (isModifyOrder) {
         updateOrderFormValues({
           newAccessionNumber: res.body,
@@ -2327,10 +2332,18 @@ const AddOrder = (props) => {
       } else {
         updateSampleOrderItems({
           labNo: res.body,
+          labNoGenerated: true,
         });
       }
 
       setNotificationVisible(false);
+    } else {
+      addNotification({
+        kind: NotificationKinds.error,
+        title: intl.formatMessage({ id: "notification.title" }),
+        message: intl.formatMessage({ id: "server.error.msg" }),
+      });
+      setNotificationVisible(true);
     }
   }
 
@@ -2546,6 +2559,14 @@ const AddOrder = (props) => {
                       : false
                   }
                   invalidText={error("sampleOrderItems.labNo")}
+                  helperText={
+                    !isModifyOrder &&
+                    orderFormValues.sampleOrderItems.labNoGenerated
+                      ? intl.formatMessage({
+                          id: "order.labnumber.provisional",
+                        })
+                      : undefined
+                  }
                 />
                 <div>
                   <FormattedMessage id="label.order.scan.text" />{" "}

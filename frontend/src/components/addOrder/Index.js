@@ -1,4 +1,4 @@
-import React, { useContext, useEffect, useState } from "react";
+import React, { useContext, useEffect, useState, useRef } from "react";
 import { Button, ProgressIndicator, ProgressStep, Stack } from "@carbon/react";
 import PatientInfo from "./PatientInfo";
 import AddSample from "./AddSample";
@@ -26,6 +26,7 @@ let breadcrumbs = [
 
 export const createSampleObject = () => ({
   index: 0,
+  clientKey: `sample-${Date.now()}-${Math.random()}`,
   sampleRejected: false,
   rejectionReason: "",
   sampleTypeId: "",
@@ -66,8 +67,35 @@ const Index = () => {
     createSampleOrderFormValues,
   );
   const [samples, setSamples] = useState([createSampleObject()]);
+  const [assignedLabNo, setAssignedLabNo] = useState("");
+  const previousPatientId = useRef(
+    orderFormValues.patientProperties?.patientPK || "",
+  );
+  useEffect(() => {
+    const patientId = orderFormValues.patientProperties?.patientPK || "";
+    if (previousPatientId.current !== patientId) {
+      previousPatientId.current = patientId;
+      setSamples((previous) =>
+        previous.map((sample) => ({
+          ...sample,
+          sampleXML: sample.sampleXML
+            ? {
+                ...sample.sampleXML,
+                cug: "",
+                cugProvisional: false,
+                cugAutoReserved: "",
+                cugReservationToken: "",
+                cugReservationContextId: "",
+              }
+            : null,
+        })),
+      );
+    }
+  }, [orderFormValues.patientProperties?.patientPK]);
   const [errors, setErrors] = useState([]);
   const [isSubmitting, setIsSubmitting] = useState(false);
+  const [assignedCugs, setAssignedCugs] = useState([]);
+  const patientSaved = Boolean(orderFormValues.patientProperties?.patientPK);
   const [hasOrderPermission, setHasOrderPermission] = useState(false);
   const [permissionsLoaded, setPermissionsLoaded] = useState(false);
   const [phoneValidation, setPhoneValidation] = useState({
@@ -543,6 +571,7 @@ const Index = () => {
   const newSampleType = (id, name, index) => {
     return {
       index: index,
+      clientKey: `sample-${Date.now()}-${Math.random()}`,
       sampleRejected: true,
       rejectionReason: "",
       requestReferralEnabled: false,
@@ -659,6 +688,22 @@ const Index = () => {
   const handlePost = async (response) => {
     setIsSubmitting(false);
     if (response.status === 200) {
+      const saved = await response.json();
+      setAssignedLabNo(
+        saved.sampleOrderItems?.labNo || orderFormValues.sampleOrderItems.labNo,
+      );
+      const cugs = saved.assignedCugs || [];
+      setAssignedCugs(cugs);
+      setSamples((previous) =>
+        previous.map((sample, index) => ({
+          ...sample,
+          sampleXML: {
+            ...sample.sampleXML,
+            cug: cugs[index] || sample.sampleXML?.cug || "",
+            cugProvisional: false,
+          },
+        })),
+      );
       showAlertMessage(
         <FormattedMessage id="save.order.success.msg" />,
         NotificationKinds.success,
@@ -673,6 +718,17 @@ const Index = () => {
         return;
       }
 
+      const errorCode = response.headers.get("X-OpenELIS-Error-Code");
+      if (
+        errorCode === "sample.cug.conflict" ||
+        errorCode?.startsWith("order.labnumber.")
+      ) {
+        showAlertMessage(
+          intl.formatMessage({ id: errorCode }),
+          NotificationKinds.error,
+        );
+        return;
+      }
       let detailedMessage =
         response.headers.get("X-OpenELIS-Error-Message") || "";
       if (!detailedMessage) {
@@ -901,7 +957,7 @@ const Index = () => {
           })
           .join("");
 
-        sampleXmlString += `<sample sampleID='${escapeXmlAttribute(sampleItem.sampleTypeId)}' date='${escapeXmlAttribute(sampleItem.sampleXML.collectionDate)}' time='${escapeXmlAttribute(sampleItem.sampleXML.collectionTime)}' collector='${escapeXmlAttribute(sampleItem.sampleXML.collector)}' quantity='${escapeXmlAttribute(sampleItem.sampleXML.quantity)}' uom='${escapeXmlAttribute(sampleItem.sampleXML.uom)}' tests='${escapeXmlAttribute(tests)}' testSectionMap='' testSampleTypeMap='' panels='${escapeXmlAttribute(panels)}' rejected='${escapeXmlAttribute(sampleItem.sampleXML.rejected)}' rejectReasonId='${escapeXmlAttribute(sampleItem.sampleXML.rejectionReason)}' cug='${escapeXmlAttribute(cugCode)}' cugReservationToken='${escapeXmlAttribute(cugReservationToken)}' cugReservationContextId='${escapeXmlAttribute(cugReservationContextId)}' initialConditionIds='' storageLocationId='${escapeXmlAttribute(storageLocationId)}' storageLocationType='${escapeXmlAttribute(storageLocationType)}' storagePositionCoordinate='${escapeXmlAttribute(storagePositionCoordinate)}' gpsLatitude='${escapeXmlAttribute(gpsLatitude)}' gpsLongitude='${escapeXmlAttribute(gpsLongitude)}' gpsAccuracy='${escapeXmlAttribute(gpsAccuracy)}' gpsCaptureMethod='${escapeXmlAttribute(gpsCaptureMethod)}'>`;
+        sampleXmlString += `<sample sampleID='${escapeXmlAttribute(sampleItem.sampleTypeId)}' date='${escapeXmlAttribute(sampleItem.sampleXML.collectionDate)}' time='${escapeXmlAttribute(sampleItem.sampleXML.collectionTime)}' collector='${escapeXmlAttribute(sampleItem.sampleXML.collector)}' quantity='${escapeXmlAttribute(sampleItem.sampleXML.quantity)}' uom='${escapeXmlAttribute(sampleItem.sampleXML.uom)}' tests='${escapeXmlAttribute(tests)}' testSectionMap='' testSampleTypeMap='' panels='${escapeXmlAttribute(panels)}' rejected='${escapeXmlAttribute(sampleItem.sampleXML.rejected)}' rejectReasonId='${escapeXmlAttribute(sampleItem.sampleXML.rejectionReason)}' cug='${escapeXmlAttribute(cugCode)}' cugProvisional='${sampleItem.sampleXML?.cugProvisional === true}' cugReservationToken='${escapeXmlAttribute(cugReservationToken)}' cugReservationContextId='${escapeXmlAttribute(cugReservationContextId)}' initialConditionIds='' storageLocationId='${escapeXmlAttribute(storageLocationId)}' storageLocationType='${escapeXmlAttribute(storageLocationType)}' storagePositionCoordinate='${escapeXmlAttribute(storagePositionCoordinate)}' gpsLatitude='${escapeXmlAttribute(gpsLatitude)}' gpsLongitude='${escapeXmlAttribute(gpsLongitude)}' gpsAccuracy='${escapeXmlAttribute(gpsAccuracy)}' gpsCaptureMethod='${escapeXmlAttribute(gpsCaptureMethod)}'>`;
         if (additionalFieldEntries !== "") {
           sampleXmlString += `<additionalFields>${additionalFieldEntries}</additionalFields>`;
         }
@@ -958,6 +1014,7 @@ const Index = () => {
   };
 
   const navigateForward = () => {
+    if (!patientSaved) return;
     if (page < lastPageNumber && page >= firstPageNumber) {
       let nextPage = page + 1;
       if (!hasOrderPermission && nextPage === samplePageNumber) {
@@ -973,6 +1030,7 @@ const Index = () => {
     }
   };
   const handleTabClickHandler = (e) => {
+    if (e > patientInfoPageNumber && !patientSaved) return;
     if (!hasOrderPermission && e === samplePageNumber) {
       return;
     }
@@ -1083,6 +1141,8 @@ const Index = () => {
 
             {page === successMsgPageNumber && (
               <OrderSuccessMessage
+                assignedLabNo={assignedLabNo}
+                assignedCugs={assignedCugs}
                 orderFormValues={orderFormValues}
                 setOrderFormValues={setOrderFormValues}
                 setSamples={setSamples}
@@ -1101,6 +1161,7 @@ const Index = () => {
                   kind="primary"
                   className="forwardButton"
                   onClick={() => navigateForward()}
+                  disabled={!patientSaved}
                 >
                   <FormattedMessage id="next.action.button" />
                 </Button>

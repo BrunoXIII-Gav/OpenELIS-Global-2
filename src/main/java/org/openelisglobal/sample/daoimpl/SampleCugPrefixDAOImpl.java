@@ -3,6 +3,7 @@ package org.openelisglobal.sample.daoimpl;
 import jakarta.persistence.LockModeType;
 import org.openelisglobal.common.daoimpl.BaseDAOImpl;
 import org.openelisglobal.sample.dao.SampleCugPrefixDAO;
+import org.openelisglobal.sample.valueholder.PatientCugPrefix;
 import org.openelisglobal.sample.valueholder.SampleCugCounter;
 import org.openelisglobal.sample.valueholder.SampleCugPrefix;
 import org.springframework.stereotype.Component;
@@ -36,6 +37,27 @@ public class SampleCugPrefixDAOImpl extends BaseDAOImpl<SampleCugCounter, String
     public boolean isAssigned(long prefix) {
         return !entityManager.createQuery("select p.id from SampleCugPrefix p where p.prefix = :prefix", String.class)
                 .setParameter("prefix", prefix).setMaxResults(1).getResultList().isEmpty();
+    }
+
+    @Override
+    public Long findPatientPrefix(String patientId) {
+        if (patientId == null || patientId.isBlank())
+            return null;
+        var rows = entityManager
+                .createQuery("select p.prefix from PatientCugPrefix p where p.patientId = :patientId", Long.class)
+                .setParameter("patientId", Integer.valueOf(patientId)).getResultList();
+        return rows.isEmpty() ? null : rows.get(0);
+    }
+
+    @Override
+    public void bindPatientPrefix(String patientId, long prefix, String actorId) {
+        PatientCugPrefix row = new PatientCugPrefix();
+        row.setId(patientId);
+        row.setPatientId(Integer.valueOf(patientId));
+        row.setPrefix(prefix);
+        row.setSysUserId(actorId);
+        entityManager.persist(row);
+        entityManager.flush();
     }
 
     @Override

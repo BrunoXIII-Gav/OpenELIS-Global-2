@@ -1,0 +1,22 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<databaseChangeLog xmlns="http://www.liquibase.org/xml/ns/dbchangelog"
+ xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+ xsi:schemaLocation="http://www.liquibase.org/xml/ns/dbchangelog https://www.liquibase.org/xml/ns/dbchangelog/dbchangelog-4.8.xsd">
+ <include file="liquibase/cug-prefix-baseline.xml"/>
+ <include file="liquibase/3.4.x.x/095-configurable-cug-prefix.xml"/>
+ <include file="liquibase/3.4.x.x/097-patient-cug-prefix.xml"/>
+ <changeSet id="patient-document-test-baseline" author="openelis">
+  <addColumn tableName="patient"><column name="national_id" type="VARCHAR(255)"/></addColumn>
+  <createTable tableName="patient_identity_type">
+   <column name="id" type="NUMERIC(10,0)"><constraints primaryKey="true"/></column>
+   <column name="identity_type" type="VARCHAR(30)"/>
+  </createTable>
+  <createTable tableName="patient_identity">
+   <column name="id" type="NUMERIC(10,0)"><constraints primaryKey="true"/></column>
+   <column name="patient_id" type="NUMERIC(10,0)"/>
+   <column name="identity_type_id" type="NUMERIC(10,0)"/>
+   <column name="identity_data" type="VARCHAR(255)"/>
+  </createTable>
+  <addForeignKeyConstraint baseTableName="patient_identity" baseColumnNames="patient_id" referencedTableName="patient" referencedColumnNames="id" constraintName="fk_test_identity_patient" onDelete="CASCADE"/>
+ </changeSet>
+</databaseChangeLog>

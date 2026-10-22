@@ -11,4 +11,8 @@ public interface SampleCugPrefixDAO extends BaseDAO<SampleCugCounter, String> {
     boolean isAssigned(long prefix);
 
     void register(long prefix, String actorId);
+
+    Long findPatientPrefix(String patientId);
+
+    void bindPatientPrefix(String patientId, long prefix, String actorId);
 }

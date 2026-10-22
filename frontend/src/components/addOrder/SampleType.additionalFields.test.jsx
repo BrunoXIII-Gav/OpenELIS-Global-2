@@ -5,10 +5,14 @@ import UserSessionDetailsContext from "../../UserSessionDetailsContext";
 import { ConfigurationContext, NotificationContext } from "../layout/Layout";
 import SampleType from "./SampleType";
 import messages from "../../languages/en.json";
-import { getFromOpenElisServer } from "../utils/Utils";
+import {
+  getFromOpenElisServer,
+  postToOpenElisServerJsonResponse,
+} from "../utils/Utils";
 
 jest.mock("../utils/Utils", () => ({
   getFromOpenElisServer: jest.fn(),
+  postToOpenElisServerJsonResponse: jest.fn(),
 }));
 
 jest.mock("../addOrder/OrderReferralRequest", () => () => null);
@@ -189,6 +193,52 @@ describe("SampleType additional fields", () => {
 
       callback([]);
     });
+  });
+
+  test("displays a read-only suggested CUG without creating a reservation", async () => {
+    postToOpenElisServerJsonResponse.mockImplementation(
+      (url, payload, callback) => callback({ cugCode: "5001.2" }),
+    );
+    const { container, getByLabelText, props } = renderComponent({
+      canGenerateCug: true,
+      provisionalCug: true,
+      patientId: "10",
+      patientCugKey: "UPDATE|10",
+    });
+    fireEvent.change(container.querySelector("#sampleId_0"), {
+      target: { value: "1" },
+    });
+    await wait(() =>
+      expect(getByLabelText(messages["sample.cug.label"]).value).toBe("5001.2"),
+    );
+    expect(getByLabelText(messages["sample.cug.label"]).readOnly).toBe(true);
+    expect(postToOpenElisServerJsonResponse).toHaveBeenCalledTimes(1);
+    expect(postToOpenElisServerJsonResponse.mock.calls[0][0]).toBe(
+      "/rest/sample-cug/suggest?forOrderEntry=true",
+    );
+    await wait(() =>
+      expect(props.sampleTypeObject).toHaveBeenCalledWith(
+        expect.objectContaining({
+          sampleXML: expect.objectContaining({
+            cug: "5001.2",
+            cugProvisional: true,
+            cugReservationToken: "",
+          }),
+        }),
+      ),
+    );
+  });
+
+  test("an unsaved patient cannot request a sample CUG", () => {
+    const { container, getByLabelText } = renderComponent({
+      canGenerateCug: false,
+      provisionalCug: true,
+    });
+    fireEvent.change(container.querySelector("#sampleId_0"), {
+      target: { value: "1" },
+    });
+    expect(getByLabelText(messages["sample.cug.label"]).value).toBe("");
+    expect(postToOpenElisServerJsonResponse).not.toHaveBeenCalled();
   });
 
   test("loads and applies additional fields defaults for selected sample type", async () => {

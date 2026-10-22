@@ -1,0 +1,24 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<databaseChangeLog xmlns="http://www.liquibase.org/xml/ns/dbchangelog"
+ xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+ xsi:schemaLocation="http://www.liquibase.org/xml/ns/dbchangelog https://www.liquibase.org/xml/ns/dbchangelog/dbchangelog-4.8.xsd">
+ <include file="liquibase/cug-prefix-baseline.xml"/>
+ <include file="liquibase/3.4.x.x/029-add-cug-to-sample-item.xml"/>
+ <include file="liquibase/3.4.x.x/095-configurable-cug-prefix.xml"/>
+ <include file="liquibase/3.4.x.x/097-patient-cug-prefix.xml"/>
+ <changeSet id="cug-conflict-test-order-links" author="openelis">
+  <addColumn tableName="sample_item">
+   <column name="samp_id" type="NUMERIC(10,0)">
+    <constraints referencedTableName="sample" referencedColumnNames="id" foreignKeyName="cug_test_item_sample_fk"/>
+   </column>
+  </addColumn>
+  <createTable tableName="sample_human">
+   <column name="samp_id" type="NUMERIC(10,0)">
+    <constraints primaryKey="true" referencedTableName="sample" referencedColumnNames="id" foreignKeyName="cug_test_human_sample_fk"/>
+   </column>
+   <column name="patient_id" type="NUMERIC(10,0)">
+    <constraints nullable="false" referencedTableName="patient" referencedColumnNames="id" foreignKeyName="cug_test_human_patient_fk"/>
+   </column>
+  </createTable>
+ </changeSet>
+</databaseChangeLog>

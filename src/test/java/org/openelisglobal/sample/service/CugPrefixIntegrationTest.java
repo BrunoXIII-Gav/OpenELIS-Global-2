@@ -128,6 +128,9 @@ public class CugPrefixIntegrationTest {
                 ReflectionTestUtils.setField(cugTarget, "prefixes", prefixes);
                 ReflectionTestUtils.setField(cugTarget, "sampleCugReservationDAO", reservations);
                 ReflectionTestUtils.setField(cugTarget, "sampleItemDAO", items);
+                var patientPrefixes = mock(org.openelisglobal.sample.dao.SampleCugPrefixDAO.class);
+                when(patientPrefixes.findPatientPrefix(any())).thenReturn(null);
+                ReflectionTestUtils.setField(cugTarget, "patientPrefixes", patientPrefixes);
                 SampleCugService cugs = proxy(cugTarget, manager, SampleCugService.class);
                 var oldPatient = request("10", "old-patient");
                 var oldReservation = cugs.reserveCugCode(oldPatient, "42");
@@ -320,16 +323,16 @@ public class CugPrefixIntegrationTest {
         return request;
     }
 
-    private Liquibase migration(Connection connection, String file) throws Exception {
+    Liquibase migration(Connection connection, String file) throws Exception {
         var database = DatabaseFactory.getInstance().findCorrectDatabaseImplementation(new JdbcConnection(connection));
         database.setDefaultSchemaName("clinlims");
         return new Liquibase(file, new ClassLoaderResourceAccessor(), database);
     }
 
-    private SessionFactory factory(String url, String user, String password) {
+    SessionFactory factory(String url, String user, String password) {
         Configuration config = new Configuration().addAnnotatedClass(SampleCugCounter.class)
-                .addAnnotatedClass(SampleCugPrefix.class).addAnnotatedClass(SampleCugPrefixRange.class)
-                .addAnnotatedClass(SampleCugReservation.class)
+                .addAnnotatedClass(PatientCugPrefix.class).addAnnotatedClass(SampleCugPrefix.class)
+                .addAnnotatedClass(SampleCugPrefixRange.class).addAnnotatedClass(SampleCugReservation.class)
                 .addAnnotatedClass(org.openelisglobal.audittrail.valueholder.AuditEvent.class)
                 .addResource("hibernate/cug-patient-lock.hbm.xml");
         config.setProperty("hibernate.connection.url", url + "?currentSchema=clinlims");
@@ -345,14 +348,14 @@ public class CugPrefixIntegrationTest {
     }
 
     @SuppressWarnings("unchecked")
-    private <T> T proxy(T target, JpaTransactionManager manager, Class<T> type) {
+    <T> T proxy(T target, JpaTransactionManager manager, Class<T> type) {
         var factory = new ProxyFactory(target);
         factory.setInterfaces(type);
         factory.addAdvice(new TransactionInterceptor(manager, new AnnotationTransactionAttributeSource()));
         return (T) factory.getProxy();
     }
 
-    private long scalar(Connection connection, String sql) throws Exception {
+    long scalar(Connection connection, String sql) throws Exception {
         try (var statement = connection.createStatement(); var rows = statement.executeQuery(sql)) {
             rows.next();
             return rows.getLong(1);

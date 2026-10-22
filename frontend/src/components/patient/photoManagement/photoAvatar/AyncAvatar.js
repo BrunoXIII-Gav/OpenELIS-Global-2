@@ -21,6 +21,7 @@ const AsyncAvatar = ({
   patientName = "Patient",
   size = 40,
   gender,
+  forOrderEntry = false,
 }) => {
   const [thumbnail, setThumbnail] = useState(null);
   const [loading, setLoading] = useState(true);
@@ -39,7 +40,7 @@ const AsyncAvatar = ({
     setImageLoadError(false);
 
     getFromOpenElisServer(
-      `/rest/patient-photos/${patientId}/${true}`,
+      `/rest/patient-photos/${patientId}/${true}${forOrderEntry ? "?forOrderEntry=true" : ""}`,
       (response) => {
         if (response && response.data && response.data.trim() !== "") {
           setThumbnail(response.data);
@@ -50,7 +51,7 @@ const AsyncAvatar = ({
         setLoading(false);
       },
     );
-  }, [patientId, hasPhoto]);
+  }, [patientId, hasPhoto, forOrderEntry]);
 
   if (!hasPhoto) {
     return (

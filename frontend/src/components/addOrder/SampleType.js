@@ -66,7 +66,7 @@ const SampleType = (props) => {
   const cugGenerationInFlightRef = useRef(false);
   const cugGenerationKeyRef = useRef("");
   const previousPatientCugKeyRef = useRef(
-    String(props.patientCugKey || "").trim() || null,
+    `${String(props.patientCugKey || "").trim()}|${props.provisionalCug ? props.index : ""}`,
   );
 
   const { index, rejectSampleReasons, sample } = props;
@@ -253,14 +253,18 @@ const SampleType = (props) => {
     const payload = {
       patientId,
       existingCugs: Array.isArray(props.existingCugs) ? props.existingCugs : [],
+      sampleOffset: props.provisionalCug ? index : 0,
       reservationToken: sampleXml.cugReservationToken || "",
       reservationContextId: reservationContextId,
     };
 
     postToOpenElisServerJsonResponse(
-      "/rest/sample-cug/preview",
+      props.provisionalCug
+        ? "/rest/sample-cug/suggest?forOrderEntry=true"
+        : "/rest/sample-cug/preview",
       JSON.stringify(payload),
       (response) => {
+        if (cugGenerationKeyRef.current !== generationKey) return;
         cugGenerationInFlightRef.current = false;
         if (response?.status && response.status >= 400) {
           setNotificationVisible(true);
@@ -277,13 +281,14 @@ const SampleType = (props) => {
         }
         const generated = response?.cugCode;
         const reservationToken = response?.reservationToken;
-        if (generated && reservationToken) {
+        if (generated && (reservationToken || props.provisionalCug)) {
           setSampleXml((previous) => ({
             ...previous,
             cug: generated,
             cugAutoReserved: generated,
             cugValidationMessage: "",
-            cugReservationToken: reservationToken,
+            cugReservationToken: reservationToken || "",
+            cugProvisional: props.provisionalCug === true,
           }));
           return;
         }
@@ -303,6 +308,7 @@ const SampleType = (props) => {
     props.existingCugs,
     props.patientId,
     props.patientCugKey,
+    props.provisionalCug,
     sampleXml.cug,
     sampleXml.cugReservationContextId,
     sampleXml.cugReservationToken,
@@ -311,8 +317,7 @@ const SampleType = (props) => {
   ]);
 
   useEffect(() => {
-    const currentPatientCugKey =
-      String(props.patientCugKey || "").trim() || null;
+    const currentPatientCugKey = `${String(props.patientCugKey || "").trim()}|${props.provisionalCug ? index : ""}`;
     const previousPatientCugKey = previousPatientCugKeyRef.current;
     if (previousPatientCugKey === currentPatientCugKey) {
       return;
@@ -320,6 +325,7 @@ const SampleType = (props) => {
 
     previousPatientCugKeyRef.current = currentPatientCugKey;
     cugGenerationKeyRef.current = "";
+    cugGenerationInFlightRef.current = false;
     setSampleXml((previous) => ({
       ...previous,
       cug: "",
@@ -328,7 +334,7 @@ const SampleType = (props) => {
       cugReservationToken: "",
       cugReservationContextId: createCugReservationContextId(),
     }));
-  }, [props.patientCugKey]);
+  }, [props.patientCugKey, index, props.provisionalCug]);
 
   useEffect(() => {
     if (props.canGenerateCug) {
@@ -1089,6 +1095,15 @@ const SampleType = (props) => {
             <SelectItem text={sampleType.value} value={sampleType.id} key={i} />
           ))}
         </Select>
+        {props.provisionalCug && (
+          <TextInput
+            id={`sample-cug-${index}`}
+            labelText={intl.formatMessage({ id: "sample.cug.label" })}
+            value={sampleXml.cug || ""}
+            helperText={intl.formatMessage({ id: "sample.cug.provisional" })}
+            readOnly
+          />
+        )}
         {isSampleFieldVisible("rejected") && (
           <CustomCheckBox
             id={"reject_" + index}

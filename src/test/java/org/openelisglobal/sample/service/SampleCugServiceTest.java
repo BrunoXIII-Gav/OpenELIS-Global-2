@@ -10,7 +10,9 @@ import org.junit.Before;
 import org.junit.Test;
 import org.openelisglobal.common.services.SampleAddService.SampleTestCollection;
 import org.openelisglobal.sample.bean.SampleCugPreviewRequest;
+import org.openelisglobal.sample.dao.SampleCugPrefixDAO;
 import org.openelisglobal.sample.dao.SampleCugReservationDAO;
+import org.openelisglobal.sample.exception.SampleCugConflictException;
 import org.openelisglobal.sample.valueholder.SampleCugReservation;
 import org.openelisglobal.sampleitem.dao.SampleItemDAO;
 import org.openelisglobal.sampleitem.valueholder.SampleItem;
@@ -21,6 +23,7 @@ public class SampleCugServiceTest {
     private CugPrefixService prefixes;
     private SampleCugReservationDAO reservations;
     private SampleItemDAO items;
+    private SampleCugPrefixDAO patientPrefixes;
 
     @Before
     public void setup() {
@@ -28,11 +31,65 @@ public class SampleCugServiceTest {
         prefixes = mock(CugPrefixService.class);
         reservations = mock(SampleCugReservationDAO.class);
         items = mock(SampleItemDAO.class);
+        patientPrefixes = mock(SampleCugPrefixDAO.class);
+        when(patientPrefixes.findPatientPrefix(any())).thenReturn(null);
+        ReflectionTestUtils.setField(service, "patientPrefixes", patientPrefixes);
         ReflectionTestUtils.setField(service, "prefixes", prefixes);
         ReflectionTestUtils.setField(service, "sampleCugReservationDAO", reservations);
         ReflectionTestUtils.setField(service, "sampleItemDAO", items);
         when(prefixes.allocate("42")).thenReturn(5000L, 7000L, 4000L);
         when(reservations.insertIfValueAvailable(any())).thenAnswer(call -> Optional.of(call.getArgument(0)));
+    }
+
+    @Test
+    public void patientPreviewDoesNotAllocateOrReserve() {
+        var settings = new org.openelisglobal.sample.form.CugPrefixSettingsForm();
+        settings.setNextAvailablePrefix("5000");
+        when(prefixes.getSettings()).thenReturn(settings);
+        assertEquals("5000", service.previewPatientPrefix(null));
+        verify(prefixes, never()).allocate(anyString());
+        verify(reservations, never()).insertIfValueAvailable(any());
+        verify(patientPrefixes, never()).bindPatientPrefix(anyString(), anyLong(), anyString());
+    }
+
+    @Test
+    public void savedPatientKeepsItsPrefixEvenWithoutSamples() {
+        when(patientPrefixes.findPatientPrefix("10")).thenReturn(5000L);
+        assertEquals("5000", service.ensurePatientPrefix("10", "42"));
+        assertEquals("5000.1", service.previewCugCode(request("10", List.of())).getCugCode());
+        verify(prefixes, never()).allocate(anyString());
+        verify(reservations, never()).insertIfValueAvailable(any());
+    }
+
+    @Test
+    public void savingPatientBindsAllocatedPrefixInsteadOfTrustingPreview() {
+        assertEquals("5000", service.ensurePatientPrefix("10", "42"));
+        verify(reservations).lockPatientForCug("10");
+        verify(patientPrefixes).bindPatientPrefix("10", 5000L, "42");
+    }
+
+    @Test
+    public void existingHistoryDeterminesPatientPrefixWithoutRenumbering() {
+        when(items.findCugCodesByPatientId("10")).thenReturn(List.of("140.1", "140.2", "90.1"));
+        assertEquals("140", service.ensurePatientPrefix("10", "42"));
+        verify(patientPrefixes).bindPatientPrefix("10", 140L, "42");
+        verify(prefixes, never()).allocate(anyString());
+    }
+
+    @Test
+    public void legacyAssignmentWithoutPreviewStillUsesLatestHistory() {
+        when(patientPrefixes.findPatientPrefix("10")).thenReturn(5000L);
+        when(items.findCugCodesByPatientId("10")).thenReturn(List.of("5000.1"));
+        assertEquals("5000.2", service.previewCugCode(request("10", List.of())).getCugCode());
+        assertEquals("5000.2", service.previewCugCode(request("10", List.of())).getCugCode());
+        when(items.findCugCodesByPatientId("10")).thenReturn(List.of("5000.1", "5000.2"));
+        var first = sample(null);
+        var second = sample(null);
+        service.assignMissingCugCodes(List.of(first, second), "10", "42", "20");
+        assertEquals("5000.3", first.item.getCugCode());
+        assertEquals("5000.4", second.item.getCugCode());
+        verify(reservations, never()).insertIfValueAvailable(any());
+        verify(prefixes, never()).allocate(anyString());
     }
 
     @Test public void existingPatientKeepsPrefixAndIncreasesSuffixAfterAnyConfigurationChange() {
@@ -104,6 +161,71 @@ public class SampleCugServiceTest {
             assertEquals("sample.cug.suffix.exhausted", expected.getMessage());
         }
         verify(reservations, never()).insertIfValueAvailable(any());
+    }
+
+    @Test
+    public void strictPreviewKeepsDisplayedCugEvenIfLaterSuffixesExist() {
+        when(patientPrefixes.findPatientPrefix("10")).thenReturn(5000L);
+        when(items.findCugCodesByPatientId("10")).thenReturn(List.of("5000.1", "5000.3"));
+        var sample = previewSample("5000.2");
+        service.assignMissingCugCodes(List.of(sample), "10", "42", "20");
+        assertEquals("5000.2", sample.item.getCugCode());
+        verify(prefixes, never()).allocate(anyString());
+        verify(prefixes, never()).lockAllocation();
+        verify(reservations, never()).insertIfValueAvailable(any());
+    }
+
+    @Test
+    public void usedPreviewIsRejectedWithoutIncreasingItsSuffix() {
+        when(patientPrefixes.findPatientPrefix("10")).thenReturn(5000L);
+        when(items.existsByCugCode("5000.1")).thenReturn(true);
+        var sample = previewSample("5000.1");
+        try {
+            service.assignMissingCugCodes(List.of(sample), "10", "42", "20");
+            fail("A used preview must not create another order");
+        } catch (SampleCugConflictException expected) {
+            assertEquals("sample.cug.conflict", expected.getMessage());
+        }
+        assertEquals("5000.1", sample.item.getCugCode());
+        verify(prefixes, never()).allocate(anyString());
+    }
+
+    @Test
+    public void duplicatePreviewsWithinOneOrderAreRejected() {
+        when(patientPrefixes.findPatientPrefix("10")).thenReturn(5000L);
+        try {
+            service.assignMissingCugCodes(List.of(previewSample("5000.1"), previewSample("5000.1")), "10", "42", "20");
+            fail();
+        } catch (SampleCugConflictException expected) { }
+    }
+
+    @Test
+    public void aPreviewCannotUseAnotherPatientsPrefix() {
+        when(patientPrefixes.findPatientPrefix("10")).thenReturn(5000L);
+        try {
+            service.assignMissingCugCodes(List.of(previewSample("5001.1")), "10", "42", "20");
+            fail();
+        } catch (IllegalArgumentException expected) {
+            assertEquals("sample.cug.patient.prefix.mismatch", expected.getMessage());
+        }
+    }
+
+    @Test
+    public void missingPreviewCannotFallBackToAutomaticAssignment() {
+        when(patientPrefixes.findPatientPrefix("10")).thenReturn(5000L);
+        try {
+            service.assignMissingCugCodes(List.of(previewSample(null)), "10", "42", "20");
+            fail();
+        } catch (IllegalArgumentException expected) {
+            assertEquals("sample.cug.required", expected.getMessage());
+        }
+        verify(prefixes, never()).allocate(anyString());
+    }
+
+    private SampleTestCollection previewSample(String code) {
+        var sample = sample(code);
+        sample.cugProvisional = true;
+        return sample;
     }
 
     private SampleCugPreviewRequest request(String patient, List<String> existing) {

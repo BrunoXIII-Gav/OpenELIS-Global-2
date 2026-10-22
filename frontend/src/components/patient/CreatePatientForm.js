@@ -1,8 +1,12 @@
+import PatientCugPrefixField from "./PatientCugPrefixField";
 import HistoricalUserSelectItem from "../common/HistoricalUserSelectItem";
 import React, { useState, useRef, useEffect, useContext } from "react";
 import { FormattedMessage, injectIntl, useIntl } from "react-intl";
 import "../Style.css";
-import { getFromOpenElisServer, postToOpenElisServer } from "../utils/Utils";
+import {
+  getFromOpenElisServer,
+  postToOpenElisServerJsonResponse,
+} from "../utils/Utils";
 import { nationalityList } from "../data/countries";
 import format from "date-fns/format";
 import {
@@ -47,6 +51,33 @@ import {
   normalizePatientFixedFieldConfigs,
   PATIENT_FIXED_FIELD_DEFINITION_MAP,
 } from "./patientFixedFieldConfig";
+
+const DOCUMENT_FIELDS = {
+  DNI: {
+    field: "dni",
+    enabled: "dniEnabled",
+    maxLength: 8,
+    pattern: /^[0-9]{1,8}$/,
+    invalidCharacters: /[^0-9]/g,
+    error: "patient.document.dni.format",
+  },
+  PASSPORT: {
+    field: "passportNumber",
+    enabled: "passportEnabled",
+    maxLength: 9,
+    pattern: /^[A-Za-z0-9]{1,9}$/,
+    invalidCharacters: /[^A-Za-z0-9]/g,
+    error: "patient.document.passport.format",
+  },
+  FOREIGN_ID: {
+    field: "foreignId",
+    enabled: "foreignIdEnabled",
+    maxLength: 20,
+    pattern: /^[A-Za-z0-9]{1,20}$/,
+    invalidCharacters: /[^A-Za-z0-9]/g,
+    error: "patient.document.foreign.format",
+  },
+};
 
 const PRIMARY_IDENTIFIER_OPTIONS = [
   {
@@ -133,9 +164,15 @@ function CreatePatientForm(props) {
     subjectNumber: selectedPatient.subjectNumber || "",
   });
 
+  const untypedIdentifierRef = useRef("");
+
   const [isSubmitting, setIsSubmitting] = useState(false);
+  const saveInFlight = useRef(false);
+  const [patientReady, setPatientReady] = useState(false);
+  const [fixedFieldsLoaded, setFixedFieldsLoaded] = useState(false);
+  const [additionalFieldsLoaded, setAdditionalFieldsLoaded] = useState(false);
   const [hasPatientPermission, setHasPatientPermission] = useState(false);
-  const [hasOrderPermission, setHasOrderPermission] = useState(true);
+  const [hasOrderPermission, setHasOrderPermission] = useState(false);
   const [permissionsLoaded, setPermissionsLoaded] = useState(false);
   const [patientModuleAccess, setPatientModuleAccess] = useState({
     canRead: false,
@@ -151,15 +188,19 @@ function CreatePatientForm(props) {
   const [showPassportField, setShowPassportField] = useState(false);
   const [showForeignIdField, setShowForeignIdField] = useState(false);
 
-  const isExistingPatient = Boolean(selectedPatient?.patientPK);
+  const isExistingPatient = Boolean(
+    selectedPatient?.patientPK || patientDetails?.patientPK,
+  );
   const restrictedPatientFieldTags = new Set(
     patientModuleAccess.restrictedFieldTagKeys || [],
   );
-  const canEditPatientInCurrentContext = isOrderEntryPatientStep
-    ? hasOrderPermission
-    : isExistingPatient
+  const canEditPatientInCurrentContext =
+    !(patientDetails?.readOnly || selectedPatient?.readOnly) &&
+    (isExistingPatient
       ? patientModuleAccess.canUpdate
-      : patientModuleAccess.canCreate;
+      : isOrderEntryPatientStep
+        ? hasOrderPermission
+        : patientModuleAccess.canCreate);
 
   const getPatientFixedFieldConfig = (fieldKey) =>
     patientFixedFieldConfigs.find((config) => config.fieldKey === fieldKey) ||
@@ -284,6 +325,7 @@ function CreatePatientForm(props) {
     getPatientFixedFieldConfig(fieldKey)?.required === true;
 
   const isPatientFixedFieldReadOnly = (fieldKey) => {
+    if (isSubmitting) return true;
     if (fieldKey === "nationalId") {
       return true;
     }
@@ -304,7 +346,7 @@ function CreatePatientForm(props) {
           PATIENT_FIXED_FIELD_DEFINITION_MAP[fieldKey]?.defaultLabel ||
           fieldKey,
       })}
-      {isPatientFixedFieldRequired(fieldKey) ? (
+      {fieldKey === "nationalId" || isPatientFixedFieldRequired(fieldKey) ? (
         <span className="requiredlabel">*</span>
       ) : null}
     </>
@@ -359,6 +401,18 @@ function CreatePatientForm(props) {
     if (!isPatientFixedFieldVisible("optionalIdentifiers")) {
       return validationErrors;
     }
+    Object.values(DOCUMENT_FIELDS).forEach((config) => {
+      const value = String(values?.[config.field] || "");
+      if (values?.[config.enabled] && !value.trim()) {
+        validationErrors[config.field] = intl.formatMessage({
+          id: "patient.document.required",
+        });
+      } else if (value && !config.pattern.test(value)) {
+        validationErrors[config.field] = intl.formatMessage({
+          id: config.error,
+        });
+      }
+    });
     const hasIdentifier =
       Boolean((values?.dni || "").trim()) ||
       Boolean((values?.passportNumber || "").trim()) ||
@@ -481,9 +535,79 @@ function CreatePatientForm(props) {
   });
 
   const syncOptionalIdentityVisibility = (patient) => {
-    setShowDniField(Boolean((patient?.dni || "").trim()));
-    setShowPassportField(Boolean((patient?.passportNumber || "").trim()));
-    setShowForeignIdField(Boolean((patient?.foreignId || "").trim()));
+    untypedIdentifierRef.current =
+      patient?.patientPK && !inferPrimaryIdentifierType(patient)
+        ? String(patient.nationalId || "").trim()
+        : "";
+    setShowDniField(
+      patient?.dniEnabled === true || Boolean((patient?.dni || "").trim()),
+    );
+    setShowPassportField(
+      patient?.passportEnabled === true ||
+        Boolean((patient?.passportNumber || "").trim()),
+    );
+    setShowForeignIdField(
+      patient?.foreignIdEnabled === true ||
+        Boolean((patient?.foreignId || "").trim()),
+    );
+  };
+
+  const handleIdentifierToggle = (type, checked, values, setValues) => {
+    const enabled = {
+      DNI: showDniField,
+      PASSPORT: showPassportField,
+      FOREIGN_ID: showForeignIdField,
+      [type]: checked,
+    };
+    const fields = {
+      DNI: "dni",
+      PASSPORT: "passportNumber",
+      FOREIGN_ID: "foreignId",
+    };
+    setShowDniField(enabled.DNI);
+    setShowPassportField(enabled.PASSPORT);
+    setShowForeignIdField(enabled.FOREIGN_ID);
+    const next = { ...values, [DOCUMENT_FIELDS[type].enabled]: checked };
+    if (checked) {
+      if (!next.primaryPatientIdentifierType) {
+        next.primaryPatientIdentifierType = type;
+        // The user's explicit selection classifies an existing, untyped ID.
+        if (
+          !getIdentifierValueByType(next, type) &&
+          untypedIdentifierRef.current
+        ) {
+          next[fields[type]] = untypedIdentifierRef.current;
+        }
+      }
+    } else {
+      next[fields[type]] = "";
+      if (next.primaryPatientIdentifierType === type) {
+        next.primaryPatientIdentifierType =
+          PRIMARY_IDENTIFIER_OPTIONS.find((option) => enabled[option.value])
+            ?.value || "";
+      }
+    }
+    next.nationalId =
+      getIdentifierValueByType(
+        next,
+        next.primaryPatientIdentifierType,
+      ).trim() || untypedIdentifierRef.current;
+    setValues(next);
+  };
+
+  const handleDocumentChange = (event, type, setValues) => {
+    event.stopPropagation();
+    const config = DOCUMENT_FIELDS[type];
+    const value = event.target.value
+      .replace(config.invalidCharacters, "")
+      .slice(0, config.maxLength);
+    setValues((previous) => ({
+      ...previous,
+      [config.field]: value,
+      ...(previous.primaryPatientIdentifierType === type
+        ? { nationalId: value }
+        : {}),
+    }));
   };
 
   const handlePhotoChange = (photo, setFieldValue) => {
@@ -1264,7 +1388,7 @@ function CreatePatientForm(props) {
       }
       //merge objects together to avoid "A component is changing a controlled input to be uncontrolled"
       let patient = sanitizePatientProperties({ ...selectedPatient });
-      patient.patientUpdateStatus = "UPDATE";
+      patient.patientUpdateStatus = patient.readOnly ? "NO_ACTION" : "UPDATE";
       patient.photo = "";
       //merge objects together to avoid "A component is changing a controlled input to be uncontrolled"
       const patientContactPerson = {
@@ -1313,19 +1437,20 @@ function CreatePatientForm(props) {
       });
       getYearsMonthsDaysFromDOB(patient.birthDateForDisplay);
       setFormAction("UPDATE");
-      // Fetch patient photo if patient exists
-      getFromOpenElisServer(
-        `/rest/patient-photos/${patient.patientPK}/${false}`,
-        (response) => {
-          if (response && response.data) {
-            // Update patient details with photo
-            setPatientDetails((prevDetails) => ({
-              ...prevDetails,
-              photo: response.data,
-            }));
-          }
-        },
-      );
+      // Hidden photo fields do not need a protected photo request.
+      if (isPatientFixedFieldVisible("photo"))
+        getFromOpenElisServer(
+          `/rest/patient-photos/${patient.patientPK}/${false}${isOrderEntryPatientStep ? "?forOrderEntry=true" : ""}`,
+          (response) => {
+            if (response && response.data) {
+              // Update patient details with photo
+              setPatientDetails((prevDetails) => ({
+                ...prevDetails,
+                photo: response.data,
+              }));
+            }
+          },
+        );
     } else {
       // Ensure ADD mode is restored when user switches from an existing
       // patient to manual/new patient entry.
@@ -1336,6 +1461,7 @@ function CreatePatientForm(props) {
         months: "",
         days: "",
       });
+      untypedIdentifierRef.current = "";
       patientIdentifierRef.current = {
         nationalId: "",
         subjectNumber: "",
@@ -1402,36 +1528,48 @@ function CreatePatientForm(props) {
     componentMounted.current = true;
     repopulatePatientInfo();
 
+    let patientAccessLoaded = false;
+    let orderAccessLoaded = !isOrderEntryPatientStep;
+    const finishPermissionLoading = () => {
+      if (
+        componentMounted.current &&
+        patientAccessLoaded &&
+        orderAccessLoaded
+      ) {
+        setPermissionsLoaded(true);
+      }
+    };
+    getFromOpenElisServer("/rest/patient-management/access", (response) => {
+      const access = response || {};
+      if (componentMounted.current) {
+        setPatientModuleAccess({
+          canRead: access.canRead === true,
+          canCreate: access.canCreate === true,
+          canUpdate: access.canUpdate === true,
+          restrictedFieldTagKeys: Array.isArray(access.restrictedFieldTagKeys)
+            ? access.restrictedFieldTagKeys
+            : [],
+        });
+        setHasPatientPermission(
+          access.canRead === true ||
+            access.canCreate === true ||
+            access.canUpdate === true,
+        );
+        patientAccessLoaded = true;
+        finishPermissionLoading();
+      }
+    });
     if (isOrderEntryPatientStep) {
       getFromOpenElisServer(
         "/rest/professional-profile-permissions",
         (response) => {
-          if (response) {
-            setHasOrderPermission(response.hasOrderPermission !== false);
+          if (componentMounted.current) {
+            setHasOrderPermission(response?.hasOrderPermission === true);
+            orderAccessLoaded = true;
+            finishPermissionLoading();
           }
-          setPermissionsLoaded(true);
         },
       );
-    } else {
-      getFromOpenElisServer("/rest/patient-management/access", (response) => {
-        const access = response || {};
-        if (componentMounted.current) {
-          setPatientModuleAccess({
-            canRead: access.canRead === true,
-            canCreate: access.canCreate === true,
-            canUpdate: access.canUpdate === true,
-            restrictedFieldTagKeys: Array.isArray(access.restrictedFieldTagKeys)
-              ? access.restrictedFieldTagKeys
-              : [],
-          });
-          setHasPatientPermission(
-            access.canRead === true ||
-              access.canCreate === true ||
-              access.canUpdate === true,
-          );
-          setPermissionsLoaded(true);
-        }
-      });
     }
 
     return () => {
@@ -1449,9 +1587,12 @@ function CreatePatientForm(props) {
         (fields) => {
           if (componentMounted.current) {
             setPatientAdditionalFields(Array.isArray(fields) ? fields : []);
+            setAdditionalFieldsLoaded(Array.isArray(fields));
           }
         },
       );
+    } else if (!showPatientAdditionalInfoOnOrderEntry) {
+      setAdditionalFieldsLoaded(true);
     }
   }, [showPatientAdditionalInfoOnOrderEntry]);
 
@@ -1466,6 +1607,7 @@ function CreatePatientForm(props) {
           setPatientFixedFieldConfigs(
             normalizePatientFixedFieldConfigs(configs),
           );
+          setFixedFieldsLoaded(Array.isArray(configs));
         }
       },
     );
@@ -1638,16 +1780,21 @@ function CreatePatientForm(props) {
   };
 
   const handleSubmit = async (values, { resetForm }) => {
-    if (isOrderEntryPatientStep) {
+    // Prevent double clicks before React updates the saving state.
+    if (
+      !patientReady ||
+      saveInFlight.current ||
+      isSubmitting ||
+      !permissionsLoaded ||
+      !canEditPatientInCurrentContext
+    ) {
       return;
     }
 
-    // Prevent multiple submissions.
-    if (isSubmitting || !permissionsLoaded || !canEditPatientInCurrentContext) {
-      return;
-    }
-
+    saveInFlight.current = true;
     setIsSubmitting(true);
+    if (props.onSavingChange) props.onSavingChange(true);
+    values = JSON.parse(JSON.stringify(values));
 
     if ("years" in values) {
       delete values.years;
@@ -1658,37 +1805,49 @@ function CreatePatientForm(props) {
     if ("days" in values) {
       delete values.days;
     }
-    values.nationalId = showPatientNationalIdField
-      ? getIdentifierValueByType(
-          values,
-          values.primaryPatientIdentifierType,
-        ).trim()
-      : getIdentifierValueByType(
-          values,
-          values.primaryPatientIdentifierType,
-        ).trim();
+    const primaryIdentifier = getIdentifierValueByType(
+      values,
+      values.primaryPatientIdentifierType,
+    ).trim();
+    values.nationalId =
+      primaryIdentifier ||
+      (!values.primaryPatientIdentifierType
+        ? untypedIdentifierRef.current
+        : "");
     values.subjectNumber = patientIdentifierRef.current.subjectNumber || "";
     values.dni = showDniField ? values.dni || "" : "";
     values.passportNumber = showPassportField
       ? values.passportNumber || ""
       : "";
     values.foreignId = showForeignIdField ? values.foreignId || "" : "";
-    postToOpenElisServer(
-      "/rest/PatientManagement",
+    postToOpenElisServerJsonResponse(
+      isOrderEntryPatientStep
+        ? "/rest/orders/patient"
+        : "/rest/PatientManagement",
       JSON.stringify(values),
-      (status) => {
-        handlePost(status);
-        resetForm({ values: CreatePatientFormValues });
-        setDateOfBirthFormatter({
-          years: "",
-          months: "",
-          days: "",
+      (response) => {
+        saveInFlight.current = false;
+        if (props.onSavingChange) props.onSavingChange(false);
+        const saved = response?.patientPK && !(response?.status >= 400);
+        handlePost(saved ? 200 : response?.status || 500, response?.code);
+        if (!saved) return;
+        const patient = sanitizePatientProperties({
+          ...values,
+          ...response,
+          readOnly: !patientModuleAccess.canUpdate,
+          patientUpdateStatus: patientModuleAccess.canUpdate
+            ? "UPDATE"
+            : "NO_ACTION",
         });
+        setFormAction(patient.patientUpdateStatus);
+        setPatientDetails(patient);
+        resetForm({ values: patient });
+        if (props.onPatientSaved) props.onPatientSaved(patient);
       },
     );
   };
 
-  const handlePost = (status) => {
+  const handlePost = (status, code) => {
     setNotificationVisible(true);
     setIsSubmitting(false);
     if (status === 200) {
@@ -1700,7 +1859,12 @@ function CreatePatientForm(props) {
     } else {
       addNotification({
         title: intl.formatMessage({ id: "notification.title" }),
-        message: intl.formatMessage({ id: "error.save.patient" }),
+        message: intl.formatMessage({
+          id:
+            status === 409 && code === "patient.identifier.duplicate"
+              ? "patient.identifier.duplicate"
+              : "error.save.patient",
+        }),
         kind: NotificationKinds.error,
       });
     }
@@ -1748,9 +1912,12 @@ function CreatePatientForm(props) {
           handleBlur,
           handleSubmit,
           setFieldValue,
+          setValues,
         }) => {
           const patientEditingDisabled =
-            !permissionsLoaded || !canEditPatientInCurrentContext;
+            isSubmitting ||
+            !permissionsLoaded ||
+            !canEditPatientInCurrentContext;
           const emergencyContactDisabled =
             patientEditingDisabled ||
             isPatientFixedFieldReadOnly("emergencyContact");
@@ -1877,37 +2044,14 @@ function CreatePatientForm(props) {
                           "optionalIdentifiers",
                         )}
                         checked={showDniField}
-                        onChange={(_event, { checked }) => {
-                          const isChecked = Boolean(checked);
-                          setShowDniField(isChecked);
-                          if (!isChecked) {
-                            setFieldValue("dni", "");
-                            if (values.primaryPatientIdentifierType === "DNI") {
-                              const nextType = showPassportField
-                                ? "PASSPORT"
-                                : showForeignIdField
-                                  ? "FOREIGN_ID"
-                                  : "";
-                              setFieldValue(
-                                "primaryPatientIdentifierType",
-                                nextType,
-                              );
-                              setFieldValue(
-                                "nationalId",
-                                getIdentifierValueByType(
-                                  values,
-                                  nextType,
-                                ).trim(),
-                                false,
-                              );
-                            }
-                          } else if (!values.primaryPatientIdentifierType) {
-                            setFieldValue(
-                              "primaryPatientIdentifierType",
-                              "DNI",
-                            );
-                          }
-                        }}
+                        onChange={(_event, { checked }) =>
+                          handleIdentifierToggle(
+                            "DNI",
+                            Boolean(checked),
+                            values,
+                            setValues,
+                          )
+                        }
                       />
                       <Checkbox
                         id="patient-passport-enabled"
@@ -1918,39 +2062,14 @@ function CreatePatientForm(props) {
                           "optionalIdentifiers",
                         )}
                         checked={showPassportField}
-                        onChange={(_event, { checked }) => {
-                          const isChecked = Boolean(checked);
-                          setShowPassportField(isChecked);
-                          if (!isChecked) {
-                            setFieldValue("passportNumber", "");
-                            if (
-                              values.primaryPatientIdentifierType === "PASSPORT"
-                            ) {
-                              const nextType = showDniField
-                                ? "DNI"
-                                : showForeignIdField
-                                  ? "FOREIGN_ID"
-                                  : "";
-                              setFieldValue(
-                                "primaryPatientIdentifierType",
-                                nextType,
-                              );
-                              setFieldValue(
-                                "nationalId",
-                                getIdentifierValueByType(
-                                  values,
-                                  nextType,
-                                ).trim(),
-                                false,
-                              );
-                            }
-                          } else if (!values.primaryPatientIdentifierType) {
-                            setFieldValue(
-                              "primaryPatientIdentifierType",
-                              "PASSPORT",
-                            );
-                          }
-                        }}
+                        onChange={(_event, { checked }) =>
+                          handleIdentifierToggle(
+                            "PASSPORT",
+                            Boolean(checked),
+                            values,
+                            setValues,
+                          )
+                        }
                       />
                       <Checkbox
                         id="patient-foreign-id-enabled"
@@ -1961,42 +2080,28 @@ function CreatePatientForm(props) {
                           "optionalIdentifiers",
                         )}
                         checked={showForeignIdField}
-                        onChange={(_event, { checked }) => {
-                          const isChecked = Boolean(checked);
-                          setShowForeignIdField(isChecked);
-                          if (!isChecked) {
-                            setFieldValue("foreignId", "");
-                            if (
-                              values.primaryPatientIdentifierType ===
-                              "FOREIGN_ID"
-                            ) {
-                              const nextType = showDniField
-                                ? "DNI"
-                                : showPassportField
-                                  ? "PASSPORT"
-                                  : "";
-                              setFieldValue(
-                                "primaryPatientIdentifierType",
-                                nextType,
-                              );
-                              setFieldValue(
-                                "nationalId",
-                                getIdentifierValueByType(
-                                  values,
-                                  nextType,
-                                ).trim(),
-                                false,
-                              );
-                            }
-                          } else if (!values.primaryPatientIdentifierType) {
-                            setFieldValue(
-                              "primaryPatientIdentifierType",
-                              "FOREIGN_ID",
-                            );
-                          }
-                        }}
+                        onChange={(_event, { checked }) =>
+                          handleIdentifierToggle(
+                            "FOREIGN_ID",
+                            Boolean(checked),
+                            values,
+                            setValues,
+                          )
+                        }
                       />
                     </Section>
+                    {untypedIdentifierRef.current &&
+                      !values.primaryPatientIdentifierType &&
+                      !patientEditingDisabled && (
+                        <InlineNotification
+                          kind="info"
+                          title={intl.formatMessage({
+                            id: "patient.identifier.untyped",
+                          })}
+                          hideCloseButton
+                          lowContrast
+                        />
+                      )}
                   </Column>
                   {getVisiblePrimaryIdentifierOptions().length > 0 && (
                     <Column lg={8} md={4} sm={4}>
@@ -2062,9 +2167,18 @@ function CreatePatientForm(props) {
                           <TextInput
                             value={values.dni || ""}
                             name={field.name}
-                            labelText={intl.formatMessage({
-                              id: "patient.identifier.dni",
-                            })}
+                            labelText={
+                              <>
+                                {intl.formatMessage({
+                                  id: "patient.identifier.dni",
+                                })}
+                                <span className="requiredlabel">*</span>
+                              </>
+                            }
+                            required
+                            type="text"
+                            inputMode="numeric"
+                            maxLength={DOCUMENT_FIELDS.DNI.maxLength}
                             id={field.name}
                             disabled={isPatientFixedFieldReadOnly(
                               "optionalIdentifiers",
@@ -2078,18 +2192,9 @@ function CreatePatientForm(props) {
                                 values.dni || "",
                               );
                             }}
-                            onChange={(event) => {
-                              handleChange(event);
-                              if (
-                                values.primaryPatientIdentifierType === "DNI"
-                              ) {
-                                setFieldValue(
-                                  "nationalId",
-                                  event.target.value.trim(),
-                                  false,
-                                );
-                              }
-                            }}
+                            onChange={(event) =>
+                              handleDocumentChange(event, "DNI", setValues)
+                            }
                             placeholder={intl.formatMessage({
                               id: "patient.information.dni",
                             })}
@@ -2105,9 +2210,18 @@ function CreatePatientForm(props) {
                           <TextInput
                             value={values.passportNumber || ""}
                             name={field.name}
-                            labelText={intl.formatMessage({
-                              id: "patient.identifier.passport",
-                            })}
+                            labelText={
+                              <>
+                                {intl.formatMessage({
+                                  id: "patient.identifier.passport",
+                                })}
+                                <span className="requiredlabel">*</span>
+                              </>
+                            }
+                            required
+                            type="text"
+                            inputMode="text"
+                            maxLength={DOCUMENT_FIELDS.PASSPORT.maxLength}
                             id={field.name}
                             disabled={isPatientFixedFieldReadOnly(
                               "optionalIdentifiers",
@@ -2123,19 +2237,9 @@ function CreatePatientForm(props) {
                                 values.passportNumber || "",
                               );
                             }}
-                            onChange={(event) => {
-                              handleChange(event);
-                              if (
-                                values.primaryPatientIdentifierType ===
-                                "PASSPORT"
-                              ) {
-                                setFieldValue(
-                                  "nationalId",
-                                  event.target.value.trim(),
-                                  false,
-                                );
-                              }
-                            }}
+                            onChange={(event) =>
+                              handleDocumentChange(event, "PASSPORT", setValues)
+                            }
                             placeholder={intl.formatMessage({
                               id: "patient.information.passport",
                             })}
@@ -2151,9 +2255,18 @@ function CreatePatientForm(props) {
                           <TextInput
                             value={values.foreignId || ""}
                             name={field.name}
-                            labelText={intl.formatMessage({
-                              id: "patient.identifier.foreign.card",
-                            })}
+                            labelText={
+                              <>
+                                {intl.formatMessage({
+                                  id: "patient.identifier.foreign.card",
+                                })}
+                                <span className="requiredlabel">*</span>
+                              </>
+                            }
+                            required
+                            type="text"
+                            inputMode="text"
+                            maxLength={DOCUMENT_FIELDS.FOREIGN_ID.maxLength}
                             id={field.name}
                             disabled={isPatientFixedFieldReadOnly(
                               "optionalIdentifiers",
@@ -2167,19 +2280,13 @@ function CreatePatientForm(props) {
                                 values.foreignId || "",
                               );
                             }}
-                            onChange={(event) => {
-                              handleChange(event);
-                              if (
-                                values.primaryPatientIdentifierType ===
-                                "FOREIGN_ID"
-                              ) {
-                                setFieldValue(
-                                  "nationalId",
-                                  event.target.value.trim(),
-                                  false,
-                                );
-                              }
-                            }}
+                            onChange={(event) =>
+                              handleDocumentChange(
+                                event,
+                                "FOREIGN_ID",
+                                setValues,
+                              )
+                            }
                             placeholder={intl.formatMessage({
                               id: "patient.information.foreign.card",
                             })}
@@ -2905,6 +3012,11 @@ function CreatePatientForm(props) {
                   orderFormValues={props.orderFormValues}
                   setOrderFormValues={props.setOrderFormValues}
                   formAction={formAction}
+                  readOnly={
+                    permissionsLoaded &&
+                    isExistingPatient &&
+                    !canEditPatientInCurrentContext
+                  }
                 />
               )}
               <Grid>
@@ -2923,10 +3035,43 @@ function CreatePatientForm(props) {
                 </Column>
                 {renderOrderedPatientFields()}
                 <Column lg={16} md={8} sm={4}>
+                  <PatientCugPrefixField
+                    forOrderEntry={isOrderEntryPatientStep}
+                    validate={(patient) => {
+                      const errors = validatePatientForm(patient);
+                      patientAdditionalFields.forEach((field) => {
+                        if (
+                          field.required &&
+                          !String(
+                            patient.patientAdditionalFieldValues?.[
+                              field.fieldKey
+                            ] || "",
+                          ).trim()
+                        ) {
+                          errors[field.fieldKey] = intl.formatMessage({
+                            id: "patient.fixed.fields.required",
+                          });
+                        }
+                      });
+                      return errors;
+                    }}
+                    ready={
+                      permissionsLoaded &&
+                      fixedFieldsLoaded &&
+                      additionalFieldsLoaded &&
+                      !Object.values(phoneValidation).some(
+                        (item) => item.status === false,
+                      )
+                    }
+                    onReadyChange={setPatientReady}
+                  />
+                </Column>
+                <Column lg={16} md={8} sm={4}>
                   {" "}
                   <br></br>
                 </Column>
-                {props.showActionsButton && (
+                {(props.showActionsButton ||
+                  (isOrderEntryPatientStep && !values.patientPK)) && (
                   <>
                     <Column lg={4} md={4} sm={4}>
                       <Button
@@ -2934,33 +3079,52 @@ function CreatePatientForm(props) {
                         id="submit"
                         disabled={
                           patientEditingDisabled ||
+                          !patientReady ||
                           isSubmitting ||
                           Object.values(phoneValidation).some(
                             (item) => item.status === false,
                           )
                         }
                       >
-                        <FormattedMessage id="label.button.save" />
+                        <FormattedMessage
+                          id={
+                            isOrderEntryPatientStep
+                              ? "patient.cug.save"
+                              : "label.button.save"
+                          }
+                        />
                       </Button>
                     </Column>
-                    <Column lg={4} md={4} sm={4}>
-                      <Button
-                        id="clear"
-                        kind="danger"
-                        disabled={patientEditingDisabled || isSubmitting}
-                        onClick={() => {
-                          resetForm({ values: CreatePatientFormValues });
-                          setHealthDistricts([]);
-                          setDateOfBirthFormatter({
-                            years: "",
-                            months: "",
-                            days: "",
-                          });
-                        }}
-                      >
-                        <FormattedMessage id="label.button.clear" />
-                      </Button>
-                    </Column>
+                    {!isOrderEntryPatientStep && (
+                      <Column lg={4} md={4} sm={4}>
+                        <Button
+                          id="clear"
+                          kind="danger"
+                          disabled={patientEditingDisabled || isSubmitting}
+                          onClick={() => {
+                            untypedIdentifierRef.current = "";
+                            patientIdentifierRef.current = {
+                              nationalId: "",
+                              subjectNumber: "",
+                            };
+                            setShowDniField(false);
+                            setShowPassportField(false);
+                            setShowForeignIdField(false);
+                            resetForm({ values: CreatePatientFormValues });
+                            setPatientDetails(CreatePatientFormValues);
+                            setFormAction("ADD");
+                            setHealthDistricts([]);
+                            setDateOfBirthFormatter({
+                              years: "",
+                              months: "",
+                              days: "",
+                            });
+                          }}
+                        >
+                          <FormattedMessage id="label.button.clear" />
+                        </Button>
+                      </Column>
+                    )}
                   </>
                 )}
               </Grid>

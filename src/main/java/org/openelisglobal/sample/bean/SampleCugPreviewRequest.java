@@ -3,6 +3,16 @@ package org.openelisglobal.sample.bean;
 import java.util.List;
 
 public class SampleCugPreviewRequest {
+    private int sampleOffset;
+
+    public int getSampleOffset() {
+        return sampleOffset;
+    }
+
+    public void setSampleOffset(int value) {
+        sampleOffset = value;
+    }
+
     private String patientId;
     private String reservationToken;
     private String reservationContextId;

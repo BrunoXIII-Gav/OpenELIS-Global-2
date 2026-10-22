@@ -1,0 +1,13 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<databaseChangeLog xmlns="http://www.liquibase.org/xml/ns/dbchangelog"
+ xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+ xsi:schemaLocation="http://www.liquibase.org/xml/ns/dbchangelog https://www.liquibase.org/xml/ns/dbchangelog/dbchangelog-4.8.xsd">
+ <changeSet id="order-accession-test-sample" author="openelis">
+  <createTable tableName="sample">
+   <column name="id" type="NUMERIC(10,0)"><constraints primaryKey="true"/></column>
+   <column name="accession_number" type="VARCHAR(128)"><constraints nullable="false"/></column>
+  </createTable>
+ </changeSet>
+ <include file="liquibase/2.3.x.x/accession_sequencing.xml"/>
+ <include file="liquibase/3.4.x.x/099-order-accession-confirmation.xml"/>
+</databaseChangeLog>

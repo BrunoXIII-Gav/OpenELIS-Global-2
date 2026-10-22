@@ -6,6 +6,14 @@ import org.openelisglobal.sample.bean.SampleCugPreviewRequest;
 import org.openelisglobal.sample.bean.SampleCugPreviewResponse;
 
 public interface SampleCugService {
+    String getPatientPrefix(String patientId);
+
+    String previewPatientPrefix(String patientId);
+
+    String ensurePatientPrefix(String patientId, String currentUserId);
+
+    SampleCugPreviewResponse previewCugCode(SampleCugPreviewRequest request);
+
     SampleCugPreviewResponse reserveCugCode(SampleCugPreviewRequest request, String currentUserId);
 
     void assignMissingCugCodes(List<SampleTestCollection> sampleTestCollections, String patientId, String currentUserId,

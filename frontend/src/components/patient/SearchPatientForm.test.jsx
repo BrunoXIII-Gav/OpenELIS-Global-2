@@ -53,7 +53,7 @@ beforeEach(() => {
   });
 });
 
-const show = () =>
+const show = (props = {}) =>
   render(
     <IntlProvider locale="es" messages={messages}>
       <ConfigurationContext.Provider
@@ -66,7 +66,10 @@ const show = () =>
             addNotification,
           }}
         >
-          <SearchPatientForm getSelectedPatient={getSelectedPatient} />
+          <SearchPatientForm
+            {...props}
+            getSelectedPatient={getSelectedPatient}
+          />
         </NotificationContext.Provider>
       </ConfigurationContext.Provider>
     </IntlProvider>,
@@ -138,4 +141,33 @@ test("a failed search stops loading and reports failure rather than no matching 
     }),
   );
   expect(getSelectedPatient).not.toHaveBeenCalled();
+});
+
+test("order creation uses the authorized order lookup for search, selection and photograph", async () => {
+  detailsResponse = {
+    patientPK: "17",
+    firstName: "Ana",
+    readOnly: true,
+    patientUpdateStatus: "NO_ACTION",
+  };
+  show({ forOrderEntry: true });
+  await search();
+  expect(
+    getFromOpenElisServer.mock.calls.some(
+      ([url]) =>
+        url.startsWith("/rest/patient-search-results?") &&
+        url.includes("forOrderEntry=true"),
+    ),
+  ).toBe(true);
+  fireEvent.click(document.getElementById("17"));
+  expect(getFromOpenElisServer).toHaveBeenCalledWith(
+    "/rest/patient-details?patientID=17&forOrderEntry=true",
+    expect.any(Function),
+  );
+  expect(getFromOpenElisServer).toHaveBeenCalledWith(
+    "/rest/patient-photos/17/false?forOrderEntry=true",
+    expect.any(Function),
+  );
+  expect(getSelectedPatient).toHaveBeenCalledWith(detailsResponse);
+  expect(addNotification).not.toHaveBeenCalled();
 });
