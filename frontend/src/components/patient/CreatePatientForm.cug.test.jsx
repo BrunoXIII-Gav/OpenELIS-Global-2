@@ -239,6 +239,179 @@ test("failed save preserves entered data and never reports a persisted patient",
   );
 });
 
+test.each([true, false])(
+  "saves a manual prefix and displays the assigned result in orderEntry=%s",
+  async (orderEntry) => {
+    const saved = jest.fn();
+    postToOpenElisServerJsonResponse.mockImplementation(
+      (url, payload, callback) =>
+        callback({
+          patientPK: "10",
+          cugPrefix: "5006",
+          patientLastUpdated: "2026-10-22 10:00:00.1",
+          personLastUpdated: "2026-10-22 10:00:00.1",
+        }),
+    );
+    const view = renderForm(saved, {}, false, orderEntry);
+    await wait(() =>
+      expect(
+        view.container.querySelector('input[name="firstName"]'),
+      ).toBeTruthy(),
+    );
+    fireEvent.change(view.container.querySelector('input[name="firstName"]'), {
+      target: { value: "Ana" },
+    });
+    fireEvent.change(view.container.querySelector('input[name="lastName"]'), {
+      target: { value: "Perez" },
+    });
+    const prefix = view.getByLabelText(messages["patient.cug.prefix.label"]);
+    await wait(() => expect(prefix.value).toBe("5000"));
+    fireEvent.change(prefix, { target: { value: "5006" } });
+    const save = view
+      .getByText(
+        messages[orderEntry ? "patient.cug.save" : "label.button.save"],
+      )
+      .closest("button");
+    await wait(() => expect(save.disabled).toBe(false));
+    fireEvent.click(save);
+    await wait(() =>
+      expect(saved).toHaveBeenCalledWith(
+        expect.objectContaining({
+          patientPK: "10",
+          cugPrefix: "5006",
+          requestedCugPrefix: null,
+        }),
+      ),
+    );
+    expect(
+      JSON.parse(postToOpenElisServerJsonResponse.mock.calls[0][1])
+        .requestedCugPrefix,
+    ).toBe("5006");
+    expect(postToOpenElisServerJsonResponse.mock.calls[0][0]).toBe(
+      orderEntry ? "/rest/orders/patient" : "/rest/PatientManagement",
+    );
+    expect(prefix.value).toBe("5006");
+    expect(prefix.readOnly).toBe(orderEntry);
+  },
+);
+
+test("existing patient can change the prefix only from the patient module and sends its original value", async () => {
+  const saved = jest.fn();
+  postToOpenElisServerJsonResponse.mockImplementation(
+    (url, payload, callback) =>
+      callback({
+        patientPK: "10",
+        cugPrefix: "8000",
+        patientLastUpdated: "2026-10-22 11:00:00.1",
+        personLastUpdated: "2026-10-22 11:00:00.1",
+      }),
+  );
+  const view = renderForm(
+    saved,
+    { patientPK: "10", cugPrefix: "5004", firstName: "Ana", lastName: "Perez" },
+    false,
+    false,
+  );
+  const field = view.getByLabelText(messages["patient.cug.prefix.label"]);
+  await wait(() => expect(field.readOnly).toBe(false));
+  fireEvent.change(field, { target: { value: "8000" } });
+  const save = view.getByText(messages["label.button.save"]).closest("button");
+  await wait(() => expect(save.disabled).toBe(false));
+  fireEvent.click(save);
+  await wait(() => expect(saved).toHaveBeenCalled());
+  const [url, body] = postToOpenElisServerJsonResponse.mock.calls[0];
+  expect(url).toBe("/rest/PatientManagement");
+  expect(JSON.parse(body)).toEqual(
+    expect.objectContaining({
+      requestedCugPrefix: "8000",
+      expectedCugPrefix: "5004",
+    }),
+  );
+  expect(saved.mock.calls[0][0]).toEqual(
+    expect.objectContaining({
+      cugPrefix: "8000",
+      requestedCugPrefix: null,
+      expectedCugPrefix: null,
+    }),
+  );
+  expect(field.value).toBe("8000");
+});
+
+test("a stale patient-prefix edit preserves the draft and explains that the patient must be reloaded", async () => {
+  const saved = jest.fn();
+  postToOpenElisServerJsonResponse.mockImplementation(
+    (url, payload, callback) =>
+      callback({ status: 409, code: "patient.cug.prefix.stale" }),
+  );
+  const view = renderForm(
+    saved,
+    { patientPK: "10", cugPrefix: "5004", firstName: "Ana", lastName: "Perez" },
+    false,
+    false,
+  );
+  const field = view.getByLabelText(messages["patient.cug.prefix.label"]);
+  await wait(() => expect(field.readOnly).toBe(false));
+  fireEvent.change(field, { target: { value: "8000" } });
+  const save = view.getByText(messages["label.button.save"]).closest("button");
+  await wait(() => expect(save.disabled).toBe(false));
+  fireEvent.click(save);
+  await wait(() =>
+    expect(notifications.addNotification).toHaveBeenCalledWith(
+      expect.objectContaining({
+        message: messages["patient.cug.prefix.stale"],
+      }),
+    ),
+  );
+  expect(saved).not.toHaveBeenCalled();
+  expect(field.value).toBe("8000");
+});
+
+test.each([true, false])(
+  "a manual collision keeps the entered patient and prefix for correction in orderEntry=%s",
+  async (orderEntry) => {
+    const saved = jest.fn();
+    postToOpenElisServerJsonResponse.mockImplementation(
+      (url, payload, callback) =>
+        callback({ status: 409, code: "patient.cug.prefix.duplicate" }),
+    );
+    const view = renderForm(saved, {}, false, orderEntry);
+    await wait(() =>
+      expect(
+        view.container.querySelector('input[name="firstName"]'),
+      ).toBeTruthy(),
+    );
+    fireEvent.change(view.container.querySelector('input[name="firstName"]'), {
+      target: { value: "Ana" },
+    });
+    fireEvent.change(view.container.querySelector('input[name="lastName"]'), {
+      target: { value: "Perez" },
+    });
+    const prefix = view.getByLabelText(messages["patient.cug.prefix.label"]);
+    await wait(() => expect(prefix.value).toBe("5000"));
+    fireEvent.change(prefix, { target: { value: "5006" } });
+    const save = view
+      .getByText(
+        messages[orderEntry ? "patient.cug.save" : "label.button.save"],
+      )
+      .closest("button");
+    await wait(() => expect(save.disabled).toBe(false));
+    fireEvent.click(save);
+    await wait(() =>
+      expect(notifications.addNotification).toHaveBeenCalledWith(
+        expect.objectContaining({
+          message: messages["patient.cug.prefix.duplicate"],
+        }),
+      ),
+    );
+    expect(saved).not.toHaveBeenCalled();
+    expect(prefix.value).toBe("5006");
+    expect(prefix.readOnly).toBe(false);
+    expect(view.container.querySelector('input[name="firstName"]').value).toBe(
+      "Ana",
+    );
+  },
+);
+
 test("duplicate document conflict preserves entered values and explains how to continue", async () => {
   const saved = jest.fn();
   postToOpenElisServerJsonResponse.mockImplementation(

@@ -687,6 +687,7 @@ const Index = () => {
       const errorCode = response.headers.get("X-OpenELIS-Error-Code");
       if (
         errorCode === "sample.cug.conflict" ||
+        errorCode === "sample.cug.patient.prefix.mismatch" ||
         errorCode?.startsWith("order.labnumber.")
       ) {
         showAlertMessage(

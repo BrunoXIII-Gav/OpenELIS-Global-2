@@ -4817,5 +4817,17 @@
   "order.labnumber.invalid": "El número de laboratorio no corresponde a un formato permitido.",
   "order.labnumber.exhausted": "No quedan números de laboratorio disponibles en la secuencia configurada.",
   "order.labnumber.program.required": "Selecciona un programa con código de cuatro caracteres para generar su número de laboratorio.",
-  "order.labnumber.format.unsupported": "Revisa la configuración del formato del número de laboratorio."
+  "order.labnumber.format.unsupported": "Revisa la configuración del formato del número de laboratorio.",
+  "sample.cug.suffix.label": "Sufijo CUG",
+  "sample.cug.prefix.readonly": "Aquí solo se puede cambiar el sufijo del CUG. El prefijo debe mantenerse.",
+  "sample.cug.sample.duplicate": "Este CUG ya está asignado a otra muestra. No se guardaron los cambios.",
+  "patient.cug.prefix.invalid": "Ingresa un número entero de 1 a 9223372036854775806, sin puntos ni ceros iniciales.",
+  "patient.cug.prefix.duplicate": "Este prefijo ya fue asignado o utilizado. No se guardó el paciente. Elige otro prefijo o usa la asignación automática.",
+  "patient.cug.prefix.readonly": "El prefijo ya asignado al paciente no se puede cambiar aquí.",
+  "patient.cug.prefix.manual": "Selección manual. Se comprobará su disponibilidad al guardar al paciente.",
+  "patient.cug.prefix.automatic": "Usar prefijo automático",
+  "patient.cug.prefix.stale": "El prefijo del paciente cambió después de abrir este formulario. Actualiza el paciente y las muestras antes de guardar.",
+  "patient.cug.prefix.inconsistent": "Hay muestras cuyo CUG no coincide con el prefijo del paciente o tiene un formato inválido. No se guardaron cambios. Revisa primero los códigos existentes.",
+  "patient.cug.prefix.change.help": "Al guardar se cambiará el prefijo de los CUG de todas las muestras del paciente, conservando sus sufijos.",
+  "patient.cug.prefix.cancel": "Cancelar cambio de prefijo"
 }

@@ -1834,6 +1834,8 @@ function CreatePatientForm(props) {
         const patient = sanitizePatientProperties({
           ...values,
           ...response,
+          requestedCugPrefix: null,
+          expectedCugPrefix: null,
           readOnly: !patientModuleAccess.canUpdate,
           patientUpdateStatus: patientModuleAccess.canUpdate
             ? "UPDATE"
@@ -1860,10 +1862,16 @@ function CreatePatientForm(props) {
       addNotification({
         title: intl.formatMessage({ id: "notification.title" }),
         message: intl.formatMessage({
-          id:
-            status === 409 && code === "patient.identifier.duplicate"
-              ? "patient.identifier.duplicate"
-              : "error.save.patient",
+          id: [
+            "patient.identifier.duplicate",
+            "patient.cug.prefix.invalid",
+            "patient.cug.prefix.duplicate",
+            "patient.cug.prefix.readonly",
+            "patient.cug.prefix.stale",
+            "patient.cug.prefix.inconsistent",
+          ].includes(code)
+            ? code
+            : "error.save.patient",
         }),
         kind: NotificationKinds.error,
       });
@@ -3036,6 +3044,9 @@ function CreatePatientForm(props) {
                 {renderOrderedPatientFields()}
                 <Column lg={16} md={8} sm={4}>
                   <PatientCugPrefixField
+                    allowAssignedEdit={
+                      !isOrderEntryPatientStep && canEditPatientInCurrentContext
+                    }
                     forOrderEntry={isOrderEntryPatientStep}
                     validate={(patient) => {
                       const errors = validatePatientForm(patient);
