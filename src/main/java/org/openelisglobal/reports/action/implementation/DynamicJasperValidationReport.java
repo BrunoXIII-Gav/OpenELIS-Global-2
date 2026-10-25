@@ -824,6 +824,9 @@ public class DynamicJasperValidationReport extends PatientCILNSPClinical_vreduit
         if ("validationDate".equalsIgnoreCase(normalized)) {
             return first == null ? "" : StringUtils.defaultString(first.getValidationDate());
         }
+        if ("deliveryDate".equalsIgnoreCase(normalized)) {
+            return first == null ? "" : StringUtils.defaultString(first.getDeliveryDate());
+        }
         if ("validatorName".equalsIgnoreCase(normalized)) {
             return resolveValidatorInfo().displayName;
         }

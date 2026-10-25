@@ -7,9 +7,13 @@ import englishMessages from "../../../languages/en.json";
 
 jest.mock("../../utils/Utils", () => ({
   getFromOpenElisServer: jest.fn(),
+  putToOpenElisServerFullResponse: jest.fn(),
 }));
 
-const { getFromOpenElisServer } = require("../../utils/Utils");
+const {
+  getFromOpenElisServer,
+  putToOpenElisServerFullResponse,
+} = require("../../utils/Utils");
 
 const messages = {
   ...englishMessages,
@@ -375,6 +379,75 @@ describe("PatientHistorySummaryPanel", () => {
     expect(screen.getByText("Carla Enciso, Mario Cornejo")).toBeInTheDocument();
     expect(
       screen.queryByRole("link", { name: "Open PDF" }),
+    ).not.toBeInTheDocument();
+  });
+
+  const deliverySummary = () =>
+    validationSummary({
+      validations: validationSummary().validations.map((row, index) =>
+        index === 0
+          ? { ...row, deliveredDate: "2026-10-16", canRegisterDelivery: true }
+          : { ...row, canRegisterDelivery: false },
+      ),
+    });
+
+  it("shows the delivery date and offers delivery only where permitted", async () => {
+    getFromOpenElisServer.mockImplementation((endpoint, callback) =>
+      callback(deliverySummary()),
+    );
+    renderComponent();
+    await click(await screen.findByRole("tab", { name: "Validation" }));
+    expect(
+      screen.getByRole("columnheader", { name: "Delivery date" }),
+    ).toBeInTheDocument();
+    expect(screen.getByText("Not delivered")).toBeInTheDocument();
+    expect(
+      screen.getAllByRole("button", { name: "Correct delivery" }),
+    ).toHaveLength(1);
+    expect(
+      screen.queryByRole("button", { name: "Register delivery" }),
+    ).not.toBeInTheDocument();
+  });
+
+  it("requires a reason before correcting a recorded delivery", async () => {
+    getFromOpenElisServer.mockImplementation((endpoint, callback) =>
+      callback(deliverySummary()),
+    );
+    renderComponent();
+    await click(await screen.findByRole("tab", { name: "Validation" }));
+    await click(screen.getByRole("button", { name: "Correct delivery" }));
+    fireEvent.change(screen.getByLabelText("Delivery date"), {
+      target: { value: "2026-10-17" },
+    });
+    await click(screen.getByRole("button", { name: "Save" }));
+    expect(
+      screen.getByText(
+        "A reason is required to change a recorded delivery date.",
+      ),
+    ).toBeInTheDocument();
+    expect(putToOpenElisServerFullResponse).not.toHaveBeenCalled();
+
+    putToOpenElisServerFullResponse.mockImplementation(
+      (endpoint, body, callback) => callback({ ok: true }),
+    );
+    fireEvent.change(screen.getByLabelText("Correction reason"), {
+      target: { value: "Typo" },
+    });
+    await click(screen.getByRole("button", { name: "Save" }));
+    expect(putToOpenElisServerFullResponse).toHaveBeenCalledWith(
+      "/rest/patient-history/77/validations/78/delivery",
+      JSON.stringify({ deliveredDate: "2026-10-17", reason: "Typo" }),
+      expect.any(Function),
+    );
+    await waitFor(() => expect(getFromOpenElisServer).toHaveBeenCalledTimes(2));
+  });
+
+  it("hides the delivery date when it is restricted", async () => {
+    await loadValidationSummary({
+      restrictedFieldTagKeys: ["patient-validation-delivery-date"],
+    });
+    expect(
+      screen.queryByRole("columnheader", { name: "Delivery date" }),
     ).not.toBeInTheDocument();
   });
 });

@@ -112,4 +112,5 @@
   <include relativeToChangelogFile="true" file="098-patient-document-uniqueness.xml"/>
   <include relativeToChangelogFile="true" file="099-order-accession-confirmation.xml"/>
   <include relativeToChangelogFile="true" file="100-release-unused-cug-prefix.xml"/>
+  <include relativeToChangelogFile="true" file="101-analysis-result-delivery.xml"/>
 </databaseChangeLog>

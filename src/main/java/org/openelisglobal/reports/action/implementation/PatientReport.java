@@ -1116,6 +1116,8 @@ public abstract class PatientReport extends Report {
             data.setSampleSortOrder(currentAnalysis.getSampleItem().getSortOrder());
             data.setOrderFinishDate(completionDate);
             data.setValidationDate(resolveValidationDateForReport(currentAnalysis));
+            data.setDeliveryDate(currentAnalysis.getDeliveredDate() == null ? ""
+                    : DateUtil.convertSqlDateToStringDate(currentAnalysis.getDeliveredDate()));
             data.setOrderDate(DateUtil
                     .convertTimestampToStringDateAndConfiguredHourTime(sampleService.getOrderedDate(currentSample)));
             data.setSampleId(sampleService.getAccessionNumber(currentSample) + "-" + data.getSampleSortOrder());

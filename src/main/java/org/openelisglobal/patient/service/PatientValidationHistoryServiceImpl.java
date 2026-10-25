@@ -1,12 +1,16 @@
 package org.openelisglobal.patient.service;
 
+import java.sql.Date;
 import java.sql.Timestamp;
+import java.time.LocalDate;
+import java.time.format.DateTimeParseException;
 import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
 import org.apache.commons.lang3.StringUtils;
+import org.openelisglobal.analysis.service.AnalysisService;
 import org.openelisglobal.analysis.valueholder.Analysis;
 import org.openelisglobal.authorization.service.ModuleAuthorizationService;
 import org.openelisglobal.authorization.service.ModuleAuthorizationService.AuthorizationDecision;
@@ -34,6 +38,8 @@ public class PatientValidationHistoryServiceImpl implements PatientValidationHis
     private ModuleAuthorizationService moduleAuthorizationService;
     @Autowired
     private IStatusService statusService;
+    @Autowired
+    private AnalysisService analysisService;
 
     @Override
     public List<PatientValidationRecord> getRecords(String patientId, String userId) {
@@ -42,6 +48,8 @@ public class PatientValidationHistoryServiceImpl implements PatientValidationHis
         if (hidden(userId, tags))
             return List.of();
         var decision = moduleAuthorizationService.getAuthorization(userId, "patients", "read");
+        var deliverDecision = moduleAuthorizationService.getAuthorization(userId, "validation", "deliver");
+        boolean deliveryHidden = tags.contains("patient-validation-delivery-date");
         List<Analysis> analyses = dao
                 .findValidatedAnalyses(patientId, statusService.getStatusID(AnalysisStatus.Finalized), null).stream()
                 .filter(this::isValidationRequired).filter(a -> allowedUnit(decision, a)).toList();
@@ -66,7 +74,10 @@ public class PatientValidationHistoryServiceImpl implements PatientValidationHis
                             analysis.getTest().getDescription()),
                     tags.contains("patient-validation-date") || analysis.getValidationDate() == null ? null
                             : analysis.getValidationDate().toString(),
-                    validators.getOrDefault(analysis.getId(), List.of()), canViewReport(tags)));
+                    validators.getOrDefault(analysis.getId(), List.of()), canViewReport(tags),
+                    deliveryHidden || analysis.getDeliveredDate() == null ? null
+                            : analysis.getDeliveredDate().toString(),
+                    !deliveryHidden && allowedUnit(deliverDecision, analysis)));
         }
         return records;
     }
@@ -85,6 +96,54 @@ public class PatientValidationHistoryServiceImpl implements PatientValidationHis
             throw new ResponseStatusException(HttpStatus.NOT_FOUND);
         if (!allowedUnit(decision, analyses.get(0)))
             throw new AccessDeniedException("Analysis outside assigned units");
+    }
+
+    @Override
+    @Transactional
+    public void registerDelivery(String patientId, String analysisId, String deliveredDate, String reason,
+            String userId) {
+        requirePatientAccess(patientId, userId);
+        Set<String> tags = moduleAuthorizationService.getRestrictedFieldTagKeys(userId, "patients");
+        if (hidden(userId, tags) || tags.contains("patient-validation-delivery-date"))
+            throw new AccessDeniedException("Result delivery date is restricted");
+        var analyses = dao.findValidatedAnalyses(patientId, statusService.getStatusID(AnalysisStatus.Finalized),
+                analysisId);
+        if (analyses.isEmpty() || !isValidationRequired(analyses.get(0)))
+            throw new ResponseStatusException(HttpStatus.NOT_FOUND);
+        Analysis analysis = analyses.get(0);
+        if (!allowedUnit(moduleAuthorizationService.getAuthorization(userId, "validation", "deliver"), analysis))
+            throw new AccessDeniedException("User may not register result delivery for this analysis");
+
+        Date date = parseDeliveryDate(deliveredDate, analysis);
+        Date current = analysis.getDeliveredDate();
+        if (date.equals(current))
+            return;
+        String trimmedReason = StringUtils.trimToNull(reason);
+        // A correction overwrites the previous date; the audit trail keeps it and
+        // the reason explains why it changed.
+        if (current != null && trimmedReason == null)
+            throw new IllegalArgumentException("patient.validation.delivery.error.reasonRequired");
+        if (trimmedReason != null && trimmedReason.length() > 255)
+            throw new IllegalArgumentException("patient.validation.delivery.error.reasonTooLong");
+        analysis.setDeliveredDate(date);
+        analysis.setDeliveredBy(userId);
+        analysis.setDeliveryCorrectionReason(current == null ? null : trimmedReason);
+        analysis.setSysUserId(userId);
+        analysisService.update(analysis);
+    }
+
+    private Date parseDeliveryDate(String value, Analysis analysis) {
+        LocalDate date;
+        try {
+            date = LocalDate.parse(StringUtils.trimToEmpty(value));
+        } catch (DateTimeParseException e) {
+            throw new IllegalArgumentException("patient.validation.delivery.error.invalidDate");
+        }
+        if (date.isAfter(LocalDate.now()))
+            throw new IllegalArgumentException("patient.validation.delivery.error.futureDate");
+        if (analysis.getValidationDate() != null && date.isBefore(analysis.getValidationDate().toLocalDate()))
+            throw new IllegalArgumentException("patient.validation.delivery.error.beforeValidation");
+        return Date.valueOf(date);
     }
 
     private void requirePatientAccess(String patientId, String userId) {

@@ -1077,7 +1077,9 @@ public class PatientDmpkReport extends PatientCILNSPClinical_vreduit {
         if (analyses == null || analyses.isEmpty()) {
             return "";
         }
-        return analyses.stream().map(Analysis::getValidationDate).filter(java.util.Objects::nonNull)
+        // Only an explicit delivery counts; validation or print dates are not
+        // evidence that the patient received the result.
+        return analyses.stream().map(Analysis::getDeliveredDate).filter(java.util.Objects::nonNull)
                 .max(java.util.Comparator.naturalOrder()).map(this::formatSqlDateForReport).orElse("");
     }
 

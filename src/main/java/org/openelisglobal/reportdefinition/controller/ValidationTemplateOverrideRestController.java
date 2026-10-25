@@ -772,6 +772,7 @@ public class ValidationTemplateOverrideRestController extends BaseRestController
         addSourceOption(options, "collectionDateTime", "Collection Date/Time");
         addSourceOption(options, "sampleType", "Sample Source");
         addSourceOption(options, "validationDate", "Validation Date");
+        addSourceOption(options, "deliveryDate", "Delivery Date");
         addSourceOption(options, "validatorName", "Validator Name");
         addSourceOption(options, "validatorSpecialty", "Validator Specialty");
         addAnalystSourceOptions(options, testIds);

@@ -5,10 +5,12 @@ import static org.mockito.Mockito.*;
 
 import java.sql.Date;
 import java.sql.Timestamp;
+import java.time.LocalDate;
 import java.util.List;
 import java.util.Set;
 import org.junit.Before;
 import org.junit.Test;
+import org.openelisglobal.analysis.service.AnalysisService;
 import org.openelisglobal.analysis.valueholder.Analysis;
 import org.openelisglobal.authorization.service.ModuleAuthorizationService;
 import org.openelisglobal.authorization.service.ModuleAuthorizationService.AuthorizationDecision;
@@ -28,6 +30,7 @@ public class PatientValidationHistoryServiceTest {
     private PatientValidationHistoryDAO dao;
     private PatientAuthorizationService patients;
     private ModuleAuthorizationService authorization;
+    private AnalysisService analysisService;
 
     @Before
     public void setup() {
@@ -36,6 +39,8 @@ public class PatientValidationHistoryServiceTest {
         patients = mock(PatientAuthorizationService.class);
         authorization = mock(ModuleAuthorizationService.class);
         var status = mock(IStatusService.class);
+        analysisService = mock(AnalysisService.class);
+        ReflectionTestUtils.setField(service, "analysisService", analysisService);
         ReflectionTestUtils.setField(service, "dao", dao);
         ReflectionTestUtils.setField(service, "patientAuthorizationService", patients);
         ReflectionTestUtils.setField(service, "moduleAuthorizationService", authorization);
@@ -44,6 +49,8 @@ public class PatientValidationHistoryServiceTest {
         when(authorization.getRestrictedFieldGroupKeys("7", "patients")).thenReturn(Set.of());
         when(authorization.getRestrictedFieldTagKeys("7", "patients")).thenReturn(Set.of());
         when(authorization.getAuthorization("7", "patients", "read"))
+                .thenReturn(new AuthorizationDecision(true, AuthorizationSource.MODULE_PERMISSION, true, Set.of()));
+        when(authorization.getAuthorization("7", "validation", "deliver"))
                 .thenReturn(new AuthorizationDecision(true, AuthorizationSource.MODULE_PERMISSION, true, Set.of()));
         when(status.getStatusID(AnalysisStatus.Finalized)).thenReturn("6");
         var validated = analysis("78", "56");
@@ -158,6 +165,95 @@ public class PatientValidationHistoryServiceTest {
         var validated = analysis("78", "56");
         when(dao.findValidatedAnalyses("10", "6", "78")).thenReturn(List.of(validated));
         service.requireReportAccess("10", "78", "7");
+    }
+
+    @Test
+    public void exposesDeliveryDateAndWhetherTheUserMayRegisterIt() {
+        var delivered = analysis("78", "56");
+        when(delivered.getDeliveredDate()).thenReturn(Date.valueOf("2026-10-20"));
+        when(dao.findValidatedAnalyses("10", "6", null)).thenReturn(List.of(delivered));
+        var row = service.getRecords("10", "7").get(0);
+        assertEquals("2026-10-20", row.deliveredDate());
+        assertTrue(row.canRegisterDelivery());
+
+        when(authorization.getAuthorization("7", "validation", "deliver")).thenReturn(
+                new AuthorizationDecision(true, AuthorizationSource.MODULE_PERMISSION, false, Set.of("57")));
+        assertFalse(service.getRecords("10", "7").get(0).canRegisterDelivery());
+    }
+
+    @Test
+    public void hiddenDeliveryDateIsRemovedAndCannotBeChanged() {
+        var delivered = analysis("78", "56");
+        when(delivered.getDeliveredDate()).thenReturn(Date.valueOf("2026-10-20"));
+        when(dao.findValidatedAnalyses("10", "6", null)).thenReturn(List.of(delivered));
+        when(authorization.getRestrictedFieldTagKeys("7", "patients"))
+                .thenReturn(Set.of("patient-validation-delivery-date"));
+        var row = service.getRecords("10", "7").get(0);
+        assertNull(row.deliveredDate());
+        assertFalse(row.canRegisterDelivery());
+        assertThrows(AccessDeniedException.class, () -> service.registerDelivery("10", "78", "2026-10-20", null, "7"));
+    }
+
+    @Test
+    public void firstDeliveryRecordsDateAndAuthorWithoutReason() {
+        var validated = deliverable("78");
+        service.registerDelivery("10", "78", "2026-10-16", null, "7");
+        verify(validated).setDeliveredDate(Date.valueOf("2026-10-16"));
+        verify(validated).setDeliveredBy("7");
+        verify(validated).setDeliveryCorrectionReason(null);
+        verify(validated).setSysUserId("7");
+        verify(analysisService).update(validated);
+    }
+
+    @Test
+    public void correctingADeliveryRequiresAReason() {
+        var validated = deliverable("78");
+        when(validated.getDeliveredDate()).thenReturn(Date.valueOf("2026-10-16"));
+        var error = assertThrows(IllegalArgumentException.class,
+                () -> service.registerDelivery("10", "78", "2026-10-17", "  ", "7"));
+        assertEquals("patient.validation.delivery.error.reasonRequired", error.getMessage());
+        verify(analysisService, never()).update(any(Analysis.class));
+
+        service.registerDelivery("10", "78", "2026-10-17", " Fecha mal digitada ", "7");
+        verify(validated).setDeliveredDate(Date.valueOf("2026-10-17"));
+        verify(validated).setDeliveryCorrectionReason("Fecha mal digitada");
+        verify(analysisService).update(validated);
+    }
+
+    @Test
+    public void unchangedDeliveryDateIsNotRewritten() {
+        var validated = deliverable("78");
+        when(validated.getDeliveredDate()).thenReturn(Date.valueOf("2026-10-16"));
+        service.registerDelivery("10", "78", "2026-10-16", null, "7");
+        verify(analysisService, never()).update(any(Analysis.class));
+    }
+
+    @Test
+    public void rejectsMissingFutureOrPreValidationDates() {
+        deliverable("78");
+        for (String date : new String[] { null, "", "16/10/2026", LocalDate.now().plusDays(1).toString(),
+                "2026-10-14" }) {
+            assertThrows(IllegalArgumentException.class, () -> service.registerDelivery("10", "78", date, null, "7"));
+        }
+        verify(analysisService, never()).update(any(Analysis.class));
+    }
+
+    @Test
+    public void deliveryRequiresTheDeliverPermissionForTheAnalysisUnit() {
+        deliverable("78");
+        when(authorization.getAuthorization("7", "validation", "deliver"))
+                .thenReturn(new AuthorizationDecision(false, AuthorizationSource.MODULE_PERMISSION, false, Set.of()));
+        assertThrows(AccessDeniedException.class, () -> service.registerDelivery("10", "78", "2026-10-16", null, "7"));
+        when(authorization.getAuthorization("7", "validation", "deliver")).thenReturn(
+                new AuthorizationDecision(true, AuthorizationSource.MODULE_PERMISSION, false, Set.of("57")));
+        assertThrows(AccessDeniedException.class, () -> service.registerDelivery("10", "78", "2026-10-16", null, "7"));
+        verify(analysisService, never()).update(any(Analysis.class));
+    }
+
+    private Analysis deliverable(String id) {
+        var validated = analysis(id, "56");
+        when(dao.findValidatedAnalyses("10", "6", id)).thenReturn(List.of(validated));
+        return validated;
     }
 
     private Analysis analysis(String id, String sectionId) {

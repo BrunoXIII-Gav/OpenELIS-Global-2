@@ -14,6 +14,7 @@ import {
 } from "@carbon/react";
 import { Add, Edit, Save } from "@carbon/icons-react";
 import { FormattedMessage, useIntl } from "react-intl";
+import { languages } from "../../languages";
 import {
   getAllTests,
   getValidationFieldOptions,
@@ -486,8 +487,27 @@ const toFormState = (override, imageOptions, sourceOptions = []) => {
   };
 };
 
+const ANALYST_SOURCE_PATTERN = /^biologist(\d+)(Name|Specialty|CbpCode)$/;
+
 const ValidationTemplateOverrideConfig = () => {
   const intl = useIntl();
+  // Translate only what is displayed, and only the server's default English
+  // labels: option.label stays untouched because buildOptionIndex matches
+  // template parameter names against it, and custom labels must win.
+  const sourceText = (option) => {
+    const analyst = ANALYST_SOURCE_PATTERN.exec(option.id);
+    const key = analyst
+      ? `validation.template.source.analyst${analyst[2]}`
+      : `validation.template.source.${option.id}`;
+    const values = { number: analyst?.[1] };
+    const defaultLabel = languages.en.messages[key]?.replace(
+      "{number}",
+      values.number,
+    );
+    return intl.messages[key] && option.label === defaultLabel
+      ? intl.formatMessage({ id: key }, values)
+      : option.label;
+  };
   const [tests, setTests] = useState([]);
   const [sourceOptions, setSourceOptions] = useState([]);
   const [userFieldOptions, setUserFieldOptions] = useState({
@@ -1343,7 +1363,7 @@ const ValidationTemplateOverrideConfig = () => {
               })}
             />
             {sourceOptions.map((option) => (
-              <SelectItem key={option.id} value={option.id} text={option.label} />
+              <SelectItem key={option.id} value={option.id} text={sourceText(option)} />
             ))}
           </Select>
         )}
@@ -1460,7 +1480,7 @@ const ValidationTemplateOverrideConfig = () => {
               })}
             />
             {sourceOptions.map((option) => (
-              <SelectItem key={option.id} value={option.id} text={option.label} />
+              <SelectItem key={option.id} value={option.id} text={sourceText(option)} />
             ))}
           </Select>
         )}
@@ -1652,7 +1672,7 @@ const ValidationTemplateOverrideConfig = () => {
                 })}
               />
               {numericSourceOptions.map((option) => (
-                <SelectItem key={option.id} value={option.id} text={option.label} />
+                <SelectItem key={option.id} value={option.id} text={sourceText(option)} />
               ))}
             </Select>
 
@@ -1783,7 +1803,7 @@ const ValidationTemplateOverrideConfig = () => {
                             <SelectItem
                               key={option.id}
                               value={option.id}
-                              text={option.label}
+                              text={sourceText(option)}
                             />
                           ))}
                         </Select>

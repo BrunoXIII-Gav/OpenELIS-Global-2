@@ -161,7 +161,7 @@ public class ModuleAuthorizationServiceImpl implements ModuleAuthorizationServic
         default -> null;
         };
         case "validation" -> switch (actionKey) {
-        case "read", "validate", "revoke" -> SystemPermission.VALIDATION;
+        case "read", "validate", "revoke", "deliver" -> SystemPermission.VALIDATION;
         default -> null;
         };
         case "storage" -> switch (actionKey) {

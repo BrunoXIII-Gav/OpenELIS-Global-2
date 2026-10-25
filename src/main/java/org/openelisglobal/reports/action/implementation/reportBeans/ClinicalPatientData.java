@@ -63,6 +63,7 @@ public final class ClinicalPatientData {
     private String completeFlag;
     private String orderFinishDate;
     private String validationDate;
+    private String deliveryDate;
     private String panelName;
     private Boolean separator = false;
     private Panel panel;
@@ -147,6 +148,7 @@ public final class ClinicalPatientData {
         completeFlag = data.getCompleteFlag();
         orderFinishDate = data.getOrderFinishDate();
         validationDate = data.getValidationDate();
+        deliveryDate = data.getDeliveryDate();
         panelName = data.getPanelName();
         separator = data.getSeparator();
         panel = data.getPanel();
@@ -548,6 +550,15 @@ public final class ClinicalPatientData {
 
     public void setValidationDate(String validationDate) {
         this.validationDate = validationDate;
+    }
+
+    /** Date the result was handed to the patient; blank until it is recorded. */
+    public String getDeliveryDate() {
+        return deliveryDate;
+    }
+
+    public void setDeliveryDate(String deliveryDate) {
+        this.deliveryDate = deliveryDate;
     }
 
     public String getOrderDate() {
