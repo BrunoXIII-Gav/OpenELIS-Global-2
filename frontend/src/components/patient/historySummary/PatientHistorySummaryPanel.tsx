@@ -1392,7 +1392,10 @@ const PatientHistorySummaryPanel: React.FC<{ patientId: string }> = ({
               setDeliveryDraft({ ...deliveryDraft, date: e.target.value })
             }
           />
-          {deliveryDraft.row.deliveredDate ? (
+          {deliveryDraft.row.deliveredDate ||
+          // Someone else may have recorded it since this list was loaded.
+          deliveryDraft.error ===
+            "patient.validation.delivery.error.reasonRequired" ? (
             <TextArea
               id="patient-history-delivery-reason"
               labelText={intl.formatMessage({

@@ -450,4 +450,38 @@ describe("PatientHistorySummaryPanel", () => {
       screen.queryByRole("columnheader", { name: "Delivery date" }),
     ).not.toBeInTheDocument();
   });
+
+  it("asks for a reason when the delivery was recorded by someone else meanwhile", async () => {
+    getFromOpenElisServer.mockImplementation((endpoint, callback) =>
+      callback(
+        validationSummary({
+          validations: [
+            {
+              ...validationSummary().validations[0],
+              canRegisterDelivery: true,
+            },
+          ],
+        }),
+      ),
+    );
+    putToOpenElisServerFullResponse.mockImplementation(
+      (endpoint, body, callback) =>
+        callback({
+          ok: false,
+          json: async () => ({
+            error: "patient.validation.delivery.error.reasonRequired",
+          }),
+        }),
+    );
+    renderComponent();
+    await click(await screen.findByRole("tab", { name: "Validation" }));
+    await click(screen.getByRole("button", { name: "Register delivery" }));
+    expect(
+      screen.queryByLabelText("Correction reason"),
+    ).not.toBeInTheDocument();
+    await click(screen.getByRole("button", { name: "Save" }));
+    expect(
+      await screen.findByLabelText("Correction reason"),
+    ).toBeInTheDocument();
+  });
 });
