@@ -103,6 +103,9 @@ public class DatabaseCleanupIntegrationTest {
                         new org.dbunit.ext.postgresql.PostgresqlDataTypeFactory());
                 DatabaseOperation.INSERT.execute(fixtureConnection, fixtures);
                 connection.commit();
+                // Lock existing data (one analysis is delivered); cleanup must still wipe it.
+                new Liquibase("liquibase/3.4.x.x/103-delivered-analysis-lock.xml", new ClassLoaderResourceAccessor(),
+                        new JdbcConnection(connection)).update("");
 
                 var manager = SharedEntityManagerCreator.createSharedEntityManager(factory);
                 var cleanup = new DatabaseCleanDAOImpl();

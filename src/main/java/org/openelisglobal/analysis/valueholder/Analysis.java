@@ -65,6 +65,8 @@ public class Analysis extends BaseObject<String> implements NoteObject {
     private Date deliveredDate = null;
     private String deliveredBy;
     private String deliveryCorrectionReason;
+    private String amendsAnalysisId;
+    private String amendmentReason;
     private String isReportable;
     private Date soSendReadyDate = null;
     private String soSendReadyDateForDisplay = null;
@@ -266,6 +268,23 @@ public class Analysis extends BaseObject<String> implements NoteObject {
 
     public void setDeliveryCorrectionReason(String deliveryCorrectionReason) {
         this.deliveryCorrectionReason = deliveryCorrectionReason;
+    }
+
+    /** The delivered analysis this one corrects; null for a first issue. */
+    public String getAmendsAnalysisId() {
+        return amendsAnalysisId;
+    }
+
+    public void setAmendsAnalysisId(String amendsAnalysisId) {
+        this.amendsAnalysisId = amendsAnalysisId;
+    }
+
+    public String getAmendmentReason() {
+        return amendmentReason;
+    }
+
+    public void setAmendmentReason(String amendmentReason) {
+        this.amendmentReason = amendmentReason;
     }
 
     public Date getReleasedDate() {

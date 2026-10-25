@@ -18,7 +18,8 @@ public class AuditFieldPolicyTest {
         assertTrue(AuditFieldPolicy.includes("Sample", "accessionNumber"));
         assertTrue(AuditFieldPolicy.includes("Analysis", "statusId"));
         // Delivery corrections overwrite the row; the ledger must keep each value.
-        for (String field : java.util.List.of("deliveredDate", "deliveredBy", "deliveryCorrectionReason"))
+        for (String field : java.util.List.of("deliveredDate", "deliveredBy", "deliveryCorrectionReason",
+                "amendsAnalysisId", "amendmentReason"))
             assertTrue(field, AuditFieldPolicy.includes("Analysis", field));
         assertTrue(AuditFieldPolicy.includes("AnalysisValidationApproval", "approvedAt"));
         assertTrue(AuditFieldPolicy.includes("TestAdditionalFieldOption", "sortOrder"));

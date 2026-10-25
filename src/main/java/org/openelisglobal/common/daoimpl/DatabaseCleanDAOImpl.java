@@ -59,6 +59,9 @@ public class DatabaseCleanDAOImpl extends BaseDAOImpl<ArchivedAuditEvent, String
                 entityManager.createQuery("SELECT DISTINCT p.person.id FROM Patient p", String.class).getResultList());
         people.addAll(entityManager.createQuery("SELECT DISTINCT c.person.id FROM PatientContact c", String.class)
                 .getResultList());
+        // Delivered results are locked by the database; the training-only bypass
+        // lasts until this transaction ends.
+        callProcedure("clinlims.allow_training_cleanup_of_delivered");
         for (String entity : CLINICAL_ENTITIES)
             delete(entity);
 
@@ -106,11 +109,14 @@ public class DatabaseCleanDAOImpl extends BaseDAOImpl<ArchivedAuditEvent, String
         // Liquibase installs this guarded PostgreSQL function. ALTER SEQUENCE
         // RESTART is transactional, unlike setval(), so any later failure also
         // rolls back the public-code reset. Internal ID sequences are untouched.
-        var reset = entityManager.createStoredProcedureQuery("clinlims.restart_training_cug_prefix")
-                .unwrap(org.hibernate.procedure.ProcedureCall.class);
+        callProcedure("clinlims.restart_training_cug_prefix");
+    }
+
+    private void callProcedure(String name) {
+        var call = entityManager.createStoredProcedureQuery(name).unwrap(org.hibernate.procedure.ProcedureCall.class);
         org.hibernate.procedure.ProcedureOutputs outputs = null;
         try {
-            outputs = reset.getOutputs();
+            outputs = call.getOutputs();
             outputs.getCurrent();
         } finally {
             if (outputs != null)

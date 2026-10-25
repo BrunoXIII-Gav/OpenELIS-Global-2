@@ -11,6 +11,7 @@ import java.util.Set;
 import org.junit.Before;
 import org.junit.Test;
 import org.openelisglobal.analysis.service.AnalysisService;
+import org.openelisglobal.audittrail.dao.AuditEventDAO;
 import org.openelisglobal.analysis.valueholder.Analysis;
 import org.openelisglobal.authorization.service.ModuleAuthorizationService;
 import org.openelisglobal.authorization.service.ModuleAuthorizationService.AuthorizationDecision;
@@ -31,6 +32,7 @@ public class PatientValidationHistoryServiceTest {
     private PatientAuthorizationService patients;
     private ModuleAuthorizationService authorization;
     private AnalysisService analysisService;
+    private AuditEventDAO audit;
 
     @Before
     public void setup() {
@@ -41,6 +43,8 @@ public class PatientValidationHistoryServiceTest {
         var status = mock(IStatusService.class);
         analysisService = mock(AnalysisService.class);
         ReflectionTestUtils.setField(service, "analysisService", analysisService);
+        audit = mock(AuditEventDAO.class);
+        ReflectionTestUtils.setField(service, "auditEventDAO", audit);
         ReflectionTestUtils.setField(service, "dao", dao);
         ReflectionTestUtils.setField(service, "patientAuthorizationService", patients);
         ReflectionTestUtils.setField(service, "moduleAuthorizationService", authorization);
@@ -52,6 +56,11 @@ public class PatientValidationHistoryServiceTest {
                 .thenReturn(new AuthorizationDecision(true, AuthorizationSource.MODULE_PERMISSION, true, Set.of()));
         when(authorization.getAuthorization("7", "validation", "deliver"))
                 .thenReturn(new AuthorizationDecision(true, AuthorizationSource.MODULE_PERMISSION, true, Set.of()));
+        when(authorization.getAuthorization("7", "results", "correct"))
+                .thenReturn(new AuthorizationDecision(true, AuthorizationSource.MODULE_PERMISSION, true, Set.of()));
+        when(authorization.getAuthorization("7", "administration", "manage"))
+                .thenReturn(new AuthorizationDecision(true, AuthorizationSource.MODULE_PERMISSION, true, Set.of()));
+        when(dao.findAmendments(anyList())).thenReturn(List.of());
         when(status.getStatusID(AnalysisStatus.Finalized)).thenReturn("6");
         var validated = analysis("78", "56");
         when(dao.findValidatedAnalyses("10", "6", null)).thenReturn(List.of(validated));
@@ -247,6 +256,106 @@ public class PatientValidationHistoryServiceTest {
         when(authorization.getAuthorization("7", "validation", "deliver")).thenReturn(
                 new AuthorizationDecision(true, AuthorizationSource.MODULE_PERMISSION, false, Set.of("57")));
         assertThrows(AccessDeniedException.class, () -> service.registerDelivery("10", "78", "2026-10-16", null, "7"));
+        verify(analysisService, never()).update(any(Analysis.class));
+    }
+
+    @Test
+    public void deliveredResultsOfferAmendmentAndReopeningButNotAfterBeingAmended() {
+        var delivered = analysis("78", "56");
+        when(delivered.getDeliveredDate()).thenReturn(Date.valueOf("2026-10-16"));
+        var amendment = analysis("80", "56");
+        when(amendment.getAmendsAnalysisId()).thenReturn("78");
+        when(dao.findValidatedAnalyses("10", "6", null)).thenReturn(List.of(amendment, delivered));
+        var rows = service.getRecords("10", "7");
+        assertEquals("78", rows.get(0).amendsAnalysisId());
+        assertFalse(rows.get(0).canAmend());
+        assertTrue(rows.get(1).canAmend());
+        assertTrue(rows.get(1).canReopenDelivery());
+
+        when(dao.findAmendments(anyList())).thenReturn(java.util.Collections.singletonList(new Object[] { "78", "80" }));
+        var amended = service.getRecords("10", "7").get(1);
+        assertEquals("80", amended.amendedByAnalysisId());
+        assertFalse(amended.canAmend());
+        assertFalse(amended.canReopenDelivery());
+    }
+
+    @Test
+    public void amendmentPermissionsFollowResultCorrectionAndAdministration() {
+        var delivered = analysis("78", "56");
+        when(delivered.getDeliveredDate()).thenReturn(Date.valueOf("2026-10-16"));
+        when(authorization.getAuthorization("7", "results", "correct")).thenReturn(
+                new AuthorizationDecision(true, AuthorizationSource.MODULE_PERMISSION, false, Set.of("57")));
+        when(authorization.getAuthorization("7", "administration", "manage"))
+                .thenReturn(new AuthorizationDecision(false, AuthorizationSource.MODULE_PERMISSION, false, Set.of()));
+        when(dao.findValidatedAnalyses("10", "6", null)).thenReturn(List.of(delivered));
+        var row = service.getRecords("10", "7").get(0);
+        assertFalse(row.canAmend());
+        assertFalse(row.canReopenDelivery());
+    }
+
+    @Test
+    public void amendingCreatesALinkedAnalysisForTheSameTestAndSample() {
+        var original = deliverable("78");
+        when(original.getDeliveredDate()).thenReturn(Date.valueOf("2026-10-16"));
+        var test = original.getTest();
+        var item = original.getSampleItem();
+        var created = new Analysis();
+        when(analysisService.buildAnalysis(test, item)).thenReturn(created);
+        when(analysisService.insert(created)).thenReturn("81");
+
+        assertEquals("81", service.createAmendment("10", "78", " Valor mal transcrito ", "7"));
+        assertEquals("78", created.getAmendsAnalysisId());
+        assertEquals("Valor mal transcrito", created.getAmendmentReason());
+        assertEquals("7", created.getSysUserId());
+        verify(audit).insert(argThat(event -> "78".equals(event.getEntityId())
+                && "amendedBy".equals(event.getField()) && "81".equals(event.getNewValue())
+                && "78".equals(event.getAnalysisId())));
+    }
+
+    @Test
+    public void amendmentRequiresDeliveryReasonPermissionAndNoPreviousAmendment() {
+        var original = deliverable("78");
+        assertEquals("patient.validation.amendment.error.notDelivered", assertThrows(IllegalArgumentException.class,
+                () -> service.createAmendment("10", "78", "x", "7")).getMessage());
+        when(original.getDeliveredDate()).thenReturn(Date.valueOf("2026-10-16"));
+        assertEquals("patient.validation.amendment.error.reasonRequired", assertThrows(
+                IllegalArgumentException.class, () -> service.createAmendment("10", "78", " ", "7")).getMessage());
+        when(dao.findAmendments(List.of("78"))).thenReturn(java.util.Collections.singletonList(new Object[] { "78", "80" }));
+        assertEquals("patient.validation.amendment.error.alreadyAmended", assertThrows(
+                IllegalArgumentException.class, () -> service.createAmendment("10", "78", "x", "7")).getMessage());
+        when(dao.findAmendments(List.of("78"))).thenReturn(List.of());
+        when(authorization.getAuthorization("7", "results", "correct"))
+                .thenReturn(new AuthorizationDecision(false, AuthorizationSource.MODULE_PERMISSION, false, Set.of()));
+        assertThrows(AccessDeniedException.class, () -> service.createAmendment("10", "78", "x", "7"));
+        verify(analysisService, never()).insert(any(Analysis.class));
+    }
+
+    @Test
+    public void administratorReopensADeliveryWithAReason() {
+        var original = deliverable("78");
+        when(original.getDeliveredDate()).thenReturn(Date.valueOf("2026-10-16"));
+        assertEquals("patient.validation.delivery.error.reasonRequired", assertThrows(
+                IllegalArgumentException.class, () -> service.reopenDelivery("10", "78", "", "7")).getMessage());
+        service.reopenDelivery("10", "78", " Entregado al paciente equivocado ", "7");
+        verify(original).setDeliveredDate(null);
+        verify(original).setDeliveredBy(null);
+        verify(original).setDeliveryCorrectionReason("Entregado al paciente equivocado");
+        verify(analysisService).update(original);
+    }
+
+    @Test
+    public void reopeningIsForAdministratorsAndNotForAmendedOrUndeliveredResults() {
+        var original = deliverable("78");
+        assertEquals("patient.validation.amendment.error.notDelivered", assertThrows(IllegalArgumentException.class,
+                () -> service.reopenDelivery("10", "78", "x", "7")).getMessage());
+        when(original.getDeliveredDate()).thenReturn(Date.valueOf("2026-10-16"));
+        when(dao.findAmendments(List.of("78"))).thenReturn(java.util.Collections.singletonList(new Object[] { "78", "80" }));
+        assertEquals("patient.validation.amendment.error.alreadyAmended", assertThrows(
+                IllegalArgumentException.class, () -> service.reopenDelivery("10", "78", "x", "7")).getMessage());
+        when(dao.findAmendments(List.of("78"))).thenReturn(List.of());
+        when(authorization.getAuthorization("7", "administration", "manage"))
+                .thenReturn(new AuthorizationDecision(false, AuthorizationSource.MODULE_PERMISSION, false, Set.of()));
+        assertThrows(AccessDeniedException.class, () -> service.reopenDelivery("10", "78", "x", "7"));
         verify(analysisService, never()).update(any(Analysis.class));
     }
 

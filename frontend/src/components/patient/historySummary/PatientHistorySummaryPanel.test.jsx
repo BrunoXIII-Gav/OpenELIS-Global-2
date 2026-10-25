@@ -7,11 +7,13 @@ import englishMessages from "../../../languages/en.json";
 
 jest.mock("../../utils/Utils", () => ({
   getFromOpenElisServer: jest.fn(),
+  postToOpenElisServerFullResponse: jest.fn(),
   putToOpenElisServerFullResponse: jest.fn(),
 }));
 
 const {
   getFromOpenElisServer,
+  postToOpenElisServerFullResponse,
   putToOpenElisServerFullResponse,
 } = require("../../utils/Utils");
 
@@ -483,5 +485,83 @@ describe("PatientHistorySummaryPanel", () => {
     expect(
       await screen.findByLabelText("Correction reason"),
     ).toBeInTheDocument();
+  });
+
+  const amendmentSummary = () =>
+    validationSummary({
+      validations: [
+        {
+          ...validationSummary().validations[0],
+          deliveredDate: "2026-10-16",
+          amendedByAnalysisId: "90",
+        },
+        {
+          ...validationSummary().validations[1],
+          deliveredDate: "2026-10-16",
+          canAmend: true,
+          canReopenDelivery: true,
+        },
+        {
+          ...validationSummary().validations[1],
+          analysisId: "90",
+          amendsAnalysisId: "78",
+        },
+      ],
+    });
+
+  it("marks amendments and amended results and requires a reason to amend", async () => {
+    getFromOpenElisServer.mockImplementation((endpoint, callback) =>
+      callback(amendmentSummary()),
+    );
+    postToOpenElisServerFullResponse.mockImplementation(
+      (endpoint, body, callback) => callback({ ok: true }),
+    );
+    renderComponent();
+    await click(await screen.findByRole("tab", { name: "Validation" }));
+    expect(screen.getByText("Amended")).toBeInTheDocument();
+    expect(screen.getByText("Amendment")).toBeInTheDocument();
+    expect(
+      screen.getAllByRole("button", { name: "Create amendment" }),
+    ).toHaveLength(1);
+
+    await click(screen.getByRole("button", { name: "Create amendment" }));
+    expect(screen.queryByLabelText("Delivery date")).not.toBeInTheDocument();
+    await click(screen.getByRole("button", { name: "Save" }));
+    expect(
+      screen.getByText("Enter the reason for the amendment."),
+    ).toBeInTheDocument();
+    expect(postToOpenElisServerFullResponse).not.toHaveBeenCalled();
+
+    fireEvent.change(screen.getByLabelText("Amendment reason"), {
+      target: { value: "Transcription error" },
+    });
+    await click(screen.getByRole("button", { name: "Save" }));
+    expect(postToOpenElisServerFullResponse).toHaveBeenCalledWith(
+      "/rest/patient-history/77/validations/79/amendment",
+      JSON.stringify({ reason: "Transcription error" }),
+      expect.any(Function),
+    );
+    await waitFor(() => expect(getFromOpenElisServer).toHaveBeenCalledTimes(2));
+  });
+
+  it("lets administrators reopen a delivery with a reason", async () => {
+    getFromOpenElisServer.mockImplementation((endpoint, callback) =>
+      callback(amendmentSummary()),
+    );
+    postToOpenElisServerFullResponse.mockImplementation(
+      (endpoint, body, callback) => callback({ ok: true }),
+    );
+    renderComponent();
+    await click(await screen.findByRole("tab", { name: "Validation" }));
+    await click(screen.getByRole("button", { name: /Reopen delivery/ }));
+    fireEvent.change(screen.getByLabelText("Reopening reason"), {
+      target: { value: "Wrong patient" },
+    });
+    await click(screen.getByRole("button", { name: "Save" }));
+    expect(postToOpenElisServerFullResponse).toHaveBeenCalledWith(
+      "/rest/patient-history/77/validations/79/delivery/reopen",
+      JSON.stringify({ reason: "Wrong patient" }),
+      expect.any(Function),
+    );
   });
 });

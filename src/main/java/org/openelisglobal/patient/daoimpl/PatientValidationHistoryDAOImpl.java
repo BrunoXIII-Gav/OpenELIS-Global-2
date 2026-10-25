@@ -43,4 +43,13 @@ public class PatientValidationHistoryDAOImpl extends BaseDAOImpl<Analysis, Strin
                 Object[].class);
         return NumericStringIdQuery.bindMany(query, "ids", analysisIds).getResultList();
     }
+
+    @Override
+    public List<Object[]> findAmendments(List<String> analysisIds) {
+        if (analysisIds.isEmpty())
+            return List.of();
+        var query = entityManager.createQuery(
+                "SELECT a.amendsAnalysisId, a.id FROM Analysis a WHERE a.amendsAnalysisId IN (:ids)", Object[].class);
+        return NumericStringIdQuery.bindMany(query, "ids", analysisIds).getResultList();
+    }
 }

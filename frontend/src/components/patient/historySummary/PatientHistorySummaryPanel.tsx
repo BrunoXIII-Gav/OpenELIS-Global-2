@@ -10,6 +10,7 @@ import {
   TabPanel,
   TabPanels,
   Table,
+  Tag,
   TableBody,
   TableCell,
   TableContainer,
@@ -23,6 +24,7 @@ import {
 import { useIntl } from "react-intl";
 import {
   getFromOpenElisServer,
+  postToOpenElisServerFullResponse,
   putToOpenElisServerFullResponse,
 } from "../../utils/Utils";
 import config from "../../../config.json";
@@ -146,9 +148,24 @@ type PatientValidation = {
   reportAvailable: boolean;
   deliveredDate?: string;
   canRegisterDelivery?: boolean;
+  amendsAnalysisId?: string;
+  amendedByAnalysisId?: string;
+  canAmend?: boolean;
+  canReopenDelivery?: boolean;
+};
+
+// "delivery" records or corrects the date; "amendment" branches a delivered
+// result into a new analysis; "reopen" is the administrators' emergency exit.
+type DeliveryDialogMode = "delivery" | "amendment" | "reopen";
+
+const deliveryDialogTitles: Record<DeliveryDialogMode, string> = {
+  delivery: "patientHistory.validation.registerDelivery",
+  amendment: "patientHistory.validation.createAmendment",
+  reopen: "patientHistory.validation.reopenDelivery",
 };
 
 type DeliveryDraft = {
+  mode: DeliveryDialogMode;
   row: PatientValidation;
   date: string;
   reason: string;
@@ -612,8 +629,12 @@ const PatientHistorySummaryPanel: React.FC<{ patientId: string }> = ({
     };
   }, [patientId, reloadKey]);
 
-  const openDeliveryDialog = (row: PatientValidation) =>
+  const openDeliveryDialog = (
+    row: PatientValidation,
+    mode: DeliveryDialogMode = "delivery",
+  ) =>
     setDeliveryDraft({
+      mode,
       row,
       date: row.deliveredDate || todayIso(),
       reason: "",
@@ -624,18 +645,34 @@ const PatientHistorySummaryPanel: React.FC<{ patientId: string }> = ({
     if (!deliveryDraft) {
       return;
     }
-    const { row, date, reason } = deliveryDraft;
-    if (row.deliveredDate && row.deliveredDate !== date && !reason.trim()) {
+    const { mode, row, date, reason } = deliveryDraft;
+    const reasonRequired =
+      mode !== "delivery" || (row.deliveredDate && row.deliveredDate !== date);
+    if (reasonRequired && !reason.trim()) {
       setDeliveryDraft({
         ...deliveryDraft,
-        error: "patient.validation.delivery.error.reasonRequired",
+        error:
+          mode === "amendment"
+            ? "patient.validation.amendment.error.reasonRequired"
+            : "patient.validation.delivery.error.reasonRequired",
       });
       return;
     }
     setDeliveryDraft({ ...deliveryDraft, saving: true, error: undefined });
-    putToOpenElisServerFullResponse(
-      `/rest/patient-history/${encodeURIComponent(patientId)}/validations/${encodeURIComponent(row.analysisId)}/delivery`,
-      JSON.stringify({ deliveredDate: date, reason }),
+    const base = `/rest/patient-history/${encodeURIComponent(patientId)}/validations/${encodeURIComponent(row.analysisId)}`;
+    const send =
+      mode === "delivery"
+        ? putToOpenElisServerFullResponse
+        : postToOpenElisServerFullResponse;
+    send(
+      mode === "delivery"
+        ? `${base}/delivery`
+        : mode === "amendment"
+          ? `${base}/amendment`
+          : `${base}/delivery/reopen`,
+      JSON.stringify(
+        mode === "delivery" ? { deliveredDate: date, reason } : { reason },
+      ),
       async (response: Response) => {
         if (response.ok) {
           setDeliveryDraft(null);
@@ -734,7 +771,25 @@ const PatientHistorySummaryPanel: React.FC<{ patientId: string }> = ({
       {
         key: "testName",
         header: intl.formatMessage({ id: "patientHistory.table.testName" }),
-        render: (row) => row.testName || "-",
+        render: (row) => (
+          <>
+            {row.testName || "-"}
+            {row.amendsAnalysisId ? (
+              <Tag type="purple" size="sm">
+                {intl.formatMessage({
+                  id: "patientHistory.validation.amendment",
+                })}
+              </Tag>
+            ) : null}
+            {row.amendedByAnalysisId ? (
+              <Tag type="gray" size="sm">
+                {intl.formatMessage({
+                  id: "patientHistory.validation.amended",
+                })}
+              </Tag>
+            ) : null}
+          </>
+        ),
       },
       ...(!hasRestrictedTag("patient-validation-date")
         ? [
@@ -793,6 +848,28 @@ const PatientHistorySummaryPanel: React.FC<{ patientId: string }> = ({
                         id: row.deliveredDate
                           ? "patientHistory.validation.correctDelivery"
                           : "patientHistory.validation.registerDelivery",
+                      })}
+                    </Button>
+                  ) : null}
+                  {row.canAmend ? (
+                    <Button
+                      kind="ghost"
+                      size="sm"
+                      onClick={() => openDeliveryDialog(row, "amendment")}
+                    >
+                      {intl.formatMessage({
+                        id: "patientHistory.validation.createAmendment",
+                      })}
+                    </Button>
+                  ) : null}
+                  {row.canReopenDelivery ? (
+                    <Button
+                      kind="danger--ghost"
+                      size="sm"
+                      onClick={() => openDeliveryDialog(row, "reopen")}
+                    >
+                      {intl.formatMessage({
+                        id: "patientHistory.validation.reopenDelivery",
                       })}
                     </Button>
                   ) : null}
@@ -1358,9 +1435,11 @@ const PatientHistorySummaryPanel: React.FC<{ patientId: string }> = ({
         <Modal
           open
           modalHeading={intl.formatMessage({
-            id: deliveryDraft.row.deliveredDate
-              ? "patientHistory.validation.correctDelivery"
-              : "patientHistory.validation.registerDelivery",
+            id:
+              deliveryDraft.mode === "delivery" &&
+              deliveryDraft.row.deliveredDate
+                ? "patientHistory.validation.correctDelivery"
+                : deliveryDialogTitles[deliveryDraft.mode],
           })}
           modalLabel={`${deliveryDraft.row.cugCode || deliveryDraft.row.accessionNumber || ""} · ${deliveryDraft.row.testName || ""}`}
           primaryButtonText={intl.formatMessage({ id: "label.button.save" })}
@@ -1379,27 +1458,49 @@ const PatientHistorySummaryPanel: React.FC<{ patientId: string }> = ({
               title={intl.formatMessage({ id: deliveryDraft.error })}
             />
           ) : null}
-          <TextInput
-            id="patient-history-delivery-date"
-            type="date"
-            labelText={intl.formatMessage({
-              id: "patientHistory.validation.deliveredDate",
-            })}
-            value={deliveryDraft.date}
-            min={deliveryDraft.row.validationDate}
-            max={todayIso()}
-            onChange={(e) =>
-              setDeliveryDraft({ ...deliveryDraft, date: e.target.value })
-            }
-          />
-          {deliveryDraft.row.deliveredDate ||
+          {deliveryDraft.mode === "amendment" ? (
+            <p className="patient-history-summary__dialog-text">
+              {intl.formatMessage({
+                id: "patientHistory.validation.amendmentHelp",
+              })}
+            </p>
+          ) : null}
+          {deliveryDraft.mode === "reopen" ? (
+            <p className="patient-history-summary__dialog-text">
+              {intl.formatMessage({
+                id: "patientHistory.validation.reopenHelp",
+              })}
+            </p>
+          ) : null}
+          {deliveryDraft.mode === "delivery" ? (
+            <TextInput
+              id="patient-history-delivery-date"
+              type="date"
+              labelText={intl.formatMessage({
+                id: "patientHistory.validation.deliveredDate",
+              })}
+              value={deliveryDraft.date}
+              min={deliveryDraft.row.validationDate}
+              max={todayIso()}
+              onChange={(e) =>
+                setDeliveryDraft({ ...deliveryDraft, date: e.target.value })
+              }
+            />
+          ) : null}
+          {deliveryDraft.mode !== "delivery" ||
+          deliveryDraft.row.deliveredDate ||
           // Someone else may have recorded it since this list was loaded.
           deliveryDraft.error ===
             "patient.validation.delivery.error.reasonRequired" ? (
             <TextArea
               id="patient-history-delivery-reason"
               labelText={intl.formatMessage({
-                id: "patientHistory.validation.deliveryCorrectionReason",
+                id:
+                  deliveryDraft.mode === "amendment"
+                    ? "patientHistory.validation.amendmentReason"
+                    : deliveryDraft.mode === "reopen"
+                      ? "patientHistory.validation.reopenReason"
+                      : "patientHistory.validation.deliveryCorrectionReason",
               })}
               maxCount={255}
               enableCounter

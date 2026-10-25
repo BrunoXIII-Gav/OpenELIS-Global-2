@@ -16,6 +16,7 @@ import org.springframework.security.access.AccessDeniedException;
 import org.springframework.stereotype.Controller;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PathVariable;
+import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.PutMapping;
 import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
@@ -59,6 +60,31 @@ public class PatientHistorySummaryRestController extends BaseRestController {
         try {
             patientValidationHistoryService.registerDelivery(patientId, analysisId,
                     form == null ? null : form.deliveredDate(), form == null ? null : form.reason(),
+                    getSysUserId(request));
+            return ResponseEntity.noContent().build();
+        } catch (IllegalArgumentException e) {
+            return ResponseEntity.badRequest().body(Map.of("error", e.getMessage()));
+        }
+    }
+
+    @PostMapping(value = "patient-history/{patientId}/validations/{analysisId}/amendment", consumes = MediaType.APPLICATION_JSON_VALUE)
+    @ResponseBody
+    public ResponseEntity<?> createAmendment(HttpServletRequest request, @PathVariable String patientId,
+            @PathVariable String analysisId, @RequestBody ResultDeliveryForm form) {
+        try {
+            return ResponseEntity.ok(Map.of("analysisId", patientValidationHistoryService.createAmendment(patientId,
+                    analysisId, form == null ? null : form.reason(), getSysUserId(request))));
+        } catch (IllegalArgumentException e) {
+            return ResponseEntity.badRequest().body(Map.of("error", e.getMessage()));
+        }
+    }
+
+    @PostMapping(value = "patient-history/{patientId}/validations/{analysisId}/delivery/reopen", consumes = MediaType.APPLICATION_JSON_VALUE)
+    @ResponseBody
+    public ResponseEntity<?> reopenDelivery(HttpServletRequest request, @PathVariable String patientId,
+            @PathVariable String analysisId, @RequestBody ResultDeliveryForm form) {
+        try {
+            patientValidationHistoryService.reopenDelivery(patientId, analysisId, form == null ? null : form.reason(),
                     getSysUserId(request));
             return ResponseEntity.noContent().build();
         } catch (IllegalArgumentException e) {

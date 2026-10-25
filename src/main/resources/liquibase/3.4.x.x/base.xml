@@ -113,4 +113,6 @@
   <include relativeToChangelogFile="true" file="099-order-accession-confirmation.xml"/>
   <include relativeToChangelogFile="true" file="100-release-unused-cug-prefix.xml"/>
   <include relativeToChangelogFile="true" file="101-analysis-result-delivery.xml"/>
+  <include relativeToChangelogFile="true" file="102-analysis-amendment.xml"/>
+  <include relativeToChangelogFile="true" file="103-delivered-analysis-lock.xml"/>
 </databaseChangeLog>
