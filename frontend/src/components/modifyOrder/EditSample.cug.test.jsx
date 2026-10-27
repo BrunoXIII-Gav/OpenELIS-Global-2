@@ -3,7 +3,10 @@ import { fireEvent, render, wait } from "@testing-library/react";
 import { IntlProvider } from "react-intl";
 import EditSample from "./EditSample";
 import ConsentDownloadButton from "../addOrder/ConsentDownloadButton";
-import { buildSamplesFromOrder } from "./modifyOrderSamples";
+import {
+  buildModifyOrderPayload,
+  buildSamplesFromOrder,
+} from "./modifyOrderSamples";
 import { ConfigurationContext, NotificationContext } from "../layout/Layout";
 import UserSessionDetailsContext from "../../UserSessionDetailsContext";
 import { getConsentTemplateOptions } from "../../services/consentTemplateService";
@@ -51,11 +54,11 @@ const tests = [
     canRemoveSample: true,
   },
 ];
-function Harness({ rows }) {
+function Harness({ rows, possibleRows }) {
   const [form, setForm] = useState({
     accessionNumber: "LNG83",
     existingTests: rows,
-    possibleTests: [],
+    possibleTests: possibleRows,
     sampleTypes: [{ id: "1", value: "Sangre" }],
     sampleOrderItems: { labNo: "LNG83" },
   });
@@ -80,10 +83,13 @@ function Harness({ rows }) {
         samples={samples}
         patientId="10"
       />
+      <output data-testid="order-payload">
+        {JSON.stringify(buildModifyOrderPayload(form, samples))}
+      </output>
     </>
   );
 }
-const open = (rows = tests) =>
+const open = (rows = tests, possibleRows = []) =>
   render(
     <IntlProvider locale="es" messages={messages}>
       <UserSessionDetailsContext.Provider value={{ userSessionDetails: {} }}>
@@ -101,7 +107,7 @@ const open = (rows = tests) =>
               setNotificationVisible: jest.fn(),
             }}
           >
-            <Harness rows={rows} />
+            <Harness rows={rows} possibleRows={possibleRows} />
           </NotificationContext.Provider>
         </ConfigurationContext.Provider>
       </UserSessionDetailsContext.Provider>
@@ -159,6 +165,83 @@ test("real EditSample preserves the saved CUG for both the field and the consent
   expect(payload.sourceValues["sample.cug"]).toBe("5010.1");
   expect(payload.selectedTests).toEqual(["Extracción de ADN"]);
   expect(postToOpenElisServerJsonResponse).not.toHaveBeenCalled();
+});
+
+test("the type of a saved sample is locked so reselecting it cannot erase its CUG", async () => {
+  const page = open([tests[0]]);
+  await wait(() =>
+    expect(page.getByLabelText(messages["sample.cug.label"]).value).toBe(
+      "5010.1",
+    ),
+  );
+  expect(page.container.querySelector('select[name="sampleId"]').disabled).toBe(
+    true,
+  );
+});
+
+test("a sample without analyses keeps its CUG when selecting its first test and clearing the selection", async () => {
+  const page = open([], [tests[0]]);
+  await wait(() =>
+    expect(page.getByLabelText(messages["sample.cug.label"]).value).toBe(
+      "5010.1",
+    ),
+  );
+  const checkbox = page.getByLabelText("Extracción de ADN");
+  fireEvent.click(checkbox);
+  await wait(() => {
+    const payload = JSON.parse(page.getByTestId("order-payload").textContent);
+    expect(payload.possibleTests[0]).toMatchObject({
+      sampleItemId: "20",
+      testId: "30",
+      add: true,
+    });
+    expect(payload.sampleXML).toBe("");
+  });
+  fireEvent.click(checkbox);
+  await wait(() => {
+    const payload = JSON.parse(page.getByTestId("order-payload").textContent);
+    expect(payload.possibleTests[0].add).toBe(false);
+  });
+  expect(page.getByLabelText(messages["sample.cug.label"]).value).toBe(
+    "5010.1",
+  );
+  expect(postToOpenElisServerJsonResponse).not.toHaveBeenCalled();
+});
+
+test("adding a sample while editing generates its CUG and submits it without changing the saved sample", async () => {
+  postToOpenElisServerJsonResponse.mockImplementation((_url, _body, callback) =>
+    callback({ cugCode: "5010.2" }),
+  );
+  const page = open([tests[0]]);
+  fireEvent.click(page.getByText(messages["order.sample.add.action"]));
+  const sampleTypes = page.container.querySelectorAll(
+    'select[name="sampleId"]',
+  );
+  fireEvent.change(sampleTypes[1], { target: { value: "1" } });
+
+  await wait(() => {
+    expect(
+      page
+        .getAllByLabelText(messages["sample.cug.label"])
+        .map((el) => el.value),
+    ).toEqual(["5010.1", "5010.2"]);
+  });
+  expect(postToOpenElisServerJsonResponse).toHaveBeenCalledTimes(1);
+  const [url, body] = postToOpenElisServerJsonResponse.mock.calls[0];
+  expect(url).toContain("/rest/sample-cug/suggest");
+  expect(JSON.parse(body)).toMatchObject({
+    patientId: "10",
+    existingCugs: ["5010.1"],
+    sampleOffset: 0,
+  });
+  fireEvent.click(page.getAllByLabelText("Extracción de ADN")[1]);
+  await wait(() => {
+    const payload = JSON.parse(page.getByTestId("order-payload").textContent);
+    expect(payload.sampleXML).toContain("cug='5010.2'");
+    expect(payload.sampleXML).toContain("cugProvisional='true'");
+    expect(payload.sampleXML).toContain("tests='30'");
+    expect(payload.existingTests[0].cugCode).toBe("5010.1");
+  });
 });
 
 test("removing an earlier sample keeps the remaining sample CUG on screen and in the consent", async () => {

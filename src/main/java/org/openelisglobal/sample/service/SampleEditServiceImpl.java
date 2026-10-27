@@ -155,12 +155,13 @@ public class SampleEditServiceImpl implements SampleEditService {
         List<IResultUpdate> updaters = ResultUpdateRegister.getRegisteredUpdaters();
         ResultsUpdateDataSet actionDataSet = new ResultsUpdateDataSet(sysUserId);
 
-        boolean alternateOrderFlow = alternateOrderFlowService
-                .isAlternateOrderFlow(form.getSampleOrderItems() == null ? null
-                        : form.getSampleOrderItems().getAdditionalFieldValues());
-        if (!alternateOrderFlow && updatedSample != null) {
-            alternateOrderFlow = alternateOrderFlowService.isAlternateOrderFlow(updatedSample.getId());
-        }
+        // Resolve the workflow from the effective values in this transaction. An
+        // explicit unchecked value must override the previously stored trigger.
+        orderAdditionalFieldService.validateAndPersistSampleValues(updatedSample.getId(),
+                form.getSampleOrderItems() == null ? null : form.getSampleOrderItems().getAdditionalFieldValues(),
+                form.getSampleOrderItems() == null ? null : form.getSampleOrderItems().getAdditionalFieldFiles(),
+                sysUserId, null);
+        boolean alternateOrderFlow = alternateOrderFlowService.isAlternateOrderFlow(updatedSample.getId());
         if (!alternateOrderFlow) {
             addAnalysisList = createAddAanlysisList(
                     form.getPossibleTests() != null ? form.getPossibleTests() : new ArrayList<>(), sysUserId);
@@ -233,11 +234,6 @@ public class SampleEditServiceImpl implements SampleEditService {
         if (sampleChanged) {
             sampleService.update(updatedSample);
         }
-
-        orderAdditionalFieldService.validateAndPersistSampleValues(updatedSample.getId(),
-                form.getSampleOrderItems() == null ? null : form.getSampleOrderItems().getAdditionalFieldValues(),
-                form.getSampleOrderItems() == null ? null : form.getSampleOrderItems().getAdditionalFieldFiles(),
-                sysUserId, null);
 
         // seems like this is unused
         /*
