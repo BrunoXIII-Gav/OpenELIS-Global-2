@@ -56,8 +56,7 @@ public class PatientValidationHistoryServiceImpl implements PatientValidationHis
         var decision = moduleAuthorizationService.getAuthorization(userId, "patients", "read");
         var deliverDecision = moduleAuthorizationService.getAuthorization(userId, "validation", "deliver");
         var correctDecision = moduleAuthorizationService.getAuthorization(userId, "results", "correct");
-        boolean administrator = moduleAuthorizationService.getAuthorization(userId, "administration", "manage")
-                .allowed();
+        var reopenDecision = moduleAuthorizationService.getAuthorization(userId, "validation", "reopen-delivery");
         boolean deliveryHidden = tags.contains("patient-validation-delivery-date");
         List<Analysis> analyses = dao
                 .findValidatedAnalyses(patientId, statusService.getStatusID(AnalysisStatus.Finalized), null).stream()
@@ -91,7 +90,7 @@ public class PatientValidationHistoryServiceImpl implements PatientValidationHis
                             : analysis.getDeliveredDate().toString(),
                     !deliveryHidden && allowedUnit(deliverDecision, analysis), analysis.getAmendsAnalysisId(),
                     amendedBy.get(analysis.getId()), open && allowedUnit(correctDecision, analysis),
-                    open && administrator));
+                    open && !deliveryHidden && allowedUnit(reopenDecision, analysis)));
         }
         return records;
     }
@@ -165,9 +164,10 @@ public class PatientValidationHistoryServiceImpl implements PatientValidationHis
     @Override
     @Transactional
     public void reopenDelivery(String patientId, String analysisId, String reason, String userId) {
-        Analysis analysis = validatedAnalysis(patientId, analysisId, userId, false);
-        if (!moduleAuthorizationService.getAuthorization(userId, "administration", "manage").allowed())
-            throw new AccessDeniedException("Only administrators may reopen a delivered result");
+        Analysis analysis = validatedAnalysis(patientId, analysisId, userId, true);
+        if (!allowedUnit(moduleAuthorizationService.getAuthorization(userId, "validation", "reopen-delivery"),
+                analysis))
+            throw new AccessDeniedException("User may not reopen result delivery for this analysis");
         String trimmedReason = requireOpenDelivery(analysis, reason,
                 "patient.validation.delivery.error.reasonRequired");
         analysis.setDeliveredDate(null);
@@ -186,6 +186,8 @@ public class PatientValidationHistoryServiceImpl implements PatientValidationHis
                 analysisId);
         if (analyses.isEmpty() || !isValidationRequired(analyses.get(0)))
             throw new ResponseStatusException(HttpStatus.NOT_FOUND);
+        if (!allowedUnit(moduleAuthorizationService.getAuthorization(userId, "patients", "read"), analyses.get(0)))
+            throw new AccessDeniedException("Analysis outside assigned units");
         return analyses.get(0);
     }
 

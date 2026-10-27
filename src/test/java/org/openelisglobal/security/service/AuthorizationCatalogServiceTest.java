@@ -48,9 +48,11 @@ public class AuthorizationCatalogServiceTest {
 
         // Registering the delivery to the patient follows validation in the same
         // module; it is a separate action so roles grant it explicitly.
-        assertEquals(List.of("read", "validate", "revoke", "deliver"),
+        assertEquals(List.of("read", "validate", "revoke", "deliver", "reopen-delivery"),
                 validation.actions().stream().map(action -> action.key()).toList());
         assertTrue(authorizationCatalogService.isKnownPermission("validation", "deliver"));
+        assertTrue(authorizationCatalogService.isKnownPermission("validation", "reopen-delivery"));
+        assertFalse(authorizationCatalogService.isKnownPermission("administration", "reopen-delivery"));
         assertFalse(authorizationCatalogService.isKnownPermission("validation", "sign"));
     }
 

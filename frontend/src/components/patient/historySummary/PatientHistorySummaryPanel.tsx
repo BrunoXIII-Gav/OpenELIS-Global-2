@@ -155,7 +155,7 @@ type PatientValidation = {
 };
 
 // "delivery" records or corrects the date; "amendment" branches a delivered
-// result into a new analysis; "reopen" is the administrators' emergency exit.
+// result into a new analysis; "reopen" requires its own Validation permission.
 type DeliveryDialogMode = "delivery" | "amendment" | "reopen";
 
 const deliveryDialogTitles: Record<DeliveryDialogMode, string> = {

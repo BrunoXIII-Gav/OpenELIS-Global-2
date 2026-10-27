@@ -544,7 +544,7 @@ describe("PatientHistorySummaryPanel", () => {
     await waitFor(() => expect(getFromOpenElisServer).toHaveBeenCalledTimes(2));
   });
 
-  it("lets administrators reopen a delivery with a reason", async () => {
+  it("lets authorized users reopen a delivery with a reason", async () => {
     getFromOpenElisServer.mockImplementation((endpoint, callback) =>
       callback(amendmentSummary()),
     );
@@ -563,5 +563,25 @@ describe("PatientHistorySummaryPanel", () => {
       JSON.stringify({ reason: "Wrong patient" }),
       expect.any(Function),
     );
+  });
+
+  it("hides reopening when only delivery and amendment are permitted", async () => {
+    const summary = amendmentSummary();
+    summary.validations[1].canRegisterDelivery = true;
+    summary.validations[1].canReopenDelivery = false;
+    getFromOpenElisServer.mockImplementation((endpoint, callback) =>
+      callback(summary),
+    );
+    renderComponent();
+    await click(await screen.findByRole("tab", { name: "Validation" }));
+    expect(
+      screen.getByRole("button", { name: "Correct delivery" }),
+    ).toBeInTheDocument();
+    expect(
+      screen.getByRole("button", { name: "Create amendment" }),
+    ).toBeInTheDocument();
+    expect(
+      screen.queryByRole("button", { name: /Reopen delivery/ }),
+    ).not.toBeInTheDocument();
   });
 });

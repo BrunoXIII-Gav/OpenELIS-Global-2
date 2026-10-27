@@ -26,8 +26,8 @@ public class AuthorizationCatalogService {
                     List.of("patient-identity", "patient-contact", "patient-demographics", "patient-history",
                             "patient-validations")),
             resultsModule(),
-            module("validation", "authorization.module.validation", List.of("read", "validate", "revoke", "deliver"),
-                    List.of()),
+            module("validation", "authorization.module.validation",
+                    List.of("read", "validate", "revoke", "deliver", "reopen-delivery"), List.of()),
             module("storage", "authorization.module.storage", List.of("read", "update", "manage"), List.of()),
             module("administration", "authorization.module.administration", List.of("read", "manage"), List.of()));
 
