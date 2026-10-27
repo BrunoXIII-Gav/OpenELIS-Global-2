@@ -58,6 +58,11 @@ export default function SampleManagement() {
 
   // Modal state for adding tests
   const [isAddTestsModalOpen, setIsAddTestsModalOpen] = useState(false);
+  const selectedProcessableSampleIds = selectedSampleIds.filter((id) =>
+    searchResponse?.sampleItems?.some(
+      (item) => item.id === id && !item.alternateOrderFlow,
+    ),
+  );
 
   // Get selected sample for aliquoting (single selection only)
   const selectedSample =
@@ -115,15 +120,17 @@ export default function SampleManagement() {
    * Each sample keeps its own visibility state.
    */
   const handleToggleCurrentTests = () => {
-    if (selectedSampleIds.length === 0) {
+    if (selectedProcessableSampleIds.length === 0) {
       return;
     }
 
     setCurrentTestsVisibleBySampleId((prev) => {
-      const areAllVisible = selectedSampleIds.every((id) => prev[id]);
+      const areAllVisible = selectedProcessableSampleIds.every(
+        (id) => prev[id],
+      );
       const next = { ...prev };
 
-      selectedSampleIds.forEach((id) => {
+      selectedProcessableSampleIds.forEach((id) => {
         next[id] = !areAllVisible;
       });
 
@@ -436,7 +443,7 @@ export default function SampleManagement() {
         {searchResponse &&
           searchResponse.sampleItems &&
           searchResponse.sampleItems.length > 0 &&
-          selectedSampleIds.length > 0 && (
+          selectedProcessableSampleIds.length > 0 && (
             <Grid fullWidth={true}>
               <Column lg={16} md={8} sm={4}>
                 <div className="sample-management-action-bar">

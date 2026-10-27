@@ -22,6 +22,7 @@ import {
   Tag,
   Button,
   InlineLoading,
+  InlineNotification,
   TextInput,
   Checkbox,
   Select,
@@ -491,7 +492,10 @@ function SampleResultsTable({
 
   useEffect(() => {
     const signature = JSON.stringify(
-      (sampleItems || []).map((item) => `${item.id}:${item.lastupdated || ""}`),
+      (sampleItems || []).map(
+        (item) =>
+          `${item.id}:${item.lastupdated || ""}:${item.alternateOrderFlow === true}`,
+      ),
     );
     if (lastSampleSignatureRef.current !== signature) {
       lastSampleSignatureRef.current = signature;
@@ -852,6 +856,7 @@ function SampleResultsTable({
         statusId: item.statusId,
         dataCompletionStatus: item.dataCompletionStatus,
         editable: Boolean(item.editable),
+        alternateOrderFlow: item.alternateOrderFlow === true,
         canRead: Boolean(item.canRead),
         canComplete: Boolean(item.canComplete),
         canUpdate: Boolean(item.canUpdate),
@@ -1073,7 +1078,11 @@ function SampleResultsTable({
   };
 
   const handleSaveSampleChanges = (sampleId, originalRow, additionalFields) => {
-    if (isReadOnly || !originalRow?.editable) {
+    if (
+      isReadOnly ||
+      !originalRow?.editable ||
+      originalRow?.alternateOrderFlow
+    ) {
       return;
     }
 
@@ -1106,7 +1115,7 @@ function SampleResultsTable({
               !response?.error &&
               !response?.statusCode &&
               response?.updatedSamplesCount !== undefined,
-            message: response?.message?.startsWith("sample.cug.")
+            message: intl.messages[response?.message]
               ? intl.formatMessage({ id: response.message })
               : response?.message ||
                 intl.formatMessage({ id: "sample.management.success.title" }),
@@ -1285,6 +1294,51 @@ function SampleResultsTable({
       originalRow?.canComplete &&
       !originalRow?.canRead &&
       !originalRow?.canUpdate;
+    if (originalRow?.alternateOrderFlow) {
+      return (
+        <div className="sample-mgmt-expanded-content">
+          <InlineNotification
+            kind="info"
+            title={intl.formatMessage({
+              id: "sample.management.alternateOrderFlow.title",
+            })}
+            subtitle={intl.formatMessage({
+              id: "sample.management.alternateOrderFlow.notice",
+            })}
+            hideCloseButton
+          />
+          {!testsRestricted &&
+            !completingOnly &&
+            originalRow.orderedTests.length > 0 && (
+              <>
+                <div className="sample-mgmt-ordered-tests-header">
+                  <FormattedMessage
+                    id="sample.management.alternateOrderFlow.history"
+                    values={{ count: originalRow.orderedTests.length }}
+                  />
+                </div>
+                <div className="sample-mgmt-tests-grid">
+                  {originalRow.orderedTests.map((test) => (
+                    <Tile
+                      key={test.analysisId}
+                      className="sample-mgmt-test-card"
+                    >
+                      <span>
+                        {resolveTestName(test, originalRow.sampleTypeId)}
+                      </span>
+                      {shouldRenderStatusTag(test.status) && (
+                        <Tag type={getTestStatusType(test.status)} size="sm">
+                          {test.status}
+                        </Tag>
+                      )}
+                    </Tile>
+                  ))}
+                </div>
+              </>
+            )}
+        </div>
+      );
+    }
     const hasFieldValue = (value) => {
       if (typeof value === "boolean") {
         return true;
@@ -2283,7 +2337,8 @@ function SampleResultsTable({
                                             value={editableCugValue}
                                             readOnly={
                                               isReadOnly ||
-                                              !originalRow?.editable
+                                              !originalRow?.editable ||
+                                              originalRow?.alternateOrderFlow
                                             }
                                             onChange={(cugCode) =>
                                               handleCurrentTestFieldChange(

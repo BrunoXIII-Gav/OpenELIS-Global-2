@@ -53,6 +53,7 @@ public class SampleItemDTO {
     private String statusId;
     private String dataCompletionStatus;
     private boolean editable;
+    private boolean alternateOrderFlow;
     private Timestamp collectionDate;
     private String collector;
     private String collectorUserId;
@@ -222,6 +223,14 @@ public class SampleItemDTO {
 
     public void setEditable(boolean editable) {
         this.editable = editable;
+    }
+
+    public boolean isAlternateOrderFlow() {
+        return alternateOrderFlow;
+    }
+
+    public void setAlternateOrderFlow(boolean alternateOrderFlow) {
+        this.alternateOrderFlow = alternateOrderFlow;
     }
 
     public Timestamp getCollectionDate() {
