@@ -26,7 +26,8 @@ public class AuthorizationCatalogService {
                     List.of("patient-identity", "patient-contact", "patient-demographics", "patient-history",
                             "patient-validations")),
             resultsModule(),
-            module("validation", "authorization.module.validation", List.of("read", "validate", "revoke"), List.of()),
+            module("validation", "authorization.module.validation",
+                    List.of("read", "validate", "revoke", "deliver", "reopen-delivery"), List.of()),
             module("storage", "authorization.module.storage", List.of("read", "update", "manage"), List.of()),
             module("administration", "authorization.module.administration", List.of("read", "manage"), List.of()));
 
@@ -63,7 +64,8 @@ public class AuthorizationCatalogService {
             fieldTag("patient-history-validations", "authorization.fieldTag.patients.history.validations"),
             fieldTag("patient-validation-validator", "authorization.fieldTag.patients.validation.validator"),
             fieldTag("patient-validation-date", "authorization.fieldTag.patients.validation.date"),
-            fieldTag("patient-validation-report", "authorization.fieldTag.patients.validation.report"));
+            fieldTag("patient-validation-report", "authorization.fieldTag.patients.validation.report"),
+            fieldTag("patient-validation-delivery-date", "authorization.fieldTag.patients.validation.deliveryDate"));
 
     private static final List<AuthorizationSearchCriterion> PATIENT_SEARCH_CRITERIA = List.of(
             searchCriterion("patient-id", "authorization.patientSearchCriterion.patientId"),

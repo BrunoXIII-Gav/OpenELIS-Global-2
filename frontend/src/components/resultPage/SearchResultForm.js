@@ -32,6 +32,7 @@ import {
   Tile,
   RadioButtonGroup,
   RadioButton,
+  Tag,
 } from "@carbon/react";
 import { Copy, ArrowLeft, ArrowRight } from "@carbon/icons-react";
 import CustomLabNumberInput from "../common/CustomLabNumberInput";
@@ -2153,6 +2154,11 @@ export function SearchResults(props) {
                   height="15"
                 />
               </picture>
+            )}
+            {row.resultEntryAction === "delivered" && (
+              <Tag type="green" size="sm">
+                {intl.formatMessage({ id: "result.delivered.locked" })}
+              </Tag>
             )}
           </>
         );

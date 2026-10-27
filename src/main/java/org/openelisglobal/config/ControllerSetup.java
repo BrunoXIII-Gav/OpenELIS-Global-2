@@ -47,16 +47,34 @@ public class ControllerSetup extends ResponseEntityExceptionHandler {
                 new CaseInsensitiveEnumPropertyEditor<>(ProgrammedConnection.class));
     }
 
+    static final String DELIVERED_LOCKED = "analysis.delivered.locked";
+
     @ExceptionHandler(value = { RuntimeException.class })
     protected ResponseEntity<Object> handleRuntimeException(RuntimeException ex, WebRequest request) {
         LogEvent.logError(ex);
-        return new ResponseEntity<>("Check server logs", new HttpHeaders(), HttpStatus.INTERNAL_SERVER_ERROR);
+        return deliveredLockResponse(ex).orElseGet(
+                () -> new ResponseEntity<>("Check server logs", new HttpHeaders(), HttpStatus.INTERNAL_SERVER_ERROR));
     }
 
     @ExceptionHandler(value = { LIMSRuntimeException.class })
     protected ResponseEntity<Object> handleLIMSRuntimeException(RuntimeException ex, WebRequest request) {
         LogEvent.logError(ex);
-        return new ResponseEntity<>("Check server logs", new HttpHeaders(), HttpStatus.INTERNAL_SERVER_ERROR);
+        return deliveredLockResponse(ex).orElseGet(
+                () -> new ResponseEntity<>("Check server logs", new HttpHeaders(), HttpStatus.INTERNAL_SERVER_ERROR));
+    }
+
+    /**
+     * The database rejects writes to delivered results whatever the entry point;
+     * report it as a conflict the screens can explain instead of a server error.
+     */
+    static java.util.Optional<ResponseEntity<Object>> deliveredLockResponse(Throwable ex) {
+        for (Throwable cause = ex; cause != null; cause = cause.getCause() == cause ? null : cause.getCause()) {
+            if (cause.getMessage() != null && cause.getMessage().contains(DELIVERED_LOCKED)) {
+                return java.util.Optional.of(new ResponseEntity<>(java.util.Map.of("error", DELIVERED_LOCKED),
+                        new HttpHeaders(), HttpStatus.CONFLICT));
+            }
+        }
+        return java.util.Optional.empty();
     }
 
     @ExceptionHandler(value = { AccessDeniedException.class })

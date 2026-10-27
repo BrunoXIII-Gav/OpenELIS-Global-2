@@ -170,6 +170,60 @@ public class ModuleAuthorizationServiceImplTest {
         assertEquals(AuthorizationSource.LEGACY_PERMISSION, decision.source());
     }
 
+    @Test
+    public void reopeningCanBeGrantedExplicitlyForOneLabUnitWithoutAdministration() {
+        RoleModulePermission grant = permission("reopen-delivery", false);
+        grant.setModuleKey("validation");
+        RoleModulePermissionLabUnitScope scope = new RoleModulePermissionLabUnitScope();
+        scope.setLabUnitId("56");
+        grant.addLabUnitScope(scope);
+        when(roleModulePermissionService.getByRoleIdsAndModuleKey(List.of(12), "validation"))
+                .thenReturn(List.of(grant));
+
+        AuthorizationDecision decision = moduleAuthorizationService.getAuthorization("17", "validation",
+                "reopen-delivery");
+
+        assertTrue(decision.allowed());
+        assertTrue(decision.appliesToLabUnit("56"));
+        assertFalse(decision.appliesToLabUnit("57"));
+        assertFalse(moduleAuthorizationService.hasPermission("17", "validation", "deliver"));
+        assertFalse(moduleAuthorizationService.hasPermission("17", "validation", "validate"));
+        verify(userPermissionService, never()).hasPermission("17", SystemPermission.ADMINISTRATION);
+    }
+
+    @Test
+    public void explicitValidationDoesNotGrantReopeningImplicitly() {
+        RoleModulePermission grant = permission("validate", true);
+        grant.setModuleKey("validation");
+        when(roleModulePermissionService.getByRoleIdsAndModuleKey(List.of(12), "validation"))
+                .thenReturn(List.of(grant));
+        assertFalse(moduleAuthorizationService.hasPermission("17", "validation", "reopen-delivery"));
+        verify(userPermissionService, never()).hasPermission("17", SystemPermission.ADMINISTRATION);
+    }
+
+    @Test
+    public void legacyValidationAloneDoesNotGrantReopening() {
+        assertFalse(moduleAuthorizationService.hasPermission("17", "validation", "reopen-delivery"));
+        verify(userPermissionService).hasPermission("17", SystemPermission.ADMINISTRATION);
+        verify(userPermissionService, never()).hasPermission("17", SystemPermission.VALIDATION);
+    }
+
+    @Test
+    public void legacyAdministratorsKeepReopeningWithoutBroadeningLegacyValidators() {
+        when(userPermissionService.hasPermission("17", SystemPermission.ADMINISTRATION)).thenReturn(true);
+        assertTrue(moduleAuthorizationService.hasPermission("17", "validation", "reopen-delivery"));
+    }
+
+    @Test
+    public void configuredAdministrationAloneCannotGrantReopening() {
+        RoleModulePermission grant = permission("manage", true);
+        grant.setModuleKey("administration");
+        when(roleModulePermissionService.getByRoleId(12)).thenReturn(List.of(grant));
+
+        assertFalse(moduleAuthorizationService.hasPermission("17", "validation", "reopen-delivery"));
+        verify(userPermissionService, never()).hasPermission("17", SystemPermission.ADMINISTRATION);
+    }
+
     private void assignEmptyCustomRole(String name) {
         Role group = new Role();
         group.setId("84");

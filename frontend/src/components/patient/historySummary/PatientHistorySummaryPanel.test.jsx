@@ -7,9 +7,15 @@ import englishMessages from "../../../languages/en.json";
 
 jest.mock("../../utils/Utils", () => ({
   getFromOpenElisServer: jest.fn(),
+  postToOpenElisServerFullResponse: jest.fn(),
+  putToOpenElisServerFullResponse: jest.fn(),
 }));
 
-const { getFromOpenElisServer } = require("../../utils/Utils");
+const {
+  getFromOpenElisServer,
+  postToOpenElisServerFullResponse,
+  putToOpenElisServerFullResponse,
+} = require("../../utils/Utils");
 
 const messages = {
   ...englishMessages,
@@ -375,6 +381,207 @@ describe("PatientHistorySummaryPanel", () => {
     expect(screen.getByText("Carla Enciso, Mario Cornejo")).toBeInTheDocument();
     expect(
       screen.queryByRole("link", { name: "Open PDF" }),
+    ).not.toBeInTheDocument();
+  });
+
+  const deliverySummary = () =>
+    validationSummary({
+      validations: validationSummary().validations.map((row, index) =>
+        index === 0
+          ? { ...row, deliveredDate: "2026-10-16", canRegisterDelivery: true }
+          : { ...row, canRegisterDelivery: false },
+      ),
+    });
+
+  it("shows the delivery date and offers delivery only where permitted", async () => {
+    getFromOpenElisServer.mockImplementation((endpoint, callback) =>
+      callback(deliverySummary()),
+    );
+    renderComponent();
+    await click(await screen.findByRole("tab", { name: "Validation" }));
+    expect(
+      screen.getByRole("columnheader", { name: "Delivery date" }),
+    ).toBeInTheDocument();
+    expect(screen.getByText("Not delivered")).toBeInTheDocument();
+    expect(
+      screen.getAllByRole("button", { name: "Correct delivery" }),
+    ).toHaveLength(1);
+    expect(
+      screen.queryByRole("button", { name: "Register delivery" }),
+    ).not.toBeInTheDocument();
+  });
+
+  it("requires a reason before correcting a recorded delivery", async () => {
+    getFromOpenElisServer.mockImplementation((endpoint, callback) =>
+      callback(deliverySummary()),
+    );
+    renderComponent();
+    await click(await screen.findByRole("tab", { name: "Validation" }));
+    await click(screen.getByRole("button", { name: "Correct delivery" }));
+    fireEvent.change(screen.getByLabelText("Delivery date"), {
+      target: { value: "2026-10-17" },
+    });
+    await click(screen.getByRole("button", { name: "Save" }));
+    expect(
+      screen.getByText(
+        "A reason is required to change a recorded delivery date.",
+      ),
+    ).toBeInTheDocument();
+    expect(putToOpenElisServerFullResponse).not.toHaveBeenCalled();
+
+    putToOpenElisServerFullResponse.mockImplementation(
+      (endpoint, body, callback) => callback({ ok: true }),
+    );
+    fireEvent.change(screen.getByLabelText("Correction reason"), {
+      target: { value: "Typo" },
+    });
+    await click(screen.getByRole("button", { name: "Save" }));
+    expect(putToOpenElisServerFullResponse).toHaveBeenCalledWith(
+      "/rest/patient-history/77/validations/78/delivery",
+      JSON.stringify({ deliveredDate: "2026-10-17", reason: "Typo" }),
+      expect.any(Function),
+    );
+    await waitFor(() => expect(getFromOpenElisServer).toHaveBeenCalledTimes(2));
+  });
+
+  it("hides the delivery date when it is restricted", async () => {
+    await loadValidationSummary({
+      restrictedFieldTagKeys: ["patient-validation-delivery-date"],
+    });
+    expect(
+      screen.queryByRole("columnheader", { name: "Delivery date" }),
+    ).not.toBeInTheDocument();
+  });
+
+  it("asks for a reason when the delivery was recorded by someone else meanwhile", async () => {
+    getFromOpenElisServer.mockImplementation((endpoint, callback) =>
+      callback(
+        validationSummary({
+          validations: [
+            {
+              ...validationSummary().validations[0],
+              canRegisterDelivery: true,
+            },
+          ],
+        }),
+      ),
+    );
+    putToOpenElisServerFullResponse.mockImplementation(
+      (endpoint, body, callback) =>
+        callback({
+          ok: false,
+          json: async () => ({
+            error: "patient.validation.delivery.error.reasonRequired",
+          }),
+        }),
+    );
+    renderComponent();
+    await click(await screen.findByRole("tab", { name: "Validation" }));
+    await click(screen.getByRole("button", { name: "Register delivery" }));
+    expect(
+      screen.queryByLabelText("Correction reason"),
+    ).not.toBeInTheDocument();
+    await click(screen.getByRole("button", { name: "Save" }));
+    expect(
+      await screen.findByLabelText("Correction reason"),
+    ).toBeInTheDocument();
+  });
+
+  const amendmentSummary = () =>
+    validationSummary({
+      validations: [
+        {
+          ...validationSummary().validations[0],
+          deliveredDate: "2026-10-16",
+          amendedByAnalysisId: "90",
+        },
+        {
+          ...validationSummary().validations[1],
+          deliveredDate: "2026-10-16",
+          canAmend: true,
+          canReopenDelivery: true,
+        },
+        {
+          ...validationSummary().validations[1],
+          analysisId: "90",
+          amendsAnalysisId: "78",
+        },
+      ],
+    });
+
+  it("marks amendments and amended results and requires a reason to amend", async () => {
+    getFromOpenElisServer.mockImplementation((endpoint, callback) =>
+      callback(amendmentSummary()),
+    );
+    postToOpenElisServerFullResponse.mockImplementation(
+      (endpoint, body, callback) => callback({ ok: true }),
+    );
+    renderComponent();
+    await click(await screen.findByRole("tab", { name: "Validation" }));
+    expect(screen.getByText("Amended")).toBeInTheDocument();
+    expect(screen.getByText("Amendment")).toBeInTheDocument();
+    expect(
+      screen.getAllByRole("button", { name: "Create amendment" }),
+    ).toHaveLength(1);
+
+    await click(screen.getByRole("button", { name: "Create amendment" }));
+    expect(screen.queryByLabelText("Delivery date")).not.toBeInTheDocument();
+    await click(screen.getByRole("button", { name: "Save" }));
+    expect(
+      screen.getByText("Enter the reason for the amendment."),
+    ).toBeInTheDocument();
+    expect(postToOpenElisServerFullResponse).not.toHaveBeenCalled();
+
+    fireEvent.change(screen.getByLabelText("Amendment reason"), {
+      target: { value: "Transcription error" },
+    });
+    await click(screen.getByRole("button", { name: "Save" }));
+    expect(postToOpenElisServerFullResponse).toHaveBeenCalledWith(
+      "/rest/patient-history/77/validations/79/amendment",
+      JSON.stringify({ reason: "Transcription error" }),
+      expect.any(Function),
+    );
+    await waitFor(() => expect(getFromOpenElisServer).toHaveBeenCalledTimes(2));
+  });
+
+  it("lets authorized users reopen a delivery with a reason", async () => {
+    getFromOpenElisServer.mockImplementation((endpoint, callback) =>
+      callback(amendmentSummary()),
+    );
+    postToOpenElisServerFullResponse.mockImplementation(
+      (endpoint, body, callback) => callback({ ok: true }),
+    );
+    renderComponent();
+    await click(await screen.findByRole("tab", { name: "Validation" }));
+    await click(screen.getByRole("button", { name: /Reopen delivery/ }));
+    fireEvent.change(screen.getByLabelText("Reopening reason"), {
+      target: { value: "Wrong patient" },
+    });
+    await click(screen.getByRole("button", { name: "Save" }));
+    expect(postToOpenElisServerFullResponse).toHaveBeenCalledWith(
+      "/rest/patient-history/77/validations/79/delivery/reopen",
+      JSON.stringify({ reason: "Wrong patient" }),
+      expect.any(Function),
+    );
+  });
+
+  it("hides reopening when only delivery and amendment are permitted", async () => {
+    const summary = amendmentSummary();
+    summary.validations[1].canRegisterDelivery = true;
+    summary.validations[1].canReopenDelivery = false;
+    getFromOpenElisServer.mockImplementation((endpoint, callback) =>
+      callback(summary),
+    );
+    renderComponent();
+    await click(await screen.findByRole("tab", { name: "Validation" }));
+    expect(
+      screen.getByRole("button", { name: "Correct delivery" }),
+    ).toBeInTheDocument();
+    expect(
+      screen.getByRole("button", { name: "Create amendment" }),
+    ).toBeInTheDocument();
+    expect(
+      screen.queryByRole("button", { name: /Reopen delivery/ }),
     ).not.toBeInTheDocument();
   });
 });

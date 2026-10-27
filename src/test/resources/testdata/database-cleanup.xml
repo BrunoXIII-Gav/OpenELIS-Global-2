@@ -36,7 +36,7 @@
  <sample_human lastupdated="2026-10-15 08:00:00" id="1" samp_id="1" patient_id="10" provider_id="9"/>
  <sample_item lastupdated="2026-10-15 08:00:00" id="1" samp_id="1" sort_order="1" quantity="1.0" rejected="false" voided="false" cug_code="1.1"/>
  <result_file last_updated="2026-10-15 08:00:00" id="1" file_name="synthetic.pdf"/>
- <analysis lastupdated="2026-10-15 08:00:00" id="1" sampitem_id="1" test_id="1" result_file_id="1" analysis_type="MANUAL" referred_out="false" corrected="false"/>
+ <analysis lastupdated="2026-10-15 08:00:00" id="1" sampitem_id="1" test_id="1" result_file_id="1" analysis_type="MANUAL" referred_out="false" corrected="false" delivered_date="2026-10-16" delivered_by="1"/>
  <result lastupdated="2026-10-15 08:00:00" id="1" analysis_id="1" value="Synthetic result"/>
  <test_additional_field_def last_updated="2026-10-15 08:00:00" id="1" test_id="1" field_key="document" display_name="Document" field_type="DOCUMENT" required="false" active="true" sort_order="1" sys_user_id="7"/>
  <analysis_additional_field_value last_updated="2026-10-15 08:00:00" id="1" analysis_id="1" field_def_id="1" field_value="Synthetic document" sys_user_id="7"/>

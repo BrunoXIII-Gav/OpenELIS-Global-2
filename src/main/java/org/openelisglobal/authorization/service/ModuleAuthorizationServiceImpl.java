@@ -161,7 +161,11 @@ public class ModuleAuthorizationServiceImpl implements ModuleAuthorizationServic
         default -> null;
         };
         case "validation" -> switch (actionKey) {
-        case "read", "validate", "revoke" -> SystemPermission.VALIDATION;
+        case "read", "validate", "revoke", "deliver" -> SystemPermission.VALIDATION;
+        // Preserve existing built-in administrators' access without giving every
+        // legacy validator permission to reopen delivered results. Configured roles
+        // must grant this action explicitly, with their own laboratory-unit scope.
+        case "reopen-delivery" -> SystemPermission.ADMINISTRATION;
         default -> null;
         };
         case "storage" -> switch (actionKey) {

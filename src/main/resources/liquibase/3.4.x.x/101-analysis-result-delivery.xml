@@ -1,0 +1,16 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<databaseChangeLog xmlns="http://www.liquibase.org/xml/ns/dbchangelog"
+ xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+ xsi:schemaLocation="http://www.liquibase.org/xml/ns/dbchangelog https://www.liquibase.org/xml/ns/dbchangelog/dbchangelog-4.8.xsd">
+ <changeSet id="101-analysis-result-delivery" author="openelis">
+  <!-- Date the result was handed to the patient, recorded explicitly by a
+       user with the validation/deliver permission. Print date is not a proxy:
+       reports may be printed before delivery or reprinted later. Changes are
+       captured by the analysis audit trail; the reason explains corrections. -->
+  <addColumn schemaName="clinlims" tableName="analysis">
+   <column name="delivered_date" type="date"/>
+   <column name="delivered_by" type="varchar(255)"/>
+   <column name="delivery_correction_reason" type="varchar(255)"/>
+  </addColumn>
+ </changeSet>
+</databaseChangeLog>

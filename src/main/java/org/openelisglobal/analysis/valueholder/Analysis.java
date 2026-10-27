@@ -62,6 +62,11 @@ public class Analysis extends BaseObject<String> implements NoteObject {
     private String validationDateForDisplay = null;
     private Date printedDate = null;
     private String printedDateForDisplay = null;
+    private Date deliveredDate = null;
+    private String deliveredBy;
+    private String deliveryCorrectionReason;
+    private String amendsAnalysisId;
+    private String amendmentReason;
     private String isReportable;
     private Date soSendReadyDate = null;
     private String soSendReadyDateForDisplay = null;
@@ -239,6 +244,47 @@ public class Analysis extends BaseObject<String> implements NoteObject {
         // also update the java.sql.Date
         String locale = ConfigurationProperties.getInstance().getPropertyValue(Property.DEFAULT_LANG_LOCALE);
         printedDate = DateUtil.convertStringDateToSqlDate(this.printedDateForDisplay, locale);
+    }
+
+    public Date getDeliveredDate() {
+        return deliveredDate;
+    }
+
+    public void setDeliveredDate(Date deliveredDate) {
+        this.deliveredDate = deliveredDate;
+    }
+
+    public String getDeliveredBy() {
+        return deliveredBy;
+    }
+
+    public void setDeliveredBy(String deliveredBy) {
+        this.deliveredBy = deliveredBy;
+    }
+
+    public String getDeliveryCorrectionReason() {
+        return deliveryCorrectionReason;
+    }
+
+    public void setDeliveryCorrectionReason(String deliveryCorrectionReason) {
+        this.deliveryCorrectionReason = deliveryCorrectionReason;
+    }
+
+    /** The delivered analysis this one corrects; null for a first issue. */
+    public String getAmendsAnalysisId() {
+        return amendsAnalysisId;
+    }
+
+    public void setAmendsAnalysisId(String amendsAnalysisId) {
+        this.amendsAnalysisId = amendsAnalysisId;
+    }
+
+    public String getAmendmentReason() {
+        return amendmentReason;
+    }
+
+    public void setAmendmentReason(String amendmentReason) {
+        this.amendmentReason = amendmentReason;
     }
 
     public Date getReleasedDate() {

@@ -36,6 +36,7 @@ import org.openelisglobal.common.services.IStatusService;
 import org.openelisglobal.common.services.SampleOrderService;
 import org.openelisglobal.common.services.StatusService;
 import org.openelisglobal.common.services.StatusService.SampleStatus;
+import org.openelisglobal.orderadditionalfield.service.AlternateOrderFlowService;
 import org.openelisglobal.patient.valueholder.Patient;
 import org.openelisglobal.sample.bean.SampleTypeAdditionalFieldPayload;
 import org.openelisglobal.sample.service.SampleCugService;
@@ -129,6 +130,9 @@ public class SampleManagementServiceImpl implements SampleManagementService {
     @Autowired
     private SampleManagementAuthorizationService sampleManagementAuthorizationService;
 
+    @Autowired
+    private AlternateOrderFlowService alternateOrderFlowService;
+
     @Override
     @Transactional(readOnly = true)
     public SearchSamplesResponse searchByAccessionNumber(String accessionNumber, boolean includeTests) {
@@ -186,6 +190,8 @@ public class SampleManagementServiceImpl implements SampleManagementService {
         // Step 5: Convert entities to DTOs WITHIN transaction boundary
         List<SampleItemDTO> dtos = sampleItems.stream().filter(item -> access.canView(item.getDataCompletionState()))
                 .map(item -> convertToDTO(item, includeTests, access)).collect(Collectors.toList());
+        boolean alternateOrderFlow = alternateOrderFlowService.isAlternateOrderFlow(sample.getId());
+        dtos.forEach(dto -> applyWorkflow(dto, alternateOrderFlow));
 
         // Step 6: Compile reception details here so this module never needs the
         // legacy SampleEdit endpoint, which is protected by Order permissions.
@@ -406,7 +412,25 @@ public class SampleManagementServiceImpl implements SampleManagementService {
      * @return populated DTO
      */
     private SampleItemDTO convertToDTO(SampleItem sampleItem, boolean includeTests) {
-        return convertToDTO(sampleItem, includeTests, SampleManagementAccess.fullAccess());
+        SampleItemDTO dto = convertToDTO(sampleItem, includeTests, SampleManagementAccess.fullAccess());
+        applyWorkflow(dto, isAlternateOrderFlow(sampleItem));
+        return dto;
+    }
+
+    private void applyWorkflow(SampleItemDTO dto, boolean alternateOrderFlow) {
+        dto.setAlternateOrderFlow(alternateOrderFlow);
+        dto.setEditable(dto.isEditable() && !alternateOrderFlow);
+    }
+
+    private boolean isAlternateOrderFlow(SampleItem sampleItem) {
+        return sampleItem.getSample() != null && sampleItem.getSample().getId() != null
+                && alternateOrderFlowService.isAlternateOrderFlow(sampleItem.getSample().getId());
+    }
+
+    private void requireNormalOrderFlow(SampleItem sampleItem) {
+        if (isAlternateOrderFlow(sampleItem)) {
+            throw new IllegalStateException("sample.management.alternateOrderFlow.processingBlocked");
+        }
     }
 
     private SampleItemDTO convertToDTO(SampleItem sampleItem, boolean includeTests, SampleManagementAccess access) {
@@ -586,6 +610,7 @@ public class SampleManagementServiceImpl implements SampleManagementService {
             }
 
             // Step 2a: Validate that sample has remaining quantity (not all dispensed)
+            requireNormalOrderFlow(sampleItem);
             if (!sampleItem.hasRemainingQuantity()) {
                 throw new IllegalStateException(
                         String.format("Cannot add tests to sample item %s: all volume has been dispensed",
@@ -654,6 +679,7 @@ public class SampleManagementServiceImpl implements SampleManagementService {
         }
 
         // Step 3: Check if analysis can be cancelled (not already completed/finalized)
+        requireNormalOrderFlow(analysis.getSampleItem());
         IStatusService statusService = StatusService.getInstance();
         String currentStatusId = analysis.getStatusId();
 
@@ -717,6 +743,7 @@ public class SampleManagementServiceImpl implements SampleManagementService {
                         "User cannot modify this sample in its current completion state");
             }
 
+            requireNormalOrderFlow(sampleItem);
             applySampleItemCoreUpdates(sampleItem, update, sysUserId);
             sampleItem.setSysUserId(sysUserId);
             // Auditing detaches the input. Keep it detached for the next audit comparison,

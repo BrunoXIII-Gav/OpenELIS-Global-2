@@ -93,7 +93,9 @@ export const buildSamplesFromOrder = (orderFormValues) => {
       return normalizeValue(row.sampleTypeId);
     }
 
-    const sampleTypeLabel = normalizeValue(row?.sampleType).trim().toLowerCase();
+    const sampleTypeLabel = normalizeValue(row?.sampleType)
+      .trim()
+      .toLowerCase();
     if (!sampleTypeLabel) {
       return "";
     }
@@ -240,9 +242,7 @@ const buildSampleXml = (samples) => {
 
   newSamples.forEach((sampleItem) => {
     const tests = (sampleItem.tests || []).map((test) => test.id).join(",");
-    const panels = (sampleItem.panels || [])
-      .map((panel) => panel.id)
-      .join(",");
+    const panels = (sampleItem.panels || []).map((panel) => panel.id).join(",");
 
     const storageLocation = sampleItem.sampleXML?.storageLocation;
     const storageLocationId =
@@ -263,8 +263,7 @@ const buildSampleXml = (samples) => {
     const gpsAccuracy = sampleItem.sampleXML?.gpsAccuracy || "";
     const gpsCaptureMethod = sampleItem.sampleXML?.gpsCaptureMethod || "";
     const cugCode = sampleItem.sampleXML?.cug || "";
-    const cugReservationToken =
-      sampleItem.sampleXML?.cugReservationToken || "";
+    const cugReservationToken = sampleItem.sampleXML?.cugReservationToken || "";
     const cugReservationContextId =
       sampleItem.sampleXML?.cugReservationContextId || "";
 
@@ -288,7 +287,7 @@ const buildSampleXml = (samples) => {
       })
       .join("");
 
-    sampleXmlString += `<sample sampleID='${escapeXmlAttribute(sampleItem.sampleTypeId)}' date='${escapeXmlAttribute(sampleItem.sampleXML?.collectionDate)}' time='${escapeXmlAttribute(sampleItem.sampleXML?.collectionTime)}' collector='${escapeXmlAttribute(sampleItem.sampleXML?.collector)}' quantity='${escapeXmlAttribute(sampleItem.sampleXML?.quantity)}' uom='${escapeXmlAttribute(sampleItem.sampleXML?.uom)}' tests='${escapeXmlAttribute(tests)}' testSectionMap='' testSampleTypeMap='' panels='${escapeXmlAttribute(panels)}' rejected='${escapeXmlAttribute(sampleItem.sampleXML?.rejected)}' rejectReasonId='${escapeXmlAttribute(sampleItem.sampleXML?.rejectionReason)}' cug='${escapeXmlAttribute(cugCode)}' cugReservationToken='${escapeXmlAttribute(cugReservationToken)}' cugReservationContextId='${escapeXmlAttribute(cugReservationContextId)}' initialConditionIds='' storageLocationId='${escapeXmlAttribute(storageLocationId)}' storageLocationType='${escapeXmlAttribute(storageLocationType)}' storagePositionCoordinate='${escapeXmlAttribute(storagePositionCoordinate)}' gpsLatitude='${escapeXmlAttribute(gpsLatitude)}' gpsLongitude='${escapeXmlAttribute(gpsLongitude)}' gpsAccuracy='${escapeXmlAttribute(gpsAccuracy)}' gpsCaptureMethod='${escapeXmlAttribute(gpsCaptureMethod)}'>`;
+    sampleXmlString += `<sample sampleID='${escapeXmlAttribute(sampleItem.sampleTypeId)}' date='${escapeXmlAttribute(sampleItem.sampleXML?.collectionDate)}' time='${escapeXmlAttribute(sampleItem.sampleXML?.collectionTime)}' collector='${escapeXmlAttribute(sampleItem.sampleXML?.collector)}' quantity='${escapeXmlAttribute(sampleItem.sampleXML?.quantity)}' uom='${escapeXmlAttribute(sampleItem.sampleXML?.uom)}' tests='${escapeXmlAttribute(tests)}' testSectionMap='' testSampleTypeMap='' panels='${escapeXmlAttribute(panels)}' rejected='${escapeXmlAttribute(sampleItem.sampleXML?.rejected)}' rejectReasonId='${escapeXmlAttribute(sampleItem.sampleXML?.rejectionReason)}' cug='${escapeXmlAttribute(cugCode)}' cugProvisional='${sampleItem.sampleXML?.cugProvisional === true}' cugReservationToken='${escapeXmlAttribute(cugReservationToken)}' cugReservationContextId='${escapeXmlAttribute(cugReservationContextId)}' initialConditionIds='' storageLocationId='${escapeXmlAttribute(storageLocationId)}' storageLocationType='${escapeXmlAttribute(storageLocationType)}' storagePositionCoordinate='${escapeXmlAttribute(storagePositionCoordinate)}' gpsLatitude='${escapeXmlAttribute(gpsLatitude)}' gpsLongitude='${escapeXmlAttribute(gpsLongitude)}' gpsAccuracy='${escapeXmlAttribute(gpsAccuracy)}' gpsCaptureMethod='${escapeXmlAttribute(gpsCaptureMethod)}'>`;
     if (additionalFieldEntries !== "") {
       sampleXmlString += `<additionalFields>${additionalFieldEntries}</additionalFields>`;
     }
@@ -337,9 +336,14 @@ const buildRemovedSampleItemIds = (samples, removedExistingSampleItemIds) => {
       ? sample.tests.map((test) => normalizeValue(test?.id)).filter(Boolean)
       : [];
     const lockedTestIds = Array.isArray(sample?.lockedTestIds)
-      ? sample.lockedTestIds.map((value) => normalizeValue(value)).filter(Boolean)
+      ? sample.lockedTestIds
+          .map((value) => normalizeValue(value))
+          .filter(Boolean)
       : [];
-    const effectiveSelectedTests = new Set([...selectedTestIds, ...lockedTestIds]);
+    const effectiveSelectedTests = new Set([
+      ...selectedTestIds,
+      ...lockedTestIds,
+    ]);
     if (effectiveSelectedTests.size === 0 && sample?.canRemoveSample) {
       removedIds.add(sampleItemId);
     }
@@ -383,13 +387,15 @@ export const buildModifyOrderPayload = (
     samples,
     removedExistingSampleItemIds,
   );
-  const existingTestsBySampleItemId = buildExistingTestsBySampleItemId(
-    existingTests,
-  );
+  const existingTestsBySampleItemId =
+    buildExistingTestsBySampleItemId(existingTests);
   const sampleCardsBySampleItemId = new Map(
     (samples || [])
       .filter((sample) => sample?.existingSampleItemId)
-      .map((sample) => [normalizeValue(sample.existingSampleItemId).trim(), sample]),
+      .map((sample) => [
+        normalizeValue(sample.existingSampleItemId).trim(),
+        sample,
+      ]),
   );
 
   payload.existingTests = existingTests.map((test) => {

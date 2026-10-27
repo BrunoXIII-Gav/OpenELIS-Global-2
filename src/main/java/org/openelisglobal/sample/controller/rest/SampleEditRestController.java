@@ -542,6 +542,7 @@ public class SampleEditRestController extends BaseSampleEntryController {
                 sampleEditItem.setTestName(TestServiceImpl.getUserLocalizedTestName(test));
                 sampleEditItem.setSampleItemId(sampleItem.getId());
                 sampleEditItem.setSampleTypeId(typeOfSample.getId());
+                sampleEditItem.setCugCode(sampleItem.getCugCode());
                 sampleEditItem.setSortOrder(test.getSortOrder());
                 typeOfTestSampleItemList.add(sampleEditItem);
             }

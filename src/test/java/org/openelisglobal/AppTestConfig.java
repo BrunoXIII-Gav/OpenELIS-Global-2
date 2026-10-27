@@ -101,7 +101,8 @@ import org.springframework.web.servlet.config.annotation.WebMvcConfigurer;
         "org.openelisglobal.testadditionalfield", "org.openelisglobal.authorization",
         "org.openelisglobal.administration", "org.openelisglobal.security.service",
         "org.openelisglobal.patientadditionalfield", "org.openelisglobal.sampleadditionalfield",
-        "org.openelisglobal.professionalprofile", "org.openelisglobal.testdependency" }, excludeFilters = {
+        "org.openelisglobal.professionalprofile", "org.openelisglobal.testdependency",
+        "org.openelisglobal.common.provider.validation" }, excludeFilters = {
 
                 @ComponentScan.Filter(type = FilterType.REGEX, pattern = "org.openelisglobal.patient.controller.*"),
                 @ComponentScan.Filter(type = FilterType.REGEX, pattern = "org.openelisglobal.organization.controller.*"),

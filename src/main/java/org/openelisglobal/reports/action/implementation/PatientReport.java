@@ -384,6 +384,21 @@ public abstract class PatientReport extends Report {
         }
     }
 
+    /**
+     * An amended report must say which delivered report it replaces. Templates
+     * write the wording; these fields stay blank for a first issue.
+     */
+    private void setAmendmentData(ClinicalPatientData data, Analysis analysis) {
+        if (GenericValidator.isBlankOrNull(analysis.getAmendsAnalysisId())) {
+            return;
+        }
+        Analysis amended = analysisService.get(analysis.getAmendsAnalysisId());
+        data.setAmendedValidationDate(amended.getValidationDateForDisplay());
+        data.setAmendedDeliveryDate(amended.getDeliveredDate() == null ? ""
+                : DateUtil.convertSqlDateToStringDate(amended.getDeliveredDate()));
+        data.setAmendmentReason(org.apache.commons.lang3.StringUtils.defaultString(analysis.getAmendmentReason()));
+    }
+
     protected String resolveValidationDateForReport(Analysis analysis) {
         if (analysis == null) {
             return "";
@@ -1116,6 +1131,9 @@ public abstract class PatientReport extends Report {
             data.setSampleSortOrder(currentAnalysis.getSampleItem().getSortOrder());
             data.setOrderFinishDate(completionDate);
             data.setValidationDate(resolveValidationDateForReport(currentAnalysis));
+            data.setDeliveryDate(currentAnalysis.getDeliveredDate() == null ? ""
+                    : DateUtil.convertSqlDateToStringDate(currentAnalysis.getDeliveredDate()));
+            setAmendmentData(data, currentAnalysis);
             data.setOrderDate(DateUtil
                     .convertTimestampToStringDateAndConfiguredHourTime(sampleService.getOrderedDate(currentSample)));
             data.setSampleId(sampleService.getAccessionNumber(currentSample) + "-" + data.getSampleSortOrder());

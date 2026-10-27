@@ -837,8 +837,12 @@ public class ResultsLoadUtility {
         testItem.setTestMethod(analysisService.getMethodId(analysis));
         testItem.setMethods(getMethodOptionsForTest(test, testItem.getTestMethod(), testMethodName));
         testItem.setResult(result);
-        testItem.setResultEntryAction(result == null || GenericValidator.isBlankOrNull(result.getId()) ? "enter"
-                : analysisService.patientReportHasBeenDone(analysis) ? "correct" : "update");
+        // A delivered result is closed (the database rejects changes); "delivered" is
+        // not a permission, so the row is read-only and corrections go through an
+        // amendment from the patient history.
+        testItem.setResultEntryAction(analysis.getDeliveredDate() != null ? "delivered"
+                : result == null || GenericValidator.isBlankOrNull(result.getId()) ? "enter"
+                        : analysisService.patientReportHasBeenDone(analysis) ? "correct" : "update");
         testItem.setResultValue(getFormattedResultValue(result));
         testItem.setMultiSelectResultValues(analysisService.getJSONMultiSelectResults(analysis));
         testItem.setAnalysisStatusId(analysisService.getStatusId(analysis));

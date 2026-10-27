@@ -63,6 +63,10 @@ public final class ClinicalPatientData {
     private String completeFlag;
     private String orderFinishDate;
     private String validationDate;
+    private String deliveryDate;
+    private String amendedValidationDate;
+    private String amendedDeliveryDate;
+    private String amendmentReason;
     private String panelName;
     private Boolean separator = false;
     private Panel panel;
@@ -147,6 +151,10 @@ public final class ClinicalPatientData {
         completeFlag = data.getCompleteFlag();
         orderFinishDate = data.getOrderFinishDate();
         validationDate = data.getValidationDate();
+        deliveryDate = data.getDeliveryDate();
+        amendedValidationDate = data.getAmendedValidationDate();
+        amendedDeliveryDate = data.getAmendedDeliveryDate();
+        amendmentReason = data.getAmendmentReason();
         panelName = data.getPanelName();
         separator = data.getSeparator();
         panel = data.getPanel();
@@ -548,6 +556,41 @@ public final class ClinicalPatientData {
 
     public void setValidationDate(String validationDate) {
         this.validationDate = validationDate;
+    }
+
+    /** Date the result was handed to the patient; blank until it is recorded. */
+    public String getDeliveryDate() {
+        return deliveryDate;
+    }
+
+    public void setDeliveryDate(String deliveryDate) {
+        this.deliveryDate = deliveryDate;
+    }
+
+    /** For an amended report: validation date of the report it replaces. */
+    public String getAmendedValidationDate() {
+        return amendedValidationDate;
+    }
+
+    public void setAmendedValidationDate(String amendedValidationDate) {
+        this.amendedValidationDate = amendedValidationDate;
+    }
+
+    /** For an amended report: delivery date of the report it replaces. */
+    public String getAmendedDeliveryDate() {
+        return amendedDeliveryDate;
+    }
+
+    public void setAmendedDeliveryDate(String amendedDeliveryDate) {
+        this.amendedDeliveryDate = amendedDeliveryDate;
+    }
+
+    public String getAmendmentReason() {
+        return amendmentReason;
+    }
+
+    public void setAmendmentReason(String amendmentReason) {
+        this.amendmentReason = amendmentReason;
     }
 
     public String getOrderDate() {

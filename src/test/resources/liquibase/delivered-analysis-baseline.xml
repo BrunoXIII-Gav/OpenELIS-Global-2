@@ -1,0 +1,37 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<databaseChangeLog xmlns="http://www.liquibase.org/xml/ns/dbchangelog"
+ xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+ xsi:schemaLocation="http://www.liquibase.org/xml/ns/dbchangelog https://www.liquibase.org/xml/ns/dbchangelog/dbchangelog-4.8.xsd">
+ <changeSet id="delivered-analysis-test-baseline" author="openelis">
+  <createTable tableName="analysis">
+   <column name="id" type="NUMERIC(10,0)"><constraints primaryKey="true"/></column>
+   <column name="status_id" type="NUMERIC(10,0)"/>
+   <column name="validation_date" type="DATE"/>
+   <column name="printed_date" type="DATE"/>
+   <column name="corrected" type="BOOLEAN"/>
+   <column name="fhir_uuid" type="UUID"/>
+   <column name="sys_user_id" type="VARCHAR(255)"/>
+   <column name="lastupdated" type="TIMESTAMP"/>
+  </createTable>
+  <createTable tableName="result">
+   <column name="id" type="NUMERIC(10,0)"><constraints primaryKey="true"/></column>
+   <column name="analysis_id" type="NUMERIC(10,0)"/>
+   <column name="value" type="VARCHAR(200)"/>
+   <column name="sys_user_id" type="VARCHAR(255)"/>
+   <column name="lastupdated" type="TIMESTAMP"/>
+  </createTable>
+  <createTable tableName="site_information">
+   <column name="name" type="VARCHAR(128)"/>
+   <column name="value" type="VARCHAR(128)"/>
+  </createTable>
+  <createTable tableName="analysis_additional_field_value">
+   <column name="id" type="NUMERIC(10,0)"><constraints primaryKey="true"/></column>
+   <column name="analysis_id" type="NUMERIC(10,0)"/>
+   <column name="field_value" type="TEXT"/>
+   <column name="sys_user_id" type="VARCHAR(255)"/>
+  </createTable>
+ </changeSet>
+ <include file="liquibase/3.4.x.x/101-analysis-result-delivery.xml"/>
+ <include file="liquibase/3.4.x.x/102-analysis-amendment.xml"/>
+ <include file="liquibase/3.4.x.x/103-delivered-analysis-lock.xml"/>
+</databaseChangeLog>

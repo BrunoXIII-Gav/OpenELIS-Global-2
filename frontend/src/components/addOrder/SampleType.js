@@ -254,7 +254,7 @@ const SampleType = (props) => {
     const payload = {
       patientId,
       existingCugs: Array.isArray(props.existingCugs) ? props.existingCugs : [],
-      sampleOffset: props.provisionalCug ? index : 0,
+      sampleOffset: props.provisionalCug ? (props.cugSampleOffset ?? index) : 0,
       reservationToken: sampleXml.cugReservationToken || "",
       reservationContextId: reservationContextId,
     };
@@ -307,6 +307,7 @@ const SampleType = (props) => {
     isExistingSample,
     intl,
     props.canGenerateCug,
+    props.cugSampleOffset,
     props.existingCugs,
     props.patientId,
     props.patientCugKey,

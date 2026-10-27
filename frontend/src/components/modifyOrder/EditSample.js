@@ -481,42 +481,28 @@ const EditSample = (props) => {
   };
 
   const sampleTypeObject = (object) => {
-    let newState = [...samples];
-    switch (true) {
-      case object.sampleTypeId !== undefined && object.sampleTypeId !== "":
-        newState[object.sampleObjectIndex].sampleTypeId = object.sampleTypeId;
-        break;
-      case object.sampleRejected:
-        newState[object.sampleObjectIndex].sampleRejected =
-          object.sampleRejected;
-        break;
-      case object.rejectionReason !== undefined &&
-        object.rejectionReason !== null:
-        newState[object.sampleObjectIndex].rejectionReason =
-          object.rejectionReason;
-        break;
-      case object.selectedTests !== undefined &&
-        object.selectedTests.length > 0:
-        newState[object.sampleObjectIndex].tests = object.selectedTests;
-        break;
-      case object.selectedPanels !== undefined &&
-        object.selectedPanels.length > 0:
-        newState[object.sampleObjectIndex].panels = object.selectedPanels;
-        break;
-      case object.sampleXML !== undefined && object.sampleXML !== null:
-        newState[object.sampleObjectIndex].sampleXML = object.sampleXML;
-        break;
-      case object.requestReferralEnabled:
-        newState[object.sampleObjectIndex].requestReferralEnabled =
-          object.requestReferralEnabled;
-        break;
-      case object.referralItems !== undefined &&
-        object.referralItems.length > 0:
-        newState[object.sampleObjectIndex].referralItems = object.referralItems;
-        break;
-      default:
-        props.setSamples(newState);
-    }
+    const updates = {};
+    const fields = {
+      sampleTypeId: "sampleTypeId",
+      sampleRejected: "sampleRejected",
+      rejectionReason: "rejectionReason",
+      selectedTests: "tests",
+      selectedPanels: "panels",
+      sampleXML: "sampleXML",
+      requestReferralEnabled: "requestReferralEnabled",
+      referralItems: "referralItems",
+      additionalFields: "additionalFields",
+    };
+    Object.entries(fields).forEach(([source, target]) => {
+      if (Object.prototype.hasOwnProperty.call(object, source)) {
+        updates[target] = object[source];
+      }
+    });
+    setSamples((previous) =>
+      previous.map((sample, index) =>
+        index === object.sampleObjectIndex ? { ...sample, ...updates } : sample,
+      ),
+    );
   };
 
   const handlePageChange = (pageInfo) => {
@@ -1026,6 +1012,17 @@ const EditSample = (props) => {
                   sampleTypeObject={sampleTypeObject}
                   error={error}
                   patientId={props.patientId || ""}
+                  canGenerateCug={Boolean(props.patientId)}
+                  provisionalCug={true}
+                  cugSampleOffset={
+                    samples
+                      .slice(0, i)
+                      .filter((entry) => !entry.existingSampleItemId).length
+                  }
+                  patientCugKey={props.patientId || ""}
+                  disableSampleTypeSelection={Boolean(
+                    sample.existingSampleItemId,
+                  )}
                   existingCugs={(samples || [])
                     .filter((_, sampleIndex) => sampleIndex !== i)
                     .map((entry) => entry?.sampleXML?.cug)

@@ -71,6 +71,23 @@
         <property name="printedDate" type="java.sql.Date">
             <column name="PRINTED_DATE" length="7" />
         </property>
+        <property name="deliveredDate" type="java.sql.Date">
+            <column name="DELIVERED_DATE" />
+        </property>
+        <property name="deliveredBy" type="java.lang.String">
+            <column name="DELIVERED_BY" length="255" />
+        </property>
+        <property name="deliveryCorrectionReason"
+            type="java.lang.String">
+            <column name="DELIVERY_CORRECTION_REASON" length="255" />
+        </property>
+        <property name="amendsAnalysisId"
+            type="org.openelisglobal.hibernate.resources.usertype.LIMSStringNumberUserType">
+            <column name="AMENDS_ANALYSIS_ID" precision="10" scale="0" />
+        </property>
+        <property name="amendmentReason" type="java.lang.String">
+            <column name="AMENDMENT_REASON" length="255" />
+        </property>
         <property name="isReportable" type="java.lang.String">
             <column name="IS_REPORTABLE" length="1" />
         </property>

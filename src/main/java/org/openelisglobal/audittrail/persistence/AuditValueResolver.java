@@ -42,6 +42,7 @@ public final class AuditValueResolver {
             Map.entry("collectorUserId", "systemuser.valueholder.SystemUser"),
             Map.entry("approverUserId", "systemuser.valueholder.SystemUser"),
             Map.entry("revokedBy", "systemuser.valueholder.SystemUser"),
+            Map.entry("deliveredBy", "systemuser.valueholder.SystemUser"),
             Map.entry("systemUserId", "systemuser.valueholder.SystemUser"),
             Map.entry("performedByUser", "systemuser.valueholder.SystemUser"),
             Map.entry("performedByUserId", "systemuser.valueholder.SystemUser"),

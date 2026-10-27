@@ -4,6 +4,7 @@ import { act, fireEvent, render, screen } from "@testing-library/react";
 import { IntlProvider } from "react-intl";
 import ValidationTemplateOverrideConfig from "./ValidationTemplateOverrideConfig";
 import messages from "../../languages/en.json";
+import spanishMessages from "../../languages/es.json";
 import {
   getAllTests,
   getValidationFieldOptions,
@@ -273,4 +274,43 @@ test("ignores field options from a previously selected template when responses a
   );
   expect(selection.selectedOptions[0].textContent).toBe("Ataxia result");
   expect(input(container, "compareTo").value).toBe("43");
+});
+
+test("translates default source labels for display without overriding custom labels", () => {
+  getValidationFieldOptions.mockImplementation((ids, callback) =>
+    callback({
+      sources: [
+        { id: "deliveryDate", label: "Delivery Date", dataType: "text" },
+        { id: "biologist2Name", label: "Analyst #2 Name", dataType: "text" },
+        { id: "validationDate", label: "Fecha especial", dataType: "text" },
+      ],
+    }),
+  );
+  storedTemplate = {
+    id: "template-id",
+    name: "Conditional template",
+    testIds: ["test-id"],
+    config: {
+      mode: "jasper_dynamic",
+      templateName: "report",
+      templateContent: `<jasperReport name="report"><parameter name="${parameter}" class="java.lang.String"/></jasperReport>`,
+      parameterDefinitions: [
+        { name: parameter, className: "java.lang.String" },
+      ],
+      mappings: { [parameter]: { type: "source", value: "deliveryDate" } },
+    },
+  };
+  const { container } = render(
+    <IntlProvider locale="es" messages={spanishMessages}>
+      <ValidationTemplateOverrideConfig />
+    </IntlProvider>,
+  );
+  fireEvent.click(screen.getByText("Conditional template"));
+  const optionTexts = Array.from(container.querySelectorAll("option")).map(
+    (option) => option.textContent,
+  );
+  expect(optionTexts).toContain("Fecha de entrega");
+  expect(optionTexts).toContain("Nombre del analista n.º 2");
+  expect(optionTexts).toContain("Fecha especial");
+  expect(optionTexts).not.toContain("Delivery Date");
 });
