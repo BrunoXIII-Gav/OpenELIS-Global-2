@@ -431,9 +431,6 @@ function SearchPatientForm(props) {
                         labelText={intl.formatMessage({
                           id: "patient.search.cug.label",
                         })}
-                        helperText={intl.formatMessage({
-                          id: "patient.search.cug.helper",
-                        })}
                         id={field.name}
                         value={values[field.name]}
                         onChange={(e) => {

@@ -1502,7 +1502,6 @@
   "input.placeholder.patientLastName": " Ingrese apellido del paciente",
   "patient.search.cug.label": "CUG",
   "patient.search.cug.placeholder": "Ingrese prefijo CUG o número de orden",
-  "patient.search.cug.helper": "Ingrese el prefijo del paciente (por ejemplo, 5415), sin sufijo de muestra, o un número de orden.",
   "input.placeholder.prevLabNumber": " Ingrese número de laboratorio previo",
   "input.placeholder.providerEmail": " Ingrese correo del solicitante",
   "input.placeholder.providerFax": " Ingrese fax del solicitante",

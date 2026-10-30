@@ -185,9 +185,6 @@ test.each([undefined, "ALPHANUM", "NUMERIC"])(
     show({}, { AccessionFormat });
     const input = screen.getByLabelText("CUG");
     expect(input.placeholder).toBe(messages["patient.search.cug.placeholder"]);
-    expect(
-      screen.getByText(messages["patient.search.cug.helper"]),
-    ).toBeTruthy();
     fireEvent.change(input, { target: { value: "5415" } });
     await search();
     const [url] = getFromOpenElisServer.mock.calls.find(([value]) =>
