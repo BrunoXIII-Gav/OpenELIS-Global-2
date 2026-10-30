@@ -1,0 +1,23 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE hibernate-mapping PUBLIC "-//Hibernate/Hibernate Mapping DTD 3.0//EN" "http://hibernate.sourceforge.net/hibernate-mapping-3.0.dtd">
+<hibernate-mapping>
+    <class name="org.openelisglobal.sample.valueholder.Sample"
+        table="sample" schema="clinlims">
+        <id name="id"
+            type="org.openelisglobal.hibernate.resources.usertype.LIMSStringNumberUserType"
+            column="id" />
+        <property name="accessionNumber" column="accession_number"
+            type="string" />
+    </class>
+    <class
+        name="org.openelisglobal.sampleitem.valueholder.SampleItem"
+        table="sample_item" schema="clinlims">
+        <id name="id"
+            type="org.openelisglobal.hibernate.resources.usertype.LIMSStringNumberUserType"
+            column="id" />
+        <many-to-one name="sample"
+            class="org.openelisglobal.sample.valueholder.Sample" column="samp_id" />
+        <property name="cugCode" column="cug_code" type="string" />
+        <property name="voided" column="voided" type="boolean" />
+    </class>
+</hibernate-mapping>

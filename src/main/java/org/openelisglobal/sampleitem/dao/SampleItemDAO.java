@@ -31,6 +31,8 @@ import org.openelisglobal.typeofsample.valueholder.TypeOfSample;
  */
 public interface SampleItemDAO extends BaseDAO<SampleItem, String> {
 
+    List<Object[]> findCugCodesByAccessionNumbers(List<String> accessionNumbers);
+
     public boolean insertData(SampleItem sampleItem) throws LIMSRuntimeException;
 
     // public void deleteData(List<SampleItem> sampleItems) throws

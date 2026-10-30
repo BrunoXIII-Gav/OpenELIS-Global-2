@@ -1,0 +1,18 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<dataset>
+    <sample id="1" accession_number="LNG1" />
+    <sample id="2" accession_number="LNG2" />
+    <sample id="3" accession_number="LNG3" />
+    <sample id="4" accession_number="LNG4" />
+    <sample_item id="1" samp_id="1" cug_code="5415.1"
+        voided="false" />
+    <sample_item id="2" samp_id="1" cug_code="5415.2"
+        voided="false" />
+    <sample_item id="3" samp_id="1" cug_code="5415.3"
+        voided="true" />
+    <sample_item id="4" samp_id="2" cug_code="5416.1"
+        voided="false" />
+    <sample_item id="5" samp_id="2" cug_code=" " voided="false" />
+    <sample_item id="6" samp_id="4" cug_code="9000.1"
+        voided="false" />
+</dataset>

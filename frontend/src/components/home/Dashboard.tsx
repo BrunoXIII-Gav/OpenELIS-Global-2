@@ -29,11 +29,7 @@ import "./Dashboard.css";
 import { Minimize, Maximize, ArrowLeft, ArrowRight } from "@carbon/react/icons";
 import { Copy } from "@carbon/icons-react";
 import { useState, useEffect, useRef, useContext } from "react";
-import {
-  getFromOpenElisServer,
-  convertAlphaNumLabNumForDisplay,
-  hasRole,
-} from "../utils/Utils.js";
+import { getFromOpenElisServer, hasRole } from "../utils/Utils.js";
 import { FormattedMessage, useIntl } from "react-intl";
 import UserSessionDetailsContext from "../../UserSessionDetailsContext";
 import { NotificationContext } from "../layout/Layout";
@@ -198,17 +194,23 @@ const HomeDashBoard: React.FC<DashBoardProps> = () => {
       }
     });
 
-    getFromOpenElisServer(`/rest/home-dashboard/waiting-time-config`, (data) => {
-      if (data) {
-        setWaitingThresholds({
-          yellowThresholdDays: normalizeThresholdValue(
-            data.yellowThresholdDays,
-            5,
-          ),
-          redThresholdDays: normalizeThresholdValue(data.redThresholdDays, 10),
-        });
-      }
-    });
+    getFromOpenElisServer(
+      `/rest/home-dashboard/waiting-time-config`,
+      (data) => {
+        if (data) {
+          setWaitingThresholds({
+            yellowThresholdDays: normalizeThresholdValue(
+              data.yellowThresholdDays,
+              5,
+            ),
+            redThresholdDays: normalizeThresholdValue(
+              data.redThresholdDays,
+              10,
+            ),
+          });
+        }
+      },
+    );
 
     return () => {
       componentMounted.current = false;
@@ -609,65 +611,75 @@ const HomeDashBoard: React.FC<DashBoardProps> = () => {
   };
 
   const renderCell = (cell, row) => {
-    if (cell.info.header === "labNumber" && cell.value) {
-      const accessionHref = buildTileHref(selectedTile.type, cell.value);
-      const shouldLink =
-        selectedTile.type == "ORDERS_IN_PROGRESS" ||
-        selectedTile.type == "AWAITING_SAMPLE" ||
-        selectedTile.type == "AWAITING_RESULTS" ||
-        selectedTile.type == "ORDERS_READY_FOR_VALIDATION" ||
-        selectedTile.type == "ALTERNATE_ORDER_FLOW";
-      return (
-        <TableCell key={cell.id}>
-          <>
-            <div style={{ display: "flex", alignItems: "center" }}>
-              <Button
-                onClick={async () => {
-                  if ("clipboard" in navigator) {
-                    return await navigator.clipboard.writeText(cell.value);
-                  } else {
-                    return document.execCommand("copy", true, cell.value);
-                  }
-                }}
-                kind="ghost"
-                iconDescription={intl.formatMessage({
-                  id: "instructions.copy.labnum",
-                })}
-                hasIconOnly
-                renderIcon={Copy}
-              />
-              {shouldLink && accessionHref ? (
-                <Link style={{ color: "blue" }} href={accessionHref}>
-                  <u>{convertAlphaNumLabNumForDisplay(cell.value)}</u>
-                </Link>
-              ) : (
-                <> {convertAlphaNumLabNumForDisplay(cell.value)}</>
-              )}
-            </div>
-          </>
-        </TableCell>
+    if (cell.info.header === "cugCode") {
+      const codes = Array.from(
+        new Set(
+          String(cell.value || "")
+            .split(",")
+            .map((value) => value.trim())
+            .filter(Boolean),
+        ),
       );
-    } else if (cell.info.header === "cugCode") {
-      const cugHref = buildTileHref(selectedTile.type, cell.value);
-      const shouldLink =
-        selectedTile.type == "ORDERS_IN_PROGRESS" ||
-        selectedTile.type == "AWAITING_SAMPLE" ||
-        selectedTile.type == "AWAITING_RESULTS" ||
-        selectedTile.type == "ORDERS_READY_FOR_VALIDATION" ||
-        selectedTile.type == "ALTERNATE_ORDER_FLOW";
       return (
         <TableCell key={cell.id}>
-          {cell.value ? (
-            shouldLink && cugHref ? (
-              <Link style={{ color: "blue" }} href={cugHref}>
-                <u>{cell.value}</u>
-              </Link>
-            ) : (
-              cell.value
-            )
-          ) : (
-            ""
-          )}
+          {codes.map((code) => {
+            const href = buildTileHref(
+              selectedTile.type,
+              encodeURIComponent(code),
+            );
+            return (
+              <div key={code} style={{ display: "flex", alignItems: "center" }}>
+                <Button
+                  onClick={async (event) => {
+                    event.stopPropagation();
+                    try {
+                      if (navigator.clipboard?.writeText) {
+                        await navigator.clipboard.writeText(code);
+                      } else {
+                        const input = document.createElement("textarea");
+                        input.value = code;
+                        input.style.position = "fixed";
+                        input.style.opacity = "0";
+                        document.body.appendChild(input);
+                        try {
+                          input.select();
+                          if (!document.execCommand("copy"))
+                            throw new Error("copy failed");
+                        } finally {
+                          input.remove();
+                        }
+                      }
+                    } catch (_error) {
+                      addNotification({
+                        kind: NotificationKinds.error,
+                        title: intl.formatMessage({ id: "notification.title" }),
+                        message: intl.formatMessage({
+                          id: "instructions.copy.cug.error",
+                        }),
+                      });
+                      setNotificationVisible(true);
+                    }
+                  }}
+                  kind="ghost"
+                  iconDescription={intl.formatMessage(
+                    {
+                      id: "instructions.copy.cug",
+                    },
+                    { cug: code },
+                  )}
+                  hasIconOnly
+                  renderIcon={Copy}
+                />
+                {href ? (
+                  <Link style={{ color: "blue" }} href={href}>
+                    <u>{code}</u>
+                  </Link>
+                ) : (
+                  code
+                )}
+              </div>
+            );
+          })}
         </TableCell>
       );
     } else if (cell.info.header === "countOfOrdersEntered" && cell.value) {
@@ -710,8 +722,8 @@ const HomeDashBoard: React.FC<DashBoardProps> = () => {
       header: <FormattedMessage id="sample.label.orderdate" />,
     },
     {
-      key: "labNumber",
-      header: <FormattedMessage id="eorder.labNumber" />,
+      key: "cugCode",
+      header: <FormattedMessage id="sample.management.table.header.cug" />,
     },
   ];
 
@@ -723,10 +735,6 @@ const HomeDashBoard: React.FC<DashBoardProps> = () => {
     {
       key: "orderDate",
       header: <FormattedMessage id="sample.label.orderdate" />,
-    },
-    {
-      key: "labNumber",
-      header: <FormattedMessage id="eorder.labNumber" />,
     },
     {
       key: "cugCode",
@@ -761,10 +769,6 @@ const HomeDashBoard: React.FC<DashBoardProps> = () => {
       header: <FormattedMessage id="sample.label.orderdate" />,
     },
     {
-      key: "labNumber",
-      header: <FormattedMessage id="eorder.labNumber" />,
-    },
-    {
       key: "cugCode",
       header: <FormattedMessage id="sample.management.table.header.cug" />,
     },
@@ -793,8 +797,8 @@ const HomeDashBoard: React.FC<DashBoardProps> = () => {
       header: <FormattedMessage id="patient.merge.nationalId" />,
     },
     {
-      key: "labNumber",
-      header: <FormattedMessage id="eorder.labNumber" />,
+      key: "cugCode",
+      header: <FormattedMessage id="sample.management.table.header.cug" />,
     },
   ];
 

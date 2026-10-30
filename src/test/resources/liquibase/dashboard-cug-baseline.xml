@@ -1,0 +1,27 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<databaseChangeLog
+    xmlns="http://www.liquibase.org/xml/ns/dbchangelog"
+    xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+    xsi:schemaLocation="http://www.liquibase.org/xml/ns/dbchangelog https://www.liquibase.org/xml/ns/dbchangelog/dbchangelog-4.8.xsd">
+    <changeSet id="dashboard-cug-test-baseline" author="openelis">
+        <createTable tableName="sample">
+            <column name="id" type="NUMERIC(10,0)">
+                <constraints primaryKey="true" />
+            </column>
+            <column name="accession_number" type="VARCHAR(128)" />
+        </createTable>
+        <createTable tableName="sample_item">
+            <column name="id" type="NUMERIC(10,0)">
+                <constraints primaryKey="true" />
+            </column>
+            <column name="samp_id" type="NUMERIC(10,0)">
+                <constraints referencedTableName="sample"
+                    referencedColumnNames="id"
+                    foreignKeyName="dashboard_cug_test_sample_fk" />
+            </column>
+            <column name="cug_code" type="VARCHAR(128)" />
+            <column name="voided" type="BOOLEAN"
+                defaultValueBoolean="false" />
+        </createTable>
+    </changeSet>
+</databaseChangeLog>

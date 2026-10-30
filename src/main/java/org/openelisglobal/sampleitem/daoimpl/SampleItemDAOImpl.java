@@ -47,6 +47,18 @@ import org.springframework.transaction.annotation.Transactional;
 public class SampleItemDAOImpl extends BaseDAOImpl<SampleItem, String> implements SampleItemDAO {
 
     @Override
+    public List<Object[]> findCugCodesByAccessionNumbers(List<String> accessionNumbers) {
+        if (accessionNumbers == null || accessionNumbers.isEmpty()) {
+            return List.of();
+        }
+        return entityManager
+                .createQuery("select si.sample.accessionNumber, si.cugCode from SampleItem si "
+                        + "where si.sample.accessionNumber in (:numbers) and si.voided = false "
+                        + "and si.cugCode is not null order by si.sample.id, si.id", Object[].class)
+                .setParameter("numbers", accessionNumbers).getResultList();
+    }
+
+    @Override
     public List<SampleItem> lockPatientItemsForCugChange(String patientId) {
         var query = entityManager.createQuery(
                 "select si from SampleItem si where si.sample.id in "
