@@ -1423,7 +1423,6 @@
   "input.placeholder.patientLastName": "Entrez le nom de famille du patient",
   "patient.search.cug.label": "CUG",
   "patient.search.cug.placeholder": "Saisir un préfixe CUG ou un numéro de demande",
-  "patient.search.cug.helper": "Saisissez le préfixe du patient (par exemple, 5415), sans suffixe d’échantillon, ou un numéro de demande.",
   "input.placeholder.prevLabNumber": "Entrez le numéro de laboratoire précédent",
   "input.placeholder.providerEmail": "Saisir l'adresse e-mail du demandeur",
   "input.placeholder.providerFax": "Saisir le numéro de fax du demandeur",

@@ -64,7 +64,9 @@ public class SampleOrderItem implements Serializable {
             SamplePatientEntryBatch.class })
     private String externalOrderNumber;
 
-    @NotBlank(groups = { SamplePatientEntryForm.SamplePatientEntry.class, SamplePatientEntryBatch.class })
+    // Individual orders assign this number in the save transaction; batches supply
+    // it.
+    @NotBlank(groups = { SamplePatientEntryBatch.class })
     @ValidAccessionNumber(groups = { SamplePatientEntryForm.SamplePatientEntry.class, SamplePatientEntryBatch.class,
             SampleEditForm.SampleEdit.class })
     private String labNo;

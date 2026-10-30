@@ -1474,7 +1474,6 @@
   "input.placeholder.patientLastName": "Enter Patient's Last Name",
   "patient.search.cug.label": "CUG",
   "patient.search.cug.placeholder": "Enter a CUG prefix or order number",
-  "patient.search.cug.helper": "Use the patient prefix (for example, 5415), without a sample suffix, or an order number.",
   "input.placeholder.prevLabNumber": "Enter Previous Lab Number",
   "input.placeholder.providerEmail": "Enter Requester's Email",
   "input.placeholder.providerFax": "Enter Requester's Fax Number",
