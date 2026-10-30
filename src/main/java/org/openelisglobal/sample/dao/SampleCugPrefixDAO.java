@@ -1,6 +1,7 @@
 package org.openelisglobal.sample.dao;
 
 import java.sql.Timestamp;
+import java.util.List;
 import org.openelisglobal.common.dao.BaseDAO;
 import org.openelisglobal.sample.valueholder.SampleCugCounter;
 
@@ -14,6 +15,8 @@ public interface SampleCugPrefixDAO extends BaseDAO<SampleCugCounter, String> {
     void register(long prefix, String actorId);
 
     Long findPatientPrefix(String patientId);
+
+    List<Integer> findPatientIdsByPrefix(long prefix);
 
     void bindPatientPrefix(String patientId, long prefix, String actorId);
 

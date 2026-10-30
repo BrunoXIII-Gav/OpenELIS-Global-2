@@ -25,7 +25,6 @@ import {
   Link,
 } from "@carbon/react";
 import { Person, ArrowLeft, ArrowRight } from "@carbon/react/icons";
-import CustomLabNumberInput from "../common/CustomLabNumberInput";
 import { patientSearchHeaderData } from "../data/PatientResultsTableHeaders";
 import { Formik, Field } from "formik";
 import SearchPatientFormValues from "../formModel/innitialValues/SearchPatientFormValues";
@@ -192,7 +191,7 @@ function SearchPatientForm(props) {
       "&nationalID=" +
       nationalIdSearchValue +
       "&labNumber=" +
-      values.labNumber +
+      encodeURIComponent(String(values.labNumber || "").trim()) +
       "&guid=" +
       values.guid +
       "&dateOfBirth=" +
@@ -424,19 +423,21 @@ function SearchPatientForm(props) {
                 <Column lg={8} md={4} sm={4}>
                   <Field name="labNumber">
                     {({ field }) => (
-                      <CustomLabNumberInput
+                      <TextInput
                         name={field.name}
                         placeholder={intl.formatMessage({
-                          id: "input.placeholder.prevLabNumber",
+                          id: "patient.search.cug.placeholder",
                         })}
                         labelText={intl.formatMessage({
-                          id: "order.label.number",
-                          defaultMessage: "Order Number",
+                          id: "patient.search.cug.label",
+                        })}
+                        helperText={intl.formatMessage({
+                          id: "patient.search.cug.helper",
                         })}
                         id={field.name}
                         value={values[field.name]}
-                        onChange={(e, rawValue) => {
-                          setFieldValue(field.name, rawValue);
+                        onChange={(e) => {
+                          setFieldValue(field.name, e.target.value);
                         }}
                       />
                     )}

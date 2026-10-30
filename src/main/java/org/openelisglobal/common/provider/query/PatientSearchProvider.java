@@ -19,7 +19,7 @@ import jakarta.servlet.ServletException;
 import jakarta.servlet.http.HttpServletRequest;
 import jakarta.servlet.http.HttpServletResponse;
 import java.io.IOException;
-import java.math.BigDecimal;
+import java.util.List;
 import org.apache.commons.validator.GenericValidator;
 import org.openelisglobal.common.action.IActionConstants;
 import org.openelisglobal.common.provider.query.workerObjects.PatientSearchLocalAndExternalWorker;
@@ -29,24 +29,15 @@ import org.openelisglobal.common.servlet.validation.AjaxServlet;
 import org.openelisglobal.common.util.ConfigurationProperties;
 import org.openelisglobal.common.util.ConfigurationProperties.Property;
 import org.openelisglobal.login.valueholder.UserSessionData;
-import org.openelisglobal.observationhistory.service.ObservationHistoryService;
-import org.openelisglobal.observationhistory.service.ObservationHistoryServiceImpl.ObservationType;
-import org.openelisglobal.orderadditionalfield.service.OrderAdditionalFieldService;
-import org.openelisglobal.patient.service.PatientService;
-import org.openelisglobal.patient.valueholder.Patient;
-import org.openelisglobal.person.service.PersonService;
-import org.openelisglobal.sample.service.SampleService;
-import org.openelisglobal.sample.valueholder.Sample;
-import org.openelisglobal.samplehuman.service.SampleHumanService;
+import org.openelisglobal.patient.service.PatientIdentifierSearchService;
 import org.openelisglobal.spring.util.SpringContext;
 
 public class PatientSearchProvider extends BaseQueryProvider {
 
     protected AjaxServlet ajaxServlet = null;
 
-    SampleService sampleService = SpringContext.getBean(SampleService.class);
-    SampleHumanService sampleHumanService = SpringContext.getBean(SampleHumanService.class);
-    OrderAdditionalFieldService orderAdditionalFieldService = SpringContext.getBean(OrderAdditionalFieldService.class);
+    PatientIdentifierSearchService patientIdentifierSearchService = SpringContext
+            .getBean(PatientIdentifierSearchService.class);
 
     @Override
     public void processRequest(HttpServletRequest request, HttpServletResponse response)
@@ -67,17 +58,16 @@ public class PatientSearchProvider extends BaseQueryProvider {
 
         String result = VALID;
         StringBuilder xml = new StringBuilder();
-        // If we have a lab number then the patient is in the system and we just
-        // have to get the patient and format the xml
+        // Prefix lookups also find patients who do not yet have an order.
         if (!GenericValidator.isBlankOrNull(labNumber)) {
-            Patient patient = getPatientForLabNumber(labNumber);
-            if (patient == null || GenericValidator.isBlankOrNull(patient.getId())) {
+            List<PatientSearchResults> patients = patientIdentifierSearchService
+                    .findByCugPrefixOrOrderNumber(labNumber);
+            if (patients.isEmpty()) {
                 result = IActionConstants.INVALID;
                 xml.append("No results were found for search.  Check spelling or remove some of the fields");
             } else {
-                PatientSearchResults searchResults = getSearchResultsForPatient(patient);
                 PatientSearchWorker localWorker = new PatientSearchLocalWorker();
-                localWorker.appendSearchResultRow(searchResults, xml);
+                patients.forEach(patient -> localWorker.appendSearchResultRow(patient, xml));
             }
         } else {
 
@@ -92,39 +82,6 @@ public class PatientSearchProvider extends BaseQueryProvider {
             }
         }
         ajaxServlet.sendData(xml.toString(), result, request, response);
-    }
-
-    private PatientSearchResults getSearchResultsForPatient(Patient patient) {
-        PatientService patientPatientService = SpringContext.getBean(PatientService.class);
-        PersonService personService = SpringContext.getBean(PersonService.class);
-        personService.getData(patient.getPerson());
-        return new PatientSearchResults(BigDecimal.valueOf(Long.parseLong(patient.getId())),
-                patientPatientService.getFirstName(patient), patientPatientService.getLastName(patient),
-                patientPatientService.getGender(patient), patientPatientService.getEnteredDOB(patient),
-                patientPatientService.getNationalId(patient), patient.getExternalId(),
-                patientPatientService.getSTNumber(patient), patientPatientService.getSubjectNumber(patient),
-                patientPatientService.getGUID(patient),
-                SpringContext.getBean(ObservationHistoryService.class).getMostRecentValueForPatient(
-                        ObservationType.REFERRERS_PATIENT_ID, patientPatientService.getPatientId(patient)));
-    }
-
-    private Patient getPatientForLabNumber(String labNumber) {
-
-        String searchValue = labNumber == null ? null : labNumber.trim();
-        Sample sample = orderAdditionalFieldService.findSampleIdBySearchableFieldValue(searchValue)
-                .map(sampleId -> sampleService.get(String.valueOf(sampleId))).orElse(null);
-        if (sample == null) {
-            sample = sampleService.getSampleByAccessionNumber(searchValue);
-            if (sample == null && searchValue != null && searchValue.contains("-")) {
-                sample = sampleService.getSampleByAccessionNumber(searchValue.substring(0, searchValue.indexOf('-')));
-            }
-        }
-
-        if (sample != null && !GenericValidator.isBlankOrNull(sample.getId())) {
-            return sampleHumanService.getPatientForSample(sample);
-        }
-
-        return new Patient();
     }
 
     private PatientSearchWorker getAppropriateWorker(HttpServletRequest request, boolean suppressExternalSearch) {

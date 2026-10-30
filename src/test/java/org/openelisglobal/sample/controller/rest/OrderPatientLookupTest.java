@@ -13,6 +13,7 @@ import org.openelisglobal.login.valueholder.UserSessionData;
 import org.openelisglobal.patient.controller.rest.PatientHistorySummaryRestController;
 import org.openelisglobal.patient.service.PatientAuthorizationService;
 import org.openelisglobal.patient.service.PatientHistorySummaryService;
+import org.openelisglobal.patient.service.PatientIdentifierSearchService;
 import org.openelisglobal.sample.service.OrderAuthorizationService;
 import org.openelisglobal.sample.service.OrderPatientContextServiceImpl;
 import org.openelisglobal.search.service.SearchResultsService;
@@ -28,6 +29,7 @@ public class OrderPatientLookupTest {
     private MockHttpServletRequest request;
     private PatientSearchResults withAnalysis;
     private PatientSearchResults newPatient;
+    private PatientIdentifierSearchService identifiers;
 
     @Before
     public void setup() {
@@ -35,6 +37,8 @@ public class OrderPatientLookupTest {
         patients = mock(PatientAuthorizationService.class);
         orders = mock(OrderAuthorizationService.class);
         search = mock(SearchResultsService.class);
+        identifiers = mock(PatientIdentifierSearchService.class);
+        ReflectionTestUtils.setField(controller, "patientIdentifierSearchService", identifiers);
         var context = new OrderPatientContextServiceImpl();
         ReflectionTestUtils.setField(context, "authorization", orders);
         ReflectionTestUtils.setField(context, "patientAuthorization", patients);
@@ -138,6 +142,75 @@ public class OrderPatientLookupTest {
         } catch (AccessDeniedException expected) {
         }
         verifyZeroInteractions(summaries);
+    }
+
+    @Test
+    public void prefixSearchRequiresLookupPermissionBeforeCallingTheService() {
+        when(patients.hasPermission("42", "read")).thenReturn(false);
+        when(orders.hasPermission("42", "create")).thenReturn(false);
+        assertThrows(AccessDeniedException.class,
+                () -> controller.getPatientResults(request, null, null, null, null, null, null,
+                        "5415", null, null, "true"));
+        verifyZeroInteractions(identifiers);
+    }
+
+    @Test
+    public void prefixAndOrderSearchKeepTheSameRestrictedCriterion() {
+        when(patients.getRestrictedSearchCriteria("42")).thenReturn(Set.of("lab-number"));
+        for (String value : List.of("5415", "LNG0000000000078")) {
+            assertThrows(AccessDeniedException.class,
+                    () -> controller.getPatientResults(request, null, null, null, null, null, null,
+                            value, null, null, "true"));
+        }
+        verifyZeroInteractions(identifiers);
+    }
+
+    @Test
+    public void emptyIdentifierSearchReturnsNoPatientsInsteadOfBroadeningTheSearch() throws Exception {
+        when(identifiers.findByCugPrefixOrOrderNumber("5415")).thenReturn(List.of());
+        assertTrue(controller.getPatientResults(request, null, null, null, null, null, null,
+                "5415", null, null, "true").getPatientSearchResults().isEmpty());
+        verify(identifiers).findByCugPrefixOrOrderNumber("5415");
+        verifyZeroInteractions(search);
+    }
+
+    @Test
+    public void prefixResultsUseTheNormalPagingAndMaskingInPatientAndOrderLookups() throws Exception {
+        Object previousFactory = ReflectionTestUtils.getField(org.openelisglobal.spring.util.SpringContext.class,
+                "factory");
+        var factory = mock(org.springframework.beans.factory.config.AutowireCapableBeanFactory.class);
+        var paging = mock(org.openelisglobal.common.paging.PagingProperties.class);
+        when(paging.getPatientsPageSize()).thenReturn(100);
+        when(factory.getBean(org.openelisglobal.common.paging.PagingProperties.class)).thenReturn(paging);
+        ReflectionTestUtils.setField(org.openelisglobal.spring.util.SpringContext.class, "factory", factory);
+        Object previousMessages = ReflectionTestUtils
+                .getField(org.openelisglobal.internationalization.MessageUtil.class, "instance");
+        var messages = new org.springframework.context.support.StaticMessageSource();
+        messages.addMessage("patient.local.source", org.springframework.context.i18n.LocaleContextHolder.getLocale(),
+                "Local");
+        org.openelisglobal.internationalization.MessageUtil.setMessageSource(messages);
+        try {
+            request.setParameter("crSearch", "true");
+            when(patients.getRestrictedSearchCriteria("42")).thenReturn(Set.of("national-id"));
+            when(identifiers.findByCugPrefixOrOrderNumber("5415")).thenReturn(List.of(newPatient));
+            for (boolean orderEntry : List.of(false, true)) {
+                request.setParameter("forOrderEntry", Boolean.toString(orderEntry));
+                newPatient.setNationalId("PRIVATE");
+                var form = controller.getPatientResults(request, null, null, null, null, null, null, "5415", null, null,
+                        "true");
+                assertEquals(List.of(newPatient), form.getPatientSearchResults());
+                assertNull(form.getPatientSearchResults().get(0).getNationalId());
+                assertEquals("Local", form.getPatientSearchResults().get(0).getDataSourceName());
+                assertNotNull(form.getPaging());
+            }
+            verify(identifiers, times(2)).findByCugPrefixOrOrderNumber("5415");
+            verifyZeroInteractions(search);
+        } finally {
+            ReflectionTestUtils.setField(org.openelisglobal.internationalization.MessageUtil.class, "instance",
+                    previousMessages);
+            ReflectionTestUtils.setField(org.openelisglobal.spring.util.SpringContext.class, "factory",
+                    previousFactory);
+        }
     }
 
     private List<PatientSearchResults> results() {

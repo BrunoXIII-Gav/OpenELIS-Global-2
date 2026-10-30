@@ -34,6 +34,7 @@ let searchResponse;
 let addNotification;
 let setNotificationVisible;
 let getSelectedPatient;
+let restrictedCriteria;
 
 beforeEach(() => {
   jest.clearAllMocks();
@@ -42,22 +43,28 @@ beforeEach(() => {
   addNotification = jest.fn();
   setNotificationVisible = jest.fn();
   getSelectedPatient = jest.fn();
+  restrictedCriteria = [];
   getFromOpenElisServer.mockImplementation((url, callback) => {
     if (url.startsWith("/rest/patient-search-results?"))
       callback(searchResponse);
     else if (url.startsWith("/rest/patient-details?"))
       callback(detailsResponse);
     else if (url === "/rest/patient-search/access")
-      callback({ restrictedCriteria: [] });
+      callback({ restrictedCriteria });
     else callback(undefined);
   });
 });
 
-const show = (props = {}) =>
+const show = (props = {}, configuration = {}) =>
   render(
     <IntlProvider locale="es" messages={messages}>
       <ConfigurationContext.Provider
-        value={{ configurationProperties: { UseExternalPatientInfo: "false" } }}
+        value={{
+          configurationProperties: {
+            UseExternalPatientInfo: "false",
+            ...configuration,
+          },
+        }}
       >
         <NotificationContext.Provider
           value={{
@@ -170,4 +177,45 @@ test("order creation uses the authorized order lookup for search, selection and 
   );
   expect(getSelectedPatient).toHaveBeenCalledWith(detailsResponse);
   expect(addNotification).not.toHaveBeenCalled();
+});
+
+test.each([undefined, "ALPHANUM", "NUMERIC"])(
+  "the shared CUG field submits an exact patient prefix without accession formatting (%p)",
+  async (AccessionFormat) => {
+    show({}, { AccessionFormat });
+    const input = screen.getByLabelText("CUG");
+    expect(input.placeholder).toBe(messages["patient.search.cug.placeholder"]);
+    expect(
+      screen.getByText(messages["patient.search.cug.helper"]),
+    ).toBeTruthy();
+    fireEvent.change(input, { target: { value: "5415" } });
+    await search();
+    const [url] = getFromOpenElisServer.mock.calls.find(([value]) =>
+      value.startsWith("/rest/patient-search-results?"),
+    );
+    expect(
+      new URL(url, "https://test.local").searchParams.get("labNumber"),
+    ).toBe("5415");
+    expect(screen.getByText("Ana")).toBeTruthy();
+  },
+);
+
+test("the same CUG field still submits an order number unchanged", async () => {
+  show({ forOrderEntry: true }, { AccessionFormat: "ALPHANUM" });
+  fireEvent.change(screen.getByLabelText("CUG"), {
+    target: { value: " LNG0000000000078 " },
+  });
+  await search();
+  const [url] = getFromOpenElisServer.mock.calls.find(([value]) =>
+    value.startsWith("/rest/patient-search-results?"),
+  );
+  const params = new URL(url, "https://test.local").searchParams;
+  expect(params.get("labNumber")).toBe("LNG0000000000078");
+  expect(params.get("forOrderEntry")).toBe("true");
+});
+
+test("the renamed CUG field keeps the existing search-criterion restriction", () => {
+  restrictedCriteria = ["lab-number"];
+  show();
+  expect(screen.queryByLabelText("CUG")).toBeNull();
 });

@@ -2,6 +2,7 @@ package org.openelisglobal.sample.daoimpl;
 
 import jakarta.persistence.LockModeType;
 import java.sql.Timestamp;
+import java.util.List;
 import org.openelisglobal.common.daoimpl.BaseDAOImpl;
 import org.openelisglobal.sample.dao.SampleCugPrefixDAO;
 import org.openelisglobal.sample.valueholder.PatientCugPrefix;
@@ -48,6 +49,13 @@ public class SampleCugPrefixDAOImpl extends BaseDAOImpl<SampleCugCounter, String
                 .createQuery("select p.prefix from PatientCugPrefix p where p.patientId = :patientId", Long.class)
                 .setParameter("patientId", Integer.valueOf(patientId)).getResultList();
         return rows.isEmpty() ? null : rows.get(0);
+    }
+
+    @Override
+    public List<Integer> findPatientIdsByPrefix(long prefix) {
+        return entityManager.createQuery(
+                "select distinct p.patientId from PatientCugPrefix p where p.prefix = :prefix order by p.patientId",
+                Integer.class).setParameter("prefix", prefix).getResultList();
     }
 
     @Override
