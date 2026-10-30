@@ -94,6 +94,7 @@ const Index = () => {
   }, [orderFormValues.patientProperties?.patientPK]);
   const [errors, setErrors] = useState([]);
   const [isSubmitting, setIsSubmitting] = useState(false);
+  const submissionInFlight = useRef(false);
   const [assignedCugs, setAssignedCugs] = useState([]);
   const patientSaved = Boolean(orderFormValues.patientProperties?.patientPK);
   const [hasOrderPermission, setHasOrderPermission] = useState(false);
@@ -686,67 +687,72 @@ const Index = () => {
   };
 
   const handlePost = async (response) => {
-    setIsSubmitting(false);
-    if (response.status === 200) {
-      const saved = await response.json();
-      setAssignedLabNo(
-        saved.sampleOrderItems?.labNo || orderFormValues.sampleOrderItems.labNo,
-      );
-      const cugs = saved.assignedCugs || [];
-      setAssignedCugs(cugs);
-      setSamples((previous) =>
-        previous.map((sample, index) => ({
-          ...sample,
-          sampleXML: {
-            ...sample.sampleXML,
-            cug: cugs[index] || sample.sampleXML?.cug || "",
-            cugProvisional: false,
-          },
-        })),
-      );
-      showAlertMessage(
-        <FormattedMessage id="save.order.success.msg" />,
-        NotificationKinds.success,
-      );
-      setPage(page + 1);
-    } else {
-      if (response.status === 413) {
-        showAlertMessage(
-          intl.formatMessage({ id: "server.error.requestTooLarge" }),
-          NotificationKinds.error,
+    try {
+      if (response.status === 200) {
+        const saved = await response.json();
+        setAssignedLabNo(
+          saved.sampleOrderItems?.labNo ||
+            orderFormValues.sampleOrderItems.labNo,
         );
-        return;
-      }
-
-      const errorCode = response.headers.get("X-OpenELIS-Error-Code");
-      if (
-        errorCode === "sample.cug.conflict" ||
-        errorCode === "sample.cug.patient.prefix.mismatch" ||
-        errorCode?.startsWith("order.labnumber.")
-      ) {
-        showAlertMessage(
-          intl.formatMessage({ id: errorCode }),
-          NotificationKinds.error,
+        const cugs = saved.assignedCugs || [];
+        setAssignedCugs(cugs);
+        setSamples((previous) =>
+          previous.map((sample, index) => ({
+            ...sample,
+            sampleXML: {
+              ...sample.sampleXML,
+              cug: cugs[index] || sample.sampleXML?.cug || "",
+              cugProvisional: false,
+            },
+          })),
         );
-        return;
-      }
-      let detailedMessage =
-        response.headers.get("X-OpenELIS-Error-Message") || "";
-      if (!detailedMessage) {
-        try {
-          detailedMessage = await response.text();
-        } catch (e) {
-          detailedMessage = "";
+        showAlertMessage(
+          <FormattedMessage id="save.order.success.msg" />,
+          NotificationKinds.success,
+        );
+        setPage(page + 1);
+      } else {
+        if (response.status === 413) {
+          showAlertMessage(
+            intl.formatMessage({ id: "server.error.requestTooLarge" }),
+            NotificationKinds.error,
+          );
+          return;
         }
+
+        const errorCode = response.headers.get("X-OpenELIS-Error-Code");
+        if (
+          errorCode === "sample.cug.conflict" ||
+          errorCode === "sample.cug.patient.prefix.mismatch" ||
+          errorCode?.startsWith("order.labnumber.")
+        ) {
+          showAlertMessage(
+            intl.formatMessage({ id: errorCode }),
+            NotificationKinds.error,
+          );
+          return;
+        }
+        let detailedMessage =
+          response.headers.get("X-OpenELIS-Error-Message") || "";
+        if (!detailedMessage) {
+          try {
+            detailedMessage = await response.text();
+          } catch (e) {
+            detailedMessage = "";
+          }
+        }
+        detailedMessage = sanitizeServerMessage(detailedMessage);
+        detailedMessage = formatOrderSubmissionError(detailedMessage);
+        const genericMessage = intl.formatMessage({ id: "server.error.msg" });
+        const fallbackWithStatus = `${genericMessage} (HTTP ${response.status})`;
+        showAlertMessage(
+          detailedMessage || fallbackWithStatus,
+          NotificationKinds.error,
+        );
       }
-      detailedMessage = sanitizeServerMessage(detailedMessage);
-      detailedMessage = formatOrderSubmissionError(detailedMessage);
-      const genericMessage = intl.formatMessage({ id: "server.error.msg" });
-      const fallbackWithStatus = `${genericMessage} (HTTP ${response.status})`;
-      showAlertMessage(
-        detailedMessage || fallbackWithStatus,
-        NotificationKinds.error,
-      );
+    } finally {
+      submissionInFlight.current = false;
+      setIsSubmitting(false);
     }
   };
   const elementError = (path) => {
@@ -763,7 +769,7 @@ const Index = () => {
   const handleSubmitOrderForm = (e) => {
     e.preventDefault();
     // Prevent multiple submissions.
-    if (isSubmitting) {
+    if (submissionInFlight.current) {
       return;
     }
     const invalidCugSample = (samples || []).find(
@@ -788,6 +794,7 @@ const Index = () => {
       );
       return;
     }
+    submissionInFlight.current = true;
     setIsSubmitting(true);
     const attachedSamplePayload = buildAttachedSamplesPayload();
     const payload = JSON.parse(
@@ -797,6 +804,8 @@ const Index = () => {
       }),
     );
     payload.patientProperties = payload.patientProperties || {};
+    payload.sampleOrderItems.labNo = "";
+    payload.sampleOrderItems.labNoGenerated = true;
     payload.patientProperties.patientUpdateStatus =
       payload.patientProperties.patientUpdateStatus ||
       payload.patientUpdateStatus ||
@@ -839,7 +848,10 @@ const Index = () => {
 
   useEffect(() => {
     console.log(changed);
-    OrderEntryValidationSchema.validate(orderFormValues, { abortEarly: false })
+    OrderEntryValidationSchema.validate(orderFormValues, {
+      abortEarly: false,
+      context: { automaticLabNumber: true },
+    })
       .then((validData) => {
         setErrors([]);
         console.debug("Valid Data:", validData);

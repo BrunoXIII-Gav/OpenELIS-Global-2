@@ -2523,74 +2523,76 @@ const AddOrder = (props) => {
               </Column>
             )}
 
-            <Column lg={8} md={4} sm={4}>
-              <div>
-                <CustomLabNumberInput
-                  name="labNo"
-                  placeholder={intl.formatMessage({
-                    id: "input.placeholder.orderNo",
-                    defaultMessage: "Enter Order Number",
-                  })}
-                  value={
-                    isModifyOrder
-                      ? orderFormValues.newAccessionNumber
-                      : orderFormValues.sampleOrderItems.labNo
-                  }
-                  //onMouseLeave={handleLabNoValidation}
-                  onClick={() => handleChange("sampleOrderItems.labNo")}
-                  onChange={handleLabNo}
-                  onKeyPress={handleKeyPress}
-                  disabled={isOrderReadOnly}
-                  readOnly={isOrderReadOnly}
-                  labelText={
-                    <>
-                      <FormattedMessage
-                        id="order.label.number"
-                        defaultMessage="Order Number"
-                      />{" "}
-                      <span className="requiredlabel">*</span>
-                    </>
-                  }
-                  id="labNo"
-                  invalid={
-                    changed["sampleOrderItems.labNo"] &&
-                    error("sampleOrderItems.labNo")
-                      ? true
-                      : false
-                  }
-                  invalidText={error("sampleOrderItems.labNo")}
-                  helperText={
-                    !isModifyOrder &&
-                    orderFormValues.sampleOrderItems.labNoGenerated
-                      ? intl.formatMessage({
-                          id: "order.labnumber.provisional",
-                        })
-                      : undefined
-                  }
-                />
+            {isModifyOrder && (
+              <Column lg={8} md={4} sm={4}>
                 <div>
-                  <FormattedMessage id="label.order.scan.text" />{" "}
-                  {isOrderReadOnly ? (
-                    <span
-                      style={{
-                        color: "var(--cds-text-disabled, #c6c6c6)",
-                        cursor: "not-allowed",
-                      }}
-                    >
-                      <FormattedMessage id="sample.label.labnumber.generate" />
-                    </span>
-                  ) : (
-                    <Link
-                      data-cy="generate-labNumber"
-                      href="#"
-                      onClick={(e) => handleLabNoGeneration(e)}
-                    >
-                      <FormattedMessage id="sample.label.labnumber.generate" />
-                    </Link>
-                  )}
+                  <CustomLabNumberInput
+                    name="labNo"
+                    placeholder={intl.formatMessage({
+                      id: "input.placeholder.orderNo",
+                      defaultMessage: "Enter Order Number",
+                    })}
+                    value={
+                      isModifyOrder
+                        ? orderFormValues.newAccessionNumber
+                        : orderFormValues.sampleOrderItems.labNo
+                    }
+                    //onMouseLeave={handleLabNoValidation}
+                    onClick={() => handleChange("sampleOrderItems.labNo")}
+                    onChange={handleLabNo}
+                    onKeyPress={handleKeyPress}
+                    disabled={isOrderReadOnly}
+                    readOnly={isOrderReadOnly}
+                    labelText={
+                      <>
+                        <FormattedMessage
+                          id="order.label.number"
+                          defaultMessage="Order Number"
+                        />{" "}
+                        <span className="requiredlabel">*</span>
+                      </>
+                    }
+                    id="labNo"
+                    invalid={
+                      changed["sampleOrderItems.labNo"] &&
+                      error("sampleOrderItems.labNo")
+                        ? true
+                        : false
+                    }
+                    invalidText={error("sampleOrderItems.labNo")}
+                    helperText={
+                      !isModifyOrder &&
+                      orderFormValues.sampleOrderItems.labNoGenerated
+                        ? intl.formatMessage({
+                            id: "order.labnumber.provisional",
+                          })
+                        : undefined
+                    }
+                  />
+                  <div>
+                    <FormattedMessage id="label.order.scan.text" />{" "}
+                    {isOrderReadOnly ? (
+                      <span
+                        style={{
+                          color: "var(--cds-text-disabled, #c6c6c6)",
+                          cursor: "not-allowed",
+                        }}
+                      >
+                        <FormattedMessage id="sample.label.labnumber.generate" />
+                      </span>
+                    ) : (
+                      <Link
+                        data-cy="generate-labNumber"
+                        href="#"
+                        onClick={(e) => handleLabNoGeneration(e)}
+                      >
+                        <FormattedMessage id="sample.label.labnumber.generate" />
+                      </Link>
+                    )}
+                  </div>
                 </div>
-              </div>
-            </Column>
+              </Column>
+            )}
             {getOrderedOrderFieldDescriptors().map((descriptor) =>
               renderOrderedOrderField(descriptor),
             )}

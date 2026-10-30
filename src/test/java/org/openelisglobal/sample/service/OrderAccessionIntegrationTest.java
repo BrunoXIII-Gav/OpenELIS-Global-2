@@ -92,7 +92,7 @@ public class OrderAccessionIntegrationTest {
                         saves.add(pool.submit(() -> {
                             gate.await();
                             return tx.execute(status -> {
-                                String assigned = numbers.confirm("LAB0000000000006", true);
+                                String assigned = numbers.generate(null);
                                 em.createNativeQuery(
                                         "insert into clinlims.sample(id,accession_number) values (:id,:number)")
                                         .setParameter("id", id).setParameter("number", assigned).executeUpdate();
@@ -107,7 +107,7 @@ public class OrderAccessionIntegrationTest {
                 }
                 try {
                     tx.execute(status -> {
-                        assertEquals("LAB0000000000008", numbers.confirm("LAB0000000000006", true));
+                        assertEquals("LAB0000000000008", numbers.generate(null));
                         em.createNativeQuery(
                                 "insert into clinlims.sample(id,accession_number) values (102,'LAB0000000000008')")
                                 .executeUpdate();

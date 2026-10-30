@@ -334,7 +334,7 @@ public class SamplePatientEntryRestController extends BaseSampleEntryController 
         if (Boolean.valueOf(ConfigurationProperties.getInstance().getPropertyValue(Property.CONTACT_TRACING))) {
             setContactTracingInfo(updateData, sampleOrder);
         }
-        updateData.validateSample(result, true);
+        updateData.validateSample(result, true, GenericValidator.isBlankOrNull(sampleOrder.getLabNo()));
         if (result.hasErrors()) {
             saveErrors(result);
             setupForm(form, request, "");

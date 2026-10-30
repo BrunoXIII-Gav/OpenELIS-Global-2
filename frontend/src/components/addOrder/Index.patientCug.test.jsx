@@ -1,5 +1,5 @@
 import React from "react";
-import { fireEvent, render, wait } from "@testing-library/react";
+import { act, fireEvent, render, wait } from "@testing-library/react";
 import { IntlProvider } from "react-intl";
 import Index from "./Index";
 import { ConfigurationContext, NotificationContext } from "../layout/Layout";
@@ -128,8 +128,41 @@ test("requires saving patient, submits the displayed CUG and displays that same 
     expect.stringContaining("labNo=LAB0000000000002"),
   );
   const payload = JSON.parse(postToOpenElisServerFullResponse.mock.calls[0][1]);
+  expect(payload.sampleOrderItems.labNo).toBe("");
+  expect(payload.sampleOrderItems.labNoGenerated).toBe(true);
   expect(payload.patientProperties.patientPK).toBe("10");
   expect(payload.sampleXML).toContain("cug='5001.1' cugProvisional='true'");
+});
+
+test("blocks repeated clicks until the server response has been processed", async () => {
+  let resolveResponse;
+  postToOpenElisServerFullResponse.mockImplementation(
+    (url, payload, callback) => {
+      resolveResponse = callback;
+    },
+  );
+  const view = renderOrder();
+  fireEvent.click(view.getByText("Save test patient"));
+  fireEvent.click(view.getByText(messages["next.action.button"]));
+  fireEvent.click(view.getByText("Select sample"));
+  fireEvent.click(view.getByText(messages["next.action.button"]));
+  const submit = view
+    .getByText(messages["label.button.submit"])
+    .closest("button");
+  await wait(() => expect(submit.disabled).toBe(false));
+  fireEvent.click(submit);
+  fireEvent.click(submit);
+  expect(submit.disabled).toBe(true);
+  expect(postToOpenElisServerFullResponse).toHaveBeenCalledTimes(1);
+  await act(async () =>
+    resolveResponse({
+      status: 409,
+      headers: new Headers({ "X-OpenELIS-Error-Code": "sample.cug.conflict" }),
+    }),
+  );
+  await wait(() => expect(submit.disabled).toBe(false));
+  fireEvent.click(submit);
+  expect(postToOpenElisServerFullResponse).toHaveBeenCalledTimes(2);
 });
 
 test("a manual laboratory number conflict preserves the form and shows its translated message", async () => {

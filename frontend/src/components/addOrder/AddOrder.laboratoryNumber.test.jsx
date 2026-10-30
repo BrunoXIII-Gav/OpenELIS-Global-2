@@ -1,5 +1,5 @@
 import React, { useState } from "react";
-import { render, fireEvent, wait } from "@testing-library/react";
+import { render, fireEvent } from "@testing-library/react";
 import { IntlProvider } from "react-intl";
 import AddOrder from "./AddOrder";
 import { ConfigurationContext, NotificationContext } from "../layout/Layout";
@@ -64,29 +64,19 @@ beforeEach(() => {
   });
 });
 
-test("Generate proposes a number without allocation; manual editing switches off automatic replacement", async () => {
+test("new orders hide the laboratory number and Generate without requesting a proposal", () => {
   const view = renderOrder();
-  fireEvent.click(view.getByText(messages["sample.label.labnumber.generate"]));
-  await wait(() => expect(view.getByTestId("mode").textContent).toBe("true"));
-  expect(getFromOpenElisServer).toHaveBeenCalledWith(
-    "/rest/orders/laboratory-number/suggest",
-    expect.any(Function),
-  );
+  expect(view.container.querySelector("#labNo")).toBeNull();
+  expect(
+    view.queryByText(messages["sample.label.labnumber.generate"]),
+  ).toBeNull();
   expect(
     getFromOpenElisServer.mock.calls.some(
-      ([url]) => url === "/rest/SampleEntryGenerateScanProvider",
+      ([url]) =>
+        url === "/rest/SampleEntryGenerateScanProvider" ||
+        url === "/rest/orders/laboratory-number/suggest",
     ),
   ).toBe(false);
-  const field = view.container.querySelector("#labNo");
-  expect(field.value).toBe("LAB0000000000001");
-  fireEvent.change(field, { target: { value: "LAB0000000000025" } });
-  expect(view.getByTestId("mode").textContent).toBe("false");
-  expect(field.value).toBe("LAB0000000000025");
-  expect(
-    getFromOpenElisServer.mock.calls.some(([url]) =>
-      url.includes("ignoreUsage=true"),
-    ),
-  ).toBe(true);
 });
 
 test("the existing modify-order generation path remains available", () => {

@@ -1,0 +1,18 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<dataset>
+    <patient id="21" />
+    <patient id="22" />
+    <patient id="23" />
+    <sample_cug_prefix id="5415" prefix="5415"
+        sys_user_id="42" />
+    <sample_cug_prefix id="5416" prefix="5416"
+        sys_user_id="42" />
+    <sample_cug_prefix id="54150" prefix="54150"
+        sys_user_id="42" />
+    <patient_cug_prefix id="21" patient_id="21"
+        prefix="5415" sys_user_id="42" />
+    <patient_cug_prefix id="22" patient_id="22"
+        prefix="5416" sys_user_id="42" />
+    <patient_cug_prefix id="23" patient_id="23"
+        prefix="54150" sys_user_id="42" />
+</dataset>

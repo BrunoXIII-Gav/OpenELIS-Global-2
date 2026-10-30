@@ -22,6 +22,7 @@ import org.hl7.fhir.r4.model.Coding;
 import org.hl7.fhir.r4.model.ServiceRequest;
 import org.openelisglobal.analysis.service.AnalysisService;
 import org.openelisglobal.analysis.valueholder.Analysis;
+import org.openelisglobal.common.log.LogEvent;
 import org.openelisglobal.common.rest.provider.bean.homedashboard.AverageTimeDisplayBean;
 import org.openelisglobal.common.rest.provider.bean.homedashboard.DashBoardMetrics;
 import org.openelisglobal.common.rest.provider.bean.homedashboard.DashBoardTile;
@@ -31,37 +32,37 @@ import org.openelisglobal.common.rest.util.PatientDashBoardPaging;
 import org.openelisglobal.common.services.IStatusService;
 import org.openelisglobal.common.services.StatusService.AnalysisStatus;
 import org.openelisglobal.common.services.StatusService.ExternalOrderStatus;
-import org.openelisglobal.common.log.LogEvent;
+import org.openelisglobal.common.util.DateUtil;
 import org.openelisglobal.dataexchange.fhir.FhirConfig;
 import org.openelisglobal.dataexchange.fhir.FhirUtil;
 import org.openelisglobal.dataexchange.order.valueholder.ElectronicOrder;
 import org.openelisglobal.dataexchange.service.order.ElectronicOrderService;
+import org.openelisglobal.observationhistory.service.ObservationHistoryService;
+import org.openelisglobal.observationhistory.service.ObservationHistoryServiceImpl.ObservationType;
+import org.openelisglobal.orderadditionalfield.service.AlternateOrderFlowService;
+import org.openelisglobal.patient.util.PatientUtil;
+import org.openelisglobal.patientidentity.valueholder.PatientIdentity;
+import org.openelisglobal.patientidentitytype.util.PatientIdentityTypeMap;
+import org.openelisglobal.sample.bean.SampleTypeAdditionalFieldPayload;
+import org.openelisglobal.sample.service.OrderDashboardCugService;
 import org.openelisglobal.sample.service.SampleService;
 import org.openelisglobal.sample.service.SampleTypeAdditionalFieldService;
-import org.openelisglobal.sample.bean.SampleTypeAdditionalFieldPayload;
 import org.openelisglobal.sample.valueholder.Sample;
 import org.openelisglobal.samplehuman.service.SampleHumanService;
 import org.openelisglobal.sampleitem.valueholder.SampleItem;
 import org.openelisglobal.siteinformation.service.SiteInformationService;
-import org.springframework.web.bind.annotation.GetMapping;
-import org.springframework.web.bind.annotation.ResponseBody;
-import org.springframework.http.MediaType;
 import org.openelisglobal.systemuser.service.SystemUserService;
 import org.openelisglobal.systemuser.valueholder.SystemUser;
 import org.openelisglobal.test.service.TestService;
 import org.openelisglobal.test.valueholder.Test;
-import org.openelisglobal.patient.util.PatientUtil;
-import org.openelisglobal.patientidentity.valueholder.PatientIdentity;
-import org.openelisglobal.patientidentitytype.util.PatientIdentityTypeMap;
-import org.openelisglobal.observationhistory.service.ObservationHistoryService;
-import org.openelisglobal.observationhistory.service.ObservationHistoryServiceImpl.ObservationType;
-import org.openelisglobal.common.util.DateUtil;
-import org.openelisglobal.orderadditionalfield.service.AlternateOrderFlowService;
 import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.http.MediaType;
 import org.springframework.stereotype.Controller;
+import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RequestParam;
+import org.springframework.web.bind.annotation.ResponseBody;
 
 @Controller
 @RequestMapping(value = "/rest/")
@@ -86,6 +87,9 @@ public class PatientDashBoardProvider {
 
     @Autowired
     private SampleService sampleService;
+
+    @Autowired
+    private OrderDashboardCugService orderDashboardCugService;
 
     @Autowired
     private SampleTypeAdditionalFieldService sampleTypeAdditionalFieldService;
@@ -162,7 +166,8 @@ public class PatientDashBoardProvider {
         }
         String requestDate = observationHistoryService.getValueForSample(ObservationType.REQUEST_DATE, sample.getId());
         if (StringUtils.isNotBlank(requestDate)) {
-            String requestTime = observationHistoryService.getValueForSample(ObservationType.REQUEST_TIME, sample.getId());
+            String requestTime = observationHistoryService.getValueForSample(ObservationType.REQUEST_TIME,
+                    sample.getId());
             try {
                 String requestDateTime = StringUtils.isNotBlank(requestTime) ? requestDate + " " + requestTime
                         : requestDate + " 00:00";
@@ -250,7 +255,8 @@ public class PatientDashBoardProvider {
             if (!Boolean.TRUE.equals(fieldDefinition.getRequired())) {
                 continue;
             }
-            String value = additionalFieldValues == null ? null : additionalFieldValues.get(fieldDefinition.getFieldKey());
+            String value = additionalFieldValues == null ? null
+                    : additionalFieldValues.get(fieldDefinition.getFieldKey());
             if (StringUtils.isBlank(value)) {
                 return false;
             }
@@ -513,7 +519,8 @@ public class PatientDashBoardProvider {
                                 analysis.getSampleItem() != null ? analysis.getSampleItem().getCugCode() : "");
 
                         try {
-                            orderBean.setPatientId(getDisplayPatientIdentifier(sampleHumanService.getPatientForSample(sample)));
+                            orderBean.setPatientId(
+                                    getDisplayPatientIdentifier(sampleHumanService.getPatientForSample(sample)));
                         } catch (Exception e) {
                             orderBean.setPatientId("");
                         }
@@ -525,9 +532,9 @@ public class PatientDashBoardProvider {
                     }
 
                     orderBean.setOrderDate(resolveOrderCreatedDateTime(sample));
-                    orderBean.setWaitingStartDate(readyForValidationWaitingTime
-                            ? resolveReadyForValidationWaitingStart(analysis)
-                            : resolveAwaitingResultsWaitingStart(analysis));
+                    orderBean.setWaitingStartDate(
+                            readyForValidationWaitingTime ? resolveReadyForValidationWaitingStart(analysis)
+                                    : resolveAwaitingResultsWaitingStart(analysis));
                     if (readyForValidationWaitingTime && sample != null) {
                         orderBean.setOrderCreatedStartDate(resolveOrderCreatedDateTime(sample));
                     }
@@ -572,7 +579,7 @@ public class PatientDashBoardProvider {
                 orderBean.setCugCode(
                         analysis.getSampleItem().getCugCode() != null ? analysis.getSampleItem().getCugCode() : "");
                 orderBean.setPatientId(getDisplayPatientIdentifier(sampleHumanService.getPatientForSample(sample)));
-        
+
                 orderBean.setOrderDate(resolveOrderCreatedDateTime(sample));
                 orderBean.setWaitingStartDate(resolveReadyForValidationWaitingStart(analysis));
 
@@ -617,12 +624,10 @@ public class PatientDashBoardProvider {
                 userOrderBean.setId(userId);
                 userOrderBean.setUserFirstName(user.getFirstName());
                 userOrderBean.setUserLastName(user.getLastName());
-                
-                long uniqueOrdersCount = analysisList.stream()
-                        .map(a -> a.getSampleItem().getSample().getId())
-                        .distinct()
-                        .count();
-                
+
+                long uniqueOrdersCount = analysisList.stream().map(a -> a.getSampleItem().getSample().getId())
+                        .distinct().count();
+
                 userOrderBean.setCountOfOrdersEntered((int) uniqueOrdersCount);
                 userOrders.add(userOrderBean);
             }
@@ -699,7 +704,8 @@ public class PatientDashBoardProvider {
 
         if (analyses != null) {
             analyses.forEach(analysis -> {
-                if (analysis != null && analysis.getSampleItem() != null && analysis.getSampleItem().getSample() != null) {
+                if (analysis != null && analysis.getSampleItem() != null
+                        && analysis.getSampleItem().getSample() != null) {
                     SampleItem sampleItem = analysis.getSampleItem();
                     if (processedSampleItems.contains(sampleItem.getId())) {
                         return;
@@ -713,12 +719,13 @@ public class PatientDashBoardProvider {
                     orderBean.setLabNumber(sample.getAccessionNumber() != null ? sample.getAccessionNumber() : "");
                     orderBean.setCugCode(sampleItem.getCugCode() != null ? sampleItem.getCugCode() : "");
                     orderBean.setPatientId(getDisplayPatientIdentifier(sampleHumanService.getPatientForSample(sample)));
-                    
+
                     orderBean.setOrderDate(resolveOrderCreatedDateTime(sample));
                     orderBean.setWaitingStartDate(resolveOrderCreatedDateTime(sample));
 
                     orderBean.setTestName("");
-                    orderBean.setTestSection(analysis.getTestSection() != null ? analysis.getTestSection().getId() : "");
+                    orderBean
+                            .setTestSection(analysis.getTestSection() != null ? analysis.getTestSection().getId() : "");
                     orderBeanList.add(orderBean);
                 }
             });
@@ -758,10 +765,10 @@ public class PatientDashBoardProvider {
 
         java.sql.Date sqlEndDate;
         if (endDate != null && !endDate.isEmpty()) {
-            
+
             sqlEndDate = java.sql.Date.valueOf(LocalDate.parse(endDate).plusDays(1));
         } else {
-            
+
             sqlEndDate = java.sql.Date.valueOf(LocalDate.now().plusDays(1));
         }
 
@@ -789,8 +796,8 @@ public class PatientDashBoardProvider {
                     String nsId = iStatusService.getStatusID(AnalysisStatus.NotStarted);
                     long incompleteSamples = standardFlowAnalysesInRange.stream()
                             .filter(a -> a.getStatusId().equals(nsId) && a.getSampleItem() != null).filter(a -> {
-                                return !isSampleItemCompleteForDashboard(a.getSampleItem(), additionalFieldsBySampleType,
-                                        additionalFieldValuesBySampleItem);
+                                return !isSampleItemCompleteForDashboard(a.getSampleItem(),
+                                        additionalFieldsBySampleType, additionalFieldValuesBySampleItem);
                             }).map(a -> a.getSampleItem().getId()).distinct().count();
 
                     metrics.setAwaitingSample((int) incompleteSamples);
@@ -871,7 +878,8 @@ public class PatientDashBoardProvider {
                 case AVERAGE_TURN_AROUND_TIME:
                     java.sql.Date allTimeStart = java.sql.Date.valueOf("2000-01-01");
                     java.sql.Date allTimeEnd = new java.sql.Date(System.currentTimeMillis());
-                    metrics.setAverageTurnAroudTime(calculateAverageReceptionToValidationTime(allTimeStart, allTimeEnd));
+                    metrics.setAverageTurnAroudTime(
+                            calculateAverageReceptionToValidationTime(allTimeStart, allTimeEnd));
                     break;
                 case DELAYED_TURN_AROUND:
                     long delayedOrders = analysesWithDelayedTurnAroundTime(sqlStartDate, sqlEndDate).stream()
@@ -912,14 +920,22 @@ public class PatientDashBoardProvider {
 
         String requestedPage = request.getParameter("page");
         if (GenericValidator.isBlankOrNull(requestedPage)) {
-            
+
             orderDisplayBeans = retreiveOrders(listType, systemUserId, startDate, endDate, testType);
+
+            switch (listType) {
+            case AWAITING_SAMPLE, AWAITING_RESULTS, ORDERS_READY_FOR_VALIDATION, ORDERS_ENTERED_BY_USER_TODAY:
+                // These rows identify an individual sample/test, or summarize users.
+                break;
+            default:
+                orderDashboardCugService.populateOrderCugs(orderDisplayBeans);
+            }
 
             if (orderDisplayBeans != null) {
                 orderDisplayBeans.sort((bean1, bean2) -> {
                     String date1 = bean1.getOrderDate() != null ? bean1.getOrderDate() : "";
                     String date2 = bean2.getOrderDate() != null ? bean2.getOrderDate() : "";
-                    
+
                     return date2.compareTo(date1);
                 });
             }
@@ -944,10 +960,10 @@ public class PatientDashBoardProvider {
 
         java.sql.Date sqlEndDate;
         if (endDate != null && !endDate.isEmpty()) {
-            
+
             sqlEndDate = java.sql.Date.valueOf(LocalDate.parse(endDate).plusDays(1));
         } else {
-            
+
             sqlEndDate = java.sql.Date.valueOf(LocalDate.now().plusDays(1));
         }
 
@@ -1139,13 +1155,10 @@ public class PatientDashBoardProvider {
     @ResponseBody
     public Map<String, Boolean> getDashboardVisibilityConfig() {
         Map<String, Boolean> visibilityMap = new HashMap<>();
-        String[][] configMapping = {
-            {"dash_show_partial_comp", "ORDERS_PATIALLY_COMPLETED_TODAY"},
-            {"dash_show_user_orders", "ORDERS_ENTERED_BY_USER_TODAY"},
-            {"dash_show_rejected", "ORDERS_REJECTED_TODAY"},
-            {"dash_show_unprinted", "UN_PRINTED_RESULTS"},
-            {"dash_show_incoming", "INCOMING_ORDERS"}
-        };
+        String[][] configMapping = { { "dash_show_partial_comp", "ORDERS_PATIALLY_COMPLETED_TODAY" },
+                { "dash_show_user_orders", "ORDERS_ENTERED_BY_USER_TODAY" },
+                { "dash_show_rejected", "ORDERS_REJECTED_TODAY" }, { "dash_show_unprinted", "UN_PRINTED_RESULTS" },
+                { "dash_show_incoming", "INCOMING_ORDERS" } };
         for (String[] mapping : configMapping) {
             try {
                 String dbValue = siteInformationService.getSiteInformationByName(mapping[0]).getValue();

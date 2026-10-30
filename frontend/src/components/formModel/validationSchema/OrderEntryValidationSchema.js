@@ -184,7 +184,13 @@ const OrderEntryValidationSchema = Yup.object().shape({
   patientProperties: CreatePatientValidationSchema(),
   sampleOrderItems: Yup.object()
     .shape({
-      labNo: Yup.string().required("El número de laboratorio es obligatorio"),
+      labNo: Yup.string().when("$automaticLabNumber", {
+        is: true,
+        then: Yup.string(),
+        otherwise: Yup.string().required(
+          "El número de laboratorio es obligatorio",
+        ),
+      }),
       referringSiteName: Yup.string(),
       referringSiteId: Yup.string(),
       providerId: Yup.string(),
