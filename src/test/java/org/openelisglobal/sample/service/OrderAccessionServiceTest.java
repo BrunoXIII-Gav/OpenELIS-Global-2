@@ -54,6 +54,39 @@ public class OrderAccessionServiceTest {
     }
 
     @Test
+    public void automaticGenerationAssignsAndValidatesWithoutABrowserProposal() {
+        assertEquals("LAB0000000000001", service.generate(null));
+        verify(dao).lockSubmission();
+        verify(validator).validFormat("LAB0000000000001", true);
+        verify(dao).saveCounter(any());
+    }
+
+    @Test
+    public void automaticGenerationRechecksReservationsUnderTheSubmissionLock() {
+        when(dao.counter(any(), eq(false))).thenReturn(counter(4));
+        var reserved = counter(9);
+        when(dao.counter(any(), eq(true))).thenReturn(reserved);
+        assertEquals("LAB0000000000010", service.generate(null));
+        assertEquals(Long.valueOf(10), reserved.getCurVal());
+    }
+
+    @Test
+    public void automaticGenerationSupportsProgramNumberConfiguration() {
+        properties.put(Property.AccessionFormat, "PROGRAMNUM");
+        assertEquals("TEST00001", service.generate("TEST"));
+        verify(dao).lockSubmission();
+    }
+
+    @Test
+    public void automaticGenerationRejectsAnInvalidConfiguredNumberBeforeAllocation() {
+        when(validator.validFormat(anyString(), anyBoolean())).thenReturn(ValidationResults.FORMAT_FAIL);
+        assertEquals("order.labnumber.invalid",
+                assertThrows(IllegalArgumentException.class, () -> service.generate(null)).getMessage());
+        verify(dao, never()).saveCounter(any());
+        verify(dao, never()).lockSubmission();
+    }
+
+    @Test
     public void previewContinuesFromBothSavedSamplesAndOlderReservations() {
         var counter = counter(4);
         when(dao.counter(any(), eq(false))).thenReturn(counter);

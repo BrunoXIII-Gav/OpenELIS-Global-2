@@ -273,18 +273,23 @@ public class SamplePatientUpdateData {
     }
 
     public void validateSample(Errors errors, boolean deferAccessionUsageCheck) {
+        validateSample(errors, deferAccessionUsageCheck, false);
+    }
+
+    public void validateSample(Errors errors, boolean deferAccessionUsageCheck, boolean automaticAccession) {
         // assure accession number
+        // An automatic number is validated when assigned inside the save transaction.
+        if (!automaticAccession) {
+            IAccessionNumberValidator.ValidationResults result = deferAccessionUsageCheck
+                    ? AccessionNumberUtil.getGeneralAccessionNumberValidator().validFormat(accessionNumber, true)
+                    : AccessionNumberUtil.checkAccessionNumberValidity(accessionNumber, null, null, null);
 
-        // TODO
-        IAccessionNumberValidator.ValidationResults result = deferAccessionUsageCheck
-                ? AccessionNumberUtil.getGeneralAccessionNumberValidator().validFormat(accessionNumber, true)
-                : AccessionNumberUtil.checkAccessionNumberValidity(accessionNumber, null, null, null);
-
-        if (result != IAccessionNumberValidator.ValidationResults.SUCCESS) {
-            String message = deferAccessionUsageCheck
-                    ? AccessionNumberUtil.getGeneralAccessionNumberValidator().getInvalidFormatMessage(result)
-                    : AccessionNumberUtil.getInvalidMessage(result);
-            errors.reject(message);
+            if (result != IAccessionNumberValidator.ValidationResults.SUCCESS) {
+                String message = deferAccessionUsageCheck
+                        ? AccessionNumberUtil.getGeneralAccessionNumberValidator().getInvalidFormatMessage(result)
+                        : AccessionNumberUtil.getInvalidMessage(result);
+                errors.reject(message);
+            }
         }
 
         // assure that there is at least 1 sample

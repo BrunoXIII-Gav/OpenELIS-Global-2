@@ -44,6 +44,13 @@ public class OrderAccessionServiceImpl implements OrderAccessionService {
     }
 
     @Override
+    public String generate(String programCode) {
+        // Both calls join this transaction. The preview does not allocate a number;
+        // confirm rechecks the sequence under the submission lock before assigning it.
+        return confirm(preview(programCode), true);
+    }
+
+    @Override
     public String confirm(String proposed, boolean generated) {
         if (StringUtils.isBlank(proposed))
             throw new IllegalArgumentException("order.labnumber.required");

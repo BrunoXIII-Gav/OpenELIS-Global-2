@@ -135,10 +135,20 @@ public class SamplePatientEntryServiceImpl implements SamplePatientEntryService 
             PatientManagementInfo patientInfo, SamplePatientEntryForm form, HttpServletRequest request) {
         // Always take the accession lock before patient locks to keep a consistent
         // order.
-        String assignedLabNo = orderAccessionService.confirm(form.getSampleOrderItems().getLabNo(),
-                form.getSampleOrderItems().isLabNoGenerated());
+        var orderItems = form.getSampleOrderItems();
+        String programCode = orderItems.getProgram();
+        if (GenericValidator.isBlankOrNull(programCode) && updateData.getProgramSample() != null
+                && updateData.getProgramSample().getProgram() != null) {
+            programCode = updateData.getProgramSample().getProgram().getCode();
+        }
+        String assignedLabNo = GenericValidator.isBlankOrNull(orderItems.getLabNo())
+                ? orderAccessionService.generate(programCode)
+                : orderAccessionService.confirm(orderItems.getLabNo(), orderItems.isLabNoGenerated());
         updateData.setAccessionNumber(assignedLabNo);
         updateData.getSample().setAccessionNumber(assignedLabNo);
+        for (SampleTestCollection sampleTest : updateData.getSampleItemsTests()) {
+            sampleTest.item.setExternalId(assignedLabNo + "-" + sampleTest.item.getSortOrder());
+        }
         if (!GenericValidator.isBlankOrNull(patientInfo.getPatientPK())) {
             sampleCugService.lockPatientAndCheckPrefix(patientInfo.getPatientPK(), patientInfo.getCugPrefix());
         }
