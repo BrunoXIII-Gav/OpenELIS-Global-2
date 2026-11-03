@@ -5,6 +5,25 @@ import java.util.Map;
 
 public class ConsentPreviewForm {
 
+    private String orderPatientId;
+    private String orderAccessionNumber;
+
+    public String getOrderPatientId() {
+        return orderPatientId;
+    }
+
+    public void setOrderPatientId(String orderPatientId) {
+        this.orderPatientId = orderPatientId;
+    }
+
+    public String getOrderAccessionNumber() {
+        return orderAccessionNumber;
+    }
+
+    public void setOrderAccessionNumber(String orderAccessionNumber) {
+        this.orderAccessionNumber = orderAccessionNumber;
+    }
+
     private Map<String, Boolean> booleanValues;
 
     public Map<String, Boolean> getBooleanValues() {

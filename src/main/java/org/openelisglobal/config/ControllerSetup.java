@@ -11,7 +11,7 @@ import org.openelisglobal.common.log.LogEvent;
 import org.openelisglobal.common.propertyeditor.CaseInsensitiveEnumPropertyEditor;
 import org.openelisglobal.externalconnections.valueholder.ExternalConnection.AuthType;
 import org.openelisglobal.externalconnections.valueholder.ExternalConnection.ProgrammedConnection;
-import org.springframework.security.access.AccessDeniedException;
+import org.openelisglobal.sample.exception.ConsentDownloadRequiredException;
 import org.springframework.beans.propertyeditors.StringTrimmerEditor;
 import org.springframework.beans.propertyeditors.URIEditor;
 import org.springframework.core.Ordered;
@@ -21,6 +21,7 @@ import org.springframework.http.HttpStatus;
 import org.springframework.http.HttpStatusCode;
 import org.springframework.http.ResponseEntity;
 import org.springframework.http.converter.HttpMessageNotReadableException;
+import org.springframework.security.access.AccessDeniedException;
 import org.springframework.validation.FieldError;
 import org.springframework.web.HttpMediaTypeNotSupportedException;
 import org.springframework.web.bind.MethodArgumentNotValidException;
@@ -48,6 +49,13 @@ public class ControllerSetup extends ResponseEntityExceptionHandler {
     }
 
     static final String DELIVERED_LOCKED = "analysis.delivered.locked";
+
+    @ExceptionHandler(ConsentDownloadRequiredException.class)
+    protected ResponseEntity<Object> handleConsentDownloadRequired(ConsentDownloadRequiredException ex) {
+        return ResponseEntity.status(HttpStatus.PRECONDITION_REQUIRED)
+                .header("X-OpenELIS-Error-Code", ConsentDownloadRequiredException.CODE)
+                .body(Map.of("code", ConsentDownloadRequiredException.CODE));
+    }
 
     @ExceptionHandler(value = { RuntimeException.class })
     protected ResponseEntity<Object> handleRuntimeException(RuntimeException ex, WebRequest request) {

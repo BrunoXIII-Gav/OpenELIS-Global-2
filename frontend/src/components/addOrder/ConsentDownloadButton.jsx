@@ -15,6 +15,7 @@ const ConsentDownloadButton = ({
   samples,
   patientId,
   disabled = false,
+  onDownloaded,
 }) => {
   const intl = useIntl();
   const { configurationProperties } = useContext(ConfigurationContext);
@@ -60,14 +61,21 @@ const ConsentDownloadButton = ({
         errorKey = "consent.download.noTests";
         throw new Error("No selected tests");
       }
-      const blob = await new Promise((resolve, reject) =>
+      payload.orderPatientId = patientId || form.patientProperties?.patientPK;
+      payload.orderAccessionNumber = form.accessionNumber || "";
+      const { blob, token } = await new Promise((resolve, reject) =>
         postToOpenElisServerForBlob(
-          "/rest/reports/consent-template/preview",
+          "/rest/reports/consent-template/download",
           JSON.stringify(payload),
-          resolve,
+          (blob, response) =>
+            resolve({
+              blob,
+              token: response?.headers?.get("X-OpenELIS-Consent-Token"),
+            }),
           reject,
         ),
       );
+      if (!token) throw new Error("Consent download receipt unavailable");
       const url = window.URL.createObjectURL(blob);
       const link = document.createElement("a");
       try {
@@ -79,6 +87,7 @@ const ConsentDownloadButton = ({
         link.remove();
         window.URL.revokeObjectURL(url);
       }
+      onDownloaded?.(token);
     } catch (_) {
       addNotification({
         title: intl.formatMessage({ id: "notification.title" }),

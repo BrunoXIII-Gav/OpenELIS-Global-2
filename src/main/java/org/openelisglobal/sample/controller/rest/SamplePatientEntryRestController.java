@@ -53,10 +53,12 @@ import org.openelisglobal.sample.action.util.SamplePatientUpdateData;
 import org.openelisglobal.sample.bean.SampleOrderItem;
 import org.openelisglobal.sample.controller.BaseSampleEntryController;
 import org.openelisglobal.sample.event.SamplePatientUpdateDataCreatedEvent;
+import org.openelisglobal.sample.exception.ConsentDownloadRequiredException;
 import org.openelisglobal.sample.exception.OrderAccessionConflictException;
 import org.openelisglobal.sample.exception.SampleCugConflictException;
 import org.openelisglobal.sample.form.SamplePatientEntryForm;
 import org.openelisglobal.sample.service.OrderAuthorizationService;
+import org.openelisglobal.sample.service.OrderConsentDownloadService;
 import org.openelisglobal.sample.service.OrderPatientContextService;
 import org.openelisglobal.sample.service.PatientManagementUpdate;
 import org.openelisglobal.sample.service.SamplePatientEntryService;
@@ -98,6 +100,9 @@ import org.springframework.web.servlet.support.RequestContextUtils;
 @Controller
 @RequestMapping(value = "/rest/")
 public class SamplePatientEntryRestController extends BaseSampleEntryController {
+    @Autowired
+    private OrderConsentDownloadService orderConsentDownloadService;
+
     @Autowired
     private OrderPatientContextService orderPatientContextService;
     private static final String ERROR_MESSAGE_HEADER = "X-OpenELIS-Error-Message";
@@ -229,6 +234,7 @@ public class SamplePatientEntryRestController extends BaseSampleEntryController 
             @RequestParam(value = ID, required = false) @Pattern(regexp = "[a-zA-Z0-9 -]*") String externalOrderNumber)
             throws IllegalAccessException, InvocationTargetException, NoSuchMethodException {
         requireOrderPermission(request, "create");
+
         SamplePatientEntryForm form = new SamplePatientEntryForm();
 
         request.getSession().setAttribute(SAVE_DISABLED, TRUE);
@@ -280,6 +286,9 @@ public class SamplePatientEntryRestController extends BaseSampleEntryController 
             throws IllegalAccessException, InvocationTargetException, NoSuchMethodException {
 
         requireOrderPermission(request, "create");
+
+        orderConsentDownloadService.requireDownload(request, getSysUserId(request), form.getConsentDownloadToken(),
+                form.getPatientProperties() == null ? null : form.getPatientProperties().getPatientPK(), null);
 
         enforceSelfOnlyProviderPolicy(request, form, result);
 
@@ -341,8 +350,10 @@ public class SamplePatientEntryRestController extends BaseSampleEntryController 
             return buildErrorResponse(form, result, HttpStatus.BAD_REQUEST);
         }
 
-        try {
+        try (var consentPermit = orderConsentDownloadService.claim(request, getSysUserId(request),
+                form.getConsentDownloadToken(), patientInfo.getPatientPK(), null)) {
             samplePatientService.persistData(updateData, patientUpdate, patientInfo, form, request);
+            consentPermit.complete();
             orderPatientContextService.forgetRegistration(request, getSysUserId(request), updateData.getPatientId());
             try {
                 SamplePatientUpdateDataCreatedEvent event = new SamplePatientUpdateDataCreatedEvent(this, updateData,
@@ -479,6 +490,13 @@ public class SamplePatientEntryRestController extends BaseSampleEntryController 
         return ResponseEntity.status(HttpStatus.CONFLICT)
                 .header("X-OpenELIS-Error-Code", SampleCugConflictException.CODE)
                 .header(ERROR_MESSAGE_HEADER, MessageUtil.getMessage(SampleCugConflictException.CODE)).body(form);
+    }
+
+    @ExceptionHandler(ConsentDownloadRequiredException.class)
+    public ResponseEntity<?> handleConsentDownloadRequired(ConsentDownloadRequiredException error) {
+        return ResponseEntity.status(HttpStatus.PRECONDITION_REQUIRED)
+                .header("X-OpenELIS-Error-Code", ConsentDownloadRequiredException.CODE)
+                .body(Map.of("code", ConsentDownloadRequiredException.CODE));
     }
 
     @ExceptionHandler(RuntimeException.class)

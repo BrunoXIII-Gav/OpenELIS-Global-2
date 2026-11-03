@@ -68,6 +68,7 @@ const Index = () => {
   );
   const [samples, setSamples] = useState([createSampleObject()]);
   const [assignedLabNo, setAssignedLabNo] = useState("");
+  const [consentDownloadToken, setConsentDownloadToken] = useState("");
   const previousPatientId = useRef(
     orderFormValues.patientProperties?.patientPK || "",
   );
@@ -75,6 +76,7 @@ const Index = () => {
     const patientId = orderFormValues.patientProperties?.patientPK || "";
     if (previousPatientId.current !== patientId) {
       previousPatientId.current = patientId;
+      setConsentDownloadToken("");
       setSamples((previous) =>
         previous.map((sample) => ({
           ...sample,
@@ -690,6 +692,7 @@ const Index = () => {
     try {
       if (response.status === 200) {
         const saved = await response.json();
+        setConsentDownloadToken("");
         setAssignedLabNo(
           saved.sampleOrderItems?.labNo ||
             orderFormValues.sampleOrderItems.labNo,
@@ -721,6 +724,14 @@ const Index = () => {
         }
 
         const errorCode = response.headers.get("X-OpenELIS-Error-Code");
+        if (errorCode === "consent.download.requiredBeforeSubmit") {
+          setConsentDownloadToken("");
+          showAlertMessage(
+            intl.formatMessage({ id: errorCode }),
+            NotificationKinds.error,
+          );
+          return;
+        }
         if (
           errorCode === "sample.cug.conflict" ||
           errorCode === "sample.cug.patient.prefix.mismatch" ||
@@ -772,6 +783,13 @@ const Index = () => {
     if (submissionInFlight.current) {
       return;
     }
+    if (!consentDownloadToken) {
+      showAlertMessage(
+        intl.formatMessage({ id: "consent.download.requiredBeforeSubmit" }),
+        NotificationKinds.error,
+      );
+      return;
+    }
     const invalidCugSample = (samples || []).find(
       (sampleItem) =>
         String(sampleItem?.sampleXML?.cugValidationMessage || "").trim() !== "",
@@ -803,6 +821,7 @@ const Index = () => {
         ...attachedSamplePayload,
       }),
     );
+    payload.consentDownloadToken = consentDownloadToken;
     payload.patientProperties = payload.patientProperties || {};
     payload.sampleOrderItems.labNo = "";
     payload.sampleOrderItems.labNoGenerated = true;
@@ -1185,6 +1204,7 @@ const Index = () => {
                   <ConsentDownloadButton
                     orderFormValues={orderFormValues}
                     samples={samples}
+                    onDownloaded={setConsentDownloadToken}
                   />
                   <Button
                     kind="primary"

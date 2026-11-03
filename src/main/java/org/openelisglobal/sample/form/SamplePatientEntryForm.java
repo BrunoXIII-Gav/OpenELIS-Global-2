@@ -22,6 +22,16 @@ import org.openelisglobal.validation.annotations.ValidDate;
 @JsonIgnoreProperties(ignoreUnknown = true)
 public class SamplePatientEntryForm extends BaseForm {
 
+    private String consentDownloadToken;
+
+    public String getConsentDownloadToken() {
+        return consentDownloadToken;
+    }
+
+    public void setConsentDownloadToken(String consentDownloadToken) {
+        this.consentDownloadToken = consentDownloadToken;
+    }
+
     public interface SamplePatientEntryBatch {
     }
 

@@ -162,6 +162,7 @@ let allowed,
   downloadedNames;
 beforeEach(() => {
   jest.clearAllMocks();
+  postToOpenElisServerFullResponse.mockReset();
   ModifyOrderEntryValidationSchema.validate.mockResolvedValue({});
   window.history.replaceState({}, "", "/ModifyOrder?accessionNumber=LNG71");
   allowed = true;
@@ -202,7 +203,9 @@ beforeEach(() => {
     throw new Error("Unexpected API: " + url);
   });
   postToOpenElisServerForBlob.mockImplementation((_url, _body, callback) =>
-    callback(new Blob(["%PDF-1.4"], { type: "application/pdf" })),
+    callback(new Blob(["%PDF-1.4"], { type: "application/pdf" }), {
+      headers: new Headers({ "X-OpenELIS-Consent-Token": "server-receipt" }),
+    }),
   );
 });
 afterEach(() => jest.restoreAllMocks());
@@ -248,7 +251,8 @@ test("editing an order downloads its existing CUG, tests, patient, provider and 
   await awaitDownload();
   const [url, body] = postToOpenElisServerForBlob.mock.calls[0];
   const payload = JSON.parse(body);
-  expect(url).toBe("/rest/reports/consent-template/preview");
+  expect(url).toBe("/rest/reports/consent-template/download");
+  expect(payload.orderAccessionNumber).toBe("LNG71");
   expect(payload.cug).toBe("5000.2");
   expect(payload.selectedTests).toEqual(
     form().existingTests.map((test) => test.testName),
@@ -304,7 +308,48 @@ test("a failed PDF request shows the translated error and permits retrying", asy
   expect(page.getByText(messages["consent.download.button"]).disabled).toBe(
     false,
   );
+  fireEvent.click(page.getByText(messages["label.button.submit"]));
+  expect(postToOpenElisServerFullResponse).toHaveBeenCalledTimes(1);
+  expect(addNotification).not.toHaveBeenCalledWith(
+    expect.objectContaining({
+      message: messages["consent.download.requiredBeforeSubmit"],
+    }),
+  );
   clickDownload(page);
+  await awaitDownload();
+});
+
+test("an existing order can be saved without downloading consent", async () => {
+  const page = open();
+  orderStep(page);
+  const submit = page.getByText(messages["label.button.submit"]);
+  await wait(() => expect(submit.disabled).toBe(false));
+  fireEvent.click(submit);
+  expect(postToOpenElisServerFullResponse).toHaveBeenCalledTimes(1);
+  const [url, body] = postToOpenElisServerFullResponse.mock.calls[0];
+  expect(url).toBe("/rest/SampleEdit");
+  expect(JSON.parse(body).consentDownloadToken).toBeUndefined();
+  expect(postToOpenElisServerForBlob).not.toHaveBeenCalled();
+  expect(addNotification).not.toHaveBeenCalled();
+});
+
+test("an optional pending consent download does not block editing", async () => {
+  let finish;
+  postToOpenElisServerForBlob.mockImplementation((_url, _body, callback) => {
+    finish = callback;
+  });
+  const page = open();
+  orderStep(page);
+  const submit = page.getByText(messages["label.button.submit"]);
+  await wait(() => expect(submit.disabled).toBe(false));
+  clickDownload(page);
+  await wait(() => expect(typeof finish).toBe("function"));
+  fireEvent.click(submit);
+  expect(postToOpenElisServerFullResponse).toHaveBeenCalledTimes(1);
+  expect(addNotification).not.toHaveBeenCalled();
+  finish(new Blob(["pdf"], { type: "application/pdf" }), {
+    headers: new Headers({ "X-OpenELIS-Consent-Token": "server-receipt" }),
+  });
   await awaitDownload();
 });
 test("unavailable patient details stop generation rather than downloading a consent with missing mapped patient values", async () => {
@@ -320,9 +365,26 @@ test("unavailable patient details stop generation rather than downloading a cons
   expect(postToOpenElisServerForBlob).not.toHaveBeenCalled();
   expect(downloadedNames).toEqual([]);
 });
+
+test("downloading consent while editing remains optional after navigating between steps", async () => {
+  const page = open();
+  orderStep(page);
+  clickDownload(page);
+  await awaitDownload();
+  fireEvent.click(page.getByText(messages["back.action.button"]));
+  orderStep(page);
+  fireEvent.click(page.getByText(messages["label.button.submit"]));
+  expect(postToOpenElisServerFullResponse).toHaveBeenCalledTimes(1);
+  expect(
+    JSON.parse(postToOpenElisServerFullResponse.mock.calls[0][1])
+      .consentDownloadToken,
+  ).toBeUndefined();
+});
 test("creating an order continues using its entered patient data without a saved-patient lookup and prevents duplicate downloads", async () => {
   const values = form();
+  delete values.accessionNumber;
   values.patientProperties = {
+    patientPK: "10",
     firstName: "Paloma",
     lastName: "Miranda",
     nationalId: "11155522",
@@ -342,9 +404,14 @@ test("creating an order continues using its entered patient data without a saved
   clickDownload(page);
   expect(postToOpenElisServerForBlob).toHaveBeenCalledTimes(1);
   expect(getFromOpenElisServer).not.toHaveBeenCalled();
-  finish(new Blob(["pdf"]));
+  finish(new Blob(["pdf"]), {
+    headers: new Headers({ "X-OpenELIS-Consent-Token": "server-receipt" }),
+  });
   await awaitDownload();
   expect(
     JSON.parse(postToOpenElisServerForBlob.mock.calls[0][1]).patient.fullName,
   ).toBe("Miranda, Paloma");
+  const payload = JSON.parse(postToOpenElisServerForBlob.mock.calls[0][1]);
+  expect(payload.orderPatientId).toBe("10");
+  expect(payload.orderAccessionNumber).toBe("");
 });

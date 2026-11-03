@@ -3,10 +3,12 @@ package org.openelisglobal.reportdefinition.controller;
 import jakarta.servlet.http.HttpServletRequest;
 import java.nio.charset.StandardCharsets;
 import java.util.Map;
+import org.apache.commons.lang3.StringUtils;
 import org.openelisglobal.common.rest.BaseRestController;
 import org.openelisglobal.reportdefinition.form.ConsentTemplateConfigForm;
 import org.openelisglobal.reports.form.ConsentPreviewForm;
 import org.openelisglobal.reports.service.ConsentTemplateService;
+import org.openelisglobal.sample.service.OrderConsentDownloadService;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -33,6 +35,9 @@ public class ConsentTemplateRestController extends BaseRestController {
 
     @Autowired
     private ConsentTemplateService consentTemplateService;
+
+    @Autowired
+    private OrderConsentDownloadService orderConsentDownloadService;
 
     @PreAuthorize("@accessControl.hasPermission(T(org.openelisglobal.common.constants.SystemPermission).ADMINISTRATION)")
     @GetMapping
@@ -92,6 +97,29 @@ public class ConsentTemplateRestController extends BaseRestController {
             return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR)
                     .body("Error generating consent template PDF");
         }
+    }
+
+    @PostMapping(value = "/download", produces = MediaType.APPLICATION_PDF_VALUE)
+    public ResponseEntity<?> downloadConsent(HttpServletRequest request, @RequestBody ConsentPreviewForm form) {
+        if (form == null || form.getSelectedTests() == null || form.getSelectedTests().isEmpty()
+                || (StringUtils.isBlank(form.getOrderAccessionNumber())
+                        && !StringUtils.isNumeric(form.getOrderPatientId()))) {
+            return ResponseEntity.badRequest().build();
+        }
+        byte[] pdf;
+        try {
+            pdf = consentTemplateService.generateConsentPdf(form);
+        } catch (Exception e) {
+            logger.error("Error generating consent template PDF", e);
+            return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR).build();
+        }
+        if (pdf == null || pdf.length == 0)
+            return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR).build();
+        String token = orderConsentDownloadService.recordDownload(request, getSysUserId(request),
+                form.getOrderPatientId(), form.getOrderAccessionNumber());
+        return ResponseEntity.ok().contentType(MediaType.APPLICATION_PDF)
+                .header(HttpHeaders.CONTENT_DISPOSITION, "attachment; filename=consent-template.pdf")
+                .header("X-OpenELIS-Consent-Token", token).body(pdf);
     }
 
     @PreAuthorize("@accessControl.hasPermission(T(org.openelisglobal.common.constants.SystemPermission).ADMINISTRATION)")
