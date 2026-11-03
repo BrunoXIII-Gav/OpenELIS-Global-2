@@ -65,6 +65,12 @@ public class TestAddFormValidator implements Validator {
                 ValidationHelper.validateYNField(StringUtil.nullSafeToString(newTest.get("directSampleUsageEnabled")),
                         "JsonWad", "directSampleUsageEnabled", errors);
 
+                if (newTest.containsKey("allowProcessingInAlternateFlow")) {
+                    ValidationHelper.validateYNField(
+                            StringUtil.nullSafeToString(newTest.get("allowProcessingInAlternateFlow")), "JsonWad",
+                            "allowProcessingInAlternateFlow", errors);
+                }
+
                 ValidationHelper.validateYNField(
                         StringUtil.nullSafeToString(newTest.get("skipValidationWhenParentComplete")), "JsonWad",
                         "skipValidationWhenParentComplete", errors);

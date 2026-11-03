@@ -12,8 +12,8 @@ import java.util.List;
 import java.util.Map;
 import org.apache.commons.validator.GenericValidator;
 import org.openelisglobal.common.action.IActionConstants;
-import org.openelisglobal.common.constants.SystemPermission;
 import org.openelisglobal.common.constants.Constants;
+import org.openelisglobal.common.constants.SystemPermission;
 import org.openelisglobal.common.rest.BaseRestController;
 import org.openelisglobal.common.util.IdValuePair;
 import org.openelisglobal.common.util.StringUtil;
@@ -25,8 +25,8 @@ import org.openelisglobal.panelitem.valueholder.PanelItem;
 import org.openelisglobal.role.service.RoleService;
 import org.openelisglobal.sample.bean.SampleTypeAdditionalFieldPayload;
 import org.openelisglobal.sample.service.SampleTypeAdditionalFieldService;
-import org.openelisglobal.spring.util.SpringContext;
 import org.openelisglobal.security.service.UserPermissionService;
+import org.openelisglobal.spring.util.SpringContext;
 import org.openelisglobal.systemuser.service.UserService;
 import org.openelisglobal.test.service.TestSectionService;
 import org.openelisglobal.test.service.TestServiceImpl;
@@ -107,8 +107,8 @@ public class SampleEntryTestsForTypeProviderRestController extends BaseRestContr
 
         UserLabUnitRoles userLabRoles = userService.getUserLabUnitRoles(systemUserId);
         boolean hasReceptionLabRole = userLabRoles != null && userLabRoles.getLabUnitRoleMap() != null
-                && userLabRoles.getLabUnitRoleMap().stream().map(LabUnitRoleMap::getRoles).filter(roles -> roles != null)
-                        .anyMatch(roles -> roles.contains(receptionRole.getId()));
+                && userLabRoles.getLabUnitRoleMap().stream().map(LabUnitRoleMap::getRoles)
+                        .filter(roles -> roles != null).anyMatch(roles -> roles.contains(receptionRole.getId()));
 
         if (!hasReceptionLabRole && (userPermissionService.hasPermission(systemUserId, SystemPermission.ORDER)
                 || userPermissionService.hasPermission(systemUserId, SystemPermission.SAMPLE_MANAGEMENT)
@@ -174,8 +174,10 @@ public class SampleEntryTestsForTypeProviderRestController extends BaseRestContr
     private void addTests(SampleEntryTests sampleEntryTests, List<Test> tests, String userTestSectionId) {
         ArrayList<TestMap> testsMapList = new ArrayList<>();
         for (Test test : tests) {
-            testsMapList.add(new TestMap(test.getId(), TestServiceImpl.getUserLocalizedTestName(test),
-                    userTestSectionId.equals(test.getTestSection().getId())));
+            TestMap entry = new TestMap(test.getId(), TestServiceImpl.getUserLocalizedTestName(test),
+                    userTestSectionId.equals(test.getTestSection().getId()));
+            entry.setAllowProcessingInAlternateFlow(Boolean.TRUE.equals(test.getAllowProcessingInAlternateFlow()));
+            testsMapList.add(entry);
         }
         sampleEntryTests.setTests(testsMapList);
     }
@@ -352,6 +354,16 @@ public class SampleEntryTestsForTypeProviderRestController extends BaseRestContr
         String name;
 
         boolean userBenchChoice;
+
+        private boolean allowProcessingInAlternateFlow;
+
+        public boolean isAllowProcessingInAlternateFlow() {
+            return allowProcessingInAlternateFlow;
+        }
+
+        public void setAllowProcessingInAlternateFlow(boolean allowed) {
+            allowProcessingInAlternateFlow = allowed;
+        }
 
         public TestMap(String id, String name, boolean userBenchChoice) {
             this.id = id;

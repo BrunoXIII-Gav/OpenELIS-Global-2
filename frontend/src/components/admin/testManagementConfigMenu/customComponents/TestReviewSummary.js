@@ -116,6 +116,10 @@ export const TestReviewSummary = ({
           flag("label.orderable", values.orderable),
           flag("test.directSampleUsage", values.directSampleUsageEnabled),
           flag(
+            "test.allowProcessingInAlternateFlow",
+            values.allowProcessingInAlternateFlow,
+          ),
+          flag(
             "test.skipValidationWhenParentComplete",
             values.skipValidationWhenParentComplete,
           ),

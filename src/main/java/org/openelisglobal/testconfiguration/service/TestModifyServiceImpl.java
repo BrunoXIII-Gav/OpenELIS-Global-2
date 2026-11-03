@@ -122,7 +122,9 @@ public class TestModifyServiceImpl implements TestModifyService {
                     testAddParams.resultDisplayConfigJson, currentUserId, testAddParams.uomId,
                     testAddParams.testSectionId, set.test.isNotifyResults(), set.test.isInLabOnly(),
                     set.test.getAntimicrobialResistance(), set.test.getIsActive(), set.test.getOrderable(),
-                    set.test.getDirectSampleUsageEnabled(), set.test.getSkipValidationWhenParentComplete());
+                    set.test.getDirectSampleUsageEnabled(), set.test.getSkipValidationWhenParentComplete(),
+                    testAddParams.allowProcessingInAlternateFlow == null ? null
+                            : set.test.getAllowProcessingInAlternateFlow());
 
             set.sampleTypeTest.setSysUserId(currentUserId);
             set.sampleTypeTest.setTestId(set.test.getId());
@@ -195,7 +197,7 @@ public class TestModifyServiceImpl implements TestModifyService {
     private void updateTestEntities(String testId, String loinc, String resultName, String resultDisplayConfigJson,
             String userId, String uomId, String testSectionId, boolean notifyResults, boolean inLabOnly,
             boolean antimicrobialResistance, String isActive, Boolean orderable, Boolean directSampleUsageEnabled,
-            Boolean skipValidationWhenParentComplete) {
+            Boolean skipValidationWhenParentComplete, Boolean allowProcessingInAlternateFlow) {
         Test test = testService.get(testId);
 
         if (test != null) {
@@ -221,6 +223,9 @@ public class TestModifyServiceImpl implements TestModifyService {
             }
             test.setIsActive(isActive);
             test.setOrderable(orderable);
+            if (allowProcessingInAlternateFlow != null) {
+                test.setAllowProcessingInAlternateFlow(allowProcessingInAlternateFlow);
+            }
             boolean isActiveChildDependency = testParentChildDependencyService.getActiveByChildTestId(testId) != null;
             boolean isActiveParentDependency = testParentChildDependencyService.getByParentTestId(testId).stream()
                     .anyMatch(dependency -> Boolean.TRUE.equals(dependency.getActive()));

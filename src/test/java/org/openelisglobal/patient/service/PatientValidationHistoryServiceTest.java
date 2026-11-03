@@ -37,6 +37,8 @@ public class PatientValidationHistoryServiceTest {
     @Before
     public void setup() {
         service = new PatientValidationHistoryServiceImpl();
+        ReflectionTestUtils.setField(service, "alternateOrderFlowService",
+                mock(org.openelisglobal.orderadditionalfield.service.AlternateOrderFlowService.class));
         dao = mock(PatientValidationHistoryDAO.class);
         patients = mock(PatientAuthorizationService.class);
         authorization = mock(ModuleAuthorizationService.class);

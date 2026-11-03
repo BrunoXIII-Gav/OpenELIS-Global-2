@@ -60,7 +60,9 @@ export default function SampleManagement() {
   const [isAddTestsModalOpen, setIsAddTestsModalOpen] = useState(false);
   const selectedProcessableSampleIds = selectedSampleIds.filter((id) =>
     searchResponse?.sampleItems?.some(
-      (item) => item.id === id && !item.alternateOrderFlow,
+      (item) =>
+        item.id === id &&
+        (!item.alternateOrderFlow || item.alternateOrderFlowProcessingAllowed),
     ),
   );
 
@@ -197,6 +199,12 @@ export default function SampleManagement() {
     setIsAddTestsModalOpen(false);
   };
 
+  const handleAssociateAlternateTests = (sampleId) => {
+    if (!canModifySamples) return;
+    setSelectedSampleIds([sampleId]);
+    setIsAddTestsModalOpen(true);
+  };
+
   /**
    * Handle successful test addition.
    * Shows detailed per-sample/aliquot breakdown in the success message.
@@ -282,6 +290,25 @@ export default function SampleManagement() {
       message: message,
       kind: "success",
     });
+
+    if (searchResponse?.accessionNumber) {
+      getFromOpenElisServer(
+        `/rest/sample-management/search?accessionNumber=${encodeURIComponent(searchResponse.accessionNumber)}&includeTests=true`,
+        (refreshed) => {
+          if (refreshed?.sampleItems) {
+            setSearchResponse(enrichSearchResponse(refreshed));
+            setCurrentTestsVisibleBySampleId((previous) => ({
+              ...previous,
+              ...Object.fromEntries(
+                response.results
+                  .filter((result) => result.success)
+                  .map((result) => [result.sampleItemId, true]),
+              ),
+            }));
+          }
+        },
+      );
+    }
 
     // Clear selection after adding tests
     setSelectedSampleIds([]);
@@ -481,6 +508,7 @@ export default function SampleManagement() {
                     sampleItems={searchResponse.sampleItems}
                     onSelectionChange={handleSelectionChange}
                     onTestRemoved={handleTestRemoved}
+                    onAssociateAlternateTests={handleAssociateAlternateTests}
                     currentTestsVisibleBySampleId={
                       currentTestsVisibleBySampleId
                     }

@@ -169,6 +169,8 @@ public class Test extends EnumValueItemImpl {
 
     private Boolean skipValidationWhenParentComplete;
 
+    private Boolean allowProcessingInAlternateFlow = Boolean.FALSE;
+
     @Override
     public String getSortOrder() {
         return sortOrder;
@@ -566,6 +568,14 @@ public class Test extends EnumValueItemImpl {
 
     public void setDirectSampleUsageEnabled(Boolean directSampleUsageEnabled) {
         this.directSampleUsageEnabled = directSampleUsageEnabled;
+    }
+
+    public Boolean getAllowProcessingInAlternateFlow() {
+        return allowProcessingInAlternateFlow;
+    }
+
+    public void setAllowProcessingInAlternateFlow(Boolean value) {
+        allowProcessingInAlternateFlow = Boolean.TRUE.equals(value);
     }
 
     public Boolean getSkipValidationWhenParentComplete() {

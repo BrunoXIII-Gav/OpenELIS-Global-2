@@ -182,6 +182,13 @@ function TestAdd() {
       description: <FormattedMessage id="test.description.directSampleUsage" />,
     },
     {
+      id: "allowProcessingInAlternateFlow",
+      field: intl.formatMessage({ id: "test.allowProcessingInAlternateFlow" }),
+      description: (
+        <FormattedMessage id="test.description.allowProcessingInAlternateFlow" />
+      ),
+    },
+    {
       id: "skipValidationWhenParentComplete",
       field: intl.formatMessage({
         id: "test.field.skipValidationWhenParentComplete",

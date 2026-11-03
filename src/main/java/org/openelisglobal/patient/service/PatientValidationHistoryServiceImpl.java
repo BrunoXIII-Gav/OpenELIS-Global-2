@@ -21,6 +21,7 @@ import org.openelisglobal.authorization.service.ModuleAuthorizationService.Autho
 import org.openelisglobal.authorization.service.ModuleAuthorizationService.AuthorizationSource;
 import org.openelisglobal.common.services.IStatusService;
 import org.openelisglobal.common.services.StatusService.AnalysisStatus;
+import org.openelisglobal.orderadditionalfield.service.AlternateOrderFlowService;
 import org.openelisglobal.patient.dao.PatientValidationHistoryDAO;
 import org.openelisglobal.patient.form.PatientValidationRecord;
 import org.openelisglobal.patient.form.PatientValidationRecord.Validator;
@@ -34,6 +35,8 @@ import org.springframework.web.server.ResponseStatusException;
 @Service
 @Transactional(readOnly = true)
 public class PatientValidationHistoryServiceImpl implements PatientValidationHistoryService {
+    @Autowired
+    private AlternateOrderFlowService alternateOrderFlowService;
     @Autowired
     private PatientValidationHistoryDAO dao;
     @Autowired
@@ -257,7 +260,7 @@ public class PatientValidationHistoryServiceImpl implements PatientValidationHis
     }
 
     private boolean isValidationRequired(Analysis analysis) {
-        return analysis.getTest() != null
+        return analysis.getTest() != null && !alternateOrderFlowService.isAnalysisValidationBlocked(analysis.getId())
                 && !Boolean.TRUE.equals(analysis.getTest().getSkipValidationWhenParentComplete());
     }
 

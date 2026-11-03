@@ -21,6 +21,11 @@ import {
   postToOpenElisServerFullResponse,
 } from "../utils/Utils";
 
+const canAssociateTests = (sample) =>
+  sample.alternateOrderFlow === true
+    ? sample.alternateFlowTestAssociationAllowed === true
+    : sample.hasRemainingQuantity;
+
 /**
  * AddTestsModal - Modal component for adding tests to selected sample items.
  *
@@ -51,6 +56,9 @@ function AddTestsModal({
   isReadOnly = false,
 }) {
   const intl = useIntl();
+  const alternateFlowOnly = selectedSamples.some(
+    (sample) => sample.alternateOrderFlow === true,
+  );
 
   // State for sample types
   const [sampleTypes, setSampleTypes] = useState([]);
@@ -81,18 +89,17 @@ function AddTestsModal({
   }, [selectedSamples]);
 
   /**
-   * Compute samples with no remaining quantity (all volume dispensed).
-   * These samples cannot have tests added.
+   * Exclude exhausted samples and alternate specimens without association access.
    */
   const dispensedSamples = useMemo(() => {
-    return selectedSamples.filter((sample) => !sample.hasRemainingQuantity);
+    return selectedSamples.filter((sample) => !canAssociateTests(sample));
   }, [selectedSamples]);
 
   /**
-   * Compute samples that are eligible for test addition (have remaining quantity).
+   * Alternate specimens may associate an exception before their first volume entry.
    */
   const eligibleSamples = useMemo(() => {
-    return selectedSamples.filter((sample) => sample.hasRemainingQuantity);
+    return selectedSamples.filter(canAssociateTests);
   }, [selectedSamples]);
 
   /**
@@ -128,7 +135,7 @@ function AddTestsModal({
    * Fetch tests and panels when sample type changes.
    */
   useEffect(() => {
-    if (selectedSampleTypeId) {
+    if (open && selectedSampleTypeId) {
       setLoadingTests(true);
       setError(null);
 
@@ -137,9 +144,22 @@ function AddTestsModal({
         (response) => {
           setLoadingTests(false);
           if (response) {
+            const tests = (response.tests || []).filter(
+              (test) =>
+                !alternateFlowOnly ||
+                test.allowProcessingInAlternateFlow === true,
+            );
+            const eligibleIds = new Set(tests.map((test) => test.id));
             setSampleTypeTests({
-              panels: response.panels || [],
-              tests: response.tests || [],
+              panels: (response.panels || []).filter(
+                (panel) =>
+                  !alternateFlowOnly ||
+                  (panel.testIds &&
+                    panel.testIds
+                      .split(",")
+                      .every((id) => eligibleIds.has(id.trim()))),
+              ),
+              tests,
             });
           } else {
             setError(
@@ -153,7 +173,7 @@ function AddTestsModal({
     } else {
       setSampleTypeTests({ panels: [], tests: [] });
     }
-  }, [selectedSampleTypeId, intl]);
+  }, [open, selectedSampleTypeId, intl, alternateFlowOnly]);
 
   /**
    * Reset state when modal closes.
@@ -339,7 +359,9 @@ function AddTestsModal({
             .json()
             .then((errorData) => {
               setError(
-                errorData.message ||
+                (intl.messages[errorData.message]
+                  ? intl.formatMessage({ id: errorData.message })
+                  : errorData.message) ||
                   intl.formatMessage({
                     id: "sample.management.addTests.error.addFailed",
                   }),
@@ -355,14 +377,7 @@ function AddTestsModal({
         }
       },
     );
-  }, [
-    selectedTests,
-    eligibleSamples,
-    onSuccess,
-    onClose,
-    intl,
-    isReadOnly,
-  ]);
+  }, [selectedTests, eligibleSamples, onSuccess, onClose, intl, isReadOnly]);
 
   /**
    * Clear error notification.
@@ -465,7 +480,7 @@ function AddTestsModal({
                   id: "sample.management.addTests.modal.selectSampleType",
                 })}
                 value={selectedSampleTypeId}
-                disabled={isReadOnly}
+                disabled={isReadOnly || alternateFlowOnly}
                 onChange={handleSampleTypeChange}
               >
                 <SelectItem
@@ -538,6 +553,9 @@ function AddTestsModal({
                         </h5>
                         <Search
                           id="test-search"
+                          labelText={intl.formatMessage({
+                            id: "sample.management.addTests.modal.searchTestsPlaceholder",
+                          })}
                           placeholder={intl.formatMessage({
                             id: "sample.management.addTests.modal.searchTestsPlaceholder",
                           })}

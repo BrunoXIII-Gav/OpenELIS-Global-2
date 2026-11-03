@@ -37,6 +37,25 @@ import org.openelisglobal.sample.bean.SampleTypeAdditionalFieldPayload;
  * @see org.openelisglobal.sampleitem.valueholder.SampleItem
  */
 public class SampleItemDTO {
+    private boolean alternateFlowTestAssociationAllowed;
+
+    public boolean isAlternateFlowTestAssociationAllowed() {
+        return alternateFlowTestAssociationAllowed;
+    }
+
+    public void setAlternateFlowTestAssociationAllowed(boolean allowed) {
+        alternateFlowTestAssociationAllowed = allowed;
+    }
+
+    private boolean alternateOrderFlowProcessingAllowed;
+
+    public boolean isAlternateOrderFlowProcessingAllowed() {
+        return alternateOrderFlowProcessingAllowed;
+    }
+
+    public void setAlternateOrderFlowProcessingAllowed(boolean value) {
+        alternateOrderFlowProcessingAllowed = value;
+    }
 
     private String id;
     private String externalId;

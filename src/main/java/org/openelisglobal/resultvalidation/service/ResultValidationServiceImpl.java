@@ -19,17 +19,20 @@ import org.openelisglobal.note.service.NoteService;
 import org.openelisglobal.note.valueholder.Note;
 import org.openelisglobal.notification.service.TestNotificationService;
 import org.openelisglobal.notification.valueholder.NotificationConfigOption.NotificationNature;
+import org.openelisglobal.orderadditionalfield.service.AlternateOrderFlowService;
 import org.openelisglobal.result.service.ResultService;
 import org.openelisglobal.result.valueholder.Result;
 import org.openelisglobal.resultvalidation.bean.AnalysisItem;
 import org.openelisglobal.sample.service.SampleService;
 import org.openelisglobal.sample.valueholder.Sample;
 import org.openelisglobal.spring.util.SpringContext;
+import org.springframework.security.access.AccessDeniedException;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 @Service
 public class ResultValidationServiceImpl implements ResultValidationService {
+    private final AlternateOrderFlowService alternateOrderFlowService;
 
     private final AnalysisValidationApprovalService approvalService;
     private final IStatusService statusService;
@@ -41,7 +44,9 @@ public class ResultValidationServiceImpl implements ResultValidationService {
 
     public ResultValidationServiceImpl(AnalysisService analysisService, ResultService resultService,
             NoteService noteService, SampleService sampleService, TestNotificationService testNotificationService,
-            AnalysisValidationApprovalService approvalService, IStatusService statusService) {
+            AnalysisValidationApprovalService approvalService, IStatusService statusService,
+            AlternateOrderFlowService alternateOrderFlowService) {
+        this.alternateOrderFlowService = alternateOrderFlowService;
         this.approvalService = approvalService;
         this.statusService = statusService;
         this.analysisService = analysisService;
@@ -57,6 +62,15 @@ public class ResultValidationServiceImpl implements ResultValidationService {
             ArrayList<Result> resultUpdateList, List<AnalysisItem> resultItemList, ArrayList<Sample> sampleUpdateList,
             ArrayList<Note> noteUpdateList, IResultSaveService resultSaveService, List<IResultUpdate> updaters,
             String sysUserId) {
+        java.util.Set<String> analysisIds = new java.util.HashSet<>();
+        analysisUpdateList.forEach(analysis -> analysisIds.add(analysis.getId()));
+        resultItemList.forEach(item -> analysisIds.add(item.getAnalysisId()));
+        resultUpdateList.forEach(result -> analysisIds.add(result.getAnalysis().getId()));
+        if (deletableList != null)
+            deletableList.forEach(result -> analysisIds.add(result.getAnalysis().getId()));
+        if (analysisIds.stream().anyMatch(alternateOrderFlowService::isAnalysisValidationBlocked)) {
+            throw new AccessDeniedException("Alternate-flow orders do not enter validation");
+        }
         if (deletableList != null && !deletableList.isEmpty()) {
             ResultSaveService.removeDeletedResultsInTransaction(deletableList, sysUserId);
         }

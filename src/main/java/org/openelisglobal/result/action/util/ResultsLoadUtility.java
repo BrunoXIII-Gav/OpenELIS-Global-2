@@ -67,6 +67,7 @@ import org.openelisglobal.note.service.NoteServiceImpl.NoteType;
 import org.openelisglobal.observationhistory.service.ObservationHistoryService;
 import org.openelisglobal.observationhistory.valueholder.ObservationHistory;
 import org.openelisglobal.observationhistory.valueholder.ObservationHistory.ValueType;
+import org.openelisglobal.orderadditionalfield.service.AlternateOrderFlowService;
 import org.openelisglobal.patient.form.PatientInfoForm;
 import org.openelisglobal.patient.service.PatientService;
 import org.openelisglobal.patient.util.PatientUtil;
@@ -186,6 +187,9 @@ public class ResultsLoadUtility {
     private AnalysisTubeUsageService analysisTubeUsageService;
     @Autowired
     private AnalysisTubeLabelService analysisTubeLabelService;
+
+    @Autowired
+    private AlternateOrderFlowService alternateOrderFlowService;
 
     private final StatusRules statusRules = new StatusRules();
 
@@ -368,7 +372,12 @@ public class ResultsLoadUtility {
             return selectedTestList;
         }
 
+        java.util.Set<String> blockedAnalysisIds = reuseCatalogs ? java.util.Set.of()
+                : alternateOrderFlowService.getProcessingBlockedAnalysisIds(filteredAnalysisList);
         for (Analysis analysis : filteredAnalysisList) {
+            if (blockedAnalysisIds.contains(analysis.getId())) {
+                continue;
+            }
             patientService = SpringContext.getBean(PatientService.class);
             SampleService sampleService = SpringContext.getBean(SampleService.class);
             Sample sample = analysis.getSampleItem().getSample();

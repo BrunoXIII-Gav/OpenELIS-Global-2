@@ -29,6 +29,16 @@ import java.sql.Timestamp;
  */
 public class TestSummaryDTO {
 
+    private boolean alternateOrderFlowProcessingAllowed;
+
+    public boolean isAlternateOrderFlowProcessingAllowed() {
+        return alternateOrderFlowProcessingAllowed;
+    }
+
+    public void setAlternateOrderFlowProcessingAllowed(boolean value) {
+        alternateOrderFlowProcessingAllowed = value;
+    }
+
     private String analysisId;
     private String testId;
     private String testName;

@@ -1,7 +1,10 @@
 package org.openelisglobal.resultvalidation.service;
 
+import static org.mockito.Mockito.any;
 import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
+import static org.mockito.Mockito.verifyZeroInteractions;
 import static org.mockito.Mockito.when;
 
 import java.sql.Date;
@@ -44,6 +47,21 @@ public class ResultValidationServiceImplTest {
 
     @InjectMocks
     private ResultValidationServiceImpl resultValidationService;
+
+    @Mock
+    private org.openelisglobal.orderadditionalfield.service.AlternateOrderFlowService alternateOrderFlowService;
+
+    @Test
+    public void alternateOrderResultsCannotBeValidatedThroughDirectSave() {
+        Analysis analysis = new Analysis();
+        analysis.setId("123");
+        when(alternateOrderFlowService.isAnalysisValidationBlocked("123")).thenReturn(true);
+        org.junit.Assert.assertThrows(org.springframework.security.access.AccessDeniedException.class,
+                () -> resultValidationService.persistdata(List.of(), List.of(analysis), new java.util.ArrayList<>(),
+                        List.of(), new java.util.ArrayList<>(), new java.util.ArrayList<>(), null, List.of(), "7"));
+        verify(analysisService, never()).update(any());
+        verifyZeroInteractions(resultService, approvalService);
+    }
 
     @Test
     public void persistdata_shouldApplyValidationDateToReleasedDate() {

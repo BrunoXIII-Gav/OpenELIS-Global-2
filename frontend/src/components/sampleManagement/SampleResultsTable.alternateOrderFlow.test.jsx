@@ -28,11 +28,12 @@ const sample = {
   additionalFieldValues: {},
 };
 
-const table = (overrides = {}) => (
+const table = (overrides = {}, props = {}) => (
   <IntlProvider locale="es" messages={messages}>
     <SampleResultsTable
       sampleItems={[{ ...sample, ...overrides }]}
       currentTestsVisibleBySampleId={{ 54: true }}
+      {...props}
     />
   </IntlProvider>
 );
@@ -42,10 +43,104 @@ beforeEach(() => {
   getFromOpenElisServer.mockImplementation((_url, callback) => callback([]));
 });
 
+test("an existing alternate specimen can explicitly associate a permitted test without claiming its unknown volume is exhausted", () => {
+  const associate = jest.fn();
+  const view = render(
+    table(
+      {
+        alternateOrderFlow: true,
+        editable: false,
+        alternateFlowTestAssociationAllowed: true,
+        orderedTests: [],
+      },
+      { onAssociateAlternateTests: associate },
+    ),
+  );
+  expand(view);
+  expect(
+    view.queryByText(messages["sample.management.status.allVolumeDispensed"]),
+  ).toBeNull();
+  fireEvent.click(
+    view.getByRole("button", {
+      name: messages["sample.management.alternateOrderFlow.associateTest"],
+    }),
+  );
+  expect(associate).toHaveBeenCalledWith("54");
+  expect(view.queryByLabelText(messages["sample.quantity.label"])).toBeNull();
+  view.rerender(
+    table(
+      {
+        alternateOrderFlow: true,
+        alternateFlowTestAssociationAllowed: true,
+        restrictedFieldTagKeys: ["tests"],
+      },
+      { onAssociateAlternateTests: associate },
+    ),
+  );
+  expect(
+    view.queryByRole("button", {
+      name: messages["sample.management.alternateOrderFlow.associateTest"],
+    }),
+  ).toBeNull();
+  view.rerender(
+    table(
+      { alternateOrderFlow: true, alternateFlowTestAssociationAllowed: true },
+      { onAssociateAlternateTests: associate, isReadOnly: true },
+    ),
+  );
+  expect(
+    view.queryByRole("button", {
+      name: messages["sample.management.alternateOrderFlow.associateTest"],
+    }),
+  ).toBeNull();
+});
+
 const expand = (view) =>
   fireEvent.click(
     view.container.querySelector("tbody .cds--table-expand__button"),
   );
+
+test("an alternate-flow sample with a permitted test exposes its sample fields while other tests remain locked", () => {
+  const view = render(
+    table({
+      alternateOrderFlow: true,
+      alternateOrderFlowProcessingAllowed: true,
+      orderedTests: [
+        {
+          analysisId: "allowed",
+          testName: "Permitida",
+          status: "Not Started",
+          alternateOrderFlowProcessingAllowed: true,
+        },
+        {
+          analysisId: "history",
+          testName: "Historial",
+          status: "Not Started",
+          alternateOrderFlowProcessingAllowed: false,
+        },
+      ],
+    }),
+  );
+  expand(view);
+  expect(
+    view.getByText(
+      messages["sample.management.alternateOrderFlow.processingException"],
+    ),
+  ).toBeTruthy();
+  expect(
+    view.getByText(messages["sample.management.current.sample.fields.heading"]),
+  ).toBeTruthy();
+  expect(
+    view.getByRole("button", {
+      name: messages["sample.management.action.save"],
+    }).disabled,
+  ).toBe(false);
+  const cancelButtons = view.getAllByRole("button", {
+    name: messages["sample.management.table.cancelTest"],
+  });
+  expect(cancelButtons[0].disabled).toBe(false);
+  expect(cancelButtons[1].disabled).toBe(true);
+});
 
 test("changing a normal order to alternate flow preserves tests as read-only history and hides processing", () => {
   const view = render(table());

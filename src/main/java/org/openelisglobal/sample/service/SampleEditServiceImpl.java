@@ -33,6 +33,7 @@ import org.openelisglobal.note.service.NoteServiceImpl.NoteType;
 import org.openelisglobal.note.valueholder.Note;
 import org.openelisglobal.observationhistory.service.ObservationHistoryService;
 import org.openelisglobal.observationhistory.valueholder.ObservationHistory;
+import org.openelisglobal.orderadditionalfield.service.AlternateOrderFlowPolicy;
 import org.openelisglobal.orderadditionalfield.service.AlternateOrderFlowService;
 import org.openelisglobal.orderadditionalfield.service.OrderAdditionalFieldService;
 import org.openelisglobal.organization.service.OrganizationService;
@@ -162,10 +163,14 @@ public class SampleEditServiceImpl implements SampleEditService {
                 form.getSampleOrderItems() == null ? null : form.getSampleOrderItems().getAdditionalFieldFiles(),
                 sysUserId, null);
         boolean alternateOrderFlow = alternateOrderFlowService.isAlternateOrderFlow(updatedSample.getId());
-        if (!alternateOrderFlow) {
-            addAnalysisList = createAddAanlysisList(
-                    form.getPossibleTests() != null ? form.getPossibleTests() : new ArrayList<>(), sysUserId);
-        }
+        List<SampleEditItem> selectedTests = form.getPossibleTests() != null ? form.getPossibleTests()
+                : new ArrayList<>();
+        addAnalysisList = createAddAanlysisList(
+                selectedTests.stream()
+                        .filter(selection -> AlternateOrderFlowPolicy.allowsProcessing(alternateOrderFlow,
+                                testService.get(selection.getTestId())))
+                        .collect(java.util.stream.Collectors.toList()),
+                sysUserId);
         updatedSample.setPriority(form.getSampleOrderItems().getPriority());
         String receivedDateForDisplay = updatedSample.getReceivedDateForDisplay();
         String collectionDateFromRecieveDate = null;
@@ -268,12 +273,11 @@ public class SampleEditServiceImpl implements SampleEditService {
                 }
             }
 
-            if (alternateOrderFlow) {
-                continue;
-            }
-
             for (Test test : sampleTestCollection.tests) {
                 test = testService.get(test.getId());
+                if (!AlternateOrderFlowPolicy.allowsProcessing(alternateOrderFlow, test)) {
+                    continue;
+                }
 
                 Analysis analysis = populateAnalysis(sampleTestCollection, test,
                         sampleTestCollection.testIdToUserSectionMap.get(test.getId()), sampleAddService);

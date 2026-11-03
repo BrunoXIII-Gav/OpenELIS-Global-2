@@ -2144,6 +2144,7 @@ export const StepThreeTestResultTypeAndLoinc = ({
             ["Y", "N"],
             "Direct sample usage must be Y or N",
           ),
+          allowProcessingInAlternateFlow: Yup.string().oneOf(["Y", "N"]),
           skipValidationWhenParentComplete: Yup.string().oneOf(
             ["Y", "N"],
             "Skip validation when parent complete must be Y or N",
@@ -4138,6 +4139,20 @@ export const StepThreeTestResultTypeAndLoinc = ({
                         )}
                       </>
                     )}
+                    <Checkbox
+                      labelText={
+                        <FormattedMessage id="test.allowProcessingInAlternateFlow" />
+                      }
+                      id="allow-processing-in-alternate-flow"
+                      name="allowProcessingInAlternateFlow"
+                      checked={values?.allowProcessingInAlternateFlow === "Y"}
+                      onChange={(_event, { checked }) =>
+                        setFieldValue(
+                          "allowProcessingInAlternateFlow",
+                          checked ? "Y" : "N",
+                        )
+                      }
+                    />
                     <>
                       <Checkbox
                         labelText={

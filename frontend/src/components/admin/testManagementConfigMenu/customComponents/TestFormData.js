@@ -30,6 +30,7 @@ export const TestFormData = {
   activeChildDependency: false,
   activeParentDependency: false,
   skipValidationWhenParentComplete: "N",
+  allowProcessingInAlternateFlow: "N",
   notifyResults: "N",
   inLabOnly: "N",
   antimicrobialResistance: "N",
@@ -329,6 +330,9 @@ export const mapTestCatBeanToFormData = (test) => {
         : "N",
     activeChildDependency: !!test.activeChildDependency,
     activeParentDependency: !!test.activeParentDependency,
+    allowProcessingInAlternateFlow: test.allowProcessingInAlternateFlow
+      ? "Y"
+      : "N",
     skipValidationWhenParentComplete: test.activeParentDependency
       ? test.skipValidationWhenParentComplete
         ? "Y"
