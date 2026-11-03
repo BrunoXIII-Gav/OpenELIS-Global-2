@@ -122,6 +122,7 @@ function SampleResultsTable({
   sampleItems = [],
   onSelectionChange,
   onTestRemoved,
+  onAssociateAlternateTests,
   currentTestsVisibleBySampleId = {},
   onPersistResult,
   isReadOnly = false,
@@ -494,7 +495,7 @@ function SampleResultsTable({
     const signature = JSON.stringify(
       (sampleItems || []).map(
         (item) =>
-          `${item.id}:${item.lastupdated || ""}:${item.alternateOrderFlow === true}`,
+          `${item.id}:${item.lastupdated || ""}:${item.alternateOrderFlow === true}:${item.alternateOrderFlowProcessingAllowed === true}`,
       ),
     );
     if (lastSampleSignatureRef.current !== signature) {
@@ -857,12 +858,17 @@ function SampleResultsTable({
         dataCompletionStatus: item.dataCompletionStatus,
         editable: Boolean(item.editable),
         alternateOrderFlow: item.alternateOrderFlow === true,
+        alternateOrderFlowProcessingAllowed:
+          item.alternateOrderFlowProcessingAllowed === true,
+        alternateFlowTestAssociationAllowed:
+          item.alternateFlowTestAssociationAllowed === true,
         canRead: Boolean(item.canRead),
         canComplete: Boolean(item.canComplete),
         canUpdate: Boolean(item.canUpdate),
         isAliquot: item.isAliquot,
         nestingLevel: item.nestingLevel || 0,
         hasRemainingQuantity: item.hasRemainingQuantity,
+        volumeRecorded: item.quantity != null || item.remainingQuantity != null,
         childAliquotCount: item.childAliquots ? item.childAliquots.length : 0,
         parentExternalId: item.parentExternalId,
         restrictedFieldGroupKeys: item.restrictedFieldGroupKeys || [],
@@ -1081,7 +1087,8 @@ function SampleResultsTable({
     if (
       isReadOnly ||
       !originalRow?.editable ||
-      originalRow?.alternateOrderFlow
+      (originalRow?.alternateOrderFlow &&
+        !originalRow?.alternateOrderFlowProcessingAllowed)
     ) {
       return;
     }
@@ -1172,8 +1179,8 @@ function SampleResultsTable({
     const originalRow = rows.find((r) => r.id === dataTableRow.id);
     if (!originalRow) return null;
 
-    // Only show a tag if there's no remaining quantity
-    if (!originalRow.hasRemainingQuantity) {
+    // Unknown volume is not an exhausted sample.
+    if (originalRow.volumeRecorded && !originalRow.hasRemainingQuantity) {
       return (
         <Tag type="red">
           {intl.formatMessage({
@@ -1294,7 +1301,10 @@ function SampleResultsTable({
       originalRow?.canComplete &&
       !originalRow?.canRead &&
       !originalRow?.canUpdate;
-    if (originalRow?.alternateOrderFlow) {
+    if (
+      originalRow?.alternateOrderFlow &&
+      !originalRow?.alternateOrderFlowProcessingAllowed
+    ) {
       return (
         <div className="sample-mgmt-expanded-content">
           <InlineNotification
@@ -1307,6 +1317,18 @@ function SampleResultsTable({
             })}
             hideCloseButton
           />
+          {!isReadOnly &&
+            !testsRestricted &&
+            !completingOnly &&
+            originalRow.alternateFlowTestAssociationAllowed &&
+            onAssociateAlternateTests && (
+              <Button
+                kind="tertiary"
+                onClick={() => onAssociateAlternateTests(originalRow.id)}
+              >
+                <FormattedMessage id="sample.management.alternateOrderFlow.associateTest" />
+              </Button>
+            )}
           {!testsRestricted &&
             !completingOnly &&
             originalRow.orderedTests.length > 0 && (
@@ -1417,6 +1439,18 @@ function SampleResultsTable({
 
     return (
       <div className="sample-mgmt-expanded-content">
+        {originalRow?.alternateOrderFlow && (
+          <InlineNotification
+            kind="info"
+            title={intl.formatMessage({
+              id: "sample.management.alternateOrderFlow.title",
+            })}
+            subtitle={intl.formatMessage({
+              id: "sample.management.alternateOrderFlow.processingException",
+            })}
+            hideCloseButton
+          />
+        )}
         {!testsRestricted && !completingOnly ? (
           <>
             <div className="sample-mgmt-ordered-tests-header">
@@ -1481,7 +1515,12 @@ function SampleResultsTable({
                             resolveTestName(test, originalRow.sampleTypeId),
                           )
                         }
-                        disabled={rowReadOnly || !canCancelTest(test.status)}
+                        disabled={
+                          rowReadOnly ||
+                          !canCancelTest(test.status) ||
+                          (originalRow?.alternateOrderFlow &&
+                            !test.alternateOrderFlowProcessingAllowed)
+                        }
                         tooltipPosition="left"
                       />
                     )}
@@ -2338,7 +2377,8 @@ function SampleResultsTable({
                                             readOnly={
                                               isReadOnly ||
                                               !originalRow?.editable ||
-                                              originalRow?.alternateOrderFlow
+                                              (originalRow?.alternateOrderFlow &&
+                                                !originalRow?.alternateOrderFlowProcessingAllowed)
                                             }
                                             onChange={(cugCode) =>
                                               handleCurrentTestFieldChange(

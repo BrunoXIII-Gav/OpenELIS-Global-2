@@ -116,6 +116,7 @@ public class TestAddControllerUtills {
             test.setIsActive(testAddParams.active);
             test.setOrderable("Y".equals(testAddParams.orderable));
             test.setDirectSampleUsageEnabled("Y".equals(testAddParams.directSampleUsageEnabled));
+            test.setAllowProcessingInAlternateFlow("Y".equals(testAddParams.allowProcessingInAlternateFlow));
             test.setSkipValidationWhenParentComplete(Boolean.FALSE);
             test.setNotifyResults("Y".equals(testAddParams.notifyResults));
             test.setInLabOnly("Y".equals(testAddParams.inLabOnly));
@@ -257,6 +258,7 @@ public class TestAddControllerUtills {
             testAddParams.orderable = (String) obj.get("orderable");
             testAddParams.directSampleUsageEnabled = asString(obj.get("directSampleUsageEnabled"));
             testAddParams.skipValidationWhenParentComplete = asString(obj.get("skipValidationWhenParentComplete"));
+            testAddParams.allowProcessingInAlternateFlow = asString(obj.get("allowProcessingInAlternateFlow"));
             testAddParams.notifyResults = (String) obj.get("notifyResults");
             testAddParams.inLabOnly = (String) obj.get("inLabOnly");
             testAddParams.antimicrobialResistance = (String) obj.get("antimicrobialResistance");
@@ -477,6 +479,7 @@ public class TestAddControllerUtills {
         String orderable;
         String directSampleUsageEnabled;
         String skipValidationWhenParentComplete;
+        String allowProcessingInAlternateFlow;
         String notifyResults;
         String inLabOnly;
         String antimicrobialResistance;

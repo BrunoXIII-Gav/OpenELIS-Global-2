@@ -28,8 +28,8 @@ import org.openelisglobal.orderadditionalfield.valueholder.SampleOrderAdditional
 import org.openelisglobal.patient.valueholder.Patient;
 import org.openelisglobal.sample.bean.SampleEditItem;
 import org.openelisglobal.sample.bean.SampleOrderItem;
-import org.openelisglobal.sample.form.SampleEditForm;
 import org.openelisglobal.sample.controller.rest.SampleEditRestController;
+import org.openelisglobal.sample.form.SampleEditForm;
 import org.openelisglobal.sample.valueholder.Sample;
 import org.openelisglobal.samplehuman.service.SampleHumanService;
 import org.openelisglobal.samplehuman.valueholder.SampleHuman;
@@ -112,8 +112,7 @@ public class SampleEditAlternateOrderFlowTest {
         var test = new org.openelisglobal.test.valueholder.Test();
         test.setId("30");
         when(bean(TestService.class).get("30")).thenReturn(test);
-        when(bean(SampleHumanService.class).getDataBySample(any(SampleHuman.class)))
-                .thenReturn(new SampleHuman());
+        when(bean(SampleHumanService.class).getDataBySample(any(SampleHuman.class))).thenReturn(new SampleHuman());
 
         var fields = bean(OrderAdditionalFieldService.class);
         reset(fields);
@@ -126,7 +125,8 @@ public class SampleEditAlternateOrderFlowTest {
         savedValues.put("alternate", "true");
         doAnswer(call -> {
             Map<String, String> submitted = call.getArgument(1);
-            if (submitted != null) savedValues.putAll(submitted);
+            if (submitted != null)
+                savedValues.putAll(submitted);
             return null;
         }).when(fields).validateAndPersistSampleValues(eq("44"), any(), any(), eq("42"), isNull());
 
@@ -174,6 +174,27 @@ public class SampleEditAlternateOrderFlowTest {
         form.getSampleOrderItems().getAdditionalFieldValues().put("alternate", "true");
         service.editSample(form, new MockHttpServletRequest(), sample, false, "42");
         verify(analyses, never()).insert(any(Analysis.class));
+        assertEquals("5411.1", item.getCugCode());
+    }
+
+    @Test
+    public void selectedExceptionCreatesOnlyThatAnalysisAndKeepsOrderInAlternateFlow() {
+        var allowed = bean(TestService.class).get("30");
+        allowed.setAllowProcessingInAlternateFlow(true);
+        var other = new org.openelisglobal.test.valueholder.Test();
+        other.setId("31");
+        when(bean(TestService.class).get("31")).thenReturn(other);
+        var selection = new SampleEditItem();
+        selection.setTestId("31");
+        selection.setSampleItemId("55");
+        selection.setAdd(true);
+        var firstSelection = form.getPossibleTests().get(0);
+        when(form.getPossibleTests()).thenReturn(List.of(firstSelection, selection));
+        service.editSample(form, new MockHttpServletRequest(), sample, false, "42");
+        var created = ArgumentCaptor.forClass(Analysis.class);
+        verify(analyses).insert(created.capture());
+        assertEquals("30", created.getValue().getTest().getId());
+        assertEquals("true", savedValues.get("alternate"));
         assertEquals("5411.1", item.getCugCode());
     }
 

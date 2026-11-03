@@ -55,6 +55,7 @@ import org.openelisglobal.observationhistory.service.ObservationHistoryService;
 import org.openelisglobal.observationhistory.valueholder.ObservationHistory;
 import org.openelisglobal.observationhistorytype.service.ObservationHistoryTypeService;
 import org.openelisglobal.observationhistorytype.valueholder.ObservationHistoryType;
+import org.openelisglobal.orderadditionalfield.service.AlternateOrderFlowService;
 import org.openelisglobal.patient.form.PatientInfoForm;
 import org.openelisglobal.patient.service.PatientService;
 import org.openelisglobal.patient.util.PatientUtil;
@@ -85,6 +86,8 @@ import org.springframework.stereotype.Service;
 
 @Service
 public class ResultsValidationUtility {
+    @Autowired
+    private AlternateOrderFlowService alternateOrderFlowService;
 
     @Autowired
     protected DictionaryService dictionaryService;
@@ -288,6 +291,9 @@ public class ResultsValidationUtility {
         Dictionary dictionary;
 
         for (Analysis analysis : filteredAnalysisList) {
+            if (alternateOrderFlowService.isAnalysisValidationBlocked(analysis.getId())) {
+                continue;
+            }
 
             if (ignoreRecordStatus || sampleReadyForValidation(analysis.getSampleItem().getSample())) {
                 List<ResultValidationItem> testResultItemList = getResultItemFromAnalysis(analysis);
@@ -673,7 +679,7 @@ public class ResultsValidationUtility {
         analysisResultItem.setAnalysisId(testResultItem.getAnalysis().getId());
         analysisResultItem.setStatusId(testResultItem.getAnalysis().getStatusId());
         analysisResultItem.setValidationDate(testResultItem.getAnalysis().getValidationDate() == null ? null
-            : testResultItem.getAnalysis().getValidationDate().toLocalDate().toString());
+                : testResultItem.getAnalysis().getValidationDate().toLocalDate().toString());
         analysisResultItem.setPastNotes(testResultItem.getPastNotes());
         analysisResultItem.setResultId(testResultItem.getResultId());
         analysisResultItem.setResultType(testResultItem.getResultType());

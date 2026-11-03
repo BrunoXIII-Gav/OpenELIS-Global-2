@@ -682,6 +682,18 @@ const HomeDashBoard: React.FC<DashBoardProps> = () => {
           })}
         </TableCell>
       );
+    } else if (cell.info.header === "priority") {
+      const priority = String(cell.value ?? "");
+      return (
+        <TableCell key={cell.id}>
+          {priority
+            ? intl.formatMessage({
+                id: `config.display.value.${priority}`,
+                defaultMessage: priority,
+              })
+            : ""}
+        </TableCell>
+      );
     } else if (cell.info.header === "countOfOrdersEntered" && cell.value) {
       return (
         <TableCell key={cell.id}>

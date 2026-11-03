@@ -12,6 +12,8 @@ import java.util.Optional;
 import java.util.Set;
 import java.util.stream.Collectors;
 import org.apache.commons.lang3.StringUtils;
+import org.openelisglobal.analysis.service.AnalysisService;
+import org.openelisglobal.analysis.valueholder.Analysis;
 import org.openelisglobal.orderadditionalfield.bean.OrderAdditionalFieldPayload;
 import org.openelisglobal.orderadditionalfield.dao.SampleOrderAdditionalFieldValueDAO;
 import org.openelisglobal.orderadditionalfield.valueholder.SampleOrderAdditionalFieldValue;
@@ -22,6 +24,47 @@ import org.springframework.transaction.annotation.Transactional;
 @Service
 @Transactional(readOnly = true)
 public class AlternateOrderFlowServiceImpl implements AlternateOrderFlowService {
+
+    @Autowired
+    private AnalysisService analysisService;
+
+    @Override
+    public boolean isAnalysisProcessingBlocked(String analysisId) {
+        var analysis = analysisService.get(analysisId);
+        return analysis == null
+                || !AlternateOrderFlowPolicy.allowsProcessing(isAlternateAnalysis(analysis), analysis.getTest());
+    }
+
+    @Override
+    public boolean isResultsOnlyAnalysis(String analysisId) {
+        var analysis = analysisService.get(analysisId);
+        return analysis != null
+                && AlternateOrderFlowPolicy.isResultsOnly(isAlternateAnalysis(analysis), analysis.getTest());
+    }
+
+    @Override
+    public boolean isAnalysisValidationBlocked(String analysisId) {
+        var analysis = analysisService.get(analysisId);
+        return analysis == null || isAlternateAnalysis(analysis);
+    }
+
+    private boolean isAlternateAnalysis(Analysis analysis) {
+        return analysis.getSampleItem() != null && analysis.getSampleItem().getSample() != null
+                && isAlternateOrderFlow(analysis.getSampleItem().getSample().getId());
+    }
+
+    @Override
+    public Set<String> getProcessingBlockedAnalysisIds(List<Analysis> analyses) {
+        List<String> sampleIds = analyses.stream()
+                .filter(analysis -> analysis.getSampleItem() != null && analysis.getSampleItem().getSample() != null)
+                .map(analysis -> analysis.getSampleItem().getSample().getId()).distinct().toList();
+        Set<String> alternateIds = getAlternateOrderFlowSampleIds(sampleIds);
+        return analyses.stream()
+                .filter(analysis -> analysis.getSampleItem() != null && analysis.getSampleItem().getSample() != null
+                        && alternateIds.contains(analysis.getSampleItem().getSample().getId()))
+                .filter(analysis -> !AlternateOrderFlowPolicy.allowsProcessing(true, analysis.getTest()))
+                .map(Analysis::getId).collect(Collectors.toSet());
+    }
 
     private static final ObjectMapper OBJECT_MAPPER = new ObjectMapper();
     private static final String WORKFLOW_NODE = "workflow";
@@ -46,7 +89,8 @@ public class AlternateOrderFlowServiceImpl implements AlternateOrderFlowService 
             return false;
         }
 
-        Map<String, String> values = orderAdditionalFieldValues == null ? Collections.emptyMap() : orderAdditionalFieldValues;
+        Map<String, String> values = orderAdditionalFieldValues == null ? Collections.emptyMap()
+                : orderAdditionalFieldValues;
         for (TriggerFieldConfig triggerField : triggerFields) {
             String configuredValue = values.get(triggerField.fieldKey());
             if (matchesTriggerValue(triggerField, configuredValue)) {
@@ -86,8 +130,8 @@ public class AlternateOrderFlowServiceImpl implements AlternateOrderFlowService 
             return Collections.emptySet();
         }
 
-        Map<Integer, TriggerFieldConfig> triggerFieldsByDefinitionId = triggerFields.stream()
-                .collect(Collectors.toMap(TriggerFieldConfig::fieldDefinitionId, config -> config, (left, _right) -> left));
+        Map<Integer, TriggerFieldConfig> triggerFieldsByDefinitionId = triggerFields.stream().collect(
+                Collectors.toMap(TriggerFieldConfig::fieldDefinitionId, config -> config, (left, _right) -> left));
         Map<String, Map<String, String>> valuesBySampleId = new HashMap<>();
         for (SampleOrderAdditionalFieldValue persistedValue : persistedValues) {
             TriggerFieldConfig triggerField = triggerFieldsByDefinitionId.get(persistedValue.getFieldDefinitionId());

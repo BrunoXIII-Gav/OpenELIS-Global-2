@@ -54,6 +54,10 @@ public class SampleManagementAlternateOrderFlowTest {
     @Mock
     private AlternateOrderFlowService workflow;
     @Mock
+    private org.openelisglobal.typeofsample.service.TypeOfSampleTestService sampleTypeTests;
+    @Mock
+    private org.openelisglobal.sample.service.SampleTypeAdditionalFieldService sampleFields;
+    @Mock
     private ObjectProvider<SampleOrderService> orderProvider;
     @Mock
     private SampleManagementAuthorizationService authorization;
@@ -145,6 +149,95 @@ public class SampleManagementAlternateOrderFlowTest {
         assertTrue(dto.isAlternateOrderFlow());
         assertTrue(dto.getOrderedTests().isEmpty());
         assertFalse(dto.isEditable());
+    }
+
+    @Test
+    public void exceptionAllowsSampleProcessingWithoutChangingOrderClassification() {
+        when(analysis.getTest().getAllowProcessingInAlternateFlow()).thenReturn(true);
+        var dto = service.searchByAccessionNumber("LNG81", true).getSampleItems().get(0);
+        assertTrue(dto.isAlternateOrderFlow());
+        assertTrue(dto.isAlternateOrderFlowProcessingAllowed());
+        assertTrue(dto.isEditable());
+        assertTrue(dto.getOrderedTests().get(0).isAlternateOrderFlowProcessingAllowed());
+        var hiddenTests = service.searchByAccessionNumber("LNG81", true, Set.of("tests-and-results"))
+                .getSampleItems().get(0);
+        assertTrue(hiddenTests.isAlternateOrderFlow());
+        assertTrue(hiddenTests.isEditable());
+        assertTrue(hiddenTests.getOrderedTests().isEmpty());
+    }
+
+    @Test
+    public void existingAlternateSampleWithoutAnalysesCanAssociateAnExplicitExceptionBeforeRecordingVolume() {
+        var test = permitException();
+        when(analyses.getAnalysesBySampleItem(item)).thenReturn(List.of());
+        when(analyses.buildAnalysis(test, item)).thenReturn(analysis);
+        assertTrue(service.searchByAccessionNumber("LNG81", true).getSampleItems().get(0)
+                .isAlternateFlowTestAssociationAllowed());
+        var response = service.addTestsToSamples(new AddTestsForm(List.of("55"), List.of("30")), "42");
+        assertEquals(1, response.getSuccessCount());
+        verify(analyses).insert(analysis);
+        assertNull(item.getQuantity());
+        assertEquals("5008.1", item.getCugCode());
+        assertEquals("42", analysis.getSysUserId());
+        when(analyses.getAnalysesBySampleItem(item)).thenReturn(List.of(analysis));
+        var refreshed = service.searchByAccessionNumber("LNG81", true).getSampleItems().get(0);
+        assertTrue(refreshed.isEditable());
+        assertTrue(refreshed.isAlternateOrderFlow());
+        assertTrue(refreshed.isAlternateOrderFlowProcessingAllowed());
+    }
+
+    @Test
+    public void actualExhaustedVolumeStillPreventsAssociatingAnException() {
+        permitException();
+        item.setQuantity(10d);
+        item.setRemainingQuantity(java.math.BigDecimal.ZERO);
+        assertFalse(service.searchByAccessionNumber("LNG81", true).getSampleItems().get(0)
+                .isAlternateFlowTestAssociationAllowed());
+        assertThrows(IllegalStateException.class,
+                () -> service.addTestsToSamples(new AddTestsForm(List.of("55"), List.of("30")), "42"));
+        verify(analyses, never()).insert(any());
+    }
+
+    @Test
+    public void anExceptionMustStillBeActiveOrderableAndCompatibleWithTheSpecimen() {
+        var test = permitException();
+        when(sampleTypeTests.getTypeOfSampleTestsForSampleType("1")).thenReturn(List.of());
+        var form = new AddTestsForm(List.of("55"), List.of("30"));
+        assertThrows(IllegalArgumentException.class, () -> service.addTestsToSamples(form, "42"));
+        permitException();
+        when(test.isActive()).thenReturn(false);
+        assertThrows(IllegalArgumentException.class, () -> service.addTestsToSamples(form, "42"));
+        when(test.isActive()).thenReturn(true);
+        when(test.getOrderable()).thenReturn(false);
+        assertThrows(IllegalArgumentException.class, () -> service.addTestsToSamples(form, "42"));
+        verify(analyses, never()).insert(any());
+    }
+
+    @Test
+    public void readOnlyAccessCannotAssociateTestsToAnExistingAlternateSpecimen() {
+        permitException();
+        var readOnly = new SampleManagementAccess(true, false, false);
+        when(authorization.getAccess("42")).thenReturn(readOnly);
+        var dto = service.searchByAccessionNumber("LNG81", true, Set.of(), Set.of(), readOnly).getSampleItems().get(0);
+        assertFalse(dto.isAlternateFlowTestAssociationAllowed());
+        assertThrows(org.springframework.security.access.AccessDeniedException.class,
+                () -> service.addTestsToSamples(new AddTestsForm(List.of("55"), List.of("30")), "42"));
+        verify(analyses, never()).insert(any());
+    }
+
+    private org.openelisglobal.test.valueholder.Test permitException() {
+        var test = tests.getTestById("30");
+        when(test.getAllowProcessingInAlternateFlow()).thenReturn(true);
+        when(test.isActive()).thenReturn(true);
+        when(test.getOrderable()).thenReturn(true);
+        var type = new org.openelisglobal.typeofsample.valueholder.TypeOfSample();
+        type.setId("1");
+        item.setTypeOfSample(type);
+        var link = new org.openelisglobal.typeofsample.valueholder.TypeOfSampleTest();
+        link.setTestId("30");
+        link.setTypeOfSampleId("1");
+        when(sampleTypeTests.getTypeOfSampleTestsForSampleType("1")).thenReturn(List.of(link));
+        return test;
     }
 
     @Test

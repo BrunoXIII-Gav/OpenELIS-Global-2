@@ -40,6 +40,7 @@ import org.openelisglobal.notification.valueholder.TestNotificationConfig;
 import org.openelisglobal.observationhistory.service.ObservationHistoryService;
 import org.openelisglobal.observationhistory.valueholder.ObservationHistory;
 import org.openelisglobal.orderadditionalfield.bean.OrderAdditionalFieldFilePayload;
+import org.openelisglobal.orderadditionalfield.service.AlternateOrderFlowPolicy;
 import org.openelisglobal.orderadditionalfield.service.AlternateOrderFlowService;
 import org.openelisglobal.orderadditionalfield.service.OrderAdditionalFieldService;
 import org.openelisglobal.organization.service.OrganizationService;
@@ -342,11 +343,11 @@ public class SamplePatientEntryServiceImpl implements SamplePatientEntryService 
                 }
             }
             sampleTestCollection.analysises = new ArrayList<>();
-            if (alternateOrderFlow) {
-                continue;
-            }
             for (Test test : sampleTestCollection.tests) {
                 test = testService.get(test.getId());
+                if (!AlternateOrderFlowPolicy.allowsProcessing(alternateOrderFlow, test)) {
+                    continue;
+                }
 
                 Analysis analysis = populateAnalysis(analysisRevision, sampleTestCollection, test,
                         sampleTestCollection.testIdToUserSectionMap.get(test.getId()),

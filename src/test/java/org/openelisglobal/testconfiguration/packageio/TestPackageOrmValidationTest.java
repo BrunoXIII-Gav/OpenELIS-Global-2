@@ -65,6 +65,8 @@ public class TestPackageOrmValidationTest {
                     factory.getMetamodel().entity(TestConfigurationImportLock.class).getIdType().getJavaType());
             assertEquals(boolean.class, factory.getMetamodel().entity(org.openelisglobal.test.valueholder.Test.class)
                     .getAttribute("userCreated").getJavaType());
+            assertEquals(Boolean.class, factory.getMetamodel().entity(org.openelisglobal.test.valueholder.Test.class)
+                    .getAttribute("allowProcessingInAlternateFlow").getJavaType());
             assertTrue(TestPackageRegistry.omitted("Test", "userCreated"));
             assertTrue(TestPackageRegistry.omitted("Test", "creationOriginVerified"));
             assertTrue(TestPackageRegistry.omitted("Test", "creationOriginVerifiedBy"));

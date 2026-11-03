@@ -156,6 +156,46 @@ beforeAll(() => {
   Element.prototype.scrollIntoView = jest.fn();
 });
 
+test("alternate-flow exception defaults off, works without a parent dependency, and coexists with parent completion", async () => {
+  const view = renderForm({
+    activeParentDependency: true,
+    skipValidationWhenParentComplete: "Y",
+  });
+  const exception = view.getByLabelText(
+    messages["test.allowProcessingInAlternateFlow"],
+  );
+  expect(exception.checked).toBe(false);
+  expect(exception.disabled).toBe(false);
+  await click(exception);
+  expect(
+    view.getByLabelText(messages["test.skipValidationWhenParentComplete"])
+      .checked,
+  ).toBe(true);
+  await click(view.getByText("Next"));
+  await wait(() => expect(view.onNext).toHaveBeenCalled());
+  expect(view.onNext.mock.calls[0][0]).toEqual(
+    expect.objectContaining({
+      allowProcessingInAlternateFlow: "Y",
+      skipValidationWhenParentComplete: "Y",
+    }),
+  );
+});
+
+test("ordinary tests can enable the alternate-flow exception without enabling parent completion", async () => {
+  const view = renderForm({ activeParentDependency: false });
+  const exception = view.getByLabelText(
+    messages["test.allowProcessingInAlternateFlow"],
+  );
+  expect(exception.disabled).toBe(false);
+  await click(exception);
+  await click(view.getByText("Next"));
+  await wait(() => expect(view.onNext).toHaveBeenCalled());
+  expect(view.onNext.mock.calls[0][0].allowProcessingInAlternateFlow).toBe("Y");
+  expect(view.onNext.mock.calls[0][0].skipValidationWhenParentComplete).toBe(
+    "N",
+  );
+});
+
 test("existing fields keep position until OK, then use their destination block order and preserve metadata", async () => {
   const { card, names, selectBlock, onNext } = renderForm();
   await click(within(card("Alpha")).getByText("Edit"));

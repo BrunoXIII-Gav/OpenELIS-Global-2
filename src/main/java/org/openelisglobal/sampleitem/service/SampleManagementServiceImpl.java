@@ -36,6 +36,7 @@ import org.openelisglobal.common.services.IStatusService;
 import org.openelisglobal.common.services.SampleOrderService;
 import org.openelisglobal.common.services.StatusService;
 import org.openelisglobal.common.services.StatusService.SampleStatus;
+import org.openelisglobal.orderadditionalfield.service.AlternateOrderFlowPolicy;
 import org.openelisglobal.orderadditionalfield.service.AlternateOrderFlowService;
 import org.openelisglobal.patient.valueholder.Patient;
 import org.openelisglobal.sample.bean.SampleTypeAdditionalFieldPayload;
@@ -61,10 +62,12 @@ import org.openelisglobal.sampleitem.valueholder.SampleDataCompletionStatus;
 import org.openelisglobal.sampleitem.valueholder.SampleItem;
 import org.openelisglobal.test.service.TestService;
 import org.openelisglobal.test.valueholder.Test;
+import org.openelisglobal.typeofsample.service.TypeOfSampleTestService;
 import org.openelisglobal.unitofmeasure.service.UnitOfMeasureService;
 import org.openelisglobal.unitofmeasure.valueholder.UnitOfMeasure;
 import org.springframework.beans.factory.ObjectProvider;
 import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.security.access.AccessDeniedException;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -117,6 +120,9 @@ public class SampleManagementServiceImpl implements SampleManagementService {
 
     @Autowired
     private TestService testService;
+
+    @Autowired
+    private TypeOfSampleTestService typeOfSampleTestService;
 
     @Autowired
     private UnitOfMeasureService unitOfMeasureService;
@@ -190,8 +196,6 @@ public class SampleManagementServiceImpl implements SampleManagementService {
         // Step 5: Convert entities to DTOs WITHIN transaction boundary
         List<SampleItemDTO> dtos = sampleItems.stream().filter(item -> access.canView(item.getDataCompletionState()))
                 .map(item -> convertToDTO(item, includeTests, access)).collect(Collectors.toList());
-        boolean alternateOrderFlow = alternateOrderFlowService.isAlternateOrderFlow(sample.getId());
-        dtos.forEach(dto -> applyWorkflow(dto, alternateOrderFlow));
 
         // Step 6: Compile reception details here so this module never needs the
         // legacy SampleEdit endpoint, which is protected by Order permissions.
@@ -413,13 +417,36 @@ public class SampleManagementServiceImpl implements SampleManagementService {
      */
     private SampleItemDTO convertToDTO(SampleItem sampleItem, boolean includeTests) {
         SampleItemDTO dto = convertToDTO(sampleItem, includeTests, SampleManagementAccess.fullAccess());
-        applyWorkflow(dto, isAlternateOrderFlow(sampleItem));
         return dto;
     }
 
-    private void applyWorkflow(SampleItemDTO dto, boolean alternateOrderFlow) {
-        dto.setAlternateOrderFlow(alternateOrderFlow);
-        dto.setEditable(dto.isEditable() && !alternateOrderFlow);
+    private void applyWorkflow(SampleItemDTO dto, SampleItem sampleItem) {
+        boolean alternate = isAlternateOrderFlow(sampleItem);
+        boolean allowed = alternate && hasProcessingException(sampleItem);
+        dto.setAlternateOrderFlow(alternate);
+        dto.setAlternateOrderFlowProcessingAllowed(allowed);
+        dto.setAlternateFlowTestAssociationAllowed(alternate && dto.isEditable()
+                && (sampleItem.hasRemainingQuantity() || hasUnrecordedOriginalVolume(sampleItem)));
+        dto.setEditable(dto.isEditable() && (!alternate || allowed));
+    }
+
+    private boolean hasUnrecordedOriginalVolume(SampleItem item) {
+        return !item.isAliquot() && item.getQuantity() == null && item.getRemainingQuantity() == null;
+    }
+
+    private boolean hasProcessingException(SampleItem item) {
+        List<Analysis> analyses = analysisService.getAnalysesBySampleItem(item);
+        if (analyses == null)
+            return false;
+        String cancelled = StatusService.getInstance().getStatusID(StatusService.AnalysisStatus.Canceled);
+        return analyses.stream().anyMatch(analysis -> !java.util.Objects.equals(cancelled, analysis.getStatusId())
+                && AlternateOrderFlowPolicy.isResultsOnly(true, analysis.getTest()));
+    }
+
+    private void requireTestProcessingAllowed(SampleItem item, Test test) {
+        if (!AlternateOrderFlowPolicy.allowsProcessing(isAlternateOrderFlow(item), test)) {
+            throw new IllegalStateException("sample.management.alternateOrderFlow.processingBlocked");
+        }
     }
 
     private boolean isAlternateOrderFlow(SampleItem sampleItem) {
@@ -428,7 +455,7 @@ public class SampleManagementServiceImpl implements SampleManagementService {
     }
 
     private void requireNormalOrderFlow(SampleItem sampleItem) {
-        if (isAlternateOrderFlow(sampleItem)) {
+        if (isAlternateOrderFlow(sampleItem) && !hasProcessingException(sampleItem)) {
             throw new IllegalStateException("sample.management.alternateOrderFlow.processingBlocked");
         }
     }
@@ -535,6 +562,7 @@ public class SampleManagementServiceImpl implements SampleManagementService {
 
         // Metadata
         dto.setLastupdated(sampleItem.getLastupdated());
+        applyWorkflow(dto, sampleItem);
 
         return dto;
     }
@@ -567,6 +595,8 @@ public class SampleManagementServiceImpl implements SampleManagementService {
 
         if (analysis.getTest() != null) {
             dto.setTestId(analysis.getTest().getId());
+            dto.setAlternateOrderFlowProcessingAllowed(
+                    AlternateOrderFlowPolicy.isResultsOnly(true, analysis.getTest()));
             // Use getName() or getDescription() for test name
             String testName = analysis.getTest().getName() != null ? analysis.getTest().getName()
                     : analysis.getTest().getDescription();
@@ -609,9 +639,27 @@ public class SampleManagementServiceImpl implements SampleManagementService {
                 throw new IllegalArgumentException("Sample item not found: " + sampleItemId);
             }
 
-            // Step 2a: Validate that sample has remaining quantity (not all dispensed)
-            requireNormalOrderFlow(sampleItem);
-            if (!sampleItem.hasRemainingQuantity()) {
+            // Original alternate-flow specimens may need a test association before their
+            // first volume can be recorded. Recorded, exhausted volume remains blocked.
+            for (Test test : tests)
+                requireTestProcessingAllowed(sampleItem, test);
+            boolean alternate = isAlternateOrderFlow(sampleItem);
+            if (alternate) {
+                if (!sampleManagementAuthorizationService.getAccess(sysUserId)
+                        .canEdit(sampleItem.getDataCompletionState())) {
+                    throw new AccessDeniedException("sample.management.addTests.error.notEditable");
+                }
+                Set<String> compatibleTestIds = typeOfSampleTestService
+                        .getTypeOfSampleTestsForSampleType(sampleItem.getTypeOfSampleId()).stream()
+                        .map(link -> link.getTestId()).collect(Collectors.toSet());
+                for (Test test : tests) {
+                    if (!test.isActive() || !Boolean.TRUE.equals(test.getOrderable())
+                            || !compatibleTestIds.contains(test.getId())) {
+                        throw new IllegalArgumentException("sample.management.addTests.error.incompatibleTest");
+                    }
+                }
+            }
+            if (!sampleItem.hasRemainingQuantity() && !(alternate && hasUnrecordedOriginalVolume(sampleItem))) {
                 throw new IllegalStateException(
                         String.format("Cannot add tests to sample item %s: all volume has been dispensed",
                                 sampleItem.getExternalId() != null ? sampleItem.getExternalId() : sampleItemId));
@@ -679,7 +727,7 @@ public class SampleManagementServiceImpl implements SampleManagementService {
         }
 
         // Step 3: Check if analysis can be cancelled (not already completed/finalized)
-        requireNormalOrderFlow(analysis.getSampleItem());
+        requireTestProcessingAllowed(analysis.getSampleItem(), analysis.getTest());
         IStatusService statusService = StatusService.getInstance();
         String currentStatusId = analysis.getStatusId();
 
@@ -739,11 +787,13 @@ public class SampleManagementServiceImpl implements SampleManagementService {
             // change. Re-read it under a row lock before applying the payload.
             sampleItemDAO.lockAndRefreshForCugChange(sampleItem);
             if (!access.canEdit(sampleItem.getDataCompletionState())) {
-                throw new org.springframework.security.access.AccessDeniedException(
-                        "User cannot modify this sample in its current completion state");
+                throw new AccessDeniedException("User cannot modify this sample in its current completion state");
             }
 
             requireNormalOrderFlow(sampleItem);
+            if (isAlternateOrderFlow(sampleItem) && Boolean.TRUE.equals(update.getRemoveSample())) {
+                throw new IllegalStateException("sample.management.alternateOrderFlow.processingBlocked");
+            }
             applySampleItemCoreUpdates(sampleItem, update, sysUserId);
             sampleItem.setSysUserId(sysUserId);
             // Auditing detaches the input. Keep it detached for the next audit comparison,
@@ -795,6 +845,7 @@ public class SampleManagementServiceImpl implements SampleManagementService {
                 if (analysis.getSampleItem() == null || !analysis.getSampleItem().getId().equals(sampleItem.getId())) {
                     continue;
                 }
+                requireTestProcessingAllowed(sampleItem, analysis.getTest());
                 if (!cancelledAnalysisStatus.equals(analysis.getStatusId())) {
                     analysis.setStatusId(cancelledAnalysisStatus);
                     analysis.setSysUserId(sysUserId);

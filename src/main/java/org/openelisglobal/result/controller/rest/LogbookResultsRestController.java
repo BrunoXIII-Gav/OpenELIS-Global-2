@@ -31,6 +31,7 @@ import org.openelisglobal.analysis.service.AnalysisTubeLabelService;
 import org.openelisglobal.analysis.service.AnalysisTubeUsageService;
 import org.openelisglobal.analysis.valueholder.Analysis;
 import org.openelisglobal.analysis.valueholder.AnalysisTubeLabel;
+import org.openelisglobal.analysis.valueholder.AnalysisTubeUsage;
 import org.openelisglobal.analysis.valueholder.ResultFile;
 import org.openelisglobal.authorization.service.ModuleAuthorizationService;
 import org.openelisglobal.authorization.service.ModuleAuthorizationService.AuthorizationSource;
@@ -69,6 +70,7 @@ import org.openelisglobal.notification.service.TestNotificationService;
 import org.openelisglobal.notification.valueholder.NotificationConfigOption.NotificationNature;
 import org.openelisglobal.notifications.dao.NotificationDAO;
 import org.openelisglobal.notifications.entity.Notification;
+import org.openelisglobal.orderadditionalfield.service.AlternateOrderFlowService;
 import org.openelisglobal.orderadditionalfield.service.OrderAdditionalFieldService;
 import org.openelisglobal.organization.service.OrganizationService;
 import org.openelisglobal.patient.service.PatientService;
@@ -148,6 +150,8 @@ import org.springframework.web.bind.annotation.ResponseBody;
 @Controller
 @RequestMapping(value = "/rest/")
 public class LogbookResultsRestController extends LogbookResultsBaseController {
+    @Autowired
+    private AlternateOrderFlowService alternateOrderFlowService;
     private static final ObjectMapper OBJECT_MAPPER = new ObjectMapper();
 
     private String RESULT_EDIT_ROLE_ID;
@@ -1296,10 +1300,9 @@ public class LogbookResultsRestController extends LogbookResultsBaseController {
             return BigDecimal.ZERO;
         }
 
-        List<org.openelisglobal.analysis.valueholder.AnalysisTubeUsage> usages = analysisTubeUsageService
-                .getByParentAnalysisId(parentAnalysisId);
+        List<AnalysisTubeUsage> usages = analysisTubeUsageService.getByParentAnalysisId(parentAnalysisId);
         BigDecimal consumed = BigDecimal.ZERO;
-        for (org.openelisglobal.analysis.valueholder.AnalysisTubeUsage usage : usages) {
+        for (AnalysisTubeUsage usage : usages) {
             if (usage == null || usage.getUsedQuantity() == null || usage.getAnalysis() == null) {
                 continue;
             }
@@ -1514,8 +1517,7 @@ public class LogbookResultsRestController extends LogbookResultsBaseController {
         }
 
         Map<String, BlockSampleUsageItem> persisted = new LinkedHashMap<>();
-        for (org.openelisglobal.analysis.valueholder.AnalysisTubeUsage usage : analysisTubeUsageService
-                .getByAnalysisId(analysisId)) {
+        for (AnalysisTubeUsage usage : analysisTubeUsageService.getByAnalysisId(analysisId)) {
             if (usage == null || GenericValidator.isBlankOrNull(usage.getChildBlockName())) {
                 continue;
             }
@@ -1926,7 +1928,14 @@ public class LogbookResultsRestController extends LogbookResultsBaseController {
     }
 
     private String getStatusForTestResult(TestResultItem testResult, boolean alwaysValidate) {
-        if (testResult.isShadowRejected() && ConfigurationProperties.getInstance()
+        if (alternateOrderFlowService.isResultsOnlyAnalysis(testResult.getAnalysisId())) {
+            if (testResult.isShadowRejected()) {
+                return SpringContext.getBean(IStatusService.class).getStatusID(AnalysisStatus.Canceled);
+            }
+            boolean complete = hasAnyEnteredResultData(testResult) && hasCompleteAlternateFlowResults(testResult);
+            return SpringContext.getBean(IStatusService.class)
+                    .getStatusID(complete ? AnalysisStatus.Finalized : AnalysisStatus.NotStarted);
+        } else if (testResult.isShadowRejected() && ConfigurationProperties.getInstance()
                 .isPropertyValueEqual(Property.VALIDATE_REJECTED_TESTS, "true")) {
             return SpringContext.getBean(IStatusService.class).getStatusID(AnalysisStatus.TechnicalRejected);
         } else if (testResult.isShadowRejected()) {
@@ -1999,6 +2008,23 @@ public class LogbookResultsRestController extends LogbookResultsBaseController {
         }
 
         return values.values().stream().anyMatch(value -> !GenericValidator.isBlankOrNull(value));
+    }
+
+    private boolean hasCompleteAlternateFlowResults(TestResultItem item) {
+        JsonNode primaryMetadata = readMetadataNode(item.getResultDisplayConfigJson());
+        if (primaryMetadata.path("active").asBoolean(true) && isPrimaryTubeLabelBlockActive(item, primaryMetadata)
+                && noResults(item.getShadowResultValue(), item.getMultiSelectResultValues(), item.getResultType())) {
+            return false;
+        }
+        List<TestAdditionalFieldPayload> definitions = item.getAdditionalFieldDefinitions();
+        if (definitions == null)
+            return true;
+        Map<String, String> values = item.getAdditionalFieldValues();
+        return definitions.stream().filter(java.util.Objects::nonNull)
+                .filter(field -> !Boolean.FALSE.equals(field.getActive()) && Boolean.TRUE.equals(field.getRequired()))
+                .filter(field -> isTubeLabelBlockActive(field, item, primaryMetadata))
+                .filter(field -> !GenericValidator.isBlankOrNull(field.getFieldKey()))
+                .allMatch(field -> values != null && !GenericValidator.isBlankOrNull(values.get(field.getFieldKey())));
     }
 
     private boolean hasCompleteAdditionalResultFields(TestResultItem testResultItem) {
@@ -2084,7 +2110,8 @@ public class LogbookResultsRestController extends LogbookResultsBaseController {
 
         // This needs to be refactored -- part of the logic is in
         // getStatusForTestResult. RetroCI over rides to whatever was set before
-        if (statusRuleSet.equals(STATUS_RULES_RETROCI)) {
+        if (statusRuleSet.equals(STATUS_RULES_RETROCI)
+                && !alternateOrderFlowService.isResultsOnlyAnalysis(analysis.getId())) {
             if (!SpringContext.getBean(IStatusService.class).getStatusID(AnalysisStatus.Canceled)
                     .equals(analysis.getStatusId())) {
                 analysis.setCompletedDate(DateUtil.convertStringDateToSqlDate(testDate));
