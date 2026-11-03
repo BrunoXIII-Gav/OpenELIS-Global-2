@@ -746,7 +746,7 @@ const AddOrder = (props) => {
     switch (fieldType) {
       case "TEXTAREA":
         return (
-          <Column key={field.fieldKey} lg={8} md={4} sm={4}>
+          <Column key={field.fieldKey} lg={16} md={8} sm={4}>
             <TextArea
               id={`order-dynamic-${field.fieldKey}`}
               labelText={label}
@@ -764,7 +764,7 @@ const AddOrder = (props) => {
         );
       case "NUMBER":
         return (
-          <Column key={field.fieldKey} lg={8} md={4} sm={4}>
+          <Column key={field.fieldKey} lg={16} md={8} sm={4}>
             <TextInput
               id={`order-dynamic-${field.fieldKey}`}
               labelText={label}
@@ -782,7 +782,7 @@ const AddOrder = (props) => {
         );
       case "DATE":
         return (
-          <Column key={field.fieldKey} lg={8} md={4} sm={4}>
+          <Column key={field.fieldKey} lg={16} md={8} sm={4}>
             <TextInput
               id={`order-dynamic-${field.fieldKey}`}
               labelText={label}
@@ -800,7 +800,7 @@ const AddOrder = (props) => {
         );
       case "TIME":
         return (
-          <Column key={field.fieldKey} lg={8} md={4} sm={4}>
+          <Column key={field.fieldKey} lg={16} md={8} sm={4}>
             <TextInput
               id={`order-dynamic-${field.fieldKey}`}
               labelText={label}
@@ -818,7 +818,7 @@ const AddOrder = (props) => {
         );
       case "DATETIME":
         return (
-          <Column key={field.fieldKey} lg={8} md={4} sm={4}>
+          <Column key={field.fieldKey} lg={16} md={8} sm={4}>
             <TextInput
               id={`order-dynamic-${field.fieldKey}`}
               labelText={label}
@@ -836,7 +836,7 @@ const AddOrder = (props) => {
         );
       case "BOOLEAN":
         return (
-          <Column key={field.fieldKey} lg={8} md={4} sm={4}>
+          <Column key={field.fieldKey} lg={16} md={8} sm={4}>
             <Checkbox
               id={`order-dynamic-${field.fieldKey}`}
               labelText={field.displayName}
@@ -854,7 +854,7 @@ const AddOrder = (props) => {
       case "SELECT":
       case "USER":
         return (
-          <Column key={field.fieldKey} lg={8} md={4} sm={4}>
+          <Column key={field.fieldKey} lg={16} md={8} sm={4}>
             <Select
               id={`order-dynamic-${field.fieldKey}`}
               labelText={label}
@@ -885,7 +885,7 @@ const AddOrder = (props) => {
         );
       case "RADIO":
         return (
-          <Column key={field.fieldKey} lg={8} md={4} sm={4}>
+          <Column key={field.fieldKey} lg={16} md={8} sm={4}>
             <RadioButtonGroup
               legendText={label}
               name={`order-dynamic-radio-${field.fieldKey}`}
@@ -914,7 +914,7 @@ const AddOrder = (props) => {
             .filter(Boolean),
         );
         return (
-          <Column key={field.fieldKey} lg={8} md={4} sm={4}>
+          <Column key={field.fieldKey} lg={16} md={8} sm={4}>
             <label htmlFor={`order-dynamic-${field.fieldKey}`}>{label}</label>
             <div id={`order-dynamic-${field.fieldKey}`}>
               {options.map((option) => (
@@ -939,7 +939,7 @@ const AddOrder = (props) => {
       }
       case "DOCUMENT":
         return (
-          <Column key={field.fieldKey} lg={8} md={4} sm={4}>
+          <Column key={field.fieldKey} lg={16} md={8} sm={4}>
             <div style={{ marginBottom: "0.5rem" }}>{label}</div>
             <FileUploader
               buttonLabel={<FormattedMessage id="label.button.uploadfile" />}
@@ -1012,7 +1012,7 @@ const AddOrder = (props) => {
       case "TEXT":
       default:
         return (
-          <Column key={field.fieldKey} lg={8} md={4} sm={4}>
+          <Column key={field.fieldKey} lg={16} md={8} sm={4}>
             <TextInput
               id={`order-dynamic-${field.fieldKey}`}
               labelText={label}
@@ -1070,7 +1070,7 @@ const AddOrder = (props) => {
     switch (fieldType) {
       case "NUMBER":
         return (
-          <Column key={field.fieldKey} lg={8} md={4} sm={4}>
+          <Column key={field.fieldKey} lg={16} md={8} sm={4}>
             <TextInput
               id={`requester-profile-${field.fieldKey}`}
               labelText={label}
@@ -1088,7 +1088,7 @@ const AddOrder = (props) => {
         );
       case "DATE":
         return (
-          <Column key={field.fieldKey} lg={8} md={4} sm={4}>
+          <Column key={field.fieldKey} lg={16} md={8} sm={4}>
             <TextInput
               id={`requester-profile-${field.fieldKey}`}
               labelText={label}
@@ -1106,7 +1106,7 @@ const AddOrder = (props) => {
         );
       case "BOOLEAN":
         return (
-          <Column key={field.fieldKey} lg={8} md={4} sm={4}>
+          <Column key={field.fieldKey} lg={16} md={8} sm={4}>
             <Checkbox
               id={`requester-profile-${field.fieldKey}`}
               labelText={field.displayName}
@@ -1123,7 +1123,7 @@ const AddOrder = (props) => {
         );
       case "SELECT":
         return (
-          <Column key={field.fieldKey} lg={8} md={4} sm={4}>
+          <Column key={field.fieldKey} lg={16} md={8} sm={4}>
             <Select
               id={`requester-profile-${field.fieldKey}`}
               labelText={label}
@@ -1156,7 +1156,7 @@ const AddOrder = (props) => {
         );
 
         return (
-          <Column key={field.fieldKey} lg={8} md={4} sm={4}>
+          <Column key={field.fieldKey} lg={16} md={8} sm={4}>
             <label htmlFor={`requester-profile-${field.fieldKey}`}>
               {label}
             </label>
@@ -1184,7 +1184,7 @@ const AddOrder = (props) => {
       case "TEXT":
       default:
         return (
-          <Column key={field.fieldKey} lg={8} md={4} sm={4}>
+          <Column key={field.fieldKey} lg={16} md={8} sm={4}>
             <TextInput
               id={`requester-profile-${field.fieldKey}`}
               labelText={label}
@@ -1284,7 +1284,7 @@ const AddOrder = (props) => {
   };
 
   const renderRequesterSearchField = () => (
-    <Column key="requesterSearch" lg={8} md={4} sm={4}>
+    <Column key="requesterSearch" lg={16} md={8} sm={4}>
       <AutoComplete
         name="requesterId"
         id="requesterId"
@@ -1321,7 +1321,7 @@ const AddOrder = (props) => {
     switch (fieldKey) {
       case "priority":
         return (
-          <Column key={fieldKey} lg={8} md={4} sm={4}>
+          <Column key={fieldKey} lg={16} md={8} sm={4}>
             <Select
               id="priorityId"
               name="priority"
@@ -1363,7 +1363,7 @@ const AddOrder = (props) => {
         );
       case "requestDate":
         return (
-          <Column key={fieldKey} lg={8} md={4} sm={4}>
+          <Column key={fieldKey} lg={16} md={8} sm={4}>
             <CustomDatePicker
               id={"order_requestDate"}
               labelText={intl.formatMessage({ id: "sample.requestDate" })}
@@ -1381,7 +1381,7 @@ const AddOrder = (props) => {
         );
       case "requestTime":
         return (
-          <Column key={fieldKey} lg={8} md={4} sm={4}>
+          <Column key={fieldKey} lg={16} md={8} sm={4}>
             <CustomTimePicker
               id="order_requestTime"
               labelText={intl.formatMessage({ id: "order.request.time" })}
@@ -1397,7 +1397,7 @@ const AddOrder = (props) => {
         );
       case "receivedDateForDisplay":
         return (
-          <Column key={fieldKey} lg={8} md={4} sm={4}>
+          <Column key={fieldKey} lg={16} md={8} sm={4}>
             <CustomDatePicker
               id={"order_receivedDate"}
               labelText={intl.formatMessage({ id: "sample.receivedDate" })}
@@ -1415,7 +1415,7 @@ const AddOrder = (props) => {
         );
       case "receivedTime":
         return (
-          <Column key={fieldKey} lg={8} md={4} sm={4}>
+          <Column key={fieldKey} lg={16} md={8} sm={4}>
             <CustomTimePicker
               id="order_receivedTime"
               labelText={intl.formatMessage({ id: "order.reception.time" })}
@@ -1431,7 +1431,7 @@ const AddOrder = (props) => {
         );
       case "nextVisitDate":
         return (
-          <Column key={fieldKey} lg={8} md={4} sm={4}>
+          <Column key={fieldKey} lg={16} md={8} sm={4}>
             <CustomDatePicker
               id={"order_nextVisitDate"}
               labelText={intl.formatMessage({
@@ -1447,7 +1447,7 @@ const AddOrder = (props) => {
         );
       case "referringSiteName":
         return (
-          <Column key={fieldKey} lg={8} md={4} sm={4}>
+          <Column key={fieldKey} lg={16} md={8} sm={4}>
             <AutoComplete
               name="siteName"
               id="siteName"
@@ -1482,7 +1482,7 @@ const AddOrder = (props) => {
         );
       case "referringSiteDepartmentId":
         return (
-          <Column key={fieldKey} lg={8} md={4} sm={4}>
+          <Column key={fieldKey} lg={16} md={8} sm={4}>
             <Select
               id="requesterDepartmentId"
               name="requesterDepartmentId"
@@ -1506,7 +1506,7 @@ const AddOrder = (props) => {
         );
       case "provisionalClinicalDiagnosis":
         return (
-          <Column key={fieldKey} lg={8} md={4} sm={4}>
+          <Column key={fieldKey} lg={16} md={8} sm={4}>
             <TextInput
               name="provisionalDiagnosis"
               placeholder={intl.formatMessage({
@@ -1526,7 +1526,7 @@ const AddOrder = (props) => {
         );
       case "providerFirstName":
         return (
-          <Column key={fieldKey} lg={8} md={4} sm={4}>
+          <Column key={fieldKey} lg={16} md={8} sm={4}>
             <TextInput
               name="requesterFirstName"
               placeholder={intl.formatMessage({
@@ -1560,7 +1560,7 @@ const AddOrder = (props) => {
         );
       case "providerLastName":
         return (
-          <Column key={fieldKey} lg={8} md={4} sm={4}>
+          <Column key={fieldKey} lg={16} md={8} sm={4}>
             <TextInput
               name="requesterLastName"
               placeholder={intl.formatMessage({
@@ -1594,7 +1594,7 @@ const AddOrder = (props) => {
         );
       case "providerWorkPhone":
         return (
-          <Column key={fieldKey} lg={8} sm={4}>
+          <Column key={fieldKey} lg={16} md={8} sm={4}>
             <TextInput
               name="providerWorkPhone"
               placeholder={intl.formatMessage({
@@ -1616,7 +1616,7 @@ const AddOrder = (props) => {
         );
       case "providerCmp":
         return (
-          <Column key={fieldKey} lg={8} md={4} sm={4}>
+          <Column key={fieldKey} lg={16} md={8} sm={4}>
             <TextInput
               name="providerCmp"
               labelText="CMP"
@@ -1629,7 +1629,7 @@ const AddOrder = (props) => {
         );
       case "providerRne":
         return (
-          <Column key={fieldKey} lg={8} md={4} sm={4}>
+          <Column key={fieldKey} lg={16} md={8} sm={4}>
             <TextInput
               name="providerRne"
               labelText="RNE"
@@ -1642,7 +1642,7 @@ const AddOrder = (props) => {
         );
       case "providerDni":
         return (
-          <Column key={fieldKey} lg={8} md={4} sm={4}>
+          <Column key={fieldKey} lg={16} md={8} sm={4}>
             <TextInput
               name="providerDni"
               labelText="DNI"
@@ -1655,7 +1655,7 @@ const AddOrder = (props) => {
         );
       case "providerSpecialty":
         return (
-          <Column key={fieldKey} lg={8} md={4} sm={4}>
+          <Column key={fieldKey} lg={16} md={8} sm={4}>
             {providerSpecialtyOptions.length > 0 ? (
               <Select
                 id="providerSpecialtyId"
@@ -1694,7 +1694,7 @@ const AddOrder = (props) => {
         );
       case "providerFax":
         return (
-          <Column key={fieldKey} lg={8} md={4} sm={4}>
+          <Column key={fieldKey} lg={16} md={8} sm={4}>
             <TextInput
               name="providerFax"
               placeholder={intl.formatMessage({
@@ -1715,7 +1715,7 @@ const AddOrder = (props) => {
         );
       case "providerEmail":
         return (
-          <Column key={fieldKey} lg={8} md={4} sm={4}>
+          <Column key={fieldKey} lg={16} md={8} sm={4}>
             <TextInput
               name="providerEmail"
               placeholder={intl.formatMessage({
@@ -1740,7 +1740,7 @@ const AddOrder = (props) => {
         );
       case "paymentOptionSelection":
         return (
-          <Column key={fieldKey} lg={8} md={4} sm={4}>
+          <Column key={fieldKey} lg={16} md={8} sm={4}>
             <Select
               id="paymentOptionSelectionId"
               name="paymentOptionSelections"
@@ -1767,7 +1767,7 @@ const AddOrder = (props) => {
         );
       case "testLocationCode":
         return (
-          <Column key={fieldKey} lg={8} md={4} sm={4}>
+          <Column key={fieldKey} lg={16} md={8} sm={4}>
             <Select
               id="testLocationCodeId"
               name="testLocationCode"
@@ -1793,7 +1793,7 @@ const AddOrder = (props) => {
         );
       case "otherLocationCode":
         return (
-          <Column key={fieldKey} lg={8} md={4} sm={4}>
+          <Column key={fieldKey} lg={16} md={8} sm={4}>
             <TextInput
               name="testLocationCodeOther"
               labelText={intl.formatMessage({ id: "order.if.other.label" })}
@@ -1808,7 +1808,7 @@ const AddOrder = (props) => {
         );
       case "rememberSiteAndRequester":
         return (
-          <Column key={fieldKey} lg={8} md={4} sm={4}>
+          <Column key={fieldKey} lg={16} md={8} sm={4}>
             <Checkbox
               labelText={
                 <FormattedMessage id="order.remember.site.and.requester.label" />
@@ -2497,14 +2497,14 @@ const AddOrder = (props) => {
     <>
       <Stack gap={10}>
         <div className="orderLegendBody">
-          <Grid>
+          <Grid className="orderFieldsGrid">
             <Column lg={16} md={8} sm={4}>
               <h3>
                 <FormattedMessage id="order.title" />
               </h3>
             </Column>
             {configurationProperties.ACCEPT_EXTERNAL_ORDERS === "true" && (
-              <Column lg={16} md={8} sm={4}>
+              <Column lg={16} md={8} sm={4} hidden>
                 <input
                   type="hidden"
                   name="externalOrderNumber"
@@ -2524,7 +2524,7 @@ const AddOrder = (props) => {
             )}
 
             {isModifyOrder && (
-              <Column lg={8} md={4} sm={4}>
+              <Column lg={16} md={8} sm={4}>
                 <div>
                   <CustomLabNumberInput
                     name="labNo"
