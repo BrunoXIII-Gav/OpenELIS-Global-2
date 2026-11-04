@@ -13,7 +13,6 @@ import org.junit.Before;
 import org.junit.Test;
 import org.openelisglobal.BaseWebContextSensitiveTest;
 import org.openelisglobal.person.service.PersonService;
-import org.openelisglobal.provider.valueholder.Provider;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.http.MediaType;
 import org.springframework.test.annotation.Rollback;
@@ -33,6 +32,7 @@ public class ProviderRestControllerTest extends BaseWebContextSensitiveTest {
     @Before
     public void setUp() throws Exception {
         super.setUp();
+        useAuthenticatedAdminRequests();
         executeDataSetWithStateManagement("testdata/provider.xml");
     }
 
@@ -111,7 +111,9 @@ public class ProviderRestControllerTest extends BaseWebContextSensitiveTest {
         Map<String, Object> personMap = (Map<String, Object>) providerUpdated.get("person");
         assertEquals(PERSON1_FIRSTNAME, personMap.get("firstName"));
         assertEquals(PERSON1_LASTNAME, personMap.get("lastName"));
-        assertEquals(PERSON1_MIDDLENAME, personMap.get("middleName"));
+        // This request updates first/last name and leaves the existing middle name
+        // untouched.
+        assertEquals("Mark", personMap.get("middleName"));
 
     }
 
