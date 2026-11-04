@@ -337,7 +337,8 @@ public class CugPrefixIntegrationTest {
                 .addResource("hibernate/cug-patient-lock.hbm.xml");
         for (String mapping : mappings)
             config.addResource(mapping);
-        config.setProperty("hibernate.connection.url", url + "?currentSchema=clinlims");
+        config.setProperty("hibernate.connection.url",
+                url + (url.contains("?") ? "&" : "?") + "currentSchema=clinlims");
         config.setProperty("hibernate.connection.username", user);
         config.setProperty("hibernate.connection.password", password);
         config.setProperty("hibernate.default_schema", "clinlims");

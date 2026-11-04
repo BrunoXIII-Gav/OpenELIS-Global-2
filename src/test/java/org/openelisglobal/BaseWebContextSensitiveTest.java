@@ -17,6 +17,8 @@ import org.dbunit.dataset.IDataSet;
 import org.dbunit.dataset.xml.FlatXmlDataSet;
 import org.dbunit.ext.postgresql.PostgresqlDataTypeFactory;
 import org.dbunit.operation.DatabaseOperation;
+import org.junit.After;
+import org.junit.Before;
 import org.openelisglobal.common.services.IStatusService;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -33,6 +35,7 @@ import org.springframework.test.web.servlet.setup.MockMvcBuilders;
 import org.springframework.transaction.annotation.Propagation;
 import org.springframework.transaction.annotation.Transactional;
 import org.springframework.web.context.WebApplicationContext;
+import org.springframework.web.context.request.RequestContextHolder;
 
 @Transactional(propagation = Propagation.NOT_SUPPORTED)
 @ContextConfiguration(classes = { BaseTestConfig.class, AppTestConfig.class })
@@ -54,8 +57,44 @@ public abstract class BaseWebContextSensitiveTest extends AbstractTransactionalJ
 
     protected MockMvc mockMvc;
 
+    @Before
+    public void clearSyntheticRequestBeforeTest() {
+        // Spring's web test listener binds an anonymous request even for direct service
+        // calls. MockMvc binds the actual request while dispatching controller tests.
+        RequestContextHolder.resetRequestAttributes();
+    }
+
+    @After
+    public void clearRequestAfterTest() {
+        RequestContextHolder.resetRequestAttributes();
+    }
+
     protected void setUp() throws Exception {
         mockMvc = MockMvcBuilders.webAppContextSetup(this.webApplicationContext).build();
+    }
+
+    /**
+     * Opt-in authenticated requests for controller tests that exercise
+     * administrator operations.
+     */
+    protected void useAuthenticatedAdminRequests() {
+        var user = new org.openelisglobal.login.valueholder.UserSessionData();
+        user.setSytemUserId(1);
+        user.setLoginName("admin");
+        var session = new org.springframework.mock.web.MockHttpSession();
+        session.setAttribute(org.openelisglobal.common.action.IActionConstants.USER_SESSION_DATA, user);
+        var principal = new org.springframework.security.core.userdetails.User("admin", "unused", java.util.List.of());
+        var authentication = new org.springframework.security.authentication.UsernamePasswordAuthenticationToken(
+                principal, "unused", principal.getAuthorities());
+        var context = org.springframework.security.core.context.SecurityContextHolder.createEmptyContext();
+        context.setAuthentication(authentication);
+        session.setAttribute(
+                org.springframework.security.web.context.HttpSessionSecurityContextRepository.SPRING_SECURITY_CONTEXT_KEY,
+                context);
+        mockMvc = MockMvcBuilders.webAppContextSetup(webApplicationContext)
+                .defaultRequest(
+                        org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get("/").session(session))
+                .build();
     }
 
     /**
@@ -100,6 +139,10 @@ public abstract class BaseWebContextSensitiveTest extends AbstractTransactionalJ
      * @throws Exception If an error occurs while executing the test.
      */
     protected void executeDataSetWithStateManagement(String datasetFileName) throws Exception {
+        executeDataSetWithStateManagement(datasetFileName, true);
+    }
+
+    protected void executeDataSetWithStateManagement(String datasetFileName, boolean clearTables) throws Exception {
         if (datasetFileName == null) {
             throw new NullPointerException("Please provide test dataset file to execute!");
         }
@@ -122,9 +165,14 @@ public abstract class BaseWebContextSensitiveTest extends AbstractTransactionalJ
 
             IDataSet dataset = new FlatXmlDataSet(inputStream);
             String[] tableNames = dataset.getTableNames();
-            cleanRowsInCurrentConnection(tableNames);
+            if (clearTables) {
+                cleanRowsInCurrentConnection(tableNames);
+            }
 
             DatabaseOperation.REFRESH.execute(connection, dataset);
+            if (java.util.Arrays.stream(tableNames).anyMatch("patient_identity_type"::equalsIgnoreCase)) {
+                org.openelisglobal.patientidentitytype.util.PatientIdentityTypeMap.reset();
+            }
 
             // Refresh StatusService cache to pick up any status_of_sample changes
             // from the loaded test data

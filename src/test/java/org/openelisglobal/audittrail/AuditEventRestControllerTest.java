@@ -26,7 +26,8 @@ public class AuditEventRestControllerTest {
     @Test
     public void rejectsInvalidDatesWithoutQuerying() {
         assertEquals(400,
-                controller.search(request(), null, null, null, null, null, null, null, null, "invalid date", null, 0, 30)
+                controller
+                        .search(request(), null, null, null, null, null, null, null, null, "invalid date", null, 0, 30)
                         .getStatusCode().value());
         verifyZeroInteractions(service);
     }
@@ -54,8 +55,9 @@ public class AuditEventRestControllerTest {
 
     @Test
     public void rejectsInvalidTestIdentifiersBeforeReadingHistory() {
-        assertEquals(400, controller.search(request(), null, null, null, null, "not-a-test", null, null, null,
-                null, null, 0, 30).getStatusCode().value());
+        assertEquals(400,
+                controller.search(request(), null, null, null, null, "not-a-test", null, null, null, null, null, 0, 30)
+                        .getStatusCode().value());
         verifyZeroInteractions(service);
     }
 

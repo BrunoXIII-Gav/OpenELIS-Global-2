@@ -46,7 +46,8 @@ public class AuditEventQueryServiceTest {
 
     @Test
     public void testSelectorUsesTheSameAuditReadPermissionAndExistingCatalog() {
-        var catalog = mock(org.openelisglobal.testconfiguration.packageio.service.TestConfigurationPackageService.class);
+        var catalog = mock(
+                org.openelisglobal.testconfiguration.packageio.service.TestConfigurationPackageService.class);
         org.springframework.test.util.ReflectionTestUtils.setField(service, "testCatalog", catalog);
         try {
             service.tests("7");

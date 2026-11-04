@@ -44,8 +44,8 @@ public class OrderAuthorizationServiceImplTest {
 
     @Test
     public void canAccessSampleXml_allowsEverySelectedTestInTheAuthorizedUnit() {
-        assertTrue(orderAuthorizationService.canAccessSampleXml("17", "<samples><sample tests=\"allowed-test\"/></samples>",
-                "create"));
+        assertTrue(orderAuthorizationService.canAccessSampleXml("17",
+                "<samples><sample tests=\"allowed-test\"/></samples>", "create"));
     }
 
     private org.openelisglobal.test.valueholder.Test test(String id) {

@@ -57,9 +57,14 @@ public class PatientFacadeTest extends BaseWebContextSensitiveTest {
 
     private RestfulServer fhirServlet;
     private ObjectMapper objectMapper;
+    @Autowired
+    private org.openelisglobal.dataexchange.fhir.FhirConfig fhirConfig;
+    private String previousIdentifierSystem;
 
     @Before
     public void setUp() throws Exception {
+        previousIdentifierSystem = fhirConfig.getOeFhirSystem();
+        org.mockito.Mockito.when(fhirConfig.getOeFhirSystem()).thenReturn("http://openelis-global.org");
         fhirServlet = new RestfulServer(FhirContext.forR4());
         fhirServlet.setResourceProviders(Arrays.asList(patientProvider));
 
@@ -69,6 +74,19 @@ public class PatientFacadeTest extends BaseWebContextSensitiveTest {
 
         objectMapper = new ObjectMapper();
         executeDataSetWithStateManagement("testdata/facade-patient.xml");
+        // DBUnit writes explicit IDs; generated identities must start after them.
+        var jdbc = new org.springframework.jdbc.core.JdbcTemplate(
+                webApplicationContext.getBean(javax.sql.DataSource.class));
+        for (String table : List.of("person", "patient", "patient_contact", "patient_identity",
+                "patient_identity_type")) {
+            jdbc.execute("SELECT setval('" + table + "_seq', (SELECT (COALESCE(MAX(id), 0) + 1)::bigint FROM " + table
+                    + "), false)");
+        }
+    }
+
+    @org.junit.After
+    public void restoreIdentifierSystem() {
+        org.mockito.Mockito.when(fhirConfig.getOeFhirSystem()).thenReturn(previousIdentifierSystem);
     }
 
     private MockHttpServletRequest buildRequest(String method, String pathInfo) {
@@ -106,6 +124,7 @@ public class PatientFacadeTest extends BaseWebContextSensitiveTest {
 
         addressPartService.deleteAll(addressParts);
         patientIdentityTypeService.deleteAll(identityTypes);
+        org.openelisglobal.patientidentitytype.util.PatientIdentityTypeMap.reset();
 
     }
 
@@ -133,6 +152,7 @@ public class PatientFacadeTest extends BaseWebContextSensitiveTest {
         clearDataBase();
 
         MockHttpServletRequest request = buildRequest("POST", "/Patient");
+        request.addHeader("Prefer", "return=representation");
 
         String createJson = """
                 {
@@ -171,24 +191,16 @@ public class PatientFacadeTest extends BaseWebContextSensitiveTest {
 
         MockHttpServletRequest request = buildRequest("PUT", "/Patient/" + patientUuid);
 
-        String updateJson = """
-                {
-                  "resourceType": "Patient",
-                  "id": "%s",
-                  "active": true,
-                  "name": [{
-                    "use": "official",
-                    "family": "UpdatedFamily",
-                    "given": ["UpdatedGiven"]
-                  }],
-                  "telecom": [{
-                    "system": "email",
-                    "value": "updated.email@example.com",
-                    "use": "work"
-                  }],
-                  "gender": "male"
-                }
-                """.formatted(patientUuid);
+        // PUT sends the complete resource, including configured required identifiers.
+        var resource = patientProvider.getPatientByUUID(new org.hl7.fhir.r4.model.IdType(patientUuid));
+        resource.getNameFirstRep().setFamily("UpdatedFamily")
+                .setGiven(List.of(new org.hl7.fhir.r4.model.StringType("UpdatedGiven")));
+        resource.setBirthDate(existingPatient.getBirthDate());
+        resource.getTelecom()
+                .removeIf(point -> point.getSystem() == org.hl7.fhir.r4.model.ContactPoint.ContactPointSystem.EMAIL);
+        resource.addTelecom().setSystem(org.hl7.fhir.r4.model.ContactPoint.ContactPointSystem.EMAIL)
+                .setValue("updated.email@example.com").setUse(org.hl7.fhir.r4.model.ContactPoint.ContactPointUse.WORK);
+        String updateJson = FhirContext.forR4().newJsonParser().encodeResourceToString(resource);
 
         request.setContent(updateJson.getBytes());
         MockHttpServletResponse response = new MockHttpServletResponse();

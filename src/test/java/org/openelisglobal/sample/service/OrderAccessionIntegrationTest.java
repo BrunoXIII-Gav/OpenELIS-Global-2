@@ -54,7 +54,8 @@ public class OrderAccessionIntegrationTest {
             connection.commit();
             var config = new Configuration().addAnnotatedClass(AccessionNumberInfo.class)
                     .addResource("hibernate/order-accession-sample.hbm.xml");
-            config.setProperty("hibernate.connection.url", url + "?currentSchema=clinlims");
+            config.setProperty("hibernate.connection.url",
+                    url + (url.contains("?") ? "&" : "?") + "currentSchema=clinlims");
             config.setProperty("hibernate.connection.username", user);
             config.setProperty("hibernate.connection.password", password);
             config.setProperty("hibernate.dialect", "org.hibernate.dialect.PostgreSQLDialect");

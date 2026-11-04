@@ -10,10 +10,10 @@ import org.junit.runner.RunWith;
 import org.mockito.InjectMocks;
 import org.mockito.Mock;
 import org.mockito.junit.MockitoJUnitRunner;
+import org.openelisglobal.analysis.service.AnalysisService;
 import org.openelisglobal.authorization.service.ModuleAuthorizationService;
 import org.openelisglobal.authorization.service.ModuleAuthorizationService.AuthorizationDecision;
 import org.openelisglobal.authorization.service.ModuleAuthorizationService.AuthorizationSource;
-import org.openelisglobal.analysis.service.AnalysisService;
 
 @RunWith(MockitoJUnitRunner.class)
 public class PatientAuthorizationServiceImplTest {

@@ -18,9 +18,9 @@ import org.openelisglobal.analysis.valueholder.Analysis;
 import org.openelisglobal.authorization.service.ModuleAuthorizationService;
 import org.openelisglobal.authorization.service.ModuleAuthorizationService.AuthorizationDecision;
 import org.openelisglobal.authorization.service.ModuleAuthorizationService.AuthorizationSource;
-import org.openelisglobal.systemuser.service.UserService;
 import org.openelisglobal.sampleitem.valueholder.SampleDataCompletionStatus;
 import org.openelisglobal.sampleitem.valueholder.SampleItem;
+import org.openelisglobal.systemuser.service.UserService;
 import org.openelisglobal.test.beanItems.TestResultItem;
 import org.openelisglobal.test.service.TestService;
 

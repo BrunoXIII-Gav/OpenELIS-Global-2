@@ -53,8 +53,9 @@ public class PatientMergeRestControllerTest extends BaseWebContextSensitiveTest 
 
         // Load system user dataset for audit
         executeDataSetWithStateManagement("testdata/system-user.xml");
+        executeDataSetWithStateManagement("testdata/patient-merge-permissions.xml");
 
-        // Set up authenticated session with Global Admin user (system_user id=1)
+        // User 1 has an explicit Patients/merge grant in the permission fixture.
         UserSessionData userSessionData = new UserSessionData();
         userSessionData.setSytemUserId(1); // Admin user from system-user.xml (note: typo in API)
         mockSession = new MockHttpSession();
@@ -89,6 +90,26 @@ public class PatientMergeRestControllerTest extends BaseWebContextSensitiveTest 
     }
 
     // ========== GET /rest/patient/merge/details/{patientId} Tests ==========
+
+    @Test
+    public void mergeRequiresTheConfiguredPermission() throws Exception {
+        var user = new UserSessionData();
+        user.setSytemUserId(4);
+        var readOnlySession = new MockHttpSession();
+        readOnlySession.setAttribute(IActionConstants.USER_SESSION_DATA, user);
+        mockMvc.perform(get("/rest/patient/merge/details/" + patient1.getId()).session(readOnlySession))
+                .andExpect(status().isForbidden());
+        PatientMergeRequestDTO request = new PatientMergeRequestDTO();
+        request.setPatient1Id(patient1.getId());
+        request.setPatient2Id(patient2.getId());
+        request.setPrimaryPatientId(patient1.getId());
+        request.setReason("Unauthorized merge");
+        request.setConfirmed(true);
+        mockMvc.perform(post("/rest/patient/merge/execute").session(readOnlySession)
+                .contentType(MediaType.APPLICATION_JSON).content(objectMapper.writeValueAsString(request)))
+                .andExpect(status().isForbidden());
+        org.junit.Assert.assertFalse(patientDAO.get(patient2.getId()).orElseThrow().getIsMerged());
+    }
 
     /**
      * Test: GET merge details for existing patient returns 200 OK. Business Rule:

@@ -21,6 +21,7 @@ public class BarcodeConfigurationRestControllerTest extends BaseWebContextSensit
     @Before
     public void setUp() throws Exception {
         super.setUp();
+        useAuthenticatedAdminRequests();
     }
 
     @Test
