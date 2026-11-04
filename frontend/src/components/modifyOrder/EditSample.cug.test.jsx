@@ -301,3 +301,47 @@ test("an existing sample without analyses can also be removed explicitly", async
   expect(payload.existingTests).toEqual([]);
   expect(payload.possibleTests.every((row) => row.add === false)).toBe(true);
 });
+
+test("deselecting an empty test submits cancellation while a test with results stays locked", async () => {
+  const rows = [
+    { ...tests[0], analysisId: "80", canCancel: true },
+    { ...tests[1], sampleItemId: "20", analysisId: "81", canCancel: false },
+  ];
+  const possible = rows.map((row) => ({ ...row, canCancel: false }));
+  const page = open(rows, possible);
+  await wait(() =>
+    expect(page.getByLabelText("Extracción de ADN")).toBeTruthy(),
+  );
+  const editable = page.getByLabelText("Extracción de ADN");
+  const locked = page.getByLabelText("ATXN10");
+  expect(editable.disabled).toBe(false);
+  expect(locked.disabled).toBe(true);
+  fireEvent.click(editable);
+  await wait(() => {
+    const payload = JSON.parse(page.getByTestId("order-payload").textContent);
+    expect(payload.existingTests[0].canceled).toBe(true);
+    expect(payload.existingTests[1].canceled).toBe(false);
+    expect(payload.removedSampleItemIds).toEqual([]);
+    expect(payload.possibleTests.every((row) => row.add === false)).toBe(true);
+  });
+});
+
+test("selecting another test adds it to the saved sample without duplicating existing analyses", async () => {
+  const rows = [{ ...tests[0], analysisId: "80", canCancel: true }];
+  const possible = [
+    { ...tests[0], canCancel: false },
+    { ...tests[1], sampleItemId: "20", canCancel: false },
+  ];
+  const page = open(rows, possible);
+  await wait(() => expect(page.getByLabelText("ATXN10")).toBeTruthy());
+  const added = page.getByLabelText("ATXN10");
+  expect(added.disabled).toBe(false);
+  fireEvent.click(added);
+  await wait(() => {
+    const payload = JSON.parse(page.getByTestId("order-payload").textContent);
+    expect(payload.possibleTests[0].add).toBe(false);
+    expect(payload.possibleTests[1].add).toBe(true);
+    expect(payload.possibleTests[1].sampleItemId).toBe("20");
+    expect(payload.existingTests[0].canceled).toBe(false);
+  });
+});

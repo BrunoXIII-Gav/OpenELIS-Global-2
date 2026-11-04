@@ -165,7 +165,13 @@ export const buildSamplesFromOrder = (orderFormValues) => {
     if (row?.canRemoveSample) {
       group.canRemoveSample = true;
     }
-    if (row?.canCancel === false && row?.testId) {
+    // Only existing analyses carry a removal decision. Catalogue rows keep
+    // canCancel=false by default, even for tests with no saved results.
+    if (
+      options.includeAsSelectedTest &&
+      row?.canCancel === false &&
+      row?.testId
+    ) {
       group.lockedTestIds = Array.from(
         new Set([...group.lockedTestIds, normalizeValue(row.testId)]),
       );

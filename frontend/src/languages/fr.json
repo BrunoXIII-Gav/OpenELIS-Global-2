@@ -1,4 +1,5 @@
 {
+  "order.edit.test.hasResults": "Une analyse avec des résultats enregistrés ne peut pas être retirée. Rechargez la demande pour voir ses résultats actuels.",
   "config.display.alertWhenInvalidResult.name": "Alerte de résultat hors limites",
   "config.display.alertWhenInvalidResult.description": "Afficher une alerte lorsqu’un résultat est hors des limites valides.",
   "config.display.Allow_duplicate_national_ids.name": "Autoriser les identifiants nationaux en double",

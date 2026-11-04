@@ -26,9 +26,12 @@ import org.openelisglobal.orderadditionalfield.service.AlternateOrderFlowService
 import org.openelisglobal.orderadditionalfield.service.OrderAdditionalFieldService;
 import org.openelisglobal.orderadditionalfield.valueholder.SampleOrderAdditionalFieldValue;
 import org.openelisglobal.patient.valueholder.Patient;
+import org.openelisglobal.result.service.ResultService;
+import org.openelisglobal.result.valueholder.Result;
 import org.openelisglobal.sample.bean.SampleEditItem;
 import org.openelisglobal.sample.bean.SampleOrderItem;
 import org.openelisglobal.sample.controller.rest.SampleEditRestController;
+import org.openelisglobal.sample.exception.OrderTestHasResultsException;
 import org.openelisglobal.sample.form.SampleEditForm;
 import org.openelisglobal.sample.valueholder.Sample;
 import org.openelisglobal.samplehuman.service.SampleHumanService;
@@ -37,6 +40,8 @@ import org.openelisglobal.sampleitem.service.SampleItemService;
 import org.openelisglobal.sampleitem.valueholder.SampleItem;
 import org.openelisglobal.spring.util.SpringContext;
 import org.openelisglobal.test.service.TestService;
+import org.openelisglobal.testadditionalfield.dao.AnalysisAdditionalFieldValueDAO;
+import org.openelisglobal.testadditionalfield.valueholder.AnalysisAdditionalFieldValue;
 import org.openelisglobal.typeofsample.service.TypeOfSampleService;
 import org.openelisglobal.typeofsample.service.TypeOfSampleTestService;
 import org.openelisglobal.typeofsample.valueholder.TypeOfSample;
@@ -95,6 +100,12 @@ public class SampleEditAlternateOrderFlowTest {
                 ReflectionTestUtils.setField(service, field.getName(), bean(field.getType()));
             }
         }
+        var removal = new OrderTestRemovalServiceImpl();
+        reset(bean(ResultService.class), bean(AnalysisAdditionalFieldValueDAO.class));
+        ReflectionTestUtils.setField(removal, "resultService", bean(ResultService.class));
+        ReflectionTestUtils.setField(removal, "additionalValues", bean(AnalysisAdditionalFieldValueDAO.class));
+        BEANS.put(OrderTestRemovalService.class, removal);
+        ReflectionTestUtils.setField(service, "orderTestRemovalService", removal);
         analyses = bean(AnalysisService.class);
         reset(analyses);
         reset(bean(SampleItemService.class), bean(SampleCugService.class), bean(OrderAuthorizationService.class));
@@ -319,5 +330,176 @@ public class SampleEditAlternateOrderFlowTest {
         assertEquals(1, possible.size());
         assertEquals("55", possible.get(0).getSampleItemId());
         assertEquals("5411.1", possible.get(0).getCugCode());
+    }
+
+    private SampleEditItem cancellation(Analysis analysis) {
+        var row = new SampleEditItem();
+        row.setAnalysisId(analysis.getId());
+        row.setSampleItemId(item.getId());
+        row.setTestId("30");
+        row.setCanCancel(true);
+        row.setCanceled(true);
+        when(form.getExistingTests()).thenReturn(List.of(row));
+        when(form.getPossibleTests()).thenReturn(List.of());
+        when(analyses.get(analysis.getId())).thenReturn(analysis);
+        when(bean(OrderAuthorizationService.class).hasPermission("42", "cancel")).thenReturn(true);
+        when(bean(OrderAuthorizationService.class).canAccessAllTests(eq("42"), anyList(), eq("cancel")))
+                .thenReturn(true);
+        return row;
+    }
+
+    @Test
+    public void deselectingAnEmptyStartedTestCancelsItAndKeepsItsSampleAndCug() {
+        var analysis = analysis("80", item);
+        analysis.setStatusId("2");
+        cancellation(analysis);
+        service.editSample(form, new MockHttpServletRequest(), sample, false, "42");
+        assertEquals("6", analysis.getStatusId());
+        verify(analyses).update(analysis);
+        assertFalse(item.isVoided());
+        assertEquals("5411.1", item.getCugCode());
+        verify(bean(SampleCugService.class), never()).releaseRemovedSampleCug(any(), any(), any());
+    }
+
+    @Test
+    public void anAdditionalResultBlocksForgedCancellationBeforeAnyChangesAreSaved() {
+        var analysis = analysis("80", item);
+        analysis.setStatusId("2");
+        cancellation(analysis);
+        var field = new AnalysisAdditionalFieldValue();
+        field.setFieldValue("0");
+        when(bean(AnalysisAdditionalFieldValueDAO.class).findByAnalysisId(80)).thenReturn(List.of(field));
+        assertThrows(OrderTestHasResultsException.class,
+                () -> service.editSample(form, new MockHttpServletRequest(), sample, false, "42"));
+        assertEquals("2", analysis.getStatusId());
+        assertFalse(item.isVoided());
+        verify(analyses, never()).update(any());
+        verify(bean(OrderAdditionalFieldService.class), never()).validateAndPersistSampleValues(any(), any(), any(),
+                any(), any());
+    }
+
+    @Test
+    public void removingTheEntireSampleCannotBypassTheResultGuard() {
+        var analysis = analysis("80", item);
+        analysis.setStatusId("2");
+        cancellation(analysis);
+        when(form.getExistingTests()).thenReturn(List.of());
+        when(form.getRemovedSampleItemIds()).thenReturn(List.of("55"));
+        when(analyses.getAnalysesBySampleItemsExcludingByStatusIds(eq(item), anySet())).thenReturn(List.of(analysis));
+        var result = new Result();
+        result.setValue("7");
+        when(bean(ResultService.class).getResultsByAnalysis(analysis)).thenReturn(List.of(result));
+        assertThrows(OrderTestHasResultsException.class,
+                () -> service.editSample(form, new MockHttpServletRequest(), sample, false, "42"));
+        assertFalse(item.isVoided());
+        assertEquals("2", analysis.getStatusId());
+        verify(bean(SampleCugService.class), never()).releaseRemovedSampleCug(any(), any(), any());
+    }
+
+    @Test
+    public void testsCanBeAddedWhileAnotherEmptyTestIsRemovedInTheSameSave() {
+        var removed = analysis("80", item);
+        cancellation(removed);
+        form.getSampleOrderItems().getAdditionalFieldValues().put("alternate", "false");
+        var added = new org.openelisglobal.test.valueholder.Test();
+        added.setId("31");
+        when(bean(TestService.class).get("31")).thenReturn(added);
+        var selection = new SampleEditItem();
+        selection.setSampleItemId("55");
+        selection.setTestId("31");
+        selection.setAdd(true);
+        when(form.getPossibleTests()).thenReturn(List.of(selection));
+        service.editSample(form, new MockHttpServletRequest(), sample, false, "42");
+        verify(analyses).update(removed);
+        var captured = ArgumentCaptor.forClass(Analysis.class);
+        verify(analyses).insert(captured.capture());
+        assertEquals("31", captured.getValue().getTest().getId());
+        assertSame(item, captured.getValue().getSampleItem());
+    }
+
+    @Test
+    public void aForgedAnalysisFromAnotherOrderCannotBeRemoved() {
+        var analysis = analysis("80", item);
+        cancellation(analysis);
+        var other = new Sample();
+        other.setId("999");
+        var foreign = new SampleItem();
+        foreign.setId("88");
+        foreign.setSample(other);
+        analysis.setSampleItem(foreign);
+        assertThrows(org.springframework.security.access.AccessDeniedException.class,
+                () -> service.editSample(form, new MockHttpServletRequest(), sample, false, "42"));
+        verify(analyses, never()).update(any());
+    }
+
+    @Test
+    public void removalMetadataDependsOnSavedValuesInsteadOfTheStartedStatus() {
+        var controller = new SampleEditRestController();
+        for (var field : SampleEditRestController.class.getDeclaredFields()) {
+            if (field.isAnnotationPresent(org.springframework.beans.factory.annotation.Autowired.class)) {
+                ReflectionTestUtils.setField(controller, field.getName(), bean(field.getType()));
+            }
+        }
+        var type = mock(TypeOfSample.class);
+        when(type.getId()).thenReturn("1");
+        when(type.getLocalizedName()).thenReturn("Blood");
+        item.setTypeOfSample(type);
+        when(bean(TypeOfSampleService.class).get("1")).thenReturn(type);
+        var analysis = analysis("80", item);
+        analysis.setStatusId("2");
+        when(analyses.getAnalysesBySampleItemsExcludingByStatusIds(eq(item), anySet())).thenReturn(List.of(analysis));
+        var rows = new java.util.ArrayList<SampleEditItem>();
+        ReflectionTestUtils.invokeMethod(controller, "addCurrentTestsToList", item, rows, sample.getAccessionNumber(),
+                true);
+        assertTrue(rows.get(0).isCanCancel());
+        assertFalse(rows.get(0).isHasResults());
+        var value = new AnalysisAdditionalFieldValue();
+        value.setFieldValue("entered");
+        when(bean(AnalysisAdditionalFieldValueDAO.class).findByAnalysisId(80)).thenReturn(List.of(value));
+        rows.clear();
+        ReflectionTestUtils.invokeMethod(controller, "addCurrentTestsToList", item, rows, sample.getAccessionNumber(),
+                true);
+        assertFalse(rows.get(0).isCanCancel());
+        assertTrue(rows.get(0).isHasResults());
+    }
+
+    @Test
+    public void aResultConflictIsReturnedAs409InsteadOfASuccessfulEdit() throws Exception {
+        when(bean(org.openelisglobal.common.provider.validation.AccessionNumberValidatorFactory.class)
+                .getGenerator(org.openelisglobal.common.provider.validation.AccessionNumberValidatorFactory.AccessionFormat.MAIN))
+                        .thenReturn(mock(org.openelisglobal.common.provider.validation.IAccessionNumberGenerator.class));
+        var controller = new SampleEditRestController();
+        var authorization = mock(OrderAuthorizationService.class);
+        when(authorization.hasPermission(anyString(), anyString())).thenReturn(true);
+        when(authorization.canAccessAllTests(anyString(), anyList(), anyString())).thenReturn(true);
+        var edit = mock(SampleEditService.class);
+        doThrow(new OrderTestHasResultsException()).when(edit).editSample(any(), any(), any(), anyBoolean(),
+                anyString());
+        ReflectionTestUtils.setField(controller, "orderAuthorizationService", authorization);
+        ReflectionTestUtils.setField(controller, "sampleEditService", edit);
+        ReflectionTestUtils.setField(controller, "formValidator",
+                mock(org.openelisglobal.sample.validator.SampleEditFormValidator.class));
+        var mvc = org.springframework.test.web.servlet.setup.MockMvcBuilders.standaloneSetup(controller)
+                .setControllerAdvice(new org.openelisglobal.config.ControllerSetup())
+                .setMessageConverters(new org.openelisglobal.config.AppConfig().jacksonMessageConverter())
+                .setValidator(new org.springframework.validation.Validator() {
+                    public boolean supports(Class<?> type) {
+                        return true;
+                    }
+
+                    public void validate(Object target, org.springframework.validation.Errors errors) {
+                    }
+                }).build();
+        var session = new org.springframework.mock.web.MockHttpSession();
+        var user = new org.openelisglobal.login.valueholder.UserSessionData();
+        user.setSytemUserId(42);
+        session.setAttribute(org.openelisglobal.common.action.IActionConstants.USER_SESSION_DATA, user);
+        mvc.perform(org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post("/rest/SampleEdit")
+                .session(session).contentType(org.springframework.http.MediaType.APPLICATION_JSON).content(
+                        "{\"accessionNumber\":\"LAB1\",\"existingTests\":[{\"sampleItemId\":\"55\",\"testId\":\"30\",\"analysisId\":\"80\",\"canceled\":true}]}"))
+                .andExpect(org.springframework.test.web.servlet.result.MockMvcResultMatchers.status().isConflict())
+                .andExpect(org.springframework.test.web.servlet.result.MockMvcResultMatchers.content()
+                        .string("{\"code\":\"order.edit.test.hasResults\"}"));
+        verify(edit).editSample(any(), any(), isNull(), eq(false), eq("42"));
     }
 }

@@ -205,6 +205,16 @@ const ModifyOrder = () => {
       } catch (error) {
         detailedMessage = "";
       }
+      try {
+        const errorBody = JSON.parse(detailedMessage);
+        if (errorBody.code === "order.edit.test.hasResults") {
+          detailedMessage = intl.formatMessage({
+            id: "order.edit.test.hasResults",
+          });
+        }
+      } catch (error) {
+        // Other endpoints may return plain text errors.
+      }
       detailedMessage = sanitizeServerMessage(detailedMessage);
       const genericMessage = intl.formatMessage({ id: "server.error.msg" });
       const fallbackWithStatus =
