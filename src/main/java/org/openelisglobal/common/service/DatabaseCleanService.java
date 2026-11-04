@@ -2,5 +2,7 @@ package org.openelisglobal.common.service;
 
 public interface DatabaseCleanService {
 
-    void cleanDatabase();
+    void requireCleanupAccess(String userId);
+
+    void cleanDatabase(String userId);
 }

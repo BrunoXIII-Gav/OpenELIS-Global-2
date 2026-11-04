@@ -119,6 +119,8 @@ function SearchOrder() {
           <Column lg={16} md={8} sm={4}>
             <SearchPatientForm
               getSelectedPatient={getSelectedPatient}
+              hideNationalIdColumn={true}
+              disableNationalIdSearch={true}
             ></SearchPatientForm>
             {!!selectedPatient?.patientPK && (
               <Grid>

@@ -59,6 +59,8 @@ public interface SampleItemDAO extends BaseDAO<SampleItem, String> {
 
     long countByPatientId(String patientId) throws LIMSRuntimeException;
 
+    void lockAndRefreshForUpdate(SampleItem item);
+
     public boolean insertAliquots(SampleItem lastSampleItem, List<SampleItem> sampleItemsToInsert,
             List<List<String>> analysisGroups) throws LIMSRuntimeException;
 

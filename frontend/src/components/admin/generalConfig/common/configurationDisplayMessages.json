@@ -1,0 +1,246 @@
+{
+  "alertWhenInvalidResult": {
+    "nameId": "config.display.alertWhenInvalidResult.name",
+    "descriptionId": "config.display.alertWhenInvalidResult.description"
+  },
+  "Allow duplicate national ids": {
+    "nameId": "config.display.Allow_duplicate_national_ids.name",
+    "descriptionId": "config.display.Allow_duplicate_national_ids.description"
+  },
+  "Allow duplicate subject number": {
+    "nameId": "config.display.Allow_duplicate_subject_number.name",
+    "descriptionId": "config.display.Allow_duplicate_subject_number.description"
+  },
+  "allowResultRejection": {
+    "nameId": "config.display.allowResultRejection.name",
+    "descriptionId": "config.display.allowResultRejection.description"
+  },
+  "auto-fill collection date/time": {
+    "nameId": "config.display.auto_fill_collection_date_time.name",
+    "descriptionId": "config.display.auto_fill_collection_date_time.description"
+  },
+  "autoFillTechNameBox": {
+    "nameId": "config.display.autoFillTechNameBox.name",
+    "descriptionId": "config.display.autoFillTechNameBox.description"
+  },
+  "autoFillTechNameUser": {
+    "nameId": "config.display.autoFillTechNameUser.name",
+    "descriptionId": "config.display.autoFillTechNameUser.description"
+  },
+  "billingRefNumber": {
+    "nameId": "config.display.billingRefNumber.name",
+    "descriptionId": "config.display.billingRefNumber.description"
+  },
+  "billingRefNumberLocalization": {
+    "nameId": "config.display.billingRefNumberLocalization.name",
+    "descriptionId": "config.display.billingRefNumberLocalization.description"
+  },
+  "contactTracingEnabled": {
+    "nameId": "config.display.contactTracingEnabled.name",
+    "descriptionId": "config.display.contactTracingEnabled.description"
+  },
+  "customCriticalMessage": {
+    "nameId": "config.display.customCriticalMessage.name",
+    "descriptionId": "config.display.customCriticalMessage.description"
+  },
+  "enabledOrderPriorities": {
+    "nameId": "config.display.enabledOrderPriorities.name",
+    "descriptionId": "config.display.enabledOrderPriorities.description"
+  },
+  "enableResultLevelFileUpload": {
+    "nameId": "config.display.enableResultLevelFileUpload.name",
+    "descriptionId": "config.display.enableResultLevelFileUpload.description"
+  },
+  "enableResultsReferral": {
+    "nameId": "config.display.enableResultsReferral.name",
+    "descriptionId": "config.display.enableResultsReferral.description"
+  },
+  "external orders": {
+    "nameId": "config.display.external_orders.name",
+    "descriptionId": "config.display.external_orders.description"
+  },
+  "firstNameCharset": {
+    "nameId": "config.display.firstNameCharset.name",
+    "descriptionId": "config.display.firstNameCharset.description"
+  },
+  "gpsCoordinatesEnabled": {
+    "nameId": "config.display.gpsCoordinatesEnabled.name",
+    "descriptionId": "config.display.gpsCoordinatesEnabled.description"
+  },
+  "gpsRequiredAccuracyMeters": {
+    "nameId": "config.display.gpsRequiredAccuracyMeters.name",
+    "descriptionId": "config.display.gpsRequiredAccuracyMeters.description"
+  },
+  "gpsTimeoutSeconds": {
+    "nameId": "config.display.gpsTimeoutSeconds.name",
+    "descriptionId": "config.display.gpsTimeoutSeconds.description"
+  },
+  "lastNameCharset": {
+    "nameId": "config.display.lastNameCharset.name",
+    "descriptionId": "config.display.lastNameCharset.description"
+  },
+  "modify results note required": {
+    "nameId": "config.display.modify_results_note_required.name",
+    "descriptionId": "config.display.modify_results_note_required.description"
+  },
+  "modify results role": {
+    "nameId": "config.display.modify_results_role.name",
+    "descriptionId": "config.display.modify_results_role.description"
+  },
+  "National ID required": {
+    "nameId": "config.display.National_ID_required.name",
+    "descriptionId": "config.display.National_ID_required.description"
+  },
+  "orderProviderOverrideRoles": {
+    "nameId": "config.display.orderProviderOverrideRoles.name",
+    "descriptionId": "config.display.orderProviderOverrideRoles.description"
+  },
+  "orderProviderProfileCode": {
+    "nameId": "config.display.orderProviderProfileCode.name",
+    "descriptionId": "config.display.orderProviderProfileCode.description"
+  },
+  "orderProviderSelectionPolicy": {
+    "nameId": "config.display.orderProviderSelectionPolicy.name",
+    "descriptionId": "config.display.orderProviderSelectionPolicy.description"
+  },
+  "patientEntryProfileCode": {
+    "nameId": "config.display.patientEntryProfileCode.name",
+    "descriptionId": "config.display.patientEntryProfileCode.description"
+  },
+  "patientIdCharset": {
+    "nameId": "config.display.patientIdCharset.name",
+    "descriptionId": "config.display.patientIdCharset.description"
+  },
+  "Patient ID required": {
+    "nameId": "config.display.Patient_ID_required.name",
+    "descriptionId": "config.display.Patient_ID_required.description"
+  },
+  "Patient passport max length": {
+    "nameId": "config.display.Patient_passport_max_length.name",
+    "descriptionId": "config.display.Patient_passport_max_length.description"
+  },
+  "professionalProfileOptions": {
+    "nameId": "config.display.professionalProfileOptions.name",
+    "descriptionId": "config.display.professionalProfileOptions.description"
+  },
+  "profProfileFieldDefs": {
+    "nameId": "config.display.profProfileFieldDefs.name",
+    "descriptionId": "config.display.profProfileFieldDefs.description"
+  },
+  "profProfileSpecialtyOpts": {
+    "nameId": "config.display.profProfileSpecialtyOpts.name",
+    "descriptionId": "config.display.profProfileSpecialtyOpts.description"
+  },
+  "Program": {
+    "nameId": "config.display.Program.name",
+    "descriptionId": "config.display.Program.description"
+  },
+  "providerSpecialtyOptions": {
+    "nameId": "config.display.providerSpecialtyOptions.name",
+    "descriptionId": "config.display.providerSpecialtyOptions.description"
+  },
+  "restrictFreeTextMethodEntry": {
+    "nameId": "config.display.restrictFreeTextMethodEntry.name",
+    "descriptionId": "config.display.restrictFreeTextMethodEntry.description"
+  },
+  "restrictFreeTextProviderEntry": {
+    "nameId": "config.display.restrictFreeTextProviderEntry.name",
+    "descriptionId": "config.display.restrictFreeTextProviderEntry.description"
+  },
+  "restrictFreeTextRefSiteEntry": {
+    "nameId": "config.display.restrictFreeTextRefSiteEntry.name",
+    "descriptionId": "config.display.restrictFreeTextRefSiteEntry.description"
+  },
+  "resultEntryProfileCode": {
+    "nameId": "config.display.resultEntryProfileCode.name",
+    "descriptionId": "config.display.resultEntryProfileCode.description"
+  },
+  "ResultTechnicianName": {
+    "nameId": "config.display.ResultTechnicianName.name",
+    "descriptionId": "config.display.ResultTechnicianName.description"
+  },
+  "roleForPatientOnResults": {
+    "nameId": "config.display.roleForPatientOnResults.name",
+    "descriptionId": "config.display.roleForPatientOnResults.description"
+  },
+  "sampleCollectorProfileCode": {
+    "nameId": "config.display.sampleCollectorProfileCode.name",
+    "descriptionId": "config.display.sampleCollectorProfileCode.description"
+  },
+  "showOrderProgramOnOrderEntry": {
+    "nameId": "config.display.showOrderProgramOnOrderEntry.name",
+    "descriptionId": "config.display.showOrderProgramOnOrderEntry.description"
+  },
+  "showPatientAddInfoOnOrderEntry": {
+    "nameId": "config.display.showPatientAddInfoOnOrderEntry.name",
+    "descriptionId": "config.display.showPatientAddInfoOnOrderEntry.description"
+  },
+  "showPatientEmergencyOnOrderEntry": {
+    "nameId": "config.display.showPatientEmergencyOnOrderEntry.name",
+    "descriptionId": "config.display.showPatientEmergencyOnOrderEntry.description"
+  },
+  "showPatientPhotoOnOrderEntry": {
+    "nameId": "config.display.showPatientPhotoOnOrderEntry.name",
+    "descriptionId": "config.display.showPatientPhotoOnOrderEntry.description"
+  },
+  "showPatNationalIdField": {
+    "nameId": "config.display.showPatNationalIdField.name",
+    "descriptionId": "config.display.showPatNationalIdField.description"
+  },
+  "showPatOptionalIdsOnOrder": {
+    "nameId": "config.display.showPatOptionalIdsOnOrder.name",
+    "descriptionId": "config.display.showPatOptionalIdsOnOrder.description"
+  },
+  "showStorageLocationOnResultEntry": {
+    "nameId": "config.display.showStorageLocationOnResultEntry.name",
+    "descriptionId": "config.display.showStorageLocationOnResultEntry.description"
+  },
+  "showValidationFailureIcon": {
+    "nameId": "config.display.showValidationFailureIcon.name",
+    "descriptionId": "config.display.showValidationFailureIcon.description"
+  },
+  "simplifiedTestNames": {
+    "nameId": "config.display.simplifiedTestNames.name",
+    "descriptionId": "config.display.simplifiedTestNames.description"
+  },
+  "Subject number required": {
+    "nameId": "config.display.Subject_number_required.name",
+    "descriptionId": "config.display.Subject_number_required.description"
+  },
+  "supportPatientNationality": {
+    "nameId": "config.display.supportPatientNationality.name",
+    "descriptionId": "config.display.supportPatientNationality.description"
+  },
+  "trackPayment": {
+    "nameId": "config.display.trackPayment.name",
+    "descriptionId": "config.display.trackPayment.description"
+  },
+  "useNewAddressHierarchy": {
+    "nameId": "config.display.useNewAddressHierarchy.name",
+    "descriptionId": "config.display.useNewAddressHierarchy.description"
+  },
+  "userNameCharset": {
+    "nameId": "config.display.userNameCharset.name",
+    "descriptionId": "config.display.userNameCharset.description"
+  },
+  "validateAccessionNumber": {
+    "nameId": "config.display.validateAccessionNumber.name",
+    "descriptionId": "config.display.validateAccessionNumber.description"
+  },
+  "validate all results": {
+    "nameId": "config.display.validate_all_results.name",
+    "descriptionId": "config.display.validate_all_results.description"
+  },
+  "validateTechnicalRejection": {
+    "nameId": "config.display.validateTechnicalRejection.name",
+    "descriptionId": "config.display.validateTechnicalRejection.description"
+  },
+  "validationInterpreterProfileCode": {
+    "nameId": "config.display.validationInterpreterProfileCode.name",
+    "descriptionId": "config.display.validationInterpreterProfileCode.description"
+  },
+  "validationMinApprovers": {
+    "nameId": "config.display.validationMinApprovers.name",
+    "descriptionId": "config.display.validationMinApprovers.description"
+  }
+}

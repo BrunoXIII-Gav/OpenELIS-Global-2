@@ -26,6 +26,8 @@ public class DashBoardMetrics {
 
     Integer delayedTurnAround = 0;
 
+    Integer alternateOrderFlow = 0;
+
     public Integer getOrdersInProgress() {
         return ordersInProgress;
     }
@@ -120,5 +122,13 @@ public class DashBoardMetrics {
 
     public void setDelayedTurnAround(Integer delayedTurnAround) {
         this.delayedTurnAround = delayedTurnAround;
+    }
+
+    public Integer getAlternateOrderFlow() {
+        return alternateOrderFlow;
+    }
+
+    public void setAlternateOrderFlow(Integer alternateOrderFlow) {
+        this.alternateOrderFlow = alternateOrderFlow;
     }
 }

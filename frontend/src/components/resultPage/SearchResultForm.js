@@ -1,9 +1,15 @@
+import {
+  captureAdditionalFieldBaseline,
+  buildAdditionalFieldPatch,
+  resolveAdditionalFieldConflict,
+} from "./additionalFieldConcurrency";
+import HistoricalUserSelectItem from "../common/HistoricalUserSelectItem";
+import { openDocumentFieldValue } from "./documentPreview";
 import React, { useContext, useEffect, useState, useRef } from "react";
 import { FormattedMessage, injectIntl, useIntl } from "react-intl";
 import "../Style.css";
 import {
   getFromOpenElisServer,
-  postToOpenElisServerFormDataJsonResponse,
   postToOpenElisServerJsonResponse,
   Roles,
 } from "../utils/Utils";
@@ -22,8 +28,11 @@ import {
   Loading,
   Link,
   FileUploader,
+  InlineNotification,
+  Tile,
   RadioButtonGroup,
   RadioButton,
+  Tag,
 } from "@carbon/react";
 import { Copy, ArrowLeft, ArrowRight } from "@carbon/icons-react";
 import CustomLabNumberInput from "../common/CustomLabNumberInput";
@@ -67,12 +76,10 @@ const parseDocumentFieldValue = (rawValue) => {
     const fileName = String(parsed.fileName || "").trim();
     const fileType = String(parsed.fileType || "").trim();
     const base64Content = String(parsed.base64Content || "").trim();
-    const uploadToken = String(parsed.uploadToken || "").trim();
-    const previewUrl = String(parsed.previewUrl || "").trim();
-    if (!fileName || (!base64Content && !uploadToken)) {
+    if (!fileName || !base64Content) {
       return null;
     }
-    return { fileName, fileType, base64Content, uploadToken, previewUrl };
+    return { fileName, fileType, base64Content };
   } catch (e) {
     return null;
   }
@@ -86,49 +93,32 @@ const encodeDocumentFieldValue = (filePayload) => {
     fileName: filePayload.fileName || "",
     fileType: filePayload.fileType || "",
     base64Content: filePayload.base64Content || "",
-    uploadToken: filePayload.uploadToken || "",
-    previewUrl: filePayload.previewUrl || "",
   });
 };
 
-const openDocumentFieldValue = (filePayload) => {
-  const fileType = String(filePayload?.fileType || "").trim();
-  const base64Content = String(filePayload?.base64Content || "").trim();
-  if (!base64Content) {
-    return;
-  }
-  const safeFileType = fileType || "application/octet-stream";
-  const source = `data:${safeFileType};base64,${base64Content}`;
-  window.open(source, "_blank", "noopener,noreferrer");
-};
-
-const buildDocumentFieldPreviewHref = (analysisId, fieldKey, filePayload) => {
-  const uploadToken = String(filePayload?.uploadToken || "").trim();
-  if (uploadToken) {
-    return `${config.serverBaseUrl}/rest/test-additional-fields/files/temp/${uploadToken}?download=false`;
-  }
-
-  if (analysisId && fieldKey) {
-    return `${config.serverBaseUrl}/rest/test-additional-fields/files/${analysisId}/${fieldKey}?download=false`;
-  }
-
-  return "";
-};
+const readFileAsBase64 = (file) =>
+  new Promise((resolve, reject) => {
+    const reader = new FileReader();
+    reader.onload = () => {
+      const base64 = String(reader.result || "");
+      const [, content = ""] = base64.split(",", 2);
+      resolve(content);
+    };
+    reader.onerror = () =>
+      reject(new Error("Failed to convert selected file to base64"));
+    reader.readAsDataURL(file);
+  });
 
 const AdditionalFieldEditor = ({
   inputId,
-  analysisId,
-  testId,
-  fieldKey,
   fieldLabel,
   fieldType,
   value,
   activeOptions,
   fieldMetadata,
   onCommit,
-  onError,
+  disabled = false,
 }) => {
-  const intl = useIntl();
   const [draftValue, setDraftValue] = useState(value || "");
 
   useEffect(() => {
@@ -139,19 +129,9 @@ const AdditionalFieldEditor = ({
     onCommit(nextValue == null ? "" : nextValue);
   };
 
-  const clearCurrentDocument = () => {
-    setDraftValue("");
-    onCommit("");
-  };
-
   switch (fieldType) {
     case "DOCUMENT": {
       const currentDocument = parseDocumentFieldValue(draftValue);
-      const previewHref = buildDocumentFieldPreviewHref(
-        analysisId,
-        fieldKey,
-        currentDocument,
-      );
       const acceptedMimeTypes = Array.isArray(fieldMetadata?.document?.accept)
         ? fieldMetadata.document.accept
         : [];
@@ -171,6 +151,7 @@ const AdditionalFieldEditor = ({
           </label>
           <FileUploader
             id={inputId}
+            disabled={disabled}
             buttonLabel={<FormattedMessage id="label.button.uploadfile" />}
             filenameStatus={currentDocument ? "complete" : ""}
             accept={
@@ -179,68 +160,38 @@ const AdditionalFieldEditor = ({
             multiple={false}
             filename={currentDocument?.fileName}
             onChange={async (event) => {
+              if (disabled) {
+                return;
+              }
               const file = event.target.files?.[0];
               if (!file) {
                 return;
               }
               if (maxBytes != null && file.size > maxBytes) {
-                onError?.(
-                  intl.formatMessage(
-                    { id: "document.upload.maxSizeExceeded" },
-                    { maxSizeMb },
-                  ),
-                );
                 return;
               }
-              const formData = new FormData();
-              formData.append("testId", testId);
-              formData.append("fieldKey", fieldKey);
-              formData.append("file", file);
-              postToOpenElisServerFormDataJsonResponse(
-                "/rest/test-additional-fields/files/upload",
-                formData,
-                (response) => {
-                  if (event?.target) {
-                    event.target.value = "";
-                  }
-                  if (!response?.ok || !response?.body?.uploadToken) {
-                    onError?.(response?.body?.message);
-                    return;
-                  }
-
-                  const nextPayload = {
-                    fileName: response.body.fileName || file.name,
-                    fileType: response.body.fileType || file.type,
-                    fileSize: response.body.fileSize || file.size,
-                    uploadToken: response.body.uploadToken,
-                  };
-                  const encoded = encodeDocumentFieldValue(nextPayload);
-                  setDraftValue(encoded);
-                  commitValue(encoded);
-                },
-              );
+              try {
+                const base64Content = await readFileAsBase64(file);
+                const nextPayload = {
+                  fileName: file.name,
+                  fileType: file.type,
+                  base64Content,
+                };
+                const encoded = encodeDocumentFieldValue(nextPayload);
+                setDraftValue(encoded);
+                commitValue(encoded);
+              } catch (error) {
+                console.error(error);
+              }
             }}
           />
           {currentDocument?.fileName ? (
-            <div style={{ marginTop: "0.5rem" }}>
-              <Link
-                href={previewHref || undefined}
-                target="_blank"
-                rel="noopener noreferrer"
-                style={{ cursor: "pointer" }}
-                onClick={(event) => {
-                  if (!previewHref) {
-                    event.preventDefault();
-                  }
-                }}
-              >
-                {currentDocument.fileName}
-              </Link>
-              {"  "}
-              <Link onClick={clearCurrentDocument}>
-                <FormattedMessage id="label.button.remove" />
-              </Link>
-            </div>
+            <Link
+              style={{ cursor: "pointer" }}
+              onClick={() => openDocumentFieldValue(currentDocument)}
+            >
+              {currentDocument.fileName}
+            </Link>
           ) : null}
         </div>
       );
@@ -252,6 +203,7 @@ const AdditionalFieldEditor = ({
           labelText={fieldLabel}
           rows={2}
           value={draftValue}
+          disabled={disabled}
           onChange={(event) => {
             const nextValue = event.target.value;
             setDraftValue(nextValue);
@@ -266,6 +218,7 @@ const AdditionalFieldEditor = ({
           labelText={fieldLabel}
           type="number"
           value={draftValue}
+          disabled={disabled}
           onChange={(event) => {
             const nextValue = event.target.value;
             setDraftValue(nextValue);
@@ -280,6 +233,7 @@ const AdditionalFieldEditor = ({
           labelText={fieldLabel}
           type="date"
           value={draftValue}
+          disabled={disabled}
           onChange={(event) => {
             const nextValue = event.target.value;
             setDraftValue(nextValue);
@@ -294,6 +248,7 @@ const AdditionalFieldEditor = ({
           labelText={fieldLabel}
           type="time"
           value={draftValue}
+          disabled={disabled}
           onChange={(event) => {
             const nextValue = event.target.value;
             setDraftValue(nextValue);
@@ -308,6 +263,7 @@ const AdditionalFieldEditor = ({
           labelText={fieldLabel}
           type="datetime-local"
           value={draftValue}
+          disabled={disabled}
           onChange={(event) => {
             const nextValue = event.target.value;
             setDraftValue(nextValue);
@@ -321,6 +277,7 @@ const AdditionalFieldEditor = ({
           id={inputId}
           labelText={fieldLabel}
           checked={draftValue === "true"}
+          disabled={disabled}
           onChange={(event) => {
             const nextValue = event.target.checked ? "true" : "false";
             setDraftValue(nextValue);
@@ -329,12 +286,13 @@ const AdditionalFieldEditor = ({
         />
       );
     case "SELECT":
-    case "SYSTEM_USER_BIOLOGIST_SELECT":
+    case "USER":
       return (
         <Select
           id={inputId}
           labelText={fieldLabel}
           value={draftValue}
+          disabled={disabled}
           onChange={(event) => {
             const nextValue = event.target.value;
             setDraftValue(nextValue);
@@ -342,6 +300,11 @@ const AdditionalFieldEditor = ({
           }}
         >
           <SelectItem value="" text="" />
+          <HistoricalUserSelectItem
+            fieldType={fieldType}
+            value={draftValue}
+            options={activeOptions}
+          />
           {activeOptions.map((option) => (
             <SelectItem
               key={`${inputId}-${option.optionKey}`}
@@ -362,6 +325,7 @@ const AdditionalFieldEditor = ({
             legendText=""
             name={inputId}
             valueSelected={draftValue}
+            disabled={disabled}
             onChange={(valueSelected) => {
               setDraftValue(valueSelected);
               commitValue(valueSelected);
@@ -396,6 +360,7 @@ const AdditionalFieldEditor = ({
             id={inputId}
             multiple
             value={selectedValues}
+            disabled={disabled}
             onChange={(event) => {
               const values = Array.from(event.target.selectedOptions).map(
                 (option) => option.value,
@@ -424,6 +389,7 @@ const AdditionalFieldEditor = ({
           id={inputId}
           labelText={fieldLabel}
           value={draftValue}
+          disabled={disabled}
           onChange={(event) => {
             const nextValue = event.target.value;
             setDraftValue(nextValue);
@@ -442,6 +408,7 @@ const InlineResultEditor = ({
   style,
   onCommit,
   onPostCommit,
+  disabled = false,
 }) => {
   const [draftValue, setDraftValue] = useState(value || "");
 
@@ -466,6 +433,7 @@ const InlineResultEditor = ({
         type="number"
         value={draftValue}
         style={style}
+        disabled={disabled}
         onChange={(event) => {
           setDraftValue(event.target.value);
         }}
@@ -481,6 +449,7 @@ const InlineResultEditor = ({
       rows={1}
       labelText=""
       value={draftValue}
+      disabled={disabled}
       onChange={(event) => {
         setDraftValue(event.target.value);
       }}
@@ -919,7 +888,10 @@ const getNextTubeLabelSuffix = (prefix, tubeLabels) => {
     return null;
   }
 
-  const matcher = new RegExp(`^${prefix.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")}\\.(\\d+)$`, "i");
+  const matcher = new RegExp(
+    `^${prefix.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")}\\.(\\d+)$`,
+    "i",
+  );
   let nextSuffix = 1;
   Object.values(tubeLabels || {}).forEach((labelValue) => {
     const normalizedLabel = String(labelValue || "").trim();
@@ -1041,6 +1013,9 @@ export function SearchResultForm(props) {
   const setResultsWithId = (results) => {
     if (results?.testResult) {
       var i = 0;
+      results.testResult = results.testResult.map(
+        captureAdditionalFieldBaseline,
+      );
       results.testResult.forEach((item) => (item.id = "" + i++));
       results.testResult.forEach((item) => {
         const configuredBlocks = getConfiguredTubeLabelBlocks(item, intl);
@@ -1143,9 +1118,41 @@ export function SearchResultForm(props) {
     querySearch(searchFormValues);
   }, [patient]);
 
-  const querySearch = (values) => {
+  const getSearchByFromLocation = () => {
+    let displayFormType = "";
+    let doRange = "";
+    if (window.location.pathname == "/result") {
+      displayFormType = new URLSearchParams(window.location.search).get("type");
+      doRange = new URLSearchParams(window.location.search).get("doRange");
+    } else if (window.location.pathname == "/LogbookResults") {
+      displayFormType = "unit";
+      doRange = "false";
+    } else if (window.location.pathname == "/PatientResults") {
+      displayFormType = "patient";
+      doRange = "false";
+    } else if (window.location.pathname == "/AccessionResults") {
+      displayFormType = "order";
+      doRange = "false";
+    } else if (window.location.pathname == "/StatusResults") {
+      displayFormType = "date";
+      doRange = "false";
+    } else if (window.location.pathname == "/RangeResults") {
+      displayFormType = "range";
+      doRange = "true";
+    }
+
+    return {
+      type: displayFormType || "",
+      doRange: doRange || false,
+    };
+  };
+
+  const querySearch = (values, searchByOverride) => {
     setLoading(true);
     props.setResults({ testResult: [] });
+    const effectiveSearchBy =
+      searchByOverride ||
+      (searchBy.type ? searchBy : getSearchByFromLocation());
 
     let accessionNumber =
       values.accessionNumber !== ""
@@ -1175,13 +1182,15 @@ export function SearchResultForm(props) {
       values.sampleStatusType +
       "&selectedAnalysisStatus=" +
       values.analysisStatus +
+      "&type=" +
+      effectiveSearchBy.type +
       "&doRange=" +
-      searchBy.doRange +
+      effectiveSearchBy.doRange +
       "&finished=" +
       false;
     setUrl(searchEndPoint);
-    props.setSearchBy?.(searchBy);
-    switch (searchBy.type) {
+    props.setSearchBy?.(effectiveSearchBy);
+    switch (effectiveSearchBy.type) {
       case "unit":
         props.setParam("&testSectionId=" + values.unitType);
         break;
@@ -1254,6 +1263,7 @@ export function SearchResultForm(props) {
 
   useEffect(() => {
     componentMounted.current = true;
+
     let testId = new URLSearchParams(window.location.search).get(
       "selectedTest",
     );
@@ -1321,31 +1331,7 @@ export function SearchResultForm(props) {
       querySearch(values);
     }
 
-    var displayFormType = "";
-    var doRange = "";
-    if (window.location.pathname == "/result") {
-      displayFormType = new URLSearchParams(window.location.search).get("type");
-      doRange = new URLSearchParams(window.location.search).get("doRange");
-    } else if (window.location.pathname == "/LogbookResults") {
-      displayFormType = "unit";
-      doRange = "false";
-    } else if (window.location.pathname == "/PatientResults") {
-      displayFormType = "patient";
-      doRange = "false";
-    } else if (window.location.pathname == "/AccessionResults") {
-      displayFormType = "order";
-      doRange = "false";
-    } else if (window.location.pathname == "/StatusResults") {
-      displayFormType = "date";
-      doRange = "false";
-    } else if (window.location.pathname == "/RangeResults") {
-      displayFormType = "range";
-      doRange = "true";
-    }
-    setSearchBy({
-      type: displayFormType,
-      doRange: doRange,
-    });
+    setSearchBy(getSearchByFromLocation());
   }, []);
 
   useEffect(() => {
@@ -1768,10 +1754,33 @@ export function SearchResults(props) {
   const saveStatus = "";
   const [referTest, setReferTest] = useState({});
   const [isSubmitting, setIsSubmitting] = useState(false);
+  const [fieldConflicts, setFieldConflicts] = useState([]);
   const [sampleLocations, setSampleLocations] = useState({}); // Track location by analysisId
   const [tubeLabelDraftsByRowId, setTubeLabelDraftsByRowId] = useState({});
+  const [resultActionPermissions, setResultActionPermissions] = useState({
+    enter: false,
+    update: false,
+    correct: false,
+  });
+  const [resultEntryPermissionLoaded, setResultEntryPermissionLoaded] =
+    useState(false);
 
   const componentMounted = useRef(false);
+  const hasResultEntryModulePermission = Object.values(
+    resultActionPermissions,
+  ).some(Boolean);
+  const resultEntryLocked = !hasResultEntryModulePermission;
+  const isResultItemLocked = (resultItem) => {
+    const actionKey =
+      resultItem?.resultEntryAction ||
+      (resultItem?.resultId ? "update" : "enter");
+    return resultEntryLocked || resultActionPermissions[actionKey] !== true;
+  };
+  const isResultRowLocked = (rowId) =>
+    isResultItemLocked(props.results?.testResult?.[rowId]);
+  const hasEditableResult = props.results?.testResult?.some(
+    (resultItem) => !isResultItemLocked(resultItem),
+  );
 
   useEffect(() => {
     componentMounted.current = true;
@@ -1788,6 +1797,24 @@ export function SearchResults(props) {
       "/rest/displayList/REJECTION_REASONS",
       loadRejectReasons,
     );
+    let completedPermissionChecks = 0;
+    ["enter", "update", "correct"].forEach((actionKey) => {
+      getFromOpenElisServer(
+        `/rest/module-action-access?moduleKey=results&actionKey=${actionKey}`,
+        (response) => {
+          if (componentMounted.current) {
+            setResultActionPermissions((permissions) => ({
+              ...permissions,
+              [actionKey]: response?.allowed === true,
+            }));
+            completedPermissionChecks += 1;
+            if (completedPermissionChecks === 3) {
+              setResultEntryPermissionLoaded(true);
+            }
+          }
+        },
+      );
+    });
     if (props.results.testResult.length > 0) {
       var defaultRejectedItems = {};
       props.results.testResult.forEach((result) => {
@@ -1875,8 +1902,7 @@ export function SearchResults(props) {
 
         const blockTitle =
           getResultBlockTitles(row, intl).find(
-            (title) =>
-              normalizeBlockIdentifier(title) === normalizedBlockTitle,
+            (title) => normalizeBlockIdentifier(title) === normalizedBlockTitle,
           ) || normalizedBlockTitle;
 
         nextTubeLabels[blockTitle] = `${normalizedLabelPrefix}.${nextSuffix}`;
@@ -2129,6 +2155,11 @@ export function SearchResults(props) {
                 />
               </picture>
             )}
+            {row.resultEntryAction === "delivered" && (
+              <Tag type="green" size="sm">
+                {intl.formatMessage({ id: "result.delivered.locked" })}
+              </Tag>
+            )}
           </>
         );
       }
@@ -2166,6 +2197,7 @@ export function SearchResults(props) {
                   id={"testResult" + row.id + ".forceTechApproval"}
                   name={"testResult[" + row.id + "].forceTechApproval"}
                   labelText=""
+                  disabled={isResultItemLocked(row)}
                   //defaultChecked={acceptAsIs}
                   onChange={(e) => handleAcceptAsIsChange(e, row.id)}
                 />
@@ -2183,6 +2215,7 @@ export function SearchResults(props) {
                   id={"testResult" + row.id + ".rejected"}
                   name={"testResult[" + row.id + "].rejected"}
                   labelText=""
+                  disabled={isResultItemLocked(row)}
                   onChange={(e) => handleRejectCheckBoxChange(e, row.id)}
                 />
               )}
@@ -2194,6 +2227,7 @@ export function SearchResults(props) {
                 name={"testResult[" + row.id + "].rejectReasonId"}
                 //noLabel={true}
                 labelText={"Reason"}
+                disabled={isResultItemLocked(row)}
                 onChange={(e) => handleChange(e, row.id)}
               >
                 {/* {...updateShadowResult(e, this, param.rowId)} */}
@@ -2218,7 +2252,7 @@ export function SearchResults(props) {
                 id={"testResult" + row.id + ".note"}
                 name={"testResult[" + row.id + "].note"}
                 //value={props.results.testResult[row.id]?.pastNotes}
-                disabled={false}
+                disabled={isResultItemLocked(row)}
                 type="text"
                 labelText=""
                 rows={1}
@@ -2241,6 +2275,7 @@ export function SearchResults(props) {
                 id={"resultValue" + row.id}
                 name={"testResult[" + row.id + "].resultValue"}
                 noLabel={true}
+                disabled={isResultItemLocked(row)}
                 onChange={(e) => validateResults(e, row.id)}
                 value={row.resultValue}
               >
@@ -2266,6 +2301,7 @@ export function SearchResults(props) {
                 dictionaryValues={row.dictionaryResults}
                 value={row.multiSelectResultValues}
                 onChange={(e) => handleChange(e, row.id)}
+                disabled={isResultItemLocked(row)}
               />
             );
 
@@ -2277,6 +2313,7 @@ export function SearchResults(props) {
                 dictionaryValues={row.dictionaryResults}
                 value={row.multiSelectResultValues}
                 onChange={(e) => handleChange(e, row.id)}
+                disabled={isResultItemLocked(row)}
               />
             );
 
@@ -2288,6 +2325,7 @@ export function SearchResults(props) {
                 fieldType={row.resultType}
                 value={row.resultValue}
                 style={validationState[row.id]?.style}
+                disabled={isResultItemLocked(row)}
                 onCommit={(nextValue) =>
                   commitRowFieldValue(
                     row.id,
@@ -2316,24 +2354,6 @@ export function SearchResults(props) {
                       },
                     },
                   }));
-                  if (
-                    validation.isInvalid &&
-                    configurationProperties.ALERT_FOR_INVALID_RESULTS
-                  ) {
-                    addNotification({
-                      title: intl.formatMessage({ id: "notification.title" }),
-                      message:
-                        intl.formatMessage({
-                          id: "result.outOfValidRange.msg",
-                        }) +
-                        " " +
-                        row.testName +
-                        " : " +
-                        nextValue,
-                      kind: NotificationKinds.error,
-                    });
-                    setNotificationVisible(true);
-                  }
                 }}
               />
             );
@@ -2345,6 +2365,7 @@ export function SearchResults(props) {
                 fieldName={"testResult[" + row.id + "].resultValue"}
                 fieldType={row.resultType}
                 value={row.resultValue}
+                disabled={isResultItemLocked(row)}
                 onCommit={(nextValue) =>
                   commitRowFieldValue(
                     row.id,
@@ -2362,6 +2383,7 @@ export function SearchResults(props) {
                 fieldName={"testResult[" + row.id + "].resultValue"}
                 fieldType={row.resultType}
                 value={row.resultValue}
+                disabled={isResultItemLocked(row)}
                 onCommit={(nextValue) =>
                   commitRowFieldValue(
                     row.id,
@@ -2439,7 +2461,9 @@ export function SearchResults(props) {
                   defaultMessage: "Tube",
                 })}
                 value={row.parentUsageBlockName || ""}
-                disabled={row.sampleUsageLocked === true}
+                disabled={
+                  isResultItemLocked(row) || row.sampleUsageLocked === true
+                }
                 onChange={(event) =>
                   handleParentTubeSelectionChange(row.id, event.target.value)
                 }
@@ -2472,7 +2496,9 @@ export function SearchResults(props) {
               step="0.001"
               min="0"
               value={row.sampleUsageQuantity || ""}
-              disabled={row.sampleUsageLocked === true}
+              disabled={
+                isResultItemLocked(row) || row.sampleUsageLocked === true
+              }
               onCommit={(nextValue) =>
                 handleChange(
                   {
@@ -2510,7 +2536,9 @@ export function SearchResults(props) {
               step="0.001"
               min="0"
               value={row.parentSampleUsageQuantity || ""}
-              disabled={row.parentSampleUsageLocked === true}
+              disabled={
+                isResultItemLocked(row) || row.parentSampleUsageLocked === true
+              }
               onCommit={(nextValue) =>
                 handleChange(
                   {
@@ -2574,6 +2602,12 @@ export function SearchResults(props) {
     analysisId,
     sampleItemId,
   ) => {
+    const resultItem = props.results?.testResult?.find(
+      (item) => item.analysisId === analysisId,
+    );
+    if (isResultItemLocked(resultItem)) {
+      return;
+    }
     // locationData format: { sample, newLocation, reason?, conditionNotes?, positionCoordinate? }
     const newLocation = locationData?.newLocation || locationData;
 
@@ -2673,6 +2707,9 @@ export function SearchResults(props) {
     fieldType,
     nextValue,
   ) => {
+    if (isResultRowLocked(rowId)) {
+      return;
+    }
     const form = {
       ...props.results,
       testResult: [...props.results.testResult],
@@ -2721,6 +2758,9 @@ export function SearchResults(props) {
   };
 
   const handleParentTubeSelectionChange = (rowId, nextBlockName) => {
+    if (isResultRowLocked(rowId)) {
+      return;
+    }
     const form = {
       ...props.results,
       testResult: [...props.results.testResult],
@@ -2739,6 +2779,9 @@ export function SearchResults(props) {
   };
 
   const handleTubeLabelChange = (rowId, blockTitle, nextValue) => {
+    if (isResultRowLocked(rowId)) {
+      return;
+    }
     const normalizedValue = nextValue == null ? "" : `${nextValue}`;
 
     setTubeLabelDraftsByRowId((prev) => {
@@ -2818,6 +2861,9 @@ export function SearchResults(props) {
   };
 
   const updateBlockTubeUsageRow = (rowId, updater) => {
+    if (isResultRowLocked(rowId)) {
+      return;
+    }
     const form = {
       ...props.results,
       testResult: [...props.results.testResult],
@@ -2922,7 +2968,9 @@ export function SearchResults(props) {
               defaultMessage: "Tube",
             })}
             value={resolvedBlockUsage.parentTubeBlockName || ""}
-            disabled={resolvedBlockUsage.locked === true}
+            disabled={
+              isResultItemLocked(data) || resolvedBlockUsage.locked === true
+            }
             onChange={(event) =>
               handleBlockTubeSelectionChange(
                 data.id,
@@ -2961,7 +3009,9 @@ export function SearchResults(props) {
             step="0.001"
             min="0"
             value={resolvedBlockUsage.usedQuantity || ""}
-            disabled={resolvedBlockUsage.locked === true}
+            disabled={
+              isResultItemLocked(data) || resolvedBlockUsage.locked === true
+            }
             onCommit={(nextValue) =>
               handleBlockTubeUsageQuantityChange(data.id, blockTitle, nextValue)
             }
@@ -2997,6 +3047,7 @@ export function SearchResults(props) {
             defaultMessage: "Etiqueta",
           })}
           value={draftValue}
+          disabled={isResultItemLocked(data)}
           onCommit={(nextValue) =>
             handleTubeLabelChange(data.id, blockTitle, nextValue)
           }
@@ -3027,22 +3078,12 @@ export function SearchResults(props) {
     return (
       <AdditionalFieldEditor
         inputId={inputId}
-        analysisId={data?.analysisId}
-        testId={data?.testId}
-        fieldKey={fieldKey}
         fieldLabel={fieldLabel}
         fieldType={fieldType}
         value={fieldValue || ""}
         activeOptions={activeOptions}
         fieldMetadata={fieldMetadata}
-        onError={(message) => {
-          addNotification({
-            title: intl.formatMessage({ id: "notification.title" }),
-            message: message || intl.formatMessage({ id: "server.error.msg" }),
-            kind: NotificationKinds.error,
-          });
-          setNotificationVisible(true);
-        }}
+        disabled={isResultItemLocked(data)}
         onCommit={(nextValue) =>
           handleAdditionalFieldChange(data.id, fieldKey, fieldType, nextValue)
         }
@@ -3085,6 +3126,7 @@ export function SearchResults(props) {
                 })}
                 onChange={(e) => handleChange(e, data.id)}
                 value={data.testMethod}
+                disabled={isResultItemLocked(data)}
               >
                 <SelectItem text="" value="" />
                 {rowMethods.map((method, method_index) => (
@@ -3103,6 +3145,7 @@ export function SearchResults(props) {
                 data={data}
                 results={props.results}
                 setResultForm={props.setResultForm}
+                disabled={isResultItemLocked(data)}
               />
 
               {data.resultFile && data.resultFile.fileName && (
@@ -3129,7 +3172,7 @@ export function SearchResults(props) {
                   name={"testResult[" + data.id + "].refer"}
                   id={"testResult[" + data.id + "].refer"}
                   checked={data.refer === "true"}
-                  disabled={data.referredOut}
+                  disabled={isResultItemLocked(data) || data.referredOut}
                   data-cy="referalcheckbox"
                   onChange={(e) => {
                     e.target.value = e.target.checked;
@@ -3149,7 +3192,7 @@ export function SearchResults(props) {
                   })}
                   onChange={(e) => handleChange(e, data.id)}
                   value={data?.referralItem?.referralReasonId}
-                  disabled={!referTest[data.id]}
+                  disabled={isResultItemLocked(data) || !referTest[data.id]}
                 >
                   {/* {...updateShadowResult(e, this, param.rowId)} */}
                   <SelectItem text="" value="" />
@@ -3176,7 +3219,7 @@ export function SearchResults(props) {
                   })}
                   onChange={(e) => handleChange(e, data.id)}
                   value={data?.referralItem?.referredInstituteId}
-                  disabled={!referTest[data.id]}
+                  disabled={isResultItemLocked(data) || !referTest[data.id]}
                 >
                   {/* {...updateShadowResult(e, this, param.rowId)} */}
 
@@ -3202,7 +3245,7 @@ export function SearchResults(props) {
                   })}
                   onChange={(e) => handleChange(e, data.id)}
                   value={data?.referralItem?.referredTestId}
-                  disabled={!referTest[data.id]}
+                  disabled={isResultItemLocked(data) || !referTest[data.id]}
                 >
                   {/* {...updateShadowResult(e, this, param.rowId)} */}
 
@@ -3220,7 +3263,7 @@ export function SearchResults(props) {
                     "testResult[" + data.id + "].referralItem.referredSendDate"
                   }
                   value={data?.referralItem?.referredSendDate}
-                  disabled={!referTest[data.id]}
+                  disabled={isResultItemLocked(data) || !referTest[data.id]}
                   disallowFutureDate={true}
                 />
               </Column>
@@ -3441,6 +3484,7 @@ export function SearchResults(props) {
                 <StorageLocationSelector
                   workflow="results"
                   showQuickFind={true}
+                  readOnly={isResultItemLocked(data)}
                   sampleInfo={{
                     sampleItemId: sampleItemId || null,
                     sampleItemExternalId:
@@ -3475,6 +3519,9 @@ export function SearchResults(props) {
   };
 
   const commitRowFieldValue = (rowId, fieldName, nextValue) => {
+    if (isResultRowLocked(rowId)) {
+      return;
+    }
     const form = { ...props.results };
     const jp = require("jsonpath");
     jp.value(form, fieldName, nextValue);
@@ -3599,6 +3646,9 @@ export function SearchResults(props) {
   };
 
   const handleChange = (e, rowId) => {
+    if (isResultRowLocked(rowId)) {
+      return;
+    }
     const { name, id, value } = e.target;
     console.debug(
       "handleChange:" + id + ":" + name + ":" + value + ":" + rowId,
@@ -3645,6 +3695,9 @@ export function SearchResults(props) {
   };
 
   const handleRejectCheckBoxChange = (e, rowId) => {
+    if (isResultRowLocked(rowId)) {
+      return;
+    }
     const { name, checked } = e.target;
     var form = props.results;
     var jp = require("jsonpath");
@@ -3669,6 +3722,9 @@ export function SearchResults(props) {
   };
 
   const handleDatePickerChange = (date, rowId) => {
+    if (isResultRowLocked(rowId)) {
+      return;
+    }
     var form = { ...props.results };
     if (form.testResult[rowId].referralItem) {
       if (form.testResult[rowId].referralItem.referredSendDate != date) {
@@ -3687,6 +3743,9 @@ export function SearchResults(props) {
   };
 
   const handleAcceptAsIsChange = (e, rowId) => {
+    if (isResultRowLocked(rowId)) {
+      return;
+    }
     console.debug("handleAcceptAsIsChange:" + acceptAsIs[rowId]);
     handleChange(e, rowId);
     if (acceptAsIs[rowId] == undefined) {
@@ -3705,7 +3764,7 @@ export function SearchResults(props) {
 
   const handleSave = (values) => {
     console.debug("handleSave:" + values);
-    if (isSubmitting) {
+    if (resultEntryLocked || isSubmitting) {
       return;
     }
 
@@ -3972,6 +4031,10 @@ export function SearchResults(props) {
       return;
     }
 
+    if (fieldConflicts.length > 0) {
+      setNotificationVisible(true);
+      return;
+    }
     setIsSubmitting(true);
     values.status = saveStatus;
     var searchEndPoint = "/rest/LogbookResults";
@@ -3983,10 +4046,9 @@ export function SearchResults(props) {
           ...(result.tubeLabels || {}),
           ...rowDraftLabels,
         };
-        const rowHasTubeLabelDraft =
-          Object.keys(rowDraftLabels).length > 0;
+        const rowHasTubeLabelDraft = Object.keys(rowDraftLabels).length > 0;
         return {
-          ...result,
+          ...buildAdditionalFieldPatch(result),
           tubeLabels: mergedTubeLabels,
           isModified: rowHasTubeLabelDraft ? "true" : result.isModified,
           reportable: result.reportable === "N" ? false : true,
@@ -4007,7 +4069,18 @@ export function SearchResults(props) {
   const setResponse = (resp) => {
     console.debug("setStatus" + JSON.stringify(resp));
     setIsSubmitting(false);
+    if (resp?.code === "RESULT_FIELD_CONFLICT") {
+      setFieldConflicts(resp.conflicts || []);
+      addNotification({
+        title: intl.formatMessage({ id: "result.entry.conflict.title" }),
+        message: intl.formatMessage({ id: "result.entry.conflict.message" }),
+        kind: NotificationKinds.error,
+      });
+      setNotificationVisible(true);
+      return;
+    }
     if (resp && !resp.error && !(resp.status && resp.status >= 400)) {
+      setFieldConflicts([]);
       addNotification({
         title: intl.formatMessage({ id: "notification.title" }),
         message: createMesssage(resp),
@@ -4025,9 +4098,9 @@ export function SearchResults(props) {
       addNotification({
         title: intl.formatMessage({ id: "notification.title" }),
         message:
-          resp?.message ||
-          resp?.statusText ||
-          intl.formatMessage({ id: "error.save.msg" }),
+          resp?.code === "RESULT_FIELD_SNAPSHOT_REQUIRED"
+            ? intl.formatMessage({ id: "result.entry.conflict.reload" })
+            : resp?.message || intl.formatMessage({ id: "error.save.msg" }),
         kind: NotificationKinds.error,
       });
     }
@@ -4054,6 +4127,36 @@ export function SearchResults(props) {
     return message;
   };
 
+  const resolveFieldConflict = (conflict, keepDraft) => {
+    props.setResultForm({
+      ...props.results,
+      testResult: props.results.testResult.map((row) =>
+        row.analysisId === conflict.analysisId
+          ? resolveAdditionalFieldConflict(row, conflict, keepDraft)
+          : row,
+      ),
+    });
+    setFieldConflicts((previous) =>
+      previous.filter(
+        (item) =>
+          item.analysisId !== conflict.analysisId ||
+          item.fieldKey !== conflict.fieldKey,
+      ),
+    );
+  };
+
+  const displayConflictValue = (value) => {
+    if (value == null || value === "")
+      return intl.formatMessage({ id: "result.entry.conflict.empty" });
+    try {
+      const document = JSON.parse(value);
+      if (document?.fileName) return document.fileName;
+    } catch {
+      /* Text fields are displayed directly. */
+    }
+    return String(value);
+  };
+
   const handlePageChange = (pageInfo) => {
     if (page != pageInfo.page) {
       setPage(pageInfo.page);
@@ -4067,6 +4170,54 @@ export function SearchResults(props) {
     <>
       {notificationVisible === true ? <AlertDialog /> : ""}
       {addRejectResult()}
+      {fieldConflicts.map((conflict) => {
+        const row = props.results.testResult.find(
+          (item) => item.analysisId === conflict.analysisId,
+        );
+        return (
+          <Tile key={`${conflict.analysisId}-${conflict.fieldKey}`}>
+            <p>
+              <strong>
+                {row?.testName}: {conflict.displayName}
+              </strong>
+            </p>
+            <p>
+              {intl.formatMessage({ id: "result.entry.conflict.current" })}:{" "}
+              {displayConflictValue(conflict.currentValue)}
+            </p>
+            <p>
+              {intl.formatMessage({ id: "result.entry.conflict.draft" })}:{" "}
+              {displayConflictValue(
+                row?.additionalFieldValues?.[conflict.fieldKey],
+              )}
+            </p>
+            <Button
+              kind="secondary"
+              size="sm"
+              onClick={() => resolveFieldConflict(conflict, false)}
+            >
+              {intl.formatMessage({ id: "result.entry.conflict.useCurrent" })}
+            </Button>
+            <Button
+              kind="tertiary"
+              size="sm"
+              onClick={() => resolveFieldConflict(conflict, true)}
+            >
+              {intl.formatMessage({ id: "result.entry.conflict.keepDraft" })}
+            </Button>
+          </Tile>
+        );
+      })}
+      {resultEntryPermissionLoaded && !hasResultEntryModulePermission && (
+        <InlineNotification
+          kind="warning"
+          title={intl.formatMessage({
+            id: "authorization.permission.denied.results.enter",
+          })}
+          hideCloseButton={true}
+          lowContrast={true}
+        />
+      )}
       <>
         <Formik
           initialValues={SearchResultFormValues}
@@ -4131,7 +4282,9 @@ export function SearchResults(props) {
                 id="saveResults"
                 onClick={handleSave}
                 style={{ marginTop: "16px" }}
-                disabled={isSubmitting}
+                disabled={
+                  resultEntryLocked || !hasEditableResult || isSubmitting
+                }
               >
                 <FormattedMessage id="label.button.save" />
               </Button>

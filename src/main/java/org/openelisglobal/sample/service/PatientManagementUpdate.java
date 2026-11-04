@@ -25,11 +25,11 @@ import org.openelisglobal.patient.action.bean.PatientManagementInfo;
 import org.openelisglobal.patient.service.PatientContactService;
 import org.openelisglobal.patient.service.PatientPhotoService;
 import org.openelisglobal.patient.service.PatientService;
-import org.openelisglobal.patientadditionalfield.service.PatientAdditionalFieldService;
 import org.openelisglobal.patient.util.PatientIdentifierUtil;
 import org.openelisglobal.patient.validator.ValidatePatientInfo;
 import org.openelisglobal.patient.valueholder.Patient;
 import org.openelisglobal.patient.valueholder.PatientContact;
+import org.openelisglobal.patientadditionalfield.service.PatientAdditionalFieldService;
 import org.openelisglobal.patientidentity.service.PatientIdentityService;
 import org.openelisglobal.patientidentity.valueholder.PatientIdentity;
 import org.openelisglobal.patientidentitytype.util.PatientIdentityTypeMap;
@@ -165,7 +165,8 @@ public class PatientManagementUpdate extends ControllerUtills implements IPatien
         persistIdentityType(patientInfo.getPassportNumber(), "PASSPORT");
         persistIdentityType(patientInfo.getForeignId(), "FOREIGN_ID");
         if (PatientIdentifierUtil.usesDerivedNationalIdMode(patientInfo)) {
-            persistIdentityType(patientInfo.getPrimaryPatientIdentifierType(), PatientIdentifierUtil.NATIONAL_ID_SOURCE);
+            persistIdentityType(patientInfo.getPrimaryPatientIdentifierType(),
+                    PatientIdentifierUtil.NATIONAL_ID_SOURCE);
         }
         persistIdentityType(patientInfo.getGuid(), "GUID");
 
@@ -226,8 +227,8 @@ public class PatientManagementUpdate extends ControllerUtills implements IPatien
     }
 
     private void insertNewPatientInfo(String partId, String value, String type) {
-        if (GenericValidator.isBlankOrNull(value) || GenericValidator.isBlankOrNull(partId)
-                || person == null || GenericValidator.isBlankOrNull(person.getId())) {
+        if (GenericValidator.isBlankOrNull(value) || GenericValidator.isBlankOrNull(partId) || person == null
+                || GenericValidator.isBlankOrNull(person.getId())) {
             return;
         }
 

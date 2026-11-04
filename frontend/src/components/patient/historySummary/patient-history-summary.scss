@@ -153,6 +153,10 @@
   .patient-history-summary__status {
     white-space: nowrap;
   }
+
+  .patient-history-summary__dialog-text {
+    margin-bottom: 1rem;
+  }
 }
 
 @media screen and (max-width: 1056px) {

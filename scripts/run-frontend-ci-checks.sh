@@ -48,7 +48,7 @@ cd frontend
 # Step 1: Check formatting
 echo -e "${YELLOW}[1/3] Checking frontend code formatting...${NC}"
 # Use prettier check command (matches CI workflow)
-if npx prettier ./ --check; then
+if npm run check-format; then
     echo -e "${GREEN}✓ Formatting check passed${NC}"
 else
     echo -e "${RED}✗ Formatting check failed${NC}"
@@ -59,7 +59,7 @@ echo ""
 
 # Step 2: Run unit tests
 echo -e "${YELLOW}[2/3] Running frontend unit tests...${NC}"
-if npm test -- --watchAll=false --coverage=false; then
+if CI=true npm test -- --watchAll=false --coverage=false --runInBand; then
     echo -e "${GREEN}✓ Unit tests passed${NC}"
 else
     echo -e "${RED}✗ Unit tests failed${NC}"

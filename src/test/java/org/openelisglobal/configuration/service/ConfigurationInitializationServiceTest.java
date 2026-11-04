@@ -1,5 +1,6 @@
 package org.openelisglobal.configuration.service;
 
+import static org.junit.Assert.assertArrayEquals;
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertFalse;
 import static org.junit.Assert.assertTrue;
@@ -90,8 +91,25 @@ public class ConfigurationInitializationServiceTest {
 
         service.onApplicationEvent(mockEvent);
 
-        verify(resolver, never()).getResources(anyString());
         verify(mockHandler, never()).processConfiguration(any(), anyString());
+    }
+
+    @Test
+    public void disabledAutocreationStillRecognizesExistingDefinitionsWithoutReloadingOrWritingChecksums()
+            throws Exception {
+        File loaded = createTestFile("tests/installed.csv", "original configuration");
+        service.onApplicationEvent(mockEvent);
+        File checksums = new File(tempFolder.getRoot(), "tests-checksums.properties");
+        byte[] originalChecksums = Files.readAllBytes(checksums.toPath());
+        ReflectionTestUtils.setField(service, "initialized", false);
+        ReflectionTestUtils.setField(service, "autocreateOn", false);
+        createTestFile("tests/new.csv", "never loaded configuration");
+        service.onApplicationEvent(mockEvent);
+        verify(mockHandler, times(1)).processConfiguration(any(), eq(loaded.getName()));
+        verify(mockHandler, times(1)).reconcileConfigurationOrigin(any(), eq(loaded.getName()));
+        verify(mockHandler, never()).processConfiguration(any(), eq("new.csv"));
+        verify(mockHandler, times(1)).reconcileConfigurationOrigin(any(), eq("new.csv"));
+        assertArrayEquals(originalChecksums, Files.readAllBytes(checksums.toPath()));
     }
 
     @Test
@@ -288,6 +306,7 @@ public class ConfigurationInitializationServiceTest {
 
         // Processed on first run, skipped on second (checksum match)
         verify(mockHandler, times(1)).processConfiguration(any(InputStream.class), eq("stable.csv"));
+        verify(mockHandler, times(1)).reconcileConfigurationOrigin(any(InputStream.class), eq("stable.csv"));
     }
 
     @Test

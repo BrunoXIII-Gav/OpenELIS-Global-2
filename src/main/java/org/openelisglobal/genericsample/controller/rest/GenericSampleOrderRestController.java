@@ -32,6 +32,8 @@ public class GenericSampleOrderRestController extends BaseController {
 
     @Autowired
     private GenericSampleOrderService genericSampleOrderService;
+    @Autowired
+    private org.openelisglobal.authorization.service.ModuleAuthorizationService moduleAuthorizationService;
 
     @Override
     protected String getPageTitleKey() {
@@ -55,6 +57,9 @@ public class GenericSampleOrderRestController extends BaseController {
             @RequestBody GenericSampleOrderForm form) {
         try {
             String sysUserId = getSysUserId(request);
+            if (!moduleAuthorizationService.hasPermission(sysUserId, "orders", "create")) {
+                return forbiddenOrderPermissionResponse();
+            }
             Map<String, Object> result = genericSampleOrderService.saveGenericSampleOrder(form, sysUserId);
             return ResponseEntity.ok(result);
         } catch (Exception e) {
@@ -91,6 +96,9 @@ public class GenericSampleOrderRestController extends BaseController {
             @PathVariable("accessionNumber") String accessionNumber, @RequestBody GenericSampleOrderForm form) {
         try {
             String sysUserId = getSysUserId(request);
+            if (!moduleAuthorizationService.hasPermission(sysUserId, "orders", "update")) {
+                return forbiddenOrderPermissionResponse();
+            }
             Map<String, Object> result = genericSampleOrderService.updateGenericSampleOrder(accessionNumber, form,
                     sysUserId);
             return ResponseEntity.ok(result);
@@ -135,6 +143,9 @@ public class GenericSampleOrderRestController extends BaseController {
             }
 
             String sysUserId = getSysUserId(request);
+            if (!moduleAuthorizationService.hasPermission(sysUserId, "orders", "create")) {
+                return forbiddenOrderPermissionResponse();
+            }
             InputStream inputStream = file.getInputStream();
             Map<String, Object> result = genericSampleOrderService.importSamplesFromFile(inputStream,
                     file.getOriginalFilename(), file.getContentType(), sysUserId);
@@ -146,5 +157,11 @@ public class GenericSampleOrderRestController extends BaseController {
             errorResponse.put("error", "Failed to import samples from file: " + e.getMessage());
             return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR).body(errorResponse);
         }
+    }
+
+    private ResponseEntity<Map<String, String>> forbiddenOrderPermissionResponse() {
+        Map<String, String> errorResponse = new HashMap<>();
+        errorResponse.put("error", "You do not have the required order permission to manage orders");
+        return ResponseEntity.status(HttpStatus.FORBIDDEN).body(errorResponse);
     }
 }

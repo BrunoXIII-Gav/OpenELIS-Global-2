@@ -4,21 +4,21 @@ import config from "../../config.json";
 import { createSampleOrderFormValues } from "../formModel/innitialValues/OrderEntryFormValues";
 import { createSampleObject } from "./Index";
 import { FormattedMessage } from "react-intl";
-
 const OrderSuccessMessage = (props) => {
   const { orderFormValues, setOrderFormValues, setSamples, setPage } = props;
-
   const handlePrintBarCode = () => {
     let barcodesPdf =
       config.serverBaseUrl +
-      `/LabelMakerServlet?labNo=${orderFormValues.sampleOrderItems.labNo}`;
+      `/LabelMakerServlet?labNo=${encodeURIComponent(props.assignedLabNo || orderFormValues.sampleOrderItems.labNo)}`;
     window.open(barcodesPdf);
   };
-
   const handleAnotherSiteOrder = () => {
     const siteId = orderFormValues.sampleOrderItems.referringSiteId;
     const siteName = orderFormValues.sampleOrderItems.referringSiteName;
     const providerId = orderFormValues.sampleOrderItems.providerId;
+    const providerPersonId = orderFormValues.sampleOrderItems.providerPersonId;
+    const providerProfessionalProfileCode =
+      orderFormValues.sampleOrderItems.providerProfessionalProfileCode;
     const providerFirstName =
       orderFormValues.sampleOrderItems.providerFirstName;
     const providerLastName = orderFormValues.sampleOrderItems.providerLastName;
@@ -31,7 +31,10 @@ const OrderSuccessMessage = (props) => {
     const providerDni = orderFormValues.sampleOrderItems.providerDni;
     const providerSpecialty =
       orderFormValues.sampleOrderItems.providerSpecialty;
-
+    const providerProfileFields =
+      orderFormValues.sampleOrderItems.providerProfileFields || [];
+    const providerProfileFieldValues =
+      orderFormValues.sampleOrderItems.providerProfileFieldValues || {};
     const emptyOrderForm = createSampleOrderFormValues();
     setOrderFormValues({
       ...emptyOrderForm,
@@ -41,6 +44,8 @@ const OrderSuccessMessage = (props) => {
         referringSiteId: siteId,
         referringSiteName: siteName,
         providerId: providerId,
+        providerPersonId: providerPersonId,
+        providerProfessionalProfileCode: providerProfessionalProfileCode,
         providerFirstName: providerFirstName,
         providerLastName: providerLastName,
         providerWorkPhone: providerWorkPhone,
@@ -50,18 +55,18 @@ const OrderSuccessMessage = (props) => {
         providerRne: providerRne,
         providerDni: providerDni,
         providerSpecialty: providerSpecialty,
+        providerProfileFields: providerProfileFields,
+        providerProfileFieldValues: providerProfileFieldValues,
       },
     });
     setPage(0);
   };
-
   useEffect(() => {
     if (!orderFormValues.rememberSiteAndRequester) {
       setOrderFormValues(createSampleOrderFormValues());
     }
     setSamples([createSampleObject()]);
   }, []);
-
   return (
     <div className="orderLegendBody">
       <div className="orderEntrySuccessMsg">
@@ -74,6 +79,13 @@ const OrderSuccessMessage = (props) => {
         <h4>
           <FormattedMessage id="save.success" />
         </h4>
+        {props.assignedLabNo && (
+          <p>
+            <FormattedMessage id="sample.label.labnumber" />:{" "}
+            {props.assignedLabNo}
+          </p>
+        )}
+
         <Row>
           <Button
             data-cy="printBarCode"
@@ -98,5 +110,4 @@ const OrderSuccessMessage = (props) => {
     </div>
   );
 };
-
 export default OrderSuccessMessage;

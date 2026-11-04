@@ -44,8 +44,8 @@ public class EmailNotificationSender implements ClientNotificationSender<EmailNo
         }
         message.setSubject(notification.getSubject());
         message.setText(notification.getMessage());
-        LogEvent.logInfo(this.getClass().getSimpleName(), "send",
-                "sending email to=" + notification.getRecipientEmailAddress() + ", subject=" + notification.getSubject());
+        LogEvent.logInfo(this.getClass().getSimpleName(), "send", "sending email to="
+                + notification.getRecipientEmailAddress() + ", subject=" + notification.getSubject());
         javaMailSender.send(message);
         LogEvent.logInfo(this.getClass().getSimpleName(), "send",
                 "email sent to=" + notification.getRecipientEmailAddress());

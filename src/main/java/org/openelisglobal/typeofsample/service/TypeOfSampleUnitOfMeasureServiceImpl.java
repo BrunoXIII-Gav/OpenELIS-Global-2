@@ -9,9 +9,8 @@ import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 @Service
-public class TypeOfSampleUnitOfMeasureServiceImpl
-        extends AuditableBaseObjectServiceImpl<TypeOfSampleUnitOfMeasure, String>
-        implements TypeOfSampleUnitOfMeasureService {
+public class TypeOfSampleUnitOfMeasureServiceImpl extends
+        AuditableBaseObjectServiceImpl<TypeOfSampleUnitOfMeasure, String> implements TypeOfSampleUnitOfMeasureService {
 
     @Autowired
     private TypeOfSampleUnitOfMeasureDAO baseObjectDAO;

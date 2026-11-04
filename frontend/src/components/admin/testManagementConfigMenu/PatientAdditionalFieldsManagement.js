@@ -1,3 +1,6 @@
+import UserFieldPermissionConfig, {
+  userTaskFromMetadata,
+} from "./customComponents/UserFieldPermissionConfig.js";
 import React, { useContext, useEffect, useMemo, useState } from "react";
 import {
   Button,
@@ -6,6 +9,7 @@ import {
   DataTable,
   Grid,
   Heading,
+  MultiSelect,
   Section,
   Select,
   SelectItem,
@@ -18,7 +22,6 @@ import {
   TableHeader,
   TableRow,
   Tag,
-  TextArea,
   TextInput,
 } from "@carbon/react";
 import { FormattedMessage, useIntl } from "react-intl";
@@ -34,19 +37,27 @@ import {
   AlertDialog,
   NotificationKinds,
 } from "../../common/CustomNotification";
+import AdditionalFieldOptionsEditor from "./customComponents/AdditionalFieldOptionsEditor";
+import {
+  getPatientFixedFieldLabel,
+  normalizePatientFixedFieldConfigs,
+  PATIENT_FIXED_FIELD_DEFINITION_MAP,
+} from "../../patient/patientFixedFieldConfig";
+import {
+  createEmptyOption,
+  FIELD_TYPE_OPTIONS,
+  getAdditionalFieldTypeLabel,
+  normalizeOptionForUi,
+  normalizeOptionsForPayload,
+  OPTION_FIELD_TYPES,
+  toCodeCandidate,
+} from "./additionalFieldOptionUtils";
 
-const FIELD_TYPE_OPTIONS = [
-  "TEXT",
-  "TEXTAREA",
-  "NUMBER",
-  "DATE",
-  "TIME",
-  "DATETIME",
-  "BOOLEAN",
-  "SELECT",
-  "MULTISELECT",
-  "RADIO",
-];
+const LEGACY_USER_FIELD_TYPE = "SYSTEM_USER_BIOLOGIST_SELECT";
+const GENERIC_USER_FIELD_TYPE = "USER";
+const USER_DISPLAY_MODE_INITIALS = "INITIALS";
+const USER_DISPLAY_MODE_NAME = "NAME";
+const USER_DISPLAY_MODE_BOTH = "BOTH";
 
 const breadcrumbs = [
   { label: "home.label", link: "/" },
@@ -65,15 +76,36 @@ const defaultNewField = {
   displayName: "",
   fieldKey: "",
   fieldType: "TEXT",
+  hasSavedValues: false,
   required: false,
   active: true,
   defaultValue: "",
   maxLength: "",
   sortOrder: "",
-  optionLines: "",
+  options: [],
+  userProfileCodes: [],
+  userDisplayMode: USER_DISPLAY_MODE_BOTH,
 };
 
-const OPTION_FIELD_TYPES = new Set(["SELECT", "MULTISELECT", "RADIO"]);
+const normalizeFieldType = (fieldType) =>
+  String(fieldType || "").toUpperCase() === LEGACY_USER_FIELD_TYPE
+    ? GENERIC_USER_FIELD_TYPE
+    : fieldType || "TEXT";
+
+const resolveUserProfileCodes = (fieldType, metadata) => {
+  if (Array.isArray(metadata?.userProfileCodes)) {
+    return metadata.userProfileCodes;
+  }
+  return [];
+};
+
+const resolveUserDisplayMode = (metadata) => {
+  const mode = String(metadata?.userDisplayMode || "").toUpperCase();
+  if (mode === USER_DISPLAY_MODE_INITIALS || mode === USER_DISPLAY_MODE_NAME) {
+    return mode;
+  }
+  return USER_DISPLAY_MODE_BOTH;
+};
 
 const PatientAdditionalFieldsManagement = () => {
   const intl = useIntl();
@@ -81,10 +113,14 @@ const PatientAdditionalFieldsManagement = () => {
     useContext(NotificationContext);
 
   const [fields, setFields] = useState([]);
+  const [fixedConfigs, setFixedConfigs] = useState([]);
+
   const [newField, setNewField] = useState(defaultNewField);
   const [editingFieldId, setEditingFieldId] = useState(null);
   const [savingField, setSavingField] = useState(false);
+  const [savingFixed, setSavingFixed] = useState(false);
   const [savingSortFieldId, setSavingSortFieldId] = useState(null);
+  const structureLocked = editingFieldId !== null && newField.hasSavedValues;
 
   const loadFields = () => {
     getFromOpenElisServer(
@@ -95,9 +131,32 @@ const PatientAdditionalFieldsManagement = () => {
     );
   };
 
+  const loadFixedConfigs = () => {
+    getFromOpenElisServer(
+      "/rest/patient-additional-fields/fixed",
+      (response) => {
+        setFixedConfigs(normalizePatientFixedFieldConfigs(response));
+      },
+    );
+  };
+
   useEffect(() => {
     loadFields();
+    loadFixedConfigs();
   }, []);
+
+  const parseFieldMetadata = (metadataJson) => {
+    if (!metadataJson || typeof metadataJson !== "string") {
+      return {};
+    }
+
+    try {
+      const parsed = JSON.parse(metadataJson);
+      return parsed && typeof parsed === "object" ? parsed : {};
+    } catch (_error) {
+      return {};
+    }
+  };
 
   const showNotification = (kind, message) => {
     setNotificationVisible(true);
@@ -108,51 +167,12 @@ const PatientAdditionalFieldsManagement = () => {
     });
   };
 
-  const parseOptions = (optionLines) => {
-    if (!optionLines || !optionLines.trim()) {
-      return [];
-    }
-
-    return optionLines
-      .split("\n")
-      .map((line) => line.trim())
-      .filter(Boolean)
-      .map((line, index) => {
-        const splitLine = line.split("|");
-        if (splitLine.length >= 2) {
-          return {
-            optionKey: splitLine[0].trim(),
-            optionLabel: splitLine.slice(1).join("|").trim(),
-            active: true,
-            sortOrder: index + 1,
-          };
-        }
-        return {
-          optionKey: splitLine[0].trim().toLowerCase().replace(/\s+/g, "_"),
-          optionLabel: splitLine[0].trim(),
-          active: true,
-          sortOrder: index + 1,
-        };
-      })
-      .filter((option) => option.optionLabel);
-  };
-
   const mapFieldToForm = (field) => {
-    const optionLines = (field?.options || [])
-      .filter((option) => option?.active !== false)
-      .sort((left, right) => (left?.sortOrder ?? 0) - (right?.sortOrder ?? 0))
-      .map((option) =>
-        option?.optionKey
-          ? `${option.optionKey}|${option.optionLabel || option.optionKey}`
-          : option?.optionLabel || "",
-      )
-      .filter(Boolean)
-      .join("\n");
-
     return {
       displayName: field?.displayName || "",
       fieldKey: field?.fieldKey || "",
-      fieldType: field?.fieldType || "TEXT",
+      fieldType: normalizeFieldType(field?.fieldType),
+      hasSavedValues: field?.hasSavedValues === true,
       required: !!field?.required,
       active: field?.active !== false,
       defaultValue: field?.defaultValue || "",
@@ -164,7 +184,22 @@ const PatientAdditionalFieldsManagement = () => {
         field?.sortOrder !== null && field?.sortOrder !== undefined
           ? String(field.sortOrder)
           : "",
-      optionLines,
+      options: Array.isArray(field?.options)
+        ? field.options
+            .filter((option) => option?.active !== false)
+            .map((option, index) => normalizeOptionForUi(option, index))
+        : [],
+      userTask: userTaskFromMetadata(
+        parseFieldMetadata(field?.metadataJson),
+        "patients",
+      ),
+      userProfileCodes: resolveUserProfileCodes(
+        field?.fieldType,
+        parseFieldMetadata(field?.metadataJson),
+      ),
+      userDisplayMode: resolveUserDisplayMode(
+        parseFieldMetadata(field?.metadataJson),
+      ),
     };
   };
 
@@ -179,6 +214,84 @@ const PatientAdditionalFieldsManagement = () => {
     }
     const parsed = Number.parseInt(sortOrder, 10);
     return Number.isNaN(parsed) ? null : parsed;
+  };
+
+  const addOption = () => {
+    setNewField((previous) => ({
+      ...previous,
+      options: [
+        ...(previous.options || []),
+        createEmptyOption((previous.options || []).length + 1),
+      ],
+    }));
+  };
+
+  const updateFixedConfig = (fieldKey, property, rawValue) => {
+    setFixedConfigs((previous) =>
+      previous.map((config) =>
+        config.fieldKey !== fieldKey
+          ? config
+          : {
+              ...config,
+              [property]: rawValue,
+            },
+      ),
+    );
+  };
+
+  const saveFixedConfigs = () => {
+    setSavingFixed(true);
+    putToOpenElisServerFullResponse(
+      "/rest/patient-additional-fields/fixed",
+      JSON.stringify(fixedConfigs),
+      (response) => {
+        setSavingFixed(false);
+        if (response.status >= 200 && response.status < 300) {
+          showNotification(
+            NotificationKinds.success,
+            intl.formatMessage({ id: "patient.additional.fields.saved" }),
+          );
+          loadFixedConfigs();
+          return;
+        }
+        showNotification(
+          NotificationKinds.error,
+          intl.formatMessage({ id: "server.error.msg" }),
+        );
+      },
+    );
+  };
+
+  const updateOptionLabel = (optionIndex, nextLabel) => {
+    setNewField((previous) => ({
+      ...previous,
+      options: (previous.options || []).map((option, index) => {
+        if (index !== optionIndex) {
+          return option;
+        }
+
+        const nextGeneratedKey = toCodeCandidate(nextLabel);
+        return {
+          ...option,
+          optionLabel: nextLabel,
+          optionKey: option.isAutoGeneratedKey
+            ? nextGeneratedKey
+            : option.optionKey,
+        };
+      }),
+    }));
+  };
+
+  const removeOption = (optionIndex) => {
+    setNewField((previous) => ({
+      ...previous,
+      options: (previous.options || [])
+        .filter((_, index) => index !== optionIndex)
+        .map((option, index) => ({
+          ...option,
+          sortOrder: index + 1,
+        })),
+    }));
   };
 
   const saveField = (event) => {
@@ -196,21 +309,18 @@ const PatientAdditionalFieldsManagement = () => {
         ? Number.parseInt(newField.maxLength, 10)
         : null,
       sortOrder: normalizeSortOrder(newField.sortOrder),
+      metadataJson:
+        newField.fieldType === "USER"
+          ? JSON.stringify({
+              ...(newField.userTask || userTaskFromMetadata(null, "patients")),
+              userDisplayMode:
+                newField.userDisplayMode || USER_DISPLAY_MODE_BOTH,
+            })
+          : null,
       options: OPTION_FIELD_TYPES.has(newField.fieldType)
-        ? parseOptions(newField.optionLines)
+        ? normalizeOptionsForPayload(newField.options)
         : [],
     };
-
-    const sourceField = fields.find((field) => field.id === editingFieldId);
-    if (sourceField && OPTION_FIELD_TYPES.has(newField.fieldType)) {
-      const existingOptionsByKey = new Map(
-        (sourceField.options || []).map((option) => [option.optionKey, option]),
-      );
-      payload.options = payload.options.map((option) => {
-        const existing = existingOptionsByKey.get(option.optionKey);
-        return existing ? { ...option, id: existing.id } : option;
-      });
-    }
 
     const onSaveSuccess = () => {
       resetFieldForm();
@@ -375,12 +485,22 @@ const PatientAdditionalFieldsManagement = () => {
         id: String(field.id),
         displayName: field.displayName,
         fieldKey: field.fieldKey,
-        fieldType: field.fieldType,
+        fieldType: getAdditionalFieldTypeLabel(intl, field.fieldType),
         sortOrder: field.sortOrder,
         required: field.required,
         active: field.active,
       })),
-    [fields],
+    [fields, intl],
+  );
+
+  const fixedRows = useMemo(
+    () =>
+      [...fixedConfigs].sort((left, right) => {
+        const leftSort = left?.sortOrder ?? 0;
+        const rightSort = right?.sortOrder ?? 0;
+        return leftSort - rightSort;
+      }),
+    [fixedConfigs],
   );
 
   return (
@@ -400,6 +520,111 @@ const PatientAdditionalFieldsManagement = () => {
 
         <div className="orderLegendBody">
           <Stack gap={6}>
+            <Heading>
+              <FormattedMessage id="patient.fixed.fields.title" />
+            </Heading>
+            <TableContainer>
+              <Table>
+                <TableHead>
+                  <TableRow>
+                    <TableHeader>
+                      <FormattedMessage id="order.additional.fields.fieldKey" />
+                    </TableHeader>
+                    <TableHeader>
+                      <FormattedMessage id="order.additional.fields.visible" />
+                    </TableHeader>
+                    <TableHeader>
+                      <FormattedMessage id="order.additional.fields.required" />
+                    </TableHeader>
+                    <TableHeader>
+                      <FormattedMessage id="order.additional.fields.readonly" />
+                    </TableHeader>
+                    <TableHeader>
+                      <FormattedMessage id="order.additional.fields.sortOrder" />
+                    </TableHeader>
+                  </TableRow>
+                </TableHead>
+                <TableBody>
+                  {fixedRows.map((config) => {
+                    const definition =
+                      PATIENT_FIXED_FIELD_DEFINITION_MAP[config.fieldKey] || {};
+                    return (
+                      <TableRow key={config.fieldKey}>
+                        <TableCell>
+                          {getPatientFixedFieldLabel(intl, config.fieldKey)}
+                        </TableCell>
+                        <TableCell>
+                          <Checkbox
+                            id={`patient-fixed-visible-${config.fieldKey}`}
+                            labelText=""
+                            checked={config.visible !== false}
+                            onChange={(_event, { checked }) =>
+                              updateFixedConfig(
+                                config.fieldKey,
+                                "visible",
+                                checked,
+                              )
+                            }
+                          />
+                        </TableCell>
+                        <TableCell>
+                          <Checkbox
+                            id={`patient-fixed-required-${config.fieldKey}`}
+                            labelText=""
+                            checked={!!config.required}
+                            disabled={!definition.supportsRequired}
+                            onChange={(_event, { checked }) =>
+                              updateFixedConfig(
+                                config.fieldKey,
+                                "required",
+                                checked,
+                              )
+                            }
+                          />
+                        </TableCell>
+                        <TableCell>
+                          <Checkbox
+                            id={`patient-fixed-readonly-${config.fieldKey}`}
+                            labelText=""
+                            checked={!!config.readonly}
+                            disabled={!definition.supportsReadonly}
+                            onChange={(_event, { checked }) =>
+                              updateFixedConfig(
+                                config.fieldKey,
+                                "readonly",
+                                checked,
+                              )
+                            }
+                          />
+                        </TableCell>
+                        <TableCell>
+                          <TextInput
+                            id={`patient-fixed-sort-order-${config.fieldKey}`}
+                            type="number"
+                            labelText=""
+                            hideLabel
+                            value={String(config.sortOrder ?? "")}
+                            onChange={(event) =>
+                              updateFixedConfig(
+                                config.fieldKey,
+                                "sortOrder",
+                                event.target.value === ""
+                                  ? ""
+                                  : Number.parseInt(event.target.value, 10),
+                              )
+                            }
+                          />
+                        </TableCell>
+                      </TableRow>
+                    );
+                  })}
+                </TableBody>
+              </Table>
+            </TableContainer>
+            <Button onClick={saveFixedConfigs} disabled={savingFixed}>
+              <FormattedMessage id="button.save" />
+            </Button>
+
             <Heading>
               <FormattedMessage id="patient.additional.fields.custom.title" />
             </Heading>
@@ -444,18 +669,28 @@ const PatientAdditionalFieldsManagement = () => {
                     id: "order.additional.fields.fieldType",
                   })}
                   value={newField.fieldType}
+                  disabled={structureLocked}
                   onChange={(event) =>
                     setNewField((previous) => ({
                       ...previous,
                       fieldType: event.target.value,
+                      userDisplayMode:
+                        event.target.value === "USER"
+                          ? previous.userDisplayMode || USER_DISPLAY_MODE_BOTH
+                          : USER_DISPLAY_MODE_BOTH,
                     }))
                   }
                 >
-                  {FIELD_TYPE_OPTIONS.map((fieldType) => (
+                  {FIELD_TYPE_OPTIONS.filter(
+                    (fieldType) => fieldType.value !== "DOCUMENT",
+                  ).map((fieldType) => (
                     <SelectItem
-                      key={fieldType}
-                      value={fieldType}
-                      text={fieldType}
+                      key={fieldType.value}
+                      value={fieldType.value}
+                      text={intl.formatMessage({
+                        id: fieldType.labelId,
+                        defaultMessage: fieldType.defaultMessage,
+                      })}
                     />
                   ))}
                 </Select>
@@ -475,6 +710,58 @@ const PatientAdditionalFieldsManagement = () => {
                   }
                 />
               </Column>
+              {newField.fieldType === "USER" ? (
+                <>
+                  <Column lg={8} md={4} sm={4}>
+                    <UserFieldPermissionConfig
+                      id={`user-task-${"patients"}`}
+                      value={newField.userTask}
+                      module="patients"
+                      onChange={(userTask) =>
+                        setNewField((previous) => ({ ...previous, userTask }))
+                      }
+                    />
+                  </Column>
+                  <Column lg={8} md={4} sm={4}>
+                    <Select
+                      id="patientAdditionalUserDisplayMode"
+                      labelText={intl.formatMessage({
+                        id: "user.field.display.mode.label",
+                        defaultMessage: "Display user as",
+                      })}
+                      value={newField.userDisplayMode || USER_DISPLAY_MODE_BOTH}
+                      onChange={(event) =>
+                        setNewField((previous) => ({
+                          ...previous,
+                          userDisplayMode: event.target.value,
+                        }))
+                      }
+                    >
+                      <SelectItem
+                        value={USER_DISPLAY_MODE_INITIALS}
+                        text={intl.formatMessage({
+                          id: "user.field.display.mode.initials",
+                          defaultMessage: "Initials only",
+                        })}
+                      />
+                      <SelectItem
+                        value={USER_DISPLAY_MODE_NAME}
+                        text={intl.formatMessage({
+                          id: "user.field.display.mode.name",
+                          defaultMessage: "Name only",
+                        })}
+                      />
+                      <SelectItem
+                        value={USER_DISPLAY_MODE_BOTH}
+                        text={intl.formatMessage({
+                          id: "user.field.display.mode.both",
+                          defaultMessage: "Initials and name",
+                        })}
+                      />
+                    </Select>
+                  </Column>
+                </>
+              ) : null}
             </Grid>
             <Grid fullWidth>
               <Column lg={8} md={4} sm={4}>
@@ -528,24 +815,16 @@ const PatientAdditionalFieldsManagement = () => {
               </Column>
             </Grid>
 
-            {OPTION_FIELD_TYPES.has(newField.fieldType) && (
-              <TextArea
-                id="patient-additional-options"
-                labelText={intl.formatMessage({
-                  id: "order.additional.fields.options",
-                })}
-                helperText={intl.formatMessage({
-                  id: "order.additional.fields.options.helper",
-                })}
-                value={newField.optionLines}
-                onChange={(event) =>
-                  setNewField((previous) => ({
-                    ...previous,
-                    optionLines: event.target.value,
-                  }))
-                }
+            {OPTION_FIELD_TYPES.has(newField.fieldType) ? (
+              <AdditionalFieldOptionsEditor
+                idPrefix="patient-additional"
+                options={newField.options || []}
+                locked={structureLocked}
+                onAddOption={addOption}
+                onOptionLabelChange={updateOptionLabel}
+                onRemoveOption={removeOption}
               />
-            )}
+            ) : null}
 
             <Stack orientation="horizontal" gap={4}>
               <Button

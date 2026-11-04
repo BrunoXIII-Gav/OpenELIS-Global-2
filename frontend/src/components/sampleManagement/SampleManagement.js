@@ -1,4 +1,4 @@
-import React, { useContext, useState } from "react";
+import React, { useContext, useEffect, useState } from "react";
 import {
   Grid,
   Column,
@@ -8,10 +8,7 @@ import {
   Button,
 } from "@carbon/react";
 import { FormattedMessage, useIntl } from "react-intl";
-import {
-  AlertDialog,
-  NotificationKinds,
-} from "../common/CustomNotification";
+import { AlertDialog, NotificationKinds } from "../common/CustomNotification";
 import { NotificationContext } from "../layout/Layout";
 import PageBreadCrumb from "../common/PageBreadCrumb";
 import SampleSearch from "./SampleSearch";
@@ -54,12 +51,20 @@ export default function SampleManagement() {
   const [selectedSampleIds, setSelectedSampleIds] = useState([]);
   const [currentTestsVisibleBySampleId, setCurrentTestsVisibleBySampleId] =
     useState({});
+  const [canModifySamples, setCanModifySamples] = useState(false);
 
   // Modal state for aliquoting
   const [isAliquotModalOpen, setIsAliquotModalOpen] = useState(false);
 
   // Modal state for adding tests
   const [isAddTestsModalOpen, setIsAddTestsModalOpen] = useState(false);
+  const selectedProcessableSampleIds = selectedSampleIds.filter((id) =>
+    searchResponse?.sampleItems?.some(
+      (item) =>
+        item.id === id &&
+        (!item.alternateOrderFlow || item.alternateOrderFlowProcessingAllowed),
+    ),
+  );
 
   // Get selected sample for aliquoting (single selection only)
   const selectedSample =
@@ -69,6 +74,25 @@ export default function SampleManagement() {
         )
       : null;
 
+  useEffect(() => {
+    let cancelled = false;
+
+    ["receive", "update"].forEach((actionKey) => {
+      getFromOpenElisServer(
+        `/rest/module-action-access?moduleKey=sample-management&actionKey=${actionKey}`,
+        (data) => {
+          if (!cancelled && data?.allowed === true) {
+            setCanModifySamples(true);
+          }
+        },
+      );
+    });
+
+    return () => {
+      cancelled = true;
+    };
+  }, []);
+
   /**
    * Handle search results callback from SampleSearch component.
    *
@@ -76,13 +100,7 @@ export default function SampleManagement() {
    * @param {Object} error - Error object if search failed
    */
   const handleSearchResults = (response, error) => {
-    if (response) {
-      hydrateSearchResponse(response, (hydrated) => {
-        setSearchResponse(hydrated);
-      });
-    } else {
-      setSearchResponse(response);
-    }
+    setSearchResponse(enrichSearchResponse(response));
     setSearchError(error);
 
     // Clear selection when new search results arrive
@@ -104,15 +122,17 @@ export default function SampleManagement() {
    * Each sample keeps its own visibility state.
    */
   const handleToggleCurrentTests = () => {
-    if (selectedSampleIds.length === 0) {
+    if (selectedProcessableSampleIds.length === 0) {
       return;
     }
 
     setCurrentTestsVisibleBySampleId((prev) => {
-      const areAllVisible = selectedSampleIds.every((id) => prev[id]);
+      const areAllVisible = selectedProcessableSampleIds.every(
+        (id) => prev[id],
+      );
       const next = { ...prev };
 
-      selectedSampleIds.forEach((id) => {
+      selectedProcessableSampleIds.forEach((id) => {
         next[id] = !areAllVisible;
       });
 
@@ -177,6 +197,12 @@ export default function SampleManagement() {
    */
   const handleCloseAddTestsModal = () => {
     setIsAddTestsModalOpen(false);
+  };
+
+  const handleAssociateAlternateTests = (sampleId) => {
+    if (!canModifySamples) return;
+    setSelectedSampleIds([sampleId]);
+    setIsAddTestsModalOpen(true);
   };
 
   /**
@@ -264,6 +290,25 @@ export default function SampleManagement() {
       message: message,
       kind: "success",
     });
+
+    if (searchResponse?.accessionNumber) {
+      getFromOpenElisServer(
+        `/rest/sample-management/search?accessionNumber=${encodeURIComponent(searchResponse.accessionNumber)}&includeTests=true`,
+        (refreshed) => {
+          if (refreshed?.sampleItems) {
+            setSearchResponse(enrichSearchResponse(refreshed));
+            setCurrentTestsVisibleBySampleId((previous) => ({
+              ...previous,
+              ...Object.fromEntries(
+                response.results
+                  .filter((result) => result.success)
+                  .map((result) => [result.sampleItemId, true]),
+              ),
+            }));
+          }
+        },
+      );
+    }
 
     // Clear selection after adding tests
     setSelectedSampleIds([]);
@@ -425,7 +470,7 @@ export default function SampleManagement() {
         {searchResponse &&
           searchResponse.sampleItems &&
           searchResponse.sampleItems.length > 0 &&
-          selectedSampleIds.length > 0 && (
+          selectedProcessableSampleIds.length > 0 && (
             <Grid fullWidth={true}>
               <Column lg={16} md={8} sm={4}>
                 <div className="sample-management-action-bar">
@@ -463,8 +508,12 @@ export default function SampleManagement() {
                     sampleItems={searchResponse.sampleItems}
                     onSelectionChange={handleSelectionChange}
                     onTestRemoved={handleTestRemoved}
-                    currentTestsVisibleBySampleId={currentTestsVisibleBySampleId}
+                    onAssociateAlternateTests={handleAssociateAlternateTests}
+                    currentTestsVisibleBySampleId={
+                      currentTestsVisibleBySampleId
+                    }
                     onPersistResult={handlePersistResult}
+                    isReadOnly={!canModifySamples}
                   />
                 </div>
               </div>
@@ -479,6 +528,7 @@ export default function SampleManagement() {
           onClose={handleCloseAliquotModal}
           parentSample={selectedSample}
           onSuccess={handleAliquotSuccess}
+          isReadOnly={!canModifySamples}
         />
       )}
 
@@ -493,6 +543,7 @@ export default function SampleManagement() {
           ) || []
         }
         onSuccess={handleAddTestsSuccess}
+        isReadOnly={!canModifySamples}
       />
     </>
   );
@@ -631,11 +682,7 @@ const resolveCustomFieldDisplayValue = (field, valuesByKey, filesByKey) => {
   }
 
   const options = Array.isArray(field?.options) ? field.options : [];
-  if (
-    fieldType === "SELECT" ||
-    fieldType === "RADIO" ||
-    fieldType === "SYSTEM_USER_BIOLOGIST_SELECT"
-  ) {
+  if (fieldType === "SELECT" || fieldType === "RADIO" || fieldType === "USER") {
     const selected = options.find(
       (option) => String(option?.optionKey || "") === String(rawValue),
     );
@@ -727,77 +774,24 @@ const buildOrderReceptionFields = (sampleOrderItems) => {
   return [...fixedFields, ...customFields];
 };
 
-const mergeWithSampleEditData = (searchResp, sampleEditResp) => {
-  if (
-    !searchResp ||
-    !Array.isArray(searchResp.sampleItems) ||
-    !sampleEditResp
-  ) {
+const enrichSearchResponse = (searchResp) => {
+  if (!searchResp || !Array.isArray(searchResp.sampleItems)) {
     return searchResp;
   }
 
-  const existingTests = Array.isArray(sampleEditResp.existingTests)
-    ? sampleEditResp.existingTests
-    : [];
   const orderReceptionFields = buildOrderReceptionFields(
-    sampleEditResp?.sampleOrderItems,
+    searchResp.orderReceptionDetails,
   );
 
-  const bySampleItemId = existingTests.reduce((acc, test) => {
-    const key = String(test.sampleItemId || "");
-    if (!key) return acc;
-    if (!acc[key]) acc[key] = [];
-    acc[key].push(test);
-    return acc;
-  }, {});
-
   const mergedItems = searchResp.sampleItems.map((item) => {
-    const sampleTests = bySampleItemId[String(item.id)] || [];
-    if (sampleTests.length === 0) {
-      return {
-        ...item,
-        orderReceptionFields,
-      };
-    }
-
-    const first = sampleTests[0];
-    const additionalFieldValues =
-      first.additionalFieldValues &&
-      Object.keys(first.additionalFieldValues).length > 0
-        ? first.additionalFieldValues
-        : item.additionalFieldValues || {};
-    const additionalFields =
-      Array.isArray(first.additionalFields) && first.additionalFields.length > 0
-        ? first.additionalFields
-        : item.additionalFields || [];
-
     return {
       ...item,
-      quantityDisplay:
-        first.quantity !== undefined &&
-        first.quantity !== null &&
-        first.quantity !== ""
-          ? String(first.quantity)
-          : item.quantityDisplay,
-      quantity:
-        first.quantity !== undefined &&
-        first.quantity !== null &&
-        first.quantity !== ""
-          ? Number(first.quantity)
-          : item.quantity,
-      unitOfMeasureId:
-        first.unitOfMeasureId !== undefined && first.unitOfMeasureId !== null
-          ? String(first.unitOfMeasureId)
-          : item.unitOfMeasureId,
-      collector:
-        first.collector !== undefined && first.collector !== null
-          ? first.collector
-          : item.collector,
-      collectionDate: first.collectionDate || item.collectionDate,
-      collectionTime: first.collectionTime || item.collectionTime,
-      additionalFields,
-      additionalFieldValues,
       orderReceptionFields,
+      restrictedFieldGroupKeys: searchResp.restrictedFieldGroupKeys || [],
+      restrictedFieldTagKeys: searchResp.restrictedFieldTagKeys || [],
+      canRead: Boolean(searchResp.canRead),
+      canComplete: Boolean(searchResp.canComplete),
+      canUpdate: Boolean(searchResp.canUpdate),
     };
   });
 
@@ -805,18 +799,4 @@ const mergeWithSampleEditData = (searchResp, sampleEditResp) => {
     ...searchResp,
     sampleItems: mergedItems,
   };
-};
-
-const hydrateSearchResponse = (response, callback) => {
-  if (!response?.accessionNumber) {
-    callback(response);
-    return;
-  }
-
-  getFromOpenElisServer(
-    `/rest/SampleEdit?accessionNumber=${encodeURIComponent(response.accessionNumber)}`,
-    (sampleEditResp) => {
-      callback(mergeWithSampleEditData(response, sampleEditResp));
-    },
-  );
 };

@@ -35,5 +35,7 @@ public interface AnalysisValidationApprovalService {
 
     void clearApprovals(String analysisId);
 
+    void clearApprovals(String analysisId, String actorId, String reason);
+
     Map<String, ApprovalState> getApprovalStateByAnalysisIds(List<String> analysisIds, String approverUserId);
 }

@@ -4,8 +4,9 @@
 
 <hibernate-mapping
     package="org.openelisglobal.typeofsample.valueholder">
-    <class name="TypeOfSampleUnitOfMeasure" table="SAMPLETYPE_UNIT_OF_MEASURE"
-        optimistic-lock="version" dynamic-update="true">
+    <class name="TypeOfSampleUnitOfMeasure"
+        table="SAMPLETYPE_UNIT_OF_MEASURE" optimistic-lock="version"
+        dynamic-update="true">
         <id name="id"
             type="org.openelisglobal.hibernate.resources.usertype.LIMSStringNumberUserType">
             <column name="ID" precision="10" scale="0" />

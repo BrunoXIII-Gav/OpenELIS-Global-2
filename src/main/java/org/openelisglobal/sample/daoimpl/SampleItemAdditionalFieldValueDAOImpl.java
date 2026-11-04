@@ -42,4 +42,17 @@ public class SampleItemAdditionalFieldValueDAOImpl extends BaseDAOImpl<SampleIte
         SampleItemAdditionalFieldValue value = query.uniqueResult();
         return Optional.ofNullable(value);
     }
+
+    @Override
+    @Transactional(readOnly = true)
+    public long countByFieldDefinitionId(Integer fieldDefinitionId) {
+        if (fieldDefinitionId == null) {
+            return 0L;
+        }
+        String hql = "select count(v.id) from SampleItemAdditionalFieldValue v where v.fieldDefinitionId = :fieldDefinitionId";
+        Query<Long> query = entityManager.unwrap(Session.class).createQuery(hql, Long.class);
+        query.setParameter("fieldDefinitionId", fieldDefinitionId);
+        Long count = query.uniqueResult();
+        return count == null ? 0L : count;
+    }
 }

@@ -16,8 +16,12 @@ package org.openelisglobal.sampleitem.controller;
 import jakarta.servlet.http.HttpServletRequest;
 import jakarta.validation.Valid;
 import jakarta.validation.constraints.NotBlank;
+import java.util.List;
+import org.openelisglobal.authorization.service.ModuleAuthorizationService;
 import org.openelisglobal.common.log.LogEvent;
 import org.openelisglobal.common.rest.BaseRestController;
+import org.openelisglobal.common.service.ProfessionalProfilePermissionService;
+import org.openelisglobal.common.util.IdValuePair;
 import org.openelisglobal.sampleitem.dto.AddTestsResponse;
 import org.openelisglobal.sampleitem.dto.CancelTestResponse;
 import org.openelisglobal.sampleitem.dto.CreateAliquotResponse;
@@ -27,11 +31,17 @@ import org.openelisglobal.sampleitem.form.AddTestsForm;
 import org.openelisglobal.sampleitem.form.CancelTestForm;
 import org.openelisglobal.sampleitem.form.CreateAliquotForm;
 import org.openelisglobal.sampleitem.form.SaveSampleManagementChangesForm;
+import org.openelisglobal.sampleitem.service.SampleManagementAccess;
+import org.openelisglobal.sampleitem.service.SampleManagementAuthorizationService;
 import org.openelisglobal.sampleitem.service.SampleManagementService;
+import org.openelisglobal.systemuser.service.ProfessionalProfileRecipientService;
+import org.openelisglobal.typeofsample.service.TypeOfSampleUnitOfMeasureService;
+import org.openelisglobal.typeofsample.valueholder.TypeOfSampleUnitOfMeasure;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.MediaType;
 import org.springframework.http.ResponseEntity;
+import org.springframework.security.access.AccessDeniedException;
 import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.validation.annotation.Validated;
 import org.springframework.web.bind.annotation.ExceptionHandler;
@@ -63,6 +73,16 @@ public class SampleManagementRestController extends BaseRestController {
 
     @Autowired
     private SampleManagementService sampleManagementService;
+    @Autowired
+    private ProfessionalProfilePermissionService profilePermissionService;
+    @Autowired
+    private ModuleAuthorizationService moduleAuthorizationService;
+    @Autowired
+    private SampleManagementAuthorizationService sampleManagementAuthorizationService;
+    @Autowired
+    private TypeOfSampleUnitOfMeasureService typeOfSampleUnitOfMeasureService;
+    @Autowired
+    private ProfessionalProfileRecipientService professionalProfileRecipientService;
 
     /**
      * Search for sample items by accession number.
@@ -82,18 +102,25 @@ public class SampleManagementRestController extends BaseRestController {
      * @return SearchSamplesResponse with 200 OK, or empty results if not found
      */
     @GetMapping(value = "/search", produces = MediaType.APPLICATION_JSON_VALUE)
-    @PreAuthorize("@accessControl.hasPermission(T(org.openelisglobal.common.constants.SystemPermission).SAMPLE_MANAGEMENT)")
     @ResponseBody
     public ResponseEntity<SearchSamplesResponse> searchSamplesByAccessionNumber(
             @RequestParam @NotBlank(message = "Accession number is required") String accessionNumber,
-            @RequestParam(defaultValue = "false") boolean includeTests) {
+            @RequestParam(defaultValue = "false") boolean includeTests, HttpServletRequest request) {
 
         try {
             LogEvent.logInfo(this.getClass().getName(), "searchSamplesByAccessionNumber",
                     "Searching for samples with accession number: " + accessionNumber);
 
+            String sysUserId = getSysUserId(request);
+            SampleManagementAccess access = sampleManagementAuthorizationService.getAccess(sysUserId);
+            if (!access.hasAnyAccess()) {
+                throw new AccessDeniedException("User does not have a Generic Samples module operation");
+            }
             SearchSamplesResponse response = sampleManagementService.searchByAccessionNumber(accessionNumber,
-                    includeTests);
+                    includeTests,
+                    moduleAuthorizationService.getRestrictedFieldGroupKeys(getSysUserId(request), "sample-management"),
+                    moduleAuthorizationService.getRestrictedFieldTagKeys(getSysUserId(request), "sample-management"),
+                    access);
 
             return ResponseEntity.ok(response);
 
@@ -102,6 +129,26 @@ public class SampleManagementRestController extends BaseRestController {
                     "Error searching for samples: " + e.getMessage());
             throw e;
         }
+    }
+
+    @GetMapping(value = "/uom-assignments", produces = MediaType.APPLICATION_JSON_VALUE)
+    @ResponseBody
+    public List<String> getUnitOfMeasureAssignments(@RequestParam String sampleTypeId, HttpServletRequest request) {
+        requireSampleManagementAccess(getSysUserId(request));
+        return typeOfSampleUnitOfMeasureService.getBySampleTypeId(sampleTypeId).stream()
+                .map(TypeOfSampleUnitOfMeasure::getUnitOfMeasureId).toList();
+    }
+
+    @Autowired
+    private org.openelisglobal.common.service.UserFieldOptionResolver userFieldOptionResolver;
+
+    @GetMapping(value = "/collectors", produces = MediaType.APPLICATION_JSON_VALUE)
+    @ResponseBody
+    public List<IdValuePair> getCollectors(@RequestParam(required = false) String sampleItemId,
+            HttpServletRequest request) {
+        requireSampleManagementAccess(getSysUserId(request));
+        return userFieldOptionResolver.resolveCollectorOptions(sampleItemId).stream()
+                .map(option -> new IdValuePair(option.optionKey(), option.label())).toList();
     }
 
     /**
@@ -134,6 +181,7 @@ public class SampleManagementRestController extends BaseRestController {
             if (sysUserId == null) {
                 throw new IllegalStateException("User not authenticated");
             }
+            ensureSampleCollectionPermission(sysUserId);
 
             LogEvent.logInfo(this.getClass().getName(), "createAliquot", "Creating aliquot from parent: "
                     + form.getParentSampleItemId() + ", quantity: " + form.getQuantityToTransfer());
@@ -175,7 +223,6 @@ public class SampleManagementRestController extends BaseRestController {
      *                                  REQUEST)
      */
     @PostMapping(value = "/add-tests", consumes = MediaType.APPLICATION_JSON_VALUE, produces = MediaType.APPLICATION_JSON_VALUE)
-    @PreAuthorize("@accessControl.hasPermission(T(org.openelisglobal.common.constants.SystemPermission).SAMPLE_MANAGEMENT)")
     @ResponseBody
     public ResponseEntity<AddTestsResponse> addTestsToSamples(@Valid @RequestBody AddTestsForm form,
             HttpServletRequest request) {
@@ -185,6 +232,7 @@ public class SampleManagementRestController extends BaseRestController {
             if (sysUserId == null) {
                 throw new IllegalStateException("User not authenticated");
             }
+            ensureSampleCollectionPermission(sysUserId);
 
             LogEvent.logInfo(this.getClass().getName(), "addTestsToSamples",
                     String.format("Adding %d test(s) to %d sample item(s)", form.getTestIds().size(),
@@ -239,6 +287,7 @@ public class SampleManagementRestController extends BaseRestController {
             if (sysUserId == null) {
                 throw new IllegalStateException("User not authenticated");
             }
+            ensureSampleCollectionPermission(sysUserId);
 
             LogEvent.logInfo(this.getClass().getName(), "cancelTest",
                     String.format("Cancelling test - analysisId: %s, sampleItemId: %s", form.getAnalysisId(),
@@ -271,10 +320,24 @@ public class SampleManagementRestController extends BaseRestController {
         if (sysUserId == null) {
             throw new IllegalStateException("User not authenticated");
         }
+        ensureSampleCollectionPermission(sysUserId);
 
         SaveSampleManagementChangesResponse response = sampleManagementService.saveSampleManagementChanges(form,
                 sysUserId);
         return ResponseEntity.ok(response);
+    }
+
+    private void ensureSampleCollectionPermission(String sysUserId) {
+        if (!profilePermissionService.hasSampleCollectionPermission(sysUserId)) {
+            throw new AccessDeniedException(
+                    "User " + sysUserId + " does not have an operational sample-management permission");
+        }
+    }
+
+    private void requireSampleManagementAccess(String sysUserId) {
+        if (!sampleManagementAuthorizationService.getAccess(sysUserId).hasAnyAccess()) {
+            throw new AccessDeniedException("User does not have a Generic Samples module operation");
+        }
     }
 
     /**

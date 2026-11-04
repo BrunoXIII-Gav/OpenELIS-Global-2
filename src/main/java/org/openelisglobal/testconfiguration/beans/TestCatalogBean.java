@@ -55,6 +55,7 @@ public class TestCatalogBean {
     private boolean activeChildDependency;
     private boolean activeParentDependency;
     private boolean skipValidationWhenParentComplete;
+    private boolean allowProcessingInAlternateFlow;
 
     public String getId() {
         return id;
@@ -214,6 +215,14 @@ public class TestCatalogBean {
 
     public void setActiveParentDependency(boolean activeParentDependency) {
         this.activeParentDependency = activeParentDependency;
+    }
+
+    public boolean isAllowProcessingInAlternateFlow() {
+        return allowProcessingInAlternateFlow;
+    }
+
+    public void setAllowProcessingInAlternateFlow(boolean value) {
+        allowProcessingInAlternateFlow = value;
     }
 
     public boolean isSkipValidationWhenParentComplete() {

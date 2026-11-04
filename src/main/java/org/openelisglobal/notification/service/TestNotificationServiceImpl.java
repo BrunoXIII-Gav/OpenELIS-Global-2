@@ -6,8 +6,8 @@ import java.util.Map;
 import java.util.Optional;
 import java.util.Set;
 import java.util.stream.Collectors;
-import org.apache.commons.validator.GenericValidator;
 import org.apache.commons.lang3.StringUtils;
+import org.apache.commons.validator.GenericValidator;
 import org.openelisglobal.common.log.LogEvent;
 import org.openelisglobal.common.util.ConfigurationProperties;
 import org.openelisglobal.common.util.ConfigurationProperties.Property;
@@ -31,10 +31,10 @@ import org.openelisglobal.person.valueholder.Person;
 import org.openelisglobal.provider.service.ProviderService;
 import org.openelisglobal.provider.valueholder.Provider;
 import org.openelisglobal.result.valueholder.Result;
+import org.openelisglobal.samplehuman.service.SampleHumanService;
 import org.openelisglobal.systemuser.service.ProfessionalProfileRecipientService;
 import org.openelisglobal.systemuser.service.SystemUserService;
 import org.openelisglobal.systemuser.valueholder.SystemUser;
-import org.openelisglobal.samplehuman.service.SampleHumanService;
 import org.openelisglobal.testresultsview.service.ClientResultsViewInfoService;
 import org.openelisglobal.testresultsview.valueholder.ClientResultsViewBean;
 import org.openelisglobal.typeoftestresult.service.TypeOfTestResultServiceImpl;
@@ -99,9 +99,8 @@ public class TestNotificationServiceImpl implements TestNotificationService {
 
     private NotificationPayloadTemplate createPendingValidationDefaultTemplate() {
         NotificationPayloadTemplate template = new NotificationPayloadTemplate();
-        template.setMessageTemplate(
-                "[testName] results have been entered and are pending validation.\n\n"
-                        + "[patientFirstName] [patientLastNameInitial]: [testResult]");
+        template.setMessageTemplate("[testName] results have been entered and are pending validation.\n\n"
+                + "[patientFirstName] [patientLastNameInitial]: [testResult]");
         template.setSubjectTemplate("[testName] Pending Validation");
         return template;
     }
@@ -190,8 +189,7 @@ public class TestNotificationServiceImpl implements TestNotificationService {
     private void createAndSendNotificationsConfiguredForTest(NotificationNature nature, NotificationMethod methodType,
             NotificationConfig<?> notificationConfig, String resultForDisplay, ClientResultsViewBean resultsViewInfo,
             boolean internalProfileOnly) {
-        notificationConfig.getOptions().stream()
-                .filter(NotificationConfigOption::getActive)
+        notificationConfig.getOptions().stream().filter(NotificationConfigOption::getActive)
                 .filter(option -> option.getNotificationNature() == nature)
                 .filter(option -> option.getNotificationMethod() == methodType)
                 .filter(option -> internalProfileOnly
@@ -219,8 +217,10 @@ public class TestNotificationServiceImpl implements TestNotificationService {
                     resultsViewInfo);
         } else if (NotificationMethod.SMS.equals(methodType) && canSendSMS(receiverPerson)) {
             createAndSendResultsNotificationSMS(testPerson, receiverPerson, option, resultForDisplay, resultsViewInfo);
-        } else if (NotificationPersonType.INTERNAL_PROFILE.equals(personType) && NotificationMethod.EMAIL.equals(methodType)) {
-            createAndSendResultsNotificationEmailsToInternalProfile(testPerson, option, resultForDisplay, resultsViewInfo);
+        } else if (NotificationPersonType.INTERNAL_PROFILE.equals(personType)
+                && NotificationMethod.EMAIL.equals(methodType)) {
+            createAndSendResultsNotificationEmailsToInternalProfile(testPerson, option, resultForDisplay,
+                    resultsViewInfo);
         }
     }
 
@@ -237,38 +237,36 @@ public class TestNotificationServiceImpl implements TestNotificationService {
         Set<String> explicitlySelectedUserIds = option.getSelectedUserIds().stream().map(StringUtils::trim)
                 .filter(StringUtils::isNotBlank).collect(Collectors.toSet());
 
-        Map<String, Provider> providersByPersonId = providerService.getAllActiveProviders().stream()
-                .filter(provider -> provider.getPerson() != null && StringUtils.isNotBlank(provider.getPerson().getId()))
-                .collect(Collectors.toMap(provider -> provider.getPerson().getId(), provider -> provider, (left, right) -> left));
+        Map<String, Provider> providersByPersonId = providerService.getAllActiveProviders().stream().filter(
+                provider -> provider.getPerson() != null && StringUtils.isNotBlank(provider.getPerson().getId()))
+                .collect(Collectors.toMap(provider -> provider.getPerson().getId(), provider -> provider,
+                        (left, right) -> left));
 
         Set<String> deliveredEmails = professionalProfileRecipientService
                 .getEligibleUsersForProfessionalProfile(profileCode, true).stream()
                 .filter(user -> explicitlySelectedUserIds.isEmpty() || explicitlySelectedUserIds.contains(user.getId()))
-                .map(SystemUser::getLinkedProviderPersonId)
-                .filter(StringUtils::isNotBlank)
+                .map(SystemUser::getLinkedProviderPersonId).filter(StringUtils::isNotBlank)
                 .map(providersByPersonId::get)
-                .filter(provider -> provider != null && canSendEmail(provider.getPerson()))
-                .map(Provider::getPerson)
-                .map(Person::getEmail)
-                .filter(StringUtils::isNotBlank)
-                .map(StringUtils::trim)
-                .map(String::toLowerCase)
+                .filter(provider -> provider != null && canSendEmail(provider.getPerson())).map(Provider::getPerson)
+                .map(Person::getEmail).filter(StringUtils::isNotBlank).map(StringUtils::trim).map(String::toLowerCase)
                 .collect(Collectors.toSet());
 
         if (deliveredEmails.isEmpty()) {
             LogEvent.logWarn(this.getClass().getSimpleName(), "createAndSendResultsNotificationEmailsToInternalProfile",
-                    "no active internal profile recipients found for profileCode=" + profileCode
-                            + ", selectedUsers=" + explicitlySelectedUserIds.size());
+                    "no active internal profile recipients found for profileCode=" + profileCode + ", selectedUsers="
+                            + explicitlySelectedUserIds.size());
         } else {
             LogEvent.logInfo(this.getClass().getSimpleName(), "createAndSendResultsNotificationEmailsToInternalProfile",
-                    "sending internal profile notifications to " + deliveredEmails.size() + " recipient(s) for profileCode="
-                            + profileCode + ", selectedUsers=" + explicitlySelectedUserIds.size());
+                    "sending internal profile notifications to " + deliveredEmails.size()
+                            + " recipient(s) for profileCode=" + profileCode + ", selectedUsers="
+                            + explicitlySelectedUserIds.size());
         }
 
         for (String email : deliveredEmails) {
             Person receiverPerson = new Person();
             receiverPerson.setEmail(email);
-            createAndSendResultsNotificationEmail(testPerson, receiverPerson, option, resultForDisplay, resultsViewInfo);
+            createAndSendResultsNotificationEmail(testPerson, receiverPerson, option, resultForDisplay,
+                    resultsViewInfo);
         }
     }
 

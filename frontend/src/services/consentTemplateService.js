@@ -1,3 +1,4 @@
+import config from "../config.json";
 import {
   getFromOpenElisServer,
   putToOpenElisServerFullResponse,
@@ -26,4 +27,32 @@ export const saveConsentTemplateConfig = (payload, callback) => {
         .catch(() => callback(null, response));
     },
   );
+};
+
+export const parseConsentTemplate = async (file) => {
+  const body = new FormData();
+  body.append("file", file);
+  const response = await fetch(
+    config.serverBaseUrl + "/rest/reports/consent-template/parse-template",
+    {
+      method: "POST",
+      credentials: "include",
+      headers: { "X-CSRF-Token": localStorage.getItem("CSRF") },
+      body,
+    },
+  );
+  const result = await response.json();
+  if (!response.ok) {
+    throw new Error(result?.error || "consent.template.error.invalid");
+  }
+  return result;
+};
+
+export const downloadConsentTemplate = async () => {
+  const response = await fetch(
+    config.serverBaseUrl + "/rest/reports/consent-template/download-template",
+    { credentials: "include" },
+  );
+  if (!response.ok) throw new Error("consent.template.error.download");
+  return response.blob();
 };

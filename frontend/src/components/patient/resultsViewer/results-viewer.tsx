@@ -1,5 +1,13 @@
 import React, { useState, useEffect, useRef } from "react";
-import { Heading, Grid, Column, Section, Loading, Breadcrumb, BreadcrumbItem } from "@carbon/react";
+import {
+  Heading,
+  Grid,
+  Column,
+  Section,
+  Loading,
+  Breadcrumb,
+  BreadcrumbItem,
+} from "@carbon/react";
 import "./results-viewer.styles.scss";
 import { useParams } from "react-router-dom";
 import { FormattedMessage, useIntl } from "react-intl";
@@ -30,6 +38,10 @@ const RoutedResultsViewer: React.FC = () => {
   const { patientId } = useParams();
   const [patient, setPatient] = useState(patientObj);
   const [loadingPatient, setLoadingPatient] = useState(true);
+  const [restrictedPatientFieldTags, setRestrictedPatientFieldTags] = useState<
+    string[]
+  >([]);
+  const [loadingAccess, setLoadingAccess] = useState(true);
 
   const componentMounted = useRef(false);
 
@@ -44,6 +56,16 @@ const RoutedResultsViewer: React.FC = () => {
         }
       },
     );
+    getFromOpenElisServer("/rest/patient-management/access", (response) => {
+      if (componentMounted.current) {
+        setRestrictedPatientFieldTags(
+          Array.isArray(response?.restrictedFieldTagKeys)
+            ? response.restrictedFieldTagKeys
+            : [],
+        );
+        setLoadingAccess(false);
+      }
+    });
     return () => {
       componentMounted.current = false;
     };
@@ -55,8 +77,10 @@ const RoutedResultsViewer: React.FC = () => {
     }
   };
   const intl = useIntl();
+  const hasRestrictedPatientTag = (tagKey: string) =>
+    restrictedPatientFieldTags.includes(tagKey);
 
-  if (loadingPatient) {
+  if (loadingPatient || loadingAccess) {
     return (
       <>
         <Loading></Loading>
@@ -73,7 +97,7 @@ const RoutedResultsViewer: React.FC = () => {
               {intl.formatMessage({ id: "home.label" })}
             </BreadcrumbItem>
             <BreadcrumbItem href="/PatientHistory">
-              {intl.formatMessage({ id: "label.search.patient" })}
+              {intl.formatMessage({ id: "label.page.patientHistory" })}
             </BreadcrumbItem>
           </Breadcrumb>
         </Column>
@@ -93,12 +117,35 @@ const RoutedResultsViewer: React.FC = () => {
         <Column lg={16} md={8} sm={4}>
           <PatientHeader
             id={patient.patientPK}
-            lastName={patient.lastName}
-            firstName={patient.firstName}
-            gender={patient.gender}
-            dob={patient.birthDateForDisplay}
-            subjectNumber={patient.subjectNumber}
-            nationalId={patient.nationalId}
+            lastName={
+              hasRestrictedPatientTag("patient-last-name")
+                ? ""
+                : patient.lastName
+            }
+            firstName={
+              hasRestrictedPatientTag("patient-first-name")
+                ? ""
+                : patient.firstName
+            }
+            gender={
+              hasRestrictedPatientTag("patient-gender") ? "" : patient.gender
+            }
+            dob={
+              hasRestrictedPatientTag("patient-birth-date-age")
+                ? ""
+                : patient.birthDateForDisplay
+            }
+            subjectNumber={
+              hasRestrictedPatientTag("patient-subject-number")
+                ? ""
+                : patient.subjectNumber
+            }
+            nationalId={
+              hasRestrictedPatientTag("patient-national-id")
+                ? ""
+                : patient.nationalId
+            }
+            hasPhoto={!hasRestrictedPatientTag("patient-photo")}
             className="patient-header2"
           >
             {" "}

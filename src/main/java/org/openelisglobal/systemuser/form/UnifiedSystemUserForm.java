@@ -49,6 +49,16 @@ public class UnifiedSystemUserForm extends BaseForm {
 
     private String professionalProfileCode = "";
 
+    private org.openelisglobal.provider.form.ProviderUpsertForm professionalInfo;
+
+    public org.openelisglobal.provider.form.ProviderUpsertForm getProfessionalInfo() {
+        return professionalInfo;
+    }
+
+    public void setProfessionalInfo(org.openelisglobal.provider.form.ProviderUpsertForm value) {
+        professionalInfo = value;
+    }
+
     private String signatureImageData;
 
     private String signatureImageContentType = "";

@@ -44,6 +44,9 @@ public class SampleTypeAdditionalFieldServiceTest {
     @Mock
     private SampleItemAdditionalFieldValueDAO valueDAO;
 
+    @Mock
+    private org.openelisglobal.common.service.UserFieldOptionResolver userFieldOptionResolver;
+
     @InjectMocks
     private SampleTypeAdditionalFieldServiceImpl service;
 

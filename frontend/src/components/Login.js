@@ -51,7 +51,7 @@ function Login(props) {
       // Use full-page redirect instead of popup to avoid popup blockers
       // Add 'redirect=true' parameter to tell backend to redirect to dashboard after auth
       window.location.replace(
-        config.serverBaseUrl + "/LoginPage?useSAML=true&redirect=true"
+        config.serverBaseUrl + "/LoginPage?useSAML=true&redirect=true",
       );
     }
   }, [

@@ -24,13 +24,11 @@ import java.util.stream.Collectors;
 import org.apache.commons.beanutils.PropertyUtils;
 import org.hibernate.HibernateException;
 import org.hibernate.Session;
-import org.hibernate.query.NativeQuery;
 import org.hibernate.query.Query;
 import org.openelisglobal.common.daoimpl.BaseDAOImpl;
 import org.openelisglobal.common.exception.LIMSRuntimeException;
 import org.openelisglobal.common.log.LogEvent;
 import org.openelisglobal.common.util.ConfigurationProperties;
-import org.openelisglobal.sample.valueholder.Sample;
 import org.openelisglobal.sampleitem.dao.SampleItemDAO;
 import org.openelisglobal.sampleitem.valueholder.SampleItem;
 import org.openelisglobal.sourceofsample.valueholder.SourceOfSample;
@@ -44,6 +42,11 @@ import org.springframework.transaction.annotation.Transactional;
 @Component
 @Transactional
 public class SampleItemDAOImpl extends BaseDAOImpl<SampleItem, String> implements SampleItemDAO {
+
+    @Override
+    public void lockAndRefreshForUpdate(SampleItem item) {
+        entityManager.refresh(item, jakarta.persistence.LockModeType.PESSIMISTIC_WRITE);
+    }
 
     public SampleItemDAOImpl() {
         super(SampleItem.class);

@@ -51,6 +51,7 @@ RUN --mount=type=cache,target=/root/.m2,sharing=locked \
 
 ARG SKIP_SPOTLESS="false"
 COPY ./src /build/src
+COPY ./db/dbInit/OpenELIS-Global.sql /build/db/dbInit/OpenELIS-Global.sql
 RUN --mount=type=cache,target=/root/.m2,sharing=locked \
     [ -d /root/.m2/repository/org/itech ] || { mkdir -p /root/.m2/repository/org && cp -r /build/dataexport-m2/org/itech /root/.m2/repository/org/; } \
     && mvn clean install -Dmaven.test.skip=true -DskipITs=true -Dspotless.check.skip=${SKIP_SPOTLESS}

@@ -639,6 +639,7 @@ public class TestServiceImpl extends AuditableBaseObjectServiceImpl<Test, String
 
     @Override
     public String insert(Test test) {
+        test.setCreationOriginVerifiedBy(test.getSysUserId());
         if (test.getIsActive().equals(IActionConstants.YES) && getBaseObjectDAO().duplicateTestExists(test)) {
             throw new LIMSDuplicateRecordException("Duplicate record exists for " + test.getDescription());
         }

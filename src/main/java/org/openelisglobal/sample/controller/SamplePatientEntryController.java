@@ -37,6 +37,7 @@ import org.openelisglobal.dataexchange.service.order.ElectronicOrderService;
 import org.openelisglobal.internationalization.MessageUtil;
 import org.openelisglobal.notifications.dao.NotificationDAO;
 import org.openelisglobal.notifications.entity.Notification;
+import org.openelisglobal.orderadditionalfield.service.AlternateOrderFlowService;
 import org.openelisglobal.organization.service.OrganizationService;
 import org.openelisglobal.organization.valueholder.Organization;
 import org.openelisglobal.patient.action.IPatientUpdate;
@@ -45,7 +46,6 @@ import org.openelisglobal.patient.action.bean.PatientManagementInfo;
 import org.openelisglobal.patient.action.bean.PatientSearch;
 import org.openelisglobal.provider.service.ProviderService;
 import org.openelisglobal.provider.valueholder.Provider;
-import org.openelisglobal.security.service.UserPermissionService;
 import org.openelisglobal.sample.action.util.SamplePatientUpdateData;
 import org.openelisglobal.sample.bean.SampleOrderItem;
 import org.openelisglobal.sample.form.SamplePatientEntryForm;
@@ -56,6 +56,7 @@ import org.openelisglobal.sample.validator.SamplePatientEntryFormValidator;
 import org.openelisglobal.sample.valueholder.OrderPriority;
 import org.openelisglobal.sample.valueholder.SampleAdditionalField;
 import org.openelisglobal.sample.valueholder.SampleAdditionalField.AdditionalFieldName;
+import org.openelisglobal.security.service.UserPermissionService;
 import org.openelisglobal.spring.util.SpringContext;
 import org.openelisglobal.systemuser.service.SystemUserService;
 import org.openelisglobal.systemuser.service.UserService;
@@ -94,13 +95,13 @@ public class SamplePatientEntryController extends BaseSampleEntryController {
             "patientProperties.personLastUpdated", "patientProperties.patientUpdateStatus",
             "patientProperties.patientPK", "patientProperties.guid", "patientProperties.fhirUuid",
             "patientProperties.STnumber", "patientProperties.subjectNumber", "patientProperties.nationalId",
-            "patientProperties.primaryPatientIdentifierType",
-            "patientProperties.dni", "patientProperties.passportNumber", "patientProperties.foreignId",
-            "patientProperties.lastName", "patientProperties.firstName", "patientProperties.aka",
-            "patientProperties.mothersName", "patientProperties.mothersInitial", "patientProperties.streetAddress",
-            "patientProperties.commune", "patientProperties.city", "patientProperties.addressDepartment",
-            "patientProperties.addressDepartment", "patientPhone", "patientProperties.primaryPhone",
-            "patientProperties.email", "patientProperties.healthRegion", "patientProperties.healthDistrict",
+            "patientProperties.primaryPatientIdentifierType", "patientProperties.dni",
+            "patientProperties.passportNumber", "patientProperties.foreignId", "patientProperties.lastName",
+            "patientProperties.firstName", "patientProperties.aka", "patientProperties.mothersName",
+            "patientProperties.mothersInitial", "patientProperties.streetAddress", "patientProperties.commune",
+            "patientProperties.city", "patientProperties.addressDepartment", "patientProperties.addressDepartment",
+            "patientPhone", "patientProperties.primaryPhone", "patientProperties.email",
+            "patientProperties.healthRegion", "patientProperties.healthDistrict",
             "patientProperties.birthDateForDisplay", "patientProperties.age", "patientProperties.gender",
             "patientProperties.patientType", "patientProperties.insuranceNumber", "patientProperties.occupation",
             "patientProperties.education", "patientProperties.maritialStatus", "patientProperties.nationality",
@@ -126,19 +127,19 @@ public class SamplePatientEntryController extends BaseSampleEntryController {
             "sampleOrderItems.newRequesterName", "sampleOrderItems.modified", "sampleOrderItems.sampleId",
             "sampleOrderItems.labNo", "sampleOrderItems.requestDate", "sampleOrderItems.receivedDateForDisplay",
             "sampleOrderItems.requestTime", "sampleOrderItems.receivedTime", "sampleOrderItems.nextVisitDate",
-            "sampleOrderItems.requesterSampleID",
-            "sampleOrderItems.referringPatientNumber", "sampleOrderItems.referringSiteId",
-            "referringSiteDepartmentName", "sampleOrderItems.referringSiteDepartmentId",
-            "sampleOrderItems.referringSiteName", "sampleOrderItems.referringSiteCode", "sampleOrderItems.program",
-            "sampleOrderItems.providerPersonId", "sampleOrderItems.providerLastName",
-            "sampleOrderItems.providerFirstName", "sampleOrderItems.providerWorkPhone", "sampleOrderItems.providerFax",
-            "sampleOrderItems.providerEmail", "sampleOrderItems.providerCmp", "sampleOrderItems.providerRne",
-            "sampleOrderItems.providerDni", "sampleOrderItems.providerSpecialty",
-            "sampleOrderItems.facilityAddressStreet", "sampleOrderItems.facilityAddressCommune",
-            "sampleOrderItems.facilityPhone", "sampleOrderItems.facilityFax", "sampleOrderItems.paymentOptionSelection",
-            "sampleOrderItems.billingReferenceNumber", "sampleOrderItems.testLocationCode",
-            "sampleOrderItems.otherLocationCode", "sampleOrderItems.contactTracingIndexName",
-            "sampleOrderItems.contactTracingIndexRecordNumber", "sampleOrderItems.priority",
+            "sampleOrderItems.requesterSampleID", "sampleOrderItems.referringPatientNumber",
+            "sampleOrderItems.referringSiteId", "referringSiteDepartmentName",
+            "sampleOrderItems.referringSiteDepartmentId", "sampleOrderItems.referringSiteName",
+            "sampleOrderItems.referringSiteCode", "sampleOrderItems.program", "sampleOrderItems.providerPersonId",
+            "sampleOrderItems.providerLastName", "sampleOrderItems.providerFirstName",
+            "sampleOrderItems.providerWorkPhone", "sampleOrderItems.providerFax", "sampleOrderItems.providerEmail",
+            "sampleOrderItems.providerCmp", "sampleOrderItems.providerRne", "sampleOrderItems.providerDni",
+            "sampleOrderItems.providerSpecialty", "sampleOrderItems.facilityAddressStreet",
+            "sampleOrderItems.facilityAddressCommune", "sampleOrderItems.facilityPhone", "sampleOrderItems.facilityFax",
+            "sampleOrderItems.paymentOptionSelection", "sampleOrderItems.billingReferenceNumber",
+            "sampleOrderItems.testLocationCode", "sampleOrderItems.otherLocationCode",
+            "sampleOrderItems.contactTracingIndexName", "sampleOrderItems.contactTracingIndexRecordNumber",
+            "sampleOrderItems.priority",
             //
             "currentDate", "sampleOrderItems.newRequesterName", "sampleOrderItems.externalOrderNumber",
             // referral
@@ -172,6 +173,8 @@ public class SamplePatientEntryController extends BaseSampleEntryController {
     private SystemUserService systemUserService;
     @Autowired
     private SampleService sampleService;
+    @Autowired
+    private AlternateOrderFlowService alternateOrderFlowService;
 
     @Autowired
     private FhirUtil fhirUtil;
@@ -265,6 +268,8 @@ public class SamplePatientEntryController extends BaseSampleEntryController {
         updateData.setAccessionNumber(sampleOrder.getLabNo());
         updateData.setReferringId(sampleOrder.getExternalOrderNumber());
         updateData.setPriority(sampleOrder.getPriority());
+        updateData.setAlternateOrderFlow(
+                alternateOrderFlowService.isAlternateOrderFlow(sampleOrder.getAdditionalFieldValues()));
         updateData.initProvider(sampleOrder);
         updateData.initSampleData(form.getSampleXML(), receivedDateForDisplay, trackPayments, sampleOrder);
         updateData.setPatientEmailNotificationTestIds(form.getPatientEmailNotificationTestIds());

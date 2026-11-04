@@ -111,8 +111,7 @@ public class SiteBrandingRestControllerTest extends BaseWebContextSensitiveTest 
                 .andExpect(jsonPath("$.primaryColor").value("#0f62fe"))
                 .andExpect(jsonPath("$.secondaryColor").value("#393939"))
                 .andExpect(jsonPath("$.headerColor").value("#295785"))
-                .andExpect(jsonPath("$.showHeaderLogo").value(true))
-                .andExpect(jsonPath("$.showLoginLogo").value(true))
+                .andExpect(jsonPath("$.showHeaderLogo").value(true)).andExpect(jsonPath("$.showLoginLogo").value(true))
                 .andExpect(jsonPath("$.showFavicon").value(true));
     }
 
@@ -168,8 +167,7 @@ public class SiteBrandingRestControllerTest extends BaseWebContextSensitiveTest 
                 .andExpect(jsonPath("$.secondaryColor").value("#00ff00"))
                 .andExpect(jsonPath("$.headerColor").value("#0000ff"))
                 .andExpect(jsonPath("$.showHeaderLogo").value(false))
-                .andExpect(jsonPath("$.showLoginLogo").value(false))
-                .andExpect(jsonPath("$.showFavicon").value(false));
+                .andExpect(jsonPath("$.showLoginLogo").value(false)).andExpect(jsonPath("$.showFavicon").value(false));
     }
 
     /**
@@ -542,8 +540,7 @@ public class SiteBrandingRestControllerTest extends BaseWebContextSensitiveTest 
                 .andExpect(jsonPath("$.headerColor").value("#295785")) // Default header color
                 .andExpect(jsonPath("$.primaryColor").value("#0f62fe")) // Default primary color
                 .andExpect(jsonPath("$.secondaryColor").value("#393939")) // Default secondary color
-                .andExpect(jsonPath("$.showHeaderLogo").value(true))
-                .andExpect(jsonPath("$.showLoginLogo").value(true))
+                .andExpect(jsonPath("$.showHeaderLogo").value(true)).andExpect(jsonPath("$.showLoginLogo").value(true))
                 .andExpect(jsonPath("$.showFavicon").value(true));
 
         // Verify files were deleted

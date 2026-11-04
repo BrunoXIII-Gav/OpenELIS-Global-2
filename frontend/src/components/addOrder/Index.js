@@ -1,4 +1,4 @@
-import React, { useContext, useEffect, useState } from "react";
+import React, { useContext, useEffect, useState, useRef } from "react";
 import { Button, ProgressIndicator, ProgressStep, Stack } from "@carbon/react";
 import PatientInfo from "./PatientInfo";
 import AddSample from "./AddSample";
@@ -11,19 +11,27 @@ import {
   getFromOpenElisServer,
   postToOpenElisServerFullResponse,
 } from "../utils/Utils";
+import { isAlternateOrderFlowSelected } from "../../utils/alternateOrderFlow";
 import OrderEntryAdditionalQuestions from "./OrderEntryAdditionalQuestions";
 import OrderSuccessMessage from "./OrderSuccessMessage";
 import { FormattedMessage, useIntl } from "react-intl";
 import OrderEntryValidationSchema from "../formModel/validationSchema/OrderEntryValidationSchema";
 import config from "../../config.json";
 import PageBreadCrumb from "../common/PageBreadCrumb";
+import ConsentDownloadButton from "./ConsentDownloadButton";
 let breadcrumbs = [
-  { label: "home.label", link: "/" },
-  { label: "sidenav.label.addorder", link: "/SamplePatientEntry" },
+  {
+    label: "home.label",
+    link: "/",
+  },
+  {
+    label: "sidenav.label.addorder",
+    link: "/SamplePatientEntry",
+  },
 ];
-
 export const createSampleObject = () => ({
   index: 0,
+  clientKey: `sample-${Date.now()}-${Math.random()}`,
   sampleRejected: false,
   rejectionReason: "",
   sampleTypeId: "",
@@ -37,7 +45,6 @@ export const createSampleObject = () => ({
 export const sampleObject = createSampleObject();
 const Index = () => {
   const intl = useIntl();
-
   const firstPageNumber = 0;
   const patientInfoPageNumber = firstPageNumber;
   const { configurationProperties } = useContext(ConfigurationContext);
@@ -64,13 +71,44 @@ const Index = () => {
     createSampleOrderFormValues,
   );
   const [samples, setSamples] = useState([createSampleObject()]);
+  const [assignedLabNo, setAssignedLabNo] = useState("");
+  const [consentDownloadToken, setConsentDownloadToken] = useState("");
+  const previousPatientId = useRef(
+    orderFormValues.patientProperties?.patientPK || "",
+  );
+  useEffect(() => {
+    const patientId = orderFormValues.patientProperties?.patientPK || "";
+    if (previousPatientId.current !== patientId) {
+      previousPatientId.current = patientId;
+      setConsentDownloadToken("");
+      setSamples((previous) =>
+        previous.map((sample) => ({
+          ...sample,
+          sampleXML: sample.sampleXML
+            ? {
+                ...sample.sampleXML,
+              }
+            : null,
+        })),
+      );
+    }
+  }, [orderFormValues.patientProperties?.patientPK]);
   const [errors, setErrors] = useState([]);
   const [isSubmitting, setIsSubmitting] = useState(false);
+  const submissionInFlight = useRef(false);
+  const patientSaved = Boolean(orderFormValues.patientProperties?.patientPK);
+  const [hasOrderPermission, setHasOrderPermission] = useState(false);
+  const [permissionsLoaded, setPermissionsLoaded] = useState(false);
   const [phoneValidation, setPhoneValidation] = useState({
-    primaryPhone: { body: "", status: true },
-    contactPhone: { body: "", status: true },
+    primaryPhone: {
+      body: "",
+      status: true,
+    },
+    contactPhone: {
+      body: "",
+      status: true,
+    },
   });
-
   let SampleTypes = [];
   let sampleTypeMap = {};
   let CrossPanels = [];
@@ -78,10 +116,9 @@ const Index = () => {
   let sampleTypeOrder;
   let crossSampleTypeMap = {};
   let crossSampleTypeOrderMap = {};
-
   const { notificationVisible, setNotificationVisible, addNotification } =
     useContext(NotificationContext);
-
+  const isOrderReadOnly = !permissionsLoaded || !hasOrderPermission;
   useEffect(() => {
     if (configurationProperties.ACCEPT_EXTERNAL_ORDERS === "true") {
       const urlParams = new URLSearchParams(window.location.search);
@@ -97,24 +134,43 @@ const Index = () => {
       }));
     }
   }, [configurationProperties.ACCEPT_EXTERNAL_ORDERS]);
-
   useEffect(() => {
     checkOrderReferral(orderFormValues.sampleOrderItems.externalOrderNumber);
   }, [orderFormValues.sampleOrderItems.externalOrderNumber]);
-
+  useEffect(() => {
+    getFromOpenElisServer(
+      "/rest/module-action-access?moduleKey=orders&actionKey=create",
+      (response) => {
+        setHasOrderPermission(response?.allowed === true);
+        setPermissionsLoaded(true);
+      },
+    );
+  }, []);
+  useEffect(() => {
+    if (!permissionsLoaded || hasOrderPermission) {
+      return;
+    }
+    if (page === samplePageNumber) {
+      setPage(orderPageNumber);
+    }
+  }, [
+    hasOrderPermission,
+    orderPageNumber,
+    page,
+    permissionsLoaded,
+    samplePageNumber,
+  ]);
   const checkOrderReferral = (externalOrderNumber) => {
     if (externalOrderNumber) {
       getLabOrder(externalOrderNumber, processLabOrderSuccess);
     }
   };
-
   const getLabOrder = (orderNumber, success, failure) => {
     if (!failure) {
       failure = () => {
         // Default failure handler - no-op
       };
     }
-
     fetch(
       config.serverBaseUrl +
         "/ajaxQueryXML?asJSON=true&provider=LabOrderSearchProvider&orderNumber=" +
@@ -148,15 +204,14 @@ const Index = () => {
         failure();
       });
   };
-
   const processLabOrderSuccess = (labOrder) => {
     // clearOrderData();
     let message = labOrder.fieldmessage.message;
     let formField = labOrder.fieldmessage.formfield;
     let order = formField.order;
-
-    let newOrderFormValues = { ...orderFormValues };
-
+    let newOrderFormValues = {
+      ...orderFormValues,
+    };
     SampleTypes = [];
     CrossPanels = [];
     CrossTests = [];
@@ -173,14 +228,12 @@ const Index = () => {
       if (order.requester) {
         parseRequester(newOrderFormValues, order.requester);
       }
-
       if (order.requestingOrg) {
         parseRequestingOrg(newOrderFormValues, order.requestingOrg);
       }
       if (order.location && !order.requestingOrg.id) {
         parseLocation(newOrderFormValues, order.location);
       }
-
       if (order.user_alert) {
         alert(order.user_alert);
       }
@@ -189,21 +242,22 @@ const Index = () => {
       sampleTypeOrder = -1;
       crossSampleTypeMap = {};
       crossSampleTypeOrderMap = {};
-
       if (order.sampleTypes != "") {
         parseSampletypes(
           newOrderFormValues,
           order.sampleTypes instanceof Array
             ? order.sampleTypes
-            : [{ sampleType: order.sampleTypes.sampleType }],
+            : [
+                {
+                  sampleType: order.sampleTypes.sampleType,
+                },
+              ],
           SampleTypes,
         );
       }
-
       const urlParams = new URLSearchParams(window.location.search);
       const externalId = urlParams.get("ID");
       const labNumber = urlParams.get("labNumber");
-
       newOrderFormValues = {
         ...newOrderFormValues,
         sampleOrderItems: {
@@ -241,31 +295,34 @@ const Index = () => {
     // }
     // }
   };
-
   const parsePatient = (newOrderFormValues, patient) => {
     newOrderFormValues.patientProperties = {
       ...newOrderFormValues.patientProperties,
       guid: patient.guid,
     };
   };
-
   const parseRequester = (newOrderFormValues, requester) => {
     const providerId = requester.personId;
     if (providerId) {
       newOrderFormValues.sampleOrderItems = {
         ...newOrderFormValues.sampleOrderItems,
         providerId: providerId,
+        providerProfessionalProfileCode: "",
+        providerProfileFields: [],
+        providerProfileFieldValues: {},
       };
       getFromOpenElisServer(
         "/rest/practitioner?providerId=" + providerId,
         (data) => {
           const person = data?.person || {};
-          setOrderFormValues({
-            ...orderFormValues,
+          setOrderFormValues((previous) => ({
+            ...(previous || {}),
             sampleOrderItems: {
-              ...orderFormValues.sampleOrderItems,
+              ...((previous || {}).sampleOrderItems || {}),
               providerId: data?.id || "",
               providerPersonId: person.id || "",
+              providerProfessionalProfileCode:
+                data?.professionalProfileCode || "",
               providerFirstName: person.firstName || "",
               providerLastName: person.lastName || "",
               providerWorkPhone: person.workPhone || "",
@@ -276,7 +333,7 @@ const Index = () => {
               providerDni: data?.dni || "",
               providerSpecialty: data?.specialty || "",
             },
-          });
+          }));
         },
       );
     } else {
@@ -291,10 +348,12 @@ const Index = () => {
         providerRne: requester.rne || "",
         providerDni: requester.dni || "",
         providerSpecialty: requester.specialty || "",
+        providerProfessionalProfileCode: "",
+        providerProfileFields: [],
+        providerProfileFieldValues: {},
       };
     }
   };
-
   const parseRequestingOrg = (newOrderFormValues, requestingOrg) => {
     newOrderFormValues.sampleOrderItems = {
       ...newOrderFormValues.sampleOrderItems,
@@ -307,7 +366,6 @@ const Index = () => {
       },
     );
   };
-
   const parseLocation = (newOrderFormValues, location) => {
     newOrderFormValues.sampleOrderItems = {
       ...newOrderFormValues.sampleOrderItems,
@@ -320,14 +378,12 @@ const Index = () => {
       },
     );
   };
-
   const parseSampletypes = (newOrderFormValues, sampletypes, SampleTypes) => {
     let index = 0;
     for (let i = 0; i < sampletypes.length; i++) {
       index = parseSampletype(index, sampletypes[i].sampleType, SampleTypes);
     }
   };
-
   const parseSampletype = (index, sampleType, SampleTypes) => {
     let sampleTypeName = sampleType.name;
     let sampleTypeId = sampleType.id;
@@ -350,7 +406,6 @@ const Index = () => {
     let testnodes = getNodeNamesByTagName(tests, "test");
     let collectionDate = collection.date;
     let collectionTime = collection.time;
-
     addPanelsToSampleType(sampleTypeInList, panelnodes);
     addTestsToSampleType(sampleTypeInList, testnodes);
     if (collectionDate) {
@@ -451,19 +506,16 @@ const Index = () => {
       );
     }
   }
-
   function getNodeNamesByTagName(elements, tag) {
     //initialize helper objects
     let allTestsMap = {};
     let panelTestsMap = {};
-
     if (elements[tag] === undefined) {
       return [];
     }
     let nodes =
       elements[tag] instanceof Array ? elements[tag] : [elements[tag]];
     let objList = [];
-
     for (let j = 0; j < nodes.length; j++) {
       let name = nodes[j].name;
       let id = nodes[j].id;
@@ -497,13 +549,12 @@ const Index = () => {
         } else objList[j] = newCrossSampleType(id, name);
       }
     }
-
     return objList;
   }
-
   const newSampleType = (id, name, index) => {
     return {
       index: index,
+      clientKey: `sample-${Date.now()}-${Math.random()}`,
       sampleRejected: true,
       rejectionReason: "",
       requestReferralEnabled: false,
@@ -528,7 +579,6 @@ const Index = () => {
       // crossTests: [],
     };
   };
-
   const newPanel = (id, name) => {
     return {
       id: "" + id,
@@ -538,7 +588,10 @@ const Index = () => {
     };
   };
   const newTest = (id, name) => {
-    return { id: "" + id, name: name };
+    return {
+      id: "" + id,
+      name: name,
+    };
   };
   const newCrossSampleType = (id, name, testId) => {
     return {
@@ -562,16 +615,16 @@ const Index = () => {
       typeMap: [],
     };
   };
-
   const showAlertMessage = (msg, kind) => {
     setNotificationVisible(true);
     addNotification({
       kind: kind,
-      title: intl.formatMessage({ id: "notification.title" }),
+      title: intl.formatMessage({
+        id: "notification.title",
+      }),
       message: msg,
     });
   };
-
   const sanitizeServerMessage = (message) => {
     const trimmedMessage = String(message || "").trim();
     if (
@@ -581,42 +634,82 @@ const Index = () => {
     ) {
       return "";
     }
-    return trimmedMessage;
+    return trimmedMessage.replace(/\s+@\s+[\w.$]+:\d+\s*$/, "").trim();
   };
-
+  const formatOrderSubmissionError = (message) => String(message || "").trim();
   const handlePost = async (response) => {
-    setIsSubmitting(false);
-    if (response.status === 200) {
-      showAlertMessage(
-        <FormattedMessage id="save.order.success.msg" />,
-        NotificationKinds.success,
-      );
-      setPage(page + 1);
-    } else {
-      if (response.status === 413) {
+    try {
+      if (response.status === 200) {
+        const saved = await response.json();
+        setConsentDownloadToken("");
+        setAssignedLabNo(
+          saved.sampleOrderItems?.labNo ||
+            orderFormValues.sampleOrderItems.labNo,
+        );
+        setSamples((previous) =>
+          previous.map((sample, index) => ({
+            ...sample,
+            sampleXML: {
+              ...sample.sampleXML,
+            },
+          })),
+        );
         showAlertMessage(
-          intl.formatMessage({ id: "server.error.requestTooLarge" }),
+          <FormattedMessage id="save.order.success.msg" />,
+          NotificationKinds.success,
+        );
+        setPage(page + 1);
+      } else {
+        if (response.status === 413) {
+          showAlertMessage(
+            intl.formatMessage({
+              id: "server.error.requestTooLarge",
+            }),
+            NotificationKinds.error,
+          );
+          return;
+        }
+        const errorCode = response.headers.get("X-OpenELIS-Error-Code");
+        if (errorCode === "consent.download.requiredBeforeSubmit") {
+          setConsentDownloadToken("");
+          showAlertMessage(
+            intl.formatMessage({
+              id: errorCode,
+            }),
+            NotificationKinds.error,
+          );
+          return;
+        }
+        if (errorCode?.startsWith("order.labnumber.")) {
+          showAlertMessage(
+            intl.formatMessage({ id: errorCode }),
+            NotificationKinds.error,
+          );
+          return;
+        }
+        let detailedMessage =
+          response.headers.get("X-OpenELIS-Error-Message") || "";
+        if (!detailedMessage) {
+          try {
+            detailedMessage = await response.text();
+          } catch (e) {
+            detailedMessage = "";
+          }
+        }
+        detailedMessage = sanitizeServerMessage(detailedMessage);
+        detailedMessage = formatOrderSubmissionError(detailedMessage);
+        const genericMessage = intl.formatMessage({
+          id: "server.error.msg",
+        });
+        const fallbackWithStatus = `${genericMessage} (HTTP ${response.status})`;
+        showAlertMessage(
+          detailedMessage || fallbackWithStatus,
           NotificationKinds.error,
         );
-        return;
       }
-
-      let detailedMessage =
-        response.headers.get("X-OpenELIS-Error-Message") || "";
-      if (!detailedMessage) {
-        try {
-          detailedMessage = await response.text();
-        } catch (e) {
-          detailedMessage = "";
-        }
-      }
-      detailedMessage = sanitizeServerMessage(detailedMessage);
-      const genericMessage = intl.formatMessage({ id: "server.error.msg" });
-      const fallbackWithStatus = `${genericMessage} (HTTP ${response.status})`;
-      showAlertMessage(
-        detailedMessage || fallbackWithStatus,
-        NotificationKinds.error,
-      );
+    } finally {
+      submissionInFlight.current = false;
+      setIsSubmitting(false);
     }
   };
   const elementError = (path) => {
@@ -629,21 +722,38 @@ const Index = () => {
       }
     }
   };
-
   const handleSubmitOrderForm = (e) => {
     e.preventDefault();
     // Prevent multiple submissions.
-    if (isSubmitting) {
+    if (submissionInFlight.current) {
       return;
     }
+    if (!consentDownloadToken) {
+      showAlertMessage(
+        intl.formatMessage({
+          id: "consent.download.requiredBeforeSubmit",
+        }),
+        NotificationKinds.error,
+      );
+      return;
+    }
+    submissionInFlight.current = true;
     setIsSubmitting(true);
-    const payload = JSON.parse(JSON.stringify(orderFormValues));
+    const attachedSamplePayload = buildAttachedSamplesPayload();
+    const payload = JSON.parse(
+      JSON.stringify({
+        ...orderFormValues,
+        ...attachedSamplePayload,
+      }),
+    );
+    payload.consentDownloadToken = consentDownloadToken;
     payload.patientProperties = payload.patientProperties || {};
+    payload.sampleOrderItems.labNo = "";
+    payload.sampleOrderItems.labNoGenerated = true;
     payload.patientProperties.patientUpdateStatus =
       payload.patientProperties.patientUpdateStatus ||
       payload.patientUpdateStatus ||
       "ADD";
-
     if ("years" in payload.patientProperties) {
       delete payload.patientProperties.years;
     }
@@ -672,16 +782,19 @@ const Index = () => {
       handlePost,
     );
   };
-
   useEffect(() => {
     if (page === samplePageNumber + 1) {
       attacheSamplesToFormValues();
     }
   }, [page]);
-
   useEffect(() => {
     console.log(changed);
-    OrderEntryValidationSchema.validate(orderFormValues, { abortEarly: false })
+    OrderEntryValidationSchema.validate(orderFormValues, {
+      abortEarly: false,
+      context: {
+        automaticLabNumber: true,
+      },
+    })
       .then((validData) => {
         setErrors([]);
         console.debug("Valid Data:", validData);
@@ -691,7 +804,6 @@ const Index = () => {
         console.error("Validation Errors:", errors.errors);
       });
   }, [changed, orderFormValues]);
-
   useEffect(() => {
     const labNumber = new URLSearchParams(window.location.search).get(
       "labNumber",
@@ -704,8 +816,7 @@ const Index = () => {
       },
     }));
   }, []);
-
-  const attacheSamplesToFormValues = () => {
+  const buildAttachedSamplesPayload = () => {
     const escapeXmlAttribute = (value) => {
       if (value === undefined || value === null) {
         return "";
@@ -717,7 +828,6 @@ const Index = () => {
         .replace(/</g, "&lt;")
         .replace(/>/g, "&gt;");
     };
-
     const escapeXmlText = (value) => {
       if (value === undefined || value === null) {
         return "";
@@ -727,137 +837,136 @@ const Index = () => {
         .replace(/</g, "&lt;")
         .replace(/>/g, "&gt;");
     };
-
+    const alternateOrderFlowActive = isAlternateOrderFlowSelected(
+      orderFormValues?.sampleOrderItems,
+    );
     let sampleXmlString = "";
     let referralItems = [];
-    if (samples.length > 0) {
-      if (samples[0].tests.length > 0) {
-        sampleXmlString = '<?xml version="1.0" encoding="utf-8"?>';
-        sampleXmlString += "<samples>";
-        let tests = null;
-        let panels = "";
-        samples.map((sampleItem) => {
-          if (sampleItem.tests.length > 0) {
-            tests = Object.keys(sampleItem.tests)
-              .map(function (i) {
-                return sampleItem.tests[i].id;
-              })
-              .join(",");
-
-            if (sampleItem?.panels.length > 0) {
-              panels = Object.keys(sampleItem.panels)
-                .map(function (i) {
-                  return sampleItem.panels[i].id;
-                })
-                .join(",");
-            }
-            // Extract storage location data if present
-            const storageLocation = sampleItem.sampleXML?.storageLocation;
-            const storageLocationId =
-              storageLocation?.locationId ||
-              storageLocation?.box?.id ||
-              storageLocation?.id ||
-              "";
-            const storageLocationType =
-              storageLocation?.locationType ||
-              (storageLocation?.box?.id ? "box" : storageLocation?.type || "");
-            const storagePositionCoordinate =
-              storageLocation?.positionCoordinate ||
-              storageLocation?.position?.coordinate ||
-              "";
-
-            // Extract GPS coordinates data if present
-            const gpsLatitude = sampleItem.sampleXML?.gpsLatitude || "";
-            const gpsLongitude = sampleItem.sampleXML?.gpsLongitude || "";
-            const gpsAccuracy = sampleItem.sampleXML?.gpsAccuracy || "";
-            const gpsCaptureMethod =
-              sampleItem.sampleXML?.gpsCaptureMethod || "";
-
-            const additionalFieldValues =
-              sampleItem.sampleXML?.additionalFieldValues || {};
-            const additionalFieldEntries = Object.entries(additionalFieldValues)
-              .filter(([key, value]) => {
-                return (
-                  key !== undefined &&
-                  key !== null &&
-                  key !== "" &&
-                  value !== undefined &&
-                  value !== null &&
-                  String(value).trim() !== ""
-                );
-              })
-              .map(([key, value]) => {
-                return `<field key='${escapeXmlAttribute(key)}'>${escapeXmlText(
-                  value,
-                )}</field>`;
-              })
-              .join("");
-
-            sampleXmlString += `<sample sampleID='${escapeXmlAttribute(sampleItem.sampleTypeId)}' date='${escapeXmlAttribute(sampleItem.sampleXML.collectionDate)}' time='${escapeXmlAttribute(sampleItem.sampleXML.collectionTime)}' collector='${escapeXmlAttribute(sampleItem.sampleXML.collector)}' quantity='${escapeXmlAttribute(sampleItem.sampleXML.quantity)}' uom='${escapeXmlAttribute(sampleItem.sampleXML.uom)}' tests='${escapeXmlAttribute(tests)}' testSectionMap='' testSampleTypeMap='' panels='${escapeXmlAttribute(panels)}' rejected='${escapeXmlAttribute(sampleItem.sampleXML.rejected)}' rejectReasonId='${escapeXmlAttribute(sampleItem.sampleXML.rejectionReason)}' initialConditionIds='' storageLocationId='${escapeXmlAttribute(storageLocationId)}' storageLocationType='${escapeXmlAttribute(storageLocationType)}' storagePositionCoordinate='${escapeXmlAttribute(storagePositionCoordinate)}' gpsLatitude='${escapeXmlAttribute(gpsLatitude)}' gpsLongitude='${escapeXmlAttribute(gpsLongitude)}' gpsAccuracy='${escapeXmlAttribute(gpsAccuracy)}' gpsCaptureMethod='${escapeXmlAttribute(gpsCaptureMethod)}'>`;
-            if (additionalFieldEntries !== "") {
-              sampleXmlString += `<additionalFields>${additionalFieldEntries}</additionalFields>`;
-            }
-            sampleXmlString += `</sample>`;
-          }
-          if (sampleItem.referralItems.length > 0) {
-            const referredInstitutes = Object.keys(sampleItem.referralItems)
-              .map(function (i) {
-                return sampleItem.referralItems[i].institute;
-              })
-              .join(",");
-
-            const sentDates = Object.keys(sampleItem.referralItems)
-              .map(function (i) {
-                return sampleItem.referralItems[i].sentDate;
-              })
-              .join(",");
-
-            const referralReasonIds = Object.keys(sampleItem.referralItems)
-              .map(function (i) {
-                return sampleItem.referralItems[i].reasonForReferral;
-              })
-              .join(",");
-
-            const referrers = Object.keys(sampleItem.referralItems)
-              .map(function (i) {
-                return sampleItem.referralItems[i].referrer;
-              })
-              .join(",");
-            referralItems.push({
-              referrer: referrers,
-              referredInstituteId: referredInstitutes,
-              referredTestId: tests,
-              referredSendDate: sentDates,
-              referralReasonId: referralReasonIds,
-            });
-          }
-        });
-        sampleXmlString += "</samples>";
+    const samplesToPersist = (samples || []).filter((sampleItem) => {
+      if (!sampleItem || !sampleItem.sampleXML || !sampleItem.sampleTypeId) {
+        return false;
       }
+      return alternateOrderFlowActive || (sampleItem.tests || []).length > 0;
+    });
+    if (samplesToPersist.length > 0) {
+      sampleXmlString = '<?xml version="1.0" encoding="utf-8"?>';
+      sampleXmlString += "<samples>";
+      samplesToPersist.forEach((sampleItem) => {
+        const tests = Object.keys(sampleItem.tests || {})
+          .map(function (i) {
+            return sampleItem.tests[i].id;
+          })
+          .join(",");
+        const panels = Object.keys(sampleItem.panels || {})
+          .map(function (i) {
+            return sampleItem.panels[i].id;
+          })
+          .join(",");
+        const storageLocation = sampleItem.sampleXML?.storageLocation;
+        const storageLocationId =
+          storageLocation?.locationId ||
+          storageLocation?.box?.id ||
+          storageLocation?.id ||
+          "";
+        const storageLocationType =
+          storageLocation?.locationType ||
+          (storageLocation?.box?.id ? "box" : storageLocation?.type || "");
+        const storagePositionCoordinate =
+          storageLocation?.positionCoordinate ||
+          storageLocation?.position?.coordinate ||
+          "";
+        const gpsLatitude = sampleItem.sampleXML?.gpsLatitude || "";
+        const gpsLongitude = sampleItem.sampleXML?.gpsLongitude || "";
+        const gpsAccuracy = sampleItem.sampleXML?.gpsAccuracy || "";
+        const gpsCaptureMethod = sampleItem.sampleXML?.gpsCaptureMethod || "";
+        const additionalFieldValues =
+          sampleItem.sampleXML?.additionalFieldValues || {};
+        const additionalFieldEntries = Object.entries(additionalFieldValues)
+          .filter(([key, value]) => {
+            return (
+              key !== undefined &&
+              key !== null &&
+              key !== "" &&
+              value !== undefined &&
+              value !== null &&
+              String(value).trim() !== ""
+            );
+          })
+          .map(([key, value]) => {
+            return `<field key='${escapeXmlAttribute(key)}'>${escapeXmlText(value)}</field>`;
+          })
+          .join("");
+        sampleXmlString += `<sample sampleID='${escapeXmlAttribute(sampleItem.sampleTypeId)}' date='${escapeXmlAttribute(sampleItem.sampleXML.collectionDate)}' time='${escapeXmlAttribute(sampleItem.sampleXML.collectionTime)}' collector='${escapeXmlAttribute(sampleItem.sampleXML.collector)}' quantity='${escapeXmlAttribute(sampleItem.sampleXML.quantity)}' uom='${escapeXmlAttribute(sampleItem.sampleXML.uom)}' tests='${escapeXmlAttribute(tests)}' testSectionMap='' testSampleTypeMap='' panels='${escapeXmlAttribute(panels)}' rejected='${escapeXmlAttribute(sampleItem.sampleXML.rejected)}' rejectReasonId='${escapeXmlAttribute(sampleItem.sampleXML.rejectionReason)}' initialConditionIds='' storageLocationId='${escapeXmlAttribute(storageLocationId)}' storageLocationType='${escapeXmlAttribute(storageLocationType)}' storagePositionCoordinate='${escapeXmlAttribute(storagePositionCoordinate)}' gpsLatitude='${escapeXmlAttribute(gpsLatitude)}' gpsLongitude='${escapeXmlAttribute(gpsLongitude)}' gpsAccuracy='${escapeXmlAttribute(gpsAccuracy)}' gpsCaptureMethod='${escapeXmlAttribute(gpsCaptureMethod)}'>`;
+        if (additionalFieldEntries !== "") {
+          sampleXmlString += `<additionalFields>${additionalFieldEntries}</additionalFields>`;
+        }
+        sampleXmlString += `</sample>`;
+        if ((sampleItem.referralItems || []).length > 0) {
+          const referredInstitutes = Object.keys(sampleItem.referralItems)
+            .map(function (i) {
+              return sampleItem.referralItems[i].institute;
+            })
+            .join(",");
+          const sentDates = Object.keys(sampleItem.referralItems)
+            .map(function (i) {
+              return sampleItem.referralItems[i].sentDate;
+            })
+            .join(",");
+          const referralReasonIds = Object.keys(sampleItem.referralItems)
+            .map(function (i) {
+              return sampleItem.referralItems[i].reasonForReferral;
+            })
+            .join(",");
+          const referrers = Object.keys(sampleItem.referralItems)
+            .map(function (i) {
+              return sampleItem.referralItems[i].referrer;
+            })
+            .join(",");
+          referralItems.push({
+            referrer: referrers,
+            referredInstituteId: referredInstitutes,
+            referredTestId: tests,
+            referredSendDate: sentDates,
+            referralReasonId: referralReasonIds,
+          });
+        }
+      });
+      sampleXmlString += "</samples>";
     }
-    setOrderFormValues({
-      ...orderFormValues,
+    return {
       useReferral: true,
       sampleXML: sampleXmlString,
       referralItems: referralItems,
+    };
+  };
+  const attacheSamplesToFormValues = () => {
+    setOrderFormValues({
+      ...orderFormValues,
+      ...buildAttachedSamplesPayload(),
     });
   };
-
   const navigateForward = () => {
+    if (!patientSaved) return;
     if (page < lastPageNumber && page >= firstPageNumber) {
-      setPage(page + 1);
+      let nextPage = page + 1;
+      if (!hasOrderPermission && nextPage === samplePageNumber) {
+        nextPage = orderPageNumber;
+      }
+      setPage(nextPage);
     }
   };
-
   const navigateBackWards = () => {
     if (page > firstPageNumber) {
       setPage(page + -1);
     }
   };
   const handleTabClickHandler = (e) => {
+    if (e > patientInfoPageNumber && !patientSaved) return;
+    if (!hasOrderPermission && e === samplePageNumber) {
+      return;
+    }
     setPage(e);
   };
-
   return (
     <>
       <PageBreadCrumb breadcrumbs={breadcrumbs} />
@@ -892,9 +1001,12 @@ const Index = () => {
                       label={intl.formatMessage({
                         id: "order.step.add.request",
                       })}
+                      disabled={isOrderReadOnly}
                     />
                     <ProgressStep
-                      label={intl.formatMessage({ id: "order.label.add" })}
+                      label={intl.formatMessage({
+                        id: "order.label.add",
+                      })}
                     />
                   </ProgressIndicator>
                 ) : (
@@ -914,9 +1026,12 @@ const Index = () => {
                       label={intl.formatMessage({
                         id: "order.step.add.request",
                       })}
+                      disabled={isOrderReadOnly}
                     />
                     <ProgressStep
-                      label={intl.formatMessage({ id: "order.label.add" })}
+                      label={intl.formatMessage({
+                        id: "order.label.add",
+                      })}
                     />
                   </ProgressIndicator>
                 )}
@@ -954,11 +1069,13 @@ const Index = () => {
                 isModifyOrder={false}
                 changed={changed}
                 setChanged={setChanged}
+                isOrderReadOnly={isOrderReadOnly}
               />
             )}
 
             {page === successMsgPageNumber && (
               <OrderSuccessMessage
+                assignedLabNo={assignedLabNo}
                 orderFormValues={orderFormValues}
                 setOrderFormValues={setOrderFormValues}
                 setSamples={setSamples}
@@ -977,6 +1094,7 @@ const Index = () => {
                   kind="primary"
                   className="forwardButton"
                   onClick={() => navigateForward()}
+                  disabled={!patientSaved}
                 >
                   <FormattedMessage id="next.action.button" />
                 </Button>
@@ -984,10 +1102,16 @@ const Index = () => {
 
               {page === orderPageNumber && (
                 <div className="orderPageActionButtons">
+                  <ConsentDownloadButton
+                    orderFormValues={orderFormValues}
+                    samples={samples}
+                    onDownloaded={setConsentDownloadToken}
+                  />
                   <Button
                     kind="primary"
                     className="forwardButton"
                     disabled={
+                      isOrderReadOnly ||
                       isSubmitting ||
                       Object.values(phoneValidation).some(
                         (item) => item.status === false,
@@ -1009,5 +1133,4 @@ const Index = () => {
     </>
   );
 };
-
 export default Index;

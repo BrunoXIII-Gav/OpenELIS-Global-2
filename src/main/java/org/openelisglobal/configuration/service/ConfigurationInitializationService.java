@@ -72,8 +72,7 @@ public class ConfigurationInitializationService implements ApplicationListener<C
 
         if (!autocreateOn) {
             LogEvent.logInfo(CLASS_NAME, "onApplicationEvent",
-                    "Configuration auto-initialization is disabled. Skipping configuration loading.");
-            return;
+                    "Configuration auto-initialization is disabled. Only reconciling origins of existing definitions.");
         }
 
         if (domainHandlers == null || domainHandlers.isEmpty()) {
@@ -225,6 +224,12 @@ public class ConfigurationInitializationService implements ApplicationListener<C
             }
 
             try {
+                if (!autocreateOn) {
+                    try (InputStream is = streamSource.open()) {
+                        handler.reconcileConfigurationOrigin(is, fileName);
+                    }
+                    continue;
+                }
                 // Check if this file has been loaded with the same checksum
                 String currentChecksum;
                 try (InputStream is = streamSource.open()) {
@@ -233,6 +238,9 @@ public class ConfigurationInitializationService implements ApplicationListener<C
 
                 String storedChecksum = checksums.getProperty(fileName);
                 if (currentChecksum.equals(storedChecksum)) {
+                    try (InputStream is = streamSource.open()) {
+                        handler.reconcileConfigurationOrigin(is, fileName);
+                    }
                     LogEvent.logInfo(CLASS_NAME, "loadDomainConfiguration",
                             domainName + " configuration " + fileName + " unchanged (checksum matches). Skipping.");
                     continue;

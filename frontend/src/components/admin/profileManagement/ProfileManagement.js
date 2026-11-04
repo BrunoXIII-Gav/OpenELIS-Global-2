@@ -7,8 +7,6 @@ import {
   Heading,
   Loading,
   Section,
-  Select,
-  SelectItem,
   Table,
   TableBody,
   TableCell,
@@ -26,7 +24,6 @@ import { NotificationKinds } from "../../common/CustomNotification.js";
 import {
   deleteFromOpenElisServerFullResponse,
   getFromOpenElisServer,
-  putToOpenElisServerFullResponse,
 } from "../../utils/Utils.js";
 
 const headers = [
@@ -41,11 +38,6 @@ function ProfileManagement() {
     useContext(NotificationContext);
   const [loading, setLoading] = useState(true);
   const [profiles, setProfiles] = useState([]);
-  const [settings, setSettings] = useState({
-    orderProviderProfessionalProfileCode: "",
-    sampleCollectorProfessionalProfileCode: "",
-    validationInterpreterProfessionalProfileCode: "",
-  });
 
   const breadcrumbs = useMemo(
     () => [
@@ -70,14 +62,6 @@ function ProfileManagement() {
             }))
           : [],
       );
-      setSettings({
-        orderProviderProfessionalProfileCode:
-          response?.settings?.orderProviderProfessionalProfileCode || "",
-        sampleCollectorProfessionalProfileCode:
-          response?.settings?.sampleCollectorProfessionalProfileCode || "",
-        validationInterpreterProfessionalProfileCode:
-          response?.settings?.validationInterpreterProfessionalProfileCode || "",
-      });
       setLoading(false);
     });
   };
@@ -93,38 +77,6 @@ function ProfileManagement() {
       message,
     });
     setNotificationVisible(true);
-  };
-
-  const saveSettings = () => {
-    setLoading(true);
-    putToOpenElisServerFullResponse(
-      "/rest/professional-profiles/settings",
-      JSON.stringify(settings),
-      async (response) => {
-        if (response.ok) {
-          showNotification(
-            NotificationKinds.success,
-            intl.formatMessage({
-              id: "professionalProfile.settings.save.success",
-              defaultMessage:
-                "Professional profile configuration saved successfully",
-            }),
-          );
-          loadCatalog();
-          return;
-        }
-
-        let message = intl.formatMessage({ id: "server.error.msg" });
-        try {
-          const payload = await response.json();
-          message = payload?.message || message;
-        } catch (_error) {
-          // ignore parse failure
-        }
-        showNotification(NotificationKinds.error, message);
-        setLoading(false);
-      },
-    );
   };
 
   const handleDelete = (code) => {
@@ -201,93 +153,14 @@ function ProfileManagement() {
             </Heading>
           </Section>
           <br />
-          <Grid fullWidth>
-            <Column lg={5} md={4} sm={4}>
-              <Select
-                id="order-provider-profile"
-                labelText={intl.formatMessage({
-                  id: "professionalProfile.settings.orderProvider",
-                  defaultMessage: "Order requester profile",
-                })}
-                value={settings.orderProviderProfessionalProfileCode}
-                onChange={(event) =>
-                  setSettings((previousSettings) => ({
-                    ...previousSettings,
-                    orderProviderProfessionalProfileCode: event.target.value,
-                  }))
-                }
-              >
-                <SelectItem value="" text="" />
-                {profiles.map((profile) => (
-                  <SelectItem
-                    key={`order-provider-${profile.code}`}
-                    value={profile.code}
-                    text={profile.name}
-                  />
-                ))}
-              </Select>
-            </Column>
-            <Column lg={5} md={4} sm={4}>
-              <Select
-                id="sample-collector-profile"
-                labelText={intl.formatMessage({
-                  id: "professionalProfile.settings.sampleCollector",
-                  defaultMessage: "Sample collector profile",
-                })}
-                value={settings.sampleCollectorProfessionalProfileCode}
-                onChange={(event) =>
-                  setSettings((previousSettings) => ({
-                    ...previousSettings,
-                    sampleCollectorProfessionalProfileCode: event.target.value,
-                  }))
-                }
-              >
-                <SelectItem value="" text="" />
-                {profiles.map((profile) => (
-                  <SelectItem
-                    key={`sample-collector-${profile.code}`}
-                    value={profile.code}
-                    text={profile.name}
-                  />
-                ))}
-              </Select>
-            </Column>
-            <Column lg={6} md={8} sm={4}>
-              <Select
-                id="validation-interpreter-profile"
-                labelText={intl.formatMessage({
-                  id: "professionalProfile.settings.validationInterpreter",
-                  defaultMessage: "Validation interpreter profile",
-                })}
-                value={settings.validationInterpreterProfessionalProfileCode}
-                onChange={(event) =>
-                  setSettings((previousSettings) => ({
-                    ...previousSettings,
-                    validationInterpreterProfessionalProfileCode:
-                      event.target.value,
-                  }))
-                }
-              >
-                <SelectItem value="" text="" />
-                {profiles.map((profile) => (
-                  <SelectItem
-                    key={`validation-interpreter-${profile.code}`}
-                    value={profile.code}
-                    text={profile.name}
-                  />
-                ))}
-              </Select>
-            </Column>
-          </Grid>
-          <br />
-          <Button type="button" onClick={saveSettings}>
-            <FormattedMessage id="label.button.save" />
-          </Button>
-          <br />
-          <br />
+          <p>
+            <FormattedMessage id="professionalProfile.informational" />
+          </p>
           <Button
             type="button"
-            onClick={() => history.push("/MasterListsPage/profileEdit?code=new")}
+            onClick={() =>
+              history.push("/MasterListsPage/profileEdit?code=new")
+            }
           >
             <FormattedMessage
               id="professionalProfile.actions.add"

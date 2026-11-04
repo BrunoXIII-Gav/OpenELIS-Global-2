@@ -170,6 +170,9 @@ public class TestResultItem implements ResultItem, Serializable {
     @Pattern(regexp = ValidationHelper.ID_REGEX, groups = { LogbookResultsForm.LogbookResults.class })
     private String resultId;
 
+    // The action required to modify this row: enter, update, or correct.
+    private String resultEntryAction;
+
     private Result result;
 
     @Pattern(regexp = ValidationHelper.ID_REGEX, groups = { LogbookResultsForm.LogbookResults.class })
@@ -248,6 +251,26 @@ public class TestResultItem implements ResultItem, Serializable {
     private List<TestAdditionalFieldPayload> additionalFieldDefinitions = new ArrayList<>();
     private Map<String, String> additionalFieldValues = new HashMap<>();
     private Map<String, String> additionalFieldShadowValues = new HashMap<>();
+    private Map<String, String> additionalFieldVersions;
+    @JsonIgnore
+    private Map<String, String> additionalFieldChanges;
+
+    public Map<String, String> getAdditionalFieldVersions() {
+        return additionalFieldVersions;
+    }
+
+    public void setAdditionalFieldVersions(Map<String, String> versions) {
+        this.additionalFieldVersions = versions;
+    }
+
+    @JsonIgnore
+    public Map<String, String> getAdditionalFieldChanges() {
+        return additionalFieldChanges;
+    }
+
+    public void setAdditionalFieldChanges(Map<String, String> changes) {
+        this.additionalFieldChanges = changes;
+    }
 
     private String qualifiedResultId;
     private boolean hasQualifiedResult = false;
@@ -697,6 +720,14 @@ public class TestResultItem implements ResultItem, Serializable {
 
     public void setResultId(String resultId) {
         this.resultId = resultId;
+    }
+
+    public String getResultEntryAction() {
+        return resultEntryAction;
+    }
+
+    public void setResultEntryAction(String resultEntryAction) {
+        this.resultEntryAction = resultEntryAction;
     }
 
     public void setDictionaryResults(List<IdValuePair> dictonaryResults) {

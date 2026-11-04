@@ -1,0 +1,27 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<databaseChangeLog
+    xmlns="http://www.liquibase.org/xml/ns/dbchangelog"
+    xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+    xsi:schemaLocation="http://www.liquibase.org/xml/ns/dbchangelog https://www.liquibase.org/xml/ns/dbchangelog/dbchangelog-4.8.xsd">
+    <changeSet id="audit-test-baseline" author="openelis">
+        <sql>CREATE SCHEMA IF NOT EXISTS clinlims</sql>
+        <createTable schemaName="clinlims"
+            tableName="analysis_validation_approval">
+            <column name="id" type="varchar(36)">
+                <constraints primaryKey="true" />
+            </column>
+            <column name="analysis_id" type="numeric(10,0)" />
+            <column name="approver_user_id" type="numeric(10,0)" />
+            <column name="approved_at" type="timestamp" />
+            <column name="last_updated" type="timestamp" />
+        </createTable>
+        <addUniqueConstraint schemaName="clinlims"
+            tableName="analysis_validation_approval"
+            columnNames="analysis_id,approver_user_id"
+            constraintName="uk_analysis_validation_approval_analysis_user" />
+        <rollback>
+            <dropTable schemaName="clinlims"
+                tableName="analysis_validation_approval" />
+        </rollback>
+    </changeSet>
+</databaseChangeLog>

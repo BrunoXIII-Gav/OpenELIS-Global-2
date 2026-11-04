@@ -1,11 +1,19 @@
 package org.openelisglobal.test.service;
 
 import java.util.List;
+import java.util.Map;
 import org.openelisglobal.common.service.BaseObjectService;
+import org.openelisglobal.common.util.IdValuePair;
 import org.openelisglobal.test.valueholder.Test;
 import org.openelisglobal.test.valueholder.TestSection;
 
 public interface TestSectionService extends BaseObjectService<TestSection, String> {
+    List<IdValuePair> filterUserCreatedTestSections(List<IdValuePair> authorizedSections);
+
+    List<Map<String, String>> getUnclassifiedTestSectionOrigins();
+
+    int classifyTestSectionOrigins(List<String> ids, boolean userCreated, String actorId);
+
     void getData(TestSection testSection);
 
     List<TestSection> getTestSections(String filter);

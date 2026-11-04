@@ -13,8 +13,13 @@ public interface SampleOrderAdditionalFieldValueDAO extends BaseDAO<SampleOrderA
     List<SampleOrderAdditionalFieldValue> findBySampleIdAndFieldDefinitionIds(Integer sampleId,
             List<Integer> fieldDefinitionIds);
 
+    List<SampleOrderAdditionalFieldValue> findBySampleIdsAndFieldDefinitionIds(List<Integer> sampleIds,
+            List<Integer> fieldDefinitionIds);
+
     List<Integer> findDistinctSampleIdsBySearchableFieldValue(String searchValue, boolean uniqueOnly, int limit);
 
     boolean existsByFieldDefinitionIdAndFieldValueIgnoreCaseAndSampleIdNot(Integer fieldDefinitionId, String fieldValue,
             Integer excludedSampleId);
+
+    long countByFieldDefinitionId(Integer fieldDefinitionId);
 }

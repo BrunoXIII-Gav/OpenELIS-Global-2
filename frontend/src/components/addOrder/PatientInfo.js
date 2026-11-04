@@ -2,6 +2,7 @@ import React, { useEffect, useRef, useState } from "react";
 import { Button, Stack, Grid, Column } from "@carbon/react";
 import SearchPatientForm from "../patient/SearchPatientForm";
 import CreatePatientForm from "../patient/CreatePatientForm";
+import { sanitizePatientProperties } from "../patient/patientPropertiesSanitizer";
 import { FormattedMessage } from "react-intl";
 import { getFromOpenElisServer } from "../utils/Utils";
 import { createSampleOrderFormValues } from "../formModel/innitialValues/OrderEntryFormValues";
@@ -10,6 +11,7 @@ const PatientInfo = (props) => {
   const { orderFormValues, setOrderFormValues, error, setPhoneValidation } =
     props;
   const componentMounted = useRef(false);
+  const [savingPatient, setSavingPatient] = useState(false);
   const [searchPatientTab, setSearchPatientTab] = useState({
     kind: "primary",
     active: true,
@@ -29,15 +31,15 @@ const PatientInfo = (props) => {
   const getSelectedPatient = (patient) => {
     setSelectedPatient(patient);
     if (orderFormValues) {
-      const patientWithStatus = {
+      const patientWithStatus = sanitizePatientProperties({
         ...patient,
-        patientUpdateStatus: "UPDATE",
-      };
-      setOrderFormValues({
-        ...orderFormValues,
-        patientUpdateStatus: "UPDATE",
-        patientProperties: patientWithStatus,
+        patientUpdateStatus: patient.readOnly ? "NO_ACTION" : "UPDATE",
       });
+      setOrderFormValues((previous) => ({
+        ...previous,
+        patientUpdateStatus: patientWithStatus.patientUpdateStatus,
+        patientProperties: patientWithStatus,
+      }));
     }
     handleNewPatientTab();
   };
@@ -91,7 +93,7 @@ const PatientInfo = (props) => {
     ).toUpperCase();
     const patientPk = String(patientProperties.patientPK || "").trim();
 
-    if (updateStatus !== "UPDATE" || !patientPk) {
+    if (!["UPDATE", "NO_ACTION"].includes(updateStatus) || !patientPk) {
       return;
     }
 
@@ -114,17 +116,18 @@ const PatientInfo = (props) => {
 
   useEffect(() => {
     if (
+      !orderFormValues.patientProperties.patientPK &&
       orderFormValues.patientProperties.guid &&
       !orderFormValues.patientProperties.lastName
     ) {
       const searchEndPoint =
-        "/rest/patient-search-results?" +
+        "/rest/patient-search-results?forOrderEntry=true&" +
         "guid=" +
         orderFormValues.patientProperties.guid;
       getFromOpenElisServer(searchEndPoint, (searchPatients) => {
         if (searchPatients.patientSearchResults.length > 0) {
           const searchEndPoint =
-            "/rest/patient-details?patientID=" +
+            "/rest/patient-details?forOrderEntry=true&patientID=" +
             searchPatients.patientSearchResults[0].patientID;
           getFromOpenElisServer(searchEndPoint, (patientDetails) => {
             getSelectedPatient(patientDetails);
@@ -148,6 +151,7 @@ const PatientInfo = (props) => {
             <Column lg={4} md={4} sm={2}>
               <Button
                 data-cy="searchPatientTabButton"
+                disabled={savingPatient}
                 kind={searchPatientTab.kind}
                 onClick={handleSearchPatientTab}
               >
@@ -157,6 +161,7 @@ const PatientInfo = (props) => {
             <Column lg={4} md={4} sm={2}>
               <Button
                 data-cy="newPatientTabButton"
+                disabled={savingPatient}
                 kind={newPatientTab.kind}
                 onClick={handleManualNewPatientTab}
               >
@@ -165,13 +170,18 @@ const PatientInfo = (props) => {
             </Column>
             <Column lg={16} md={8} sm={4}>
               {searchPatientTab.active && (
-                <SearchPatientForm getSelectedPatient={getSelectedPatient} />
+                <SearchPatientForm
+                  forOrderEntry
+                  getSelectedPatient={getSelectedPatient}
+                />
               )}
             </Column>
             <Column lg={16} md={8} sm={4}>
               {newPatientTab.active && (
                 <CreatePatientForm
                   showActionsButton={false}
+                  onPatientSaved={getSelectedPatient}
+                  onSavingChange={setSavingPatient}
                   isOrderEntryPatientStep={true}
                   selectedPatient={selectedPatient}
                   orderFormValues={orderFormValues}

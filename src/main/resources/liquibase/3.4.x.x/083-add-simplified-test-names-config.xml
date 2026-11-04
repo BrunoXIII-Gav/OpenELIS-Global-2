@@ -1,0 +1,34 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<databaseChangeLog
+  xmlns="http://www.liquibase.org/xml/ns/dbchangelog"
+  xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+  xsi:schemaLocation="http://www.liquibase.org/xml/ns/dbchangelog http://www.liquibase.org/xml/ns/dbchangelog/dbchangelog-3.8.xsd">
+
+  <property name="now" value="now()" dbms="postgresql"/>
+
+  <changeSet id="083-01-add-simplified-test-names-config" author="codex">
+    <preConditions onFail="MARK_RAN">
+      <sqlCheck expectedResult="0">SELECT count(*) FROM clinlims.site_information WHERE name = 'simplifiedTestNames'</sqlCheck>
+    </preConditions>
+
+    <comment>Add an opt-in simplified test name editor; preserve the existing bilingual mode by default</comment>
+    <insert schemaName="clinlims" tableName="site_information">
+      <column name="id" valueSequenceNext="site_information_seq" />
+      <column name="name" value="simplifiedTestNames" />
+      <column name="lastupdated" valueComputed="${now}" />
+      <column name="description" value="Use a single name for tests with matching English and French names" />
+      <column name="value" value="false" />
+      <column name="encrypted" value="false" />
+      <column name="domain_id"
+        valueComputed="(SELECT id FROM site_information_domain WHERE name = 'resultConfiguration')" />
+      <column name="value_type" value="boolean" />
+      <column name="group" value="0" />
+    </insert>
+
+    <rollback>
+      <delete schemaName="clinlims" tableName="site_information">
+        <where>name = 'simplifiedTestNames'</where>
+      </delete>
+    </rollback>
+  </changeSet>
+</databaseChangeLog>

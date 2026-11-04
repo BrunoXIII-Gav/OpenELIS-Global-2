@@ -1,0 +1,104 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<databaseChangeLog xmlns="http://www.liquibase.org/xml/ns/dbchangelog"
+ xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+ xsi:schemaLocation="http://www.liquibase.org/xml/ns/dbchangelog https://www.liquibase.org/xml/ns/dbchangelog/dbchangelog-4.8.xsd">
+ <changeSet id="098-patient-document-uniqueness" author="openelis">
+  <!-- An internal arbitration key, not a second source of patient identities.
+       The unique key serializes only transactions claiming the same value.
+       PostgreSQL triggers cover every writer, including imports and legacy entry. -->
+  <createTable tableName="patient_identifier_guard" schemaName="clinlims">
+   <column name="identifier" type="TEXT"><constraints nullable="false" primaryKey="true" primaryKeyName="uq_patient_document_identifier"/></column>
+   <column name="patient_id" type="NUMERIC(10,0)"><constraints nullable="false"/></column>
+  </createTable>
+  <addForeignKeyConstraint baseTableName="patient_identifier_guard" baseTableSchemaName="clinlims" baseColumnNames="patient_id"
+   referencedTableName="patient" referencedTableSchemaName="clinlims" referencedColumnNames="id"
+   constraintName="fk_patient_identifier_guard_patient" deferrable="true" initiallyDeferred="true" onDelete="CASCADE"/>
+  <createIndex tableName="patient" schemaName="clinlims" indexName="idx_patient_normalized_identifier">
+   <column name="upper(btrim(national_id))" computed="true"/>
+  </createIndex>
+  <createIndex tableName="patient_identity" schemaName="clinlims" indexName="idx_patient_identity_normalized_identifier">
+   <column name="upper(btrim(identity_data))" computed="true"/>
+  </createIndex>
+  <sql splitStatements="false"><![CDATA[
+   -- Preserve historical duplicates. Choosing an arbitration owner does not
+   -- modify any patient; subsequent checks always consult the clinical tables.
+   INSERT INTO clinlims.patient_identifier_guard(identifier, patient_id)
+    SELECT identifier, min(patient_id) FROM (
+     SELECT upper(btrim(national_id)) AS identifier, id AS patient_id FROM clinlims.patient
+     UNION ALL
+     SELECT upper(btrim(pi.identity_data)), pi.patient_id
+      FROM clinlims.patient_identity pi
+      JOIN clinlims.patient_identity_type pit ON pit.id = pi.identity_type_id
+      WHERE upper(pit.identity_type) IN ('DNI', 'PASSPORT', 'FOREIGN_ID', 'NATIONAL')
+    ) documents WHERE identifier IS NOT NULL AND identifier <> '' AND patient_id IS NOT NULL
+    GROUP BY identifier;
+
+   CREATE FUNCTION clinlims.claim_patient_document(document text, owner_id numeric) RETURNS void
+   LANGUAGE plpgsql VOLATILE SET search_path = pg_catalog, clinlims AS $$
+   DECLARE document_key text := upper(btrim(document));
+   BEGIN
+    IF document_key IS NULL OR document_key = '' OR owner_id IS NULL THEN RETURN; END IF;
+    IF coalesce((SELECT lower(btrim(value)) FROM clinlims.site_information
+                 WHERE name = 'Allow duplicate national ids' LIMIT 1), 'false') = 'true' THEN RETURN; END IF;
+
+    LOOP
+     INSERT INTO clinlims.patient_identifier_guard(identifier, patient_id)
+      VALUES (document_key, owner_id) ON CONFLICT (identifier) DO NOTHING;
+     PERFORM 1 FROM clinlims.patient_identifier_guard WHERE identifier = document_key FOR UPDATE;
+     EXIT WHEN FOUND;
+    END LOOP;
+    -- As a VOLATILE function at READ COMMITTED, this query sees the winner's
+    -- committed rows after waiting for the unique key / row lock above.
+    IF EXISTS (SELECT 1 FROM clinlims.patient p
+               WHERE upper(btrim(p.national_id)) = document_key AND p.id <> owner_id)
+       OR EXISTS (SELECT 1 FROM clinlims.patient_identity pi
+                  JOIN clinlims.patient_identity_type pit ON pit.id = pi.identity_type_id
+                  WHERE upper(btrim(pi.identity_data)) = document_key AND pi.patient_id <> owner_id
+                   AND upper(pit.identity_type) IN ('DNI', 'PASSPORT', 'FOREIGN_ID', 'NATIONAL')) THEN
+     RAISE EXCEPTION 'duplicate key value violates unique constraint "uq_patient_document_identifier"'
+      USING ERRCODE = '23505', CONSTRAINT = 'uq_patient_document_identifier';
+    END IF;
+    UPDATE clinlims.patient_identifier_guard SET patient_id = owner_id WHERE identifier = document_key;
+   END $$;
+
+   CREATE FUNCTION clinlims.check_patient_document() RETURNS trigger
+   LANGUAGE plpgsql SET search_path = pg_catalog, clinlims AS $$
+   BEGIN
+    IF TG_OP = 'UPDATE' AND upper(btrim(NEW.national_id)) IS NOT DISTINCT FROM upper(btrim(OLD.national_id)) THEN
+     RETURN NEW;
+    END IF;
+    PERFORM clinlims.claim_patient_document(NEW.national_id, NEW.id);
+    RETURN NEW;
+   END $$;
+   CREATE TRIGGER check_patient_document BEFORE INSERT OR UPDATE OF national_id ON clinlims.patient
+    FOR EACH ROW EXECUTE FUNCTION clinlims.check_patient_document();
+
+   CREATE FUNCTION clinlims.check_patient_identity_document() RETURNS trigger
+   LANGUAGE plpgsql SET search_path = pg_catalog, clinlims AS $$
+   DECLARE document_type text;
+   BEGIN
+    SELECT upper(identity_type) INTO document_type FROM clinlims.patient_identity_type WHERE id = NEW.identity_type_id;
+    IF document_type NOT IN ('DNI', 'PASSPORT', 'FOREIGN_ID', 'NATIONAL') OR document_type IS NULL THEN RETURN NEW; END IF;
+    IF TG_OP = 'UPDATE' AND NEW.patient_id IS NOT DISTINCT FROM OLD.patient_id
+       AND NEW.identity_type_id IS NOT DISTINCT FROM OLD.identity_type_id
+       AND upper(btrim(NEW.identity_data)) IS NOT DISTINCT FROM upper(btrim(OLD.identity_data)) THEN RETURN NEW; END IF;
+    PERFORM clinlims.claim_patient_document(NEW.identity_data, NEW.patient_id);
+    RETURN NEW;
+   END $$;
+   CREATE TRIGGER check_patient_identity_document BEFORE INSERT OR UPDATE OF patient_id, identity_type_id, identity_data
+    ON clinlims.patient_identity FOR EACH ROW EXECUTE FUNCTION clinlims.check_patient_identity_document();
+  ]]></sql>
+  <rollback>
+   <sql splitStatements="false"><![CDATA[
+    DROP TRIGGER check_patient_identity_document ON clinlims.patient_identity;
+    DROP TRIGGER check_patient_document ON clinlims.patient;
+    DROP FUNCTION clinlims.check_patient_identity_document();
+    DROP FUNCTION clinlims.check_patient_document();
+    DROP FUNCTION clinlims.claim_patient_document(text, numeric);
+   ]]></sql>
+   <dropIndex tableName="patient_identity" schemaName="clinlims" indexName="idx_patient_identity_normalized_identifier"/>
+   <dropIndex tableName="patient" schemaName="clinlims" indexName="idx_patient_normalized_identifier"/>
+   <dropTable tableName="patient_identifier_guard" schemaName="clinlims"/>
+  </rollback>
+ </changeSet>
+</databaseChangeLog>

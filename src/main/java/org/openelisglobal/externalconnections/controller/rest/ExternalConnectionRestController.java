@@ -5,10 +5,9 @@ import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.List;
 import java.util.Map;
-import java.util.Optional;
 import java.util.stream.Collectors;
-import org.apache.commons.validator.GenericValidator;
 import org.apache.commons.lang3.StringUtils;
+import org.apache.commons.validator.GenericValidator;
 import org.openelisglobal.common.rest.BaseRestController;
 import org.openelisglobal.common.util.ConfigurationProperties;
 import org.openelisglobal.externalconnections.controller.rest.bean.ExternalConnectionConfig;
@@ -134,7 +133,8 @@ public class ExternalConnectionRestController extends BaseRestController {
         connection.setActiveAuthenticationType(authType);
         connection.setUri(URI.create(payload.getUri()));
         connection.getNameLocalization().setLocalizedValue(payload.getName());
-        connection.getDescriptionLocalization().setLocalizedValue(payload.getDescription() == null ? "" : payload.getDescription());
+        connection.getDescriptionLocalization()
+                .setLocalizedValue(payload.getDescription() == null ? "" : payload.getDescription());
 
         if (authType == AuthType.BASIC) {
             if (basicAuthData == null) {
@@ -176,10 +176,8 @@ public class ExternalConnectionRestController extends BaseRestController {
 
         ConfigurationProperties.loadDBValuesIntoConfiguration();
 
-        ExternalConnection saved = payload.getId() == null
-                ? externalConnectionService.getAll().stream()
-                        .filter(item -> item.getProgrammedConnection() == programmedConnection)
-                        .findFirst().orElse(connection)
+        ExternalConnection saved = payload.getId() == null ? externalConnectionService.getAll().stream()
+                .filter(item -> item.getProgrammedConnection() == programmedConnection).findFirst().orElse(connection)
                 : connection;
 
         return ResponseEntity.ok(toConfigDetail(saved));
@@ -187,7 +185,8 @@ public class ExternalConnectionRestController extends BaseRestController {
 
     private List<ExternalConnectionContact> mapContacts(List<ExternalConnectionContactConfig> payloadContacts,
             List<ExternalConnectionContact> existingContacts) {
-        List<ExternalConnectionContactConfig> safeContacts = payloadContacts == null ? new ArrayList<>() : payloadContacts;
+        List<ExternalConnectionContactConfig> safeContacts = payloadContacts == null ? new ArrayList<>()
+                : payloadContacts;
 
         return safeContacts.stream().filter(this::hasAnyContactValue).map(contactPayload -> {
             ExternalConnectionContact contact = existingContacts.stream()
@@ -220,13 +219,14 @@ public class ExternalConnectionRestController extends BaseRestController {
         ExternalConnectionConfig response = new ExternalConnectionConfig();
         response.setId(connection.getId());
         response.setActive(connection.getActive());
-        response.setName(connection.getNameLocalization() == null ? "" : connection.getNameLocalization().getLocalizedValue());
+        response.setName(
+                connection.getNameLocalization() == null ? "" : connection.getNameLocalization().getLocalizedValue());
         response.setDescription(connection.getDescriptionLocalization() == null ? ""
                 : connection.getDescriptionLocalization().getLocalizedValue());
-        response.setProgrammedConnection(connection.getProgrammedConnection() == null ? ""
-                : connection.getProgrammedConnection().getValue());
-        response.setProgrammedConnectionLabel(connection.getProgrammedConnection() == null ? ""
-                : connection.getProgrammedConnection().getMessage());
+        response.setProgrammedConnection(
+                connection.getProgrammedConnection() == null ? "" : connection.getProgrammedConnection().getValue());
+        response.setProgrammedConnectionLabel(
+                connection.getProgrammedConnection() == null ? "" : connection.getProgrammedConnection().getMessage());
         response.setAuthenticationType(connection.getActiveAuthenticationType() == null ? ""
                 : connection.getActiveAuthenticationType().getValue());
         response.setAuthenticationTypeLabel(connection.getActiveAuthenticationType() == null ? ""

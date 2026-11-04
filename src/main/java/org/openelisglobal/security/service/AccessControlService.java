@@ -6,6 +6,7 @@ import org.openelisglobal.common.action.IActionConstants;
 import org.openelisglobal.common.constants.SystemPermission;
 import org.openelisglobal.login.dao.UserModuleService;
 import org.openelisglobal.login.valueholder.UserSessionData;
+import org.openelisglobal.storage.service.StorageAuthorizationService;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
 import org.springframework.web.context.request.RequestAttributes;
@@ -20,6 +21,12 @@ public class AccessControlService {
 
     @Autowired
     private UserPermissionService userPermissionService;
+
+    @Autowired
+    private org.openelisglobal.authorization.service.ModuleAuthorizationService moduleAuthorizationService;
+
+    @Autowired
+    private StorageAuthorizationService storageAuthorizationService;
 
     public boolean hasPermission(SystemPermission permission) {
         if (permission == null) {
@@ -45,6 +52,28 @@ public class AccessControlService {
 
     public boolean hasAnyPermission(SystemPermission... permissions) {
         return Arrays.stream(permissions).anyMatch(this::hasPermission);
+    }
+
+    public boolean hasStoragePermission(String actionKey) {
+        HttpServletRequest request = getCurrentRequest();
+        if (request == null || userModuleService.isSessionExpired(request)) {
+            return false;
+        }
+        if (userModuleService.isUserAdmin(request)) {
+            return true;
+        }
+        UserSessionData userSessionData = getUserSessionData(request);
+        return userSessionData != null && storageAuthorizationService
+                .hasPermission(Integer.toString(userSessionData.getSystemUserId()), actionKey);
+    }
+
+    public boolean hasModulePermission(String moduleKey, String actionKey) {
+        HttpServletRequest request = getCurrentRequest();
+        if (request == null || userModuleService.isSessionExpired(request))
+            return false;
+        UserSessionData sessionData = getUserSessionData(request);
+        return sessionData != null && moduleAuthorizationService
+                .hasPermission(Integer.toString(sessionData.getSystemUserId()), moduleKey, actionKey);
     }
 
     private HttpServletRequest getCurrentRequest() {

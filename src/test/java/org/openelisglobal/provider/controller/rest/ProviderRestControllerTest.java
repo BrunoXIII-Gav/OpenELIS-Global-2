@@ -6,13 +6,13 @@ import static org.springframework.test.web.servlet.request.MockMvcRequestBuilder
 
 import com.fasterxml.jackson.core.type.TypeReference;
 import com.fasterxml.jackson.databind.ObjectMapper;
+import java.util.LinkedHashMap;
 import java.util.Map;
 import java.util.UUID;
 import org.junit.Before;
 import org.junit.Test;
 import org.openelisglobal.BaseWebContextSensitiveTest;
 import org.openelisglobal.person.service.PersonService;
-import org.openelisglobal.provider.valueholder.Provider;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.http.MediaType;
 import org.springframework.test.annotation.Rollback;
@@ -32,6 +32,7 @@ public class ProviderRestControllerTest extends BaseWebContextSensitiveTest {
     @Before
     public void setUp() throws Exception {
         super.setUp();
+        useAuthenticatedAdminRequests();
         executeDataSetWithStateManagement("testdata/provider.xml");
     }
 
@@ -77,12 +78,22 @@ public class ProviderRestControllerTest extends BaseWebContextSensitiveTest {
     @Test
     public void insertOrUpdateProviderByFhirUuid_shouldUpdateProviderGivenTheFhirUUID() throws Exception {
 
-        Provider provider1 = new Provider();
-        provider1.setPerson(personService.get("3"));
-        provider1.setId("2");
-        provider1.setFhirUuid(FH_UUID2);
+        Map<String, Object> providerPayload = new LinkedHashMap<>();
+        providerPayload.put("providerId", "2");
+        providerPayload.put("fhirUuid", FH_UUID2.toString());
+        providerPayload.put("professionalProfileCode", "MEDICAL_DOCTOR");
+        providerPayload.put("active", Boolean.TRUE);
+        providerPayload.put("lastName", PERSON1_LASTNAME);
+        providerPayload.put("firstName", PERSON1_FIRSTNAME);
+        providerPayload.put("telephone", "");
+        providerPayload.put("fax", "");
+        providerPayload.put("email", "");
+        providerPayload.put("dni", "12345678");
+        providerPayload.put("specialty", "Medico Genetista");
+        providerPayload.put("professionalInitials", "HMS");
+        providerPayload.put("profileFieldValues", Map.of());
 
-        String providerJson = new ObjectMapper().writeValueAsString(provider1);
+        String providerJson = new ObjectMapper().writeValueAsString(providerPayload);
 
         MvcResult urlResult = super.mockMvc.perform(post("/rest/Provider/FhirUuid")
                 .contentType(MediaType.APPLICATION_JSON_VALUE).accept(MediaType.APPLICATION_JSON_VALUE)
@@ -100,7 +111,9 @@ public class ProviderRestControllerTest extends BaseWebContextSensitiveTest {
         Map<String, Object> personMap = (Map<String, Object>) providerUpdated.get("person");
         assertEquals(PERSON1_FIRSTNAME, personMap.get("firstName"));
         assertEquals(PERSON1_LASTNAME, personMap.get("lastName"));
-        assertEquals(PERSON1_MIDDLENAME, personMap.get("middleName"));
+        // This request updates first/last name and leaves the existing middle name
+        // untouched.
+        assertEquals("Mark", personMap.get("middleName"));
 
     }
 

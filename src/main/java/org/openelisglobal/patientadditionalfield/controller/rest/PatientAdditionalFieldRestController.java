@@ -1,16 +1,21 @@
 package org.openelisglobal.patientadditionalfield.controller.rest;
 
 import jakarta.servlet.http.HttpServletRequest;
+import java.util.Collections;
 import java.util.List;
 import java.util.Map;
 import org.openelisglobal.common.rest.BaseRestController;
+import org.openelisglobal.patient.service.PatientAuthorizationService;
 import org.openelisglobal.patientadditionalfield.bean.PatientAdditionalFieldOptionPayload;
 import org.openelisglobal.patientadditionalfield.bean.PatientAdditionalFieldPayload;
+import org.openelisglobal.patientadditionalfield.bean.PatientFixedFieldConfigPayload;
 import org.openelisglobal.patientadditionalfield.service.PatientAdditionalFieldService;
+import org.openelisglobal.sample.service.OrderAuthorizationService;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.MediaType;
 import org.springframework.http.ResponseEntity;
+import org.springframework.security.access.AccessDeniedException;
 import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.stereotype.Controller;
 import org.springframework.web.bind.annotation.DeleteMapping;
@@ -29,22 +34,60 @@ public class PatientAdditionalFieldRestController extends BaseRestController {
 
     @Autowired
     private PatientAdditionalFieldService patientAdditionalFieldService;
+    @Autowired
+    private PatientAuthorizationService patientAuthorizationService;
+    @Autowired
+    private OrderAuthorizationService orderAuthorizationService;
 
     @GetMapping(value = "patient-additional-fields", produces = MediaType.APPLICATION_JSON_VALUE)
-    @PreAuthorize("@accessControl.hasAnyPermission(T(org.openelisglobal.common.constants.SystemPermission).PATIENT, "
-            + "T(org.openelisglobal.common.constants.SystemPermission).ORDER)")
     @ResponseBody
-    public List<PatientAdditionalFieldPayload> getFields(
-            @RequestParam(value = "includeInactive", defaultValue = "false") boolean includeInactive) {
-        return patientAdditionalFieldService.getFields(includeInactive);
+    public List<PatientAdditionalFieldPayload> getFields(HttpServletRequest request,
+            @RequestParam(value = "includeInactive", defaultValue = "false") boolean includeInactive,
+            @RequestParam(value = "resolveUserOptions", defaultValue = "false") boolean resolveUserOptions) {
+        requirePatientLookupPermission(getSysUserId(request));
+        return patientAdditionalFieldService.getFields(includeInactive, resolveUserOptions);
     }
 
     @GetMapping(value = "patient-additional-fields/values", produces = MediaType.APPLICATION_JSON_VALUE)
-    @PreAuthorize("@accessControl.hasAnyPermission(T(org.openelisglobal.common.constants.SystemPermission).PATIENT, "
-            + "T(org.openelisglobal.common.constants.SystemPermission).ORDER)")
     @ResponseBody
-    public Map<String, String> getValues(@RequestParam("patientId") String patientId) {
-        return patientAdditionalFieldService.getPatientValues(patientId, null);
+    public Map<String, String> getValues(HttpServletRequest request, @RequestParam("patientId") String patientId) {
+        String sysUserId = getSysUserId(request);
+        requirePatientLookupPermission(sysUserId);
+        return patientAdditionalFieldService.getPatientValues(patientId,
+                patientAdditionalFieldService.getFields(false, true));
+    }
+
+    @GetMapping(value = "patient-additional-fields/fixed", produces = MediaType.APPLICATION_JSON_VALUE)
+    @ResponseBody
+    public List<PatientFixedFieldConfigPayload> getFixedFieldConfigs(HttpServletRequest request) {
+        requirePatientLookupPermission(getSysUserId(request));
+        return patientAdditionalFieldService.getFixedFieldConfigs();
+    }
+
+    private void requirePatientLookupPermission(String sysUserId) {
+        if (patientAuthorizationService.hasPermission(sysUserId, "read")
+                || patientAuthorizationService.hasPermission(sysUserId, "create")
+                || patientAuthorizationService.hasPermission(sysUserId, "update")
+                || orderAuthorizationService.hasPermission(sysUserId, "create")
+                || orderAuthorizationService.hasPermission(sysUserId, "read")
+                || orderAuthorizationService.hasPermission(sysUserId, "update")) {
+            return;
+        }
+        throw new AccessDeniedException("User does not have permission to read patient fields");
+    }
+
+    @PutMapping(value = "patient-additional-fields/fixed", produces = MediaType.APPLICATION_JSON_VALUE, consumes = MediaType.APPLICATION_JSON_VALUE)
+    @PreAuthorize("@accessControl.hasPermission(T(org.openelisglobal.common.constants.SystemPermission).ADMINISTRATION)")
+    @ResponseBody
+    public ResponseEntity<?> upsertFixedFieldConfigs(HttpServletRequest request,
+            @RequestBody(required = false) List<PatientFixedFieldConfigPayload> payloads) {
+        try {
+            patientAdditionalFieldService.upsertFixedFieldConfigs(payloads == null ? Collections.emptyList() : payloads,
+                    getSysUserId(request));
+            return ResponseEntity.noContent().build();
+        } catch (IllegalArgumentException e) {
+            return ResponseEntity.badRequest().body(Map.of("message", e.getMessage()));
+        }
     }
 
     @PostMapping(value = "patient-additional-fields", produces = MediaType.APPLICATION_JSON_VALUE, consumes = MediaType.APPLICATION_JSON_VALUE)
@@ -64,10 +107,11 @@ public class PatientAdditionalFieldRestController extends BaseRestController {
     @PutMapping(value = "patient-additional-fields/{fieldId}", produces = MediaType.APPLICATION_JSON_VALUE, consumes = MediaType.APPLICATION_JSON_VALUE)
     @PreAuthorize("@accessControl.hasPermission(T(org.openelisglobal.common.constants.SystemPermission).ADMINISTRATION)")
     @ResponseBody
-    public ResponseEntity<?> updateField(HttpServletRequest request,
-            @PathVariable Integer fieldId, @RequestBody PatientAdditionalFieldPayload payload) {
+    public ResponseEntity<?> updateField(HttpServletRequest request, @PathVariable Integer fieldId,
+            @RequestBody PatientAdditionalFieldPayload payload) {
         try {
-            return ResponseEntity.ok(patientAdditionalFieldService.updateField(fieldId, payload, getSysUserId(request)));
+            return ResponseEntity
+                    .ok(patientAdditionalFieldService.updateField(fieldId, payload, getSysUserId(request)));
         } catch (IllegalArgumentException e) {
             return ResponseEntity.badRequest().body(Map.of("message", e.getMessage()));
         }
@@ -88,8 +132,8 @@ public class PatientAdditionalFieldRestController extends BaseRestController {
     @PostMapping(value = "patient-additional-fields/{fieldId}/options", produces = MediaType.APPLICATION_JSON_VALUE, consumes = MediaType.APPLICATION_JSON_VALUE)
     @PreAuthorize("@accessControl.hasPermission(T(org.openelisglobal.common.constants.SystemPermission).ADMINISTRATION)")
     @ResponseBody
-    public ResponseEntity<?> createOption(HttpServletRequest request,
-            @PathVariable Integer fieldId, @RequestBody PatientAdditionalFieldOptionPayload payload) {
+    public ResponseEntity<?> createOption(HttpServletRequest request, @PathVariable Integer fieldId,
+            @RequestBody PatientAdditionalFieldOptionPayload payload) {
         try {
             PatientAdditionalFieldOptionPayload created = patientAdditionalFieldService.createOption(fieldId, payload,
                     getSysUserId(request));
@@ -102,10 +146,11 @@ public class PatientAdditionalFieldRestController extends BaseRestController {
     @PutMapping(value = "patient-additional-fields/options/{optionId}", produces = MediaType.APPLICATION_JSON_VALUE, consumes = MediaType.APPLICATION_JSON_VALUE)
     @PreAuthorize("@accessControl.hasPermission(T(org.openelisglobal.common.constants.SystemPermission).ADMINISTRATION)")
     @ResponseBody
-    public ResponseEntity<?> updateOption(HttpServletRequest request,
-            @PathVariable Integer optionId, @RequestBody PatientAdditionalFieldOptionPayload payload) {
+    public ResponseEntity<?> updateOption(HttpServletRequest request, @PathVariable Integer optionId,
+            @RequestBody PatientAdditionalFieldOptionPayload payload) {
         try {
-            return ResponseEntity.ok(patientAdditionalFieldService.updateOption(optionId, payload, getSysUserId(request)));
+            return ResponseEntity
+                    .ok(patientAdditionalFieldService.updateOption(optionId, payload, getSysUserId(request)));
         } catch (IllegalArgumentException e) {
             return ResponseEntity.badRequest().body(Map.of("message", e.getMessage()));
         }

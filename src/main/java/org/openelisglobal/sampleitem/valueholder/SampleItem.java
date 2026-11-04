@@ -51,7 +51,18 @@ public class SampleItem extends BaseObject<String> implements NoteObject {
     private String externalId;
     private Timestamp collectionDate;
     private String statusId;
+    private String dataCompletionStatus = SampleDataCompletionStatus.PENDING_COMPLETION.name();
     private String collector;
+    private String collectorUserId;
+
+    public String getCollectorUserId() {
+        return collectorUserId;
+    }
+
+    public void setCollectorUserId(String value) {
+        collectorUserId = value;
+    }
+
     private boolean rejected = false;
     private String rejectReasonId;
     private boolean voided = false;
@@ -226,11 +237,38 @@ public class SampleItem extends BaseObject<String> implements NoteObject {
         this.statusId = statusId;
     }
 
+    public String getDataCompletionStatus() {
+        return dataCompletionStatus;
+    }
+
+    public void setDataCompletionStatus(String dataCompletionStatus) {
+        this.dataCompletionStatus = dataCompletionStatus;
+    }
+
+    public SampleDataCompletionStatus getDataCompletionState() {
+        if (dataCompletionStatus == null) {
+            return SampleDataCompletionStatus.COMPLETED;
+        }
+        try {
+            return SampleDataCompletionStatus.valueOf(dataCompletionStatus);
+        } catch (IllegalArgumentException exception) {
+            return SampleDataCompletionStatus.COMPLETED;
+        }
+    }
+
+    public void setDataCompletionState(SampleDataCompletionStatus dataCompletionStatus) {
+        this.dataCompletionStatus = dataCompletionStatus == null ? null : dataCompletionStatus.name();
+    }
+
     public String getCollector() {
         return collector;
     }
 
     public void setCollector(String collector) {
+        // Legacy import/order paths can replace text without identifying an internal
+        // account.
+        if (!java.util.Objects.equals(this.collector, collector))
+            collectorUserId = null;
         this.collector = collector;
     }
 

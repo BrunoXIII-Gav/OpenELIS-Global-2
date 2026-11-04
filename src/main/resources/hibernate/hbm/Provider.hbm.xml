@@ -38,7 +38,8 @@
         <property name="dni" type="java.lang.String">
             <column name="DNI" length="25" />
         </property>
-        <property name="professionalProfileCode" type="java.lang.String">
+        <property name="professionalProfileCode"
+            type="java.lang.String">
             <column name="PROFESSIONAL_PROFILE_CODE" length="64" />
         </property>
         <property name="professionalInitials" type="java.lang.String">
@@ -46,6 +47,9 @@
         </property>
         <property name="cbpCode" type="java.lang.String">
             <column name="CBP_CODE" length="32" />
+        </property>
+        <property name="profileFieldsJson" type="java.lang.String">
+            <column name="PROFILE_FIELDS_JSON" sql-type="text" />
         </property>
         <property name="fhirUuid" column="fhir_uuid"
             type="java.util.UUID" />

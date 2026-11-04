@@ -19,6 +19,7 @@ import jakarta.validation.constraints.Email;
 import jakarta.validation.constraints.NotBlank;
 import jakarta.validation.constraints.Pattern;
 import jakarta.validation.constraints.Size;
+import jakarta.validation.groups.Default;
 import java.io.Serializable;
 import java.util.ArrayList;
 import java.util.HashMap;
@@ -47,8 +48,11 @@ import org.openelisglobal.validation.annotations.OptionalNotBlank;
 import org.openelisglobal.validation.annotations.SafeHtml;
 import org.openelisglobal.validation.annotations.ValidDate;
 import org.openelisglobal.validation.annotations.ValidName;
+import org.openelisglobal.validation.annotations.ValidPatientDocuments;
 import org.openelisglobal.validation.constraintvalidator.NameValidator.NameType;
 
+@ValidPatientDocuments(groups = { Default.class, SamplePatientEntryForm.SamplePatientEntry.class,
+        SamplePatientEntryBatch.class })
 public class PatientManagementInfo implements Serializable {
 
     private static final long serialVersionUID = 1L;
@@ -91,6 +95,34 @@ public class PatientManagementInfo implements Serializable {
     @Pattern(regexp = ValidationHelper.PATIENT_ID_REGEX, groups = { SamplePatientEntryForm.SamplePatientEntry.class,
             SamplePatientEntryBatch.class })
     private String foreignId;
+
+    private Boolean dniEnabled;
+    private Boolean passportEnabled;
+    private Boolean foreignIdEnabled;
+
+    public Boolean getDniEnabled() {
+        return dniEnabled;
+    }
+
+    public void setDniEnabled(Boolean enabled) {
+        dniEnabled = enabled;
+    }
+
+    public Boolean getPassportEnabled() {
+        return passportEnabled;
+    }
+
+    public void setPassportEnabled(Boolean enabled) {
+        passportEnabled = enabled;
+    }
+
+    public Boolean getForeignIdEnabled() {
+        return foreignIdEnabled;
+    }
+
+    public void setForeignIdEnabled(Boolean enabled) {
+        foreignIdEnabled = enabled;
+    }
 
     @Pattern(regexp = "^(|DNI|PASSPORT|FOREIGN_ID)$", groups = { SamplePatientEntryForm.SamplePatientEntry.class,
             SamplePatientEntryBatch.class })

@@ -18,7 +18,8 @@ public class SampleTypeUomAssignServiceImpl implements SampleTypeUomAssignServic
     @Override
     @Transactional
     public void replaceAssignments(String sampleTypeId, List<String> unitOfMeasureIds, String systemUserId) {
-        List<TypeOfSampleUnitOfMeasure> existingMappings = typeOfSampleUnitOfMeasureService.getBySampleTypeId(sampleTypeId);
+        List<TypeOfSampleUnitOfMeasure> existingMappings = typeOfSampleUnitOfMeasureService
+                .getBySampleTypeId(sampleTypeId);
         for (TypeOfSampleUnitOfMeasure existingMapping : existingMappings) {
             typeOfSampleUnitOfMeasureService.delete(existingMapping.getId(), systemUserId);
         }

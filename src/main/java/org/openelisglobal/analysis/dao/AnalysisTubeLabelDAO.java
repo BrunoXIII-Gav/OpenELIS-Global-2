@@ -10,7 +10,8 @@ public interface AnalysisTubeLabelDAO extends BaseDAO<AnalysisTubeLabel, Long> {
 
     List<AnalysisTubeLabel> getByAnalysisId(String analysisId) throws LIMSRuntimeException;
 
-    Optional<AnalysisTubeLabel> getByAnalysisIdAndBlockName(String analysisId, String blockName) throws LIMSRuntimeException;
+    Optional<AnalysisTubeLabel> getByAnalysisIdAndBlockName(String analysisId, String blockName)
+            throws LIMSRuntimeException;
 
     boolean existsByLabelCode(String labelCode, Long excludeId) throws LIMSRuntimeException;
 }

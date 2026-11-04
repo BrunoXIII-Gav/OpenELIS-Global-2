@@ -16,6 +16,8 @@ import org.hl7.fhir.r4.model.Enumerations.ResourceType;
 import org.hl7.fhir.r4.model.Reference;
 import org.hl7.fhir.r4.model.Task;
 import org.openelisglobal.analysis.valueholder.Analysis;
+import org.openelisglobal.authorization.service.ModuleAuthorizationService;
+import org.openelisglobal.authorization.service.ModuleAuthorizationService.AuthorizationSource;
 import org.openelisglobal.common.constants.Constants;
 import org.openelisglobal.common.constants.SystemPermission;
 import org.openelisglobal.common.exception.LIMSRuntimeException;
@@ -36,6 +38,7 @@ import org.openelisglobal.dataexchange.service.order.ElectronicOrderService;
 import org.openelisglobal.internationalization.MessageUtil;
 import org.openelisglobal.notifications.dao.NotificationDAO;
 import org.openelisglobal.notifications.entity.Notification;
+import org.openelisglobal.orderadditionalfield.service.AlternateOrderFlowService;
 import org.openelisglobal.organization.service.OrganizationService;
 import org.openelisglobal.organization.valueholder.Organization;
 import org.openelisglobal.patient.action.IPatientUpdate;
@@ -46,12 +49,16 @@ import org.openelisglobal.person.service.PersonService;
 import org.openelisglobal.person.valueholder.Person;
 import org.openelisglobal.provider.service.ProviderService;
 import org.openelisglobal.provider.valueholder.Provider;
-import org.openelisglobal.security.service.UserPermissionService;
 import org.openelisglobal.sample.action.util.SamplePatientUpdateData;
 import org.openelisglobal.sample.bean.SampleOrderItem;
 import org.openelisglobal.sample.controller.BaseSampleEntryController;
 import org.openelisglobal.sample.event.SamplePatientUpdateDataCreatedEvent;
+import org.openelisglobal.sample.exception.ConsentDownloadRequiredException;
+import org.openelisglobal.sample.exception.OrderAccessionConflictException;
 import org.openelisglobal.sample.form.SamplePatientEntryForm;
+import org.openelisglobal.sample.service.OrderAuthorizationService;
+import org.openelisglobal.sample.service.OrderConsentDownloadService;
+import org.openelisglobal.sample.service.OrderPatientContextService;
 import org.openelisglobal.sample.service.PatientManagementUpdate;
 import org.openelisglobal.sample.service.SamplePatientEntryService;
 import org.openelisglobal.sample.service.SampleService;
@@ -59,6 +66,7 @@ import org.openelisglobal.sample.validator.SamplePatientEntryFormValidator;
 import org.openelisglobal.sample.valueholder.OrderPriority;
 import org.openelisglobal.sample.valueholder.SampleAdditionalField;
 import org.openelisglobal.sample.valueholder.SampleAdditionalField.AdditionalFieldName;
+import org.openelisglobal.security.service.UserPermissionService;
 import org.openelisglobal.spring.util.SpringContext;
 import org.openelisglobal.systemuser.service.SystemUserService;
 import org.openelisglobal.systemuser.service.UserService;
@@ -70,13 +78,14 @@ import org.springframework.context.ApplicationEventPublisher;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.MediaType;
 import org.springframework.http.ResponseEntity;
-import org.springframework.security.access.prepost.PreAuthorize;
+import org.springframework.security.access.AccessDeniedException;
 import org.springframework.stereotype.Controller;
 import org.springframework.validation.BindingResult;
 import org.springframework.validation.FieldError;
 import org.springframework.validation.ObjectError;
 import org.springframework.validation.annotation.Validated;
 import org.springframework.web.bind.WebDataBinder;
+import org.springframework.web.bind.annotation.ExceptionHandler;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.InitBinder;
 import org.springframework.web.bind.annotation.PostMapping;
@@ -89,8 +98,12 @@ import org.springframework.web.servlet.support.RequestContextUtils;
 
 @Controller
 @RequestMapping(value = "/rest/")
-@PreAuthorize("@accessControl.hasPermission(T(org.openelisglobal.common.constants.SystemPermission).ORDER)")
 public class SamplePatientEntryRestController extends BaseSampleEntryController {
+    @Autowired
+    private OrderConsentDownloadService orderConsentDownloadService;
+
+    @Autowired
+    private OrderPatientContextService orderPatientContextService;
     private static final String ERROR_MESSAGE_HEADER = "X-OpenELIS-Error-Message";
     private static final String PROP_PROVIDER_SELECTION_POLICY = "orderProviderSelectionPolicy";
     private static final String PROP_PROVIDER_SELECTION_OVERRIDE_ROLES = "orderProviderOverrideRoles";
@@ -105,13 +118,13 @@ public class SamplePatientEntryRestController extends BaseSampleEntryController 
             "patientProperties.personLastUpdated", "patientProperties.patientUpdateStatus",
             "patientProperties.patientPK", "patientProperties.guid", "patientProperties.fhirUuid",
             "patientProperties.STnumber", "patientProperties.subjectNumber", "patientProperties.nationalId",
-            "patientProperties.primaryPatientIdentifierType",
-            "patientProperties.dni", "patientProperties.passportNumber", "patientProperties.foreignId",
-            "patientProperties.lastName", "patientProperties.firstName", "patientProperties.aka",
-            "patientProperties.mothersName", "patientProperties.mothersInitial", "patientProperties.streetAddress",
-            "patientProperties.commune", "patientProperties.city", "patientProperties.addressDepartment",
-            "patientProperties.addressDepartment", "patientPhone", "patientProperties.primaryPhone",
-            "patientProperties.email", "patientProperties.healthRegion", "patientProperties.healthDistrict",
+            "patientProperties.primaryPatientIdentifierType", "patientProperties.dni",
+            "patientProperties.passportNumber", "patientProperties.foreignId", "patientProperties.lastName",
+            "patientProperties.firstName", "patientProperties.aka", "patientProperties.mothersName",
+            "patientProperties.mothersInitial", "patientProperties.streetAddress", "patientProperties.commune",
+            "patientProperties.city", "patientProperties.addressDepartment", "patientProperties.addressDepartment",
+            "patientPhone", "patientProperties.primaryPhone", "patientProperties.email",
+            "patientProperties.healthRegion", "patientProperties.healthDistrict",
             "patientProperties.birthDateForDisplay", "patientProperties.age", "patientProperties.gender",
             "patientProperties.patientType", "patientProperties.insuranceNumber", "patientProperties.occupation",
             "patientProperties.education", "patientProperties.maritialStatus", "patientProperties.nationality",
@@ -135,9 +148,9 @@ public class SamplePatientEntryRestController extends BaseSampleEntryController 
             "initialSampleConditionList", "sampleXML",
             //
             "sampleOrderItems.newRequesterName", "sampleOrderItems.modified", "sampleOrderItems.sampleId",
-            "sampleOrderItems.labNo", "sampleOrderItems.requestDate", "sampleOrderItems.receivedDateForDisplay",
-            "sampleOrderItems.requestTime", "sampleOrderItems.receivedTime", "sampleOrderItems.nextVisitDate",
-            "sampleOrderItems.requesterSampleID",
+            "sampleOrderItems.labNo", "sampleOrderItems.labNoGenerated", "sampleOrderItems.requestDate",
+            "sampleOrderItems.receivedDateForDisplay", "sampleOrderItems.requestTime", "sampleOrderItems.receivedTime",
+            "sampleOrderItems.nextVisitDate", "sampleOrderItems.requesterSampleID",
             "sampleOrderItems.referringPatientNumber", "sampleOrderItems.referringSiteId",
             "referringSiteDepartmentName", "sampleOrderItems.referringSiteDepartmentId",
             "sampleOrderItems.referringSiteName", "sampleOrderItems.referringSiteCode", "sampleOrderItems.program",
@@ -196,9 +209,18 @@ public class SamplePatientEntryRestController extends BaseSampleEntryController 
     private SystemUserService systemUserService;
     @Autowired
     private SampleService sampleService;
+    @Autowired
+    private AlternateOrderFlowService alternateOrderFlowService;
+
+    @Autowired
+    private OrderAuthorizationService orderAuthorizationService;
+    @Autowired
+    private ModuleAuthorizationService moduleAuthorizationService;
 
     @Autowired
     private ApplicationEventPublisher eventPublisher;
+    @Autowired
+    private org.openelisglobal.common.service.ProfessionalProfilePermissionService profilePermissionService;
 
     @InitBinder
     public void initBinder(WebDataBinder binder) {
@@ -210,6 +232,8 @@ public class SamplePatientEntryRestController extends BaseSampleEntryController 
     public SamplePatientEntryForm showSamplePatientEntry(HttpServletRequest request,
             @RequestParam(value = ID, required = false) @Pattern(regexp = "[a-zA-Z0-9 -]*") String externalOrderNumber)
             throws IllegalAccessException, InvocationTargetException, NoSuchMethodException {
+        requireOrderPermission(request, "create");
+
         SamplePatientEntryForm form = new SamplePatientEntryForm();
 
         request.getSession().setAttribute(SAVE_DISABLED, TRUE);
@@ -260,6 +284,11 @@ public class SamplePatientEntryRestController extends BaseSampleEntryController 
             BindingResult result, RedirectAttributes redirectAttributes)
             throws IllegalAccessException, InvocationTargetException, NoSuchMethodException {
 
+        requireOrderPermission(request, "create");
+
+        orderConsentDownloadService.requireDownload(request, getSysUserId(request), form.getConsentDownloadToken(),
+                form.getPatientProperties() == null ? null : form.getPatientProperties().getPatientPK(), null);
+
         enforceSelfOnlyProviderPolicy(request, form, result);
 
         formValidator.validate(form, result);
@@ -268,9 +297,13 @@ public class SamplePatientEntryRestController extends BaseSampleEntryController 
             setupForm(form, request, "");
             return buildErrorResponse(form, result, HttpStatus.BAD_REQUEST);
         }
+        if (!orderAuthorizationService.canAccessSampleXml(getSysUserId(request), form.getSampleXML(), "create")) {
+            throw new AccessDeniedException("The user does not have access to all selected laboratory units");
+        }
         SamplePatientUpdateData updateData = new SamplePatientUpdateData(getSysUserId(request));
 
         PatientManagementInfo patientInfo = form.getPatientProperties();
+        requirePatientMutationPermission(request, patientInfo);
         SampleOrderItem sampleOrder = form.getSampleOrderItems();
 
         boolean trackPayments = ConfigurationProperties.getInstance()
@@ -294,6 +327,8 @@ public class SamplePatientEntryRestController extends BaseSampleEntryController 
         updateData.setAccessionNumber(sampleOrder.getLabNo());
         updateData.setReferringId(sampleOrder.getExternalOrderNumber());
         updateData.setPriority(sampleOrder.getPriority());
+        updateData.setAlternateOrderFlow(
+                alternateOrderFlowService.isAlternateOrderFlow(sampleOrder.getAdditionalFieldValues()));
         updateData.initProvider(sampleOrder);
         if (!GenericValidator.isBlankOrNull(sampleOrder.getProgramId())) {
             updateData.initProgramQuestions(sampleOrder.getProgramId(), sampleOrder.getAdditionalQuestions());
@@ -307,15 +342,18 @@ public class SamplePatientEntryRestController extends BaseSampleEntryController 
         if (Boolean.valueOf(ConfigurationProperties.getInstance().getPropertyValue(Property.CONTACT_TRACING))) {
             setContactTracingInfo(updateData, sampleOrder);
         }
-        updateData.validateSample(result);
+        updateData.validateSample(result, true, GenericValidator.isBlankOrNull(sampleOrder.getLabNo()));
         if (result.hasErrors()) {
             saveErrors(result);
             setupForm(form, request, "");
             return buildErrorResponse(form, result, HttpStatus.BAD_REQUEST);
         }
 
-        try {
+        try (var consentPermit = orderConsentDownloadService.claim(request, getSysUserId(request),
+                form.getConsentDownloadToken(), patientInfo.getPatientPK(), null)) {
             samplePatientService.persistData(updateData, patientUpdate, patientInfo, form, request);
+            consentPermit.complete();
+            orderPatientContextService.forgetRegistration(request, getSysUserId(request), updateData.getPatientId());
             try {
                 SamplePatientUpdateDataCreatedEvent event = new SamplePatientUpdateDataCreatedEvent(this, updateData,
                         patientInfo, form);
@@ -358,6 +396,13 @@ public class SamplePatientEntryRestController extends BaseSampleEntryController 
             // String fhir_json = fhirTransformService.CreateFhirFromOESample(updateData,
             // patientUpdate, patientInfo, form, request);
         } catch (IllegalArgumentException e) {
+            if (OrderAccessionConflictException.isConflict(e)) {
+                return ResponseEntity.status(HttpStatus.CONFLICT)
+                        .header("X-OpenELIS-Error-Code", OrderAccessionConflictException.CODE).body(form);
+            }
+            if (e.getMessage() != null && e.getMessage().startsWith("order.labnumber.")) {
+                return ResponseEntity.badRequest().header("X-OpenELIS-Error-Code", e.getMessage()).body(form);
+            }
             LogEvent.logError(e);
             String detail = buildIllegalArgumentExceptionDetail(e);
             result.reject("errors.ValidationException", new Object[] { detail }, detail);
@@ -366,6 +411,10 @@ public class SamplePatientEntryRestController extends BaseSampleEntryController 
             request.setAttribute(ALLOW_EDITS_KEY, "false");
             return buildErrorResponse(form, result, HttpStatus.BAD_REQUEST, detail);
         } catch (LIMSRuntimeException e) {
+            if (OrderAccessionConflictException.isConflict(e)) {
+                return ResponseEntity.status(HttpStatus.CONFLICT)
+                        .header("X-OpenELIS-Error-Code", OrderAccessionConflictException.CODE).body(form);
+            }
             // ActionError error;
             HttpStatus status = HttpStatus.BAD_REQUEST;
             if (e.getCause() instanceof StaleObjectStateException) {
@@ -428,6 +477,42 @@ public class SamplePatientEntryRestController extends BaseSampleEntryController 
         return ResponseEntity.ok(form);
     }
 
+    @ExceptionHandler(ConsentDownloadRequiredException.class)
+    public ResponseEntity<?> handleConsentDownloadRequired(ConsentDownloadRequiredException error) {
+        return ResponseEntity.status(HttpStatus.PRECONDITION_REQUIRED)
+                .header("X-OpenELIS-Error-Code", ConsentDownloadRequiredException.CODE)
+                .body(Map.of("code", ConsentDownloadRequiredException.CODE));
+    }
+
+    @ExceptionHandler(RuntimeException.class)
+    public ResponseEntity<?> handleOrderConflict(RuntimeException error) {
+        if (OrderAccessionConflictException.isConflict(error)) {
+            return ResponseEntity.status(HttpStatus.CONFLICT)
+                    .header("X-OpenELIS-Error-Code", OrderAccessionConflictException.CODE)
+                    .body(Map.of("code", OrderAccessionConflictException.CODE));
+        }
+        throw error;
+    }
+
+    private void requirePatientMutationPermission(HttpServletRequest request, PatientManagementInfo patientInfo) {
+        if (StringUtils.isNotBlank(patientInfo.getPatientPK())
+                && patientInfo.getPatientUpdateStatus() != PatientUpdateStatus.NO_ACTION && !orderPatientContextService
+                        .canUpdatePatient(request, getSysUserId(request), patientInfo.getPatientPK())) {
+            throw new AccessDeniedException("Cannot modify this patient's registration through order entry");
+        }
+    }
+
+    private void requireOrderPermission(HttpServletRequest request, String actionKey) {
+        if (!orderAuthorizationService.hasPermission(getSysUserId(request), actionKey)) {
+            throw new AccessDeniedException("The user does not have permission to " + actionKey + " orders");
+        }
+    }
+
+    private boolean requiresLegacyProfessionalProfile(String userId, String moduleKey, String actionKey) {
+        return moduleAuthorizationService.getAuthorization(userId, moduleKey, actionKey)
+                .source() != AuthorizationSource.MODULE_PERMISSION;
+    }
+
     private void enforceSelfOnlyProviderPolicy(HttpServletRequest request, SamplePatientEntryForm form,
             BindingResult result) {
         Provider linkedProvider = getLinkedProviderIfSelfOnlyApplies(request);
@@ -463,6 +548,13 @@ public class SamplePatientEntryRestController extends BaseSampleEntryController 
 
         String sysUserId = getSysUserId(request);
         if (isProviderPolicyOverrideUser(sysUserId)) {
+            return null;
+        }
+
+        // Check if user has required role permission for order
+        if (!profilePermissionService.hasOrderPermission(sysUserId)) {
+            LogEvent.logWarn(this.getClass().getSimpleName(), "getLinkedProviderIfSelfOnlyApplies",
+                    "User " + sysUserId + " does not have required role permission for order creation");
             return null;
         }
 

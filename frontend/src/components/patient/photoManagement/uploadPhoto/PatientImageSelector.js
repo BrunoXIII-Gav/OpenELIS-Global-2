@@ -9,6 +9,7 @@ const PatientImageSelector = ({
   onChange,
   label = "",
   required = false,
+  disabled = false,
 }) => {
   const intl = useIntl();
   const [isModalOpen, setIsModalOpen] = useState(false);
@@ -25,7 +26,14 @@ const PatientImageSelector = ({
       </label>
 
       <div className="image-selector-content">
-        <div className="image-display" onClick={() => setIsModalOpen(true)}>
+        <div
+          className="image-display"
+          onClick={() => {
+            if (!disabled) {
+              setIsModalOpen(true);
+            }
+          }}
+        >
           {value ? (
             <div className="image-with-overlay">
               <img src={value} alt="Patient photo" className="patient-image" />
@@ -49,7 +57,7 @@ const PatientImageSelector = ({
       </div>
 
       <ImagePreviewModal
-        open={isModalOpen}
+        open={!disabled && isModalOpen}
         onClose={() => setIsModalOpen(false)}
         onImageSelect={handleImageSelect}
         currentImage={value}

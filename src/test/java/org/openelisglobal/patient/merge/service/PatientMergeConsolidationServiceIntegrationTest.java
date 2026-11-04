@@ -76,6 +76,8 @@ public class PatientMergeConsolidationServiceIntegrationTest extends BaseWebCont
         assertEquals("Merged patient should have 3 samples initially", 3, initialMergedCount);
         assertEquals("Primary patient should have 0 samples initially", 0, initialPrimaryCount);
 
+        int priorAuditEvents = countAuditedSampleReassignments();
+
         // Act
         PatientMergeConsolidationService.ConsolidationResult result = consolidationService
                 .consolidateClinicalData(PRIMARY_PATIENT_ID, MERGED_PATIENT_ID, SYS_USER_ID);
@@ -87,6 +89,8 @@ public class PatientMergeConsolidationServiceIntegrationTest extends BaseWebCont
         int finalPrimaryCount = countSampleHumanForPatient(PRIMARY_PATIENT_ID);
         assertEquals("Merged patient should have 0 samples after consolidation", 0, finalMergedCount);
         assertEquals("Primary patient should have 3 samples after consolidation", 3, finalPrimaryCount);
+        assertEquals("Each reassigned sample must retain its previous patient and actor in audit", priorAuditEvents + 3,
+                countAuditedSampleReassignments());
     }
 
     /**
@@ -335,4 +339,11 @@ public class PatientMergeConsolidationServiceIntegrationTest extends BaseWebCont
             System.err.println("Failed to clean merge test data: " + e.getMessage());
         }
     }
+
+    private int countAuditedSampleReassignments() {
+        return jdbcTemplate.queryForObject("SELECT COUNT(*) FROM clinlims.audit_event WHERE entity_name = 'SampleHuman'"
+                + " AND field = 'patientId' AND old_value = ? AND new_value = ? AND actor_id = ? AND action = 'U'",
+                Integer.class, MERGED_PATIENT_ID, PRIMARY_PATIENT_ID, SYS_USER_ID);
+    }
+
 }

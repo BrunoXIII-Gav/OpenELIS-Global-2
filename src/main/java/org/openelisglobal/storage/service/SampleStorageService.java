@@ -19,10 +19,14 @@ public interface SampleStorageService {
      * All relationships are eagerly fetched within the service transaction.
      * 
      * @return List of maps, each containing: id, sampleItemId,
-     *         sampleItemExternalId, sampleAccessionNumber, type, status,
-     *         location, assignedBy, date
+     *         sampleItemExternalId, sampleAccessionNumber, type, status, location,
+     *         assignedBy, date
      */
     List<Map<String, Object>> getAllSamplesWithAssignments();
+
+    Map<String, Object> getStorageMetrics();
+
+    Map<String, Object> getSampleItemLocationForStorage(String sampleItemId);
 
     /**
      * Assign a SampleItem to a location using simplified polymorphic relationship

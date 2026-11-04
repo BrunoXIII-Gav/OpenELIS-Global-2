@@ -15,6 +15,23 @@
         </id>
         <version name="lastupdated" column="LASTUPDATED"
             type="timestamp" access="field" />
+        <property name="userCreated" type="boolean" update="false">
+            <column name="user_created" not-null="true" default="false" />
+        </property>
+        <property name="creationOriginVerified" type="boolean"
+            update="false">
+            <column name="creation_origin_verified" not-null="true"
+                default="true" />
+        </property>
+        <property name="creationOriginVerifiedBy"
+            type="java.lang.String" update="false">
+            <column name="creation_origin_verified_by" length="40" />
+        </property>
+        <property name="creationOriginVerifiedAt" type="timestamp"
+            update="false">
+            <column name="creation_origin_verified_at"
+                default="CURRENT_TIMESTAMP" />
+        </property>
         <many-to-one name="testSection"
             class="org.openelisglobal.test.valueholder.TestSection"
             fetch="select" lazy="false">
@@ -119,12 +136,16 @@
         <property name="notifyResults" type="java.lang.Boolean"
             column="notify_results" />
         <property name="guid" type="java.lang.String" column="guid" />
-        <property name="storedName" type="java.lang.String" column="name" />
-        <property name="resultDisplayConfigJson" type="java.lang.String"
-            column="result_display_config_json" />
-        <property name="directSampleUsageEnabled" type="java.lang.Boolean"
-            column="direct_sample_usage_enabled" />
-        <property name="skipValidationWhenParentComplete" type="java.lang.Boolean"
+        <property name="storedName" type="java.lang.String"
+            column="name" />
+        <property name="resultDisplayConfigJson"
+            type="java.lang.String" column="result_display_config_json" />
+        <property name="directSampleUsageEnabled"
+            type="java.lang.Boolean" column="direct_sample_usage_enabled" />
+        <property name="allowProcessingInAlternateFlow"
+            type="java.lang.Boolean" column="allow_processing_in_alternate_flow" />
+        <property name="skipValidationWhenParentComplete"
+            type="java.lang.Boolean"
             column="skip_validation_when_parent_complete" />
         <many-to-one name="defaultTestResult"
             class="org.openelisglobal.testresult.valueholder.TestResult"

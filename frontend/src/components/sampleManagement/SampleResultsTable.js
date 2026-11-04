@@ -1,3 +1,4 @@
+import HistoricalUserSelectItem from "../common/HistoricalUserSelectItem";
 import React, {
   useMemo,
   useState,
@@ -21,6 +22,7 @@ import {
   Tag,
   Button,
   InlineLoading,
+  InlineNotification,
   TextInput,
   Checkbox,
   Select,
@@ -36,7 +38,6 @@ import {
   postToOpenElisServerJsonResponse,
 } from "../utils/Utils";
 import "./SampleResultsTable.css";
-
 const ORDER_FIXED_FIELD_LABEL_MESSAGE_IDS = {
   priority: "sample.management.order.fixed.priority",
   requestDate: "sample.management.order.fixed.requestDate",
@@ -66,7 +67,6 @@ const ORDER_FIXED_FIELD_LABEL_MESSAGE_IDS = {
   rememberSiteAndRequester:
     "sample.management.order.fixed.rememberSiteAndRequester",
 };
-
 const SAMPLE_FIXED_FIELD_LABEL_MESSAGE_IDS = {
   quantity: "sample.quantity.label",
   uom: "sample.uom.label",
@@ -74,7 +74,6 @@ const SAMPLE_FIXED_FIELD_LABEL_MESSAGE_IDS = {
   collectionDate: "sample.collection.date",
   collectionTime: "sample.collection.time",
 };
-
 const SAMPLE_MANAGEMENT_EDITABLE_FIXED_FIELD_KEYS = [
   "quantity",
   "uom",
@@ -82,6 +81,19 @@ const SAMPLE_MANAGEMENT_EDITABLE_FIXED_FIELD_KEYS = [
   "collectionDate",
   "collectionTime",
 ];
+
+// General field templates cannot determine eligibility for a particular sample.
+const clearUserOptions = (field) =>
+  ["USER", "SYSTEM_USER_BIOLOGIST_SELECT"].includes(
+    String(field.fieldType || "")
+      .trim()
+      .toUpperCase(),
+  )
+    ? {
+        ...field,
+        options: [],
+      }
+    : field;
 
 /**
  * SampleResultsTable - Display search results for sample items in a data table.
@@ -107,28 +119,12 @@ function SampleResultsTable({
   sampleItems = [],
   onSelectionChange,
   onTestRemoved,
+  onAssociateAlternateTests,
   currentTestsVisibleBySampleId = {},
   onPersistResult,
+  isReadOnly = false,
 }) {
   const intl = useIntl();
-
-  const normalizeProfileCode = (rawValue) => {
-    const normalized = String(rawValue || "")
-      .trim()
-      .toUpperCase();
-    if (!normalized) return "";
-    if (normalized === "BIOLOGO" || normalized === "BIOLOGISTA") {
-      return "BIOLOGIST";
-    }
-    if (
-      normalized === "MEDICO" ||
-      normalized === "MÉDICO" ||
-      normalized === "DOCTOR"
-    ) {
-      return "MEDICAL_DOCTOR";
-    }
-    return normalized;
-  };
 
   // Track which tests are being cancelled (loading state)
   const [cancellingTests, setCancellingTests] = useState({});
@@ -138,7 +134,7 @@ function SampleResultsTable({
     {},
   );
   const [sampleFixedConfigs, setSampleFixedConfigs] = useState([]);
-  const [collectorUsers, setCollectorUsers] = useState([]);
+  const [collectorUsersBySample, setCollectorUsersBySample] = useState({});
   const [additionalFieldValuesBySampleId, setAdditionalFieldValuesBySampleId] =
     useState({});
   const [additionalFieldsBySampleId, setAdditionalFieldsBySampleId] = useState(
@@ -148,28 +144,41 @@ function SampleResultsTable({
   const [savingBySampleId, setSavingBySampleId] = useState({});
   const componentMounted = useRef(false);
   const lastSampleSignatureRef = useRef("");
-
+  useEffect(() => {
+    let active = true;
+    (sampleItems || []).forEach((item) => {
+      getFromOpenElisServer(
+        `/rest/sample-management/collectors?sampleItemId=${encodeURIComponent(item.id)}`,
+        (users) => {
+          if (active)
+            setCollectorUsersBySample((previous) => ({
+              ...previous,
+              [item.id]: Array.isArray(users) ? users : [],
+            }));
+        },
+      );
+    });
+    return () => {
+      active = false;
+    };
+  }, [sampleItems]);
   const getCollectorOptionsWithCurrentValue = useCallback(
-    (currentValue) => {
-      const options = [...collectorUsers];
-      const normalizedCurrentValue = String(currentValue || "").trim();
+    (sampleId, currentId, currentValue) => {
+      const options = [...(collectorUsersBySample[sampleId] || [])];
       if (
-        normalizedCurrentValue &&
-        !options.some(
-          (option) =>
-            String(option.value || "").trim() === normalizedCurrentValue,
-        )
+        currentValue &&
+        !options.some((option) => String(option.id) === String(currentId))
       ) {
         options.push({
-          id: `legacy-${normalizedCurrentValue}`,
-          value: normalizedCurrentValue,
+          id: currentId || "legacy",
+          value: currentValue,
+          historical: true,
         });
       }
       return options;
     },
-    [collectorUsers],
+    [collectorUsersBySample],
   );
-
   const toDateInputValue = (value) => {
     if (!value) return "";
     if (typeof value === "string" && value.includes("/")) {
@@ -181,7 +190,6 @@ function SampleResultsTable({
         const firstNum = Number(first);
         const secondNum = Number(second);
         const yearNum = Number(year);
-
         if (
           Number.isInteger(firstNum) &&
           Number.isInteger(secondNum) &&
@@ -211,7 +219,6 @@ function SampleResultsTable({
     const day = String(date.getDate()).padStart(2, "0");
     return `${year}-${month}-${day}`;
   };
-
   const toTimeInputValue = (value) => {
     if (!value) return "";
     if (typeof value === "string") {
@@ -244,7 +251,6 @@ function SampleResultsTable({
           }
         }
       }
-
       const isoMatch = normalized.match(
         /^\d{4}-\d{2}-\d{2}[t\s](\d{2}):(\d{2})(?::\d{2})?/,
       );
@@ -258,7 +264,6 @@ function SampleResultsTable({
     const minute = String(date.getMinutes()).padStart(2, "0");
     return `${hour}:${minute}`;
   };
-
   const normalizeAdditionalFieldKey = (value) =>
     String(value || "")
       .trim()
@@ -267,12 +272,10 @@ function SampleResultsTable({
       .replace(/_+/g, "_")
       .replace(/^_+/, "")
       .slice(0, 80);
-
   const resolveAdditionalFieldKey = (field) => {
     const candidate = field?.fieldKey || field?.key || field?.displayName || "";
     return normalizeAdditionalFieldKey(candidate);
   };
-
   const parseAdditionalFieldMetadata = (field) => {
     const rawMetadata = field?.metadataJson || field?.metadata;
     if (!rawMetadata) {
@@ -287,40 +290,32 @@ function SampleResultsTable({
       return {};
     }
   };
-
   const isLabelAdditionalField = (field) => {
     if (parseAdditionalFieldMetadata(field)?.tubeLabel?.enabled === true) {
       return true;
     }
-
     const normalizedFieldKey = normalizeAdditionalFieldKey(field?.fieldKey);
     const normalizedDisplayName = normalizeAdditionalFieldKey(
       field?.displayName,
     );
     const resolvedKey = resolveAdditionalFieldKey(field);
-
     return [normalizedFieldKey, normalizedDisplayName, resolvedKey].includes(
       "label",
     );
   };
-
   const buildTubeSequenceBySampleId = (items) => {
     const groupedItems = new Map();
-
     items.forEach((item) => {
       const familyKey = item?.parentExternalId || item?.externalId || item?.id;
       if (!familyKey) {
         return;
       }
-
       if (!groupedItems.has(familyKey)) {
         groupedItems.set(familyKey, []);
       }
       groupedItems.get(familyKey).push(item);
     });
-
     const sequenceBySampleId = {};
-
     groupedItems.forEach((groupedSampleItems) => {
       groupedSampleItems
         .slice()
@@ -331,15 +326,16 @@ function SampleResultsTable({
           const rightIsParent =
             !right?.parentExternalId ||
             String(right.parentExternalId) === String(right.externalId);
-
           if (leftIsParent !== rightIsParent) {
             return leftIsParent ? -1 : 1;
           }
-
           return String(left?.externalId || left?.id || "").localeCompare(
             String(right?.externalId || right?.id || ""),
             undefined,
-            { numeric: true, sensitivity: "base" },
+            {
+              numeric: true,
+              sensitivity: "base",
+            },
           );
         })
         .forEach((item, index) => {
@@ -348,44 +344,38 @@ function SampleResultsTable({
           }
         });
     });
-
     return sequenceBySampleId;
   };
-
   const getInitialLabelValue = useCallback(
     (sampleItem, tubeSequenceBySampleId) => {
-      const sampleCode = String(
-        sampleItem?.accessionNumber || sampleItem?.externalId || "",
-      )
+      const sampleIdentifier = String(sampleItem?.externalId || "")
         .trim()
         .replace(/\.+$/, "");
-      if (!sampleCode) {
+      if (!sampleIdentifier) {
         return "";
       }
-
       const hasResultBlocks =
         Array.isArray(sampleItem?.orderedTests) &&
         sampleItem.orderedTests.length > 0;
       if (!hasResultBlocks) {
-        return `${sampleCode}.`;
+        return `${sampleIdentifier}.`;
       }
-
       const tubeNumber = tubeSequenceBySampleId?.[sampleItem?.id] || 1;
-      return `${sampleCode}.${tubeNumber}`;
+      return `${sampleIdentifier}.${tubeNumber}`;
     },
     [],
   );
-
   const resolveOrderFieldLabel = (field) => {
     if (field?.source === "fixed") {
       const messageId = ORDER_FIXED_FIELD_LABEL_MESSAGE_IDS[field?.fieldKey];
       if (messageId) {
-        return intl.formatMessage({ id: messageId });
+        return intl.formatMessage({
+          id: messageId,
+        });
       }
     }
     return field?.displayName || field?.fieldKey || "";
   };
-
   const getSampleFixedFieldConfig = useCallback(
     (fieldKey) =>
       sampleFixedConfigs.find(
@@ -395,7 +385,6 @@ function SampleResultsTable({
       ) || null,
     [sampleFixedConfigs],
   );
-
   const editableSampleFieldDefinitions = useMemo(() => {
     return SAMPLE_MANAGEMENT_EDITABLE_FIXED_FIELD_KEYS.map(
       (fieldKey, index) => {
@@ -411,7 +400,6 @@ function SampleResultsTable({
       },
     ).sort((left, right) => left.sortOrder - right.sortOrder);
   }, [getSampleFixedFieldConfig, intl]);
-
   const getAvailableUomsForSampleType = useCallback(
     (sampleTypeId) => {
       const normalizedSampleTypeId = String(sampleTypeId || "");
@@ -424,7 +412,6 @@ function SampleResultsTable({
     },
     [uomAssignmentsBySampleType, uomList],
   );
-
   useEffect(() => {
     componentMounted.current = true;
     const fetchUoms = (res) => {
@@ -442,51 +429,42 @@ function SampleResultsTable({
       if (!componentMounted.current) return;
       setSampleFixedConfigs(Array.isArray(res) ? res : []);
     });
-    getFromOpenElisServer("/rest/sample-type-uoms/assignments", (res) => {
-      if (!componentMounted.current) return;
-      setUomAssignmentsBySampleType(res || {});
-    });
-
-    const fetchCollectorUsers = (profileCode) => {
-      const normalizedCode = normalizeProfileCode(profileCode);
-      if (!normalizedCode) {
-        if (componentMounted.current) {
-          setCollectorUsers([]);
-        }
-        return;
-      }
-      getFromOpenElisServer(
-        `/rest/users/professional-profile/${encodeURIComponent(
-          normalizedCode,
-        )}?activeOnly=true&requireEmail=false`,
-        (usersResponse) => {
-          if (!componentMounted.current) return;
-          const options = Array.isArray(usersResponse)
-            ? usersResponse.map((item) => ({
-                id: item.id,
-                value: item.value,
-              }))
-            : [];
-          setCollectorUsers(options);
-        },
-      );
-    };
-
-    getFromOpenElisServer("/rest/open-configuration-properties", (config) => {
-      if (!componentMounted.current) return;
-      const collectorProfileCode =
-        config?.sampleCollectorProfessionalProfileCode || "BIOLOGIST";
-      fetchCollectorUsers(normalizeProfileCode(collectorProfileCode));
-    });
-
     return () => {
       componentMounted.current = false;
     };
   }, []);
-
+  useEffect(() => {
+    const sampleTypeIds = Array.from(
+      new Set(
+        (sampleItems || [])
+          .map((item) => String(item?.sampleTypeId || "").trim())
+          .filter(Boolean),
+      ),
+    );
+    sampleTypeIds.forEach((sampleTypeId) => {
+      if (uomAssignmentsBySampleType[sampleTypeId] !== undefined) {
+        return;
+      }
+      getFromOpenElisServer(
+        `/rest/sample-management/uom-assignments?sampleTypeId=${encodeURIComponent(sampleTypeId)}`,
+        (response) => {
+          if (!componentMounted.current || !Array.isArray(response)) {
+            return;
+          }
+          setUomAssignmentsBySampleType((previous) => ({
+            ...previous,
+            [sampleTypeId]: response.map((id) => String(id)),
+          }));
+        },
+      );
+    });
+  }, [sampleItems, uomAssignmentsBySampleType]);
   useEffect(() => {
     const signature = JSON.stringify(
-      (sampleItems || []).map((item) => `${item.id}:${item.lastupdated || ""}`),
+      (sampleItems || []).map(
+        (item) =>
+          `${item.id}:${item.lastupdated || ""}:${item.alternateOrderFlow === true}:${item.alternateOrderFlowProcessingAllowed === true}`,
+      ),
     );
     if (lastSampleSignatureRef.current !== signature) {
       lastSampleSignatureRef.current = signature;
@@ -494,8 +472,13 @@ function SampleResultsTable({
       setAdditionalFieldValuesBySampleId({});
     }
   }, [sampleItems]);
-
   useEffect(() => {
+    const restrictedFieldGroupKeys = new Set(
+      sampleItems.flatMap((item) => item.restrictedFieldGroupKeys || []),
+    );
+    const restrictedFieldTagKeys = new Set(
+      sampleItems.flatMap((item) => item.restrictedFieldTagKeys || []),
+    );
     const sampleTypeIds = Array.from(
       new Set(
         sampleItems
@@ -505,11 +488,9 @@ function SampleResultsTable({
           ),
       ),
     );
-
     if (sampleTypeIds.length === 0) {
       return;
     }
-
     sampleTypeIds.forEach((sampleTypeId) => {
       getFromOpenElisServer(
         `/rest/sample-type-tests?sampleType=${sampleTypeId}`,
@@ -517,11 +498,32 @@ function SampleResultsTable({
           if (!componentMounted.current) {
             return;
           }
-          const fields = Array.isArray(response?.additionalFields)
+          const configuredFields = Array.isArray(response?.additionalFields)
             ? response.additionalFields
             : [];
+          const fields = configuredFields.filter((field) => {
+            const displaySection = String(field?.displaySection || "RECEPTION")
+              .trim()
+              .toUpperCase();
+            if (
+              restrictedFieldGroupKeys.has("collection") &&
+              displaySection === "COLLECTION"
+            ) {
+              return false;
+            }
+            if (
+              field?.id !== undefined &&
+              field?.id !== null &&
+              restrictedFieldTagKeys.has(`additional-field-${field.id}`)
+            ) {
+              return false;
+            }
+            return !(
+              restrictedFieldGroupKeys.has("clinical-data") &&
+              displaySection !== "COLLECTION"
+            );
+          });
           const tests = Array.isArray(response?.tests) ? response.tests : [];
-
           if (tests.length > 0) {
             const testNamesMap = {};
             tests.forEach((test) => {
@@ -544,21 +546,20 @@ function SampleResultsTable({
               }));
             }
           }
-
           if (fields.length === 0) {
             return;
           }
-
-          const sampleIdsForType = sampleItems
-            .filter(
-              (item) => String(item.sampleTypeId) === String(sampleTypeId),
-            )
-            .map((item) => item.id);
-
+          const samplesForType = sampleItems.filter(
+            (item) => String(item.sampleTypeId) === String(sampleTypeId),
+          );
           setAdditionalFieldsBySampleId((prev) => {
-            const next = { ...prev };
-            sampleIdsForType.forEach((sampleId) => {
-              next[sampleId] = fields;
+            const next = {
+              ...prev,
+            };
+            samplesForType.forEach((item) => {
+              next[item.id] = Array.isArray(item.additionalFields)
+                ? item.additionalFields
+                : fields.map(clearUserOptions);
             });
             return next;
           });
@@ -566,8 +567,16 @@ function SampleResultsTable({
       );
     });
   }, [sampleItems]);
-
   useEffect(() => {
+    const restrictedFieldGroupKeys = new Set(
+      sampleItems.flatMap((item) => item.restrictedFieldGroupKeys || []),
+    );
+    if (
+      restrictedFieldGroupKeys.has("collection") ||
+      restrictedFieldGroupKeys.has("clinical-data")
+    ) {
+      return;
+    }
     sampleItems.forEach((item) => {
       if (!item?.id || !item?.sampleTypeId) {
         return;
@@ -592,56 +601,45 @@ function SampleResultsTable({
       );
     });
   }, [sampleItems]);
-
   useEffect(() => {
     if (!Array.isArray(sampleItems) || sampleItems.length === 0) {
       return;
     }
-
     const tubeSequenceBySampleId = buildTubeSequenceBySampleId(sampleItems);
-
     setAdditionalFieldValuesBySampleId((prev) => {
       let nextState = prev;
-
       sampleItems.forEach((item) => {
         if (!item?.id) {
           return;
         }
-
         const configuredFields = Array.isArray(item.additionalFields)
           ? item.additionalFields
           : Array.isArray(additionalFieldsBySampleId[item.id])
             ? additionalFieldsBySampleId[item.id]
             : [];
-
         if (configuredFields.length === 0) {
           return;
         }
-
         const labelField = configuredFields.find(isLabelAdditionalField);
         if (!labelField) {
           return;
         }
-
         const fieldKey = resolveAdditionalFieldKey(labelField);
         if (!fieldKey) {
           return;
         }
-
         const existingStateValue = prev?.[item.id]?.[fieldKey];
         const existingBackendValue =
           item.additionalFieldValues?.[fieldKey] ??
           item.additionalFieldValues?.[
             normalizeAdditionalFieldKey(labelField?.displayName)
           ];
-
         if (
           String(existingStateValue || "").trim() ||
           String(existingBackendValue || "").trim()
         ) {
           return;
         }
-
         const initialLabelValue = getInitialLabelValue(
           item,
           tubeSequenceBySampleId,
@@ -649,7 +647,6 @@ function SampleResultsTable({
         if (!initialLabelValue) {
           return;
         }
-
         nextState = {
           ...nextState,
           [item.id]: {
@@ -658,11 +655,9 @@ function SampleResultsTable({
           },
         };
       });
-
       return nextState;
     });
   }, [additionalFieldsBySampleId, getInitialLabelValue, sampleItems]);
-
   const handleCurrentTestFieldChange = useCallback((key, field, value) => {
     setCurrentTestDetailsByKey((prev) => ({
       ...prev,
@@ -676,8 +671,11 @@ function SampleResultsTable({
   /**
    * Table headers configuration.
    */
-  const headers = useMemo(
-    () => [
+  const headers = useMemo(() => {
+    const restrictedFieldTagKeys = new Set(
+      sampleItems.flatMap((item) => item.restrictedFieldTagKeys || []),
+    );
+    return [
       {
         key: "externalId",
         header: intl.formatMessage({
@@ -720,9 +718,16 @@ function SampleResultsTable({
           id: "sample.management.table.header.hierarchy",
         }),
       },
-    ],
-    [intl],
-  );
+    ].filter((header) => {
+      if (["quantity", "remainingQuantity"].includes(header.key)) {
+        return !restrictedFieldTagKeys.has("quantity");
+      }
+      if (header.key === "tests") {
+        return !restrictedFieldTagKeys.has("tests");
+      }
+      return true;
+    });
+  }, [intl, sampleItems]);
 
   /**
    * Transform sample items to table rows.
@@ -733,13 +738,11 @@ function SampleResultsTable({
       // Backend sends effectiveRemainingQuantity which handles null remainingQuantity
       const displayRemaining = item.effectiveRemainingQuantity;
       const testCount = item.orderedTests ? item.orderedTests.length : 0;
-
       let additionalFields = Array.isArray(item.additionalFields)
         ? [...item.additionalFields]
         : [];
       let additionalFieldValues = item.additionalFieldValues || {};
-
-      if (additionalFields.length === 0) {
+      if (!Array.isArray(item.additionalFields)) {
         (item.orderedTests || []).forEach((test) => {
           if (
             additionalFields.length === 0 &&
@@ -760,8 +763,8 @@ function SampleResultsTable({
             };
           }
         });
+        additionalFields = additionalFields.map(clearUserOptions);
       }
-
       return {
         id: item.id,
         externalId: item.externalId || "-",
@@ -773,6 +776,7 @@ function SampleResultsTable({
           ? String(item.unitOfMeasureId)
           : "",
         collectorRaw: item.collector || "",
+        collectorUserIdRaw: item.collectorUserId || "",
         collectionDateRaw: toDateInputValue(item.collectionDate),
         collectionTimeRaw: toTimeInputValue(
           item.collectionTime || item.collectionDate,
@@ -784,11 +788,24 @@ function SampleResultsTable({
           ? `${displayRemaining} ${item.unitOfMeasure || ""}`
           : "-",
         statusId: item.statusId,
+        dataCompletionStatus: item.dataCompletionStatus,
+        editable: Boolean(item.editable),
+        alternateOrderFlow: item.alternateOrderFlow === true,
+        alternateOrderFlowProcessingAllowed:
+          item.alternateOrderFlowProcessingAllowed === true,
+        alternateFlowTestAssociationAllowed:
+          item.alternateFlowTestAssociationAllowed === true,
+        canRead: Boolean(item.canRead),
+        canComplete: Boolean(item.canComplete),
+        canUpdate: Boolean(item.canUpdate),
         isAliquot: item.isAliquot,
         nestingLevel: item.nestingLevel || 0,
         hasRemainingQuantity: item.hasRemainingQuantity,
+        volumeRecorded: item.quantity != null || item.remainingQuantity != null,
         childAliquotCount: item.childAliquots ? item.childAliquots.length : 0,
         parentExternalId: item.parentExternalId,
+        restrictedFieldGroupKeys: item.restrictedFieldGroupKeys || [],
+        restrictedFieldTagKeys: item.restrictedFieldTagKeys || [],
         orderedTests: item.orderedTests || [],
         additionalFields,
         additionalFieldValues,
@@ -800,19 +817,16 @@ function SampleResultsTable({
       };
     });
   }, [sampleItems]);
-
   const resolveTestName = useCallback(
     (test, sampleTypeId) => {
       if (!test) {
         return "-";
       }
-
       const rawName = String(test.testName || test.name || "").trim();
       const isNumericOnlyName = /^\d+$/.test(rawName);
       if (rawName && !isNumericOnlyName) {
         return rawName;
       }
-
       const testId = String(
         test.testId !== undefined && test.testId !== null
           ? test.testId
@@ -825,7 +839,6 @@ function SampleResultsTable({
           return mappedName;
         }
       }
-
       if (rawName) {
         return rawName;
       }
@@ -833,7 +846,6 @@ function SampleResultsTable({
     },
     [testNamesBySampleTypeId],
   );
-
   const updateAdditionalFieldValue = (sampleId, fieldKey, value) => {
     setAdditionalFieldValuesBySampleId((prev) => ({
       ...prev,
@@ -843,7 +855,6 @@ function SampleResultsTable({
       },
     }));
   };
-
   const updateAdditionalMultiSelectOption = (
     sampleId,
     fieldKey,
@@ -868,13 +879,14 @@ function SampleResultsTable({
       Array.from(selectedValues).join(","),
     );
   };
-
   const buildSampleSavePayload = (sampleId, originalRow, additionalFields) => {
     const rawMergedValues = {
       ...(originalRow?.additionalFieldValues || {}),
       ...(additionalFieldValuesBySampleId[sampleId] || {}),
     };
-    const additionalValues = { ...rawMergedValues };
+    const additionalValues = {
+      ...rawMergedValues,
+    };
     (additionalFields || []).forEach((field) => {
       const fieldKey = resolveAdditionalFieldKey(field);
       if (!fieldKey) return;
@@ -906,7 +918,6 @@ function SampleResultsTable({
         additionalValues[fieldKey] = rawMergedValues[normalizedDisplayName];
       }
     });
-
     const currentTests = (originalRow?.orderedTests || []).map((test) => {
       const key = `${sampleId}-${test.analysisId}`;
       const details = currentTestDetailsByKey[key] || {};
@@ -919,12 +930,10 @@ function SampleResultsTable({
         ),
       };
     });
-
     const rowLevelDetailsFromCurrentRow =
       currentTestDetailsByKey[`${sampleId}__sample`] ||
       currentTestDetailsByKey[`${sampleId}__current`] ||
       null;
-
     const rowDetailsCandidates = (originalRow?.orderedTests || [])
       .map((test) => currentTestDetailsByKey[`${sampleId}-${test.analysisId}`])
       .filter(Boolean);
@@ -940,7 +949,6 @@ function SampleResultsTable({
           d.removeSample !== undefined,
       ) ||
       {};
-
     const sampleLevel = {
       quantity:
         rowLevelDetails.quantity !== undefined
@@ -950,6 +958,10 @@ function SampleResultsTable({
         rowLevelDetails.unitOfMeasureId !== undefined
           ? rowLevelDetails.unitOfMeasureId
           : originalRow?.unitOfMeasureIdRaw || "",
+      collectorUserId:
+        rowLevelDetails.collectorUserId !== undefined
+          ? rowLevelDetails.collectorUserId
+          : originalRow?.collectorUserIdRaw || "",
       collector:
         rowLevelDetails.collector !== undefined
           ? rowLevelDetails.collector
@@ -964,7 +976,6 @@ function SampleResultsTable({
           : originalRow?.collectionTimeRaw || "",
       removeSample: Boolean(rowLevelDetails.removeSample),
     };
-
     if (!additionalFields || additionalFields.length === 0) {
       return {
         sampleUpdates: [
@@ -977,7 +988,6 @@ function SampleResultsTable({
         ],
       };
     }
-
     return {
       sampleUpdates: [
         {
@@ -989,17 +999,30 @@ function SampleResultsTable({
       ],
     };
   };
-
   const handleSaveSampleChanges = (sampleId, originalRow, additionalFields) => {
+    if (
+      isReadOnly ||
+      !originalRow?.editable ||
+      (originalRow?.alternateOrderFlow &&
+        !originalRow?.alternateOrderFlowProcessingAllowed)
+    ) {
+      return;
+    }
     const payload = buildSampleSavePayload(
       sampleId,
       originalRow,
       additionalFields,
     );
-    setSavingBySampleId((prev) => ({ ...prev, [sampleId]: true }));
+    setSavingBySampleId((prev) => ({
+      ...prev,
+      [sampleId]: true,
+    }));
     const sampleUpdate = payload?.sampleUpdates?.[0];
     if (!sampleUpdate) {
-      setSavingBySampleId((prev) => ({ ...prev, [sampleId]: false }));
+      setSavingBySampleId((prev) => ({
+        ...prev,
+        [sampleId]: false,
+      }));
       if (onPersistResult) {
         onPersistResult({
           success: false,
@@ -1008,21 +1031,28 @@ function SampleResultsTable({
       }
       return;
     }
-
     postToOpenElisServerJsonResponse(
       "/rest/sample-management/save-changes",
       JSON.stringify(payload),
       (response) => {
-        setSavingBySampleId((prev) => ({ ...prev, [sampleId]: false }));
+        setSavingBySampleId((prev) => ({
+          ...prev,
+          [sampleId]: false,
+        }));
         if (onPersistResult) {
           onPersistResult({
             success:
               !response?.error &&
               !response?.statusCode &&
               response?.updatedSamplesCount !== undefined,
-            message:
-              response?.message ||
-              intl.formatMessage({ id: "sample.management.success.title" }),
+            message: intl.messages[response?.message]
+              ? intl.formatMessage({
+                  id: response.message,
+                })
+              : response?.message ||
+                intl.formatMessage({
+                  id: "sample.management.success.title",
+                }),
           });
         }
       },
@@ -1034,20 +1064,27 @@ function SampleResultsTable({
    */
   const handleCancelTest = useCallback(
     (sampleItemId, analysisId, testName) => {
-      // Set loading state for this specific test
-      setCancellingTests((prev) => ({ ...prev, [analysisId]: true }));
+      if (isReadOnly) {
+        return;
+      }
 
+      // Set loading state for this specific test
+      setCancellingTests((prev) => ({
+        ...prev,
+        [analysisId]: true,
+      }));
       const payload = JSON.stringify({
         analysisId: analysisId,
         sampleItemId: sampleItemId,
       });
-
       postToOpenElisServerFullResponse(
         "/rest/sample-management/cancel-test",
         payload,
         (response) => {
-          setCancellingTests((prev) => ({ ...prev, [analysisId]: false }));
-
+          setCancellingTests((prev) => ({
+            ...prev,
+            [analysisId]: false,
+          }));
           if (response.ok) {
             // Notify parent to refresh data
             if (onTestRemoved) {
@@ -1060,7 +1097,7 @@ function SampleResultsTable({
         },
       );
     },
-    [onTestRemoved],
+    [isReadOnly, onTestRemoved],
   );
 
   /**
@@ -1072,8 +1109,8 @@ function SampleResultsTable({
     const originalRow = rows.find((r) => r.id === dataTableRow.id);
     if (!originalRow) return null;
 
-    // Only show a tag if there's no remaining quantity
-    if (!originalRow.hasRemainingQuantity) {
+    // Unknown volume is not an exhausted sample.
+    if (originalRow.volumeRecorded && !originalRow.hasRemainingQuantity) {
       return (
         <Tag type="red">
           {intl.formatMessage({
@@ -1093,16 +1130,29 @@ function SampleResultsTable({
   const renderTestsCount = (dataTableRow) => {
     const originalRow = rows.find((r) => r.id === dataTableRow.id);
     if (!originalRow) return null;
-
     if (originalRow.testCount > 0) {
       return (
-        <div style={{ display: "flex", alignItems: "center", gap: "4px" }}>
+        <div
+          style={{
+            display: "flex",
+            alignItems: "center",
+            gap: "4px",
+          }}
+        >
           <Chemistry size={16} />
           <span>{originalRow.testCount}</span>
         </div>
       );
     }
-    return <span style={{ color: "#6f6f6f" }}>-</span>;
+    return (
+      <span
+        style={{
+          color: "#6f6f6f",
+        }}
+      >
+        -
+      </span>
+    );
   };
 
   /**
@@ -1113,36 +1163,65 @@ function SampleResultsTable({
     // Find the original row data by ID
     const originalRow = rows.find((r) => r.id === dataTableRow.id);
     if (!originalRow) return null;
-
     const nestingIndent = originalRow.nestingLevel * 16; // 16px per level
 
     return (
-      <div style={{ display: "flex", alignItems: "center" }}>
+      <div
+        style={{
+          display: "flex",
+          alignItems: "center",
+        }}
+      >
         {originalRow.nestingLevel > 0 && (
           <span
-            style={{ marginLeft: `${nestingIndent}px`, marginRight: "4px" }}
+            style={{
+              marginLeft: `${nestingIndent}px`,
+              marginRight: "4px",
+            }}
           >
             {"└─"}
           </span>
         )}
         {originalRow.childAliquotCount > 0 ? (
-          <Folder size={16} style={{ marginRight: "4px" }} />
+          <Folder
+            size={16}
+            style={{
+              marginRight: "4px",
+            }}
+          />
         ) : (
-          <Document size={16} style={{ marginRight: "4px" }} />
+          <Document
+            size={16}
+            style={{
+              marginRight: "4px",
+            }}
+          />
         )}
         {originalRow.isAliquot && originalRow.parentExternalId && (
           <span
-            style={{ fontSize: "0.75rem", color: "#6f6f6f", marginLeft: "4px" }}
+            style={{
+              fontSize: "0.75rem",
+              color: "#6f6f6f",
+              marginLeft: "4px",
+            }}
           >
             {intl.formatMessage(
-              { id: "sample.management.hierarchy.aliquotOf" },
-              { parent: originalRow.parentExternalId },
+              {
+                id: "sample.management.hierarchy.aliquotOf",
+              },
+              {
+                parent: originalRow.parentExternalId,
+              },
             )}
           </span>
         )}
         {originalRow.childAliquotCount > 0 && (
           <span
-            style={{ fontSize: "0.75rem", color: "#6f6f6f", marginLeft: "4px" }}
+            style={{
+              fontSize: "0.75rem",
+              color: "#6f6f6f",
+              marginLeft: "4px",
+            }}
           >
             ({originalRow.childAliquotCount}{" "}
             {intl.formatMessage({
@@ -1154,25 +1233,117 @@ function SampleResultsTable({
       </div>
     );
   };
-
   const getPrimarySampleRowId = useCallback((rowId, originalRow) => {
     const firstTestId = originalRow?.orderedTests?.[0]?.analysisId;
     return firstTestId ? `${rowId}-${firstTestId}` : `${rowId}__sample`;
   }, []);
-
   /**
    * Render expanded row content with test details.
    */
   const renderExpandedContent = (row) => {
     const originalRow = rows.find((r) => r.id === row.id);
+    const rowReadOnly = isReadOnly || !originalRow?.editable;
+    const restrictedFieldGroupKeys = new Set(
+      originalRow?.restrictedFieldGroupKeys || [],
+    );
+    const restrictedFieldTagKeys = new Set(
+      originalRow?.restrictedFieldTagKeys || [],
+    );
+    const collectionRestricted = restrictedFieldGroupKeys.has("collection");
+    const testsRestricted =
+      restrictedFieldGroupKeys.has("tests-and-results") ||
+      restrictedFieldTagKeys.has("tests");
+    const completingOnly =
+      originalRow?.canComplete &&
+      !originalRow?.canRead &&
+      !originalRow?.canUpdate;
+    if (
+      originalRow?.alternateOrderFlow &&
+      !originalRow?.alternateOrderFlowProcessingAllowed
+    ) {
+      return (
+        <div className="sample-mgmt-expanded-content">
+          <InlineNotification
+            kind="info"
+            title={intl.formatMessage({
+              id: "sample.management.alternateOrderFlow.title",
+            })}
+            subtitle={intl.formatMessage({
+              id: "sample.management.alternateOrderFlow.notice",
+            })}
+            hideCloseButton
+          />
+          {!isReadOnly &&
+            !testsRestricted &&
+            !completingOnly &&
+            originalRow.alternateFlowTestAssociationAllowed &&
+            onAssociateAlternateTests && (
+              <Button
+                kind="tertiary"
+                onClick={() => onAssociateAlternateTests(originalRow.id)}
+              >
+                <FormattedMessage id="sample.management.alternateOrderFlow.associateTest" />
+              </Button>
+            )}
+          {!testsRestricted &&
+            !completingOnly &&
+            originalRow.orderedTests.length > 0 && (
+              <>
+                <div className="sample-mgmt-ordered-tests-header">
+                  <FormattedMessage
+                    id="sample.management.alternateOrderFlow.history"
+                    values={{
+                      count: originalRow.orderedTests.length,
+                    }}
+                  />
+                </div>
+                <div className="sample-mgmt-tests-grid">
+                  {originalRow.orderedTests.map((test) => (
+                    <Tile
+                      key={test.analysisId}
+                      className="sample-mgmt-test-card"
+                    >
+                      <span>
+                        {resolveTestName(test, originalRow.sampleTypeId)}
+                      </span>
+                      {shouldRenderStatusTag(test.status) && (
+                        <Tag type={getTestStatusType(test.status)} size="sm">
+                          {test.status}
+                        </Tag>
+                      )}
+                    </Tile>
+                  ))}
+                </div>
+              </>
+            )}
+        </div>
+      );
+    }
+    const hasFieldValue = (value) => {
+      if (typeof value === "boolean") {
+        return true;
+      }
+      return String(value ?? "").trim().length > 0;
+    };
+    const isEditableSampleFieldRestricted = (fieldKey) =>
+      (collectionRestricted &&
+        ["collector", "collectionDate", "collectionTime"].includes(fieldKey)) ||
+      (restrictedFieldTagKeys.has("quantity") && fieldKey === "quantity") ||
+      (restrictedFieldTagKeys.has("unit-of-measure") && fieldKey === "uom") ||
+      (restrictedFieldTagKeys.has("collector") && fieldKey === "collector") ||
+      (restrictedFieldTagKeys.has("collection-date") &&
+        ["collectionDate", "collectionTime"].includes(fieldKey));
     const shouldShowCurrentTests = Boolean(
       currentTestsVisibleBySampleId[row.id],
     );
-    const additionalFields = Array.isArray(additionalFieldsBySampleId[row.id])
-      ? additionalFieldsBySampleId[row.id]
-      : Array.isArray(originalRow?.additionalFields)
-        ? originalRow.additionalFields
-        : [];
+    const contextualAdditionalFields = sampleItems.find(
+      (item) => item.id === row.id,
+    )?.additionalFields;
+    const additionalFields = Array.isArray(contextualAdditionalFields)
+      ? contextualAdditionalFields
+      : Array.isArray(additionalFieldsBySampleId[row.id])
+        ? additionalFieldsBySampleId[row.id]
+        : originalRow?.additionalFields || [];
     const effectiveAdditionalFieldValues = {
       ...(originalRow?.additionalFieldValues || {}),
       ...(additionalFieldValuesBySampleId[row.id] || {}),
@@ -1181,20 +1352,34 @@ function SampleResultsTable({
       String(field?.displaySection || "RECEPTION")
         .trim()
         .toUpperCase();
-
     const collectionAdditionalFields = additionalFields.filter(
       (field) => getAdditionalFieldDisplaySection(field) === "COLLECTION",
     );
-
     const receptionAdditionalFields = additionalFields.filter(
       (field) => getAdditionalFieldDisplaySection(field) !== "COLLECTION",
     );
+    const isAdditionalFieldIncomplete = (field) => {
+      const fieldKey = resolveAdditionalFieldKey(field);
+      const fieldValue =
+        effectiveAdditionalFieldValues?.[fieldKey] ??
+        effectiveAdditionalFieldValues?.[
+          normalizeAdditionalFieldKey(field?.displayName)
+        ] ??
+        "";
+      return !hasFieldValue(fieldValue);
+    };
+    const visibleReceptionAdditionalFields = completingOnly
+      ? receptionAdditionalFields.filter(isAdditionalFieldIncomplete)
+      : receptionAdditionalFields;
     const orderReceptionFields = Array.isArray(
       originalRow?.orderReceptionFields,
     )
       ? originalRow.orderReceptionFields
       : [];
-    if (!originalRow || originalRow.orderedTests.length === 0) {
+    if (
+      !originalRow ||
+      (!testsRestricted && originalRow.orderedTests.length === 0)
+    ) {
       return (
         <div
           style={{
@@ -1207,79 +1392,113 @@ function SampleResultsTable({
         </div>
       );
     }
-
     return (
       <div className="sample-mgmt-expanded-content">
-        <div className="sample-mgmt-ordered-tests-header">
-          <div className="sample-mgmt-section-title-row">
-            <Chemistry size={20} />
-            <FormattedMessage
-              id="sample.management.table.orderedTests"
-              values={{ count: originalRow.orderedTests.length }}
-            />
-          </div>
-        </div>
-        <div className="sample-mgmt-tests-grid">
-          {originalRow.orderedTests.map((test) => (
-            <div key={test.analysisId} className="sample-mgmt-test-card">
-              <div style={{ flex: 1 }}>
-                <div style={{ fontWeight: "500" }}>
-                  {resolveTestName(test, originalRow.sampleTypeId)}
-                </div>
-                <div
-                  style={{
-                    fontSize: "0.75rem",
-                    color: "#6f6f6f",
-                    display: "flex",
-                    gap: "0.75rem",
-                    marginTop: "0.25rem",
+        {originalRow?.alternateOrderFlow && (
+          <InlineNotification
+            kind="info"
+            title={intl.formatMessage({
+              id: "sample.management.alternateOrderFlow.title",
+            })}
+            subtitle={intl.formatMessage({
+              id: "sample.management.alternateOrderFlow.processingException",
+            })}
+            hideCloseButton
+          />
+        )}
+        {!testsRestricted && !completingOnly ? (
+          <>
+            <div className="sample-mgmt-ordered-tests-header">
+              <div className="sample-mgmt-section-title-row">
+                <Chemistry size={20} />
+                <FormattedMessage
+                  id="sample.management.table.orderedTests"
+                  values={{
+                    count: originalRow.orderedTests.length,
                   }}
-                >
-                  {shouldRenderStatusTag(test.status) && (
-                    <Tag type={getTestStatusType(test.status)} size="sm">
-                      {test.status}
-                    </Tag>
-                  )}
-                  {test.orderedDate && (
-                    <span>
-                      <FormattedMessage id="sample.management.table.orderedDate" />
-                      : {new Date(test.orderedDate).toLocaleDateString()}
-                    </span>
-                  )}
-                </div>
-              </div>
-              <div style={{ marginLeft: "0.5rem" }}>
-                {cancellingTests[test.analysisId] ? (
-                  <InlineLoading
-                    description={intl.formatMessage({
-                      id: "sample.management.table.cancelling",
-                    })}
-                    status="active"
-                  />
-                ) : (
-                  <Button
-                    kind="ghost"
-                    size="sm"
-                    renderIcon={TrashCan}
-                    iconDescription={intl.formatMessage({
-                      id: "sample.management.table.cancelTest",
-                    })}
-                    hasIconOnly
-                    onClick={() =>
-                      handleCancelTest(
-                        row.id,
-                        test.analysisId,
-                        resolveTestName(test, originalRow.sampleTypeId),
-                      )
-                    }
-                    disabled={!canCancelTest(test.status)}
-                    tooltipPosition="left"
-                  />
-                )}
+                />
               </div>
             </div>
-          ))}
-        </div>
+            <div className="sample-mgmt-tests-grid">
+              {originalRow.orderedTests.map((test) => (
+                <div key={test.analysisId} className="sample-mgmt-test-card">
+                  <div
+                    style={{
+                      flex: 1,
+                    }}
+                  >
+                    <div
+                      style={{
+                        fontWeight: "500",
+                      }}
+                    >
+                      {resolveTestName(test, originalRow.sampleTypeId)}
+                    </div>
+                    <div
+                      style={{
+                        fontSize: "0.75rem",
+                        color: "#6f6f6f",
+                        display: "flex",
+                        gap: "0.75rem",
+                        marginTop: "0.25rem",
+                      }}
+                    >
+                      {shouldRenderStatusTag(test.status) && (
+                        <Tag type={getTestStatusType(test.status)} size="sm">
+                          {test.status}
+                        </Tag>
+                      )}
+                      {test.orderedDate && (
+                        <span>
+                          <FormattedMessage id="sample.management.table.orderedDate" />
+                          : {new Date(test.orderedDate).toLocaleDateString()}
+                        </span>
+                      )}
+                    </div>
+                  </div>
+                  <div
+                    style={{
+                      marginLeft: "0.5rem",
+                    }}
+                  >
+                    {cancellingTests[test.analysisId] ? (
+                      <InlineLoading
+                        description={intl.formatMessage({
+                          id: "sample.management.table.cancelling",
+                        })}
+                        status="active"
+                      />
+                    ) : (
+                      <Button
+                        kind="ghost"
+                        size="sm"
+                        renderIcon={TrashCan}
+                        iconDescription={intl.formatMessage({
+                          id: "sample.management.table.cancelTest",
+                        })}
+                        hasIconOnly
+                        onClick={() =>
+                          handleCancelTest(
+                            row.id,
+                            test.analysisId,
+                            resolveTestName(test, originalRow.sampleTypeId),
+                          )
+                        }
+                        disabled={
+                          rowReadOnly ||
+                          !canCancelTest(test.status) ||
+                          (originalRow?.alternateOrderFlow &&
+                            !test.alternateOrderFlowProcessingAllowed)
+                        }
+                        tooltipPosition="left"
+                      />
+                    )}
+                  </div>
+                </div>
+              ))}
+            </div>
+          </>
+        ) : null}
         {shouldShowCurrentTests &&
           (() => {
             const primarySampleRowId = getPrimarySampleRowId(
@@ -1298,6 +1517,10 @@ function SampleResultsTable({
               sampleDetails.unitOfMeasureId !== undefined
                 ? sampleDetails.unitOfMeasureId
                 : originalRow.unitOfMeasureIdRaw || "";
+            const sampleCollectorId =
+              sampleDetails.collectorUserId !== undefined
+                ? sampleDetails.collectorUserId
+                : originalRow.collectorUserIdRaw || "";
             const sampleCollector =
               sampleDetails.collector !== undefined
                 ? sampleDetails.collector
@@ -1323,10 +1546,33 @@ function SampleResultsTable({
                     ),
                   ]
                 : availableUoms;
-
+            const sampleFieldValues = {
+              quantity: sampleQuantity,
+              uom: sampleUom,
+              collector: sampleCollector,
+              collectionDate: sampleDate,
+              collectionTime: sampleTime,
+            };
+            const visibleEditableSampleFieldDefinitions =
+              editableSampleFieldDefinitions.filter(
+                (field) =>
+                  !isEditableSampleFieldRestricted(field.fieldKey) &&
+                  (!completingOnly ||
+                    !hasFieldValue(sampleFieldValues[field.fieldKey])),
+              );
+            const visibleCollectionAdditionalFields = completingOnly
+              ? collectionAdditionalFields.filter(isAdditionalFieldIncomplete)
+              : collectionAdditionalFields;
             return (
-              <div style={{ marginTop: "1rem", display: "grid", gap: "1rem" }}>
-                {editableSampleFieldDefinitions.length > 0 ? (
+              <div
+                style={{
+                  marginTop: "1rem",
+                  display: "grid",
+                  gap: "1rem",
+                }}
+              >
+                {visibleEditableSampleFieldDefinitions.length > 0 ||
+                visibleCollectionAdditionalFields.length > 0 ? (
                   <Tile className="sample-mgmt-section-card">
                     <div className="sample-mgmt-section-header">
                       <h4 className="sample-mgmt-section-title">
@@ -1339,8 +1585,8 @@ function SampleResultsTable({
                       </Tag>
                     </div>
                     <div className="sample-mgmt-grid">
-                      {editableSampleFieldDefinitions.map((field) => {
-                        const disabled = field.readonly;
+                      {visibleEditableSampleFieldDefinitions.map((field) => {
+                        const disabled = rowReadOnly || field.readonly;
                         switch (field.fieldKey) {
                           case "quantity":
                             return (
@@ -1396,15 +1642,30 @@ function SampleResultsTable({
                                 key={`${row.id}-sample-${field.fieldKey}`}
                                 id={`${row.id}-sample-${field.fieldKey}`}
                                 labelText={field.label}
-                                value={sampleCollector || ""}
+                                value={
+                                  sampleCollectorId ||
+                                  (sampleCollector ? "legacy" : "")
+                                }
                                 disabled={disabled}
-                                onChange={(e) =>
+                                onChange={(e) => {
+                                  const id =
+                                    e.target.value === "legacy"
+                                      ? ""
+                                      : e.target.value;
+                                  const option = (
+                                    collectorUsersBySample[row.id] || []
+                                  ).find((item) => String(item.id) === id);
+                                  handleCurrentTestFieldChange(
+                                    primarySampleRowId,
+                                    "collectorUserId",
+                                    id,
+                                  );
                                   handleCurrentTestFieldChange(
                                     primarySampleRowId,
                                     "collector",
-                                    e.target.value,
-                                  )
-                                }
+                                    option?.value || "",
+                                  );
+                                }}
                               >
                                 <SelectItem
                                   value=""
@@ -1413,12 +1674,17 @@ function SampleResultsTable({
                                   })}
                                 />
                                 {getCollectorOptionsWithCurrentValue(
+                                  row.id,
+                                  sampleCollectorId,
                                   sampleCollector,
                                 ).map((collectorOption) => (
                                   <SelectItem
                                     key={collectorOption.id}
-                                    value={collectorOption.value}
+                                    value={collectorOption.id}
                                     text={collectorOption.value}
+                                    disabled={Boolean(
+                                      collectorOption.historical,
+                                    )}
                                   />
                                 ))}
                               </Select>
@@ -1463,7 +1729,7 @@ function SampleResultsTable({
                             return null;
                         }
                       })}
-                      {collectionAdditionalFields.map((field, idx) => {
+                      {visibleCollectionAdditionalFields.map((field, idx) => {
                         const fieldType = (
                           field.fieldType || "TEXT"
                         ).toUpperCase();
@@ -1477,7 +1743,6 @@ function SampleResultsTable({
                           "";
                         const fieldId = `sample_mgmt_collection_additional_${row.id}_${fieldKey}_${idx}`;
                         const options = field.options || [];
-
                         if (fieldType === "BOOLEAN") {
                           return (
                             <Checkbox
@@ -1485,6 +1750,7 @@ function SampleResultsTable({
                               id={fieldId}
                               labelText={fieldLabel}
                               checked={fieldValue === "true"}
+                              disabled={rowReadOnly}
                               onChange={(e) =>
                                 updateAdditionalFieldValue(
                                   row.id,
@@ -1495,11 +1761,10 @@ function SampleResultsTable({
                             />
                           );
                         }
-
                         if (
                           fieldType === "SELECT" ||
                           fieldType === "RADIO" ||
-                          fieldType === "SYSTEM_USER_BIOLOGIST_SELECT"
+                          fieldType === "USER"
                         ) {
                           return (
                             <Select
@@ -1507,6 +1772,7 @@ function SampleResultsTable({
                               id={fieldId}
                               labelText={fieldLabel}
                               value={fieldValue}
+                              disabled={rowReadOnly}
                               onChange={(e) =>
                                 updateAdditionalFieldValue(
                                   row.id,
@@ -1521,6 +1787,11 @@ function SampleResultsTable({
                                 })}
                                 value=""
                               />
+                              <HistoricalUserSelectItem
+                                fieldType={fieldType}
+                                value={fieldValue}
+                                options={options}
+                              />
                               {options.map((option, optionIdx) => (
                                 <SelectItem
                                   key={`${fieldId}_option_${optionIdx}`}
@@ -1531,7 +1802,6 @@ function SampleResultsTable({
                             </Select>
                           );
                         }
-
                         if (fieldType === "MULTISELECT") {
                           const selectedValues = new Set(
                             String(fieldValue)
@@ -1540,7 +1810,12 @@ function SampleResultsTable({
                               .filter((entry) => entry !== ""),
                           );
                           return (
-                            <div key={fieldId} style={{ gridColumn: "1 / -1" }}>
+                            <div
+                              key={fieldId}
+                              style={{
+                                gridColumn: "1 / -1",
+                              }}
+                            >
                               <div
                                 style={{
                                   marginBottom: "0.5rem",
@@ -1555,6 +1830,7 @@ function SampleResultsTable({
                                   id={`${fieldId}_multi_${optionIdx}`}
                                   labelText={option.optionLabel}
                                   checked={selectedValues.has(option.optionKey)}
+                                  disabled={rowReadOnly}
                                   onChange={(e) =>
                                     updateAdditionalMultiSelectOption(
                                       row.id,
@@ -1568,15 +1844,17 @@ function SampleResultsTable({
                             </div>
                           );
                         }
-
                         if (fieldType === "TEXTAREA") {
                           return (
                             <TextArea
                               key={fieldId}
                               id={fieldId}
                               labelText={fieldLabel}
-                              style={{ gridColumn: "1 / -1" }}
+                              style={{
+                                gridColumn: "1 / -1",
+                              }}
                               value={fieldValue}
+                              disabled={rowReadOnly}
                               onChange={(e) =>
                                 updateAdditionalFieldValue(
                                   row.id,
@@ -1587,7 +1865,6 @@ function SampleResultsTable({
                             />
                           );
                         }
-
                         const htmlInputType =
                           fieldType === "NUMBER"
                             ? "number"
@@ -1598,7 +1875,6 @@ function SampleResultsTable({
                                 : fieldType === "DATETIME"
                                   ? "datetime-local"
                                   : "text";
-
                         return (
                           <TextInput
                             key={fieldId}
@@ -1606,8 +1882,11 @@ function SampleResultsTable({
                             labelText={fieldLabel}
                             type={htmlInputType}
                             size="lg"
-                            style={{ minHeight: "52px" }}
+                            style={{
+                              minHeight: "52px",
+                            }}
                             value={fieldValue}
+                            disabled={rowReadOnly}
                             onChange={(e) =>
                               updateAdditionalFieldValue(
                                 row.id,
@@ -1624,170 +1903,248 @@ function SampleResultsTable({
               </div>
             );
           })()}
-        {shouldShowCurrentTests && orderReceptionFields.length > 0 && (
-          <Tile className="sample-mgmt-section-card" style={{ marginTop: "1.5rem" }}>
-            <h4 className="sample-mgmt-section-title">
-              <FormattedMessage id="sample.management.order.fields.heading" />
-            </h4>
-            <div className="sample-mgmt-grid">
-              {orderReceptionFields.map((field, index) => {
-                const fieldId = `sample_mgmt_order_readonly_${row.id}_${field.fieldKey}_${index}`;
-                const rawValue =
-                  field?.value === undefined || field?.value === null
-                    ? ""
-                    : String(field.value);
-                const displayValue =
-                  field?.fieldType === "BOOLEAN"
-                    ? rawValue.toLowerCase() === "true"
-                      ? intl.formatMessage({ id: "yes.option" })
-                      : rawValue.toLowerCase() === "false"
-                        ? intl.formatMessage({ id: "no.option" })
-                        : rawValue
-                    : rawValue;
-                const label = resolveOrderFieldLabel(field);
-
-                if (displayValue.length > 120) {
+        {shouldShowCurrentTests &&
+          !completingOnly &&
+          orderReceptionFields.length > 0 && (
+            <Tile
+              className="sample-mgmt-section-card"
+              style={{
+                marginTop: "1.5rem",
+              }}
+            >
+              <h4 className="sample-mgmt-section-title">
+                <FormattedMessage id="sample.management.order.fields.heading" />
+              </h4>
+              <div className="sample-mgmt-grid">
+                {orderReceptionFields.map((field, index) => {
+                  const fieldId = `sample_mgmt_order_readonly_${row.id}_${field.fieldKey}_${index}`;
+                  const rawValue =
+                    field?.value === undefined || field?.value === null
+                      ? ""
+                      : String(field.value);
+                  const displayValue =
+                    field?.fieldType === "BOOLEAN"
+                      ? rawValue.toLowerCase() === "true"
+                        ? intl.formatMessage({
+                            id: "yes.option",
+                          })
+                        : rawValue.toLowerCase() === "false"
+                          ? intl.formatMessage({
+                              id: "no.option",
+                            })
+                          : rawValue
+                      : rawValue;
+                  const label = resolveOrderFieldLabel(field);
+                  if (displayValue.length > 120) {
+                    return (
+                      <TextArea
+                        key={fieldId}
+                        id={fieldId}
+                        labelText={label}
+                        style={{
+                          gridColumn: "1 / -1",
+                        }}
+                        value={displayValue}
+                        readOnly
+                      />
+                    );
+                  }
                   return (
-                    <TextArea
+                    <TextInput
                       key={fieldId}
                       id={fieldId}
                       labelText={label}
-                      style={{ gridColumn: "1 / -1" }}
                       value={displayValue}
                       readOnly
                     />
                   );
-                }
-
-                return (
-                  <TextInput
-                    key={fieldId}
-                    id={fieldId}
-                    labelText={label}
-                    value={displayValue}
-                    readOnly
-                  />
-                );
-              })}
-            </div>
-          </Tile>
-        )}
-        {shouldShowCurrentTests && receptionAdditionalFields.length > 0 && (
-          <Tile className="sample-mgmt-section-card" style={{ marginTop: "1.5rem" }}>
-            <h4 style={{ marginTop: 0, marginBottom: "0.75rem" }}>
-              <FormattedMessage id="sample.additional.fields.heading" />
-            </h4>
-            <div style={{ marginBottom: "0.75rem", fontWeight: 500 }}>
-              {(originalRow.accessionNumber || originalRow.externalId || "-") +
-                " - " +
-                (originalRow.sampleType || "")}
-            </div>
-            <div className="sample-mgmt-grid">
-              {receptionAdditionalFields.map((field, idx) => {
-                const fieldType = (field.fieldType || "TEXT").toUpperCase();
-                const fieldKey = resolveAdditionalFieldKey(field);
-                const fieldLabel = field.displayName || field.fieldKey;
-                const fieldValue =
-                  effectiveAdditionalFieldValues?.[fieldKey] ??
-                  effectiveAdditionalFieldValues?.[
-                    normalizeAdditionalFieldKey(field?.displayName)
-                  ] ??
-                  "";
-                const fieldId = `sample_mgmt_additional_${row.id}_${fieldKey}_${idx}`;
-                const options = field.options || [];
-
-                if (fieldType === "BOOLEAN") {
-                  return (
-                    <Checkbox
-                      key={fieldId}
-                      id={fieldId}
-                      labelText={fieldLabel}
-                      checked={fieldValue === "true"}
-                      onChange={(e) =>
-                        updateAdditionalFieldValue(
-                          row.id,
-                          fieldKey,
-                          e.target.checked ? "true" : "false",
-                        )
-                      }
-                    />
-                  );
-                }
-
-                if (
-                  fieldType === "SELECT" ||
-                  fieldType === "RADIO" ||
-                  fieldType === "SYSTEM_USER_BIOLOGIST_SELECT"
-                ) {
-                  return (
-                    <Select
-                      key={fieldId}
-                      id={fieldId}
-                      labelText={fieldLabel}
-                      value={fieldValue}
-                      onChange={(e) =>
-                        updateAdditionalFieldValue(
-                          row.id,
-                          fieldKey,
-                          e.target.value,
-                        )
-                      }
-                    >
-                      <SelectItem
-                        text={intl.formatMessage({ id: "label.select" })}
-                        value=""
+                })}
+              </div>
+            </Tile>
+          )}
+        {shouldShowCurrentTests &&
+          visibleReceptionAdditionalFields.length > 0 && (
+            <Tile
+              className="sample-mgmt-section-card"
+              style={{
+                marginTop: "1.5rem",
+              }}
+            >
+              <h4
+                style={{
+                  marginTop: 0,
+                  marginBottom: "0.75rem",
+                }}
+              >
+                <FormattedMessage id="sample.additional.fields.heading" />
+              </h4>
+              <div
+                style={{
+                  marginBottom: "0.75rem",
+                  fontWeight: 500,
+                }}
+              >
+                {(originalRow.externalId || "-") +
+                  " - " +
+                  (originalRow.sampleType || "")}
+              </div>
+              <div className="sample-mgmt-grid">
+                {visibleReceptionAdditionalFields.map((field, idx) => {
+                  const fieldType = (field.fieldType || "TEXT").toUpperCase();
+                  const fieldKey = resolveAdditionalFieldKey(field);
+                  const fieldLabel = field.displayName || field.fieldKey;
+                  const fieldValue =
+                    effectiveAdditionalFieldValues?.[fieldKey] ??
+                    effectiveAdditionalFieldValues?.[
+                      normalizeAdditionalFieldKey(field?.displayName)
+                    ] ??
+                    "";
+                  const fieldId = `sample_mgmt_additional_${row.id}_${fieldKey}_${idx}`;
+                  const options = field.options || [];
+                  if (fieldType === "BOOLEAN") {
+                    return (
+                      <Checkbox
+                        key={fieldId}
+                        id={fieldId}
+                        labelText={fieldLabel}
+                        checked={fieldValue === "true"}
+                        disabled={rowReadOnly}
+                        onChange={(e) =>
+                          updateAdditionalFieldValue(
+                            row.id,
+                            fieldKey,
+                            e.target.checked ? "true" : "false",
+                          )
+                        }
                       />
-                      {options.map((option, optionIdx) => (
+                    );
+                  }
+                  if (
+                    fieldType === "SELECT" ||
+                    fieldType === "RADIO" ||
+                    fieldType === "USER"
+                  ) {
+                    return (
+                      <Select
+                        key={fieldId}
+                        id={fieldId}
+                        labelText={fieldLabel}
+                        value={fieldValue}
+                        disabled={rowReadOnly}
+                        onChange={(e) =>
+                          updateAdditionalFieldValue(
+                            row.id,
+                            fieldKey,
+                            e.target.value,
+                          )
+                        }
+                      >
                         <SelectItem
-                          key={`${fieldId}_option_${optionIdx}`}
-                          text={option.optionLabel}
-                          value={option.optionKey}
+                          text={intl.formatMessage({
+                            id: "label.select",
+                          })}
+                          value=""
                         />
-                      ))}
-                    </Select>
-                  );
-                }
-
-                if (fieldType === "MULTISELECT") {
-                  const selectedValues = new Set(
-                    String(fieldValue)
-                      .split(",")
-                      .map((entry) => entry.trim())
-                      .filter((entry) => entry !== ""),
-                  );
-                  return (
-                    <div key={fieldId} style={{ gridColumn: "1 / -1" }}>
-                      <div style={{ marginBottom: "0.5rem", fontWeight: 500 }}>
-                        {fieldLabel}
+                        <HistoricalUserSelectItem
+                          fieldType={fieldType}
+                          value={fieldValue}
+                          options={options}
+                        />
+                        {options.map((option, optionIdx) => (
+                          <SelectItem
+                            key={`${fieldId}_option_${optionIdx}`}
+                            text={option.optionLabel}
+                            value={option.optionKey}
+                          />
+                        ))}
+                      </Select>
+                    );
+                  }
+                  if (fieldType === "MULTISELECT") {
+                    const selectedValues = new Set(
+                      String(fieldValue)
+                        .split(",")
+                        .map((entry) => entry.trim())
+                        .filter((entry) => entry !== ""),
+                    );
+                    return (
+                      <div
+                        key={fieldId}
+                        style={{
+                          gridColumn: "1 / -1",
+                        }}
+                      >
+                        <div
+                          style={{
+                            marginBottom: "0.5rem",
+                            fontWeight: 500,
+                          }}
+                        >
+                          {fieldLabel}
+                        </div>
+                        {options.map((option, optionIdx) => (
+                          <Checkbox
+                            key={`${fieldId}_multi_${optionIdx}`}
+                            id={`${fieldId}_multi_${optionIdx}`}
+                            labelText={option.optionLabel}
+                            checked={selectedValues.has(option.optionKey)}
+                            disabled={rowReadOnly}
+                            onChange={(e) =>
+                              updateAdditionalMultiSelectOption(
+                                row.id,
+                                fieldKey,
+                                option.optionKey,
+                                e.target.checked,
+                              )
+                            }
+                          />
+                        ))}
                       </div>
-                      {options.map((option, optionIdx) => (
-                        <Checkbox
-                          key={`${fieldId}_multi_${optionIdx}`}
-                          id={`${fieldId}_multi_${optionIdx}`}
-                          labelText={option.optionLabel}
-                          checked={selectedValues.has(option.optionKey)}
-                          onChange={(e) =>
-                            updateAdditionalMultiSelectOption(
-                              row.id,
-                              fieldKey,
-                              option.optionKey,
-                              e.target.checked,
-                            )
-                          }
-                        />
-                      ))}
-                    </div>
-                  );
-                }
-
-                if (fieldType === "TEXTAREA") {
+                    );
+                  }
+                  if (fieldType === "TEXTAREA") {
+                    return (
+                      <TextArea
+                        key={fieldId}
+                        id={fieldId}
+                        labelText={fieldLabel}
+                        style={{
+                          gridColumn: "1 / -1",
+                        }}
+                        value={fieldValue}
+                        disabled={rowReadOnly}
+                        onChange={(e) =>
+                          updateAdditionalFieldValue(
+                            row.id,
+                            fieldKey,
+                            e.target.value,
+                          )
+                        }
+                      />
+                    );
+                  }
+                  const htmlInputType =
+                    fieldType === "NUMBER"
+                      ? "number"
+                      : fieldType === "DATE"
+                        ? "date"
+                        : fieldType === "TIME"
+                          ? "time"
+                          : fieldType === "DATETIME"
+                            ? "datetime-local"
+                            : "text";
                   return (
-                    <TextArea
+                    <TextInput
                       key={fieldId}
                       id={fieldId}
                       labelText={fieldLabel}
-                      style={{ gridColumn: "1 / -1" }}
+                      type={htmlInputType}
+                      size="lg"
+                      style={{
+                        minHeight: "52px",
+                      }}
                       value={fieldValue}
+                      disabled={rowReadOnly}
                       onChange={(e) =>
                         updateAdditionalFieldValue(
                           row.id,
@@ -1797,41 +2154,10 @@ function SampleResultsTable({
                       }
                     />
                   );
-                }
-
-                const htmlInputType =
-                  fieldType === "NUMBER"
-                    ? "number"
-                    : fieldType === "DATE"
-                      ? "date"
-                      : fieldType === "TIME"
-                        ? "time"
-                        : fieldType === "DATETIME"
-                          ? "datetime-local"
-                          : "text";
-
-                return (
-                  <TextInput
-                    key={fieldId}
-                    id={fieldId}
-                    labelText={fieldLabel}
-                    type={htmlInputType}
-                    size="lg"
-                    style={{ minHeight: "52px" }}
-                    value={fieldValue}
-                    onChange={(e) =>
-                      updateAdditionalFieldValue(
-                        row.id,
-                        fieldKey,
-                        e.target.value,
-                      )
-                    }
-                  />
-                );
-              })}
-            </div>
-          </Tile>
-        )}
+                })}
+              </div>
+            </Tile>
+          )}
         {shouldShowCurrentTests && (
           <div className="sample-mgmt-save-bar">
             <Button
@@ -1840,10 +2166,12 @@ function SampleResultsTable({
               onClick={() =>
                 handleSaveSampleChanges(row.id, originalRow, additionalFields)
               }
-              disabled={Boolean(savingBySampleId[row.id])}
+              disabled={rowReadOnly || Boolean(savingBySampleId[row.id])}
             >
               {savingBySampleId[row.id]
-                ? intl.formatMessage({ id: "sample.management.search.loading" })
+                ? intl.formatMessage({
+                    id: "sample.management.search.loading",
+                  })
                 : intl.formatMessage({
                     id: "sample.management.action.save",
                     defaultMessage: "Save",
@@ -1883,7 +2211,6 @@ function SampleResultsTable({
     }
     return "gray";
   };
-
   const shouldRenderStatusTag = (status) => {
     if (!status) return false;
     return !/^\d+$/.test(String(status).trim());
@@ -1906,7 +2233,6 @@ function SampleResultsTable({
       statusLower.includes("void")
     );
   };
-
   if (sampleItems.length === 0) {
     return (
       <div
@@ -1916,11 +2242,12 @@ function SampleResultsTable({
           color: "#6f6f6f",
         }}
       >
-        {intl.formatMessage({ id: "sample.management.table.noResults" })}
+        {intl.formatMessage({
+          id: "sample.management.table.noResults",
+        })}
       </div>
     );
   }
-
   return (
     <DataTable
       rows={rows}
@@ -1943,7 +2270,6 @@ function SampleResultsTable({
             onSelectionChange(newSelectedRows.map((r) => r.id));
           }
         };
-
         return (
           <Table {...getTableProps()}>
             <TableHead>
@@ -1976,7 +2302,12 @@ function SampleResultsTable({
                   }}
                 />
                 {headers.map((header) => (
-                  <TableHeader key={header.key} {...getHeaderProps({ header })}>
+                  <TableHeader
+                    key={header.key}
+                    {...getHeaderProps({
+                      header,
+                    })}
+                  >
                     {header.header}
                   </TableHeader>
                 ))}
@@ -1992,11 +2323,12 @@ function SampleResultsTable({
                 const hasTests =
                   originalRow?.orderedTests &&
                   originalRow.orderedTests.length > 0;
-
                 return (
                   <React.Fragment key={row.id}>
                     <TableExpandRow
-                      {...getRowProps({ row })}
+                      {...getRowProps({
+                        row,
+                      })}
                       style={{
                         // Add subtle left border for aliquots
                         borderLeft: isAliquotRow ? "3px solid #0f62fe" : "none",
@@ -2004,7 +2336,9 @@ function SampleResultsTable({
                       }}
                     >
                       <TableSelectRow
-                        {...getSelectionProps({ row })}
+                        {...getSelectionProps({
+                          row,
+                        })}
                         onSelect={() => {
                           selectRow(row.id);
                           // Calculate new selection after toggle
@@ -2048,5 +2382,4 @@ function SampleResultsTable({
     />
   );
 }
-
 export default SampleResultsTable;

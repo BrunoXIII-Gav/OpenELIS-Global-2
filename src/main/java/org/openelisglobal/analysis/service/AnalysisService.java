@@ -101,6 +101,8 @@ public interface AnalysisService extends BaseObjectService<Analysis, String> {
 
     List<Analysis> getAnalysesBySampleId(String id);
 
+    boolean hasAnalysisForPatientInTestSections(String patientId, List<Integer> testSectionIds);
+
     List<Analysis> getAnalysesReadyToBeReported();
 
     List<Analysis> getAnalysisBySampleAndTestIds(String sampleKey, List<Integer> testIds);

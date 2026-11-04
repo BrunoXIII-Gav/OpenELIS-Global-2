@@ -1,8 +1,7 @@
-import React, { useState, useEffect, useContext, useRef } from "react";
+import React, { useState, useEffect } from "react";
 import config from "../../config.json";
 import { FormattedMessage, useIntl, injectIntl } from "react-intl";
 import { Switch, Route, useRouteMatch, useHistory } from "react-router-dom";
-import { confirmAlert } from "react-confirm-alert";
 import "../Style.css";
 import ReflexTestManagement from "./reflexTests/ReflexTestManagement";
 import ProgramManagement from "./program/ProgramManagement";
@@ -73,6 +72,7 @@ import ValidationTemplateOverrideConfig from "../reports/ValidationTemplateOverr
 import ConsentTemplateConfig from "../reports/ConsentTemplateConfig";
 import ResultSelectListAdd from "./testManagementConfigMenu/ResultSelectListAdd.js";
 import TestAdd from "./testManagementConfigMenu/TestAdd.js";
+import TestConfigurationPackagesPage from "./testManagementConfigMenu/TestConfigurationPackagesPage.js";
 import TestModifyEntry from "./testManagementConfigMenu/TestModifyEntry.js";
 import TestOrderability from "./testManagementConfigMenu/TestOrderability.js";
 import MethodCreate from "./testManagementConfigMenu/MethodCreate.js";
@@ -103,8 +103,6 @@ import SelectListRenameEntry from "./testManagementConfigMenu/SelectListRenameEn
 import MethodRenameEntry from "./testManagementConfigMenu/MethodRenameEntry.js";
 import OrderAdditionalFieldsManagement from "./testManagementConfigMenu/OrderAdditionalFieldsManagement.js";
 import PatientAdditionalFieldsManagement from "./testManagementConfigMenu/PatientAdditionalFieldsManagement.js";
-import UserSessionDetailsContext from "../../UserSessionDetailsContext";
-import { Roles } from "../utils/Utils";
 import TestParentChildDependency from "./testManagementConfigMenu/TestParentChildDependency.js";
 
 function Admin() {
@@ -112,8 +110,6 @@ function Admin() {
   const { path } = useRouteMatch();
   const history = useHistory();
   const [isSmallScreen, setIsSmallScreen] = useState(false);
-  const { userSessionDetails } = useContext(UserSessionDetailsContext);
-  const accessDeniedShownRef = useRef(false);
 
   // Navigation handler to prevent page reload
   const handleNavigation = (targetPath) => (e) => {
@@ -131,49 +127,6 @@ function Admin() {
     return () =>
       mediaQuery.removeEventListener("change", handleMediaQueryChange);
   }, []);
-
-  const hasGlobalAdminRole = () => {
-    const roles = userSessionDetails?.roles;
-    const normalizedRoles = Array.isArray(roles)
-      ? roles
-      : roles instanceof Set
-        ? Array.from(roles)
-        : roles && typeof roles === "object"
-          ? Object.values(roles)
-          : [];
-    return (
-      normalizedRoles.includes(Roles.GLOBAL_ADMIN) ||
-      normalizedRoles.includes(Roles.ADMINISTRATION)
-    );
-  };
-
-  useEffect(() => {
-    if (
-      userSessionDetails?.authenticated &&
-      !hasGlobalAdminRole() &&
-      !accessDeniedShownRef.current
-    ) {
-      accessDeniedShownRef.current = true;
-      confirmAlert({
-        title: intl.formatMessage({ id: "accessDenied.title" }),
-        message: intl.formatMessage({ id: "accessDenied.message" }),
-        buttons: [
-          {
-            label: intl.formatMessage({ id: "accessDenied.okButton" }),
-            onClick: () => {
-              window.location.href = window.location.origin;
-            },
-          },
-        ],
-        closeOnClickOutside: false,
-        closeOnEscape: false,
-      });
-    }
-  }, [userSessionDetails, intl]);
-
-  if (userSessionDetails?.authenticated && !hasGlobalAdminRole()) {
-    return null;
-  }
 
   return (
     <>
@@ -516,7 +469,10 @@ function Admin() {
         />
         <Route path={`${path}/userManagement`} component={UserManagement} />
         <Route path={`${path}/roleManagement`} component={RoleManagement} />
-        <Route path={`${path}/profileManagement`} component={ProfileManagement} />
+        <Route
+          path={`${path}/profileManagement`}
+          component={ProfileManagement}
+        />
         <Route
           path={`${path}/batchTestReassignment`}
           component={BatchTestReassignmentAndCancelation}
@@ -562,6 +518,10 @@ function Admin() {
           component={ResultSelectListAdd}
         />
         <Route path={`${path}/TestAdd`} component={TestAdd} />
+        <Route
+          path={`${path}/TestConfigurationPackages`}
+          component={TestConfigurationPackagesPage}
+        />
         <Route path={`${path}/TestModifyEntry`} component={TestModifyEntry} />
         <Route path={`${path}/TestOrderability`} component={TestOrderability} />
         <Route path={`${path}/MethodCreate`} component={MethodCreate} />

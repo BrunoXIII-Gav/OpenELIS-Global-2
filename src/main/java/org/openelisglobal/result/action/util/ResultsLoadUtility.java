@@ -67,6 +67,7 @@ import org.openelisglobal.note.service.NoteServiceImpl.NoteType;
 import org.openelisglobal.observationhistory.service.ObservationHistoryService;
 import org.openelisglobal.observationhistory.valueholder.ObservationHistory;
 import org.openelisglobal.observationhistory.valueholder.ObservationHistory.ValueType;
+import org.openelisglobal.orderadditionalfield.service.AlternateOrderFlowService;
 import org.openelisglobal.patient.form.PatientInfoForm;
 import org.openelisglobal.patient.service.PatientService;
 import org.openelisglobal.patient.util.PatientUtil;
@@ -88,6 +89,7 @@ import org.openelisglobal.sample.service.SampleService;
 import org.openelisglobal.sample.valueholder.Sample;
 import org.openelisglobal.samplehuman.service.SampleHumanService;
 import org.openelisglobal.sampleitem.service.SampleItemService;
+import org.openelisglobal.sampleitem.valueholder.SampleDataCompletionStatus;
 import org.openelisglobal.sampleitem.valueholder.SampleItem;
 import org.openelisglobal.sampleqaevent.service.SampleQaEventService;
 import org.openelisglobal.sampleqaevent.valueholder.SampleQaEvent;
@@ -185,6 +187,9 @@ public class ResultsLoadUtility {
     private AnalysisTubeUsageService analysisTubeUsageService;
     @Autowired
     private AnalysisTubeLabelService analysisTubeLabelService;
+
+    @Autowired
+    private AlternateOrderFlowService alternateOrderFlowService;
 
     private final StatusRules statusRules = new StatusRules();
 
@@ -336,19 +341,43 @@ public class ResultsLoadUtility {
 
     public List<TestResultItem> getGroupedTestsForAnalysisList(List<Analysis> filteredAnalysisList, boolean forwardSort)
             throws LIMSRuntimeException {
+        return getGroupedTestsForAnalysisList(filteredAnalysisList, forwardSort, false);
+    }
+
+    /**
+     * Use a fresh prototype per history request; share catalog lookups across its
+     * orders only.
+     */
+    public List<TestResultItem> getGroupedTestsForHistory(List<Analysis> analyses) {
+        return getGroupedTestsForAnalysisList(analyses, SORT_FORWARD, true);
+    }
+
+    private List<TestResultItem> getGroupedTestsForAnalysisList(List<Analysis> filteredAnalysisList,
+            boolean forwardSort, boolean reuseCatalogs) {
 
         // TODO: Re-enable after new inventory frontend integration
         // activeKits = null;
         inventoryNeeded = false;
         reflexGroup = 1;
-        additionalFieldDefinitionCache.clear();
-        methodOptionsByTestIdCache.clear();
-        methodLabelByIdCache.clear();
+        if (!reuseCatalogs) {
+            additionalFieldDefinitionCache.clear();
+            methodOptionsByTestIdCache.clear();
+            methodLabelByIdCache.clear();
+        }
         clearDependencyCaches();
 
         List<TestResultItem> selectedTestList = new ArrayList<>();
 
+        if (filteredAnalysisList.isEmpty()) {
+            return selectedTestList;
+        }
+
+        java.util.Set<String> blockedAnalysisIds = reuseCatalogs ? java.util.Set.of()
+                : alternateOrderFlowService.getProcessingBlockedAnalysisIds(filteredAnalysisList);
         for (Analysis analysis : filteredAnalysisList) {
+            if (blockedAnalysisIds.contains(analysis.getId())) {
+                continue;
+            }
             patientService = SpringContext.getBean(PatientService.class);
             SampleService sampleService = SpringContext.getBean(SampleService.class);
             Sample sample = analysis.getSampleItem().getSample();
@@ -691,6 +720,9 @@ public class ResultsLoadUtility {
     }
 
     private List<Analysis> getAnalysisForSampleItem(SampleItem item) {
+        if (item.getDataCompletionState() != SampleDataCompletionStatus.COMPLETED) {
+            return Collections.emptyList();
+        }
         return analysisService.getAnalysesBySampleItemsExcludingByStatusIds(item, excludedAnalysisStatus);
     }
 
@@ -813,6 +845,12 @@ public class ResultsLoadUtility {
         testItem.setTestMethod(analysisService.getMethodId(analysis));
         testItem.setMethods(getMethodOptionsForTest(test, testItem.getTestMethod(), testMethodName));
         testItem.setResult(result);
+        // A delivered result is closed (the database rejects changes); "delivered" is
+        // not a permission, so the row is read-only and corrections go through an
+        // amendment from the patient history.
+        testItem.setResultEntryAction(analysis.getDeliveredDate() != null ? "delivered"
+                : result == null || GenericValidator.isBlankOrNull(result.getId()) ? "enter"
+                        : analysisService.patientReportHasBeenDone(analysis) ? "correct" : "update");
         testItem.setResultValue(getFormattedResultValue(result));
         testItem.setMultiSelectResultValues(analysisService.getJSONMultiSelectResults(analysis));
         testItem.setAnalysisStatusId(analysisService.getStatusId(analysis));
@@ -820,8 +858,10 @@ public class ResultsLoadUtility {
         testItem.setResultType(testService.getResultType(test));
         setDictionaryResults(testItem, isConclusion, result, testResults);
         List<TestAdditionalFieldPayload> additionalFieldDefinitions = getAdditionalFieldsForTest(test.getId());
-        Map<String, String> additionalFieldValues = testAdditionalFieldService
-                .getAnalysisValuesForFields(analysis.getId(), additionalFieldDefinitions);
+        var additionalFieldSnapshot = testAdditionalFieldService.getAnalysisFieldSnapshot(analysis.getId(),
+                additionalFieldDefinitions);
+        Map<String, String> additionalFieldValues = additionalFieldSnapshot.values();
+        testItem.setAdditionalFieldVersions(additionalFieldSnapshot.versions());
         testItem.setAdditionalFieldDefinitions(additionalFieldDefinitions);
         testItem.setAdditionalFieldValues(new HashMap<>(additionalFieldValues));
         testItem.setAdditionalFieldShadowValues(new HashMap<>(additionalFieldValues));
@@ -880,7 +920,7 @@ public class ResultsLoadUtility {
             return new ArrayList<>();
         }
         return additionalFieldDefinitionCache.computeIfAbsent(testId,
-                ignored -> testAdditionalFieldService.getFieldsForTest(testId, false));
+                ignored -> testAdditionalFieldService.getFieldsForTest(testId, false, true));
     }
 
     private boolean isReadOnly(boolean isConclusion, boolean isCD4Conclusion) {
@@ -988,7 +1028,8 @@ public class ResultsLoadUtility {
         resultItem.setDependentChild(true);
         resultItem.setDependencyParentTestId(context.parentTestId);
         resultItem.setDependencyParentTestName(context.parentTestName);
-        resultItem.setDependencyParentAnalysisId(context.parentAnalysis != null ? context.parentAnalysis.getId() : null);
+        resultItem
+                .setDependencyParentAnalysisId(context.parentAnalysis != null ? context.parentAnalysis.getId() : null);
         resultItem.setDependencyParentCompleted(context.parentCompleted);
         if (context.tubeBasedUsage) {
             Map<String, String> optionLabels = new LinkedHashMap<>();
@@ -1027,7 +1068,8 @@ public class ResultsLoadUtility {
                     } else {
                         blockUsage.setLocked(false);
                     }
-                    BigDecimal blockRemaining = GenericValidator.isBlankOrNull(blockUsage.getParentTubeBlockName()) ? null
+                    BigDecimal blockRemaining = GenericValidator.isBlankOrNull(blockUsage.getParentTubeBlockName())
+                            ? null
                             : calculateRemainingFromTubeBlock(analysis, context, blockUsage.getParentTubeBlockName());
                     if (blockRemaining != null) {
                         blockUsage.setRemainingQuantity(blockRemaining.toPlainString());
@@ -1038,9 +1080,9 @@ public class ResultsLoadUtility {
                 resultItem.setSampleUsageLocked(false);
                 resultItem.setSampleRemainingQuantity(context.sampleRemainingQuantity);
                 if (!blockUsages.isEmpty()) {
-                    resultItem.setSampleUsageQuantity(totalUsed.compareTo(BigDecimal.ZERO) > 0
-                            ? totalUsed.toPlainString()
-                            : resultItem.getSampleUsageQuantity());
+                    resultItem
+                            .setSampleUsageQuantity(totalUsed.compareTo(BigDecimal.ZERO) > 0 ? totalUsed.toPlainString()
+                                    : resultItem.getSampleUsageQuantity());
                     return;
                 }
             }
@@ -1135,8 +1177,8 @@ public class ResultsLoadUtility {
         }
 
         List<TestParentChildDependency> dependencies = testParentChildDependencyService.getByParentTestId(parentTestId);
-        boolean hasActiveDependencies = dependencies != null
-                && dependencies.stream().anyMatch(dependency -> dependency != null && Boolean.TRUE.equals(dependency.getActive()));
+        boolean hasActiveDependencies = dependencies != null && dependencies.stream()
+                .anyMatch(dependency -> dependency != null && Boolean.TRUE.equals(dependency.getActive()));
         activeDependencyParentByTestId.put(parentTestId, hasActiveDependencies);
         return hasActiveDependencies;
     }
@@ -1199,9 +1241,11 @@ public class ResultsLoadUtility {
         return remaining;
     }
 
-    private BigDecimal calculateRemainingFromTubeBlock(Analysis childAnalysis, DependencyContext context, String blockName) {
-        if (childAnalysis == null || context == null || context.parentAnalysis == null || GenericValidator.isBlankOrNull(blockName)
-                || context.tubeBlocks == null || context.tubeBlocks.isEmpty()) {
+    private BigDecimal calculateRemainingFromTubeBlock(Analysis childAnalysis, DependencyContext context,
+            String blockName) {
+        if (childAnalysis == null || context == null || context.parentAnalysis == null
+                || GenericValidator.isBlankOrNull(blockName) || context.tubeBlocks == null
+                || context.tubeBlocks.isEmpty()) {
             return null;
         }
 
@@ -1282,7 +1326,8 @@ public class ResultsLoadUtility {
                 primaryTubeContext.blockName = getPrimaryResultBlockName(parentAnalysis);
                 primaryTubeContext.label = resolveTubeBlockLabel(primaryTubeContext.blockName, persistedLabels);
                 primaryTubeContext.quantityFieldKey = "__PRIMARY_RESULT__";
-                primaryTubeContext.totalAvailable = parsePositiveBigDecimal(resolvePrimaryResultNumericValue(parentAnalysis));
+                primaryTubeContext.totalAvailable = parsePositiveBigDecimal(
+                        resolvePrimaryResultNumericValue(parentAnalysis));
                 tubeContexts.put(primaryTubeContext.blockName, primaryTubeContext);
             }
         }
@@ -1291,14 +1336,13 @@ public class ResultsLoadUtility {
                 continue;
             }
             int activationCount = getTubeActivationCount(fieldDefinition);
-            if (activationCount > 0
-                    && (selectedCount == null || selectedCount.intValue() < activationCount)) {
+            if (activationCount > 0 && (selectedCount == null || selectedCount.intValue() < activationCount)) {
                 continue;
             }
 
             FieldBlockContext blockContext = getFieldBlockContext(fieldDefinition);
-            BigDecimal totalAvailable = parsePositiveBigDecimal(parentValues == null ? null
-                    : parentValues.get(fieldDefinition.getFieldKey()));
+            BigDecimal totalAvailable = parsePositiveBigDecimal(
+                    parentValues == null ? null : parentValues.get(fieldDefinition.getFieldKey()));
             TubeBlockContext tubeContext = new TubeBlockContext();
             tubeContext.blockName = blockContext.blockName;
             tubeContext.label = resolveTubeBlockLabel(blockContext.blockName, persistedLabels);
@@ -1326,7 +1370,8 @@ public class ResultsLoadUtility {
         return getConsumedUsageForParentAnalysis(sampleItemId, parentAnalysisId, null);
     }
 
-    private BigDecimal getConsumedUsageForParentAnalysis(String sampleItemId, String parentAnalysisId, String blockName) {
+    private BigDecimal getConsumedUsageForParentAnalysis(String sampleItemId, String parentAnalysisId,
+            String blockName) {
         if (GenericValidator.isBlankOrNull(sampleItemId) || GenericValidator.isBlankOrNull(parentAnalysisId)) {
             return BigDecimal.ZERO;
         }
@@ -1446,7 +1491,8 @@ public class ResultsLoadUtility {
         }
 
         JsonNode primaryMetadata = readMetadataNode(resultItem.getResultDisplayConfigJson());
-        if (isTubeLabelEnabled(primaryMetadata) && isPrimaryResultVisibleForLabels(resultItem, analysis, primaryMetadata)) {
+        if (isTubeLabelEnabled(primaryMetadata)
+                && isPrimaryResultVisibleForLabels(resultItem, analysis, primaryMetadata)) {
             String primaryBlockName = getPrimaryResultBlockName(analysis);
             if (!GenericValidator.isBlankOrNull(primaryBlockName)) {
                 blockNames.add(normalizeBlockName(primaryBlockName));
@@ -1455,7 +1501,8 @@ public class ResultsLoadUtility {
 
         if (resultItem.getAdditionalFieldDefinitions() != null) {
             for (TestAdditionalFieldPayload fieldDefinition : resultItem.getAdditionalFieldDefinitions()) {
-                if (fieldDefinition == null || fieldDefinition.getActive() == Boolean.FALSE || !isTubeLabelEnabled(fieldDefinition)
+                if (fieldDefinition == null || fieldDefinition.getActive() == Boolean.FALSE
+                        || !isTubeLabelEnabled(fieldDefinition)
                         || !isTubeBlockActive(fieldDefinition, resultItem, primaryMetadata)) {
                     continue;
                 }
@@ -1554,7 +1601,8 @@ public class ResultsLoadUtility {
         return selectedTubeCount != null && selectedTubeCount.intValue() >= activationCount;
     }
 
-    private boolean isPrimaryResultVisibleForLabels(TestResultItem resultItem, Analysis analysis, JsonNode primaryMetadata) {
+    private boolean isPrimaryResultVisibleForLabels(TestResultItem resultItem, Analysis analysis,
+            JsonNode primaryMetadata) {
         int activationCount = getTubeActivationCount(primaryMetadata);
         if (activationCount <= 0) {
             return true;
@@ -1579,7 +1627,8 @@ public class ResultsLoadUtility {
             if (definition == null || definition.getActive() == Boolean.FALSE || !isTubeSelectorField(definition)) {
                 continue;
             }
-            BigDecimal parsed = parsePositiveBigDecimal(resultItem.getAdditionalFieldValues().get(definition.getFieldKey()));
+            BigDecimal parsed = parsePositiveBigDecimal(
+                    resultItem.getAdditionalFieldValues().get(definition.getFieldKey()));
             return parsed == null ? null : Integer.valueOf(parsed.intValue());
         }
         return null;

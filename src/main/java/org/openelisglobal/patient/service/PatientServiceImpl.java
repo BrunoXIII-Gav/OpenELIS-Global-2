@@ -25,12 +25,12 @@ import org.openelisglobal.patient.util.PatientIdentifierUtil;
 import org.openelisglobal.patient.util.PatientUtil;
 import org.openelisglobal.patient.valueholder.Patient;
 import org.openelisglobal.patient.valueholder.PatientContact;
+import org.openelisglobal.patientadditionalfield.service.PatientAdditionalFieldService;
 import org.openelisglobal.patientidentity.service.PatientIdentityService;
 import org.openelisglobal.patientidentity.valueholder.PatientIdentity;
 import org.openelisglobal.patientidentitytype.service.PatientIdentityTypeService;
 import org.openelisglobal.patientidentitytype.util.PatientIdentityTypeMap;
 import org.openelisglobal.patientidentitytype.valueholder.PatientIdentityType;
-import org.openelisglobal.patientadditionalfield.service.PatientAdditionalFieldService;
 import org.openelisglobal.patienttype.service.PatientPatientTypeService;
 import org.openelisglobal.patienttype.util.PatientTypeMap;
 import org.openelisglobal.patienttype.valueholder.PatientPatientType;
@@ -619,6 +619,22 @@ public class PatientServiceImpl extends AuditableBaseObjectServiceImpl<Patient, 
     @Transactional
     public void persistPatientData(PatientManagementInfo patientInfo, Patient patient, String sysUserId)
             throws LIMSRuntimeException {
+        savePatientRegistration(patientInfo, patient, sysUserId);
+    }
+
+    @Override
+    @Transactional
+    public void persistPatientDataFromPatientModule(PatientManagementInfo patientInfo, Patient patient,
+            String sysUserId) {
+        savePatientRegistration(patientInfo, patient, sysUserId);
+    }
+
+    private void savePatientRegistration(PatientManagementInfo patientInfo, Patient patient, String sysUserId) {
+        validateRequiredPatientFields(patientInfo);
+        var documentErrors = org.openelisglobal.patient.validator.PatientDocumentValidator
+                .validateDocuments(patientInfo);
+        if (!documentErrors.isEmpty())
+            throw new IllegalArgumentException(documentErrors.values().iterator().next());
         PatientIdentifierUtil.synchronizeDerivedNationalId(patientInfo);
         patient.setNationalId(patientInfo.getNationalId());
 
@@ -644,6 +660,27 @@ public class PatientServiceImpl extends AuditableBaseObjectServiceImpl<Patient, 
         patientAdditionalFieldService.validateAndPersistPatientValues(patient.getId(),
                 patientInfo.getPatientAdditionalFieldValues(), sysUserId, null);
         patientInfo.setPatientPK(patient.getId());
+        patientInfo.setPatientLastUpdated(patient.getLastupdated().toString());
+        patientInfo.setPersonLastUpdated(patient.getPerson().getLastupdated().toString());
+    }
+
+    private void validateRequiredPatientFields(PatientManagementInfo info) {
+        for (var field : patientAdditionalFieldService.getFixedFieldConfigs()) {
+            if (!Boolean.TRUE.equals(field.getRequired()) || Boolean.FALSE.equals(field.getVisible()))
+                continue;
+            String value = switch (field.getFieldKey()) {
+            case "subjectNumber" -> info.getSubjectNumber();
+            case "firstName" -> info.getFirstName();
+            case "lastName" -> info.getLastName();
+            case "primaryPhone" -> info.getPrimaryPhone();
+            case "email" -> info.getEmail();
+            case "gender" -> info.getGender();
+            case "birthDateAge" -> info.getBirthDateForDisplay();
+            default -> "not-applicable";
+            };
+            if (value == null || value.isBlank())
+                throw new IllegalArgumentException("patient.fixed.fields.required");
+        }
     }
 
     private void persistContact(PatientManagementInfo patientInfo, Patient patient) {
@@ -791,7 +828,9 @@ public class PatientServiceImpl extends AuditableBaseObjectServiceImpl<Patient, 
 
     public void persistIdentityType(String paramValue, String type, PatientManagementInfo patientInfo, Patient patient,
             String sysUserId) throws LIMSRuntimeException {
-        if (patientInfo.getPatientIdentities().isEmpty()) {
+        List<PatientIdentity> existingIdentities = patientInfo.getPatientIdentities() == null ? List.of()
+                : patientInfo.getPatientIdentities();
+        if (existingIdentities.isEmpty() && GenericValidator.isBlankOrNull(paramValue)) {
             return;
         }
 
@@ -800,7 +839,7 @@ public class PatientServiceImpl extends AuditableBaseObjectServiceImpl<Patient, 
 
         if (patientInfo.getPatientUpdateStatus() == PatientUpdateStatus.UPDATE) {
 
-            for (PatientIdentity listIdentity : patientInfo.getPatientIdentities()) {
+            for (PatientIdentity listIdentity : existingIdentities) {
                 if (listIdentity.getIdentityTypeId().equals(typeID)) {
 
                     newIdentityNeeded = false;

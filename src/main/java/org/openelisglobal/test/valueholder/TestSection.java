@@ -13,6 +13,7 @@
  */
 package org.openelisglobal.test.valueholder;
 
+import com.fasterxml.jackson.annotation.JsonIgnore;
 import java.sql.Timestamp;
 import java.util.Objects;
 import org.openelisglobal.common.valueholder.EnumValueItemImpl;
@@ -28,6 +29,41 @@ public class TestSection extends EnumValueItemImpl {
     private static final long serialVersionUID = -1574344492809195601L;
 
     private String id;
+
+    public static final String ORIGIN_USER = "USER";
+    public static final String ORIGIN_SYSTEM = "SYSTEM";
+    public static final String ORIGIN_UNKNOWN = "UNKNOWN";
+
+    private String creationOrigin = ORIGIN_SYSTEM;
+    private String creationOriginBy;
+    private Timestamp creationOriginAt;
+
+    @JsonIgnore
+    public String getCreationOrigin() {
+        return creationOrigin;
+    }
+
+    public void setCreationOrigin(String creationOrigin) {
+        this.creationOrigin = creationOrigin;
+    }
+
+    @JsonIgnore
+    public String getCreationOriginBy() {
+        return creationOriginBy;
+    }
+
+    public void setCreationOriginBy(String creationOriginBy) {
+        this.creationOriginBy = creationOriginBy;
+    }
+
+    @JsonIgnore
+    public Timestamp getCreationOriginAt() {
+        return creationOriginAt;
+    }
+
+    public void setCreationOriginAt(Timestamp creationOriginAt) {
+        this.creationOriginAt = creationOriginAt;
+    }
 
     private String isExternal;
 

@@ -23,6 +23,9 @@ public class StorageLocationServiceImpl implements StorageLocationService {
     private StorageRoomDAO storageRoomDAO;
 
     @Autowired
+    private StorageAuthorizationService storageAuthorizationService;
+
+    @Autowired
     private StorageDeviceDAO storageDeviceDAO;
 
     @Autowired
@@ -41,6 +44,9 @@ public class StorageLocationServiceImpl implements StorageLocationService {
     private SampleStorageAssignmentDAO sampleStorageAssignmentDAO;
 
     @Autowired
+    private StorageSampleScopeDAO storageSampleScopeDAO;
+
+    @Autowired
     private CodeGenerationService codeGenerationService;
 
     @Autowired
@@ -48,6 +54,20 @@ public class StorageLocationServiceImpl implements StorageLocationService {
 
     @PersistenceContext
     private EntityManager entityManager;
+
+    private void requireLocationManagement(Object entity) {
+        if (entity instanceof StorageRoom room) {
+            storageAuthorizationService.requireLocationAccess("room", room.getId(), "manage");
+        } else if (entity instanceof StorageDevice device) {
+            storageAuthorizationService.requireLocationAccess("device", device.getId(), "manage");
+        } else if (entity instanceof StorageShelf shelf) {
+            storageAuthorizationService.requireLocationAccess("shelf", shelf.getId(), "manage");
+        } else if (entity instanceof StorageRack rack) {
+            storageAuthorizationService.requireLocationAccess("rack", rack.getId(), "manage");
+        } else if (entity instanceof StorageBox box) {
+            storageAuthorizationService.requireLocationAccess("box", box.getId(), "manage");
+        }
+    }
 
     @Override
     public List<StorageRoom> getRooms() {
@@ -100,6 +120,7 @@ public class StorageLocationServiceImpl implements StorageLocationService {
 
     @Override
     public StorageRoom updateRoom(Integer id, StorageRoom room) {
+        storageAuthorizationService.requireLocationAccess("room", id, "manage");
         StorageRoom existingRoom = storageRoomDAO.get(id).orElse(null);
         if (existingRoom == null) {
             return null;
@@ -136,6 +157,7 @@ public class StorageLocationServiceImpl implements StorageLocationService {
 
     @Override
     public void deleteRoom(Integer id) {
+        requireLocationManagement(storageRoomDAO.get(id).orElse(null));
         StorageRoom room = storageRoomDAO.get(id).orElse(null);
         if (room == null) {
             return;
@@ -367,6 +389,7 @@ public class StorageLocationServiceImpl implements StorageLocationService {
 
     @Override
     public Integer update(Object entity) {
+        requireLocationManagement(entity);
         if (entity instanceof StorageRoom) {
             StorageRoom room = (StorageRoom) entity;
             // Get existing room to preserve read-only fields
@@ -607,6 +630,7 @@ public class StorageLocationServiceImpl implements StorageLocationService {
 
     @Override
     public void delete(Object entity) {
+        requireLocationManagement(entity);
         // Note: Constraint validation is done in the controller before calling this
         // method
         // This method assumes constraints have been validated
@@ -737,6 +761,7 @@ public class StorageLocationServiceImpl implements StorageLocationService {
     @Override
     @Transactional(readOnly = true)
     public List<Map<String, Object>> getRoomsForAPI() {
+        Set<String> permitted = storageAuthorizationService.getAccessibleSampleItemIdsForCurrentUser("read");
         List<StorageRoom> rooms = storageRoomDAO.getAll();
         List<Map<String, Object>> result = new ArrayList<>();
 
@@ -759,7 +784,9 @@ public class StorageLocationServiceImpl implements StorageLocationService {
                 // occupied positions
                 // Storage tracking operates at SampleItem level (physical specimens), not
                 // Sample level (orders)
-                int sampleCount = countUniqueSamplesInRoom(room.getId(), devices);
+                int sampleCount = permitted == null ? countUniqueSamplesInRoom(room.getId(), devices)
+                        : (int) storageSampleScopeDAO.findAssignedSampleItemIdsInHierarchy("room", room.getId())
+                                .stream().filter(permitted::contains).count();
                 map.put("sampleCount", sampleCount);
             } catch (Exception e) {
                 map.put("deviceCount", 0);
@@ -1834,66 +1861,30 @@ public class StorageLocationServiceImpl implements StorageLocationService {
      */
     @Transactional
     private void unassignSamplesFromHierarchy(Object locationEntity) {
-        List<Integer> locationIds = new ArrayList<>();
-        String locationType = null;
-
-        if (locationEntity instanceof StorageRoom) {
-            StorageRoom room = (StorageRoom) locationEntity;
-            // Room-level assignments not currently supported, but include for completeness
-            List<StorageDevice> devices = storageDeviceDAO.findByParentRoomId(room.getId());
-            for (StorageDevice device : devices) {
-                locationIds.add(device.getId());
-                List<StorageShelf> shelves = storageShelfDAO.findByParentDeviceId(device.getId());
-                for (StorageShelf shelf : shelves) {
-                    locationIds.add(shelf.getId());
-                    List<StorageRack> racks = storageRackDAO.findByParentShelfId(shelf.getId());
-                    for (StorageRack rack : racks) {
-                        locationIds.add(rack.getId());
-                    }
-                }
-            }
-        } else if (locationEntity instanceof StorageDevice) {
-            StorageDevice device = (StorageDevice) locationEntity;
-            locationIds.add(device.getId());
-            locationType = "device";
-            List<StorageShelf> shelves = storageShelfDAO.findByParentDeviceId(device.getId());
-            for (StorageShelf shelf : shelves) {
-                locationIds.add(shelf.getId());
-                List<StorageRack> racks = storageRackDAO.findByParentShelfId(shelf.getId());
-                for (StorageRack rack : racks) {
-                    locationIds.add(rack.getId());
-                }
-            }
-        } else if (locationEntity instanceof StorageShelf) {
-            StorageShelf shelf = (StorageShelf) locationEntity;
-            locationIds.add(shelf.getId());
-            locationType = "shelf";
-            List<StorageRack> racks = storageRackDAO.findByParentShelfId(shelf.getId());
-            for (StorageRack rack : racks) {
-                locationIds.add(rack.getId());
-            }
-        } else if (locationEntity instanceof StorageRack) {
-            StorageRack rack = (StorageRack) locationEntity;
-            locationIds.add(rack.getId());
-            locationType = "rack";
+        String type;
+        Integer id;
+        if (locationEntity instanceof StorageRoom room) {
+            type = "room";
+            id = room.getId();
+        } else if (locationEntity instanceof StorageDevice device) {
+            type = "device";
+            id = device.getId();
+        } else if (locationEntity instanceof StorageShelf shelf) {
+            type = "shelf";
+            id = shelf.getId();
+        } else if (locationEntity instanceof StorageRack rack) {
+            type = "rack";
+            id = rack.getId();
+        } else if (locationEntity instanceof StorageBox box) {
+            type = "box";
+            id = box.getId();
+        } else {
+            throw new IllegalArgumentException("Invalid storage location");
         }
-
-        if (locationIds.isEmpty()) {
-            return;
-        }
-
-        // Find and delete all assignments for these locations
-        try {
-            String hql = "SELECT ssa FROM SampleStorageAssignment ssa WHERE ssa.locationId IN :locationIds";
-            jakarta.persistence.Query query = entityManager.createQuery(hql);
-            query.setParameter("locationIds", locationIds);
-            @SuppressWarnings("unchecked")
-            List<org.openelisglobal.storage.valueholder.SampleStorageAssignment> assignments = query.getResultList();
-            for (org.openelisglobal.storage.valueholder.SampleStorageAssignment assignment : assignments) {
-                sampleStorageAssignmentDAO.delete(assignment);
-            }
-        } catch (Exception e) {
-            throw new LIMSRuntimeException("Error unassigning samples from location hierarchy", e);
+        // The authorization check and deletion must select the same typed hierarchy.
+        // Numeric IDs alone are not unique across location types.
+        for (SampleStorageAssignment assignment : storageSampleScopeDAO.findAssignmentsInHierarchy(type, id)) {
+            sampleStorageAssignmentDAO.delete(assignment);
         }
     }
 
@@ -1909,6 +1900,8 @@ public class StorageLocationServiceImpl implements StorageLocationService {
         if (locationEntity == null) {
             throw new LIMSRuntimeException("Location not found: " + id);
         }
+
+        requireLocationManagement(locationEntity);
 
         // Step 1: Find all child locations (recursively)
         List<Object> childLocations = findAllChildLocations(locationEntity);

@@ -69,7 +69,8 @@ public class SampleTypeUomAssignRestController extends BaseController {
     @GetMapping("/sample-type-uoms")
     public List<IdValuePair> getAvailableUomsForSampleType(
             @RequestParam(name = "sampleTypeId", required = false) String sampleTypeId) {
-        List<IdValuePair> allUoms = DisplayListService.getInstance().getList(DisplayListService.ListType.UNIT_OF_MEASURE);
+        List<IdValuePair> allUoms = DisplayListService.getInstance()
+                .getList(DisplayListService.ListType.UNIT_OF_MEASURE);
         if (sampleTypeId == null || sampleTypeId.isBlank()) {
             return allUoms;
         }
@@ -99,9 +100,9 @@ public class SampleTypeUomAssignRestController extends BaseController {
         Map<String, List<IdValuePair>> assignmentsBySampleType = new LinkedHashMap<>();
 
         for (IdValuePair sampleType : sampleTypes) {
-            List<IdValuePair> assignedUoms = typeOfSampleUnitOfMeasureService.getBySampleTypeId(sampleType.getId()).stream()
-                    .map(TypeOfSampleUnitOfMeasure::getUnitOfMeasureId).map(uomById::get).filter(uom -> uom != null)
-                    .collect(Collectors.toList());
+            List<IdValuePair> assignedUoms = typeOfSampleUnitOfMeasureService.getBySampleTypeId(sampleType.getId())
+                    .stream().map(TypeOfSampleUnitOfMeasure::getUnitOfMeasureId).map(uomById::get)
+                    .filter(uom -> uom != null).collect(Collectors.toList());
             assignmentsBySampleType.put(sampleType.getId(), assignedUoms);
         }
 

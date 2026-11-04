@@ -16,6 +16,7 @@ package org.openelisglobal.reports.action.implementation;
 import jakarta.annotation.PostConstruct;
 import java.sql.Date;
 import java.text.DecimalFormat;
+import java.time.LocalDate;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.Comparator;
@@ -67,9 +68,9 @@ import org.openelisglobal.patient.service.PatientService;
 import org.openelisglobal.patient.service.PatientServiceImpl;
 import org.openelisglobal.patient.valueholder.Patient;
 import org.openelisglobal.patientidentity.service.PatientIdentityService;
+import org.openelisglobal.patientidentity.valueholder.PatientIdentity;
 import org.openelisglobal.patientidentitytype.service.PatientIdentityTypeService;
 import org.openelisglobal.patientidentitytype.valueholder.PatientIdentityType;
-import org.openelisglobal.patientidentity.valueholder.PatientIdentity;
 import org.openelisglobal.person.service.PersonService;
 import org.openelisglobal.person.valueholder.Person;
 import org.openelisglobal.provider.service.ProviderService;
@@ -117,7 +118,8 @@ public abstract class PatientReport extends Report {
     protected PersonService personService = SpringContext.getBean(PersonService.class);
     protected ProviderService providerService = SpringContext.getBean(ProviderService.class);
     protected PatientIdentityService patientIdentityService = SpringContext.getBean(PatientIdentityService.class);
-    protected PatientIdentityTypeService patientIdentityTypeService = SpringContext.getBean(PatientIdentityTypeService.class);
+    protected PatientIdentityTypeService patientIdentityTypeService = SpringContext
+            .getBean(PatientIdentityTypeService.class);
     protected TestService testService = SpringContext.getBean(TestService.class);
     protected ReferralReasonService referralReasonService = SpringContext.getBean(ReferralReasonService.class);
     protected ReferralService referralService = SpringContext.getBean(ReferralService.class);
@@ -167,6 +169,7 @@ public abstract class PatientReport extends Report {
     protected Boolean onlyResultsForReportBySite = false;
     protected boolean previewValidated = false;
     protected Set<String> previewAnalysisIds = new HashSet<>();
+    protected Map<String, String> previewValidationDatesByAnalysisId = new HashMap<>();
     protected Set<String> requestedAnalysisIds = new HashSet<>();
 
     protected static final NoteType[] FILTER = { NoteType.EXTERNAL, NoteType.REJECTION_REASON,
@@ -327,23 +330,87 @@ public abstract class PatientReport extends Report {
     private void initializePreviewParameters(ReportForm form) {
         previewValidated = form != null && form.isPreviewValidated();
         previewAnalysisIds = new HashSet<>();
+        previewValidationDatesByAnalysisId = new HashMap<>();
 
-        if (form == null || form.getPreviewAnalysisIds() == null) {
+        if (form == null) {
             return;
         }
 
-        for (String idValue : form.getPreviewAnalysisIds()) {
-            if (GenericValidator.isBlankOrNull(idValue)) {
-                continue;
-            }
-            String[] ids = idValue.split(",");
-            for (String id : ids) {
-                String trimmed = id == null ? null : id.trim();
-                if (!GenericValidator.isBlankOrNull(trimmed)) {
-                    previewAnalysisIds.add(trimmed);
+        if (form.getPreviewAnalysisIds() != null) {
+            for (String idValue : form.getPreviewAnalysisIds()) {
+                if (GenericValidator.isBlankOrNull(idValue)) {
+                    continue;
+                }
+                String[] ids = idValue.split(",");
+                for (String id : ids) {
+                    String trimmed = id == null ? null : id.trim();
+                    if (!GenericValidator.isBlankOrNull(trimmed)) {
+                        previewAnalysisIds.add(trimmed);
+                    }
                 }
             }
         }
+
+        String rawPreviewValidationDates = form.getPreviewValidationDates();
+        if (GenericValidator.isBlankOrNull(rawPreviewValidationDates)) {
+            return;
+        }
+
+        String[] entries = rawPreviewValidationDates.split("\\|");
+        for (String entry : entries) {
+            if (GenericValidator.isBlankOrNull(entry)) {
+                continue;
+            }
+            int separatorIndex = entry.indexOf(':');
+            if (separatorIndex <= 0 || separatorIndex >= entry.length() - 1) {
+                continue;
+            }
+            String analysisId = entry.substring(0, separatorIndex).trim();
+            String rawDate = entry.substring(separatorIndex + 1).trim();
+            String formattedDate = formatPreviewValidationDate(rawDate);
+            if (!GenericValidator.isBlankOrNull(analysisId) && !GenericValidator.isBlankOrNull(formattedDate)) {
+                previewValidationDatesByAnalysisId.put(analysisId, formattedDate);
+            }
+        }
+    }
+
+    private String formatPreviewValidationDate(String rawDate) {
+        if (GenericValidator.isBlankOrNull(rawDate)) {
+            return "";
+        }
+        try {
+            return DateUtil.convertSqlDateToStringDate(java.sql.Date.valueOf(LocalDate.parse(rawDate.trim())));
+        } catch (RuntimeException e) {
+            return rawDate.trim();
+        }
+    }
+
+    /**
+     * An amended report must say which delivered report it replaces. Templates
+     * write the wording; these fields stay blank for a first issue.
+     */
+    private void setAmendmentData(ClinicalPatientData data, Analysis analysis) {
+        if (GenericValidator.isBlankOrNull(analysis.getAmendsAnalysisId())) {
+            return;
+        }
+        Analysis amended = analysisService.get(analysis.getAmendsAnalysisId());
+        data.setAmendedValidationDate(amended.getValidationDateForDisplay());
+        data.setAmendedDeliveryDate(amended.getDeliveredDate() == null ? ""
+                : DateUtil.convertSqlDateToStringDate(amended.getDeliveredDate()));
+        data.setAmendmentReason(org.apache.commons.lang3.StringUtils.defaultString(analysis.getAmendmentReason()));
+    }
+
+    protected String resolveValidationDateForReport(Analysis analysis) {
+        if (analysis == null) {
+            return "";
+        }
+        if (previewValidated && previewAnalysisIds.contains(analysis.getId())) {
+            String previewDate = previewValidationDatesByAnalysisId.get(analysis.getId());
+            if (!GenericValidator.isBlankOrNull(previewDate)) {
+                return previewDate;
+            }
+        }
+        return analysis.getValidationDateForDisplay();
     }
 
     private void initializeRequestedAnalysisIds(ReportForm form) {
@@ -645,8 +712,8 @@ public abstract class PatientReport extends Report {
         if (identityType == null || GenericValidator.isBlankOrNull(identityType.getId())) {
             return "";
         }
-        PatientIdentity identity = patientIdentityService
-                .getPatitentIdentityForPatientAndType(patient.getId(), identityType.getId());
+        PatientIdentity identity = patientIdentityService.getPatitentIdentityForPatientAndType(patient.getId(),
+                identityType.getId());
         return identity == null ? "" : org.apache.commons.lang3.StringUtils.defaultString(identity.getIdentityData());
     }
 
@@ -1056,6 +1123,7 @@ public abstract class PatientReport extends Report {
                 sampleService.getId(currentSample)));
 
         if (doAnalysis) {
+            data.setAnalysisId(currentAnalysis.getId());
             data.setPanel(analysisService.getPanel(currentAnalysis));
             if (analysisService.getPanel(currentAnalysis) != null) {
                 data.setPanelName(analysisService.getPanel(currentAnalysis).getLocalizedName());
@@ -1063,6 +1131,10 @@ public abstract class PatientReport extends Report {
             data.setTestDate(analysisService.getCompletedDateForDisplay(currentAnalysis));
             data.setSampleSortOrder(currentAnalysis.getSampleItem().getSortOrder());
             data.setOrderFinishDate(completionDate);
+            data.setValidationDate(resolveValidationDateForReport(currentAnalysis));
+            data.setDeliveryDate(currentAnalysis.getDeliveredDate() == null ? ""
+                    : DateUtil.convertSqlDateToStringDate(currentAnalysis.getDeliveredDate()));
+            setAmendmentData(data, currentAnalysis);
             data.setOrderDate(DateUtil
                     .convertTimestampToStringDateAndConfiguredHourTime(sampleService.getOrderedDate(currentSample)));
             data.setSampleId(sampleService.getAccessionNumber(currentSample) + "-" + data.getSampleSortOrder());

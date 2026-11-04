@@ -66,19 +66,18 @@ public class SiteBrandingRestController extends BaseRestController {
                     branding.getId(), branding.getPrimaryColor(), branding.getSecondaryColor(),
                     branding.getHeaderColor(), branding.getColorMode(), branding.getShowHeaderLogo(),
                     branding.getShowLoginLogo(), branding.getUseHeaderLogoForLogin(), branding.getShowFavicon(),
-                    branding.getShowLoginNotice(), branding.getShowHeaderBannerText(),
-                    branding.getShowHeaderVersion(), branding.getShowHeaderSearchIcon(),
-                    branding.getShowHeaderNotificationIcon(), branding.getShowHeaderHelpIcon());
+                    branding.getShowLoginNotice(), branding.getShowHeaderBannerText(), branding.getShowHeaderVersion(),
+                    branding.getShowHeaderSearchIcon(), branding.getShowHeaderNotificationIcon(),
+                    branding.getShowHeaderHelpIcon());
             SiteBrandingForm form = entityToForm(branding);
             logger.debug(
                     "Returning branding form: id={}, primaryColor={}, secondaryColor={}, headerColor={}, colorMode={}, showHeaderLogo={}, showLoginLogo={}, useHeaderLogoForLogin={}, showFavicon={}, showLoginNotice={}, showHeaderBannerText={}, showHeaderVersion={}, showHeaderSearchIcon={}, showHeaderNotificationIcon={}, showHeaderHelpIcon={}, headerLogoUrl={}, loginLogoUrl={}, faviconUrl={}",
                     form.getId(), form.getPrimaryColor(), form.getSecondaryColor(), form.getHeaderColor(),
                     form.getColorMode(), form.getShowHeaderLogo(), form.getShowLoginLogo(),
                     form.getUseHeaderLogoForLogin(), form.getShowFavicon(), form.getShowLoginNotice(),
-                    form.getShowHeaderBannerText(), form.getShowHeaderVersion(),
-                    form.getShowHeaderSearchIcon(), form.getShowHeaderNotificationIcon(),
-                    form.getShowHeaderHelpIcon(), form.getHeaderLogoUrl(), form.getLoginLogoUrl(),
-                    form.getFaviconUrl());
+                    form.getShowHeaderBannerText(), form.getShowHeaderVersion(), form.getShowHeaderSearchIcon(),
+                    form.getShowHeaderNotificationIcon(), form.getShowHeaderHelpIcon(), form.getHeaderLogoUrl(),
+                    form.getLoginLogoUrl(), form.getFaviconUrl());
             return ResponseEntity.ok(form);
         } catch (Exception e) {
             logger.error("Error getting branding configuration", e);
@@ -96,10 +95,10 @@ public class SiteBrandingRestController extends BaseRestController {
         logger.debug(
                 "Incoming form data: id={}, primaryColor={}, secondaryColor={}, headerColor={}, colorMode={}, showHeaderLogo={}, showLoginLogo={}, useHeaderLogoForLogin={}, showFavicon={}, showLoginNotice={}, showHeaderBannerText={}, showHeaderVersion={}, showHeaderSearchIcon={}, showHeaderNotificationIcon={}, showHeaderHelpIcon={}",
                 form.getId(), form.getPrimaryColor(), form.getSecondaryColor(), form.getHeaderColor(),
-                form.getColorMode(), form.getShowHeaderLogo(), form.getShowLoginLogo(),
-                form.getUseHeaderLogoForLogin(), form.getShowFavicon(), form.getShowLoginNotice(),
-                form.getShowHeaderBannerText(), form.getShowHeaderVersion(), form.getShowHeaderSearchIcon(),
-                form.getShowHeaderNotificationIcon(), form.getShowHeaderHelpIcon());
+                form.getColorMode(), form.getShowHeaderLogo(), form.getShowLoginLogo(), form.getUseHeaderLogoForLogin(),
+                form.getShowFavicon(), form.getShowLoginNotice(), form.getShowHeaderBannerText(),
+                form.getShowHeaderVersion(), form.getShowHeaderSearchIcon(), form.getShowHeaderNotificationIcon(),
+                form.getShowHeaderHelpIcon());
 
         try {
             // Get existing branding or create new
@@ -109,9 +108,9 @@ public class SiteBrandingRestController extends BaseRestController {
                     branding.getId(), branding.getPrimaryColor(), branding.getSecondaryColor(),
                     branding.getHeaderColor(), branding.getColorMode(), branding.getShowHeaderLogo(),
                     branding.getShowLoginLogo(), branding.getUseHeaderLogoForLogin(), branding.getShowFavicon(),
-                    branding.getShowLoginNotice(), branding.getShowHeaderBannerText(),
-                    branding.getShowHeaderVersion(), branding.getShowHeaderSearchIcon(),
-                    branding.getShowHeaderNotificationIcon(), branding.getShowHeaderHelpIcon());
+                    branding.getShowLoginNotice(), branding.getShowHeaderBannerText(), branding.getShowHeaderVersion(),
+                    branding.getShowHeaderSearchIcon(), branding.getShowHeaderNotificationIcon(),
+                    branding.getShowHeaderHelpIcon());
 
             // Update fields from form (only if not null and not empty)
             boolean changed = false;
@@ -251,9 +250,8 @@ public class SiteBrandingRestController extends BaseRestController {
                     saved.getId(), saved.getPrimaryColor(), saved.getSecondaryColor(), saved.getHeaderColor(),
                     saved.getColorMode(), saved.getShowHeaderLogo(), saved.getShowLoginLogo(),
                     saved.getUseHeaderLogoForLogin(), saved.getShowFavicon(), saved.getShowLoginNotice(),
-                    saved.getShowHeaderBannerText(), saved.getShowHeaderVersion(),
-                    saved.getShowHeaderSearchIcon(), saved.getShowHeaderNotificationIcon(),
-                    saved.getShowHeaderHelpIcon());
+                    saved.getShowHeaderBannerText(), saved.getShowHeaderVersion(), saved.getShowHeaderSearchIcon(),
+                    saved.getShowHeaderNotificationIcon(), saved.getShowHeaderHelpIcon());
 
             SiteBrandingForm response = entityToForm(saved);
             logger.debug(
@@ -261,9 +259,9 @@ public class SiteBrandingRestController extends BaseRestController {
                     response.getId(), response.getPrimaryColor(), response.getSecondaryColor(),
                     response.getHeaderColor(), response.getColorMode(), response.getShowHeaderLogo(),
                     response.getShowLoginLogo(), response.getUseHeaderLogoForLogin(), response.getShowFavicon(),
-                    response.getShowLoginNotice(), response.getShowHeaderBannerText(),
-                    response.getShowHeaderVersion(), response.getShowHeaderSearchIcon(),
-                    response.getShowHeaderNotificationIcon(), response.getShowHeaderHelpIcon());
+                    response.getShowLoginNotice(), response.getShowHeaderBannerText(), response.getShowHeaderVersion(),
+                    response.getShowHeaderSearchIcon(), response.getShowHeaderNotificationIcon(),
+                    response.getShowHeaderHelpIcon());
             return ResponseEntity.ok(response);
         } catch (LIMSRuntimeException e) {
             logger.error("LIMSRuntimeException updating branding configuration: {}", e.getMessage(), e);

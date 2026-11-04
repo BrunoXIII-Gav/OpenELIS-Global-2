@@ -46,6 +46,33 @@ public class AnalysisTubeUsageServiceImpl extends AuditableBaseObjectServiceImpl
 
     @Override
     @Transactional
+    public void replaceUsages(Analysis analysis, Analysis parentAnalysis, List<UsageInput> inputs, String actorId) {
+        java.util.Map<String, AnalysisTubeUsage> previous = getByAnalysisId(analysis.getId()).stream()
+                .collect(java.util.stream.Collectors.toMap(AnalysisTubeUsage::getChildBlockName, usage -> usage));
+        java.util.Set<String> blocks = new java.util.HashSet<>();
+        for (UsageInput input : inputs) {
+            if (!blocks.add(input.childBlockName()))
+                throw new IllegalArgumentException("Duplicate tube block");
+            AnalysisTubeUsage existing = previous.remove(input.childBlockName());
+            if (existing == null) {
+                createUsage(analysis, parentAnalysis, input.childBlockName(), input.parentTubeBlockName(),
+                        input.usedQuantity(), actorId);
+            } else if (!java.util.Objects.equals(existing.getParentAnalysis().getId(), parentAnalysis.getId())
+                    || !java.util.Objects.equals(existing.getParentTubeBlockName(), input.parentTubeBlockName())
+                    || existing.getUsedQuantity().compareTo(input.usedQuantity()) != 0) {
+                existing.setParentAnalysis(parentAnalysis);
+                existing.setParentTubeBlockName(input.parentTubeBlockName());
+                existing.setUsedQuantity(input.usedQuantity());
+                existing.setPerformedByUser(Integer.valueOf(actorId));
+                existing.setSysUserId(actorId);
+                update(existing);
+            }
+        }
+        previous.values().forEach(analysisTubeUsageDAO::delete);
+    }
+
+    @Override
+    @Transactional
     public AnalysisTubeUsage createUsage(Analysis analysis, Analysis parentAnalysis, String childBlockName,
             String parentTubeBlockName, BigDecimal usedQuantity, String sysUserId) {
         AnalysisTubeUsage usage = new AnalysisTubeUsage();

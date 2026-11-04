@@ -67,6 +67,8 @@
         <mapping resource="hibernate/hbm/SampleDomain.hbm.xml" />
         <mapping resource="hibernate/hbm/SampleHuman.hbm.xml" />
         <mapping resource="hibernate/hbm/SampleItem.hbm.xml" />
+        <mapping
+            resource="hibernate/hbm/SampleItemAliquotRelationship.hbm.xml" />
         <mapping resource="hibernate/hbm/SampleOrganization.hbm.xml" />
         <mapping resource="hibernate/hbm/SampleProject.hbm.xml" />
         <mapping resource="hibernate/hbm/SampleQaEvent.hbm.xml" />
@@ -77,7 +79,8 @@
         <mapping resource="hibernate/hbm/StatusOfSample.hbm.xml" />
         <mapping resource="hibernate/hbm/SystemUser.hbm.xml" />
         <mapping resource="hibernate/hbm/Test.hbm.xml" />
-        <mapping resource="hibernate/hbm/TestParentChildDependency.hbm.xml" />
+        <mapping
+            resource="hibernate/hbm/TestParentChildDependency.hbm.xml" />
         <mapping resource="hibernate/hbm/TestSection.hbm.xml" />
         <mapping resource="hibernate/hbm/RenameTestSection.hbm.xml" />
         <mapping resource="hibernate/hbm/RenameMethod.hbm.xml" />
@@ -101,7 +104,8 @@
         <mapping resource="hibernate/hbm/PatientPatientType.hbm.xml" />
         <mapping resource="hibernate/hbm/TypeOfSamplePanel.hbm.xml" />
         <mapping resource="hibernate/hbm/TypeOfSampleTest.hbm.xml" />
-        <mapping resource="hibernate/hbm/TypeOfSampleUnitOfMeasure.hbm.xml" />
+        <mapping
+            resource="hibernate/hbm/TypeOfSampleUnitOfMeasure.hbm.xml" />
         <mapping resource="hibernate/hbm/Role.hbm.xml" />
         <mapping resource="hibernate/hbm/UserRole.hbm.xml" />
         <mapping resource="hibernate/hbm/SystemRoleModule.hbm.xml" />

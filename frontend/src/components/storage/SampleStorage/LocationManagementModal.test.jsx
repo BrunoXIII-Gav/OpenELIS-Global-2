@@ -643,68 +643,75 @@ describe("LocationManagementModal", () => {
     expect(button.hasAttribute("disabled")).toBe(true);
   });
 
-  test("testBoxPositionDropdown_LoadsAvailablePositionsWhenBoxIsSelected", async () => {
-    getFromOpenElisServer.mockImplementation((url, callback) => {
-      if (url.includes("/rest/storage/boxes?rackId=30")) {
-        callback([
-          {
-            id: "40",
-            label: "Box-1",
-            rows: 2,
-            columns: 2,
-            positionSchemaHint: "letter-number",
-            occupiedCoordinates: {
-              A1: { sampleItemId: "1001", externalId: "SI-1001" },
+  test.each([
+    { sampleItemId: "1001", externalId: "SI-1001" },
+    {}, // Another unit: occupied coordinate, with no exposed specimen identity.
+  ])(
+    "testBoxPositionDropdown_ExcludesOccupiedPositions %j",
+    async (sampleInfo) => {
+      getFromOpenElisServer.mockImplementation((url, callback) => {
+        if (url.includes("/rest/storage/boxes?rackId=30")) {
+          callback([
+            {
+              id: "40",
+              label: "Box-1",
+              rows: 2,
+              columns: 2,
+              positionSchemaHint: "letter-number",
+              occupiedCoordinates: {
+                A1: sampleInfo,
+              },
             },
-          },
-        ]);
-      } else if (url.includes("/rest/storage/boxes")) {
-        callback([
-          {
-            id: "40",
-            label: "Box-1",
-            rows: 2,
-            columns: 2,
-            positionSchemaHint: "letter-number",
-            occupiedCoordinates: {
-              A1: { sampleItemId: "1001", externalId: "SI-1001" },
+          ]);
+        } else if (url.includes("/rest/storage/boxes")) {
+          callback([
+            {
+              id: "40",
+              label: "Box-1",
+              rows: 2,
+              columns: 2,
+              positionSchemaHint: "letter-number",
+              occupiedCoordinates: {
+                A1: sampleInfo,
+              },
             },
-          },
-        ]);
-      } else {
-        callback([]);
-      }
-    });
+          ]);
+        } else {
+          callback([]);
+        }
+      });
 
-    renderWithIntl(
-      <LocationManagementModal
-        open={true}
-        sample={mockSample}
-        currentLocation={null}
-        onClose={mockOnClose}
-        onConfirm={mockOnConfirm}
-      />,
-    );
-
-    fireEvent.click(screen.getByTestId("select-box-location"));
-
-    await waitFor(() => {
-      expect(getFromOpenElisServer).toHaveBeenCalledWith(
-        expect.stringContaining("/rest/storage/boxes?rackId=30"),
-        expect.any(Function),
+      renderWithIntl(
+        <LocationManagementModal
+          open={true}
+          sample={mockSample}
+          currentLocation={null}
+          onClose={mockOnClose}
+          onConfirm={mockOnConfirm}
+        />,
       );
-    });
 
-    const dropdown = screen.getByTestId("box-position-dropdown");
-    const button = dropdown.querySelector("button") || dropdown;
-    expect(button.hasAttribute("disabled")).toBe(false);
+      fireEvent.click(screen.getByTestId("select-box-location"));
 
-    fireEvent.click(button);
+      await waitFor(() => {
+        expect(getFromOpenElisServer).toHaveBeenCalledWith(
+          expect.stringContaining("/rest/storage/boxes?rackId=30"),
+          expect.any(Function),
+        );
+      });
 
-    await waitFor(() => {
-      expect(screen.getByText("A2")).toBeTruthy();
-      expect(screen.getByText("B1")).toBeTruthy();
-      expect(screen.getByText("B2")).toBeTruthy();
-    });
-  });
+      const dropdown = screen.getByTestId("box-position-dropdown");
+      const button = dropdown.querySelector("button") || dropdown;
+      expect(button.hasAttribute("disabled")).toBe(false);
+
+      fireEvent.click(button);
+
+      await waitFor(() => {
+        expect(screen.queryByText("A1")).toBeNull();
+        expect(screen.getByText("A2")).toBeTruthy();
+        expect(screen.getByText("B1")).toBeTruthy();
+        expect(screen.getByText("B2")).toBeTruthy();
+      });
+    },
+  );
 });

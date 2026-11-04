@@ -5,6 +5,7 @@ import org.openelisglobal.coldstorage.service.SystemConfigService;
 import org.openelisglobal.coldstorage.service.SystemConfigService.SystemConfigDTO;
 import org.openelisglobal.common.rest.BaseRestController;
 import org.springframework.http.ResponseEntity;
+import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.validation.annotation.Validated;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PostMapping;
@@ -15,6 +16,7 @@ import org.springframework.web.bind.annotation.RestController;
 @Validated
 @RestController
 @RequestMapping({ "/rest/coldstorage", "/rest/freezer-monitoring" })
+@PreAuthorize("@accessControl.hasStoragePermission('read')")
 public class FreezerConfigController extends BaseRestController {
 
     private final SystemConfigService systemConfigService;
@@ -30,6 +32,7 @@ public class FreezerConfigController extends BaseRestController {
     }
 
     @PostMapping("/system-config")
+    @PreAuthorize("@accessControl.hasStoragePermission('manage')")
     public ResponseEntity<SystemConfigDTO> saveSystemConfig(@RequestBody @Valid SystemConfigDTO config) {
         SystemConfigDTO saved = systemConfigService.saveConfig(config);
         return ResponseEntity.ok(saved);

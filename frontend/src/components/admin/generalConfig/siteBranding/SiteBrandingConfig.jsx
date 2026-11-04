@@ -465,19 +465,19 @@ function SiteBrandingConfig() {
       );
       applyBrandingColors(dataToSend);
 
-        if (branding.showFavicon === false) {
-          clearFavicons();
-        } else if (branding.faviconUrl) {
-          applyFavicon({
-            ...branding,
-            faviconUrl: branding.faviconUrl,
-          });
-        } else {
-          resetFavicon();
-        }
+      if (branding.showFavicon === false) {
+        clearFavicons();
+      } else if (branding.faviconUrl) {
+        applyFavicon({
+          ...branding,
+          faviconUrl: branding.faviconUrl,
+        });
+      } else {
+        resetFavicon();
+      }
 
-        // Reload from server to get complete state including logo URLs
-        loadBranding();
+      // Reload from server to get complete state including logo URLs
+      loadBranding();
 
       // Dispatch event to notify Header and other components to reload branding
       window.dispatchEvent(new CustomEvent("branding-updated"));

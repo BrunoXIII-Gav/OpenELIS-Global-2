@@ -13,6 +13,11 @@ public interface AnalysisTubeUsageService extends BaseObjectService<AnalysisTube
 
     void deleteByAnalysisId(String analysisId);
 
+    record UsageInput(String childBlockName, String parentTubeBlockName, BigDecimal usedQuantity) {
+    }
+
+    void replaceUsages(Analysis analysis, Analysis parentAnalysis, List<UsageInput> inputs, String actorId);
+
     AnalysisTubeUsage createUsage(Analysis analysis, Analysis parentAnalysis, String childBlockName,
             String parentTubeBlockName, BigDecimal usedQuantity, String sysUserId);
 }

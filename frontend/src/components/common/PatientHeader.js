@@ -20,6 +20,7 @@ const PatientHeader = (props) => {
     department = null,
     requester = null,
     isOrderPage = false,
+    hasPhoto = true,
     className = "patient-header",
   } = props;
   const intl = useIntl();
@@ -38,7 +39,7 @@ const PatientHeader = (props) => {
                   <Column lg={1} md={2} sm={1}>
                     <AsyncAvatar
                       patientId={String(id)}
-                      hasPhoto={true}
+                      hasPhoto={hasPhoto}
                       patientName={
                         patientName ? patientName : lastName + " " + firstName
                       }

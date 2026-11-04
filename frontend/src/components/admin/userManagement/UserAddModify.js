@@ -16,6 +16,7 @@ import {
   PasswordInput,
   Checkbox,
   FormGroup,
+  Link,
 } from "@carbon/react";
 import { FormattedMessage, injectIntl, useIntl } from "react-intl";
 import { useLocation } from "react-router-dom";
@@ -47,7 +48,7 @@ const breadcrumbs = [
 ];
 
 const passwordPatternRegex = /^(?=.*[*$#!])(?=.*[a-zA-Z0-9]).{7,}$/;
-const loginNameRegex = /^[a-zA-Z0-9_-]+$/;
+const loginNameRegex = /^[a-zA-Z0-9_-]+(?: [a-zA-Z0-9_-]+)*$/;
 const nameRegex = /^(?=.*[a-zA-Z])[a-zA-Z .'_@-]*$/;
 const ALL_PERMISSIONS_ROLE_NAMES = new Set([
   "reception",
@@ -212,26 +213,6 @@ function UserAddModify() {
       (providers) => {
         const normalizedProviders = Array.isArray(providers) ? providers : [];
         setLinkedProviderSuggestions(normalizedProviders);
-
-        const currentLinkedProviderId = String(
-          userDataShow?.linkedProviderPersonId || "",
-        ).trim();
-        if (
-          currentLinkedProviderId &&
-          !normalizedProviders.some(
-            (provider) =>
-              String(provider?.id || "").trim() === currentLinkedProviderId,
-          )
-        ) {
-          setUserDataPost((prevUserDataPost) => ({
-            ...prevUserDataPost,
-            linkedProviderPersonId: "",
-          }));
-          setUserDataShow((prevUserDataShow) => ({
-            ...prevUserDataShow,
-            linkedProviderPersonId: "",
-          }));
-        }
       },
     );
   }, [
@@ -458,7 +439,9 @@ function UserAddModify() {
 
       if (userData.selectedCustomRoleIds !== undefined) {
         if (ID !== "0") {
-          setSelectedCustomRoles(userData.selectedCustomRoleIds.map((item) => item));
+          setSelectedCustomRoles(
+            userData.selectedCustomRoleIds.map((item) => item),
+          );
         } else {
           setSelectedCustomRoles([]);
         }
@@ -543,7 +526,7 @@ function UserAddModify() {
 
   function userSavePostCallback(res) {
     if (res?.forward === "redirect:/UnifiedSystemUser") {
-      setIsLoading(false);
+      setIsLoading(true);
       addNotification({
         title: intl.formatMessage({
           id: "notification.title",
@@ -558,7 +541,7 @@ function UserAddModify() {
         window.location.assign("/MasterListsPage/userManagement");
       }, 200);
     } else {
-      setIsLoading(false);
+      setIsLoading(true);
       addNotification(
         loginNameValidation.isDuplicate
           ? {
@@ -578,7 +561,15 @@ function UserAddModify() {
     }
   }
 
-  async function validateLoginNameUniqueness(loginName, notifyDuplicate = true) {
+  function handleFormSubmit(e) {
+    e.preventDefault();
+    handleUserSaveClick();
+  }
+
+  async function validateLoginNameUniqueness(
+    loginName,
+    notifyDuplicate = true,
+  ) {
     const normalizedValue = String(loginName || "").trim();
 
     if (!normalizedValue || !loginNameRegex.test(normalizedValue)) {
@@ -674,7 +665,7 @@ function UserAddModify() {
   }
 
   function handleUserLoginNameChange(e) {
-    const value = e.target.value.trim();
+    const value = e.target.value;
     const isValid = loginNameRegex.test(value);
 
     setLoginNameValidation((prevState) => ({
@@ -898,7 +889,8 @@ function UserAddModify() {
 
         const firstName = String(person.firstName || "").trim();
         const lastName = String(person.lastName || "").trim();
-        const firstNameIsValid = Boolean(firstName) && nameRegex.test(firstName);
+        const firstNameIsValid =
+          Boolean(firstName) && nameRegex.test(firstName);
         const lastNameIsValid = Boolean(lastName) && nameRegex.test(lastName);
 
         setUserDataPost((prevUserDataPost) => ({
@@ -936,14 +928,6 @@ function UserAddModify() {
     setSaveButton(false);
   }
 
-  useEffect(() => {
-    if (!linkedProviderPersonId) {
-      return;
-    }
-
-    syncLinkedProfessionalNames(linkedProviderPersonId);
-  }, [linkedProviderPersonId]);
-
   function clearLinkedProvider() {
     setUserDataPost((prevUserDataPost) => ({
       ...prevUserDataPost,
@@ -961,12 +945,10 @@ function UserAddModify() {
     setUserDataPost((prevUserDataPost) => ({
       ...prevUserDataPost,
       professionalProfileCode: profileCode,
-      linkedProviderPersonId: "",
     }));
     setUserDataShow((prevUserData) => ({
       ...prevUserData,
       professionalProfileCode: profileCode,
-      linkedProviderPersonId: "",
     }));
     setSaveButton(false);
   }
@@ -1304,11 +1286,7 @@ function UserAddModify() {
         <div className="orderLegendBody">
           <Grid fullWidth={true}>
             <Column lg={16} md={8} sm={4}>
-              <Form
-              // onSubmit={handleSubmit}
-              // onChange={setSaveButton(false)}
-              // onBlur={handleBlur}
-              >
+              <Form onSubmit={handleFormSubmit} autoComplete="off">
                 <Grid fullWidth={true}>
                   <Column lg={8} md={4} sm={4}>
                     <>
@@ -1321,17 +1299,16 @@ function UserAddModify() {
                       id="login-name"
                       className="defalut"
                       type="text"
+                      autoComplete="off"
                       labelText=""
                       placeholder={intl.formatMessage({
                         id: "login.login.name",
                       })}
-                      invalid={
-                        Boolean(
-                          userDataShow?.userLoginName &&
-                            (!loginNameRegex.test(userDataShow.userLoginName) ||
-                              loginNameValidation.isDuplicate),
-                        )
-                      }
+                      invalid={Boolean(
+                        userDataShow?.userLoginName &&
+                          (!loginNameRegex.test(userDataShow.userLoginName) ||
+                            loginNameValidation.isDuplicate),
+                      )}
                       invalidText={getLoginNameInvalidText()}
                       required={true}
                       value={
@@ -1383,6 +1360,7 @@ function UserAddModify() {
                       id="login-password"
                       className="defalut"
                       type="password"
+                      autoComplete="new-password"
                       labelText=""
                       placeholder={intl.formatMessage({
                         id: "login.login.password",
@@ -1417,6 +1395,7 @@ function UserAddModify() {
                       id="login-repeat-password"
                       className="defalut"
                       type="password"
+                      autoComplete="new-password"
                       labelText=""
                       placeholder={intl.formatMessage({
                         id: "login.login.repeat.password",
@@ -1516,7 +1495,9 @@ function UserAddModify() {
                       label=""
                     />
                     {isLinkedProfessionalSelected ? (
-                      <div style={{ marginTop: "0.5rem", fontSize: "0.875rem" }}>
+                      <div
+                        style={{ marginTop: "0.5rem", fontSize: "0.875rem" }}
+                      >
                         <FormattedMessage
                           id="unifiedSystemUser.linked.provider.sync.notice"
                           defaultMessage="User first and last name are synchronized from the linked professional."
@@ -1525,6 +1506,19 @@ function UserAddModify() {
                     ) : null}
                   </Column>
                 </Grid>
+                <br />
+                {selectedProfessionalProfileCode && (
+                  <Grid fullWidth={true}>
+                    <Column lg={16} md={8} sm={4}>
+                      <p>
+                        <FormattedMessage id="user.professional.managed.separately" />
+                      </p>
+                      <Link href="/MasterListsPage/providerMenu">
+                        <FormattedMessage id="provider.browse.title" />
+                      </Link>
+                    </Column>
+                  </Grid>
+                )}
                 <br />
                 <Grid fullWidth={true}>
                   <Column lg={8} md={4} sm={4}>
@@ -1554,7 +1548,7 @@ function UserAddModify() {
                           ? userDataShow.userFirstName
                           : ""
                       }
-                      disabled={isLinkedProfessionalSelected}
+                      disabled={false}
                       onChange={(e) => handleUserFirstNameChange(e)}
                     />
                   </Column>
@@ -1588,7 +1582,7 @@ function UserAddModify() {
                           ? userDataShow.userLastName
                           : ""
                       }
-                      disabled={isLinkedProfessionalSelected}
+                      disabled={false}
                       onChange={(e) => handleUserLastNameChange(e)}
                     />
                   </Column>
@@ -1830,7 +1824,9 @@ function UserAddModify() {
                       kind="ghost"
                       type="button"
                       onClick={() =>
-                        window.location.assign("/MasterListsPage/roleManagement")
+                        window.location.assign(
+                          "/MasterListsPage/roleManagement",
+                        )
                       }
                     >
                       <FormattedMessage
@@ -1999,9 +1995,9 @@ function UserAddModify() {
                                     labelText={section.roleName}
                                     checked={
                                       selectedTestSectionLabUnits[key] &&
-                                      selectedTestSectionLabUnits[
-                                        key
-                                      ].includes(section.roleId)
+                                      selectedTestSectionLabUnits[key].includes(
+                                        section.roleId,
+                                      )
                                     }
                                     onChange={() => {
                                       if (

@@ -17,6 +17,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.Objects;
 import java.util.Set;
+import java.util.regex.Pattern;
 import java.util.stream.Collectors;
 import org.apache.commons.lang3.StringUtils;
 import org.apache.commons.validator.GenericValidator;
@@ -81,12 +82,17 @@ public class UnifiedSystemUserRestController extends BaseController {
     // private static final String GLOBAL_ADMIN_ID = "globalAdminId";
     // private static final String ID = "id";
     public static final char DEFAULT_OBFUSCATED_CHARACTER = '@';
+    private static final Pattern LOGIN_NAME_PATTERN = Pattern.compile("^[A-Za-z0-9_-]+(?: [A-Za-z0-9_-]+)*$");
 
     private static final String[] ALLOWED_FIELDS = new String[] { "systemUserId", "loginUserId", "userLoginName",
             "userPassword", "confirmPassword", "userFirstName", "userLastName", "expirationDate", "timeout",
             "accountLocked", "accountDisabled", "accountActive", "selectedRoles*", "selectedLabUnitRoles",
             "selectedCustomRoleIds*", "testSectionId", "systemUsers", "systemUserIdToCopy", "allowCopyUserRoles",
-            "linkedProviderPersonId", "professionalProfileCode", "signatureImageData", "signatureImageContentType" };
+            "professionalInfo.*", "linkedProviderPersonId", "professionalProfileCode", "signatureImageData",
+            "signatureImageContentType" };
+
+    @Autowired
+    private org.openelisglobal.systemuser.service.UserProfessionalService userProfessionalService;
 
     @Autowired
     private UnifiedSystemUserFormValidator formValidator;
@@ -162,8 +168,7 @@ public class UnifiedSystemUserRestController extends BaseController {
 
     @GetMapping(value = "/UnifiedSystemUser/login-name-status")
     @ResponseBody
-    public Map<String, Object> getLoginNameStatus(
-            @RequestParam(name = "loginName", defaultValue = "") String loginName,
+    public Map<String, Object> getLoginNameStatus(@RequestParam(name = "loginName", defaultValue = "") String loginName,
             @RequestParam(name = "loginUserId", required = false) String loginUserId) {
         String normalizedLoginName = StringUtils.trimToEmpty(loginName);
         String normalizedLoginUserId = StringUtils.trimToNull(loginUserId);
@@ -174,22 +179,30 @@ public class UnifiedSystemUserRestController extends BaseController {
         if (StringUtils.isBlank(normalizedLoginName)) {
             response.put("available", false);
             response.put("duplicate", false);
+            response.put("invalid", false);
+            return response;
+        }
+
+        if (!isLoginNameFormatValid(normalizedLoginName)) {
+            response.put("available", false);
+            response.put("duplicate", false);
+            response.put("invalid", true);
             return response;
         }
 
         LoginUser existingLogin = loginService.getMatch("loginName", normalizedLoginName).orElse(null);
-        boolean duplicate = existingLogin != null
-                && (normalizedLoginUserId == null || !normalizedLoginUserId.equals(String.valueOf(existingLogin.getId())));
+        boolean duplicate = existingLogin != null && (normalizedLoginUserId == null
+                || !normalizedLoginUserId.equals(String.valueOf(existingLogin.getId())));
 
         response.put("available", !duplicate);
         response.put("duplicate", duplicate);
+        response.put("invalid", false);
         return response;
     }
 
     @GetMapping(value = "/users/professional-profile/{profileCode}")
     @ResponseBody
-    public List<IdValuePair> getUsersByProfessionalProfile(
-            @PathVariable String profileCode,
+    public List<IdValuePair> getUsersByProfessionalProfile(@PathVariable String profileCode,
             @RequestParam(name = "activeOnly", defaultValue = "true") boolean activeOnly,
             @RequestParam(name = "labelMode", defaultValue = "professional") String labelMode,
             @RequestParam(name = "requireEmail", defaultValue = "true") boolean requireEmail) {
@@ -203,6 +216,7 @@ public class UnifiedSystemUserRestController extends BaseController {
                 activeOnly, useFullNameLabel, requireEmail);
     }
 
+    @org.springframework.security.access.prepost.PreAuthorize("@accessControl.hasModulePermission('administration', 'read') or @accessControl.hasModulePermission('administration', 'manage')")
     @GetMapping(value = "/UnifiedSystemUser")
     public ResponseEntity<UnifiedSystemUserForm> showUnifiedSystemUser(HttpServletRequest request,
             @RequestParam(name = "ID", defaultValue = "") String id)
@@ -438,6 +452,7 @@ public class UnifiedSystemUserRestController extends BaseController {
             form.setUserFirstName(systemUser.getFirstName());
             form.setUserLastName(systemUser.getLastName());
             form.setLinkedProviderPersonId(StringUtils.defaultString(systemUser.getLinkedProviderPersonId()));
+            form.setProfessionalInfo(userProfessionalService.getProfessional(systemUser.getLinkedProviderPersonId()));
             form.setProfessionalProfileCode(StringUtils.defaultString(systemUser.getProfessionalProfileCode()));
             form.setSignatureImageData(systemUser.getSignatureImageData());
             form.setSignatureImageContentType(StringUtils.defaultString(systemUser.getSignatureImageContentType()));
@@ -512,6 +527,14 @@ public class UnifiedSystemUserRestController extends BaseController {
                 && !Constants.ROLE_VALIDATION_MEDICAL.equals(roleName);
     }
 
+    @org.springframework.security.access.prepost.PreAuthorize("@accessControl.hasModulePermission('administration', 'read') or @accessControl.hasModulePermission('administration', 'manage')")
+    @GetMapping(value = "/user-professional/{personId}")
+    public org.openelisglobal.provider.form.ProviderUpsertForm getUserProfessional(
+            @org.springframework.web.bind.annotation.PathVariable String personId) {
+        return userProfessionalService.getProfessional(personId);
+    }
+
+    @org.springframework.security.access.prepost.PreAuthorize("@accessControl.hasModulePermission('administration', 'manage')")
     @PostMapping(value = "/UnifiedSystemUser")
     public Map<String, String> showUpdateUnifiedSystemUser(HttpServletRequest request,
             @RequestBody @Valid UnifiedSystemUserForm form, BindingResult result) {
@@ -524,19 +547,13 @@ public class UnifiedSystemUserRestController extends BaseController {
             setupRoles(form, request, doFiltering);
             // return findForward(FWD_FAIL_INSERT, form);
             response.put("forward", findForward(FWD_FAIL_INSERT));
-            // return response;
+            return response;
             // return findForward(FWD_FAIL_INSERT);
         }
 
         request.setAttribute(ALLOW_EDITS_KEY, "true");
         request.setAttribute(PREVIOUS_DISABLED, "false");
         request.setAttribute(NEXT_DISABLED, "false");
-
-        if (form.getUserLoginName() != null) {
-            form.setUserLoginName(form.getUserLoginName().trim());
-        } else {
-            form.setUserLoginName("");
-        }
 
         String forward = validateAndUpdateSystemUser(request, form);
 
@@ -570,7 +587,8 @@ public class UnifiedSystemUserRestController extends BaseController {
 
         passwordUpdated = passwordHasBeenUpdated(loginUserNew, form);
         validateUser(form, errors, loginUserNew, passwordUpdated, loginUserId);
-        validateLinkedProviderProfileConsistency(form, errors);
+        if (form.getProfessionalInfo() == null)
+            validateLinkedProviderProfileConsistency(form, errors);
 
         if (errors.hasErrors()) {
             saveErrors(errors);
@@ -591,10 +609,10 @@ public class UnifiedSystemUserRestController extends BaseController {
         SystemUser systemUser = createSystemUser(form, systemUserId, systemUserNew, loggedOnUserId);
         try {
             if (form.getAllowCopyUserRoles().equals(NO)) {
-                userService.updateLoginUser(loginUser, loginUserNew, systemUser, systemUserNew,
-                        deduplicateRoleIds(effectiveGlobalRoles), loggedOnUserId);
-                saveUserLabUnitRoles(systemUser, form, loggedOnUserId, selectedCustomRoleIds,
-                        derivedCustomPermissionRoleIds);
+                Map<String, Set<String>> labRoles = new HashMap<>(form.getSelectedTestSectionLabUnits());
+                mergeCustomLabRoles(labRoles, selectedCustomRoleIds, derivedCustomPermissionRoleIds);
+                userProfessionalService.save(loginUser, loginUserNew, systemUser, systemUserNew,
+                        deduplicateRoleIds(effectiveGlobalRoles), labRoles, form.getProfessionalInfo(), loggedOnUserId);
             } else if (form.getAllowCopyUserRoles().equals(YES)) {
                 if (StringUtils.isNotBlank(form.getSystemUserIdToCopy().trim())) {
                     String globalParentRoleId = roleService.getRoleByName(Constants.GLOBAL_ROLES_GROUP).getId();
@@ -608,17 +626,20 @@ public class UnifiedSystemUserRestController extends BaseController {
                             .filter(role -> globaRolesIds.contains(role) || customRoleIds.contains(role))
                             .collect(Collectors.toList());
 
-                    userService.updateLoginUser(loginUser, loginUserNew, systemUser, systemUserNew, globalCopiedRoleIds,
-                            loggedOnUserId);
-
                     UserLabUnitRoles labRoles = userService.getUserLabUnitRoles(form.getSystemUserIdToCopy().trim());
                     Map<String, Set<String>> copiedLabUnitRolesMap = new HashMap<>();
-                    labRoles.getLabUnitRoleMap().forEach(roleMap -> copiedLabUnitRolesMap
-                            .put(new String(roleMap.getLabUnit()), new HashSet<>(roleMap.getRoles())));
-                    userService.saveUserLabUnitRoles(systemUser, copiedLabUnitRolesMap, loggedOnUserId);
+                    if (labRoles != null)
+                        labRoles.getLabUnitRoleMap().forEach(roleMap -> copiedLabUnitRolesMap
+                                .put(new String(roleMap.getLabUnit()), new HashSet<>(roleMap.getRoles())));
+                    userProfessionalService.save(loginUser, loginUserNew, systemUser, systemUserNew,
+                            globalCopiedRoleIds, copiedLabUnitRolesMap, form.getProfessionalInfo(), loggedOnUserId);
                 }
             }
             ID = systemUser.getId() + "-" + loginUser.getId();
+        } catch (IllegalArgumentException e) {
+            errors.reject("errors.UpdateException", e.getMessage());
+            saveErrors(errors);
+            return FWD_FAIL_INSERT;
         } catch (LIMSRuntimeException e) {
             if (e.getCause() instanceof org.hibernate.StaleObjectStateException) {
                 errors.reject("errors.OptimisticLockException", "errors.OptimisticLockException");
@@ -653,6 +674,8 @@ public class UnifiedSystemUserRestController extends BaseController {
 
         if (GenericValidator.isBlankOrNull(form.getUserLoginName())) {
             errors.reject("errors.loginName.required", "errors.loginName.required");
+        } else if (!isLoginNameFormatValid(form.getUserLoginName())) {
+            errors.reject("errors.loginName.invalid", "errors.loginName.invalid");
         } else if (checkForDuplicateName) {
             LoginUser login = loginService.getMatch("loginName", form.getUserLoginName()).orElse(null);
             if (login != null) {
@@ -699,6 +722,10 @@ public class UnifiedSystemUserRestController extends BaseController {
         } catch (NumberFormatException e) {
             return false;
         }
+    }
+
+    private boolean isLoginNameFormatValid(String loginName) {
+        return StringUtils.isNotBlank(loginName) && LOGIN_NAME_PATTERN.matcher(loginName).matches();
     }
 
     private boolean passwordValid(String password) {
@@ -769,12 +796,12 @@ public class UnifiedSystemUserRestController extends BaseController {
         String resolvedFirstName = StringUtils.trimToNull(form.getUserFirstName());
         String resolvedLastName = StringUtils.trimToNull(form.getUserLastName());
 
-        if (linkedProvider != null && linkedProvider.getPerson() != null) {
+        if (form.getProfessionalInfo() == null && linkedProvider != null && linkedProvider.getPerson() != null) {
             Person linkedPerson = linkedProvider.getPerson();
-            resolvedFirstName = StringUtils.defaultIfBlank(
-                    StringUtils.trimToNull(linkedPerson.getFirstName()), resolvedFirstName);
-            resolvedLastName = StringUtils.defaultIfBlank(
-                    StringUtils.trimToNull(linkedPerson.getLastName()), resolvedLastName);
+            resolvedFirstName = StringUtils.defaultIfBlank(StringUtils.trimToNull(linkedPerson.getFirstName()),
+                    resolvedFirstName);
+            resolvedLastName = StringUtils.defaultIfBlank(StringUtils.trimToNull(linkedPerson.getLastName()),
+                    resolvedLastName);
         }
 
         systemUser.setFirstName(resolvedFirstName);
@@ -814,11 +841,8 @@ public class UnifiedSystemUserRestController extends BaseController {
             return null;
         }
 
-        return providerService.getAllActiveProviders().stream()
-                .filter(provider -> provider.getPerson() != null)
-                .filter(provider -> normalizedPersonId.equals(provider.getPerson().getId()))
-                .findFirst()
-                .orElse(null);
+        return providerService.getAllActiveProviders().stream().filter(provider -> provider.getPerson() != null)
+                .filter(provider -> normalizedPersonId.equals(provider.getPerson().getId())).findFirst().orElse(null);
     }
 
     private void disableNavigationButtons(HttpServletRequest request) {
@@ -834,8 +858,8 @@ public class UnifiedSystemUserRestController extends BaseController {
         userService.saveUserLabUnitRoles(user, selectedLabUnitRolesMap, loggedOnUserId);
     }
 
-    private void mergeCustomLabRoles(Map<String, Set<String>> selectedLabUnitRolesMap, List<String> selectedCustomRoleIds,
-            List<String> permissionRoleIds) {
+    private void mergeCustomLabRoles(Map<String, Set<String>> selectedLabUnitRolesMap,
+            List<String> selectedCustomRoleIds, List<String> permissionRoleIds) {
         List<String> labRoleIds = getLabUnitRoleIds(permissionRoleIds);
         if (labRoleIds.isEmpty()) {
             return;

@@ -33,6 +33,8 @@ import org.openelisglobal.note.service.NoteServiceImpl.NoteType;
 import org.openelisglobal.note.valueholder.Note;
 import org.openelisglobal.observationhistory.service.ObservationHistoryService;
 import org.openelisglobal.observationhistory.valueholder.ObservationHistory;
+import org.openelisglobal.orderadditionalfield.service.AlternateOrderFlowPolicy;
+import org.openelisglobal.orderadditionalfield.service.AlternateOrderFlowService;
 import org.openelisglobal.orderadditionalfield.service.OrderAdditionalFieldService;
 import org.openelisglobal.organization.service.OrganizationService;
 import org.openelisglobal.organization.valueholder.Organization;
@@ -67,6 +69,7 @@ import org.openelisglobal.userrole.service.UserRoleService;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.security.access.AccessDeniedException;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -124,7 +127,12 @@ public class SampleEditServiceImpl implements SampleEditService {
     @Autowired
     private OrderAdditionalFieldService orderAdditionalFieldService;
     @Autowired
+    private AlternateOrderFlowService alternateOrderFlowService;
+    @Autowired
     private UnitOfMeasureService unitOfMeasureService;
+
+    @Autowired
+    private OrderAuthorizationService orderAuthorizationService;
     private List<String> analysisList = new ArrayList<>();
 
     @Transactional
@@ -132,20 +140,45 @@ public class SampleEditServiceImpl implements SampleEditService {
     public void editSample(SampleEditForm form, HttpServletRequest request, Sample updatedSample, boolean sampleChanged,
             String sysUserId) {
 
+        if (updatedSample == null) {
+            updatedSample = sampleService.getSampleByAccessionNumber(form.getAccessionNumber());
+        }
+        Patient patient = sampleService.getPatient(updatedSample);
+
         List<SampleEditItem> existingTests = form.getExistingTests() != null ? form.getExistingTests()
                 : new ArrayList<>();
+        Set<String> removedSampleItemIds = new HashSet<>();
+        if (form.getRemovedSampleItemIds() != null) {
+            removedSampleItemIds.addAll(form.getRemovedSampleItemIds());
+        }
+        existingTests.stream().filter(SampleEditItem::isRemoveSample).map(SampleEditItem::getSampleItemId)
+                .forEach(removedSampleItemIds::add);
         List<Analysis> cancelAnalysisList = createRemoveList(existingTests, sysUserId);
-        List<SampleItem> updateSampleItemList = createSampleItemUpdateList(existingTests, sysUserId);
-        List<SampleItem> cancelSampleItemList = createCancelSampleList(existingTests, cancelAnalysisList, sysUserId);
-        List<Analysis> addAnalysisList = createAddAanlysisList(
-                form.getPossibleTests() != null ? form.getPossibleTests() : new ArrayList<>(), sysUserId);
+        List<SampleItem> cancelSampleItemList = createCancelSampleList(removedSampleItemIds, updatedSample,
+                cancelAnalysisList, sysUserId);
+        List<SampleItem> updateSampleItemList = createSampleItemUpdateList(
+                existingTests.stream().filter(row -> !removedSampleItemIds.contains(row.getSampleItemId())).toList(),
+                sysUserId);
+        List<Analysis> addAnalysisList = new ArrayList<>();
 
         List<IResultUpdate> updaters = ResultUpdateRegister.getRegisteredUpdaters();
         ResultsUpdateDataSet actionDataSet = new ResultsUpdateDataSet(sysUserId);
 
-        if (updatedSample == null) {
-            updatedSample = sampleService.getSampleByAccessionNumber(form.getAccessionNumber());
-        }
+        // Resolve the workflow from the effective values in this transaction. An
+        // explicit unchecked value must override the previously stored trigger.
+        orderAdditionalFieldService.validateAndPersistSampleValues(updatedSample.getId(),
+                form.getSampleOrderItems() == null ? null : form.getSampleOrderItems().getAdditionalFieldValues(),
+                form.getSampleOrderItems() == null ? null : form.getSampleOrderItems().getAdditionalFieldFiles(),
+                sysUserId, null);
+        boolean alternateOrderFlow = alternateOrderFlowService.isAlternateOrderFlow(updatedSample.getId());
+        List<SampleEditItem> selectedTests = form.getPossibleTests() != null ? form.getPossibleTests()
+                : new ArrayList<>();
+        addAnalysisList = createAddAanlysisList(
+                selectedTests.stream().filter(selection -> !removedSampleItemIds.contains(selection.getSampleItemId()))
+                        .filter(selection -> AlternateOrderFlowPolicy.allowsProcessing(alternateOrderFlow,
+                                testService.get(selection.getTestId())))
+                        .collect(java.util.stream.Collectors.toList()),
+                sysUserId);
         updatedSample.setPriority(form.getSampleOrderItems().getPriority());
         String receivedDateForDisplay = updatedSample.getReceivedDateForDisplay();
         String collectionDateFromRecieveDate = null;
@@ -168,7 +201,10 @@ public class SampleEditServiceImpl implements SampleEditService {
             sampleChanged = true;
             updatedSample = orderArtifacts.getSample();
         }
-        Patient patient = sampleService.getPatient(updatedSample);
+        // Persist removals in the same transaction as the remaining order changes.
+        for (SampleItem sampleItem : cancelSampleItemList) {
+            sampleItemService.update(sampleItem);
+        }
         persistProviderData(orderArtifacts);
         SampleHuman sampleHuman = new SampleHuman();
         sampleHuman.setSampleId(updatedSample.getId());
@@ -206,18 +242,9 @@ public class SampleEditServiceImpl implements SampleEditService {
             analysisIds.add(analysisId);
         }
 
-        for (SampleItem sampleItem : cancelSampleItemList) {
-            sampleItemService.update(sampleItem);
-        }
-
         if (sampleChanged) {
             sampleService.update(updatedSample);
         }
-
-        orderAdditionalFieldService.validateAndPersistSampleValues(updatedSample.getId(),
-                form.getSampleOrderItems() == null ? null : form.getSampleOrderItems().getAdditionalFieldValues(),
-                form.getSampleOrderItems() == null ? null : form.getSampleOrderItems().getAdditionalFieldFiles(),
-                sysUserId, null);
 
         // seems like this is unused
         /*
@@ -254,6 +281,9 @@ public class SampleEditServiceImpl implements SampleEditService {
 
             for (Test test : sampleTestCollection.tests) {
                 test = testService.get(test.getId());
+                if (!AlternateOrderFlowPolicy.allowsProcessing(alternateOrderFlow, test)) {
+                    continue;
+                }
 
                 Analysis analysis = populateAnalysis(sampleTestCollection, test,
                         sampleTestCollection.testIdToUserSectionMap.get(test.getId()), sampleAddService);
@@ -461,32 +491,34 @@ public class SampleEditServiceImpl implements SampleEditService {
         return sampleAddService.createSampleTestCollection();
     }
 
-    private List<SampleItem> createCancelSampleList(List<SampleEditItem> list, List<Analysis> cancelAnalysisList,
-            String sysUserId) {
+    private List<SampleItem> createCancelSampleList(Set<String> sampleItemIds, Sample sample,
+            List<Analysis> cancelAnalysisList, String sysUserId) {
         List<SampleItem> cancelList = new ArrayList<>();
-
-        boolean cancelTest = false;
-
-        for (SampleEditItem editItem : list) {
-            if (editItem.getAccessionNumber() != null) {
-                cancelTest = false;
+        if (!sampleItemIds.isEmpty() && !orderAuthorizationService.hasPermission(sysUserId, "cancel")) {
+            throw new AccessDeniedException("The user does not have permission to remove samples");
+        }
+        for (String id : sampleItemIds) {
+            SampleItem item = sampleItemService.get(id);
+            if (item == null || item.getSample() == null || !sample.getId().equals(item.getSample().getId())) {
+                throw new AccessDeniedException("The sample item does not belong to this order");
             }
-            if (cancelTest && !cancelAnalysisListContainsId(editItem.getAnalysisId(), cancelAnalysisList)) {
-                Analysis analysis = getCancelableAnalysis(editItem, sysUserId);
-                cancelAnalysisList.add(analysis);
+            List<Analysis> analyses = analysisService.getAnalysesBySampleItemsExcludingByStatusIds(item,
+                    Set.of(Integer.valueOf(CANCELED_TEST_STATUS_ID)));
+            if (!orderAuthorizationService.canAccessAllTests(sysUserId,
+                    analyses.stream().map(analysis -> analysis.getTest().getId()).toList(), "cancel")) {
+                throw new AccessDeniedException("The user cannot remove tests from these laboratory units");
             }
-
-            if (editItem.isRemoveSample()) {
-                cancelTest = true;
-                SampleItem sampleItem = getCancelableSampleItem(editItem, sysUserId);
-                if (sampleItem != null) {
-                    cancelList.add(sampleItem);
-                }
-                if (!cancelAnalysisListContainsId(editItem.getAnalysisId(), cancelAnalysisList)) {
-                    Analysis analysis = getCancelableAnalysis(editItem, sysUserId);
+            for (Analysis analysis : analyses) {
+                if (!cancelAnalysisListContainsId(analysis.getId(), cancelAnalysisList)) {
+                    analysis.setStatusId(CANCELED_TEST_STATUS_ID);
+                    analysis.setSysUserId(sysUserId);
                     cancelAnalysisList.add(analysis);
                 }
             }
+            item.setStatusId(CANCELED_SAMPLE_STATUS_ID);
+            item.setVoided(true);
+            item.setSysUserId(sysUserId);
+            cancelList.add(item);
         }
 
         return cancelList;
@@ -557,19 +589,6 @@ public class SampleEditServiceImpl implements SampleEditService {
         analysis.setSysUserId(sysUserId);
         analysis.setStatusId(SpringContext.getBean(IStatusService.class).getStatusID(AnalysisStatus.Canceled));
         return analysis;
-    }
-
-    private SampleItem getCancelableSampleItem(SampleEditItem editItem, String sysUserId) {
-        String sampleItemId = editItem.getSampleItemId();
-        SampleItem item = sampleItemService.get(sampleItemId);
-
-        if (item.getId() != null) {
-            item.setStatusId(CANCELED_SAMPLE_STATUS_ID);
-            item.setSysUserId(sysUserId);
-            return item;
-        }
-
-        return null;
     }
 
     private boolean cancelAnalysisListContainsId(String analysisId, List<Analysis> cancelAnalysisList) {

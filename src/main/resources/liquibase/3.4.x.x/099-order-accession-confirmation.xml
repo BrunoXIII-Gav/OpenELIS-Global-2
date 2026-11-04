@@ -1,0 +1,28 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<databaseChangeLog xmlns="http://www.liquibase.org/xml/ns/dbchangelog"
+ xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+ xsi:schemaLocation="http://www.liquibase.org/xml/ns/dbchangelog https://www.liquibase.org/xml/ns/dbchangelog/dbchangelog-4.8.xsd">
+ <changeSet id="099-order-accession-submission-lock" author="openelis">
+  <insert tableName="accession_number_info">
+   <column name="prefix" value="__ORDER_SUBMISSION__"/>
+   <column name="type" value="MAIN"/>
+   <column name="cur_val" valueNumeric="0"/>
+  </insert>
+  <rollback><delete tableName="accession_number_info"><where>prefix='__ORDER_SUBMISSION__' AND type='MAIN'</where></delete></rollback>
+ </changeSet>
+ <changeSet id="099-order-accession-unique-index" author="openelis">
+  <preConditions onFail="MARK_RAN">
+   <sqlCheck expectedResult="0"><![CDATA[
+    SELECT count(*) FROM pg_index i
+    JOIN pg_class t ON t.oid=i.indrelid JOIN pg_namespace n ON n.oid=t.relnamespace
+    JOIN pg_attribute a ON a.attrelid=t.oid AND a.attnum=ANY(i.indkey)
+    WHERE n.nspname='clinlims' AND t.relname='sample' AND a.attname='accession_number'
+      AND i.indisunique AND i.indisvalid AND i.indnkeyatts=1 AND i.indpred IS NULL AND i.indexprs IS NULL
+   ]]></sqlCheck>
+  </preConditions>
+  <createIndex tableName="sample" indexName="idx_sample_order_accession_unique" unique="true">
+   <column name="accession_number"/>
+  </createIndex>
+  <rollback><sql>DROP INDEX IF EXISTS clinlims.idx_sample_order_accession_unique</sql></rollback>
+ </changeSet>
+</databaseChangeLog>

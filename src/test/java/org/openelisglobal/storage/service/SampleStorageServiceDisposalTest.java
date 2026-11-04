@@ -50,6 +50,9 @@ public class SampleStorageServiceDisposalTest {
     @Mock
     private org.openelisglobal.sampleitem.service.SampleItemService sampleItemService;
 
+    @Mock
+    private StorageAuthorizationService storageAuthorizationService;
+
     @InjectMocks
     private SampleStorageServiceImpl sampleStorageService;
 

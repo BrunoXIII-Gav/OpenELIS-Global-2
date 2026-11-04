@@ -73,8 +73,7 @@ function TestParentChildDependency() {
     useState(false);
   const [parentHasTubeQuantitySource, setParentHasTubeQuantitySource] =
     useState(false);
-  const [childHasTubeUsageTarget, setChildHasTubeUsageTarget] =
-    useState(false);
+  const [childHasTubeUsageTarget, setChildHasTubeUsageTarget] = useState(false);
   const [isLoadingChildConfig, setIsLoadingChildConfig] = useState(false);
 
   const testNameById = useMemo(() => {
@@ -175,7 +174,9 @@ function TestParentChildDependency() {
           Array.isArray(response?.options) ? response.options : [],
         );
         setParentTestUsesTubeBlocks(response?.tubeBasedParent === true);
-        setParentHasTubeQuantitySource(response?.hasTubeQuantitySource === true);
+        setParentHasTubeQuantitySource(
+          response?.hasTubeQuantitySource === true,
+        );
         setIsLoadingParentFields(false);
       },
     );
@@ -195,9 +196,7 @@ function TestParentChildDependency() {
         if (!componentMounted.current) {
           return;
         }
-        setChildHasTubeUsageTarget(
-          response?.hasChildTubeUsageTarget === true,
-        );
+        setChildHasTubeUsageTarget(response?.hasChildTubeUsageTarget === true);
         setIsLoadingChildConfig(false);
       },
     );

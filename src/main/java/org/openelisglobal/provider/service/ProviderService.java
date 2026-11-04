@@ -1,6 +1,7 @@
 package org.openelisglobal.provider.service;
 
 import java.util.List;
+import java.util.Map;
 import java.util.UUID;
 import org.openelisglobal.common.service.BaseObjectService;
 import org.openelisglobal.person.valueholder.Person;
@@ -30,4 +31,9 @@ public interface ProviderService extends BaseObjectService<Provider, String> {
     void deactivateProviders(List<Provider> providers);
 
     Provider insertOrUpdateProviderByFhirUuid(UUID fhirUuid, Provider provider);
+
+    Provider insertOrUpdateProviderByFhirUuid(UUID fhirUuid, Provider provider, String currentUserId);
+
+    Provider insertOrUpdateProviderByFhirUuid(UUID fhirUuid, Provider provider, String currentUserId,
+            Map<String, Object> profileFieldValues);
 }

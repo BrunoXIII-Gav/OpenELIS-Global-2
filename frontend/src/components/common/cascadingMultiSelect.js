@@ -8,6 +8,7 @@ export default function CascadingMultiSelect({
   dictionaryValues = [],
   value = "{}",
   onChange,
+  disabled = false,
 }) {
   const items = useMemo(
     () =>
@@ -89,6 +90,7 @@ export default function CascadingMultiSelect({
                 <Column lg={16} sm={4} md={8}>
                   <MultiSelect
                     id={`${id}_${key}`}
+                    disabled={disabled}
                     items={items}
                     selectedItems={selectedItems}
                     itemToString={(item) => item?.label || ""}
@@ -107,6 +109,7 @@ export default function CascadingMultiSelect({
                   hasIconOnly
                   renderIcon={TrashCan}
                   iconDescription="Remove"
+                  disabled={disabled}
                   onClick={() => removeCascade(key)}
                 />
               </div>
@@ -118,6 +121,7 @@ export default function CascadingMultiSelect({
             size="sm"
             style={{ marginTop: "0.5rem" }}
             renderIcon={Add}
+            disabled={disabled}
             onClick={addCascade}
           >
             Add

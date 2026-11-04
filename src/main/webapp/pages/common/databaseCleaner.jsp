@@ -5,17 +5,16 @@
 
 <%@ taglib prefix="spring" uri="http://www.springframework.org/tags"%>
 
-<form>
+<form id="database-cleaning-form" method="post" action="DatabaseCleaningRequest">
+<input type="hidden" name="${_csrf.parameterName}" value="${_csrf.token}"/>
 <script type="text/javascript">
 
 function /*void*/ cancel(){
-	var form = window.document.forms[0];
-	form.action = "Cancel";
-	form.submit();
+	window.location.href = "MasterListsPage";
 }
 
 function /*void*/ deleteData(){
-	var form = window.document.forms[0];
+	var form = document.getElementById("database-cleaning-form");
 	form.action = "DatabaseCleaningRequest";
 	form.submit();
 }

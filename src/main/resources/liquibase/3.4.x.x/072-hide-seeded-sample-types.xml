@@ -1,0 +1,29 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<databaseChangeLog
+  xmlns="http://www.liquibase.org/xml/ns/dbchangelog"
+  xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+  xsi:schemaLocation="http://www.liquibase.org/xml/ns/dbchangelog http://www.liquibase.org/xml/ns/dbchangelog/dbchangelog-3.8.xsd">
+
+  <changeSet id="072-01-hide-seeded-sample-types" author="codex">
+    <preConditions onFail="MARK_RAN">
+      <tableExists tableName="type_of_sample" schemaName="clinlims" />
+    </preConditions>
+
+    <comment>
+      Hide seeded sample types that should no longer appear in order-entry sample selectors,
+      while keeping the records in the database for auditability and rollback.
+    </comment>
+
+    <update schemaName="clinlims" tableName="type_of_sample">
+      <column name="is_active" valueBoolean="false" />
+      <where>description IN ('Genital Specimen', 'Skin', 'Tissue', 'Urine', 'Vaginal Fluid')</where>
+    </update>
+
+    <rollback>
+      <update schemaName="clinlims" tableName="type_of_sample">
+        <column name="is_active" valueBoolean="true" />
+        <where>description IN ('Genital Specimen', 'Skin', 'Tissue', 'Urine', 'Vaginal Fluid')</where>
+      </update>
+    </rollback>
+  </changeSet>
+</databaseChangeLog>

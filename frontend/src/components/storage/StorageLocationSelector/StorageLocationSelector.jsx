@@ -32,6 +32,7 @@ const StorageLocationSelector = ({
   sampleInfo = null,
   hierarchicalPath: initialHierarchicalPath = "",
   initialLocation = null,
+  readOnly = false,
 }) => {
   const intl = useIntl();
   const [selectedLocation, setSelectedLocation] = useState(initialLocation);
@@ -199,12 +200,13 @@ const StorageLocationSelector = ({
       >
         <CompactLocationView
           locationPath={hierarchicalPath}
-          onExpand={handleExpand}
-          showQuickFind={showQuickFind && workflow === "results"}
+          onExpand={readOnly ? () => {} : handleExpand}
+          showQuickFind={showQuickFind && workflow === "results" && !readOnly}
           onLocationSelect={handleLocationChange}
+          readOnly={readOnly}
         />
         <LocationManagementModal
-          open={isModalOpen}
+          open={readOnly ? false : isModalOpen}
           sample={sample}
           currentLocation={currentLocation}
           onClose={handleModalClose}

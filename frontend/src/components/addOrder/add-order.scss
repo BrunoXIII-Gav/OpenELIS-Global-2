@@ -1,4 +1,5 @@
 @use "@carbon/styles/scss/type";
+@use "@carbon/styles/scss/spacing";
 
 .singleTest {
   padding: 1rem 0.75rem;
@@ -48,6 +49,22 @@
   padding-right: 2%;
 }
 
+.orderFieldsGrid {
+  row-gap: spacing.$spacing-06;
+
+  > [hidden] {
+    display: none;
+  }
+
+  > .cds--css-grid-column > .cds--form-item {
+    margin-block: 0;
+  }
+
+  .cds--file-container:empty {
+    margin-block-start: 0;
+  }
+}
+
 @media (max-width: 1024px) {
   .orderWorkFlowDiv {
     margin: 0;
@@ -76,6 +93,7 @@
 
 .orderPageActionButtons {
   display: flex;
+  flex-wrap: wrap;
   justify-content: flex-end;
   gap: 0.5rem;
 }

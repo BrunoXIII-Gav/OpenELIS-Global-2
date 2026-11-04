@@ -7,7 +7,6 @@ import java.util.List;
 import org.apache.commons.validator.GenericValidator;
 import org.openelisglobal.analysis.service.AnalysisService;
 import org.openelisglobal.analysis.valueholder.Analysis;
-import org.openelisglobal.common.constants.Constants;
 import org.openelisglobal.common.formfields.FormFields;
 import org.openelisglobal.common.formfields.FormFields.Field;
 import org.openelisglobal.common.services.QAService;
@@ -26,7 +25,6 @@ import org.openelisglobal.sampleqaevent.service.SampleQaEventService;
 import org.openelisglobal.sampleqaevent.valueholder.SampleQaEvent;
 import org.openelisglobal.search.service.SearchResultsService;
 import org.openelisglobal.spring.util.SpringContext;
-import org.openelisglobal.systemuser.service.UserService;
 import org.openelisglobal.test.beanItems.TestResultItem;
 import org.openelisglobal.workplan.action.util.WorkplanPaging;
 import org.openelisglobal.workplan.form.WorkplanForm;
@@ -63,14 +61,12 @@ public class WorkplanByTestSectionRestController extends WorkplanRestController 
     @Autowired
     private SampleQaEventService sampleQaEventService;
 
-    @Autowired
-    private UserService userService;
-
     @GetMapping(value = "/rest/WorkPlanByTestSection", produces = MediaType.APPLICATION_JSON_VALUE)
     public WorkplanForm showWorkPlanByTestSection(HttpServletRequest request,
             @RequestParam(name = "test_section_id", defaultValue = "0") String testSectionId)
             throws IllegalAccessException, InvocationTargetException, NoSuchMethodException {
 
+        requireResultsReadPermission(request);
         WorkplanForm form = new WorkplanForm();
         WorkplanPaging paging = new WorkplanPaging();
         List<TestResultItem> workplanTests = new ArrayList<TestResultItem>();
@@ -80,8 +76,7 @@ public class WorkplanByTestSectionRestController extends WorkplanRestController 
             if (!GenericValidator.isBlankOrNull(testSectionId)) {
                 // get tests based on test section
                 workplanTests = getWorkplanByTestSection(testSectionId);
-                filteredTests = userService.filterResultsByLabUnitRoles(getSysUserId(request), workplanTests,
-                        Constants.ROLE_RESULTS);
+                filteredTests = filterWorkplanResults(request, workplanTests);
             }
             ResultsLoadUtility resultsLoadUtility = new ResultsLoadUtility();
             resultsLoadUtility.sortByAccessionAndSequence(filteredTests);

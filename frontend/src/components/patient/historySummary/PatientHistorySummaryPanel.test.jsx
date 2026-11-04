@@ -1,15 +1,24 @@
 import React from "react";
-import { render, screen, waitFor } from "@testing-library/react";
+import { act, fireEvent, render, screen } from "@testing-library/react";
+import { waitFor } from "@testing-library/dom";
 import { IntlProvider } from "react-intl";
 import PatientHistorySummaryPanel from "./PatientHistorySummaryPanel";
+import englishMessages from "../../../languages/en.json";
 
 jest.mock("../../utils/Utils", () => ({
   getFromOpenElisServer: jest.fn(),
+  postToOpenElisServerFullResponse: jest.fn(),
+  putToOpenElisServerFullResponse: jest.fn(),
 }));
 
-const { getFromOpenElisServer } = require("../../utils/Utils");
+const {
+  getFromOpenElisServer,
+  postToOpenElisServerFullResponse,
+  putToOpenElisServerFullResponse,
+} = require("../../utils/Utils");
 
 const messages = {
+  ...englishMessages,
   "label.page.patientHistory": "Patient History",
   "patientHistory.empty.orders": "No patient orders found.",
   "patientHistory.empty.results": "No patient results found.",
@@ -53,6 +62,7 @@ const messages = {
   "patientHistory.table.accessionNumber": "Accession number",
   "patientHistory.table.assignedDate": "Assigned date",
   "patientHistory.table.clinicalOrderId": "Order reference",
+  "patientHistory.table.cugCode": "CUG",
   "patientHistory.table.collectionDate": "Collection date",
   "patientHistory.table.completedTests": "Completed tests",
   "patientHistory.table.details": "Details",
@@ -65,6 +75,7 @@ const messages = {
   "patientHistory.table.priority": "Priority",
   "patientHistory.table.receivedDate": "Received date",
   "patientHistory.table.referringSite": "Facility",
+  "sample.management.order.fixed.referringSiteName": "Facility",
   "patientHistory.table.requestDate": "Request date",
   "patientHistory.table.requester": "Requester",
   "patientHistory.table.resultDate": "Result date",
@@ -81,6 +92,7 @@ const messages = {
   "patientHistory.tabs.samples": "Samples",
   "patientHistory.tabs.storage": "Stored samples",
   "patientHistory.table.viewDetails": "View",
+  "label.clear": "Clear filters",
   "yes.option": "Yes",
   "no.option": "No",
 };
@@ -91,6 +103,12 @@ const renderComponent = () =>
       <PatientHistorySummaryPanel patientId="77" />
     </IntlProvider>,
   );
+
+const click = async (element) => {
+  await act(async () => {
+    fireEvent.click(element);
+  });
+};
 
 describe("PatientHistorySummaryPanel", () => {
   beforeEach(() => {
@@ -121,7 +139,15 @@ describe("PatientHistorySummaryPanel", () => {
             status: "Finished",
             referringSiteName: "Central Clinic",
             requesterName: "Garcia, Ana",
-            orderFields: [],
+            orderFields: [
+              {
+                key: "referringSiteName",
+                label: "Facility",
+                value: "Central Clinic",
+                fieldType: "TEXT",
+                source: "ORDER_FIXED",
+              },
+            ],
           },
         ],
         samples: [
@@ -181,10 +207,379 @@ describe("PatientHistorySummaryPanel", () => {
       expect(screen.getByText("Patient history overview")).not.toBeNull(),
     );
 
-    expect(screen.getByText("2")).not.toBeNull();
-    expect(screen.getByText("3")).not.toBeNull();
-    expect(screen.getByText("7")).not.toBeNull();
-    expect(screen.getByText("LAB-1001")).not.toBeNull();
+    // The overview counts the returned rows after filtering, not server totals.
+    expect(
+      screen.getByText("Total tests", {
+        selector: ".patient-history-summary__metric-label",
+      }).parentElement,
+    ).toHaveTextContent("Total tests1");
+    expect(
+      screen.getByText("Stored samples", {
+        selector: ".patient-history-summary__metric-label",
+      }).parentElement,
+    ).toHaveTextContent("Stored samples1");
+    expect(screen.getAllByText("LAB-1001").length).toBeGreaterThan(0);
+    await click(screen.getByRole("button", { name: "View" }));
     expect(screen.getByText("Central Clinic")).not.toBeNull();
+  });
+
+  it("links saved result documents to the analysis and field endpoint", async () => {
+    getFromOpenElisServer.mockImplementation((endpoint, callback) => {
+      callback({
+        patientId: "77",
+        metrics: {
+          totalOrders: 0,
+          totalSamples: 0,
+          storedSamples: 0,
+          totalTests: 1,
+          completedTests: 1,
+          pendingTests: 0,
+        },
+        orders: [],
+        samples: [],
+        results: [
+          {
+            id: "78",
+            accessionNumber: "LAB-1001",
+            testName: "Document test",
+            fixedFields: [],
+            sampleOrderFields: [],
+            sampleAdditionalFields: [],
+            resultValues: [],
+            additionalFieldDefinitions: [
+              {
+                id: 10,
+                fieldKey: "doccc1",
+                displayName: "Attachment",
+                fieldType: "DOCUMENT",
+                blockName: "Official",
+                entryScope: "OFFICIAL",
+              },
+            ],
+            additionalFieldValues: {
+              doccc1: JSON.stringify({ fileName: "saved-document.pdf" }),
+            },
+          },
+        ],
+      });
+    });
+    renderComponent();
+    await click(await screen.findByRole("tab", { name: "Results" }));
+    await click(await screen.findByRole("button", { name: "View" }));
+    const link = await screen.findByRole("link", {
+      name: "saved-document.pdf",
+    });
+    expect(link).toHaveAttribute(
+      "href",
+      "/api/OpenELIS-Global/rest/test-additional-fields/files/78/doccc1?download=false",
+    );
+    expect(link).toHaveAttribute("target", "_blank");
+    expect(link).toHaveAttribute("rel", "noopener noreferrer");
+  });
+
+  const validationSummary = (overrides = {}) => ({
+    patientId: "77",
+    metrics: {},
+    orders: [],
+    samples: [],
+    results: [],
+    validations: [
+      {
+        analysisId: "78",
+        accessionNumber: "LAB-1",
+        clinicalOrderId: "ORD-1",
+        cugCode: "13.1",
+        testName: "Extraction",
+        validationDate: "2026-10-15",
+        validators: [{ name: "Carla Enciso" }, { name: "Mario Cornejo" }],
+        reportAvailable: true,
+      },
+      {
+        analysisId: "79",
+        accessionNumber: "LAB-2",
+        clinicalOrderId: "ORD-2",
+        cugCode: "13.2",
+        testName: "DMPK",
+        validationDate: "2026-10-14",
+        validators: [],
+        reportAvailable: true,
+      },
+    ],
+    ...overrides,
+  });
+
+  const loadValidationSummary = async (overrides = {}) => {
+    getFromOpenElisServer.mockImplementation((endpoint, callback) =>
+      callback(validationSummary(overrides)),
+    );
+    renderComponent();
+    await click(await screen.findByRole("tab", { name: "Validation" }));
+  };
+
+  it("shows validators and a separate PDF link for each validated test", async () => {
+    await loadValidationSummary();
+    expect(screen.getByText("Carla Enciso, Mario Cornejo")).toBeInTheDocument();
+    expect(screen.getByText("Not recorded")).toBeInTheDocument();
+    const links = screen.getAllByRole("link", { name: "Open PDF" });
+    expect(links[0]).toHaveAttribute(
+      "href",
+      "/api/OpenELIS-Global/rest/patient-history/77/validations/78/report",
+    );
+    expect(links[1]).toHaveAttribute(
+      "href",
+      "/api/OpenELIS-Global/rest/patient-history/77/validations/79/report",
+    );
+    fireEvent.change(screen.getByLabelText("Lab or order number"), {
+      target: { value: "Extraction" },
+    });
+    expect(screen.queryByText("DMPK")).not.toBeInTheDocument();
+    expect(screen.getAllByRole("link", { name: "Open PDF" })).toHaveLength(1);
+  });
+
+  it.each(["patient-validations", "patient-history"])(
+    "hides validation when the %s group is restricted",
+    async (group) => {
+      getFromOpenElisServer.mockImplementation((endpoint, callback) =>
+        callback(validationSummary({ restrictedFieldGroupKeys: [group] })),
+      );
+      renderComponent();
+      await screen.findByText("Patient history overview");
+      expect(
+        screen.queryByRole("tab", { name: "Validation" }),
+      ).not.toBeInTheDocument();
+      expect(
+        screen.queryByText("Carla Enciso, Mario Cornejo"),
+      ).not.toBeInTheDocument();
+    },
+  );
+
+  it("hides restricted validation fields and PDF links", async () => {
+    await loadValidationSummary({
+      restrictedFieldTagKeys: [
+        "patient-validation-validator",
+        "patient-validation-date",
+      ],
+    });
+    expect(
+      screen.queryByRole("columnheader", { name: "Validated by" }),
+    ).not.toBeInTheDocument();
+    expect(
+      screen.queryByRole("columnheader", { name: "Validation date" }),
+    ).not.toBeInTheDocument();
+    expect(
+      screen.queryByRole("link", { name: "Open PDF" }),
+    ).not.toBeInTheDocument();
+    expect(screen.getByText("Extraction")).toBeInTheDocument();
+  });
+
+  it("keeps validator information when only the PDF is restricted", async () => {
+    await loadValidationSummary({
+      restrictedFieldTagKeys: ["patient-validation-report"],
+    });
+    expect(screen.getByText("Carla Enciso, Mario Cornejo")).toBeInTheDocument();
+    expect(
+      screen.queryByRole("link", { name: "Open PDF" }),
+    ).not.toBeInTheDocument();
+  });
+
+  const deliverySummary = () =>
+    validationSummary({
+      validations: validationSummary().validations.map((row, index) =>
+        index === 0
+          ? { ...row, deliveredDate: "2026-10-16", canRegisterDelivery: true }
+          : { ...row, canRegisterDelivery: false },
+      ),
+    });
+
+  it("shows the delivery date and offers delivery only where permitted", async () => {
+    getFromOpenElisServer.mockImplementation((endpoint, callback) =>
+      callback(deliverySummary()),
+    );
+    renderComponent();
+    await click(await screen.findByRole("tab", { name: "Validation" }));
+    expect(
+      screen.getByRole("columnheader", { name: "Delivery date" }),
+    ).toBeInTheDocument();
+    expect(screen.getByText("Not delivered")).toBeInTheDocument();
+    expect(
+      screen.getAllByRole("button", { name: "Correct delivery" }),
+    ).toHaveLength(1);
+    expect(
+      screen.queryByRole("button", { name: "Register delivery" }),
+    ).not.toBeInTheDocument();
+  });
+
+  it("requires a reason before correcting a recorded delivery", async () => {
+    getFromOpenElisServer.mockImplementation((endpoint, callback) =>
+      callback(deliverySummary()),
+    );
+    renderComponent();
+    await click(await screen.findByRole("tab", { name: "Validation" }));
+    await click(screen.getByRole("button", { name: "Correct delivery" }));
+    fireEvent.change(screen.getByLabelText("Delivery date"), {
+      target: { value: "2026-10-17" },
+    });
+    await click(screen.getByRole("button", { name: "Save" }));
+    expect(
+      screen.getByText(
+        "A reason is required to change a recorded delivery date.",
+      ),
+    ).toBeInTheDocument();
+    expect(putToOpenElisServerFullResponse).not.toHaveBeenCalled();
+
+    putToOpenElisServerFullResponse.mockImplementation(
+      (endpoint, body, callback) => callback({ ok: true }),
+    );
+    fireEvent.change(screen.getByLabelText("Correction reason"), {
+      target: { value: "Typo" },
+    });
+    await click(screen.getByRole("button", { name: "Save" }));
+    expect(putToOpenElisServerFullResponse).toHaveBeenCalledWith(
+      "/rest/patient-history/77/validations/78/delivery",
+      JSON.stringify({ deliveredDate: "2026-10-17", reason: "Typo" }),
+      expect.any(Function),
+    );
+    await waitFor(() => expect(getFromOpenElisServer).toHaveBeenCalledTimes(2));
+  });
+
+  it("hides the delivery date when it is restricted", async () => {
+    await loadValidationSummary({
+      restrictedFieldTagKeys: ["patient-validation-delivery-date"],
+    });
+    expect(
+      screen.queryByRole("columnheader", { name: "Delivery date" }),
+    ).not.toBeInTheDocument();
+  });
+
+  it("asks for a reason when the delivery was recorded by someone else meanwhile", async () => {
+    getFromOpenElisServer.mockImplementation((endpoint, callback) =>
+      callback(
+        validationSummary({
+          validations: [
+            {
+              ...validationSummary().validations[0],
+              canRegisterDelivery: true,
+            },
+          ],
+        }),
+      ),
+    );
+    putToOpenElisServerFullResponse.mockImplementation(
+      (endpoint, body, callback) =>
+        callback({
+          ok: false,
+          json: async () => ({
+            error: "patient.validation.delivery.error.reasonRequired",
+          }),
+        }),
+    );
+    renderComponent();
+    await click(await screen.findByRole("tab", { name: "Validation" }));
+    await click(screen.getByRole("button", { name: "Register delivery" }));
+    expect(
+      screen.queryByLabelText("Correction reason"),
+    ).not.toBeInTheDocument();
+    await click(screen.getByRole("button", { name: "Save" }));
+    expect(
+      await screen.findByLabelText("Correction reason"),
+    ).toBeInTheDocument();
+  });
+
+  const amendmentSummary = () =>
+    validationSummary({
+      validations: [
+        {
+          ...validationSummary().validations[0],
+          deliveredDate: "2026-10-16",
+          amendedByAnalysisId: "90",
+        },
+        {
+          ...validationSummary().validations[1],
+          deliveredDate: "2026-10-16",
+          canAmend: true,
+          canReopenDelivery: true,
+        },
+        {
+          ...validationSummary().validations[1],
+          analysisId: "90",
+          amendsAnalysisId: "78",
+        },
+      ],
+    });
+
+  it("marks amendments and amended results and requires a reason to amend", async () => {
+    getFromOpenElisServer.mockImplementation((endpoint, callback) =>
+      callback(amendmentSummary()),
+    );
+    postToOpenElisServerFullResponse.mockImplementation(
+      (endpoint, body, callback) => callback({ ok: true }),
+    );
+    renderComponent();
+    await click(await screen.findByRole("tab", { name: "Validation" }));
+    expect(screen.getByText("Amended")).toBeInTheDocument();
+    expect(screen.getByText("Amendment")).toBeInTheDocument();
+    expect(
+      screen.getAllByRole("button", { name: "Create amendment" }),
+    ).toHaveLength(1);
+
+    await click(screen.getByRole("button", { name: "Create amendment" }));
+    expect(screen.queryByLabelText("Delivery date")).not.toBeInTheDocument();
+    await click(screen.getByRole("button", { name: "Save" }));
+    expect(
+      screen.getByText("Enter the reason for the amendment."),
+    ).toBeInTheDocument();
+    expect(postToOpenElisServerFullResponse).not.toHaveBeenCalled();
+
+    fireEvent.change(screen.getByLabelText("Amendment reason"), {
+      target: { value: "Transcription error" },
+    });
+    await click(screen.getByRole("button", { name: "Save" }));
+    expect(postToOpenElisServerFullResponse).toHaveBeenCalledWith(
+      "/rest/patient-history/77/validations/79/amendment",
+      JSON.stringify({ reason: "Transcription error" }),
+      expect.any(Function),
+    );
+    await waitFor(() => expect(getFromOpenElisServer).toHaveBeenCalledTimes(2));
+  });
+
+  it("lets authorized users reopen a delivery with a reason", async () => {
+    getFromOpenElisServer.mockImplementation((endpoint, callback) =>
+      callback(amendmentSummary()),
+    );
+    postToOpenElisServerFullResponse.mockImplementation(
+      (endpoint, body, callback) => callback({ ok: true }),
+    );
+    renderComponent();
+    await click(await screen.findByRole("tab", { name: "Validation" }));
+    await click(screen.getByRole("button", { name: /Reopen delivery/ }));
+    fireEvent.change(screen.getByLabelText("Reopening reason"), {
+      target: { value: "Wrong patient" },
+    });
+    await click(screen.getByRole("button", { name: "Save" }));
+    expect(postToOpenElisServerFullResponse).toHaveBeenCalledWith(
+      "/rest/patient-history/77/validations/79/delivery/reopen",
+      JSON.stringify({ reason: "Wrong patient" }),
+      expect.any(Function),
+    );
+  });
+
+  it("hides reopening when only delivery and amendment are permitted", async () => {
+    const summary = amendmentSummary();
+    summary.validations[1].canRegisterDelivery = true;
+    summary.validations[1].canReopenDelivery = false;
+    getFromOpenElisServer.mockImplementation((endpoint, callback) =>
+      callback(summary),
+    );
+    renderComponent();
+    await click(await screen.findByRole("tab", { name: "Validation" }));
+    expect(
+      screen.getByRole("button", { name: "Correct delivery" }),
+    ).toBeInTheDocument();
+    expect(
+      screen.getByRole("button", { name: "Create amendment" }),
+    ).toBeInTheDocument();
+    expect(
+      screen.queryByRole("button", { name: /Reopen delivery/ }),
+    ).not.toBeInTheDocument();
   });
 });

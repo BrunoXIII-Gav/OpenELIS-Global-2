@@ -32,7 +32,13 @@ import { postToOpenElisServerFullResponse } from "../utils/Utils";
  *
  * Related: Feature 001-sample-management, User Story 3
  */
-function CreateAliquotModal({ open, onClose, parentSample, onSuccess }) {
+function CreateAliquotModal({
+  open,
+  onClose,
+  parentSample,
+  onSuccess,
+  isReadOnly = false,
+}) {
   const intl = useIntl();
 
   // Form state
@@ -113,6 +119,10 @@ function CreateAliquotModal({ open, onClose, parentSample, onSuccess }) {
    * Handle form submission
    */
   const handleSubmit = () => {
+    if (isReadOnly) {
+      return;
+    }
+
     // Validate
     const validationError = validateForm();
     if (validationError) {
@@ -253,7 +263,7 @@ function CreateAliquotModal({ open, onClose, parentSample, onSuccess }) {
             setQuantityToTransfer(e.target.value);
             setError(null);
           }}
-          disabled={isSubmitting}
+          disabled={isSubmitting || isReadOnly}
           invalid={false}
           type="number"
           step="0.001"
@@ -277,7 +287,7 @@ function CreateAliquotModal({ open, onClose, parentSample, onSuccess }) {
             setNumberOfAliquots(value);
             setError(null);
           }}
-          disabled={isSubmitting}
+          disabled={isSubmitting || isReadOnly}
           min={1}
           max={100}
           step={1}
@@ -323,7 +333,7 @@ function CreateAliquotModal({ open, onClose, parentSample, onSuccess }) {
           })}
           value={notes}
           onChange={(e) => setNotes(e.target.value)}
-          disabled={isSubmitting}
+          disabled={isSubmitting || isReadOnly}
           rows={3}
           maxLength={1000}
           style={{ marginTop: "1rem" }}
@@ -334,7 +344,11 @@ function CreateAliquotModal({ open, onClose, parentSample, onSuccess }) {
         <Button kind="secondary" onClick={handleClose} disabled={isSubmitting}>
           <FormattedMessage id="sample.management.aliquot.modal.cancel" />
         </Button>
-        <Button kind="primary" onClick={handleSubmit} disabled={isSubmitting}>
+        <Button
+          kind="primary"
+          onClick={handleSubmit}
+          disabled={isSubmitting || isReadOnly}
+        >
           {isSubmitting ? (
             <FormattedMessage id="sample.management.aliquot.modal.creating" />
           ) : numberOfAliquots > 1 ? (

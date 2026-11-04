@@ -1,0 +1,22 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<databaseChangeLog
+  xmlns="http://www.liquibase.org/xml/ns/dbchangelog"
+  xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+  xsi:schemaLocation="http://www.liquibase.org/xml/ns/dbchangelog http://www.liquibase.org/xml/ns/dbchangelog/dbchangelog-3.8.xsd">
+
+  <changeSet id="091-default-routine-stat-priorities" author="codex">
+    <comment>Show routine and STAT by default, preserving explicitly customized priority lists and existing orders.</comment>
+    <update schemaName="clinlims" tableName="site_information">
+      <column name="value" value="ROUTINE,STAT" />
+      <column name="lastupdated" valueComputed="${now}" />
+      <where>name = 'enabledOrderPriorities' AND (value = 'ROUTINE,ASAP,STAT,TIMED,FUTURE_STAT' OR value IS NULL OR TRIM(value) = '')</where>
+    </update>
+    <rollback>
+      <update schemaName="clinlims" tableName="site_information">
+        <column name="value" value="ROUTINE,ASAP,STAT,TIMED,FUTURE_STAT" />
+        <column name="lastupdated" valueComputed="${now}" />
+        <where>name = 'enabledOrderPriorities' AND value = 'ROUTINE,STAT'</where>
+      </update>
+    </rollback>
+  </changeSet>
+</databaseChangeLog>

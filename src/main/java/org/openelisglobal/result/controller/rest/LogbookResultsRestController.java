@@ -4,9 +4,9 @@ package org.openelisglobal.result.controller.rest;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import jakarta.servlet.http.HttpServletRequest;
+import java.lang.reflect.InvocationTargetException;
 import java.math.BigDecimal;
 import java.math.RoundingMode;
-import java.lang.reflect.InvocationTargetException;
 import java.sql.Timestamp;
 import java.time.OffsetDateTime;
 import java.util.ArrayList;
@@ -31,7 +31,10 @@ import org.openelisglobal.analysis.service.AnalysisTubeLabelService;
 import org.openelisglobal.analysis.service.AnalysisTubeUsageService;
 import org.openelisglobal.analysis.valueholder.Analysis;
 import org.openelisglobal.analysis.valueholder.AnalysisTubeLabel;
+import org.openelisglobal.analysis.valueholder.AnalysisTubeUsage;
 import org.openelisglobal.analysis.valueholder.ResultFile;
+import org.openelisglobal.authorization.service.ModuleAuthorizationService;
+import org.openelisglobal.authorization.service.ModuleAuthorizationService.AuthorizationSource;
 import org.openelisglobal.common.action.IActionConstants;
 import org.openelisglobal.common.constants.Constants;
 import org.openelisglobal.common.constants.SystemPermission;
@@ -67,6 +70,7 @@ import org.openelisglobal.notification.service.TestNotificationService;
 import org.openelisglobal.notification.valueholder.NotificationConfigOption.NotificationNature;
 import org.openelisglobal.notifications.dao.NotificationDAO;
 import org.openelisglobal.notifications.entity.Notification;
+import org.openelisglobal.orderadditionalfield.service.AlternateOrderFlowService;
 import org.openelisglobal.orderadditionalfield.service.OrderAdditionalFieldService;
 import org.openelisglobal.organization.service.OrganizationService;
 import org.openelisglobal.patient.service.PatientService;
@@ -88,8 +92,9 @@ import org.openelisglobal.result.form.LogbookResultsForm;
 import org.openelisglobal.result.form.LogbookResultsForm.LogbookResults;
 import org.openelisglobal.result.form.StatusResultsForm;
 import org.openelisglobal.result.service.LogbookResultsPersistService;
-import org.openelisglobal.result.service.ResultService;
+import org.openelisglobal.result.service.ResultAuthorizationService;
 import org.openelisglobal.result.service.ResultInventoryService;
+import org.openelisglobal.result.service.ResultService;
 import org.openelisglobal.result.service.ResultSignatureService;
 import org.openelisglobal.result.valueholder.Result;
 import org.openelisglobal.result.valueholder.ResultInventory;
@@ -111,12 +116,13 @@ import org.openelisglobal.systemuser.service.SystemUserService;
 import org.openelisglobal.systemuser.service.UserService;
 import org.openelisglobal.test.beanItems.BlockSampleUsageItem;
 import org.openelisglobal.test.beanItems.TestResultItem;
-import org.openelisglobal.testadditionalfield.bean.TestAdditionalFieldPayload;
-import org.openelisglobal.testadditionalfield.service.TestAdditionalFieldService;
-import org.openelisglobal.test.service.TestService;
 import org.openelisglobal.test.service.TestSectionService;
+import org.openelisglobal.test.service.TestService;
 import org.openelisglobal.test.valueholder.Test;
 import org.openelisglobal.test.valueholder.TestSection;
+import org.openelisglobal.testadditionalfield.bean.TestAdditionalFieldPayload;
+import org.openelisglobal.testadditionalfield.service.AdditionalFieldConflictException;
+import org.openelisglobal.testadditionalfield.service.TestAdditionalFieldService;
 import org.openelisglobal.testdependency.service.TestParentChildDependencyService;
 import org.openelisglobal.testdependency.valueholder.TestParentChildDependency;
 import org.openelisglobal.typeoftestresult.service.TypeOfTestResultServiceImpl;
@@ -125,12 +131,13 @@ import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.MediaType;
 import org.springframework.http.ResponseEntity;
-import org.springframework.security.access.prepost.PreAuthorize;
+import org.springframework.security.access.AccessDeniedException;
 import org.springframework.stereotype.Controller;
 import org.springframework.validation.BindingResult;
 import org.springframework.validation.Errors;
 import org.springframework.validation.annotation.Validated;
 import org.springframework.web.bind.WebDataBinder;
+import org.springframework.web.bind.annotation.ExceptionHandler;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.InitBinder;
 import org.springframework.web.bind.annotation.ModelAttribute;
@@ -139,12 +146,12 @@ import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.ResponseBody;
-import org.springframework.web.bind.annotation.ExceptionHandler;
 
 @Controller
 @RequestMapping(value = "/rest/")
-@PreAuthorize("@accessControl.hasPermission(T(org.openelisglobal.common.constants.SystemPermission).RESULTS)")
 public class LogbookResultsRestController extends LogbookResultsBaseController {
+    @Autowired
+    private AlternateOrderFlowService alternateOrderFlowService;
     private static final ObjectMapper OBJECT_MAPPER = new ObjectMapper();
 
     private String RESULT_EDIT_ROLE_ID;
@@ -164,12 +171,12 @@ public class LogbookResultsRestController extends LogbookResultsBaseController {
             "testResult*.referredOut", "testResult*.referralReasonId", "testResult*.technician",
             "testResult*.shadowRejected", "testResult*.rejected", "testResult*.rejectReasonId", "testResult*.note",
             "testResult*.sampleUsageQuantity", "testResult*.parentSampleUsageQuantity",
-            "testResult*.parentUsageBlockName", "testResult*.tubeLabels",
-            "paging.currentPage", "testResult*.resultFile", "testResult*.resultFile.fileName",
-            "testResult*.resultFile.fileType", "testResult*.resultFile.base64Content", "testResult*.refer",
-            "testResult*.referralItem.referralReasonId", "testResult*.referralItem.referredInstituteId",
-            "testResult*.referralItem.referredTestId", "testResult*.referralItem.referredSendDate",
-            "testResult*.additionalFieldValues", "testResult*.additionalFieldShadowValues" };
+            "testResult*.parentUsageBlockName", "testResult*.tubeLabels", "paging.currentPage",
+            "testResult*.resultFile", "testResult*.resultFile.fileName", "testResult*.resultFile.fileType",
+            "testResult*.resultFile.base64Content", "testResult*.refer", "testResult*.referralItem.referralReasonId",
+            "testResult*.referralItem.referredInstituteId", "testResult*.referralItem.referredTestId",
+            "testResult*.referralItem.referredSendDate", "testResult*.additionalFieldValues",
+            "testResult*.additionalFieldVersions", "testResult*.additionalFieldShadowValues" };
 
     @Autowired
     private DictionaryService dictionaryService;
@@ -228,13 +235,21 @@ public class LogbookResultsRestController extends LogbookResultsBaseController {
     @Autowired
     private TestService testService;
     @Autowired
+    private ResultAuthorizationService resultAuthorizationService;
+    @Autowired
+    private ModuleAuthorizationService moduleAuthorizationService;
+    @Autowired
     private AnalysisTubeUsageService analysisTubeUsageService;
     @Autowired
     private AnalysisTubeLabelService analysisTubeLabelService;
 
+    @Autowired
+    private org.openelisglobal.common.service.ProfessionalProfilePermissionService profilePermissionService;
+
     private final String RESULT_SUBJECT = "Result Note";
     private final String REFERRAL_CONFORMATION_ID;
     private static final String REFLEX_ACCESSIONS = "reflex_accessions";
+    private static final List<String> RESULT_ACCESS_ACTIONS = List.of("read", "enter", "update", "correct");
 
     @Autowired
     public LogbookResultsRestController(ReferralTypeService referralTypeService) {
@@ -253,16 +268,19 @@ public class LogbookResultsRestController extends LogbookResultsBaseController {
 
     @GetMapping(value = "LogbookResults", produces = MediaType.APPLICATION_JSON_VALUE)
     @ResponseBody
-    public LogbookResultsForm showRestLogbookResults(@RequestParam(required = false) String labNumber,
-            @RequestParam(required = false) String patientPK, @RequestParam(required = false) String collectionDate,
-            @RequestParam(required = false) String recievedDate, @RequestParam(required = false) String selectedTest,
+    public LogbookResultsForm showRestLogbookResults(HttpServletRequest request,
+            @RequestParam(required = false) String labNumber, @RequestParam(required = false) String patientPK,
+            @RequestParam(required = false) String collectionDate, @RequestParam(required = false) String recievedDate,
+            @RequestParam(required = false) String selectedTest,
             @RequestParam(required = false) String selectedSampleStatus,
             @RequestParam(required = false) String selectedAnalysisStatus,
             @RequestParam(required = false) String upperRangeAccessionNumber,
-            @RequestParam(required = false) boolean doRange,
+            @RequestParam(required = false) String type, @RequestParam(required = false) boolean doRange,
             @RequestParam(required = false, defaultValue = "false") boolean finished,
             @Validated(LogbookResults.class) @ModelAttribute("form") LogbookResultsForm form, BindingResult result)
             throws IllegalAccessException, InvocationTargetException, NoSuchMethodException {
+
+        requireResultsAccess(request);
 
         StatusResultsForm statusResultsForm = new StatusResultsForm();
         statusResultsForm.setCollectionDate(collectionDate);
@@ -274,7 +292,7 @@ public class LogbookResultsRestController extends LogbookResultsBaseController {
         LogbookResultsForm newForm = new LogbookResultsForm();
         if (!(result.hasFieldErrors("type") || result.hasFieldErrors("testSectionId")
                 || result.hasFieldErrors("methodId") || result.hasFieldErrors("accessionNumber"))) {
-            newForm.setType(form.getType());
+            newForm.setType(StringUtils.defaultIfBlank(type, form.getType()));
             newForm.setTestSectionId(form.getTestSectionId());
 
             String currentDate = getCurrentDate();
@@ -318,8 +336,7 @@ public class LogbookResultsRestController extends LogbookResultsBaseController {
 
             if (!GenericValidator.isBlankOrNull(form.getTestSectionId())) {
                 tests = resultsLoadUtility.getUnfinishedTestResultItemsInTestSection(form.getTestSectionId());
-                filteredTests = userService.filterResultsByLabUnitRoles(getSysUserId(request), tests,
-                        Constants.ROLE_RESULTS);
+                filteredTests = filterResultsForCurrentAccess(request, tests, Constants.ROLE_RESULTS_BY_UNIT);
                 int count = resultsLoadUtility.getTotalCountAnalysisByTestSectionAndStatus(form.getTestSectionId());
                 request.setAttribute("analysisCount", count);
                 request.setAttribute("pageSize", filteredTests.size());
@@ -355,8 +372,7 @@ public class LogbookResultsRestController extends LogbookResultsBaseController {
                         sampleService, sampleItemService);
 
                 tests = reactLogbookStatusResults.setSearchResults(statusResultsForm, resultsLoadUtility);
-                filteredTests = userService.filterResultsByLabUnitRoles(getSysUserId(request), tests,
-                        Constants.ROLE_RESULTS);
+                filteredTests = filterResultsForCurrentAccess(request, tests, Constants.ROLE_RESULTS);
 
                 request.setAttribute("pageSize", filteredTests.size());
 
@@ -427,8 +443,8 @@ public class LogbookResultsRestController extends LogbookResultsBaseController {
                             + patient.getBirthDateForDisplay();
                 }
 
-                filteredTests = userService.filterResultsByLabUnitRoles(getSysUserId(request), tests,
-                        Constants.ROLE_RESULTS);
+                filteredTests = filterResultsForCurrentAccess(request, tests,
+                        resolveResultsFilterRole(form, patientPK));
                 LogEvent.logInfo(this.getClass().getSimpleName(), "getLogbookResults",
                         "After filterResultsByLabUnitRoles: tests.size()=" + tests.size() + ", filteredTests.size()="
                                 + filteredTests.size());
@@ -499,6 +515,45 @@ public class LogbookResultsRestController extends LogbookResultsBaseController {
         return (form);
     }
 
+    private String resolveResultsFilterRole(LogbookResultsForm form, String patientPK) {
+        String searchType = StringUtils.defaultString(form.getType()).trim();
+        if ("unit".equalsIgnoreCase(searchType)) {
+            return Constants.ROLE_RESULTS_BY_UNIT;
+        }
+        if ("order".equalsIgnoreCase(searchType) || "range".equalsIgnoreCase(searchType)
+                || StringUtils.isNotBlank(form.getAccessionNumber())) {
+            return Constants.ROLE_RESULTS_BY_ORDER;
+        }
+        if ("patient".equalsIgnoreCase(searchType) || StringUtils.isNotBlank(patientPK)) {
+            return Constants.ROLE_RESULTS_BY_PATIENT;
+        }
+        return Constants.ROLE_RESULTS;
+    }
+
+    private void requireResultsPermission(HttpServletRequest request, String actionKey) {
+        if (!moduleAuthorizationService.hasPermission(getSysUserId(request), "results", actionKey)) {
+            throw new AccessDeniedException("The user does not have permission to " + actionKey + " results");
+        }
+    }
+
+    private void requireResultsAccess(HttpServletRequest request) {
+        String userId = getSysUserId(request);
+        if (RESULT_ACCESS_ACTIONS.stream()
+                .noneMatch(actionKey -> moduleAuthorizationService.hasPermission(userId, "results", actionKey))) {
+            throw new AccessDeniedException("The user does not have permission to access results");
+        }
+    }
+
+    private List<TestResultItem> filterResultsForCurrentAccess(HttpServletRequest request, List<TestResultItem> tests,
+            String legacyRoleName) {
+        return resultAuthorizationService.filterResultsForEntryAccess(getSysUserId(request), tests, legacyRoleName);
+    }
+
+    private boolean requiresLegacyProfessionalProfile(String userId) {
+        return moduleAuthorizationService.getAuthorization(userId, "results", "read")
+                .source() != AuthorizationSource.MODULE_PERMISSION;
+    }
+
     private void AddPatientIdToResult(Patient patient, TestResultItem resultItem) {
         if (patient != null) {
             resultItem.setPatientId(patient.getId());
@@ -525,6 +580,14 @@ public class LogbookResultsRestController extends LogbookResultsBaseController {
             @Validated(LogbookResultsForm.LogbookResults.class) @RequestBody LogbookResultsForm form,
             BindingResult result) throws IllegalAccessException, InvocationTargetException, NoSuchMethodException {
 
+        if ("true".equals(request.getParameter("pageResults"))) {
+            requireResultsAccess(request);
+        } else {
+            requireResultSavePermissions(request, form.getTestResult());
+        }
+
+        String sysUserId = getSysUserId(request);
+
         boolean useTechnicianName = ConfigurationProperties.getInstance()
                 .isPropertyValueEqual(Property.resultTechnicianName, "true");
         boolean alwaysValidate = ConfigurationProperties.getInstance()
@@ -544,6 +607,13 @@ public class LogbookResultsRestController extends LogbookResultsBaseController {
 
         List<Result> checkPagedResults = (List<Result>) request.getSession()
                 .getAttribute(IActionConstants.RESULTS_SESSION_CACHE);
+        if (checkPagedResults == null) {
+            LogEvent.logWarn(this.getClass().getSimpleName(), "LogbookResults()",
+                    "Session cache missing — session may have expired. Returning error to client.");
+            Map<String, List<String>> sessionErrorMap = new HashMap<>();
+            sessionErrorMap.put("error", List.of("Your session has expired. Please reload the page and try again."));
+            return sessionErrorMap;
+        }
         List<Result> checkResults = (List<Result>) checkPagedResults.get(0);
         if (checkResults.size() == 0) {
             LogEvent.logDebug(this.getClass().getSimpleName(), "LogbookResults()", "Attempted save of stale page.");
@@ -579,12 +649,13 @@ public class LogbookResultsRestController extends LogbookResultsBaseController {
             saveErrors(errors);
         }
 
-        createResultsFromItems(actionDataSet, supportReferrals, alwaysValidate, useTechnicianName, statusRuleSet);
-        createAnalysisOnlyUpdates(actionDataSet);
-
         try {
-            List<Analysis> reflexAnalysises = logbookPersistService.persistDataSet(actionDataSet, updaters,
-                    getSysUserId(request));
+            List<Analysis> reflexAnalysises = logbookPersistService.prepareAndPersistDataSet(actionDataSet, updaters,
+                    getSysUserId(request), data -> {
+                        createResultsFromItems(data, supportReferrals, alwaysValidate, useTechnicianName,
+                                statusRuleSet);
+                        createAnalysisOnlyUpdates(data);
+                    });
             reflexMap.put("reflex", reflexAnalysises.stream().filter(e -> !e.getResultCalculated())
                     .map(e -> analysisService.getOrderAccessionNumber(e)).collect(Collectors.toList()));
             reflexMap.put("calculated", reflexAnalysises.stream().filter(e -> e.getResultCalculated())
@@ -639,6 +710,8 @@ public class LogbookResultsRestController extends LogbookResultsBaseController {
 
             errors.reject(errorMsg, errorMsg);
             saveErrors(errors);
+            reflexMap.put("error", List.of(errorMsg));
+            return reflexMap;
         }
 
         for (IResultUpdate updater : updaters) {
@@ -657,6 +730,32 @@ public class LogbookResultsRestController extends LogbookResultsBaseController {
             params.put("type", form.getType());
         }
         return reflexMap;
+    }
+
+    private void requireResultSavePermissions(HttpServletRequest request, List<TestResultItem> results) {
+        String userId = getSysUserId(request);
+        for (TestResultItem resultItem : results == null ? List.<TestResultItem>of() : results) {
+            if (!resultItem.getIsModified()) {
+                continue;
+            }
+            String actionKey = getResultSaveAction(resultItem);
+            requireResultsPermission(request, actionKey);
+            if (!resultAuthorizationService.canAccessAllResults(userId, List.of(resultItem), actionKey,
+                    Constants.ROLE_RESULTS)) {
+                throw new AccessDeniedException("The user does not have access to this laboratory unit");
+            }
+        }
+    }
+
+    private String getResultSaveAction(TestResultItem resultItem) {
+        Analysis analysis = analysisService.get(resultItem.getAnalysisId());
+        if (analysis == null) {
+            throw new AccessDeniedException("The selected result does not exist");
+        }
+        if (resultService.getResultsByAnalysis(analysis).isEmpty()) {
+            return "enter";
+        }
+        return analysisService.patientReportHasBeenDone(analysis) ? "correct" : "update";
     }
 
     private void createAnalysisOnlyUpdates(ResultsUpdateDataSet actionDataSet) {
@@ -840,8 +939,8 @@ public class LogbookResultsRestController extends LogbookResultsBaseController {
         }
 
         boolean requiresUsage = hasEnteredResult(testResultItem) || hasEnteredAdditionalFieldResult(testResultItem)
-                || ResultUtil.isReferred(testResultItem)
-                || ResultUtil.isRejected(testResultItem) || ResultUtil.isForcedToAcceptance(testResultItem);
+                || ResultUtil.isReferred(testResultItem) || ResultUtil.isRejected(testResultItem)
+                || ResultUtil.isForcedToAcceptance(testResultItem);
 
         if (!requiresUsage) {
             return;
@@ -849,7 +948,8 @@ public class LogbookResultsRestController extends LogbookResultsBaseController {
 
         if (blockTubeUsageMode) {
             Map<String, BlockSampleUsageItem> persistedBlockUsages = getPersistedBlockUsages(analysis.getId());
-            List<BlockSampleUsageItem> submittedBlockUsages = collectSubmittedBlockUsages(testResultItem, childTubeUsageBlocks);
+            List<BlockSampleUsageItem> submittedBlockUsages = collectSubmittedBlockUsages(testResultItem,
+                    childTubeUsageBlocks);
             if (submittedBlockUsages.isEmpty()) {
                 throw new IllegalArgumentException("At least one block usage is required for dependent child tests");
             }
@@ -863,7 +963,8 @@ public class LogbookResultsRestController extends LogbookResultsBaseController {
                 String selectedBlockName = normalizeBlockName(blockUsage.getParentTubeBlockName());
                 TubeBlockContext selectedTubeContext = tubeContexts.get(selectedBlockName);
                 if (selectedTubeContext == null) {
-                    throw new IllegalArgumentException("Selected parent tube is not active for the current parent test");
+                    throw new IllegalArgumentException(
+                            "Selected parent tube is not active for the current parent test");
                 }
                 BigDecimal usageQuantity = parseAndValidateUsageQuantity(blockUsage.getUsedQuantity());
                 BigDecimal requestConsumed = requestUsageByParentTube.getOrDefault(selectedBlockName, BigDecimal.ZERO);
@@ -875,12 +976,12 @@ public class LogbookResultsRestController extends LogbookResultsBaseController {
                 totalUsage = totalUsage.add(usageQuantity);
             }
 
-            analysisTubeUsageService.deleteByAnalysisId(analysis.getId());
-            for (BlockSampleUsageItem blockUsage : submittedBlockUsages) {
-                analysisTubeUsageService.createUsage(analysis, parentAnalysis, blockUsage.getChildBlockName(),
-                        blockUsage.getParentTubeBlockName(), new BigDecimal(blockUsage.getUsedQuantity()),
-                        getSysUserId(request));
-            }
+            analysisTubeUsageService.replaceUsages(analysis, parentAnalysis,
+                    submittedBlockUsages.stream()
+                            .map(usage -> new AnalysisTubeUsageService.UsageInput(usage.getChildBlockName(),
+                                    usage.getParentTubeBlockName(), new BigDecimal(usage.getUsedQuantity())))
+                            .toList(),
+                    getSysUserId(request));
             analysis.setParentUsageBlockName(null);
             analysis.setSampleUsedQuantity(totalUsage);
             return;
@@ -899,7 +1000,8 @@ public class LogbookResultsRestController extends LogbookResultsBaseController {
                 }
                 TubeBlockContext selectedTubeContext = tubeContexts.get(selectedBlockName);
                 if (selectedTubeContext == null) {
-                    throw new IllegalArgumentException("Selected parent tube is not active for the current parent test");
+                    throw new IllegalArgumentException(
+                            "Selected parent tube is not active for the current parent test");
                 }
                 validateParentTubeBasedUsageLimit(analysis, parentAnalysis, selectedTubeContext, usageQuantity);
                 analysis.setParentUsageBlockName(selectedBlockName);
@@ -917,7 +1019,8 @@ public class LogbookResultsRestController extends LogbookResultsBaseController {
 
     private void applyDirectParentSampleUsage(TestResultItem testResultItem, Analysis analysis,
             ResultsUpdateDataSet actionDataSet, Map<String, SampleItem> sampleItemsBeingUpdated) {
-        if (testResultItem == null || analysis == null || analysis.getTest() == null || analysis.getSampleItem() == null) {
+        if (testResultItem == null || analysis == null || analysis.getTest() == null
+                || analysis.getSampleItem() == null) {
             return;
         }
 
@@ -929,7 +1032,8 @@ public class LogbookResultsRestController extends LogbookResultsBaseController {
 
         if (analysis.getSampleUsedQuantity() != null) {
             if (!GenericValidator.isBlankOrNull(testResultItem.getParentSampleUsageQuantity())) {
-                BigDecimal attemptedUsage = parseAndValidateUsageQuantity(testResultItem.getParentSampleUsageQuantity());
+                BigDecimal attemptedUsage = parseAndValidateUsageQuantity(
+                        testResultItem.getParentSampleUsageQuantity());
                 if (analysis.getSampleUsedQuantity().compareTo(attemptedUsage) != 0) {
                     throw new IllegalArgumentException(
                             "Parent sample usage quantity cannot be changed after first save");
@@ -939,14 +1043,15 @@ public class LogbookResultsRestController extends LogbookResultsBaseController {
         }
 
         boolean requiresUsage = hasEnteredResult(testResultItem) || hasEnteredAdditionalFieldResult(testResultItem)
-                || ResultUtil.isReferred(testResultItem)
-                || ResultUtil.isRejected(testResultItem) || ResultUtil.isForcedToAcceptance(testResultItem);
+                || ResultUtil.isReferred(testResultItem) || ResultUtil.isRejected(testResultItem)
+                || ResultUtil.isForcedToAcceptance(testResultItem);
         if (!requiresUsage) {
             return;
         }
 
         if (GenericValidator.isBlankOrNull(testResultItem.getParentSampleUsageQuantity())) {
-            throw new IllegalArgumentException("Sample usage quantity is required for tests that consume sample directly");
+            throw new IllegalArgumentException(
+                    "Sample usage quantity is required for tests that consume sample directly");
         }
 
         BigDecimal usageQuantity = parseAndValidateUsageQuantity(testResultItem.getParentSampleUsageQuantity());
@@ -1045,8 +1150,8 @@ public class LogbookResultsRestController extends LogbookResultsBaseController {
         }
 
         List<TestParentChildDependency> dependencies = testParentChildDependencyService.getByParentTestId(parentTestId);
-        return dependencies != null
-                && dependencies.stream().anyMatch(dependency -> dependency != null && Boolean.TRUE.equals(dependency.getActive()));
+        return dependencies != null && dependencies.stream()
+                .anyMatch(dependency -> dependency != null && Boolean.TRUE.equals(dependency.getActive()));
     }
 
     private void applySampleItemBasedUsage(Analysis analysis, ResultsUpdateDataSet actionDataSet,
@@ -1086,7 +1191,8 @@ public class LogbookResultsRestController extends LogbookResultsBaseController {
 
     private void validateParentTubeBasedUsageLimit(Analysis analysis, Analysis parentAnalysis,
             TubeBlockContext selectedTubeContext, BigDecimal usageQuantity) {
-        validateParentTubeBasedUsageLimit(analysis, parentAnalysis, selectedTubeContext, usageQuantity, BigDecimal.ZERO);
+        validateParentTubeBasedUsageLimit(analysis, parentAnalysis, selectedTubeContext, usageQuantity,
+                BigDecimal.ZERO);
     }
 
     private void validateParentTubeBasedUsageLimit(Analysis analysis, Analysis parentAnalysis,
@@ -1187,10 +1293,9 @@ public class LogbookResultsRestController extends LogbookResultsBaseController {
             return BigDecimal.ZERO;
         }
 
-        List<org.openelisglobal.analysis.valueholder.AnalysisTubeUsage> usages = analysisTubeUsageService
-                .getByParentAnalysisId(parentAnalysisId);
+        List<AnalysisTubeUsage> usages = analysisTubeUsageService.getByParentAnalysisId(parentAnalysisId);
         BigDecimal consumed = BigDecimal.ZERO;
-        for (org.openelisglobal.analysis.valueholder.AnalysisTubeUsage usage : usages) {
+        for (AnalysisTubeUsage usage : usages) {
             if (usage == null || usage.getUsedQuantity() == null || usage.getAnalysis() == null) {
                 continue;
             }
@@ -1226,7 +1331,8 @@ public class LogbookResultsRestController extends LogbookResultsBaseController {
         }
 
         for (TestAdditionalFieldPayload definition : testResultItem.getAdditionalFieldDefinitions()) {
-            if (definition == null || definition.getActive() == Boolean.FALSE || !isChildTubeUsageBlockEnabled(definition)) {
+            if (definition == null || definition.getActive() == Boolean.FALSE
+                    || !isChildTubeUsageBlockEnabled(definition)) {
                 continue;
             }
             String blockName = normalizeBlockName(definition.getBlockName());
@@ -1248,9 +1354,8 @@ public class LogbookResultsRestController extends LogbookResultsBaseController {
         if (isTubeLabelEnabled(primaryMetadata) && isPrimaryTubeLabelBlockActive(testResultItem, primaryMetadata)) {
             String primaryBlockName = normalizeBlockName(primaryMetadata.path("resultBlock").asText(null));
             if (GenericValidator.isBlankOrNull(primaryBlockName)) {
-                primaryBlockName = "PRELIMINARY"
-                        .equals(primaryMetadata.path("entryScope").asText("OFFICIAL").trim().toUpperCase())
-                                ? "Preliminary"
+                primaryBlockName = "PRELIMINARY".equals(
+                        primaryMetadata.path("entryScope").asText("OFFICIAL").trim().toUpperCase()) ? "Preliminary"
                                 : "Official";
             }
             if (!blocks.contains(primaryBlockName)) {
@@ -1320,7 +1425,8 @@ public class LogbookResultsRestController extends LogbookResultsBaseController {
                     StringUtils.defaultIfBlank(testResultItem.getShadowResultValue(), testResultItem.getResultValue()));
             return parsed == null ? null : Integer.valueOf(parsed.intValue());
         }
-        if (testResultItem.getAdditionalFieldDefinitions() == null || testResultItem.getAdditionalFieldValues() == null) {
+        if (testResultItem.getAdditionalFieldDefinitions() == null
+                || testResultItem.getAdditionalFieldValues() == null) {
             return null;
         }
         for (TestAdditionalFieldPayload definition : testResultItem.getAdditionalFieldDefinitions()) {
@@ -1354,7 +1460,8 @@ public class LogbookResultsRestController extends LogbookResultsBaseController {
         for (String childBlockName : childTubeUsageBlocks) {
             boolean blockHasResult = hasEnteredResultForChildBlock(testResultItem, childBlockName);
             BlockSampleUsageItem blockUsage = submittedByBlock.get(childBlockName);
-            boolean hasSelection = blockUsage != null && !GenericValidator.isBlankOrNull(blockUsage.getParentTubeBlockName());
+            boolean hasSelection = blockUsage != null
+                    && !GenericValidator.isBlankOrNull(blockUsage.getParentTubeBlockName());
             boolean hasQuantity = blockUsage != null && !GenericValidator.isBlankOrNull(blockUsage.getUsedQuantity());
 
             if (!blockHasResult && !hasSelection && !hasQuantity) {
@@ -1362,7 +1469,8 @@ public class LogbookResultsRestController extends LogbookResultsBaseController {
             }
 
             if (blockUsage == null || !hasSelection || !hasQuantity) {
-                throw new IllegalArgumentException("Each populated child block requires a tube selection and usage quantity");
+                throw new IllegalArgumentException(
+                        "Each populated child block requires a tube selection and usage quantity");
             }
 
             blockUsage.setChildBlockName(childBlockName);
@@ -1402,8 +1510,7 @@ public class LogbookResultsRestController extends LogbookResultsBaseController {
         }
 
         Map<String, BlockSampleUsageItem> persisted = new LinkedHashMap<>();
-        for (org.openelisglobal.analysis.valueholder.AnalysisTubeUsage usage : analysisTubeUsageService
-                .getByAnalysisId(analysisId)) {
+        for (AnalysisTubeUsage usage : analysisTubeUsageService.getByAnalysisId(analysisId)) {
             if (usage == null || GenericValidator.isBlankOrNull(usage.getChildBlockName())) {
                 continue;
             }
@@ -1430,19 +1537,23 @@ public class LogbookResultsRestController extends LogbookResultsBaseController {
             BlockSampleUsageItem submittedUsage = submittedByBlock.get(persistedEntry.getKey());
             BlockSampleUsageItem persistedUsage = persistedEntry.getValue();
             if (persistedUsage == null) {
-                throw new IllegalArgumentException("Tube selections and usage quantities cannot be changed after first save");
+                throw new IllegalArgumentException(
+                        "Tube selections and usage quantities cannot be changed after first save");
             }
             if (submittedUsage == null) {
-                throw new IllegalArgumentException("Tube selections and usage quantities cannot be changed after first save");
+                throw new IllegalArgumentException(
+                        "Tube selections and usage quantities cannot be changed after first save");
             }
             if (!StringUtils.equals(normalizeBlockName(submittedUsage.getParentTubeBlockName()),
                     normalizeBlockName(persistedUsage.getParentTubeBlockName()))) {
-                throw new IllegalArgumentException("Tube selections and usage quantities cannot be changed after first save");
+                throw new IllegalArgumentException(
+                        "Tube selections and usage quantities cannot be changed after first save");
             }
             BigDecimal submittedQuantity = parseAndValidateUsageQuantity(submittedUsage.getUsedQuantity());
             BigDecimal persistedQuantity = parseAndValidateUsageQuantity(persistedUsage.getUsedQuantity());
             if (submittedQuantity.compareTo(persistedQuantity) != 0) {
-                throw new IllegalArgumentException("Tube selections and usage quantities cannot be changed after first save");
+                throw new IllegalArgumentException(
+                        "Tube selections and usage quantities cannot be changed after first save");
             }
         }
     }
@@ -1477,7 +1588,8 @@ public class LogbookResultsRestController extends LogbookResultsBaseController {
                 break;
             }
         }
-        Map<String, String> values = testAdditionalFieldService.getAnalysisValuesForFields(parentAnalysis.getId(), definitions);
+        Map<String, String> values = testAdditionalFieldService.getAnalysisValuesForFields(parentAnalysis.getId(),
+                definitions);
         Map<String, AnalysisTubeLabel> persistedLabels = analysisTubeLabelService
                 .getByAnalysisIdGroupedByBlock(parentAnalysis.getId());
         boolean hasTubeSelector = primarySelectorEnabled || !GenericValidator.isBlankOrNull(selectorFieldKey);
@@ -1498,8 +1610,7 @@ public class LogbookResultsRestController extends LogbookResultsBaseController {
                 context.blockName = resolvePrimaryResultBlockName(parentAnalysis);
                 context.label = resolveTubeBlockLabel(context.blockName, persistedLabels);
                 context.quantityFieldKey = "__PRIMARY_RESULT__";
-                context.totalAvailable = parseZeroOrPositiveBigDecimal(
-                        resolvePrimaryResultNumericValue(parentAnalysis),
+                context.totalAvailable = parseZeroOrPositiveBigDecimal(resolvePrimaryResultNumericValue(parentAnalysis),
                         "Selected parent tube requires a numeric available quantity");
                 contexts.put(context.blockName, context);
             }
@@ -1509,8 +1620,7 @@ public class LogbookResultsRestController extends LogbookResultsBaseController {
                 continue;
             }
             int activationCount = getTubeActivationCount(definition);
-            if (activationCount > 0
-                    && (selectedCount == null || activationCount > selectedCount.intValue())) {
+            if (activationCount > 0 && (selectedCount == null || activationCount > selectedCount.intValue())) {
                 continue;
             }
             String blockName = resolveFieldBlockName(definition);
@@ -1811,14 +1921,22 @@ public class LogbookResultsRestController extends LogbookResultsBaseController {
     }
 
     private String getStatusForTestResult(TestResultItem testResult, boolean alwaysValidate) {
-        if (testResult.isShadowRejected() && ConfigurationProperties.getInstance()
+        if (alternateOrderFlowService.isResultsOnlyAnalysis(testResult.getAnalysisId())) {
+            if (testResult.isShadowRejected()) {
+                return SpringContext.getBean(IStatusService.class).getStatusID(AnalysisStatus.Canceled);
+            }
+            boolean complete = hasAnyEnteredResultData(testResult) && hasCompleteAlternateFlowResults(testResult);
+            return SpringContext.getBean(IStatusService.class)
+                    .getStatusID(complete ? AnalysisStatus.Finalized : AnalysisStatus.NotStarted);
+        } else if (testResult.isShadowRejected() && ConfigurationProperties.getInstance()
                 .isPropertyValueEqual(Property.VALIDATE_REJECTED_TESTS, "true")) {
             return SpringContext.getBean(IStatusService.class).getStatusID(AnalysisStatus.TechnicalRejected);
         } else if (testResult.isShadowRejected()) {
             return SpringContext.getBean(IStatusService.class).getStatusID(AnalysisStatus.Canceled);
         } else if (!noResults(testResult.getShadowResultValue(), testResult.getMultiSelectResultValues(),
                 testResult.getResultType()) && !hasCompleteAdditionalResultFields(testResult)) {
-            // Do not move to validation/finalized until all active additional result fields are filled.
+            // Do not move to validation/finalized until all active additional result fields
+            // are filled.
             return SpringContext.getBean(IStatusService.class).getStatusID(AnalysisStatus.NotStarted);
         } else if (shouldSkipValidationForParentTest(testResult)) {
             return SpringContext.getBean(IStatusService.class).getStatusID(AnalysisStatus.Finalized);
@@ -1883,6 +2001,23 @@ public class LogbookResultsRestController extends LogbookResultsBaseController {
         }
 
         return values.values().stream().anyMatch(value -> !GenericValidator.isBlankOrNull(value));
+    }
+
+    private boolean hasCompleteAlternateFlowResults(TestResultItem item) {
+        JsonNode primaryMetadata = readMetadataNode(item.getResultDisplayConfigJson());
+        if (primaryMetadata.path("active").asBoolean(true) && isPrimaryTubeLabelBlockActive(item, primaryMetadata)
+                && noResults(item.getShadowResultValue(), item.getMultiSelectResultValues(), item.getResultType())) {
+            return false;
+        }
+        List<TestAdditionalFieldPayload> definitions = item.getAdditionalFieldDefinitions();
+        if (definitions == null)
+            return true;
+        Map<String, String> values = item.getAdditionalFieldValues();
+        return definitions.stream().filter(java.util.Objects::nonNull)
+                .filter(field -> !Boolean.FALSE.equals(field.getActive()) && Boolean.TRUE.equals(field.getRequired()))
+                .filter(field -> isTubeLabelBlockActive(field, item, primaryMetadata))
+                .filter(field -> !GenericValidator.isBlankOrNull(field.getFieldKey()))
+                .allMatch(field -> values != null && !GenericValidator.isBlankOrNull(values.get(field.getFieldKey())));
     }
 
     private boolean hasCompleteAdditionalResultFields(TestResultItem testResultItem) {
@@ -1968,7 +2103,8 @@ public class LogbookResultsRestController extends LogbookResultsBaseController {
 
         // This needs to be refactored -- part of the logic is in
         // getStatusForTestResult. RetroCI over rides to whatever was set before
-        if (statusRuleSet.equals(STATUS_RULES_RETROCI)) {
+        if (statusRuleSet.equals(STATUS_RULES_RETROCI)
+                && !alternateOrderFlowService.isResultsOnlyAnalysis(analysis.getId())) {
             if (!SpringContext.getBean(IStatusService.class).getStatusID(AnalysisStatus.Canceled)
                     .equals(analysis.getStatusId())) {
                 analysis.setCompletedDate(DateUtil.convertStringDateToSqlDate(testDate));
@@ -2023,7 +2159,8 @@ public class LogbookResultsRestController extends LogbookResultsBaseController {
     }
 
     private List<TestResultItem> filterTestsBySampleItem(List<TestResultItem> tests, SampleItem sampleItem) {
-        if (sampleItem == null || GenericValidator.isBlankOrNull(sampleItem.getId()) || tests == null || tests.isEmpty()) {
+        if (sampleItem == null || GenericValidator.isBlankOrNull(sampleItem.getId()) || tests == null
+                || tests.isEmpty()) {
             return tests;
         }
 
@@ -2078,6 +2215,13 @@ public class LogbookResultsRestController extends LogbookResultsBaseController {
         file.setLastupdated(now);
 
         return file;
+    }
+
+    @ExceptionHandler(AdditionalFieldConflictException.class)
+    @ResponseBody
+    public ResponseEntity<Map<String, Object>> handleAdditionalFieldConflict(AdditionalFieldConflictException e) {
+        return ResponseEntity.status(HttpStatus.CONFLICT)
+                .body(Map.of("error", true, "code", e.getCode(), "conflicts", e.getConflicts()));
     }
 
     @ExceptionHandler(IllegalArgumentException.class)
