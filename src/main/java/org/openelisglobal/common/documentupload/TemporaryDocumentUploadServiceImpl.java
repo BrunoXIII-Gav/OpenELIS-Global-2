@@ -66,7 +66,8 @@ public class TemporaryDocumentUploadServiceImpl implements TemporaryDocumentUplo
     }
 
     private HttpSession getCurrentSession() {
-        ServletRequestAttributes attributes = (ServletRequestAttributes) RequestContextHolder.currentRequestAttributes();
+        ServletRequestAttributes attributes = (ServletRequestAttributes) RequestContextHolder
+                .currentRequestAttributes();
         return attributes.getRequest().getSession(true);
     }
 
@@ -86,8 +87,8 @@ public class TemporaryDocumentUploadServiceImpl implements TemporaryDocumentUplo
         }
 
         Instant cutoff = Instant.now().minus(MAX_AGE);
-        Iterator<Map.Entry<String, Map<String, TemporaryDocumentUploadPayload>>> scopeIterator = uploadsByScope.entrySet()
-                .iterator();
+        Iterator<Map.Entry<String, Map<String, TemporaryDocumentUploadPayload>>> scopeIterator = uploadsByScope
+                .entrySet().iterator();
         while (scopeIterator.hasNext()) {
             Map.Entry<String, Map<String, TemporaryDocumentUploadPayload>> scopeEntry = scopeIterator.next();
             Map<String, TemporaryDocumentUploadPayload> scopedUploads = scopeEntry.getValue();

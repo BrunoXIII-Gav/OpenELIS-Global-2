@@ -2,7 +2,6 @@ package org.openelisglobal.professionalprofile.service;
 
 import com.fasterxml.jackson.core.type.TypeReference;
 import com.fasterxml.jackson.databind.ObjectMapper;
-import java.util.ArrayList;
 import java.util.Comparator;
 import java.util.LinkedHashMap;
 import java.util.List;
@@ -26,9 +25,8 @@ public class ProfessionalProfileFieldConfigServiceImpl implements ProfessionalPr
 
     private static final ObjectMapper OBJECT_MAPPER = new ObjectMapper();
 
-    private static final TypeReference<LinkedHashMap<String, List<ProfessionalProfileFieldDefinitionForm>>> FIELD_CONFIG_TYPE =
-            new TypeReference<>() {
-            };
+    private static final TypeReference<LinkedHashMap<String, List<ProfessionalProfileFieldDefinitionForm>>> FIELD_CONFIG_TYPE = new TypeReference<>() {
+    };
 
     private static final String PROFESSIONAL_INITIALS_BINDING = "PROFESSIONAL_INITIALS";
 
@@ -37,27 +35,29 @@ public class ProfessionalProfileFieldConfigServiceImpl implements ProfessionalPr
 
     @Override
     @Transactional(readOnly = true)
-    public List<ProfessionalProfileFieldDefinitionForm> getFieldsForProfile(String profileCode, boolean includeInactive) {
+    public List<ProfessionalProfileFieldDefinitionForm> getFieldsForProfile(String profileCode,
+            boolean includeInactive) {
         String normalizedProfileCode = normalizeProfileCode(profileCode);
         if (StringUtils.isBlank(normalizedProfileCode)) {
             return List.of();
         }
 
-        List<ProfessionalProfileFieldDefinitionForm> definitions = loadAllFieldDefinitions().getOrDefault(normalizedProfileCode,
-                List.of());
+        List<ProfessionalProfileFieldDefinitionForm> definitions = loadAllFieldDefinitions()
+                .getOrDefault(normalizedProfileCode, List.of());
 
-        return definitions.stream()
-                .map(this::copyFieldDefinition)
+        return definitions.stream().map(this::copyFieldDefinition)
                 .filter(definition -> includeInactive || Boolean.TRUE.equals(definition.getActive()))
                 .sorted(Comparator
                         .comparing(ProfessionalProfileFieldDefinitionForm::getSortOrder,
                                 Comparator.nullsLast(Integer::compareTo))
-                        .thenComparing(ProfessionalProfileFieldDefinitionForm::getDisplayName, String.CASE_INSENSITIVE_ORDER))
+                        .thenComparing(ProfessionalProfileFieldDefinitionForm::getDisplayName,
+                                String.CASE_INSENSITIVE_ORDER))
                 .toList();
     }
 
     @Override
-    public void saveFieldsForProfile(String profileCode, List<ProfessionalProfileFieldDefinitionForm> fields, String currentUserId) {
+    public void saveFieldsForProfile(String profileCode, List<ProfessionalProfileFieldDefinitionForm> fields,
+            String currentUserId) {
         String normalizedProfileCode = normalizeProfileCode(profileCode);
         if (StringUtils.isBlank(normalizedProfileCode)) {
             throw new IllegalArgumentException("Professional profile code is required.");
@@ -82,12 +82,13 @@ public class ProfessionalProfileFieldConfigServiceImpl implements ProfessionalPr
     }
 
     private Map<String, List<ProfessionalProfileFieldDefinitionForm>> loadAllFieldDefinitions() {
-        String rawValue = ConfigurationProperties.getInstance().getPropertyValue(Property.professionalProfileFieldDefinitions);
+        String rawValue = ConfigurationProperties.getInstance()
+                .getPropertyValue(Property.professionalProfileFieldDefinitions);
         Map<String, List<ProfessionalProfileFieldDefinitionForm>> parsed = new LinkedHashMap<>();
         if (StringUtils.isNotBlank(rawValue)) {
             try {
-                Map<String, List<ProfessionalProfileFieldDefinitionForm>> deserialized = OBJECT_MAPPER.readValue(rawValue,
-                        FIELD_CONFIG_TYPE);
+                Map<String, List<ProfessionalProfileFieldDefinitionForm>> deserialized = OBJECT_MAPPER
+                        .readValue(rawValue, FIELD_CONFIG_TYPE);
                 if (deserialized != null) {
                     deserialized.forEach((profileCode, fields) -> parsed.put(normalizeProfileCode(profileCode),
                             normalizeFields(normalizeProfileCode(profileCode), fields)));
@@ -104,8 +105,11 @@ public class ProfessionalProfileFieldConfigServiceImpl implements ProfessionalPr
             List<ProfessionalProfileFieldDefinitionForm> fields) {
         Map<String, ProfessionalProfileFieldDefinitionForm> normalized = new LinkedHashMap<>();
         int sortOrder = 0;
-        for (ProfessionalProfileFieldDefinitionForm field : fields == null ? List.<ProfessionalProfileFieldDefinitionForm>of() : fields) {
-            ProfessionalProfileFieldDefinitionForm normalizedField = normalizeFieldDefinition(profileCode, field, sortOrder++);
+        for (ProfessionalProfileFieldDefinitionForm field : fields == null
+                ? List.<ProfessionalProfileFieldDefinitionForm>of()
+                : fields) {
+            ProfessionalProfileFieldDefinitionForm normalizedField = normalizeFieldDefinition(profileCode, field,
+                    sortOrder++);
             if (normalizedField == null) {
                 continue;
             }
@@ -115,7 +119,8 @@ public class ProfessionalProfileFieldConfigServiceImpl implements ProfessionalPr
                 .sorted(Comparator
                         .comparing(ProfessionalProfileFieldDefinitionForm::getSortOrder,
                                 Comparator.nullsLast(Integer::compareTo))
-                        .thenComparing(ProfessionalProfileFieldDefinitionForm::getDisplayName, String.CASE_INSENSITIVE_ORDER))
+                        .thenComparing(ProfessionalProfileFieldDefinitionForm::getDisplayName,
+                                String.CASE_INSENSITIVE_ORDER))
                 .toList();
     }
 
@@ -125,11 +130,13 @@ public class ProfessionalProfileFieldConfigServiceImpl implements ProfessionalPr
             return null;
         }
 
-        String fieldKey = StringUtils.upperCase(StringUtils.trimToEmpty(field.getFieldKey())).replaceAll("[^A-Z0-9_]", "_");
+        String fieldKey = StringUtils.upperCase(StringUtils.trimToEmpty(field.getFieldKey())).replaceAll("[^A-Z0-9_]",
+                "_");
         String displayName = StringUtils.trimToNull(field.getDisplayName());
         String fieldType = normalizeFieldType(field.getFieldType());
         String normalizedLegacyBinding = StringUtils.upperCase(StringUtils.trimToEmpty(field.getLegacyBinding()));
-        if (PROFESSIONAL_INITIALS_BINDING.equals(fieldKey) || PROFESSIONAL_INITIALS_BINDING.equals(normalizedLegacyBinding)) {
+        if (PROFESSIONAL_INITIALS_BINDING.equals(fieldKey)
+                || PROFESSIONAL_INITIALS_BINDING.equals(normalizedLegacyBinding)) {
             return null;
         }
         if (StringUtils.isBlank(fieldKey) || StringUtils.isBlank(displayName) || StringUtils.isBlank(fieldType)) {
@@ -158,7 +165,8 @@ public class ProfessionalProfileFieldConfigServiceImpl implements ProfessionalPr
 
         Map<String, ProfessionalProfileFieldOptionForm> normalized = new LinkedHashMap<>();
         int sortOrder = 0;
-        for (ProfessionalProfileFieldOptionForm option : options == null ? List.<ProfessionalProfileFieldOptionForm>of() : options) {
+        for (ProfessionalProfileFieldOptionForm option : options == null ? List.<ProfessionalProfileFieldOptionForm>of()
+                : options) {
             if (option == null) {
                 continue;
             }
@@ -174,21 +182,21 @@ public class ProfessionalProfileFieldConfigServiceImpl implements ProfessionalPr
             normalizedOption.setSortOrder(option.getSortOrder() == null ? sortOrder++ : option.getSortOrder());
             normalized.put(normalizedOption.getOptionKey(), normalizedOption);
         }
-        return normalized.values().stream()
-                .sorted(Comparator
-                        .comparing(ProfessionalProfileFieldOptionForm::getSortOrder, Comparator.nullsLast(Integer::compareTo))
-                        .thenComparing(ProfessionalProfileFieldOptionForm::getOptionLabel, String.CASE_INSENSITIVE_ORDER))
+        return normalized.values().stream().sorted(Comparator
+                .comparing(ProfessionalProfileFieldOptionForm::getSortOrder, Comparator.nullsLast(Integer::compareTo))
+                .thenComparing(ProfessionalProfileFieldOptionForm::getOptionLabel, String.CASE_INSENSITIVE_ORDER))
                 .toList();
     }
 
     private void persistFieldDefinitions(Map<String, List<ProfessionalProfileFieldDefinitionForm>> allDefinitions,
             String currentUserId) {
         try {
-            String serialized = OBJECT_MAPPER.writeValueAsString(allDefinitions.entrySet().stream()
-                    .filter(entry -> StringUtils.isNotBlank(entry.getKey()))
-                    .collect(Collectors.toMap(Map.Entry::getKey, entry -> entry.getValue().stream()
-                            .map(this::copyFieldDefinition)
-                            .collect(Collectors.toList()), (left, _right) -> left, LinkedHashMap::new)));
+            String serialized = OBJECT_MAPPER.writeValueAsString(
+                    allDefinitions.entrySet().stream().filter(entry -> StringUtils.isNotBlank(entry.getKey()))
+                            .collect(Collectors.toMap(Map.Entry::getKey,
+                                    entry -> entry.getValue().stream().map(this::copyFieldDefinition)
+                                            .collect(Collectors.toList()),
+                                    (left, _right) -> left, LinkedHashMap::new)));
 
             SiteInformation siteInformation = siteInformationService
                     .getSiteInformationByName(Property.professionalProfileFieldDefinitions.getDBName());

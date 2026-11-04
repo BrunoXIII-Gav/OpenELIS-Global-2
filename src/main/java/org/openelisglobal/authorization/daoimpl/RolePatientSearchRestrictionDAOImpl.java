@@ -25,10 +25,9 @@ public class RolePatientSearchRestrictionDAOImpl extends BaseDAOImpl<RolePatient
         if (roleId == null) {
             return List.of();
         }
-        Query<RolePatientSearchRestriction> query = entityManager.unwrap(Session.class).createQuery(
-                "from RolePatientSearchRestriction restriction where restriction.roleId = :roleId "
-                        + "order by restriction.criterionKey",
-                RolePatientSearchRestriction.class);
+        Query<RolePatientSearchRestriction> query = entityManager.unwrap(Session.class)
+                .createQuery("from RolePatientSearchRestriction restriction where restriction.roleId = :roleId "
+                        + "order by restriction.criterionKey", RolePatientSearchRestriction.class);
         query.setParameter("roleId", roleId);
         return query.list();
     }

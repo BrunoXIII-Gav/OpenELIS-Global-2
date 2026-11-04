@@ -189,11 +189,12 @@ public class TestNotificationConfig extends NotificationConfig<Test> {
         if (options == null) {
             options = new ArrayList<>();
         }
-        return options.stream()
-                .filter(opt -> opt.getNotificationMethod() == NotificationMethod.EMAIL
-                        && opt.getNotificationPersonType() == NotificationPersonType.INTERNAL_PROFILE
-                        && (opt.getNotificationNature() == NotificationNature.RESULT_PENDING_VALIDATION
-                                || opt.getNotificationNature() == NotificationNature.RESULT_VALIDATION))
+        return options
+                .stream().filter(
+                        opt -> opt.getNotificationMethod() == NotificationMethod.EMAIL
+                                && opt.getNotificationPersonType() == NotificationPersonType.INTERNAL_PROFILE
+                                && (opt.getNotificationNature() == NotificationNature.RESULT_PENDING_VALIDATION
+                                        || opt.getNotificationNature() == NotificationNature.RESULT_VALIDATION))
                 .toList();
     }
 

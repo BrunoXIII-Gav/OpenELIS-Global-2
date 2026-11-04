@@ -44,8 +44,7 @@ public final class SamlRoleMapping {
             return null;
         }
 
-        String[][] mappings = {
-                { "user-account-administrator", Constants.ROLE_USER_ACCOUNT_ADMIN },
+        String[][] mappings = { { "user-account-administrator", Constants.ROLE_USER_ACCOUNT_ADMIN },
                 { "user-account-admin", Constants.ROLE_USER_ACCOUNT_ADMIN },
                 { "global-administrator", Constants.ROLE_GLOBAL_ADMIN },
                 { "global-admin", Constants.ROLE_GLOBAL_ADMIN },
@@ -53,20 +52,13 @@ public final class SamlRoleMapping {
                 { "validation-medical", Constants.ROLE_VALIDATION_MEDICAL },
                 { "generic-sample", Constants.ROLE_GENERIC_SAMPLE },
                 { "analyser-import", Constants.ROLE_ANALYSER_IMPORT },
-                { "analyzer-import", Constants.ROLE_ANALYSER_IMPORT },
-                { "audit-trail", Constants.ROLE_AUDIT_TRAIL },
-                { "admin", Constants.ROLE_GLOBAL_ADMIN },
-                { "audit", Constants.ROLE_AUDIT_TRAIL },
-                { "administration", Constants.ROLE_ADMINISTRATION },
-                { "reception", Constants.ROLE_RECEPTION },
-                { "order", Constants.ROLE_ORDER },
-                { "patient", Constants.ROLE_PATIENT },
-                { "results", Constants.ROLE_RESULTS },
-                { "aliquot", Constants.ROLE_ALIQUOT },
-                { "validation", Constants.ROLE_VALIDATION },
-                { "reports", Constants.ROLE_REPORTS },
-                { "storage", Constants.ROLE_STORAGE },
-                { "pathologist", Constants.ROLE_PATHOLOGIST } };
+                { "analyzer-import", Constants.ROLE_ANALYSER_IMPORT }, { "audit-trail", Constants.ROLE_AUDIT_TRAIL },
+                { "admin", Constants.ROLE_GLOBAL_ADMIN }, { "audit", Constants.ROLE_AUDIT_TRAIL },
+                { "administration", Constants.ROLE_ADMINISTRATION }, { "reception", Constants.ROLE_RECEPTION },
+                { "order", Constants.ROLE_ORDER }, { "patient", Constants.ROLE_PATIENT },
+                { "results", Constants.ROLE_RESULTS }, { "aliquot", Constants.ROLE_ALIQUOT },
+                { "validation", Constants.ROLE_VALIDATION }, { "reports", Constants.ROLE_REPORTS },
+                { "storage", Constants.ROLE_STORAGE }, { "pathologist", Constants.ROLE_PATHOLOGIST } };
 
         for (String[] mapping : mappings) {
             String token = mapping[0];

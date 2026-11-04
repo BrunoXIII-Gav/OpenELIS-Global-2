@@ -131,7 +131,8 @@ public class OrderAdditionalFieldRestController extends BaseRestController {
     public ResponseEntity<?> getSampleValues(@PathVariable String sampleId,
             @RequestParam(name = "includeInactive", defaultValue = "false") boolean includeInactive) {
         try {
-            List<OrderAdditionalFieldPayload> definitions = orderAdditionalFieldService.getFields(includeInactive, true);
+            List<OrderAdditionalFieldPayload> definitions = orderAdditionalFieldService.getFields(includeInactive,
+                    true);
             Map<String, String> values = orderAdditionalFieldService.getSampleValues(sampleId, definitions);
             return ResponseEntity.ok(values);
         } catch (IllegalArgumentException e) {

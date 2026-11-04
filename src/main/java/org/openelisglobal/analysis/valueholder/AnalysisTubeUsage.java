@@ -28,8 +28,7 @@ public class AnalysisTubeUsage extends BaseObject<Long> {
 
     @Id
     @GeneratedValue(strategy = GenerationType.SEQUENCE, generator = "analysis_tube_usage_generator")
-    @SequenceGenerator(name = "analysis_tube_usage_generator", sequenceName = "analysis_tube_usage_seq",
-            allocationSize = 1)
+    @SequenceGenerator(name = "analysis_tube_usage_generator", sequenceName = "analysis_tube_usage_seq", allocationSize = 1)
     @Column(name = "id")
     private Long id;
 

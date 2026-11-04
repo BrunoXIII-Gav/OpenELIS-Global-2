@@ -87,8 +87,8 @@ public class TestNotificationConfigRestController extends BaseController {
             throw new RuntimeException("Validation errors occurred");
         }
         String sysUserId = this.getSysUserId(request);
-        LogEvent.logInfo(this.getClass().getSimpleName(), "updateNotificationConfig",
-                "POST testId=" + form.getConfig().getTestId() + " internalRules=" + summarizeInternalRules(form.getConfig()));
+        LogEvent.logInfo(this.getClass().getSimpleName(), "updateNotificationConfig", "POST testId="
+                + form.getConfig().getTestId() + " internalRules=" + summarizeInternalRules(form.getConfig()));
         LogEvent.logInfo(this.getClass().getSimpleName(), "updateNotificationConfig",
                 "POST rawConfig=" + safeJson(form.getConfig()));
         if (form.getConfig().getDefaultPayloadTemplate() == null) {
@@ -106,14 +106,14 @@ public class TestNotificationConfigRestController extends BaseController {
     }
 
     private String summarizeInternalRules(TestNotificationConfig config) {
-        return config.getInternalProfileEmailNotifications().stream()
-                .map(this::summarizeRule)
+        return config.getInternalProfileEmailNotifications().stream().map(this::summarizeRule)
                 .collect(Collectors.joining(" || "));
     }
 
     private String summarizeRule(NotificationConfigOption option) {
-        return "nature=" + option.getNotificationNature() + ",profile=" + option.getProfessionalProfileCode() + ",active="
-                + option.getActive() + ",subject=" + option.getSubjectTemplate() + ",message=" + option.getMessageTemplate();
+        return "nature=" + option.getNotificationNature() + ",profile=" + option.getProfessionalProfileCode()
+                + ",active=" + option.getActive() + ",subject=" + option.getSubjectTemplate() + ",message="
+                + option.getMessageTemplate();
     }
 
     private String safeJson(Object value) {

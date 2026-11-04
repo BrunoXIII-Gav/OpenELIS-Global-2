@@ -242,9 +242,8 @@ public class CustomSSOAuthenticationSuccessHandler extends SavedRequestAwareAuth
                 return "/";
             }
             int serverPort = request.getServerPort();
-            boolean includePort = serverPort > 0
-                    && !((serverPort == 80 && "http".equalsIgnoreCase(scheme))
-                            || (serverPort == 443 && "https".equalsIgnoreCase(scheme)));
+            boolean includePort = serverPort > 0 && !((serverPort == 80 && "http".equalsIgnoreCase(scheme))
+                    || (serverPort == 443 && "https".equalsIgnoreCase(scheme)));
             if (includePort) {
                 host = host + ":" + serverPort;
             }

@@ -7,12 +7,12 @@ import java.util.ArrayList;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Set;
+import org.openelisglobal.administration.service.AdministrationAuthorizationService;
+import org.openelisglobal.authorization.service.ModuleAuthorizationService;
 import org.openelisglobal.common.action.IActionConstants;
 import org.openelisglobal.common.log.LogEvent;
 import org.openelisglobal.common.util.ConfigurationProperties;
 import org.openelisglobal.common.validator.BaseErrors;
-import org.openelisglobal.administration.service.AdministrationAuthorizationService;
-import org.openelisglobal.authorization.service.ModuleAuthorizationService;
 import org.openelisglobal.login.dao.UserModuleService;
 import org.openelisglobal.login.valueholder.UserSessionData;
 import org.openelisglobal.security.service.ModuleAccessService;
@@ -28,9 +28,9 @@ import org.springframework.security.web.DefaultRedirectStrategy;
 import org.springframework.security.web.RedirectStrategy;
 import org.springframework.stereotype.Component;
 import org.springframework.validation.Errors;
+import org.springframework.web.method.HandlerMethod;
 import org.springframework.web.servlet.HandlerInterceptor;
 import org.springframework.web.servlet.ModelAndView;
-import org.springframework.web.method.HandlerMethod;
 
 @Component
 @Qualifier(value = "ModuleAuthenticationInterceptor")
@@ -172,8 +172,8 @@ public class ModuleAuthenticationInterceptor implements HandlerInterceptor {
     }
 
     /**
-     * These read-only sample/UOM and requester-profile lookups are needed to
-     * build an order, but their controllers also contain administration-only
+     * These read-only sample/UOM and requester-profile lookups are needed to build
+     * an order, but their controllers also contain administration-only
      * configuration endpoints.
      */
     private boolean isOrderEntryReferenceDataRequest(HttpServletRequest request) {

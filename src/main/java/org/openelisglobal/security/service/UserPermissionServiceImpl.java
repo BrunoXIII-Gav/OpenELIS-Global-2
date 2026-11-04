@@ -20,14 +20,12 @@ import org.springframework.transaction.annotation.Transactional;
 @Transactional(readOnly = true)
 public class UserPermissionServiceImpl implements UserPermissionService {
 
-    private static final Map<String, List<String>> LAB_ROLE_GROUPS = Map.of(
-            Constants.ROLE_GENERIC_SAMPLE, List.of(Constants.ROLE_SAMPLE_MANAGEMENT),
-            Constants.ROLE_ORDER, List.of(Constants.ROLE_ORDER_ADD, Constants.ROLE_ORDER_EDIT),
-            Constants.ROLE_PATIENT, List.of(Constants.ROLE_PATIENT_MANAGEMENT, Constants.ROLE_PATIENT_HISTORY),
-            Constants.ROLE_STORAGE, List.of(Constants.ROLE_STORAGE_MANAGEMENT),
-            Constants.ROLE_RESULTS,
-            List.of(Constants.ROLE_RESULTS_BY_UNIT, Constants.ROLE_RESULTS_BY_PATIENT,
-                    Constants.ROLE_RESULTS_BY_ORDER),
+    private static final Map<String, List<String>> LAB_ROLE_GROUPS = Map.of(Constants.ROLE_GENERIC_SAMPLE,
+            List.of(Constants.ROLE_SAMPLE_MANAGEMENT), Constants.ROLE_ORDER,
+            List.of(Constants.ROLE_ORDER_ADD, Constants.ROLE_ORDER_EDIT), Constants.ROLE_PATIENT,
+            List.of(Constants.ROLE_PATIENT_MANAGEMENT, Constants.ROLE_PATIENT_HISTORY), Constants.ROLE_STORAGE,
+            List.of(Constants.ROLE_STORAGE_MANAGEMENT), Constants.ROLE_RESULTS,
+            List.of(Constants.ROLE_RESULTS_BY_UNIT, Constants.ROLE_RESULTS_BY_PATIENT, Constants.ROLE_RESULTS_BY_ORDER),
             Constants.ROLE_VALIDATION, List.of(Constants.ROLE_VALIDATION_ROUTINE, Constants.ROLE_VALIDATION_BY_ORDER));
 
     @Autowired
@@ -53,11 +51,8 @@ public class UserPermissionServiceImpl implements UserPermissionService {
         if (permission == null) {
             return List.of();
         }
-        return userRoleService.getAll().stream()
-                .map(userRole -> userRole.getSystemUserId())
-                .distinct()
-                .filter(userId -> hasPermission(userId, permission))
-                .toList();
+        return userRoleService.getAll().stream().map(userRole -> userRole.getSystemUserId()).distinct()
+                .filter(userId -> hasPermission(userId, permission)).toList();
     }
 
     @Override
@@ -66,8 +61,7 @@ public class UserPermissionServiceImpl implements UserPermissionService {
             return List.of();
         }
         Set<String> effectiveRoleNames = getEffectiveRoleNames(userId);
-        return permission.getLegacyRoleNames().stream()
-                .filter(effectiveRoleNames::contains)
+        return permission.getLegacyRoleNames().stream().filter(effectiveRoleNames::contains)
                 .collect(Collectors.toList());
     }
 
@@ -87,12 +81,9 @@ public class UserPermissionServiceImpl implements UserPermissionService {
 
             String assignedRoleName = StringUtils.trim(assignedRole.getName());
             effectiveRoleNames.add(assignedRoleName);
-            customRoleDefinitionService.getPermissionRoleIdsForCustomRole(roleId).stream()
-                    .map(roleService::getRoleById)
-                    .filter(role -> role != null && StringUtils.isNotBlank(role.getName()))
-                    .map(Role::getName)
-                    .map(StringUtils::trim)
-                    .forEach(customPermissionRoleNames::add);
+            customRoleDefinitionService.getPermissionRoleIdsForCustomRole(roleId).stream().map(roleService::getRoleById)
+                    .filter(role -> role != null && StringUtils.isNotBlank(role.getName())).map(Role::getName)
+                    .map(StringUtils::trim).forEach(customPermissionRoleNames::add);
         }
 
         normalizeGroupedRoles(customPermissionRoleNames);

@@ -25,8 +25,8 @@ import org.openelisglobal.workplan.form.WorkplanForm.PrintWorkplan;
 import org.openelisglobal.workplan.reports.IWorkplanReport;
 import org.openelisglobal.workplan.reports.TestSectionWorkplanReport;
 import org.openelisglobal.workplan.reports.TestWorkplanReport;
-import org.springframework.security.access.AccessDeniedException;
 import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.security.access.AccessDeniedException;
 import org.springframework.validation.BindingResult;
 import org.springframework.validation.annotation.Validated;
 import org.springframework.web.bind.annotation.PostMapping;
@@ -102,8 +102,10 @@ public class PrintWorkplanReportRestController extends BaseRestController {
             throw new AccessDeniedException("The user does not have permission to export results");
         }
         if (decision.source() == AuthorizationSource.MODULE_PERMISSION && !decision.allLabUnits()) {
-            // The legacy PDF request contains display rows rather than analysis IDs, so scoped exports are denied
-            // until the report endpoint can reload and authorize each row from persisted analyses.
+            // The legacy PDF request contains display rows rather than analysis IDs, so
+            // scoped exports are denied
+            // until the report endpoint can reload and authorize each row from persisted
+            // analyses.
             throw new AccessDeniedException("Scoped workplan exports are not supported");
         }
     }

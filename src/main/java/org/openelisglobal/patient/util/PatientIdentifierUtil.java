@@ -43,8 +43,8 @@ public final class PatientIdentifierUtil {
             return explicitType;
         }
 
-        return inferPrimaryIdentifierType(patientInfo.getNationalId(), patientInfo.getDni(), patientInfo.getPassportNumber(),
-                patientInfo.getForeignId());
+        return inferPrimaryIdentifierType(patientInfo.getNationalId(), patientInfo.getDni(),
+                patientInfo.getPassportNumber(), patientInfo.getForeignId());
     }
 
     public static String inferPrimaryIdentifierType(String nationalId, String dni, String passportNumber,
@@ -118,8 +118,8 @@ public final class PatientIdentifierUtil {
             return false;
         }
 
-        return hasAtLeastOnePatientIdentifier(patientInfo)
-                || StringUtils.isNotBlank(normalizePrimaryIdentifierType(patientInfo.getPrimaryPatientIdentifierType()));
+        return hasAtLeastOnePatientIdentifier(patientInfo) || StringUtils
+                .isNotBlank(normalizePrimaryIdentifierType(patientInfo.getPrimaryPatientIdentifierType()));
     }
 
     public static String getStoredPrimaryIdentifierType(List<PatientIdentity> identityList) {

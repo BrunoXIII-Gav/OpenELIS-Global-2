@@ -29,8 +29,8 @@ import org.openelisglobal.patient.action.bean.PatientSearch;
 import org.openelisglobal.sample.action.util.SamplePatientUpdateData;
 import org.openelisglobal.sample.bean.SampleOrderItem;
 import org.openelisglobal.sample.form.SamplePatientEntryForm;
-import org.openelisglobal.sample.service.PatientManagementUpdate;
 import org.openelisglobal.sample.service.OrderAuthorizationService;
+import org.openelisglobal.sample.service.PatientManagementUpdate;
 import org.openelisglobal.sample.service.SamplePatientEntryService;
 import org.openelisglobal.sample.validator.SamplePatientEntryFormValidator;
 import org.openelisglobal.samplebatchentry.form.SampleBatchEntryForm;
@@ -61,10 +61,10 @@ public class SampleBatchEntryRestController extends BaseController {
             "patientProperties.patientLastUpdated", "patientProperties.personLastUpdated",
             "patientProperties.patientUpdateStatus", "patientProperties.patientPK", "patientProperties.guid",
             "patientProperties.STnumber", "patientProperties.subjectNumber", "patientProperties.nationalId",
-            "patientProperties.primaryPatientIdentifierType",
-            "patientProperties.dni", "patientProperties.passportNumber", "patientProperties.foreignId",
-            "patientProperties.lastName", "patientProperties.firstName", "patientProperties.aka",
-            "patientProperties.birthDateForDisplay", "patientProperties.age", "patientProperties.gender",
+            "patientProperties.primaryPatientIdentifierType", "patientProperties.dni",
+            "patientProperties.passportNumber", "patientProperties.foreignId", "patientProperties.lastName",
+            "patientProperties.firstName", "patientProperties.aka", "patientProperties.birthDateForDisplay",
+            "patientProperties.age", "patientProperties.gender",
             //
             "sampleOrderItems.labNo",
             //

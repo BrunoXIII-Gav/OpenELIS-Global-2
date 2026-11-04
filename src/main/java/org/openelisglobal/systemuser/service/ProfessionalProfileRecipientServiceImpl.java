@@ -46,14 +46,14 @@ public class ProfessionalProfileRecipientServiceImpl implements ProfessionalProf
             return Collections.emptyList();
         }
 
-        Map<String, Provider> providersByPersonId = providerService.getAllActiveProviders().stream()
-                .filter(provider -> provider.getPerson() != null && StringUtils.isNotBlank(provider.getPerson().getId()))
+        Map<String, Provider> providersByPersonId = providerService.getAllActiveProviders().stream().filter(
+                provider -> provider.getPerson() != null && StringUtils.isNotBlank(provider.getPerson().getId()))
                 .collect(Collectors.toMap(provider -> provider.getPerson().getId(), provider -> provider,
                         (left, right) -> left));
 
         Map<String, LoginUser> loginBySystemUserId = loginUserService.getAll().stream()
-                .collect(Collectors.toMap(login -> String.valueOf(loginUserService.getSystemUserId(login)), login -> login,
-                        (left, right) -> left));
+                .collect(Collectors.toMap(login -> String.valueOf(loginUserService.getSystemUserId(login)),
+                        login -> login, (left, right) -> left));
 
         return systemUserService.getAll().stream()
                 .filter(user -> !activeOnly || YES.equalsIgnoreCase(user.getIsActive()))
@@ -79,8 +79,8 @@ public class ProfessionalProfileRecipientServiceImpl implements ProfessionalProf
     @Override
     public List<IdValuePair> getEligibleUserOptionsForProfessionalProfile(String profileCode, boolean activeOnly,
             boolean useFullNameLabel, boolean requireDeliverableEmail) {
-        Map<String, Provider> providersByPersonId = providerService.getAllActiveProviders().stream()
-                .filter(provider -> provider.getPerson() != null && StringUtils.isNotBlank(provider.getPerson().getId()))
+        Map<String, Provider> providersByPersonId = providerService.getAllActiveProviders().stream().filter(
+                provider -> provider.getPerson() != null && StringUtils.isNotBlank(provider.getPerson().getId()))
                 .collect(Collectors.toMap(provider -> provider.getPerson().getId(), provider -> provider,
                         (left, right) -> left));
 
@@ -88,8 +88,7 @@ public class ProfessionalProfileRecipientServiceImpl implements ProfessionalProf
                 .map(user -> new IdValuePair(user.getId(),
                         buildProfessionalDisplayLabel(user, providersByPersonId.get(user.getLinkedProviderPersonId()),
                                 useFullNameLabel)))
-                .filter(option -> StringUtils.isNotBlank(option.getValue()))
-                .collect(Collectors.toList());
+                .filter(option -> StringUtils.isNotBlank(option.getValue())).collect(Collectors.toList());
     }
 
     @Override

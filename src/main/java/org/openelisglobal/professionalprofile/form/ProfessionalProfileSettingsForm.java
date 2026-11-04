@@ -29,7 +29,8 @@ public class ProfessionalProfileSettingsForm {
     }
 
     public void setSampleCollectorProfessionalProfileCodes(List<String> sampleCollectorProfessionalProfileCodes) {
-        this.sampleCollectorProfessionalProfileCodes = sampleCollectorProfessionalProfileCodes == null ? new ArrayList<>()
+        this.sampleCollectorProfessionalProfileCodes = sampleCollectorProfessionalProfileCodes == null
+                ? new ArrayList<>()
                 : new ArrayList<>(sampleCollectorProfessionalProfileCodes);
     }
 
@@ -55,7 +56,8 @@ public class ProfessionalProfileSettingsForm {
         return validationInterpreterProfessionalProfileCodes;
     }
 
-    public void setValidationInterpreterProfessionalProfileCodes(List<String> validationInterpreterProfessionalProfileCodes) {
+    public void setValidationInterpreterProfessionalProfileCodes(
+            List<String> validationInterpreterProfessionalProfileCodes) {
         this.validationInterpreterProfessionalProfileCodes = validationInterpreterProfessionalProfileCodes == null
                 ? new ArrayList<>()
                 : new ArrayList<>(validationInterpreterProfessionalProfileCodes);

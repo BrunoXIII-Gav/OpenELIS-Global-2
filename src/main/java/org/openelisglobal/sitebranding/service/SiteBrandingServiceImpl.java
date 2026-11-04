@@ -82,9 +82,8 @@ public class SiteBrandingServiceImpl extends BaseObjectServiceImpl<SiteBranding,
                 branding.getId(), branding.getHeaderColor(), branding.getPrimaryColor(), branding.getSecondaryColor(),
                 branding.getColorMode(), branding.getShowHeaderLogo(), branding.getShowLoginLogo(),
                 branding.getUseHeaderLogoForLogin(), branding.getShowFavicon(), branding.getShowLoginNotice(),
-                branding.getShowHeaderBannerText(), branding.getShowHeaderVersion(),
-                branding.getShowHeaderSearchIcon(), branding.getShowHeaderNotificationIcon(),
-                branding.getShowHeaderHelpIcon());
+                branding.getShowHeaderBannerText(), branding.getShowHeaderVersion(), branding.getShowHeaderSearchIcon(),
+                branding.getShowHeaderNotificationIcon(), branding.getShowHeaderHelpIcon());
 
         try {
 

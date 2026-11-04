@@ -36,6 +36,7 @@ public class WorkplanByPriorityRestController extends WorkplanRestController {
     private AnalysisService analysisService;
     @Autowired
     private SampleQaEventService sampleQaEventService;
+
     @RequestMapping(value = "/rest/WorkPlanByPriority", method = RequestMethod.GET)
     public WorkplanForm showWorkPlanByPriority(HttpServletRequest request,
             @RequestParam(name = "priority", defaultValue = "") OrderPriority priority)

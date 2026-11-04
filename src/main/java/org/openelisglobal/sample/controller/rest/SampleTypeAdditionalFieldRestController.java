@@ -8,8 +8,8 @@ import java.util.List;
 import java.util.Map;
 import java.util.Set;
 import org.apache.commons.lang3.StringUtils;
-import org.openelisglobal.common.rest.BaseRestController;
 import org.openelisglobal.authorization.service.ModuleAuthorizationService;
+import org.openelisglobal.common.rest.BaseRestController;
 import org.openelisglobal.common.services.DisplayListService;
 import org.openelisglobal.common.util.IdValuePair;
 import org.openelisglobal.sample.bean.SampleTypeAdditionalFieldOptionPayload;
@@ -21,8 +21,8 @@ import org.springframework.http.HttpStatus;
 import org.springframework.http.MediaType;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.access.AccessDeniedException;
-import org.springframework.stereotype.Controller;
 import org.springframework.security.access.prepost.PreAuthorize;
+import org.springframework.stereotype.Controller;
 import org.springframework.web.bind.annotation.DeleteMapping;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PathVariable;
@@ -62,8 +62,7 @@ public class SampleTypeAdditionalFieldRestController extends BaseRestController 
 
     @GetMapping(value = "sample-type-additional-fields/values", produces = MediaType.APPLICATION_JSON_VALUE)
     @ResponseBody
-    public Map<String, String> getFieldValuesForSampleItem(
-            @RequestParam("sampleTypeId") String sampleTypeId,
+    public Map<String, String> getFieldValuesForSampleItem(@RequestParam("sampleTypeId") String sampleTypeId,
             @RequestParam("sampleItemId") String sampleItemId, HttpServletRequest request) {
         try {
             String sysUserId = getSysUserId(request);
@@ -80,8 +79,7 @@ public class SampleTypeAdditionalFieldRestController extends BaseRestController 
                     || !tagRestrictions.isEmpty()) {
                 sampleTypeAdditionalFieldService.getFieldsForSampleType(sampleTypeId, false).stream()
                         .filter(field -> isRestrictedAdditionalField(field, restrictions, tagRestrictions))
-                        .map(SampleTypeAdditionalFieldPayload::getFieldKey)
-                        .forEach(values::remove);
+                        .map(SampleTypeAdditionalFieldPayload::getFieldKey).forEach(values::remove);
             }
             return values;
         } catch (IllegalArgumentException e) {

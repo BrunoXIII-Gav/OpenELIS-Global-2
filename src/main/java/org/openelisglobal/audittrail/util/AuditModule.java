@@ -73,7 +73,8 @@ public final class AuditModule {
         if ("Person".equals(event.getEntityName())) {
             String source = event.getSource() == null ? "" : event.getSource().toLowerCase(Locale.ROOT);
             return "provider".equals(event.getModule()) || PROVIDER_SOURCES.stream().anyMatch(source::contains)
-                    ? "provider" : "patient";
+                    ? "provider"
+                    : "patient";
         }
         if ("Analysis".equals(event.getEntityName()))
             return SAMPLE_ANALYSIS_FIELDS.contains(event.getField()) ? "sampleitem" : "result";
@@ -125,8 +126,8 @@ public final class AuditModule {
                 parameters.put(parameter, "%" + PROVIDER_SOURCES.get(i) + "%");
             }
             String professional = "(" + String.join(" OR ", origins) + ")";
-            clauses.add("(e.entityName = 'Person' AND " + ("patient".equals(module) ? "NOT " : "")
-                    + professional + ")");
+            clauses.add(
+                    "(e.entityName = 'Person' AND " + ("patient".equals(module) ? "NOT " : "") + professional + ")");
         }
         if ("sampleitem".equals(module) || "result".equals(module)) {
             clauses.add("(e.entityName = 'Analysis' AND e.field " + ("sampleitem".equals(module) ? "IN" : "NOT IN")

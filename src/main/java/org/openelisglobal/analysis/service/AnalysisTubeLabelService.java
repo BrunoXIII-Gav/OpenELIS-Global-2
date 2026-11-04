@@ -12,5 +12,6 @@ public interface AnalysisTubeLabelService extends BaseObjectService<AnalysisTube
 
     Map<String, AnalysisTubeLabel> getByAnalysisIdGroupedByBlock(String analysisId);
 
-    AnalysisTubeLabel saveOrUpdateLabel(Analysis analysis, String blockName, String submittedLabelCode, String sysUserId);
+    AnalysisTubeLabel saveOrUpdateLabel(Analysis analysis, String blockName, String submittedLabelCode,
+            String sysUserId);
 }

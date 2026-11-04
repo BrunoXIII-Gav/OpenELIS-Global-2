@@ -4,9 +4,9 @@ import java.io.ByteArrayInputStream;
 import java.io.InputStream;
 import java.math.BigDecimal;
 import java.nio.charset.StandardCharsets;
-import java.util.Base64;
 import java.text.Normalizer;
 import java.util.ArrayList;
+import java.util.Base64;
 import java.util.Collections;
 import java.util.Comparator;
 import java.util.HashMap;
@@ -15,9 +15,9 @@ import java.util.List;
 import java.util.Locale;
 import java.util.Map;
 import java.util.Optional;
-import java.util.stream.Collectors;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
+import java.util.stream.Collectors;
 import net.sf.jasperreports.engine.JREmptyDataSource;
 import net.sf.jasperreports.engine.JRException;
 import net.sf.jasperreports.engine.JasperCompileManager;
@@ -51,16 +51,16 @@ public class DynamicJasperValidationReport extends PatientCILNSPClinical_vreduit
     private static final String MAPPINGS_KEY = "mappings";
     private static final String ANALYSIS_REFERENCE_TABLE = "ANALYSIS";
     private static final String USER_FIELD_TYPE = "USER";
-    private static final Pattern COLLECTION_DATE_PATTERN = Pattern
-            .compile("(\\b\\d{1,4}[/-]\\d{1,2}[/-]\\d{1,4}\\b)");
-    private static final Pattern ANALYST_SOURCE_PATTERN = Pattern
-            .compile("^biologist(\\d+)(Name|Specialty|CbpCode)$", Pattern.CASE_INSENSITIVE);
+    private static final Pattern COLLECTION_DATE_PATTERN = Pattern.compile("(\\b\\d{1,4}[/-]\\d{1,2}[/-]\\d{1,4}\\b)");
+    private static final Pattern ANALYST_SOURCE_PATTERN = Pattern.compile("^biologist(\\d+)(Name|Specialty|CbpCode)$",
+            Pattern.CASE_INSENSITIVE);
 
     private final ImageService imageService = SpringContext.getBean(ImageService.class);
     private final HistoryService historyService = SpringContext.getBean(HistoryService.class);
     private final ReferenceTablesService referenceTablesService = SpringContext.getBean(ReferenceTablesService.class);
     private final SystemUserService systemUserService = SpringContext.getBean(SystemUserService.class);
-    private final org.openelisglobal.provider.service.ProviderProfileFieldService providerProfileFieldService = SpringContext.getBean(org.openelisglobal.provider.service.ProviderProfileFieldService.class);
+    private final org.openelisglobal.provider.service.ProviderProfileFieldService providerProfileFieldService = SpringContext
+            .getBean(org.openelisglobal.provider.service.ProviderProfileFieldService.class);
 
     private JSONObject config = new JSONObject();
     private String templateContent = "";
@@ -208,17 +208,10 @@ public class DynamicJasperValidationReport extends PatientCILNSPClinical_vreduit
     }
 
     /**
-     * Resolve value from user_field mapping type (new cascading system).
-     * Mapping structure: {
-     *   "type": "user_field", 
-     *   "userFieldId": "analyst_1", 
-     *   "userFieldKey": "responsible_analyst", 
-     *   "profileFieldMappings": {
-     *     "BIOLOGIST": "cbpCode",
-     *     "MEDICAL_DOCTOR": "rne",
-     *     "ENGINEER": "cip"
-     *   }
-     * }
+     * Resolve value from user_field mapping type (new cascading system). Mapping
+     * structure: { "type": "user_field", "userFieldId": "analyst_1",
+     * "userFieldKey": "responsible_analyst", "profileFieldMappings": { "BIOLOGIST":
+     * "cbpCode", "MEDICAL_DOCTOR": "rne", "ENGINEER": "cip" } }
      */
     private Object resolveUserFieldValue(JSONObject mapping, String className, ClinicalPatientData first) {
         if (mapping == null || first == null) {
@@ -280,9 +273,9 @@ public class DynamicJasperValidationReport extends PatientCILNSPClinical_vreduit
     }
 
     /**
-     * Determine which profile field to use based on the user's professional profile.
-     * If profileFieldMappings exists, use the mapping for the user's profile.
-     * Otherwise, fall back to the legacy profileFieldKey.
+     * Determine which profile field to use based on the user's professional
+     * profile. If profileFieldMappings exists, use the mapping for the user's
+     * profile. Otherwise, fall back to the legacy profileFieldKey.
      */
     private String determineProfileFieldKey(JSONObject mapping, String systemUserId) {
         if (mapping == null) {
@@ -292,7 +285,8 @@ public class DynamicJasperValidationReport extends PatientCILNSPClinical_vreduit
         // Check if we have profile-specific mappings
         JSONObject profileFieldMappings = mapping.optJSONObject("profileFieldMappings");
         if (profileFieldMappings != null && !profileFieldMappings.isEmpty()) {
-            String fieldKey = determineProfileFieldKeyForProfileCode(mapping, getUserProfessionalProfileCode(systemUserId));
+            String fieldKey = determineProfileFieldKeyForProfileCode(mapping,
+                    getUserProfessionalProfileCode(systemUserId));
             if (fieldKey != null) {
                 return fieldKey;
             }
@@ -354,7 +348,8 @@ public class DynamicJasperValidationReport extends PatientCILNSPClinical_vreduit
             return null;
         }
 
-        // For validator, we need to find the systemUserId from the most recent validation history
+        // For validator, we need to find the systemUserId from the most recent
+        // validation history
         String validatorUserId = null;
         if (reportItems != null && !reportItems.isEmpty()) {
             ClinicalPatientData first = getFirstReportItem();
@@ -381,7 +376,8 @@ public class DynamicJasperValidationReport extends PatientCILNSPClinical_vreduit
     /**
      * Extract specific field value from ProfessionalInfo.
      */
-    private Object extractProfileFieldValue(ProfessionalInfo info, String profileFieldKey, String className, String systemUserId) {
+    private Object extractProfileFieldValue(ProfessionalInfo info, String profileFieldKey, String className,
+            String systemUserId) {
         return extractProfileFieldValue(info, profileFieldKey, className, systemUserId, null);
     }
 
@@ -393,19 +389,19 @@ public class DynamicJasperValidationReport extends PatientCILNSPClinical_vreduit
 
         // System fields from ProfessionalInfo
         String stringValue = switch (profileFieldKey.toLowerCase()) {
-            case "name" -> info.displayName;
-            case "specialty" -> {
-                yield info.specialty;
+        case "name" -> info.displayName;
+        case "specialty" -> {
+            yield info.specialty;
+        }
+        case "cbpcode" -> info.cbpCode;
+        case "signature" -> {
+            if ("java.io.InputStream".equalsIgnoreCase(className)) {
+                yield null; // Will be handled below
             }
-            case "cbpcode" -> info.cbpCode;
-            case "signature" -> {
-                if ("java.io.InputStream".equalsIgnoreCase(className)) {
-                    yield null; // Will be handled below
-                }
-                yield null;
-            }
-            default -> provider != null ? resolveCustomProfileField(provider, profileFieldKey)
-                    : resolveCustomProfileField(systemUserId, profileFieldKey);
+            yield null;
+        }
+        default -> provider != null ? resolveCustomProfileField(provider, profileFieldKey)
+                : resolveCustomProfileField(systemUserId, profileFieldKey);
         };
 
         // Special handling for signature image
@@ -421,10 +417,10 @@ public class DynamicJasperValidationReport extends PatientCILNSPClinical_vreduit
         }
         if (stringValue == null && resolvedProvider != null) {
             stringValue = switch (profileFieldKey.toLowerCase()) {
-                case "professionalInitials", "professionalinitials" -> resolvedProvider.getProfessionalInitials();
-                case "dni" -> resolvedProvider.getDni();
-                case "npi" -> resolvedProvider.getNpi();
-                default -> null;
+            case "professionalInitials", "professionalinitials" -> resolvedProvider.getProfessionalInitials();
+            case "dni" -> resolvedProvider.getDni();
+            case "npi" -> resolvedProvider.getNpi();
+            default -> null;
             };
         }
 
@@ -447,8 +443,8 @@ public class DynamicJasperValidationReport extends PatientCILNSPClinical_vreduit
         Person person = provider.getPerson();
         String displayName = "";
         if (person != null) {
-            displayName = StringUtils.normalizeSpace(
-                    StringUtils.defaultString(person.getFirstName()) + " " + StringUtils.defaultString(person.getLastName()));
+            displayName = StringUtils.normalizeSpace(StringUtils.defaultString(person.getFirstName()) + " "
+                    + StringUtils.defaultString(person.getLastName()));
         }
         if (StringUtils.isBlank(displayName) && first != null) {
             displayName = StringUtils.defaultIfBlank(first.getPrescriber(), first.getContactInfo());
@@ -543,10 +539,11 @@ public class DynamicJasperValidationReport extends PatientCILNSPClinical_vreduit
         History mostRecent = null;
         for (History candidate : histories) {
             if (hasStatusChange(candidate) && isMoreRecent(candidate, mostRecent)) {
-                String statusId = extractSimpleTag(new String(candidate.getChanges(), StandardCharsets.UTF_8), "statusId");
+                String statusId = extractSimpleTag(new String(candidate.getChanges(), StandardCharsets.UTF_8),
+                        "statusId");
                 // Check if it's a validation status
-                if (StringUtils.isNotBlank(statusId) && 
-                    (statusId.contains("TechnicalAcceptance") || statusId.contains("BiologicalAcceptance") || statusId.contains("Finalized"))) {
+                if (StringUtils.isNotBlank(statusId) && (statusId.contains("TechnicalAcceptance")
+                        || statusId.contains("BiologicalAcceptance") || statusId.contains("Finalized"))) {
                     mostRecent = candidate;
                 }
             }
@@ -628,7 +625,8 @@ public class DynamicJasperValidationReport extends PatientCILNSPClinical_vreduit
         boolean matches = evaluateNumericCondition(actualValue, mapping.optString("operator"), comparedValue);
         String branchTypeKey = matches ? "trueType" : "falseType";
         String branchValueKey = matches ? "trueValue" : "falseValue";
-        String branchType = StringUtils.defaultIfBlank(StringUtils.trimToNull(mapping.optString(branchTypeKey)), "empty");
+        String branchType = StringUtils.defaultIfBlank(StringUtils.trimToNull(mapping.optString(branchTypeKey)),
+                "empty");
         String branchValue = StringUtils.trimToNull(mapping.optString(branchValueKey));
         return resolveConditionalBranchValue(branchType, branchValue, className, first);
     }
@@ -728,7 +726,8 @@ public class DynamicJasperValidationReport extends PatientCILNSPClinical_vreduit
             if (imageId != null) {
                 try {
                     Image image = imageService.get(imageId);
-                    return image == null || image.getImage() == null ? null : new ByteArrayInputStream(image.getImage());
+                    return image == null || image.getImage() == null ? null
+                            : new ByteArrayInputStream(image.getImage());
                 } catch (Exception e) {
                     return null;
                 }
@@ -929,18 +928,18 @@ public class DynamicJasperValidationReport extends PatientCILNSPClinical_vreduit
                 continue;
             }
 
-            List<TestAdditionalFieldPayload> definitions = biologistDefinitionsByTestId.computeIfAbsent(
-                    analysis.getTest().getId(), testId -> {
+            List<TestAdditionalFieldPayload> definitions = biologistDefinitionsByTestId
+                    .computeIfAbsent(analysis.getTest().getId(), testId -> {
                         List<TestAdditionalFieldPayload> fetched = testAdditionalFieldService.getFieldsForTest(testId,
                                 false);
                         return fetched == null ? Collections.emptyList() : new ArrayList<>(fetched);
                     });
 
-            definitions.stream().filter(this::isBiologistSelectorField)
-                    .sorted(Comparator.comparing((TestAdditionalFieldPayload field) -> field.getSortOrder() == null
-                            ? Integer.MAX_VALUE
-                            : field.getSortOrder()).thenComparing(field -> StringUtils.defaultString(field.getFieldKey()),
-                                    String.CASE_INSENSITIVE_ORDER))
+            definitions.stream().filter(this::isBiologistSelectorField).sorted(Comparator
+                    .comparing((TestAdditionalFieldPayload field) -> field.getSortOrder() == null ? Integer.MAX_VALUE
+                            : field.getSortOrder())
+                    .thenComparing(field -> StringUtils.defaultString(field.getFieldKey()),
+                            String.CASE_INSENSITIVE_ORDER))
                     .forEach(field -> {
                         String selectedUserId = item.getAdditionalFieldValue(field.getFieldKey());
                         if (StringUtils.isNotBlank(selectedUserId)) {
@@ -954,8 +953,7 @@ public class DynamicJasperValidationReport extends PatientCILNSPClinical_vreduit
     }
 
     private boolean isBiologistSelectorField(TestAdditionalFieldPayload field) {
-        return field != null && Boolean.TRUE.equals(field.getActive())
-                && isUserSelectorFieldType(field.getFieldType())
+        return field != null && Boolean.TRUE.equals(field.getActive()) && isUserSelectorFieldType(field.getFieldType())
                 && StringUtils.isNotBlank(field.getFieldKey());
     }
 
@@ -981,7 +979,8 @@ public class DynamicJasperValidationReport extends PatientCILNSPClinical_vreduit
             return cachedValidatorInfo;
         }
 
-        String analysisTableId = Optional.ofNullable(referenceTablesService.getReferenceTableByName(ANALYSIS_REFERENCE_TABLE))
+        String analysisTableId = Optional
+                .ofNullable(referenceTablesService.getReferenceTableByName(ANALYSIS_REFERENCE_TABLE))
                 .map(referenceTable -> referenceTable.getId()).orElse(null);
         if (StringUtils.isBlank(analysisTableId)) {
             cachedValidatorInfo = ProfessionalInfo.empty();
@@ -989,12 +988,14 @@ public class DynamicJasperValidationReport extends PatientCILNSPClinical_vreduit
         }
 
         History latestValidation = null;
-        for (ClinicalPatientData item : reportItems == null ? Collections.<ClinicalPatientData>emptyList() : reportItems) {
+        for (ClinicalPatientData item : reportItems == null ? Collections.<ClinicalPatientData>emptyList()
+                : reportItems) {
             if (item == null || StringUtils.isBlank(item.getAnalysisId())) {
                 continue;
             }
 
-            List<History> historyList = historyService.getHistoryByRefIdAndRefTableId(item.getAnalysisId(), analysisTableId);
+            List<History> historyList = historyService.getHistoryByRefIdAndRefTableId(item.getAnalysisId(),
+                    analysisTableId);
             if (historyList == null || historyList.isEmpty()) {
                 continue;
             }
@@ -1008,7 +1009,8 @@ public class DynamicJasperValidationReport extends PatientCILNSPClinical_vreduit
                 if (latestAnyUpdate == null || isMoreRecent(history, latestAnyUpdate)) {
                     latestAnyUpdate = history;
                 }
-                if (hasStatusChange(history) && (latestStatusChange == null || isMoreRecent(history, latestStatusChange))) {
+                if (hasStatusChange(history)
+                        && (latestStatusChange == null || isMoreRecent(history, latestStatusChange))) {
                     latestStatusChange = history;
                 }
             }

@@ -4,9 +4,9 @@ import jakarta.servlet.http.HttpServletRequest;
 import jakarta.servlet.http.HttpSession;
 import java.util.ArrayList;
 import java.util.HashSet;
-import java.util.List;
 import java.util.LinkedHashMap;
 import java.util.LinkedHashSet;
+import java.util.List;
 import java.util.Map;
 import java.util.Objects;
 import java.util.Set;
@@ -14,8 +14,8 @@ import java.util.stream.Collectors;
 import org.apache.commons.lang3.ObjectUtils;
 import org.apache.commons.lang3.StringUtils;
 import org.openelisglobal.analysis.valueholder.Analysis;
-import org.openelisglobal.common.constants.SystemPermission;
 import org.openelisglobal.common.constants.Constants;
+import org.openelisglobal.common.constants.SystemPermission;
 import org.openelisglobal.common.log.LogEvent;
 import org.openelisglobal.common.services.DisplayListService;
 import org.openelisglobal.common.services.DisplayListService.ListType;
@@ -27,8 +27,8 @@ import org.openelisglobal.login.valueholder.LoginUser;
 import org.openelisglobal.login.valueholder.UserSessionData;
 import org.openelisglobal.program.service.ProgramService;
 import org.openelisglobal.resultvalidation.bean.AnalysisItem;
-import org.openelisglobal.role.valueholder.Role;
 import org.openelisglobal.role.service.RoleService;
+import org.openelisglobal.role.valueholder.Role;
 import org.openelisglobal.security.SamlRoleMapping;
 import org.openelisglobal.security.SamlRoleMapping.ParsedSamlRole;
 import org.openelisglobal.security.service.UserPermissionService;
@@ -63,14 +63,12 @@ import org.springframework.web.context.request.ServletRequestAttributes;
 @Service
 public class UserServiceImpl implements UserService {
 
-    private static final Map<String, List<String>> LAB_ROLE_GROUPS = Map.of(
-            Constants.ROLE_GENERIC_SAMPLE, List.of(Constants.ROLE_SAMPLE_MANAGEMENT),
-            Constants.ROLE_ORDER, List.of(Constants.ROLE_ORDER_ADD, Constants.ROLE_ORDER_EDIT),
-            Constants.ROLE_PATIENT, List.of(Constants.ROLE_PATIENT_MANAGEMENT, Constants.ROLE_PATIENT_HISTORY),
-            Constants.ROLE_STORAGE, List.of(Constants.ROLE_STORAGE_MANAGEMENT),
-            Constants.ROLE_RESULTS,
-            List.of(Constants.ROLE_RESULTS_BY_UNIT, Constants.ROLE_RESULTS_BY_PATIENT,
-                    Constants.ROLE_RESULTS_BY_ORDER),
+    private static final Map<String, List<String>> LAB_ROLE_GROUPS = Map.of(Constants.ROLE_GENERIC_SAMPLE,
+            List.of(Constants.ROLE_SAMPLE_MANAGEMENT), Constants.ROLE_ORDER,
+            List.of(Constants.ROLE_ORDER_ADD, Constants.ROLE_ORDER_EDIT), Constants.ROLE_PATIENT,
+            List.of(Constants.ROLE_PATIENT_MANAGEMENT, Constants.ROLE_PATIENT_HISTORY), Constants.ROLE_STORAGE,
+            List.of(Constants.ROLE_STORAGE_MANAGEMENT), Constants.ROLE_RESULTS,
+            List.of(Constants.ROLE_RESULTS_BY_UNIT, Constants.ROLE_RESULTS_BY_PATIENT, Constants.ROLE_RESULTS_BY_ORDER),
             Constants.ROLE_VALIDATION, List.of(Constants.ROLE_VALIDATION_ROUTINE, Constants.ROLE_VALIDATION_BY_ORDER));
 
     @Autowired
@@ -173,8 +171,7 @@ public class UserServiceImpl implements UserService {
         List<String> currentUserRoles = userRoleService.getRoleIdsForUser(systemUser.getId());
         List<UserRole> deletedUserRoles = new ArrayList<>();
         if (isLabRole) {
-            List<String> rolesToPreserve = currentUserRoles.stream()
-                    .filter(roleId -> !isLabPermissionRole(roleId))
+            List<String> rolesToPreserve = currentUserRoles.stream().filter(roleId -> !isLabPermissionRole(roleId))
                     .collect(Collectors.toList());
             selectedRoles.addAll(rolesToPreserve);
         }
@@ -323,7 +320,8 @@ public class UserServiceImpl implements UserService {
             if (requestSession == null) {
                 authentication = null;
             } else {
-                Object sc = requestSession.getAttribute(HttpSessionSecurityContextRepository.SPRING_SECURITY_CONTEXT_KEY);
+                Object sc = requestSession
+                        .getAttribute(HttpSessionSecurityContextRepository.SPRING_SECURITY_CONTEXT_KEY);
                 if (!(sc instanceof SecurityContext)) {
                     LogEvent.logWarn(this.getClass().getSimpleName(), "getUserLogin",
                             "security context is not of type SecurityContext");
@@ -365,9 +363,9 @@ public class UserServiceImpl implements UserService {
                             userLabUnits.add(roles.getLabUnit());
                         } else {
                             org.openelisglobal.common.log.LogEvent.logInfo(this.getClass().getSimpleName(),
-                                    "getUserTestSections", "Checking labUnit=" + roles.getLabUnit() + ", roles="
-                                            + roles.getRoles() + ", roleId=" + roleId + ", matchingRoleIds="
-                                            + matchingRoleIds);
+                                    "getUserTestSections",
+                                    "Checking labUnit=" + roles.getLabUnit() + ", roles=" + roles.getRoles()
+                                            + ", roleId=" + roleId + ", matchingRoleIds=" + matchingRoleIds);
                             if (roles.getRoles() != null
                                     && roles.getRoles().stream().anyMatch(matchingRoleIds::contains)) {
                                 userLabUnits.add(roles.getLabUnit());
@@ -382,9 +380,8 @@ public class UserServiceImpl implements UserService {
                         .getList(ListType.TEST_SECTION_ACTIVE);
                 if (hasGlobalTestSectionAccess || userLabUnits.contains(UnifiedSystemUserController.ALL_LAB_UNITS)) {
                     org.openelisglobal.common.log.LogEvent.logInfo(this.getClass().getSimpleName(),
-                            "getUserTestSections",
-                            "User has global or AllLabUnits access, returning all " + allTestSections.size()
-                                    + " test sections");
+                            "getUserTestSections", "User has global or AllLabUnits access, returning all "
+                                    + allTestSections.size() + " test sections");
                     return allTestSections;
                 } else {
                     userTestSections = allTestSections.stream()
@@ -414,7 +411,8 @@ public class UserServiceImpl implements UserService {
                         continue;
                     }
 
-                    List<IdValuePair> allTestSections = DisplayListService.getInstance().getList(ListType.TEST_SECTION_ACTIVE);
+                    List<IdValuePair> allTestSections = DisplayListService.getInstance()
+                            .getList(ListType.TEST_SECTION_ACTIVE);
                     if (UnifiedSystemUserController.ALL_LAB_UNITS.equalsIgnoreCase(parsedRole.getLabScope())
                             || "all-lab-units".equals(normalizeLabScope(parsedRole.getLabScope()))) {
                         return allTestSections;
@@ -449,8 +447,8 @@ public class UserServiceImpl implements UserService {
         UserLabUnitRoles userLabRoles = getUserLabUnitRoles(systemUserId);
         if (userLabRoles != null) {
             userLabRoles.getLabUnitRoleMap().forEach(roles -> {
-                if (roleId == null || roles.getRoles() != null
-                        && roles.getRoles().stream().anyMatch(matchingRoleIds::contains)) {
+                if (roleId == null
+                        || roles.getRoles() != null && roles.getRoles().stream().anyMatch(matchingRoleIds::contains)) {
                     userLabUnits.add(roles.getLabUnit());
                 }
             });
@@ -539,8 +537,9 @@ public class UserServiceImpl implements UserService {
             return localizedName;
         }
 
-        String englishName =
-                type.getLocalization() != null ? StringUtils.trimToNull(type.getLocalization().getEnglish()) : null;
+        String englishName = type.getLocalization() != null
+                ? StringUtils.trimToNull(type.getLocalization().getEnglish())
+                : null;
         if (englishName != null) {
             return englishName;
         }
@@ -710,8 +709,8 @@ public class UserServiceImpl implements UserService {
             return false;
         }
 
-        return userLabRoles.getLabUnitRoleMap().stream().map(LabUnitRoleMap::getRoles).filter(roleIds -> roleIds != null)
-                .anyMatch(roleIds -> roleIds.contains(roleId));
+        return userLabRoles.getLabUnitRoleMap().stream().map(LabUnitRoleMap::getRoles)
+                .filter(roleIds -> roleIds != null).anyMatch(roleIds -> roleIds.contains(roleId));
     }
 
 }

@@ -57,8 +57,8 @@ public class ReferredOutTestsRestController extends BaseRestController {
             throws IllegalAccessException, InvocationTargetException, NoSuchMethodException {
         if (form.getSearchType() != null) {
             form.setReferralDisplayItems(referralService.getReferralItems(form));
-            Set<String> accessibleAnalysisIds = Set.copyOf(resultAuthorizationService.filterAccessibleAnalysisIds(userId,
-                    form.getReferralDisplayItems().stream().map(item -> item.getAnalysisId()).toList(), "read",
+            Set<String> accessibleAnalysisIds = Set.copyOf(resultAuthorizationService.filterAccessibleAnalysisIds(
+                    userId, form.getReferralDisplayItems().stream().map(item -> item.getAnalysisId()).toList(), "read",
                     Constants.ROLE_RESULTS));
             form.setReferralDisplayItems(form.getReferralDisplayItems().stream()
                     .filter(item -> accessibleAnalysisIds.contains(item.getAnalysisId())).toList());

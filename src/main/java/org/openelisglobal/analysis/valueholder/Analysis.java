@@ -15,9 +15,9 @@
  */
 package org.openelisglobal.analysis.valueholder;
 
+import java.math.BigDecimal;
 import java.sql.Date;
 import java.sql.Timestamp;
-import java.math.BigDecimal;
 import java.util.List;
 import java.util.UUID;
 import org.apache.commons.validator.GenericValidator;
