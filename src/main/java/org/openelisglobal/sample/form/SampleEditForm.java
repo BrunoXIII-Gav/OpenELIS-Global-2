@@ -57,6 +57,17 @@ public class SampleEditForm extends BaseForm {
     @Valid
     private List<SampleEditItem> possibleTests;
 
+    private List<@Pattern(regexp = ValidationHelper.ID_REGEX, groups = {
+            SampleEdit.class }) String> removedSampleItemIds;
+
+    public List<String> getRemovedSampleItemIds() {
+        return removedSampleItemIds;
+    }
+
+    public void setRemovedSampleItemIds(List<String> removedSampleItemIds) {
+        this.removedSampleItemIds = removedSampleItemIds;
+    }
+
     @NotNull(groups = { SampleEdit.class })
     private Boolean searchFinished = false;
 

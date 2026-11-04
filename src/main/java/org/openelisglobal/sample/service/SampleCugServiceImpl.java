@@ -146,7 +146,7 @@ public class SampleCugServiceImpl implements SampleCugService {
             item.setSysUserId(currentUserId);
             sampleItemDAO.update(item);
             auditPrefixChange(operation, patientId, "SampleItem", item.getId(), "cugCode", "sample.cug.label", old,
-                    entry.getValue(), currentUserId, item);
+                    entry.getValue(), currentUserId, item, "/rest/PatientManagement");
         }
         patientPrefixes.changePatientPrefix(patientId, nextPrefix, currentUserId);
         for (SampleCugReservation reservation : sampleCugReservationDAO.lockReservedForPatient(patientId)) {
@@ -155,13 +155,13 @@ public class SampleCugServiceImpl implements SampleCugService {
             sampleCugReservationDAO.update(reservation);
         }
         auditPrefixChange(operation, patientId, "PatientCugPrefix", patientId, "prefix", "patient.cug.prefix.label",
-                previous, requestedPrefix, currentUserId, null);
+                previous, requestedPrefix, currentUserId, null, "/rest/PatientManagement");
         prefixes.releaseIfUnused(Long.parseLong(previous));
         return requestedPrefix;
     }
 
     private void auditPrefixChange(String operation, String patientId, String entity, String entityId, String field,
-            String label, String old, String next, String actor, SampleItem item) {
+            String label, String old, String next, String actor, SampleItem item, String source) {
         AuditEvent event = new AuditEvent();
         event.setId(UUID.randomUUID().toString());
         event.setOperationId(operation);
@@ -181,7 +181,7 @@ public class SampleCugServiceImpl implements SampleCugService {
         event.setActorId(actor);
         event.setActorSource("USER");
         event.setOccurredAt(new Timestamp(System.currentTimeMillis()));
-        event.setSource("/rest/PatientManagement");
+        event.setSource(source);
         auditEvents.insert(event);
     }
 
@@ -191,6 +191,24 @@ public class SampleCugServiceImpl implements SampleCugService {
         if (StringUtils.isNotBlank(expectedPrefix) && !expectedPrefix.equals(getPatientPrefix(patientId))) {
             throw new IllegalArgumentException("sample.cug.patient.prefix.mismatch");
         }
+    }
+
+    @Override
+    public void releaseRemovedSampleCug(SampleItem item, String patientId, String currentUserId) {
+        if (item == null || !item.isVoided() || item.getSample() == null || StringUtils.isBlank(patientId)
+                || StringUtils.isBlank(currentUserId)) {
+            throw new IllegalArgumentException("Only a removed sample can release its CUG");
+        }
+        sampleCugReservationDAO.lockPatientForCug(patientId);
+        String code = StringUtils.trimToNull(item.getCugCode());
+        if (code == null) {
+            return;
+        }
+        sampleCugReservationDAO.releaseConsumedValue(code, item.getSample().getId(), patientId);
+        auditPrefixChange(UUID.randomUUID().toString(), patientId, "SampleItem", item.getId(), "cugCode",
+                "sample.cug.label", code, null, currentUserId, item, "/rest/SampleEdit");
+        item.setCugCode(null);
+        item.setSysUserId(currentUserId);
     }
 
     @Override

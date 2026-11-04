@@ -387,6 +387,7 @@ export const buildModifyOrderPayload = (
     samples,
     removedExistingSampleItemIds,
   );
+  payload.removedSampleItemIds = Array.from(removedSampleItemIds);
   const existingTestsBySampleItemId =
     buildExistingTestsBySampleItemId(existingTests);
   const sampleCardsBySampleItemId = new Map(

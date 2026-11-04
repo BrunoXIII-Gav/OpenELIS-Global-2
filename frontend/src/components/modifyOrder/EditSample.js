@@ -526,8 +526,13 @@ const EditSample = (props) => {
   };
 
   const removeSample = (index) => {
-    let updateSamples = samples.splice(index, 1);
-    setSamples(updateSamples);
+    const sample = samples[index];
+    if (sample?.existingSampleItemId) {
+      props.onRemoveExistingSample?.(String(sample.existingSampleItemId));
+    }
+    setSamples((previous) =>
+      previous.filter((_, sampleIndex) => sampleIndex !== index),
+    );
   };
 
   const fetchRejectSampleReasons = (res) => {
@@ -560,10 +565,10 @@ const EditSample = (props) => {
 
   const handleRemoveSample = (e, sample) => {
     e.preventDefault();
-    let filtered = samples.filter(function (element) {
-      return element !== sample;
-    });
-    setSamples(filtered);
+    if (sample.existingSampleItemId) {
+      props.onRemoveExistingSample?.(String(sample.existingSampleItemId));
+    }
+    setSamples((previous) => previous.filter((element) => element !== sample));
   };
 
   useEffect(() => {

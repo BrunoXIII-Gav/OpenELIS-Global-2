@@ -21,4 +21,11 @@
     </changeSet>
     <include
         file="liquibase/3.4.x.x/100-release-unused-cug-prefix.xml" />
+    <changeSet id="patient-prefix-removal-test-state"
+        author="openelis">
+        <addColumn tableName="sample_item">
+            <column name="voided" type="BOOLEAN"
+                defaultValueBoolean="false" />
+        </addColumn>
+    </changeSet>
 </databaseChangeLog>

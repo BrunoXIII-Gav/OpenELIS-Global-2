@@ -102,6 +102,91 @@ public class PatientPrefixChangeIntegrationTest {
     }
 
     @Test
+    public void removingLastSampleReleasesItsSuffixForPreviewReservationAndReuse() throws Exception {
+        insertConsumedReservation();
+        tx.execute(status -> {
+            var item = em.find(SampleItem.class, "2");
+            item.setVoided(true);
+            cugs.releaseRemovedSampleCug(item, "10", "42");
+            items.update(item);
+            return null;
+        });
+        assertEquals(1,
+                scalar("select count(*) from clinlims.sample_item where id=2 and cug_code is null and voided=true"));
+        assertEquals(1, scalar(
+                "select count(*) from clinlims.audit_event where source='/rest/SampleEdit' and sample_item_id='2' and old_value='5004.2' and new_value is null"));
+        var request = new SampleCugPreviewRequest();
+        request.setPatientId("10");
+        request.setReservationContextId("reuse-removed-sample");
+        assertEquals("5004.2", cugs.previewCugCode(request).getCugCode());
+        var reserved = cugs.reserveCugCode(request, "42");
+        assertEquals("5004.2", reserved.getCugCode());
+        assertNotEquals("consumed-before-removal", reserved.getReservationToken());
+        tx.execute(status -> {
+            var collection = new org.objenesis.ObjenesisStd()
+                    .newInstance(org.openelisglobal.common.services.SampleAddService.SampleTestCollection.class);
+            collection.item = new SampleItem();
+            collection.item.setId("5");
+            collection.item.setSample(em.find(org.openelisglobal.sample.valueholder.Sample.class, "20"));
+            collection.item.setCugCode("5004.2");
+            collection.cugReservationToken = reserved.getReservationToken();
+            cugs.assignMissingCugCodes(List.of(collection), "10", "42", "20");
+            em.persist(collection.item);
+            return null;
+        });
+        assertEquals(1, scalar("select count(*) from clinlims.sample_item where cug_code='5004.2'"));
+        assertEquals(1, scalar("select count(*) from clinlims.sample_item where id=1 and cug_code='5004.1'"));
+        tx.execute(status -> {
+            var first = new org.openelisglobal.common.rest.provider.bean.homedashboard.OrderDisplayBean();
+            first.setLabNumber("LNG78");
+            var removed = new org.openelisglobal.common.rest.provider.bean.homedashboard.OrderDisplayBean();
+            removed.setLabNumber("LNG79");
+            new OrderDashboardCugServiceImpl(items).populateOrderCugs(List.of(first, removed));
+            assertEquals("5004.1, 5004.2", first.getCugCode());
+            assertEquals("", removed.getCugCode());
+            return null;
+        });
+    }
+
+    @Test
+    public void failedRemovalKeepsOriginalCugReservationAndAuditUnchanged() throws Exception {
+        insertConsumedReservation();
+        assertThrows(IllegalStateException.class, () -> tx.execute(status -> {
+            var item = em.find(SampleItem.class, "2");
+            item.setVoided(true);
+            cugs.releaseRemovedSampleCug(item, "10", "42");
+            items.update(item);
+            em.flush();
+            throw new IllegalStateException("Simulated save failure");
+        }));
+        assertEquals(1,
+                scalar("select count(*) from clinlims.sample_item where id=2 and cug_code='5004.2' and voided=false"));
+        assertEquals(1, scalar(
+                "select count(*) from clinlims.sample_cug_reservation where reservation_token='consumed-before-removal'"));
+        assertEquals(0, scalar("select count(*) from clinlims.audit_event where source='/rest/SampleEdit'"));
+        var request = new SampleCugPreviewRequest();
+        request.setPatientId("10");
+        assertEquals("5004.3", cugs.previewCugCode(request).getCugCode());
+    }
+
+    private void insertConsumedReservation() {
+        tx.execute(status -> {
+            var reservation = new org.openelisglobal.sample.valueholder.SampleCugReservation();
+            reservation.setReservedValue("5004.2");
+            reservation.setReservationToken("consumed-before-removal");
+            reservation.setReservationContextId("old-context");
+            reservation.setPatientId(10);
+            reservation.setSampleId(21);
+            reservation.setReservedByUserId(42);
+            reservation.setStatus("CONSUMED");
+            reservation.setExpiresAt(new java.sql.Timestamp(System.currentTimeMillis() + 60000));
+            reservation.setSysUserId("42");
+            em.persist(reservation);
+            return null;
+        });
+    }
+
+    @Test
     public void renamesAllOrdersPreservesSuffixesAndAuditsEveryChange() throws Exception {
         assertEquals("8000", cugs.changePatientPrefix("10", "5004", "8000", "42"));
         assertEquals("8000", cugs.getPatientPrefix("10"));

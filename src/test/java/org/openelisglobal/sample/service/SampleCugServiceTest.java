@@ -24,6 +24,7 @@ public class SampleCugServiceTest {
     private SampleCugReservationDAO reservations;
     private SampleItemDAO items;
     private SampleCugPrefixDAO patientPrefixes;
+    private org.openelisglobal.audittrail.dao.AuditEventDAO audit;
 
     @Before
     public void setup() {
@@ -32,6 +33,8 @@ public class SampleCugServiceTest {
         reservations = mock(SampleCugReservationDAO.class);
         items = mock(SampleItemDAO.class);
         patientPrefixes = mock(SampleCugPrefixDAO.class);
+        audit = mock(org.openelisglobal.audittrail.dao.AuditEventDAO.class);
+        ReflectionTestUtils.setField(service, "auditEvents", audit);
         when(patientPrefixes.findPatientPrefix(any())).thenReturn(null);
         ReflectionTestUtils.setField(service, "patientPrefixes", patientPrefixes);
         ReflectionTestUtils.setField(service, "prefixes", prefixes);
@@ -39,6 +42,38 @@ public class SampleCugServiceTest {
         ReflectionTestUtils.setField(service, "sampleItemDAO", items);
         when(prefixes.allocate("42")).thenReturn(5000L, 7000L, 4000L);
         when(reservations.insertIfValueAvailable(any())).thenAnswer(call -> Optional.of(call.getArgument(0)));
+    }
+
+    @Test
+    public void removedSampleReleasesItsCodeAndRetainsAnAuditRecord() {
+        var sample = new org.openelisglobal.sample.valueholder.Sample();
+        sample.setId("20");
+        var item = new SampleItem();
+        item.setId("30");
+        item.setSample(sample);
+        item.setCugCode("5000.3");
+        item.setVoided(true);
+        service.releaseRemovedSampleCug(item, "10", "42");
+        assertNull(item.getCugCode());
+        verify(reservations).lockPatientForCug("10");
+        verify(reservations).releaseConsumedValue("5000.3", "20", "10");
+        var captured = org.mockito.ArgumentCaptor.forClass(org.openelisglobal.audittrail.valueholder.AuditEvent.class);
+        verify(audit).insert(captured.capture());
+        assertEquals("5000.3", captured.getValue().getOldValue());
+        assertNull(captured.getValue().getNewValue());
+        assertEquals("30", captured.getValue().getSampleItemId());
+        assertEquals("/rest/SampleEdit", captured.getValue().getSource());
+        service.releaseRemovedSampleCug(item, "10", "42");
+        verify(audit, times(1)).insert(any());
+    }
+
+    @Test
+    public void activeSampleCannotReleaseItsCug() {
+        var item = new SampleItem();
+        item.setCugCode("5000.3");
+        assertThrows(IllegalArgumentException.class, () -> service.releaseRemovedSampleCug(item, "10", "42"));
+        assertEquals("5000.3", item.getCugCode());
+        verify(reservations, never()).releaseConsumedValue(any(), any(), any());
     }
 
     @Test

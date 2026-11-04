@@ -4,6 +4,7 @@ import java.util.List;
 import org.openelisglobal.common.services.SampleAddService.SampleTestCollection;
 import org.openelisglobal.sample.bean.SampleCugPreviewRequest;
 import org.openelisglobal.sample.bean.SampleCugPreviewResponse;
+import org.openelisglobal.sampleitem.valueholder.SampleItem;
 
 public interface SampleCugService {
     String getPatientPrefix(String patientId);
@@ -17,6 +18,8 @@ public interface SampleCugService {
     String changePatientPrefix(String patientId, String expectedPrefix, String requestedPrefix, String currentUserId);
 
     void lockPatientAndCheckPrefix(String patientId, String expectedPrefix);
+
+    void releaseRemovedSampleCug(SampleItem item, String patientId, String currentUserId);
 
     SampleCugPreviewResponse previewCugCode(SampleCugPreviewRequest request);
 

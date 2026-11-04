@@ -344,8 +344,9 @@ public class SampleEditRestController extends BaseSampleEntryController {
     }
 
     private boolean cancellationRequested(SampleEditForm form) {
-        return form.getExistingTests() != null
-                && form.getExistingTests().stream().anyMatch(item -> item.isCanceled() || item.isRemoveSample());
+        return (form.getRemovedSampleItemIds() != null && !form.getRemovedSampleItemIds().isEmpty())
+                || (form.getExistingTests() != null && form.getExistingTests().stream()
+                        .anyMatch(item -> item.isCanceled() || item.isRemoveSample()));
     }
 
     @Override
