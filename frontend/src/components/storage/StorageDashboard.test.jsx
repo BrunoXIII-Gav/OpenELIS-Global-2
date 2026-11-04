@@ -755,6 +755,7 @@ describe("StorageDashboard Filter UI", () => {
         sampleItemId: "10001",
         sampleItemExternalId: "E2E-001-TUBE-1",
         sampleAccessionNumber: "E2E-001",
+        cugCode: "5001.1",
         type: "Serum",
         status: "active",
         location: "Main Laboratory > Freezer Unit 1",
@@ -797,9 +798,9 @@ describe("StorageDashboard Filter UI", () => {
     const externalIdElements = within(firstRow).getAllByText("E2E-001-TUBE-1");
     expect(externalIdElements.length).toBeGreaterThan(0);
 
-    // Verify parent Sample accession number is displayed
-    const accessionElements = within(firstRow).getAllByText("E2E-001");
-    expect(accessionElements.length).toBeGreaterThan(0);
+    // The dashboard identifies the specimen by CUG rather than its parent's LNG.
+    expect(within(firstRow).getByText("5001.1")).toBeInTheDocument();
+    expect(within(firstRow).queryByText("E2E-001")).not.toBeInTheDocument();
   });
 });
 
