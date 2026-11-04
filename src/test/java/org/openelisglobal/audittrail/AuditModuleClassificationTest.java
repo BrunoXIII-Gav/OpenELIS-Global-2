@@ -4,8 +4,8 @@ import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertNull;
 
 import org.junit.Test;
-import org.openelisglobal.audittrail.persistence.AuditEventListener;
 import org.openelisglobal.audittrail.form.AuditEventPage;
+import org.openelisglobal.audittrail.persistence.AuditEventListener;
 import org.openelisglobal.audittrail.util.AuditModule;
 import org.openelisglobal.audittrail.valueholder.AuditEvent;
 import org.springframework.test.util.ReflectionTestUtils;

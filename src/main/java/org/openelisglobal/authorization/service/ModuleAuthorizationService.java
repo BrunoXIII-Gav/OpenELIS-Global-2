@@ -15,12 +15,11 @@ public interface ModuleAuthorizationService {
     }
 
     enum AuthorizationSource {
-        MODULE_PERMISSION,
-        LEGACY_PERMISSION,
-        UNKNOWN_PERMISSION
+        MODULE_PERMISSION, LEGACY_PERMISSION, UNKNOWN_PERMISSION
     }
 
-    record AuthorizationDecision(boolean allowed, AuthorizationSource source, boolean allLabUnits, Set<String> labUnitIds) {
+    record AuthorizationDecision(boolean allowed, AuthorizationSource source, boolean allLabUnits,
+            Set<String> labUnitIds) {
         public boolean appliesToLabUnit(String labUnitId) {
             return allowed && (allLabUnits || labUnitIds.contains(labUnitId));
         }

@@ -169,8 +169,12 @@ function ProviderMenu() {
   const [dynamicFieldValues, setDynamicFieldValues] = useState({});
   const [specialtyOptions, setSpecialtyOptions] = useState([]);
   const [selectedProfileFilters, setSelectedProfileFilters] = useState([]);
-  const [selectedProfileTableFields, setSelectedProfileTableFields] = useState([]);
-  const [professionalProfileOptions, setProfessionalProfileOptions] = useState([]);
+  const [selectedProfileTableFields, setSelectedProfileTableFields] = useState(
+    [],
+  );
+  const [professionalProfileOptions, setProfessionalProfileOptions] = useState(
+    [],
+  );
   const [hasAttemptedDynamicSave, setHasAttemptedDynamicSave] = useState(false);
 
   const providerSpecialtyOptions = useMemo(
@@ -207,7 +211,8 @@ function ProviderMenu() {
     [professionalProfileOptions],
   );
 
-  const selectedProfessionalProfileCode = formState.professionalProfileCode || "";
+  const selectedProfessionalProfileCode =
+    formState.professionalProfileCode || "";
 
   const availableSpecialtyOptions = useMemo(() => {
     if (specialtyOptions.length > 0) {
@@ -338,9 +343,9 @@ function ProviderMenu() {
         selectedProfessionalProfileCode,
       )}&providerId=${encodeURIComponent(providerId)}`,
       (response) => {
-        const nextFields = normalizeDynamicFields(response?.fields || []).filter(
-          (field) => field.fieldKey !== "PROFESSIONAL_INITIALS",
-        );
+        const nextFields = normalizeDynamicFields(
+          response?.fields || [],
+        ).filter((field) => field.fieldKey !== "PROFESSIONAL_INITIALS");
         const nextValues = nextFields.reduce((accumulator, field) => {
           const fieldType = normalizeFieldType(field.fieldType);
           if (fieldType === "MULTISELECT") {
@@ -391,7 +396,9 @@ function ProviderMenu() {
   };
 
   const openUpdateModal = (providerId) => {
-    const provider = providerMenuListShow.find((current) => current.id === providerId);
+    const provider = providerMenuListShow.find(
+      (current) => current.id === providerId,
+    );
     if (!provider) {
       return;
     }
@@ -399,7 +406,10 @@ function ProviderMenu() {
     setFormState({
       providerId: provider.id,
       fhirUuid: provider.fhirUuid,
-      professionalProfileCode: provider.professionalProfileCode || professionalProfileOptions[0]?.code || "",
+      professionalProfileCode:
+        provider.professionalProfileCode ||
+        professionalProfileOptions[0]?.code ||
+        "",
       active: !!provider.active,
       lastName: provider.lastName || "",
       firstName: provider.firstName || "",
@@ -456,8 +466,7 @@ function ProviderMenu() {
         kind: NotificationKinds.error,
         title: intl.formatMessage({ id: "notification.title" }),
         message:
-          backendMessage ||
-          intl.formatMessage({ id: "server.error.msg" }),
+          backendMessage || intl.formatMessage({ id: "server.error.msg" }),
       });
     }
     reloadConfiguration();
@@ -692,7 +701,9 @@ function ProviderMenu() {
       return false;
     }
     const value = formState[fieldKey];
-    return hasAttemptedDynamicSave && (value == null || String(value).trim() === "");
+    return (
+      hasAttemptedDynamicSave && (value == null || String(value).trim() === "")
+    );
   };
 
   const getFixedFieldInvalidText = () =>
@@ -1014,7 +1025,11 @@ function ProviderMenu() {
         ...dynamicColumns,
       };
     });
-  }, [providerMenuListShow, selectedProfileFilters, selectedProfileTableFields]);
+  }, [
+    providerMenuListShow,
+    selectedProfileFilters,
+    selectedProfileTableFields,
+  ]);
 
   const pagedProviderRows = useMemo(
     () => filteredProviderRows.slice((page - 1) * pageSize, page * pageSize),
@@ -1141,27 +1156,37 @@ function ProviderMenu() {
             </Select>
             <TextInput
               id="lastName"
-              labelText={intl.formatMessage({ id: "provider.providerLastName" })}
+              labelText={intl.formatMessage({
+                id: "provider.providerLastName",
+              })}
               value={formState.lastName}
               invalid={isFixedFieldInvalid("lastName")}
               invalidText={getFixedFieldInvalidText()}
-              onChange={(event) => updateFormState("lastName", event.target.value)}
+              onChange={(event) =>
+                updateFormState("lastName", event.target.value)
+              }
               required
             />
             <TextInput
               id="firstName"
-              labelText={intl.formatMessage({ id: "provider.providerFirstName" })}
+              labelText={intl.formatMessage({
+                id: "provider.providerFirstName",
+              })}
               value={formState.firstName}
               invalid={isFixedFieldInvalid("firstName")}
               invalidText={getFixedFieldInvalidText()}
-              onChange={(event) => updateFormState("firstName", event.target.value)}
+              onChange={(event) =>
+                updateFormState("firstName", event.target.value)
+              }
               required
             />
             <TextInput
               id="telephone"
               labelText={intl.formatMessage({ id: "provider.telephone" })}
               value={formState.telephone}
-              onChange={(event) => updateFormState("telephone", event.target.value)}
+              onChange={(event) =>
+                updateFormState("telephone", event.target.value)
+              }
             />
             <TextInput
               id="dni"
@@ -1208,11 +1233,17 @@ function ProviderMenu() {
             >
               <SelectItem
                 value="yes"
-                text={intl.formatMessage({ id: "label.yes", defaultMessage: "Yes" })}
+                text={intl.formatMessage({
+                  id: "label.yes",
+                  defaultMessage: "Yes",
+                })}
               />
               <SelectItem
                 value="no"
-                text={intl.formatMessage({ id: "label.no", defaultMessage: "No" })}
+                text={intl.formatMessage({
+                  id: "label.no",
+                  defaultMessage: "No",
+                })}
               />
             </Select>
             {dynamicFields.map(renderDynamicField)}
@@ -1258,27 +1289,37 @@ function ProviderMenu() {
             </Select>
             <TextInput
               id="lastName-update"
-              labelText={intl.formatMessage({ id: "provider.providerLastName" })}
+              labelText={intl.formatMessage({
+                id: "provider.providerLastName",
+              })}
               value={formState.lastName}
               invalid={isFixedFieldInvalid("lastName")}
               invalidText={getFixedFieldInvalidText()}
-              onChange={(event) => updateFormState("lastName", event.target.value)}
+              onChange={(event) =>
+                updateFormState("lastName", event.target.value)
+              }
               required
             />
             <TextInput
               id="firstName-update"
-              labelText={intl.formatMessage({ id: "provider.providerFirstName" })}
+              labelText={intl.formatMessage({
+                id: "provider.providerFirstName",
+              })}
               value={formState.firstName}
               invalid={isFixedFieldInvalid("firstName")}
               invalidText={getFixedFieldInvalidText()}
-              onChange={(event) => updateFormState("firstName", event.target.value)}
+              onChange={(event) =>
+                updateFormState("firstName", event.target.value)
+              }
               required
             />
             <TextInput
               id="telephone-update"
               labelText={intl.formatMessage({ id: "provider.telephone" })}
               value={formState.telephone}
-              onChange={(event) => updateFormState("telephone", event.target.value)}
+              onChange={(event) =>
+                updateFormState("telephone", event.target.value)
+              }
             />
             <TextInput
               id="dni-update"
@@ -1325,11 +1366,17 @@ function ProviderMenu() {
             >
               <SelectItem
                 value="yes"
-                text={intl.formatMessage({ id: "label.yes", defaultMessage: "Yes" })}
+                text={intl.formatMessage({
+                  id: "label.yes",
+                  defaultMessage: "Yes",
+                })}
               />
               <SelectItem
                 value="no"
-                text={intl.formatMessage({ id: "label.no", defaultMessage: "No" })}
+                text={intl.formatMessage({
+                  id: "label.no",
+                  defaultMessage: "No",
+                })}
               />
             </Select>
             {dynamicFields.map(renderDynamicField)}
@@ -1432,7 +1479,9 @@ function ProviderMenu() {
                   pageSizes={[10, 20]}
                   totalItems={filteredProviderRows.length}
                   forwardText={intl.formatMessage({ id: "pagination.forward" })}
-                  backwardText={intl.formatMessage({ id: "pagination.backward" })}
+                  backwardText={intl.formatMessage({
+                    id: "pagination.backward",
+                  })}
                   itemRangeText={(min, max, total) =>
                     intl.formatMessage(
                       { id: "pagination.item-range" },
@@ -1443,10 +1492,7 @@ function ProviderMenu() {
                     id: "pagination.items-per-page",
                   })}
                   itemText={(min, max) =>
-                    intl.formatMessage(
-                      { id: "pagination.item" },
-                      { min, max },
-                    )
+                    intl.formatMessage({ id: "pagination.item" }, { min, max })
                   }
                   pageNumberText={intl.formatMessage({
                     id: "pagination.page-number",

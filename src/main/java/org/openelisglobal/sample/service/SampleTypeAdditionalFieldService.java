@@ -7,7 +7,8 @@ import org.openelisglobal.sample.bean.SampleTypeAdditionalFieldPayload;
 
 public interface SampleTypeAdditionalFieldService {
 
-    default List<SampleTypeAdditionalFieldPayload> getFieldsForSampleType(String sampleTypeId, boolean includeInactive) {
+    default List<SampleTypeAdditionalFieldPayload> getFieldsForSampleType(String sampleTypeId,
+            boolean includeInactive) {
         return getFieldsForSampleType(sampleTypeId, includeInactive, false);
     }
 

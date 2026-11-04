@@ -22,7 +22,8 @@
         <property name="codeType" type="java.lang.String">
             <column name="CODE_TYPE" length="1" />
         </property>
-        <property name="codeSource" type="org.hibernate.type.TextType">
+        <property name="codeSource"
+            type="org.hibernate.type.TextType">
             <column name="CODE_SOURCE" />
         </property>
 

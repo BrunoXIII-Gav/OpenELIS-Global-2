@@ -24,11 +24,10 @@ public class AuditEventRestController extends BaseRestController {
     public ResponseEntity<AuditEventPage> search(HttpServletRequest request,
             @RequestParam(required = false) String accessionNumber, @RequestParam(required = false) String module,
             @RequestParam(required = false) String entityName, @RequestParam(required = false) String entityId,
-            @RequestParam(required = false) String testId,
-            @RequestParam(required = false) String actorId, @RequestParam(required = false) String field,
-            @RequestParam(required = false) String action, @RequestParam(required = false) String from,
-            @RequestParam(required = false) String to, @RequestParam(defaultValue = "0") int page,
-            @RequestParam(defaultValue = "30") int size) {
+            @RequestParam(required = false) String testId, @RequestParam(required = false) String actorId,
+            @RequestParam(required = false) String field, @RequestParam(required = false) String action,
+            @RequestParam(required = false) String from, @RequestParam(required = false) String to,
+            @RequestParam(defaultValue = "0") int page, @RequestParam(defaultValue = "30") int size) {
         if (getSysUserId(request) == null)
             return ResponseEntity.status(401).build();
         AuditEventFilter filter;

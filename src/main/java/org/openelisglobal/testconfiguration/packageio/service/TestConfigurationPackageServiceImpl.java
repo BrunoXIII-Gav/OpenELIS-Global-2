@@ -734,8 +734,8 @@ public class TestConfigurationPackageServiceImpl implements TestConfigurationPac
     private String importFingerprint(ImportRequest request) {
         // The same source file can define several independent destination tests.
         // Only an identical reviewed configuration and catalog selection is a replay.
-        return hash(serialize(canonical(JSON.valueToTree(Map.of("package",
-                packageFingerprint(appliedPackage(request)), "catalogs", request.catalogs)))));
+        return hash(serialize(canonical(JSON.valueToTree(
+                Map.of("package", packageFingerprint(appliedPackage(request)), "catalogs", request.catalogs)))));
     }
 
     private Optional<TestConfigurationRevision> previousImport(ImportRequest request) {
@@ -749,9 +749,8 @@ public class TestConfigurationPackageServiceImpl implements TestConfigurationPac
         return dao.findRevision(packageFingerprint(request.bundle)).filter(revision -> {
             try {
                 TestConfigurationPackage applied = JSON.readValue(revision.packageJson, TestConfigurationPackage.class);
-                return packageFingerprint(applied).equals(packageFingerprint(appliedPackage(request)))
-                        && JSON.readTree(revision.mappingJson).path("catalogs")
-                                .equals(JSON.valueToTree(request.catalogs));
+                return packageFingerprint(applied).equals(packageFingerprint(appliedPackage(request))) && JSON
+                        .readTree(revision.mappingJson).path("catalogs").equals(JSON.valueToTree(request.catalogs));
             } catch (Exception e) {
                 throw new IllegalStateException("testPackage.issue.history", e);
             }

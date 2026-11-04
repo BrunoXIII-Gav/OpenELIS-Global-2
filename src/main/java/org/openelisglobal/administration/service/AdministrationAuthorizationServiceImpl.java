@@ -7,7 +7,10 @@ import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
-/** Administration settings are global and cannot safely be partitioned by laboratory unit. */
+/**
+ * Administration settings are global and cannot safely be partitioned by
+ * laboratory unit.
+ */
 @Service
 @Transactional(readOnly = true)
 public class AdministrationAuthorizationServiceImpl implements AdministrationAuthorizationService {

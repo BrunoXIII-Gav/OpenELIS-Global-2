@@ -36,7 +36,8 @@ public class AuditTestFilterMigrationTest {
                     assertEquals("Luis", rows.getString(2));
                     assertNull(rows.getString(3));
                 }
-                try (var indexes = connection.getMetaData().getIndexInfo(null, "clinlims", "audit_event", false, false)) {
+                try (var indexes = connection.getMetaData().getIndexInfo(null, "clinlims", "audit_event", false,
+                        false)) {
                     boolean found = false;
                     while (indexes.next())
                         found |= "audit_event_test_history_idx".equals(indexes.getString("INDEX_NAME"));
@@ -55,8 +56,8 @@ public class AuditTestFilterMigrationTest {
                     assertTrue(expected.toString().contains("Archive audit test ownership"));
                     connection.rollback();
                 }
-                try (var rows = connection.createStatement().executeQuery(
-                        "SELECT test_id FROM clinlims.audit_event WHERE id='audit-test-snapshot'")) {
+                try (var rows = connection.createStatement()
+                        .executeQuery("SELECT test_id FROM clinlims.audit_event WHERE id='audit-test-snapshot'")) {
                     assertTrue(rows.next());
                     assertEquals("9201", rows.getString(1));
                 }

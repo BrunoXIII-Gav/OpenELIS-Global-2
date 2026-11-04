@@ -62,12 +62,13 @@ public class OrderAuthorizationServiceImpl implements OrderAuthorizationService 
     }
 
     private Set<String> permittedTestIds(Collection<String> labUnitIds) {
-        List<Integer> testSectionIds = labUnitIds.stream().filter(StringUtils::isNumeric).map(Integer::valueOf).toList();
+        List<Integer> testSectionIds = labUnitIds.stream().filter(StringUtils::isNumeric).map(Integer::valueOf)
+                .toList();
         if (testSectionIds.isEmpty()) {
             return Set.of();
         }
-        return testService.getTestsByTestSectionIds(testSectionIds).stream().map(Test::getId).filter(StringUtils::isNotBlank)
-                .collect(java.util.stream.Collectors.toUnmodifiableSet());
+        return testService.getTestsByTestSectionIds(testSectionIds).stream().map(Test::getId)
+                .filter(StringUtils::isNotBlank).collect(java.util.stream.Collectors.toUnmodifiableSet());
     }
 
     private List<String> extractTestIds(String sampleXml) throws DocumentException {

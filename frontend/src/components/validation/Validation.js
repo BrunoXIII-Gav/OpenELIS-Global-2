@@ -715,7 +715,13 @@ const Validation = (props) => {
     if (!analysisIds || analysisIds.length === 0) {
       return;
     }
-    const reportUrl = getReportUrl(analysisIds, false, requestedReport, "", true);
+    const reportUrl = getReportUrl(
+      analysisIds,
+      false,
+      requestedReport,
+      "",
+      true,
+    );
     window.open(reportUrl, "_blank", "noopener,noreferrer");
   };
 
@@ -1323,7 +1329,9 @@ const Validation = (props) => {
       {permissionsLoaded && !hasValidationPermission && (
         <InlineNotification
           kind="warning"
-          title={intl.formatMessage({ id: "professionalProfile.permission.denied.validation" })}
+          title={intl.formatMessage({
+            id: "professionalProfile.permission.denied.validation",
+          })}
           hideCloseButton={true}
           lowContrast={true}
           style={{ marginBottom: "1rem" }}

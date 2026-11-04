@@ -154,6 +154,7 @@ public class OpenELISFieldServiceImpl implements OpenELISFieldService {
             reportingNameLocalization.setId(reportingNameLocalizationId);
 
             Test test = new Test();
+            test.setStoredName(form.getFieldName());
             test.setDescription(form.getFieldName());
             test.setLocalCode(form.getTestCode());
             test.setLoinc(form.getLoincCode());
@@ -163,6 +164,7 @@ public class OpenELISFieldServiceImpl implements OpenELISFieldService {
 
             test.setIsActive("Y");
             test.setOrderable(true);
+            test.setSkipValidationWhenParentComplete(false);
 
             // Default system user; SecurityContext integration deferred
             test.setSysUserId("1");

@@ -8,8 +8,8 @@ import java.util.Map;
 import java.util.UUID;
 import java.util.stream.Collectors;
 import org.apache.commons.lang3.StringUtils;
-import org.openelisglobal.common.util.IdValuePair;
 import org.openelisglobal.common.rest.BaseRestController;
+import org.openelisglobal.common.util.IdValuePair;
 import org.openelisglobal.person.service.PersonService;
 import org.openelisglobal.person.valueholder.Person;
 import org.openelisglobal.professionalprofile.form.ProfessionalProfileDefinitionForm;
@@ -68,7 +68,8 @@ public class ProviderRestController extends BaseRestController {
         }
 
         List<IdValuePair> providers = providerService.getAllActiveProviders().stream()
-                .filter(provider -> provider.getPerson() != null && StringUtils.isNotBlank(provider.getPerson().getId()))
+                .filter(provider -> provider.getPerson() != null
+                        && StringUtils.isNotBlank(provider.getPerson().getId()))
                 .filter(provider -> normalizedProfileCode
                         .equals(normalizeProfessionalProfileCode(provider.getProfessionalProfileCode())))
                 .map(provider -> new IdValuePair(provider.getPerson().getId(),
@@ -145,8 +146,10 @@ public class ProviderRestController extends BaseRestController {
     private String buildProviderDisplayLabel(Provider provider, String normalizedProfileCode) {
         String dni = StringUtils.trimToEmpty(provider.getDni());
         String initials = StringUtils.trimToEmpty(provider.getProfessionalInitials());
-        String firstName = provider.getPerson() == null ? "" : StringUtils.trimToEmpty(provider.getPerson().getFirstName());
-        String lastName = provider.getPerson() == null ? "" : StringUtils.trimToEmpty(provider.getPerson().getLastName());
+        String firstName = provider.getPerson() == null ? ""
+                : StringUtils.trimToEmpty(provider.getPerson().getFirstName());
+        String lastName = provider.getPerson() == null ? ""
+                : StringUtils.trimToEmpty(provider.getPerson().getLastName());
         String fullName = (lastName + ", " + firstName).trim();
         String cleanName = StringUtils.isBlank(fullName) || ",".equals(fullName) ? ""
                 : fullName.replaceAll("^,\\s*", "").replaceAll("\\s+,\\s*$", "");

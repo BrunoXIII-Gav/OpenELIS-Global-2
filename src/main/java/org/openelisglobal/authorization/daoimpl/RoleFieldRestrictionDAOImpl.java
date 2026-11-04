@@ -25,10 +25,11 @@ public class RoleFieldRestrictionDAOImpl extends BaseDAOImpl<RoleFieldRestrictio
         if (roleId == null) {
             return List.of();
         }
-        Query<RoleFieldRestriction> query = entityManager.unwrap(Session.class).createQuery(
-                "from RoleFieldRestriction restriction where restriction.roleId = :roleId "
-                        + "order by restriction.moduleKey, restriction.fieldGroupKey",
-                RoleFieldRestriction.class);
+        Query<RoleFieldRestriction> query = entityManager.unwrap(Session.class)
+                .createQuery(
+                        "from RoleFieldRestriction restriction where restriction.roleId = :roleId "
+                                + "order by restriction.moduleKey, restriction.fieldGroupKey",
+                        RoleFieldRestriction.class);
         query.setParameter("roleId", roleId);
         return query.list();
     }
@@ -39,10 +40,9 @@ public class RoleFieldRestrictionDAOImpl extends BaseDAOImpl<RoleFieldRestrictio
         if (roleIds == null || roleIds.isEmpty()) {
             return List.of();
         }
-        Query<RoleFieldRestriction> query = entityManager.unwrap(Session.class).createQuery(
-                "from RoleFieldRestriction restriction where restriction.roleId in :roleIds "
-                        + "and restriction.moduleKey = :moduleKey",
-                RoleFieldRestriction.class);
+        Query<RoleFieldRestriction> query = entityManager.unwrap(Session.class)
+                .createQuery("from RoleFieldRestriction restriction where restriction.roleId in :roleIds "
+                        + "and restriction.moduleKey = :moduleKey", RoleFieldRestriction.class);
         query.setParameter("roleIds", roleIds);
         query.setParameter("moduleKey", moduleKey);
         return query.list();

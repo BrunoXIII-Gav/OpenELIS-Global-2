@@ -8,6 +8,7 @@ import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+import org.junit.After;
 import org.junit.Before;
 import org.junit.Test;
 import org.openelisglobal.BaseWebContextSensitiveTest;
@@ -61,9 +62,11 @@ public class LogBookPersistServiceTest extends BaseWebContextSensitiveTest {
     ScriptletService scriptletService;
     @Autowired
     MethodService methodService;
+    private Object previousCd4ScriptletId;
 
     @Before
     public void setUp() throws Exception {
+        previousCd4ScriptletId = ReflectionTestUtils.getField(TestReflexUtil.class, "CD4_SCRIPTLET_ID");
         executeDataSetWithStateManagement("testdata/logbook-db.xml");
         Scriptlet cd4Scriptlet = new Scriptlet();
         cd4Scriptlet.setScriptletName("Calculate CD4");
@@ -72,6 +75,11 @@ public class LogBookPersistServiceTest extends BaseWebContextSensitiveTest {
         if (cd4Scriptlet != null && cd4Scriptlet.getId() != null) {
             ReflectionTestUtils.setField(TestReflexUtil.class, "CD4_SCRIPTLET_ID", cd4Scriptlet.getId());
         }
+    }
+
+    @After
+    public void restoreReflexCache() {
+        ReflectionTestUtils.setField(TestReflexUtil.class, "CD4_SCRIPTLET_ID", previousCd4ScriptletId);
     }
 
     private TestResultItem getTestResultItem() {

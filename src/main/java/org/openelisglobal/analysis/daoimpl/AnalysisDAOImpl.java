@@ -1211,8 +1211,7 @@ public class AnalysisDAOImpl extends BaseDAOImpl<Analysis, String> implements An
         try {
             String hql = "select count(analysis) from Analysis analysis, SampleHuman sampleHuman "
                     + "where analysis.sampleItem.sample.id = sampleHuman.sampleId "
-                    + "and sampleHuman.patientId = :patientId "
-                    + "and analysis.testSection.id in (:testSectionIds)";
+                    + "and sampleHuman.patientId = :patientId " + "and analysis.testSection.id in (:testSectionIds)";
             Long count = entityManager.unwrap(Session.class).createQuery(hql, Long.class)
                     .setParameter("patientId", Integer.parseInt(patientId))
                     .setParameterList("testSectionIds", testSectionIds).uniqueResult();

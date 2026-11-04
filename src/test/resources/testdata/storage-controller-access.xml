@@ -1,0 +1,18 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<dataset>
+    <system_user id="1" login_name="admin" first_name="System"
+        last_name="Administrator" is_active="Y" is_employee="Y" />
+    <system_role id="910000"
+        name="Storage Integration Operator" active="true"
+        is_grouping_role="false" editable="false" />
+    <system_user_role system_user_id="1" role_id="910000" />
+    <role_module_permission id="910000"
+        role_id="910000" module_key="storage" action_key="read"
+        all_lab_units="true" />
+    <role_module_permission id="910001"
+        role_id="910000" module_key="storage" action_key="update"
+        all_lab_units="true" />
+    <role_module_permission id="910002"
+        role_id="910000" module_key="storage" action_key="manage"
+        all_lab_units="true" />
+</dataset>

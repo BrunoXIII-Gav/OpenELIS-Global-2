@@ -134,8 +134,8 @@ public class ResultAuthorizationServiceImpl implements ResultAuthorizationServic
             }
             return item;
         }).toList();
-        return filterResults(userId, analysisItems, actionKey, legacyRoleName).stream().map(TestResultItem::getAnalysisId)
-                .toList();
+        return filterResults(userId, analysisItems, actionKey, legacyRoleName).stream()
+                .map(TestResultItem::getAnalysisId).toList();
     }
 
     private boolean isPermittedAnalysis(String analysisId, Set<String> permittedTestIds) {
@@ -153,11 +153,12 @@ public class ResultAuthorizationServiceImpl implements ResultAuthorizationServic
     }
 
     private Set<String> getPermittedTestIds(Collection<String> labUnitIds) {
-        List<Integer> testSectionIds = labUnitIds.stream().filter(StringUtils::isNumeric).map(Integer::valueOf).toList();
+        List<Integer> testSectionIds = labUnitIds.stream().filter(StringUtils::isNumeric).map(Integer::valueOf)
+                .toList();
         if (testSectionIds.isEmpty()) {
             return Set.of();
         }
-        return testService.getTestsByTestSectionIds(testSectionIds).stream().map(Test::getId).filter(StringUtils::isNotBlank)
-                .collect(java.util.stream.Collectors.toUnmodifiableSet());
+        return testService.getTestsByTestSectionIds(testSectionIds).stream().map(Test::getId)
+                .filter(StringUtils::isNotBlank).collect(java.util.stream.Collectors.toUnmodifiableSet());
     }
 }

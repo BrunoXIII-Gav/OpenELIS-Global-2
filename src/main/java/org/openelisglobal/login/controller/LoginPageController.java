@@ -15,14 +15,14 @@ import org.openelisglobal.common.constants.Constants;
 import org.openelisglobal.common.controller.BaseController;
 import org.openelisglobal.common.util.ConfigurationProperties;
 import org.openelisglobal.common.util.ConfigurationProperties.Property;
-import org.openelisglobal.security.SamlRoleMapping;
-import org.openelisglobal.security.SamlRoleMapping.ParsedSamlRole;
 import org.openelisglobal.localization.service.LocalizationService;
 import org.openelisglobal.login.bean.UserSession;
 import org.openelisglobal.login.bean.UserSession.LoginMethod;
 import org.openelisglobal.login.form.LoginForm;
 import org.openelisglobal.login.valueholder.UserSessionData;
 import org.openelisglobal.role.service.RoleService;
+import org.openelisglobal.security.SamlRoleMapping;
+import org.openelisglobal.security.SamlRoleMapping.ParsedSamlRole;
 import org.openelisglobal.security.service.UserPermissionService;
 import org.openelisglobal.systemuser.service.SystemUserService;
 import org.openelisglobal.systemuser.service.UserService;
@@ -107,7 +107,8 @@ public class LoginPageController extends BaseController {
 
         if (Boolean.TRUE.equals(useSAML) && "true".equals(request.getParameter("useSAML"))) {
             request.setAttribute("autoSamlRedirect", true);
-            request.setAttribute("samlAutoRedirectUrl", request.getContextPath() + "/saml2/authenticate/" + samlRegistrationId);
+            request.setAttribute("samlAutoRedirectUrl",
+                    request.getContextPath() + "/saml2/authenticate/" + samlRegistrationId);
         }
 
         if (principal != null) {

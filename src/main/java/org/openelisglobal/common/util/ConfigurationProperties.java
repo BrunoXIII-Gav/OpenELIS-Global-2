@@ -125,8 +125,9 @@ public abstract class ConfigurationProperties {
                                                                                       // location controls are shown
                                                                                       // on results entry
         // outside of the valid range
-        SIMPLIFIED_TEST_NAMES("simplifiedTestNames", "text"),
-        DEFAULT_LANG_LOCALE("default language locale", "text"), // Default language locale
+        SIMPLIFIED_TEST_NAMES("simplifiedTestNames", "text"), DEFAULT_LANG_LOCALE("default language locale", "text"), // Default
+                                                                                                                      // language
+                                                                                                                      // locale
         DEFAULT_DATE_LOCALE("default date locale", "text"), // Date local
         CONDENSE_NFS_PANEL("condenseNFS", "text"), // Flag used for RetroCI to condense NFS panel tests
         PATIENT_DATA_ON_RESULTS_BY_ROLE("roleForPatientOnResults", "text"), // If true patient data will show on results
@@ -207,15 +208,15 @@ public abstract class ConfigurationProperties {
                                                                                                // accordion in
                                                                                                // order entry
         SHOW_PATIENT_OPTIONAL_IDENTIFIERS_ON_ORDER_ENTRY("showPatOptionalIdsOnOrder", "text"), // If true show DNI /
-                                                                                                 // passport / foreign
-                                                                                                 // ID optional fields
+                                                                                               // passport / foreign
+                                                                                               // ID optional fields
         SHOW_ORDER_PROGRAM_ON_ORDER_ENTRY("showOrderProgramOnOrderEntry", "text"), // If true show Program step in
-                                                                                     // order entry workflow
+                                                                                   // order entry workflow
         ENABLE_RESULT_LEVEL_FILE_UPLOAD("enableResultLevelFileUpload", "text"), // If true show test-level result
-                                                                                 // file upload in results and
-                                                                                 // validation
+                                                                                // file upload in results and
+                                                                                // validation
         SHOW_PATIENT_NATIONAL_ID_FIELD("showPatNationalIdField", "text"), // If true show national ID field in patient
-                                                                           // forms
+                                                                          // forms
         QA_SAMPLE_ID_REQUIRED("sample id required", "text"), // True if sample id required from referring lab
         MAX_ORDER_PRINTED("numMaxOrderLabels", "text"), // Max number of order labels that can be printed
         MAX_SPECIMEN_PRINTED("numMaxSpecimenLabels", "text"), // Max number of specimen labels that can be printed
@@ -271,18 +272,18 @@ public abstract class ConfigurationProperties {
         ENABLED_ORDER_PRIORITIES("enabledOrderPriorities", "text"), // comma-separated enabled priorities for UI lists
         providerSpecialtyOptions("providerSpecialtyOptions", "text"), // comma-separated provider specialty options
         professionalProfileOptions("professionalProfileOptions", "text"), // comma-separated
-                                                                           // CODE|Label options
+                                                                          // CODE|Label options
         professionalProfileFieldDefinitions("profProfileFieldDefs", "text"), // JSON field definitions grouped by
-                                                                               // profile code
+                                                                             // profile code
         professionalProfileSpecialtyOptions("profProfileSpecialtyOpts", "text"), // JSON specialty options grouped by
-                                                                                   // profile code
+                                                                                 // profile code
         orderProviderProfessionalProfileCode("orderProviderProfileCode", "text"), // profile code allowed on order
-                                                                                    // requester/provider selector
+                                                                                  // requester/provider selector
         sampleCollectorProfessionalProfileCode("sampleCollectorProfileCode", "text"), // profile code for collector
         patientEntryProfessionalProfileCode("patientEntryProfileCode", "text"), // profile code for patient entry/edit
         resultEntryProfessionalProfileCode("resultEntryProfileCode", "text"), // profile code for result entry/edit
         validationInterpreterProfessionalProfileCode("validationInterpreterProfileCode", "text"), // profile code for
-                                                                                                   // interpreter
+                                                                                                  // interpreter
         USE_NEW_ADDRESS_HIERARCHY("useNewAddressHierarchy", "text"); // if true, use new configurable address hierarchy
 
         // visible on

@@ -25,7 +25,8 @@ public class AnalysisTubeLabelDAOImpl extends BaseDAOImpl<AnalysisTubeLabel, Lon
     public List<AnalysisTubeLabel> getByAnalysisId(String analysisId) throws LIMSRuntimeException {
         try {
             String hql = "FROM AnalysisTubeLabel l WHERE l.analysis.id = :analysisId ORDER BY l.tubeBlockName";
-            Query<AnalysisTubeLabel> query = entityManager.unwrap(Session.class).createQuery(hql, AnalysisTubeLabel.class);
+            Query<AnalysisTubeLabel> query = entityManager.unwrap(Session.class).createQuery(hql,
+                    AnalysisTubeLabel.class);
             query.setParameter("analysisId", toNumericAnalysisId(analysisId));
             return query.list();
         } catch (Exception e) {
@@ -39,7 +40,8 @@ public class AnalysisTubeLabelDAOImpl extends BaseDAOImpl<AnalysisTubeLabel, Lon
             throws LIMSRuntimeException {
         try {
             String hql = "FROM AnalysisTubeLabel l WHERE l.analysis.id = :analysisId AND lower(l.tubeBlockName) = :blockName";
-            Query<AnalysisTubeLabel> query = entityManager.unwrap(Session.class).createQuery(hql, AnalysisTubeLabel.class);
+            Query<AnalysisTubeLabel> query = entityManager.unwrap(Session.class).createQuery(hql,
+                    AnalysisTubeLabel.class);
             query.setParameter("analysisId", toNumericAnalysisId(analysisId));
             query.setParameter("blockName", StringUtils.trimToEmpty(blockName).toLowerCase());
             return query.list().stream().findFirst();

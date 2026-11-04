@@ -15,7 +15,9 @@ const parseMetadataJson = (metadataJson) => {
 };
 
 const isTruthyValue = (value) => {
-  const normalized = String(value || "").trim().toLowerCase();
+  const normalized = String(value || "")
+    .trim()
+    .toLowerCase();
   return normalized === "true" || normalized === "yes" || normalized === "1";
 };
 
@@ -52,8 +54,9 @@ const doesFieldActivateAlternateOrderFlow = (sampleOrderItems, field) => {
     String(configuredTriggerValue).trim() !== ""
   ) {
     return (
-      String(currentValue || "").trim().toLowerCase() ===
-      String(configuredTriggerValue).trim().toLowerCase()
+      String(currentValue || "")
+        .trim()
+        .toLowerCase() === String(configuredTriggerValue).trim().toLowerCase()
     );
   }
 

@@ -310,28 +310,28 @@ const LogoUploadSection = forwardRef(function LogoUploadSection(
           {isVisible &&
             preview &&
             !(type === "login" && useHeaderLogoForLogin) && (
-            <div style={{ marginBottom: "1rem" }}>
-              <img
-                src={preview}
-                alt={intl.formatMessage({ id: getTitleKey() })}
-                style={{
-                  maxWidth: "200px",
-                  maxHeight: "100px",
-                  objectFit: "contain",
-                }}
-              />
-              <Button
-                data-testid="remove-logo-button"
-                kind="danger"
-                size="sm"
-                renderIcon={TrashCan}
-                onClick={handleRemove}
-                style={{ marginLeft: "1rem" }}
-              >
-                <FormattedMessage id={getRemoveButtonKey()} />
-              </Button>
-            </div>
-          )}
+              <div style={{ marginBottom: "1rem" }}>
+                <img
+                  src={preview}
+                  alt={intl.formatMessage({ id: getTitleKey() })}
+                  style={{
+                    maxWidth: "200px",
+                    maxHeight: "100px",
+                    objectFit: "contain",
+                  }}
+                />
+                <Button
+                  data-testid="remove-logo-button"
+                  kind="danger"
+                  size="sm"
+                  renderIcon={TrashCan}
+                  onClick={handleRemove}
+                  style={{ marginLeft: "1rem" }}
+                >
+                  <FormattedMessage id={getRemoveButtonKey()} />
+                </Button>
+              </div>
+            )}
 
           {/* Hide file uploader when login logo uses header logo */}
           {isVisible && !(type === "login" && useHeaderLogoForLogin) && (

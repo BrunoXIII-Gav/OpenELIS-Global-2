@@ -12,13 +12,13 @@ import org.openelisglobal.common.rest.BaseRestController;
 import org.openelisglobal.common.services.DisplayListService;
 import org.openelisglobal.common.services.DisplayListService.ListType;
 import org.openelisglobal.common.util.IdValuePair;
+import org.openelisglobal.patientadditionalfield.bean.PatientAdditionalFieldPayload;
+import org.openelisglobal.patientadditionalfield.service.PatientAdditionalFieldService;
 import org.openelisglobal.role.form.CustomRoleDefinitionForm;
 import org.openelisglobal.role.service.CustomRoleDefinitionService;
 import org.openelisglobal.role.valueholder.Role;
 import org.openelisglobal.sample.bean.SampleTypeAdditionalFieldPayload;
 import org.openelisglobal.sample.service.SampleTypeAdditionalFieldService;
-import org.openelisglobal.patientadditionalfield.bean.PatientAdditionalFieldPayload;
-import org.openelisglobal.patientadditionalfield.service.PatientAdditionalFieldService;
 import org.openelisglobal.security.service.AuthorizationCatalogService;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.http.HttpStatus;
@@ -55,7 +55,8 @@ public class CustomRoleDefinitionRestController extends BaseRestController {
     public Map<String, Object> getCatalog() {
         Map<String, List<Role>> catalog = customRoleDefinitionService.getPermissionCatalog();
         Map<String, Object> response = new HashMap<>();
-        response.put("customRoles", customRoleDefinitionService.getCustomRoles().stream().map(this::toSummary).toList());
+        response.put("customRoles",
+                customRoleDefinitionService.getCustomRoles().stream().map(this::toSummary).toList());
         response.put("globalPermissionRoles",
                 catalog.getOrDefault("globalRoles", List.of()).stream().map(this::toSummary).toList());
         response.put("labPermissionRoles",
@@ -69,17 +70,17 @@ public class CustomRoleDefinitionRestController extends BaseRestController {
     }
 
     private Map<String, List<Map<String, String>>> getFieldTagsByModule() {
-        List<Map<String, String>> sampleManagementTags = new ArrayList<>(authorizationCatalogService
-                .getFieldTags("sample-management").stream()
-                .map(tag -> Map.of("key", tag.key(), "labelKey", tag.labelKey())).toList());
+        List<Map<String, String>> sampleManagementTags = new ArrayList<>(
+                authorizationCatalogService.getFieldTags("sample-management").stream()
+                        .map(tag -> Map.of("key", tag.key(), "labelKey", tag.labelKey())).toList());
         List<String> sampleTypeIds = DisplayListService.getInstance().getList(ListType.SAMPLE_TYPE_ACTIVE).stream()
                 .map(IdValuePair::getId).filter(StringUtils::isNotBlank).toList();
         sampleTypeAdditionalFieldService.getActiveFieldsForSampleTypes(sampleTypeIds).values().stream()
                 .flatMap(List::stream).filter(field -> field.getId() != null).map(this::toAdditionalFieldTag)
                 .forEach(sampleManagementTags::add);
         sampleManagementTags.sort(Comparator.comparing(tag -> tag.getOrDefault("label", tag.get("key"))));
-        List<Map<String, String>> patientTags = new ArrayList<>(authorizationCatalogService.getFieldTags("patients").stream()
-                .map(tag -> Map.of("key", tag.key(), "labelKey", tag.labelKey())).toList());
+        List<Map<String, String>> patientTags = new ArrayList<>(authorizationCatalogService.getFieldTags("patients")
+                .stream().map(tag -> Map.of("key", tag.key(), "labelKey", tag.labelKey())).toList());
         patientAdditionalFieldService.getFields(false, false).stream().filter(field -> field.getId() != null)
                 .map(this::toPatientAdditionalFieldTag).forEach(patientTags::add);
         patientTags.sort(Comparator.comparing(tag -> tag.getOrDefault("label", tag.get("key"))));
@@ -116,7 +117,8 @@ public class CustomRoleDefinitionRestController extends BaseRestController {
     public ResponseEntity<?> createCustomRole(HttpServletRequest request,
             @RequestBody @Valid CustomRoleDefinitionForm form, BindingResult bindingResult) {
         if (bindingResult.hasErrors()) {
-            return ResponseEntity.badRequest().body(Map.of("message", bindingResult.getAllErrors().get(0).getDefaultMessage()));
+            return ResponseEntity.badRequest()
+                    .body(Map.of("message", bindingResult.getAllErrors().get(0).getDefaultMessage()));
         }
         try {
             Role savedRole = customRoleDefinitionService.saveCustomRole(form, getSysUserId(request));
@@ -130,7 +132,8 @@ public class CustomRoleDefinitionRestController extends BaseRestController {
     public ResponseEntity<?> updateCustomRole(HttpServletRequest request, @PathVariable String roleId,
             @RequestBody @Valid CustomRoleDefinitionForm form, BindingResult bindingResult) {
         if (bindingResult.hasErrors()) {
-            return ResponseEntity.badRequest().body(Map.of("message", bindingResult.getAllErrors().get(0).getDefaultMessage()));
+            return ResponseEntity.badRequest()
+                    .body(Map.of("message", bindingResult.getAllErrors().get(0).getDefaultMessage()));
         }
         form.setId(roleId);
         try {

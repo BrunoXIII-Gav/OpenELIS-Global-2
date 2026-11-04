@@ -15,8 +15,8 @@ package org.openelisglobal.reports.action.implementation;
 
 import jakarta.annotation.PostConstruct;
 import java.sql.Date;
-import java.time.LocalDate;
 import java.text.DecimalFormat;
+import java.time.LocalDate;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.Comparator;
@@ -68,9 +68,9 @@ import org.openelisglobal.patient.service.PatientService;
 import org.openelisglobal.patient.service.PatientServiceImpl;
 import org.openelisglobal.patient.valueholder.Patient;
 import org.openelisglobal.patientidentity.service.PatientIdentityService;
+import org.openelisglobal.patientidentity.valueholder.PatientIdentity;
 import org.openelisglobal.patientidentitytype.service.PatientIdentityTypeService;
 import org.openelisglobal.patientidentitytype.valueholder.PatientIdentityType;
-import org.openelisglobal.patientidentity.valueholder.PatientIdentity;
 import org.openelisglobal.person.service.PersonService;
 import org.openelisglobal.person.valueholder.Person;
 import org.openelisglobal.provider.service.ProviderService;
@@ -118,7 +118,8 @@ public abstract class PatientReport extends Report {
     protected PersonService personService = SpringContext.getBean(PersonService.class);
     protected ProviderService providerService = SpringContext.getBean(ProviderService.class);
     protected PatientIdentityService patientIdentityService = SpringContext.getBean(PatientIdentityService.class);
-    protected PatientIdentityTypeService patientIdentityTypeService = SpringContext.getBean(PatientIdentityTypeService.class);
+    protected PatientIdentityTypeService patientIdentityTypeService = SpringContext
+            .getBean(PatientIdentityTypeService.class);
     protected TestService testService = SpringContext.getBean(TestService.class);
     protected ReferralReasonService referralReasonService = SpringContext.getBean(ReferralReasonService.class);
     protected ReferralService referralService = SpringContext.getBean(ReferralService.class);
@@ -711,8 +712,8 @@ public abstract class PatientReport extends Report {
         if (identityType == null || GenericValidator.isBlankOrNull(identityType.getId())) {
             return "";
         }
-        PatientIdentity identity = patientIdentityService
-                .getPatitentIdentityForPatientAndType(patient.getId(), identityType.getId());
+        PatientIdentity identity = patientIdentityService.getPatitentIdentityForPatientAndType(patient.getId(),
+                identityType.getId());
         return identity == null ? "" : org.apache.commons.lang3.StringUtils.defaultString(identity.getIdentityData());
     }
 

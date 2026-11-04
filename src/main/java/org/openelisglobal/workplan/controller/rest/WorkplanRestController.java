@@ -21,10 +21,10 @@ import org.openelisglobal.observationhistory.service.ObservationHistoryService;
 import org.openelisglobal.observationhistory.service.ObservationHistoryServiceImpl.ObservationType;
 import org.openelisglobal.patient.service.PatientService;
 import org.openelisglobal.patient.valueholder.Patient;
+import org.openelisglobal.result.service.ResultAuthorizationService;
 import org.openelisglobal.sample.valueholder.Sample;
 import org.openelisglobal.samplehuman.service.SampleHumanService;
 import org.openelisglobal.spring.util.SpringContext;
-import org.openelisglobal.result.service.ResultAuthorizationService;
 import org.openelisglobal.test.beanItems.TestResultItem;
 import org.openelisglobal.test.service.TestService;
 import org.openelisglobal.test.valueholder.Test;
@@ -141,7 +141,10 @@ public class WorkplanRestController extends BaseRestController {
         return sample.getReceivedDateForDisplay() + receptionTime;
     }
 
-    /** Applies the Results read permission and its laboratory-unit scope to workplans. */
+    /**
+     * Applies the Results read permission and its laboratory-unit scope to
+     * workplans.
+     */
     protected List<TestResultItem> filterWorkplanResults(HttpServletRequest request, List<TestResultItem> results) {
         requireResultsReadPermission(request);
         return resultAuthorizationService.filterResults(getSysUserId(request), results, "read", Constants.ROLE_RESULTS);

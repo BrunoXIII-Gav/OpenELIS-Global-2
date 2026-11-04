@@ -289,15 +289,15 @@ public class TestConfigurationPackageIntegrationTest {
     public void sameJsonCreatesIndependentTestsOncePerReviewedIdentity() {
         ImportRequest req = bundle("VARIANTS");
         int journalCount = service.history().size();
-        req.overrides.put("test-VARIANTS", Map.of("description", TextNode.valueOf("Import variant one"),
-                "localCode", TextNode.valueOf("IMP_V1")));
+        req.overrides.put("test-VARIANTS",
+                Map.of("description", TextNode.valueOf("Import variant one"), "localCode", TextNode.valueOf("IMP_V1")));
         req.previewToken = service.preview(req).token;
         ImportResult first = service.importPackage(req, "17");
         String firstId = first.testIds().get("test-VARIANTS");
         assertTrue(service.tests().stream().anyMatch(t -> firstId.equals(t.get("id"))));
 
-        req.overrides.put("test-VARIANTS", Map.of("description", TextNode.valueOf("Import variant two"),
-                "localCode", TextNode.valueOf("IMP_V2")));
+        req.overrides.put("test-VARIANTS",
+                Map.of("description", TextNode.valueOf("Import variant two"), "localCode", TextNode.valueOf("IMP_V2")));
         Preview preview = service.preview(req);
         assertFalse(preview.alreadyImported);
         assertTrue(preview.ready);
@@ -309,8 +309,8 @@ public class TestConfigurationPackageIntegrationTest {
         assertTrue(service.tests().stream().anyMatch(t -> secondId.equals(t.get("id"))));
         assertEquals(second.testIds(), service.importPackage(req, "17").testIds());
 
-        req.overrides.put("test-VARIANTS", Map.of("description", TextNode.valueOf("Import variant one"),
-                "localCode", TextNode.valueOf("IMP_V1")));
+        req.overrides.put("test-VARIANTS",
+                Map.of("description", TextNode.valueOf("Import variant one"), "localCode", TextNode.valueOf("IMP_V1")));
         req.previewToken = service.preview(req).token;
         assertTrue(service.importPackage(req, "17").alreadyImported());
         assertEquals(first.testIds(), service.importPackage(req, "17").testIds());
@@ -337,12 +337,12 @@ public class TestConfigurationPackageIntegrationTest {
                 "localCode", TextNode.valueOf("LEG_ONE")));
         req.previewToken = service.preview(req).token;
         ImportResult first = service.importPackage(req, "17");
-        TestConfigurationPackageServiceImpl target = org.springframework.test.util.AopTestUtils.getTargetObject(service);
+        TestConfigurationPackageServiceImpl target = org.springframework.test.util.AopTestUtils
+                .getTargetObject(service);
         String legacyFingerprint = ReflectionTestUtils.invokeMethod(target, "packageFingerprint", req.bundle);
-        transaction.executeWithoutResult(s -> em
-                .find(org.openelisglobal.testconfiguration.packageio.valueholder.TestConfigurationRevision.class,
-                        first.revisionId())
-                .fingerprint = legacyFingerprint);
+        transaction.executeWithoutResult(
+                s -> em.find(org.openelisglobal.testconfiguration.packageio.valueholder.TestConfigurationRevision.class,
+                        first.revisionId()).fingerprint = legacyFingerprint);
 
         assertTrue(service.preview(req).alreadyImported);
         assertEquals(first.testIds(), service.importPackage(req, "17").testIds());

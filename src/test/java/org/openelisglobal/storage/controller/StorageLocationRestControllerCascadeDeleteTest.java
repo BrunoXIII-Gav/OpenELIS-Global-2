@@ -26,7 +26,9 @@ public class StorageLocationRestControllerCascadeDeleteTest extends BaseWebConte
     @Before
     public void setUp() throws Exception {
         super.setUp();
+        useAuthenticatedAdminRequests();
         executeDataSetWithStateManagement("testdata/storage-cascade-delete-test-data.xml");
+        executeDataSetWithStateManagement("testdata/storage-controller-access.xml", false);
     }
 
     @Test

@@ -17,7 +17,9 @@ import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
-/** Bridges explicit Validation permissions with the existing role-based scope. */
+/**
+ * Bridges explicit Validation permissions with the existing role-based scope.
+ */
 @Service
 @Transactional(readOnly = true)
 public class ValidationAuthorizationServiceImpl implements ValidationAuthorizationService {
@@ -96,7 +98,8 @@ public class ValidationAuthorizationServiceImpl implements ValidationAuthorizati
     }
 
     private Set<String> permittedTestIds(Collection<String> labUnitIds) {
-        List<Integer> testSectionIds = labUnitIds.stream().filter(StringUtils::isNumeric).map(Integer::valueOf).toList();
+        List<Integer> testSectionIds = labUnitIds.stream().filter(StringUtils::isNumeric).map(Integer::valueOf)
+                .toList();
         if (testSectionIds.isEmpty()) {
             return Set.of();
         }

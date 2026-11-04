@@ -150,7 +150,8 @@ public class Provider extends BaseObject<String> implements DesynchronousCapable
     }
 
     public void setProfileFieldValues(Map<String, Object> profileFieldValues) {
-        this.profileFieldValues = profileFieldValues == null ? new LinkedHashMap<>() : new LinkedHashMap<>(profileFieldValues);
+        this.profileFieldValues = profileFieldValues == null ? new LinkedHashMap<>()
+                : new LinkedHashMap<>(profileFieldValues);
     }
 
     public Person getPerson() {

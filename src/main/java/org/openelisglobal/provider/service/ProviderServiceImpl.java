@@ -123,7 +123,8 @@ public class ProviderServiceImpl extends AuditableBaseObjectServiceImpl<Provider
     @Override
     @Transactional
     public Provider insertOrUpdateProviderByFhirUuid(UUID fhirUuid, Provider provider) {
-        return insertOrUpdateProviderByFhirUuid(fhirUuid, provider, StringUtils.defaultIfBlank(provider.getSysUserId(), "1"));
+        return insertOrUpdateProviderByFhirUuid(fhirUuid, provider,
+                StringUtils.defaultIfBlank(provider.getSysUserId(), "1"));
     }
 
     @Override
@@ -145,7 +146,9 @@ public class ProviderServiceImpl extends AuditableBaseObjectServiceImpl<Provider
             dbProvider.setProfileFieldsJson(provider.getProfileFieldsJson());
             dbProvider.setSysUserId(currentUserId);
             dbProvider.getPerson().setLastName(provider.getPerson().getLastName());
-            dbProvider.getPerson().setMiddleName(provider.getPerson().getMiddleName());
+            if (provider.getPerson().getMiddleName() != null) {
+                dbProvider.getPerson().setMiddleName(provider.getPerson().getMiddleName());
+            }
             dbProvider.getPerson().setFirstName(provider.getPerson().getFirstName());
             dbProvider.getPerson().setEmail(provider.getPerson().getEmail());
             dbProvider.getPerson().setPrimaryPhone(provider.getPerson().getPrimaryPhone());
@@ -185,8 +188,10 @@ public class ProviderServiceImpl extends AuditableBaseObjectServiceImpl<Provider
         }
 
         validateRequiredValue("Professional profile", provider.getProfessionalProfileCode());
-        validateRequiredValue("Professional last name", provider.getPerson() == null ? null : provider.getPerson().getLastName());
-        validateRequiredValue("Professional first name", provider.getPerson() == null ? null : provider.getPerson().getFirstName());
+        validateRequiredValue("Professional last name",
+                provider.getPerson() == null ? null : provider.getPerson().getLastName());
+        validateRequiredValue("Professional first name",
+                provider.getPerson() == null ? null : provider.getPerson().getFirstName());
         validateRequiredValue("DNI", provider.getDni());
         validateRequiredValue("Initials", provider.getProfessionalInitials());
     }

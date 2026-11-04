@@ -2,9 +2,9 @@ package org.openelisglobal.reports.action.implementation;
 
 import java.io.ByteArrayInputStream;
 import java.nio.charset.StandardCharsets;
+import java.sql.Timestamp;
 import java.text.Normalizer;
 import java.text.SimpleDateFormat;
-import java.sql.Timestamp;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Base64;
@@ -22,12 +22,12 @@ import java.util.stream.Collectors;
 import net.sf.jasperreports.engine.JRException;
 import net.sf.jasperreports.engine.JasperCompileManager;
 import net.sf.jasperreports.engine.JasperRunManager;
-import org.openelisglobal.analysis.valueholder.Analysis;
-import org.openelisglobal.audittrail.valueholder.History;
 import org.apache.commons.lang3.StringUtils;
 import org.apache.commons.validator.GenericValidator;
 import org.json.JSONArray;
 import org.json.JSONObject;
+import org.openelisglobal.analysis.valueholder.Analysis;
+import org.openelisglobal.audittrail.valueholder.History;
 import org.openelisglobal.common.util.DateUtil;
 import org.openelisglobal.history.service.HistoryService;
 import org.openelisglobal.image.service.ImageService;
@@ -145,7 +145,7 @@ public class PatientDmpkReport extends PatientCILNSPClinical_vreduit {
         fixedFieldValues.put("birthDate", first == null ? "" : formatDateStringForReport(first.getDob()));
         fixedFieldValues.put("contact", first == null ? "" : StringUtils.defaultString(first.getPatientSiteNumber()));
         fixedFieldValues.put("requestingPhysician",
-            first == null ? "" : StringUtils.defaultIfBlank(first.getPrescriber(), first.getContactInfo()));
+                first == null ? "" : StringUtils.defaultIfBlank(first.getPrescriber(), first.getContactInfo()));
         fixedFieldValues.put("requesterCmp", first == null ? "" : StringUtils.defaultString(first.getRequesterCmp()));
         fixedFieldValues.put("requesterRne", first == null ? "" : StringUtils.defaultString(first.getRequesterRne()));
         fixedFieldValues.put("requesterSpecialty",
@@ -211,8 +211,8 @@ public class PatientDmpkReport extends PatientCILNSPClinical_vreduit {
                 StringUtils.defaultIfBlank(analyzedByComputed, resolveConstant(config, "analyzedBy", "")));
 
         InterpretedByInfo interpretedByInfo = resolveInterpretedByInfo();
-        reportParameters.put("dmpkInterpretedBy",
-                StringUtils.defaultIfBlank(interpretedByInfo.displayName, resolveConstant(config, "interpretedBy", "")));
+        reportParameters.put("dmpkInterpretedBy", StringUtils.defaultIfBlank(interpretedByInfo.displayName,
+                resolveConstant(config, "interpretedBy", "")));
         reportParameters.put("dmpkInterpretedBySpecialty", StringUtils.defaultString(interpretedByInfo.specialty));
         reportParameters.put("dmpkInterpretedBySignature", interpretedByInfo.signatureImageStream);
 
@@ -280,7 +280,7 @@ public class PatientDmpkReport extends PatientCILNSPClinical_vreduit {
                 }
                 continue;
             }
-                String line = StringUtils.defaultIfBlank(field.label, field.key) + ": "
+            String line = StringUtils.defaultIfBlank(field.label, field.key) + ": "
                     + StringUtils.defaultIfBlank(resolvedValue, DEFAULT_NOT_REGISTERED);
             sectionLines.computeIfAbsent(field.section, key -> new ArrayList<>()).add(line);
         }
@@ -639,8 +639,8 @@ public class PatientDmpkReport extends PatientCILNSPClinical_vreduit {
                 continue;
             }
 
-            List<TestAdditionalFieldPayload> fields = testAdditionalFieldService.getFieldsForTest(analysis.getTest().getId(),
-                    false);
+            List<TestAdditionalFieldPayload> fields = testAdditionalFieldService
+                    .getFieldsForTest(analysis.getTest().getId(), false);
             Set<Integer> allBlockFieldDefIds = getBlockFieldDefinitionIdsFromPayload(fields, false);
             if (allBlockFieldDefIds.isEmpty()) {
                 continue;
@@ -902,7 +902,8 @@ public class PatientDmpkReport extends PatientCILNSPClinical_vreduit {
         String normalizedToken = normalizeAliasToken(token);
         List<String> labels = new ArrayList<>();
         fieldDefinition.getOptions().forEach(option -> {
-            if (option == null || StringUtils.isBlank(option.getOptionKey()) || StringUtils.isBlank(option.getOptionLabel())) {
+            if (option == null || StringUtils.isBlank(option.getOptionKey())
+                    || StringUtils.isBlank(option.getOptionLabel())) {
                 return;
             }
             if (normalizeAliasToken(option.getOptionKey()).equals(normalizedToken)) {
@@ -961,7 +962,8 @@ public class PatientDmpkReport extends PatientCILNSPClinical_vreduit {
             return false;
         }
         Provider provider = resolveLinkedProvider(user);
-        return provider != null && "BIOLOGIST".equals(normalizeProfessionalProfileCode(provider.getProfessionalProfileCode()));
+        return provider != null
+                && "BIOLOGIST".equals(normalizeProfessionalProfileCode(provider.getProfessionalProfileCode()));
     }
 
     private boolean matchesBiologistSelector(SystemUser user, String normalizedSelector) {
@@ -969,7 +971,8 @@ public class PatientDmpkReport extends PatientCILNSPClinical_vreduit {
             return false;
         }
         Provider provider = resolveLinkedProvider(user);
-        if (provider == null || !"BIOLOGIST".equals(normalizeProfessionalProfileCode(provider.getProfessionalProfileCode()))) {
+        if (provider == null
+                || !"BIOLOGIST".equals(normalizeProfessionalProfileCode(provider.getProfessionalProfileCode()))) {
             return false;
         }
 
@@ -986,7 +989,8 @@ public class PatientDmpkReport extends PatientCILNSPClinical_vreduit {
         if (provider.getPerson() != null) {
             addCandidateAlias(candidates, provider.getPerson().getFirstName());
             addCandidateAlias(candidates, provider.getPerson().getLastName());
-            addCandidateAlias(candidates, provider.getPerson().getFirstName() + " " + provider.getPerson().getLastName());
+            addCandidateAlias(candidates,
+                    provider.getPerson().getFirstName() + " " + provider.getPerson().getLastName());
         }
 
         for (String candidate : candidates) {
@@ -1009,7 +1013,8 @@ public class PatientDmpkReport extends PatientCILNSPClinical_vreduit {
         }
     }
 
-    private Set<Integer> getBlockFieldDefinitionIdsFromPayload(List<TestAdditionalFieldPayload> fields, boolean preliminaryOnly) {
+    private Set<Integer> getBlockFieldDefinitionIdsFromPayload(List<TestAdditionalFieldPayload> fields,
+            boolean preliminaryOnly) {
         if (fields == null || fields.isEmpty()) {
             return Collections.emptySet();
         }
@@ -1051,7 +1056,8 @@ public class PatientDmpkReport extends PatientCILNSPClinical_vreduit {
         return byBlock;
     }
 
-    private String resolveLatestContributorByScope(List<AnalysisAdditionalFieldValue> values, Set<Integer> scopeFieldDefIds) {
+    private String resolveLatestContributorByScope(List<AnalysisAdditionalFieldValue> values,
+            Set<Integer> scopeFieldDefIds) {
         if (values == null || values.isEmpty() || scopeFieldDefIds == null || scopeFieldDefIds.isEmpty()) {
             return null;
         }
@@ -1208,7 +1214,8 @@ public class PatientDmpkReport extends PatientCILNSPClinical_vreduit {
             return InterpretedByInfo.empty();
         }
 
-        String analysisTableId = Optional.ofNullable(referenceTablesService.getReferenceTableByName(ANALYSIS_REFERENCE_TABLE))
+        String analysisTableId = Optional
+                .ofNullable(referenceTablesService.getReferenceTableByName(ANALYSIS_REFERENCE_TABLE))
                 .map(referenceTable -> referenceTable.getId()).orElse(null);
         if (StringUtils.isBlank(analysisTableId)) {
             return InterpretedByInfo.empty();
@@ -1220,7 +1227,8 @@ public class PatientDmpkReport extends PatientCILNSPClinical_vreduit {
                 continue;
             }
 
-            List<History> historyList = historyService.getHistoryByRefIdAndRefTableId(analysis.getId(), analysisTableId);
+            List<History> historyList = historyService.getHistoryByRefIdAndRefTableId(analysis.getId(),
+                    analysisTableId);
             if (historyList == null || historyList.isEmpty()) {
                 continue;
             }
@@ -1234,7 +1242,8 @@ public class PatientDmpkReport extends PatientCILNSPClinical_vreduit {
                 if (latestAnyUpdate == null || isMoreRecent(history, latestAnyUpdate)) {
                     latestAnyUpdate = history;
                 }
-                if (hasStatusChange(history) && (latestStatusChange == null || isMoreRecent(history, latestStatusChange))) {
+                if (hasStatusChange(history)
+                        && (latestStatusChange == null || isMoreRecent(history, latestStatusChange))) {
                     latestStatusChange = history;
                 }
             }
@@ -1334,19 +1343,13 @@ public class PatientDmpkReport extends PatientCILNSPClinical_vreduit {
     }
 
     private List<Analysis> getScopedDmpkAnalyses() {
-        Set<String> accessionNumbers = getScopedReportItems().stream()
-                .map(ClinicalPatientData::getSampleId)
-                .filter(StringUtils::isNotBlank)
-                .map(this::extractBaseAccession)
-                .filter(StringUtils::isNotBlank)
+        Set<String> accessionNumbers = getScopedReportItems().stream().map(ClinicalPatientData::getSampleId)
+                .filter(StringUtils::isNotBlank).map(this::extractBaseAccession).filter(StringUtils::isNotBlank)
                 .collect(Collectors.toCollection(LinkedHashSet::new));
 
         if (accessionNumbers.isEmpty()) {
-            accessionNumbers = getScopedReportItems().stream()
-                    .map(ClinicalPatientData::getAccessionNumber)
-                    .filter(StringUtils::isNotBlank)
-                    .map(this::extractBaseAccession)
-                    .filter(StringUtils::isNotBlank)
+            accessionNumbers = getScopedReportItems().stream().map(ClinicalPatientData::getAccessionNumber)
+                    .filter(StringUtils::isNotBlank).map(this::extractBaseAccession).filter(StringUtils::isNotBlank)
                     .collect(Collectors.toCollection(LinkedHashSet::new));
         }
 
@@ -1389,8 +1392,8 @@ public class PatientDmpkReport extends PatientCILNSPClinical_vreduit {
             return Collections.emptySet();
         }
 
-        List<TestAdditionalFieldPayload> fields = testAdditionalFieldService.getFieldsForTest(analysis.getTest().getId(),
-                false);
+        List<TestAdditionalFieldPayload> fields = testAdditionalFieldService
+                .getFieldsForTest(analysis.getTest().getId(), false);
         if (fields == null || fields.isEmpty()) {
             return Collections.emptySet();
         }

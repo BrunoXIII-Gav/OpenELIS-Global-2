@@ -5,8 +5,8 @@ import jakarta.servlet.http.HttpServletRequest;
 import jakarta.servlet.http.HttpServletResponse;
 import java.io.IOException;
 import java.io.PrintWriter;
-import org.apache.http.HttpStatus;
 import org.apache.commons.validator.GenericValidator;
+import org.apache.http.HttpStatus;
 import org.json.JSONObject;
 import org.openelisglobal.common.constants.Constants;
 import org.openelisglobal.common.log.LogEvent;
@@ -46,9 +46,8 @@ public class CustomAuthenticationFailureHandler implements AuthenticationFailure
                 Saml2AuthenticationException samlException = (Saml2AuthenticationException) exception;
                 String errorCode = samlException.getSaml2Error() == null ? "unknown"
                         : samlException.getSaml2Error().getErrorCode();
-                LogEvent.logWarn(this.getClass().getSimpleName(), "onFailure",
-                        "SAML authentication failure. errorCode=" + errorCode + ", message="
-                                + samlException.getMessage());
+                LogEvent.logWarn(this.getClass().getSimpleName(), "onFailure", "SAML authentication failure. errorCode="
+                        + errorCode + ", message=" + samlException.getMessage());
             }
 
             if (shouldRedirectSamlFailureToPortal(request, exception)) {
@@ -84,9 +83,8 @@ public class CustomAuthenticationFailureHandler implements AuthenticationFailure
             return false;
         }
         Saml2AuthenticationException samlException = (Saml2AuthenticationException) exception;
-        return samlException.getSaml2Error() != null
-                && "relying_party_registration_not_found"
-                        .equalsIgnoreCase(samlException.getSaml2Error().getErrorCode());
+        return samlException.getSaml2Error() != null && "relying_party_registration_not_found"
+                .equalsIgnoreCase(samlException.getSaml2Error().getErrorCode());
     }
 
     private boolean isSamlLogoutResponseRoutedToLoginEndpoint(HttpServletRequest request,
@@ -123,9 +121,8 @@ public class CustomAuthenticationFailureHandler implements AuthenticationFailure
         if (GenericValidator.isBlankOrNull(host)) {
             host = request.getServerName();
             int serverPort = request.getServerPort();
-            boolean includePort = serverPort > 0
-                    && !((serverPort == 80 && "http".equalsIgnoreCase(scheme))
-                            || (serverPort == 443 && "https".equalsIgnoreCase(scheme)));
+            boolean includePort = serverPort > 0 && !((serverPort == 80 && "http".equalsIgnoreCase(scheme))
+                    || (serverPort == 443 && "https".equalsIgnoreCase(scheme)));
             if (includePort) {
                 host = host + ":" + serverPort;
             }

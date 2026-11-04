@@ -78,7 +78,8 @@ export const parseValidationTemplateFile = async (file) => {
   formData.append("file", file);
 
   const response = await fetch(
-    config.serverBaseUrl + "/rest/reports/validation-template-overrides/parse-template",
+    config.serverBaseUrl +
+      "/rest/reports/validation-template-overrides/parse-template",
     {
       credentials: "include",
       method: "POST",

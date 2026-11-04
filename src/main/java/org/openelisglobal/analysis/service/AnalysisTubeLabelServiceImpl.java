@@ -52,7 +52,8 @@ public class AnalysisTubeLabelServiceImpl extends AuditableBaseObjectServiceImpl
 
     @Override
     @Transactional
-    public AnalysisTubeLabel saveOrUpdateLabel(Analysis analysis, String blockName, String submittedLabelCode, String sysUserId) {
+    public AnalysisTubeLabel saveOrUpdateLabel(Analysis analysis, String blockName, String submittedLabelCode,
+            String sysUserId) {
         if (analysis == null || analysis.getSampleItem() == null || StringUtils.isBlank(blockName)) {
             throw new IllegalArgumentException("Analysis and tube block are required for tube labels");
         }
@@ -66,7 +67,8 @@ public class AnalysisTubeLabelServiceImpl extends AuditableBaseObjectServiceImpl
             throw new IllegalArgumentException("Tube label generation requires a sample CUG or accession number");
         }
 
-        AnalysisTubeLabel existing = analysisTubeLabelDAO.getByAnalysisIdAndBlockName(analysis.getId(), blockName).orElse(null);
+        AnalysisTubeLabel existing = analysisTubeLabelDAO.getByAnalysisIdAndBlockName(analysis.getId(), blockName)
+                .orElse(null);
         String normalizedLabelCode = StringUtils.trimToNull(submittedLabelCode);
         if (normalizedLabelCode == null && existing != null) {
             normalizedLabelCode = existing.getLabelCode();

@@ -16,12 +16,12 @@ import org.openelisglobal.BaseWebContextSensitiveTest;
 import org.openelisglobal.audittrail.dao.AuditEventDAO;
 import org.openelisglobal.audittrail.form.AuditEventFilter;
 import org.openelisglobal.audittrail.valueholder.AuditEvent;
-import org.springframework.beans.factory.annotation.Autowired;
-import org.springframework.transaction.annotation.Transactional;
 import org.openelisglobal.common.action.IActionConstants;
 import org.openelisglobal.login.valueholder.UserSessionData;
 import org.openelisglobal.person.valueholder.Person;
+import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.mock.web.MockHttpServletRequest;
+import org.springframework.transaction.annotation.Transactional;
 import org.springframework.web.context.request.RequestContextHolder;
 import org.springframework.web.context.request.ServletRequestAttributes;
 
@@ -231,16 +231,17 @@ public class AuditEventAccessionIntegrationTest extends BaseWebContextSensitiveT
         hiddenIds.add(reportable.getId());
         entityManager.flush();
 
-        var page = auditEventDAO.search(new AuditEventFilter("AUDIT-CUG-0066", "result", null, null, null, null,
-                null, null, null, 0, 2));
+        var page = auditEventDAO.search(
+                new AuditEventFilter("AUDIT-CUG-0066", "result", null, null, null, null, null, null, null, 0, 2));
         assertEquals(3, page.total());
         assertEquals(2, page.items().size());
         assertEquals(7, auditEventDAO.search(filter("AUDIT-LAB-0066")).total());
-        assertEquals(0, auditEventDAO.search(new AuditEventFilter("AUDIT-LAB-0066", "result", null, null, null,
-                "statusId", null, null, null, 0, 30)).total());
-        assertEquals(hiddenIds.size(), entityManager
-                .createQuery("SELECT COUNT(e) FROM AuditEvent e WHERE e.id IN (:ids)", Long.class)
-                .setParameter("ids", hiddenIds).getSingleResult().longValue());
+        assertEquals(0, auditEventDAO.search(
+                new AuditEventFilter("AUDIT-LAB-0066", "result", null, null, null, "statusId", null, null, null, 0, 30))
+                .total());
+        assertEquals(hiddenIds.size(),
+                entityManager.createQuery("SELECT COUNT(e) FROM AuditEvent e WHERE e.id IN (:ids)", Long.class)
+                        .setParameter("ids", hiddenIds).getSingleResult().longValue());
     }
 
     @Test
@@ -319,9 +320,9 @@ public class AuditEventAccessionIntegrationTest extends BaseWebContextSensitiveT
         assertEquals("17", item.actorId());
         assertEquals(2, auditEventDAO.search(moduleFilter("patient")).total());
         assertEquals(8, auditEventDAO.search(filter("AUDIT-LAB-0066")).total());
-        assertEquals("patient", entityManager
-                .createQuery("SELECT e.module FROM AuditEvent e WHERE e.id = :id", String.class)
-                .setParameter("id", professional.getId()).getSingleResult());
+        assertEquals("patient",
+                entityManager.createQuery("SELECT e.module FROM AuditEvent e WHERE e.id = :id", String.class)
+                        .setParameter("id", professional.getId()).getSingleResult());
     }
 
     @Test
@@ -352,7 +353,8 @@ public class AuditEventAccessionIntegrationTest extends BaseWebContextSensitiveT
                     page.items().stream().map(item -> item.field()).collect(java.util.stream.Collectors.toSet()));
             assertEquals(2, auditEventDAO.search(moduleFilter("patient")).total());
             assertTrue(entityManager
-                    .createQuery("FROM AuditEvent e WHERE e.entityName = 'Person' AND e.source = :source", AuditEvent.class)
+                    .createQuery("FROM AuditEvent e WHERE e.entityName = 'Person' AND e.source = :source",
+                            AuditEvent.class)
                     .setParameter("source", "POST /api/OpenELIS-Global/rest/Provider/FhirUuid").getResultList().stream()
                     .allMatch(event -> "provider".equals(event.getModule())));
         } finally {
@@ -426,8 +428,8 @@ public class AuditEventAccessionIntegrationTest extends BaseWebContextSensitiveT
         entityManager.persist(snapshot);
         entityManager.flush();
         assertEquals(5, auditEventDAO.search(testFilter(null, "9201", 0, 30)).total());
-        var filtered = auditEventDAO.search(new AuditEventFilter(null, "result", null, null, "17", "measurement",
-                "U", Instant.parse("2026-01-01T11:00:00Z"), Instant.parse("2026-01-01T13:00:00Z"), "9201", 0, 30));
+        var filtered = auditEventDAO.search(new AuditEventFilter(null, "result", null, null, "17", "measurement", "U",
+                Instant.parse("2026-01-01T11:00:00Z"), Instant.parse("2026-01-01T13:00:00Z"), "9201", 0, 30));
         assertEquals(1, filtered.total());
         assertEquals("Historical answer", filtered.items().get(0).newValue());
         assertEquals(0, auditEventDAO.search(new AuditEventFilter(null, "result", null, null, "17", null, null,
@@ -455,13 +457,15 @@ public class AuditEventAccessionIntegrationTest extends BaseWebContextSensitiveT
             entityManager.unwrap(org.hibernate.engine.spi.SessionImplementor.class).getActionQueue()
                     .beforeTransactionCompletion();
             entityManager.flush();
-            var captured = entityManager.createQuery(
-                    "FROM AuditEvent e WHERE e.actorId = '17' AND e.source = 'POST /rest/results'", AuditEvent.class)
+            var captured = entityManager
+                    .createQuery("FROM AuditEvent e WHERE e.actorId = '17' AND e.source = 'POST /rest/results'",
+                            AuditEvent.class)
                     .getResultList();
             assertEquals(2, captured.size());
             assertTrue(captured.stream().allMatch(event -> "9201".equals(event.getTestId())));
-            assertEquals(2, auditEventDAO.search(new AuditEventFilter(null, "result", null, null, "17", null, null,
-                    null, null, "9201", 0, 30)).total());
+            assertEquals(2, auditEventDAO.search(
+                    new AuditEventFilter(null, "result", null, null, "17", null, null, null, null, "9201", 0, 30))
+                    .total());
         } finally {
             RequestContextHolder.resetRequestAttributes();
         }

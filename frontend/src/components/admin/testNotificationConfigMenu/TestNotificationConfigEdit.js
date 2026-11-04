@@ -324,8 +324,15 @@ function TestNotificationConfigEdit() {
     );
   };
 
-  const handleInternalProfileProfessionalProfileChange = (index, profileCode) => {
-    handleInternalProfileFieldChange(index, "professionalProfileCode", profileCode);
+  const handleInternalProfileProfessionalProfileChange = (
+    index,
+    profileCode,
+  ) => {
+    handleInternalProfileFieldChange(
+      index,
+      "professionalProfileCode",
+      profileCode,
+    );
     handleInternalProfileFieldChange(index, "selectedUserIds", []);
     if (profileCode) {
       fetchUsersForProfessionalProfile(profileCode);
@@ -347,7 +354,9 @@ function TestNotificationConfigEdit() {
           : [];
         const nextSelectedUserIds = checked
           ? [...new Set([...currentSelectedUserIds, selectedUserId])]
-          : currentSelectedUserIds.filter((userId) => userId !== selectedUserId);
+          : currentSelectedUserIds.filter(
+              (userId) => userId !== selectedUserId,
+            );
         return { ...rule, selectedUserIds: nextSelectedUserIds };
       }),
     );
@@ -364,14 +373,18 @@ function TestNotificationConfigEdit() {
   }, [testNotificationConfigEditDataPost?.config]);
 
   useEffect(() => {
-    const rules = getInternalProfileRules(testNotificationConfigEditDataPost?.config);
+    const rules = getInternalProfileRules(
+      testNotificationConfigEditDataPost?.config,
+    );
     if (!rules.length) {
       return;
     }
 
     let hasChanges = false;
     const nextRules = rules.map((rule) => {
-      const professionalProfileCode = (rule.professionalProfileCode || "").trim();
+      const professionalProfileCode = (
+        rule.professionalProfileCode || ""
+      ).trim();
       if (!professionalProfileCode || !Array.isArray(rule.selectedUserIds)) {
         return rule;
       }
@@ -715,7 +728,12 @@ function TestNotificationConfigEdit() {
                                 backgroundColor: "#f4f4f4",
                               }}
                             >
-                              <div style={{ marginBottom: "0.75rem", fontWeight: 600 }}>
+                              <div
+                                style={{
+                                  marginBottom: "0.75rem",
+                                  fontWeight: 600,
+                                }}
+                              >
                                 {intl.formatMessage({
                                   id: "testnotification.internalProfile.users.label",
                                 })}
@@ -726,12 +744,17 @@ function TestNotificationConfigEdit() {
                                 <div>
                                   <FormattedMessage id="testnotification.internalProfile.users.loading" />
                                 </div>
-                              ) : (profileUsersByCode[rule.professionalProfileCode] || [])
-                                  .length > 0 ? (
-                                <Grid condensed fullWidth={true}>
-                                  {(profileUsersByCode[
+                              ) : (
+                                  profileUsersByCode[
                                     rule.professionalProfileCode
-                                  ] || []).map((userOption) => (
+                                  ] || []
+                                ).length > 0 ? (
+                                <Grid condensed fullWidth={true}>
+                                  {(
+                                    profileUsersByCode[
+                                      rule.professionalProfileCode
+                                    ] || []
+                                  ).map((userOption) => (
                                     <Column
                                       key={`internal-profile-user-${index}-${userOption.id}`}
                                       lg={4}
@@ -741,9 +764,9 @@ function TestNotificationConfigEdit() {
                                       <Checkbox
                                         id={`internal-profile-user-${index}-${userOption.id}`}
                                         labelText={userOption.value}
-                                        checked={(rule.selectedUserIds || []).includes(
-                                          userOption.id,
-                                        )}
+                                        checked={(
+                                          rule.selectedUserIds || []
+                                        ).includes(userOption.id)}
                                         onChange={(_, { checked }) =>
                                           handleInternalProfileSelectedUsersChange(
                                             index,

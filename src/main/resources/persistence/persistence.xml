@@ -19,6 +19,11 @@
         <class>org.openelisglobal.common.valueholder.AccessionNumberInfo</class>
         <class>org.openelisglobal.audittrail.valueholder.AuditEvent</class>
         <class>org.openelisglobal.audittrail.valueholder.ArchivedAuditEvent</class>
+        <class>org.openelisglobal.sampleadditionalfield.valueholder.SampleFixedFieldConfig</class>
+        <class>org.openelisglobal.authorization.valueholder.RolePatientSearchRestriction</class>
+        <class>org.openelisglobal.patientadditionalfield.valueholder.PatientFixedFieldConfig</class>
+        <class>org.openelisglobal.resultvalidation.valueholder.AnalysisValidationApproval</class>
+        <class>org.openelisglobal.role.valueholder.CustomRoleLabUnitScope</class>
         <class>org.openelisglobal.sample.valueholder.SampleEnvironmental</class>
         <class>org.openelisglobal.testconfiguration.packageio.valueholder.TestConfigurationRevision</class>
         <class>org.openelisglobal.testconfiguration.packageio.valueholder.TestConfigurationImportLock</class>

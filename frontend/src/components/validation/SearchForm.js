@@ -287,8 +287,7 @@ const SearchForm = (props) => {
                           <CustomLabNumberInput
                             placeholder={intl.formatMessage({
                               id: "validation.search.input.placeholder",
-                              defaultMessage:
-                                "Enter CUG or order/lab number",
+                              defaultMessage: "Enter CUG or order/lab number",
                             })}
                             name={field.name}
                             id={field.name}

@@ -7,7 +7,8 @@ public interface ProfessionalProfileFieldConfigService {
 
     List<ProfessionalProfileFieldDefinitionForm> getFieldsForProfile(String profileCode, boolean includeInactive);
 
-    void saveFieldsForProfile(String profileCode, List<ProfessionalProfileFieldDefinitionForm> fields, String currentUserId);
+    void saveFieldsForProfile(String profileCode, List<ProfessionalProfileFieldDefinitionForm> fields,
+            String currentUserId);
 
     void deleteFieldsForProfile(String profileCode, String currentUserId);
 }

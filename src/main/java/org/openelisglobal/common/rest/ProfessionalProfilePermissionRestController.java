@@ -22,8 +22,8 @@ public class ProfessionalProfilePermissionRestController extends BaseRestControl
     private ProfessionalProfilePermissionService profilePermissionService;
 
     /**
-     * Get all professional profile permissions for current user
-     * Returns a map with permission checks for each module
+     * Get all professional profile permissions for current user Returns a map with
+     * permission checks for each module
      */
     @GetMapping(value = "/professional-profile-permissions", produces = MediaType.APPLICATION_JSON_VALUE)
     public ResponseEntity<Map<String, Object>> getPermissions(HttpServletRequest request) {

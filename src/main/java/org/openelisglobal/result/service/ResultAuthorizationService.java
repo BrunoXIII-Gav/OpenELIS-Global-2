@@ -18,8 +18,7 @@ public interface ResultAuthorizationService {
     List<TestResultItem> filterResultsForEntryAccess(String userId, List<TestResultItem> results,
             String legacyRoleName);
 
-    boolean canAccessAllResults(String userId, List<TestResultItem> results, String actionKey,
-            String legacyRoleName);
+    boolean canAccessAllResults(String userId, List<TestResultItem> results, String actionKey, String legacyRoleName);
 
     List<String> filterAccessibleAnalysisIds(String userId, List<String> analysisIds, String actionKey,
             String legacyRoleName);

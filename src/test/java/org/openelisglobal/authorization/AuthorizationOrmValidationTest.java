@@ -6,10 +6,10 @@ import org.hibernate.SessionFactory;
 import org.hibernate.boot.registry.StandardServiceRegistryBuilder;
 import org.hibernate.cfg.Configuration;
 import org.junit.Test;
-import org.openelisglobal.authorization.valueholder.RoleModulePermission;
-import org.openelisglobal.authorization.valueholder.RoleModulePermissionLabUnitScope;
 import org.openelisglobal.authorization.valueholder.RoleFieldRestriction;
 import org.openelisglobal.authorization.valueholder.RoleFieldTagRestriction;
+import org.openelisglobal.authorization.valueholder.RoleModulePermission;
+import org.openelisglobal.authorization.valueholder.RoleModulePermissionLabUnitScope;
 
 public class AuthorizationOrmValidationTest {
 

@@ -26,7 +26,9 @@ public class StorageSearchRestControllerTest extends BaseWebContextSensitiveTest
     @Override
     public void setUp() throws Exception {
         super.setUp();
+        useAuthenticatedAdminRequests();
         executeDataSetWithStateManagement("testdata/storage-search-integration-test.xml");
+        executeDataSetWithStateManagement("testdata/storage-controller-access.xml", false);
     }
 
     @Test

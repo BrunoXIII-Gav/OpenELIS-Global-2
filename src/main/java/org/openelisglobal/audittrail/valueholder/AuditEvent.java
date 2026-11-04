@@ -85,6 +85,7 @@ public class AuditEvent extends BaseObject<String> {
     public void setTestId(String value) {
         testId = value;
     }
+
     @Column(name = "result_id")
     private String resultId;
     @Column(name = "parent_analysis_id")

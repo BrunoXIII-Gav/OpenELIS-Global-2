@@ -60,8 +60,7 @@ public interface SampleManagementService {
             Set<String> restrictedFieldGroupKeys, Set<String> restrictedFieldTagKeys);
 
     SearchSamplesResponse searchByAccessionNumber(String accessionNumber, boolean includeTests,
-            Set<String> restrictedFieldGroupKeys, Set<String> restrictedFieldTagKeys,
-            SampleManagementAccess access);
+            Set<String> restrictedFieldGroupKeys, Set<String> restrictedFieldTagKeys, SampleManagementAccess access);
 
     /**
      * Create an aliquot from a parent sample item.

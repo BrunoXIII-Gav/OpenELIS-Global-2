@@ -1,4 +1,10 @@
-import React, { createContext, useState, useEffect, useContext, useRef } from "react";
+import React, {
+  createContext,
+  useState,
+  useEffect,
+  useContext,
+  useRef,
+} from "react";
 import { useLocation } from "react-router-dom";
 import { useIntl } from "react-intl";
 import Header from "./Header";

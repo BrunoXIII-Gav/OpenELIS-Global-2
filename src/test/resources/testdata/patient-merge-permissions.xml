@@ -1,0 +1,7 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<dataset>
+    <role_module_permission id="900001" role_id="1"
+        module_key="patients" action_key="merge" all_lab_units="true" />
+    <role_module_permission id="900002" role_id="2"
+        module_key="patients" action_key="read" all_lab_units="true" />
+</dataset>

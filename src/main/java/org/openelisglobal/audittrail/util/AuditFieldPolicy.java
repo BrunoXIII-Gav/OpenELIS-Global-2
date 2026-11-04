@@ -33,12 +33,10 @@ public final class AuditFieldPolicy {
                             "typeOfSample", "typeOfSampleId", "unitOfMeasure", "externalId", "cugCode",
                             "collectionDate", "statusId", "dataCompletionStatus", "collector", "collectorUserId",
                             "rejected", "rejectReasonId", "voided", "voidReason", "parentSampleItem")),
-            Map.entry("Analysis",
-                    Set.of("test", "panel", "testSection", "method", "status", "statusId", "startedDate",
-                            "completedDate", "releasedDate", "validationDate", "isReportable", "referredOut",
-                            "soClientReference", "resultFile", "sampleUsedQuantity", "parentUsageBlockName",
-                            "deliveredDate", "deliveredBy", "deliveryCorrectionReason", "amendsAnalysisId",
-                            "amendmentReason")),
+            Map.entry("Analysis", Set.of("test", "panel", "testSection", "method", "status", "statusId", "startedDate",
+                    "completedDate", "releasedDate", "validationDate", "isReportable", "referredOut",
+                    "soClientReference", "resultFile", "sampleUsedQuantity", "parentUsageBlockName", "deliveredDate",
+                    "deliveredBy", "deliveryCorrectionReason", "amendsAnalysisId", "amendmentReason")),
             Map.entry("Result", Set.of("value", "resultType", "isReportable", "analyte", "testResult")),
             Map.entry("AnalysisAdditionalFieldValue", Set.of("fieldValue")),
             Map.entry("SampleItemAdditionalFieldValue", Set.of("fieldValue")),
@@ -67,7 +65,8 @@ public final class AuditFieldPolicy {
         // These fields are hidden for every test, without affecting other entities.
         where.append(" AND NOT (e.entityName = 'Analysis' AND e.field IN (:hiddenAnalysisFields))")
                 .append(" AND NOT (e.entityName = 'Result' AND e.field = 'isReportable')");
-        parameters.put("hiddenAnalysisFields", Set.of("status", "statusId", "startedDate", "isReportable", "referredOut"));
+        parameters.put("hiddenAnalysisFields",
+                Set.of("status", "statusId", "startedDate", "isReportable", "referredOut"));
         where.append(" AND e.entityName NOT IN (:internalEntities) AND e.field NOT IN (:internalFields)")
                 .append(" AND lower(e.field) NOT LIKE '%fhir%' AND lower(e.field) NOT LIKE '%uuid%'")
                 .append(" AND lower(e.field) NOT LIKE 'sync%' AND lower(e.field) NOT LIKE '%token'")

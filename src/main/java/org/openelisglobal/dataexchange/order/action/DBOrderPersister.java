@@ -23,7 +23,6 @@ import org.openelisglobal.address.service.AddressPartService;
 import org.openelisglobal.address.service.PersonAddressService;
 import org.openelisglobal.address.valueholder.AddressPart;
 import org.openelisglobal.address.valueholder.PersonAddress;
-import org.openelisglobal.common.constants.Constants;
 import org.openelisglobal.common.constants.SystemPermission;
 import org.openelisglobal.common.log.LogEvent;
 import org.openelisglobal.common.services.IStatusService;

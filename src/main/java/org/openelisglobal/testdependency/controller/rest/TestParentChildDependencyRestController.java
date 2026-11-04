@@ -10,9 +10,9 @@ import org.apache.commons.validator.GenericValidator;
 import org.openelisglobal.common.log.LogEvent;
 import org.openelisglobal.common.rest.BaseRestController;
 import org.openelisglobal.test.service.TestService;
+import org.openelisglobal.test.valueholder.Test;
 import org.openelisglobal.testadditionalfield.bean.TestAdditionalFieldPayload;
 import org.openelisglobal.testadditionalfield.service.TestAdditionalFieldService;
-import org.openelisglobal.test.valueholder.Test;
 import org.openelisglobal.testdependency.form.TestParentChildDependencyForm;
 import org.openelisglobal.testdependency.service.TestParentChildDependencyService;
 import org.openelisglobal.testdependency.valueholder.TestParentChildDependency;
@@ -50,8 +50,7 @@ public class TestParentChildDependencyRestController extends BaseRestController 
     @GetMapping(produces = MediaType.APPLICATION_JSON_VALUE)
     @ResponseBody
     public ResponseEntity<List<TestParentChildDependencyForm>> getDependencies(
-            @RequestParam(required = false) String parentTestId,
-            @RequestParam(required = false) Boolean activeOnly) {
+            @RequestParam(required = false) String parentTestId, @RequestParam(required = false) Boolean activeOnly) {
 
         List<TestParentChildDependency> dependencies;
         boolean active = activeOnly != null && activeOnly.booleanValue();
@@ -68,7 +67,8 @@ public class TestParentChildDependencyRestController extends BaseRestController 
             dependencies = dependencyService.getAll();
         }
 
-        List<TestParentChildDependencyForm> forms = dependencies.stream().map(this::toForm).collect(Collectors.toList());
+        List<TestParentChildDependencyForm> forms = dependencies.stream().map(this::toForm)
+                .collect(Collectors.toList());
         return ResponseEntity.ok(forms);
     }
 
@@ -109,8 +109,7 @@ public class TestParentChildDependencyRestController extends BaseRestController 
     @PostMapping(consumes = MediaType.APPLICATION_JSON_VALUE, produces = MediaType.APPLICATION_JSON_VALUE)
     @ResponseBody
     public ResponseEntity<TestParentChildDependencyForm> upsertDependency(
-            @RequestBody TestParentChildDependencyForm form,
-            HttpServletRequest request) {
+            @RequestBody TestParentChildDependencyForm form, HttpServletRequest request) {
 
         String parentTestId = form.getParentTestId();
         String childTestId = form.getChildTestId();

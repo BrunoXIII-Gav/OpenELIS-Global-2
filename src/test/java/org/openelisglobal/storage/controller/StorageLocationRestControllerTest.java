@@ -38,6 +38,8 @@ public class StorageLocationRestControllerTest extends BaseWebContextSensitiveTe
 
     private UserModuleService userModuleServiceMock;
     private UserRoleService userRoleServiceMock;
+    private Object originalUserModuleService;
+    private Object originalUserRoleService;
 
     private ObjectMapper objectMapper;
     private UserSessionData usd;
@@ -46,9 +48,12 @@ public class StorageLocationRestControllerTest extends BaseWebContextSensitiveTe
     @Before
     public void setUp() throws Exception {
         super.setUp();
+        useAuthenticatedAdminRequests();
         objectMapper = new ObjectMapper();
         userModuleServiceMock = Mockito.mock(UserModuleService.class);
         userRoleServiceMock = Mockito.mock(UserRoleService.class);
+        originalUserModuleService = ReflectionTestUtils.getField(storageLocationRestController, "userModuleService");
+        originalUserRoleService = ReflectionTestUtils.getField(storageLocationRestController, "userRoleService");
         ReflectionTestUtils.setField(storageLocationRestController, "userModuleService", userModuleServiceMock);
         ReflectionTestUtils.setField(storageLocationRestController, "userRoleService", userRoleServiceMock);
 
@@ -56,6 +61,13 @@ public class StorageLocationRestControllerTest extends BaseWebContextSensitiveTe
         usd.setSytemUserId(1);
         when(userRoleServiceMock.userInRole(anyString(), anyString())).thenReturn(true);
         executeDataSetWithStateManagement("testdata/storage-location-controller.xml");
+        executeDataSetWithStateManagement("testdata/storage-controller-access.xml", false);
+    }
+
+    @org.junit.After
+    public void restoreControllerCollaborators() {
+        ReflectionTestUtils.setField(storageLocationRestController, "userModuleService", originalUserModuleService);
+        ReflectionTestUtils.setField(storageLocationRestController, "userRoleService", originalUserRoleService);
     }
 
     @Test
