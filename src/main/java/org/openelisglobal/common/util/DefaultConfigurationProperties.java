@@ -263,6 +263,7 @@ public class DefaultConfigurationProperties extends ConfigurationProperties {
         properties.setPropertyValue(Property.ALERT_FOR_INVALID_RESULTS, "false");
         properties.setPropertyValue(Property.showStorageLocationOnResultEntry, "true");
         properties.setPropertyValue(Property.DEFAULT_DATE_LOCALE, "fr-FR");
+        properties.setPropertyValue(Property.SIMPLIFIED_TEST_NAMES, "false");
         properties.setPropertyValue(Property.DEFAULT_LANG_LOCALE, "fr-FR");
         properties.setPropertyValue(Property.configurationName, "not set");
         properties.setPropertyValue(Property.CONDENSE_NFS_PANEL, "false");
@@ -342,12 +343,16 @@ public class DefaultConfigurationProperties extends ConfigurationProperties {
         properties.setPropertyValue(Property.GPS_ENABLED, "false");
         properties.setPropertyValue(Property.GPS_ACCURACY_METERS, "100");
         properties.setPropertyValue(Property.GPS_TIMEOUT_SECONDS, "10");
-        properties.setPropertyValue(Property.ENABLED_ORDER_PRIORITIES, "ROUTINE,ASAP,STAT,TIMED,FUTURE_STAT");
+        properties.setPropertyValue(Property.ENABLED_ORDER_PRIORITIES, "ROUTINE,STAT");
         properties.setPropertyValue(Property.USE_NEW_ADDRESS_HIERARCHY, "true"); // Default to new address hierarchy
-        properties.setPropertyValue(Property.professionalProfileOptions, "BIOLOGIST|Biólogo,MEDICAL_DOCTOR|Médico");
-        properties.setPropertyValue(Property.orderProviderProfessionalProfileCode, "MEDICAL_DOCTOR");
-        properties.setPropertyValue(Property.sampleCollectorProfessionalProfileCode, "BIOLOGIST");
-        properties.setPropertyValue(Property.validationInterpreterProfessionalProfileCode, "MEDICAL_DOCTOR");
+        properties.setPropertyValue(Property.professionalProfileOptions, "");
+        properties.setPropertyValue(Property.professionalProfileFieldDefinitions, "");
+        properties.setPropertyValue(Property.professionalProfileSpecialtyOptions, "");
+        properties.setPropertyValue(Property.orderProviderProfessionalProfileCode, "");
+        properties.setPropertyValue(Property.sampleCollectorProfessionalProfileCode, "");
+        properties.setPropertyValue(Property.patientEntryProfessionalProfileCode, "");
+        properties.setPropertyValue(Property.resultEntryProfessionalProfileCode, "");
+        properties.setPropertyValue(Property.validationInterpreterProfessionalProfileCode, "");
         return properties;
     }
 

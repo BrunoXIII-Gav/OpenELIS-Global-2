@@ -17,17 +17,17 @@ import org.springframework.transaction.annotation.Transactional;
 public class SampleAdditionalFieldServiceImpl implements SampleAdditionalFieldService {
 
     private static final List<FixedFieldDefault> FIXED_FIELD_DEFAULTS = List.of(
-            new FixedFieldDefault("rejected", 10, false, false),
-            new FixedFieldDefault("quantity", 20, false, false),
-            new FixedFieldDefault("uom", 30, false, false),
-            new FixedFieldDefault("collectionDate", 40, false, false),
-            new FixedFieldDefault("collectionTime", 50, false, false),
-            new FixedFieldDefault("collector", 60, false, false),
-            new FixedFieldDefault("additionalFields", 65, false, false),
-            new FixedFieldDefault("storageLocation", 70, false, false),
-            new FixedFieldDefault("panels", 80, false, false),
-            new FixedFieldDefault("tests", 90, false, false),
-            new FixedFieldDefault("referral", 100, false, false));
+            new FixedFieldDefault("rejected", 10, true, false, false),
+            new FixedFieldDefault("quantity", 20, true, false, false),
+            new FixedFieldDefault("uom", 30, true, false, false),
+            new FixedFieldDefault("collectionDate", 40, true, false, false),
+            new FixedFieldDefault("collectionTime", 50, true, false, false),
+            new FixedFieldDefault("collector", 60, true, false, false),
+            new FixedFieldDefault("additionalFields", 65, true, false, false),
+            new FixedFieldDefault("storageLocation", 70, true, false, false),
+            new FixedFieldDefault("panels", 80, true, false, false),
+            new FixedFieldDefault("tests", 90, true, false, false),
+            new FixedFieldDefault("referral", 100, true, false, false));
 
     private static final Set<String> FIXED_FIELD_KEYS = FIXED_FIELD_DEFAULTS.stream().map(f -> f.fieldKey.toLowerCase())
             .collect(Collectors.toSet());
@@ -48,7 +48,7 @@ public class SampleAdditionalFieldServiceImpl implements SampleAdditionalFieldSe
             if (config == null) {
                 SampleFixedFieldConfigPayload fallback = new SampleFixedFieldConfigPayload();
                 fallback.setFieldKey(def.fieldKey);
-                fallback.setVisible(true);
+                fallback.setVisible(def.visible);
                 fallback.setRequired(def.required);
                 fallback.setReadonly(def.readonly);
                 fallback.setSortOrder(def.sortOrder);
@@ -111,12 +111,15 @@ public class SampleAdditionalFieldServiceImpl implements SampleAdditionalFieldSe
     private static class FixedFieldDefault {
         private final String fieldKey;
         private final Integer sortOrder;
+        private final boolean visible;
         private final boolean required;
         private final boolean readonly;
 
-        private FixedFieldDefault(String fieldKey, Integer sortOrder, boolean required, boolean readonly) {
+        private FixedFieldDefault(String fieldKey, Integer sortOrder, boolean visible, boolean required,
+                boolean readonly) {
             this.fieldKey = fieldKey;
             this.sortOrder = sortOrder;
+            this.visible = visible;
             this.required = required;
             this.readonly = readonly;
         }

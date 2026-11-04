@@ -62,4 +62,17 @@ public class PatientAdditionalFieldValueDAOImpl extends BaseDAOImpl<PatientAddit
         query.setParameter("patientId", patientId);
         return query.list();
     }
+
+    @Override
+    @Transactional(readOnly = true)
+    public long countByFieldDefinitionId(Integer fieldDefinitionId) {
+        if (fieldDefinitionId == null) {
+            return 0L;
+        }
+        String hql = "select count(v.id) from PatientAdditionalFieldValue v where v.fieldDefinitionId = :fieldDefinitionId";
+        Query<Long> query = entityManager.unwrap(Session.class).createQuery(hql, Long.class);
+        query.setParameter("fieldDefinitionId", fieldDefinitionId);
+        Long count = query.uniqueResult();
+        return count == null ? 0L : count;
+    }
 }

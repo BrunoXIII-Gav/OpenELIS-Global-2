@@ -1,7 +1,10 @@
 package org.openelisglobal.resultvalidation.service;
 
+import static org.mockito.Mockito.any;
 import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
+import static org.mockito.Mockito.verifyZeroInteractions;
 import static org.mockito.Mockito.when;
 
 import java.sql.Date;
@@ -37,8 +40,28 @@ public class ResultValidationServiceImplTest {
     @Mock
     private TestNotificationService testNotificationService;
 
+    @Mock
+    private AnalysisValidationApprovalService approvalService;
+    @Mock
+    private org.openelisglobal.common.services.IStatusService statusService;
+
     @InjectMocks
     private ResultValidationServiceImpl resultValidationService;
+
+    @Mock
+    private org.openelisglobal.orderadditionalfield.service.AlternateOrderFlowService alternateOrderFlowService;
+
+    @Test
+    public void alternateOrderResultsCannotBeValidatedThroughDirectSave() {
+        Analysis analysis = new Analysis();
+        analysis.setId("123");
+        when(alternateOrderFlowService.isAnalysisValidationBlocked("123")).thenReturn(true);
+        org.junit.Assert.assertThrows(org.springframework.security.access.AccessDeniedException.class,
+                () -> resultValidationService.persistdata(List.of(), List.of(analysis), new java.util.ArrayList<>(),
+                        List.of(), new java.util.ArrayList<>(), new java.util.ArrayList<>(), null, List.of(), "7"));
+        verify(analysisService, never()).update(any());
+        verifyZeroInteractions(resultService, approvalService);
+    }
 
     @Test
     public void persistdata_shouldApplyValidationDateToReleasedDate() {
@@ -54,4 +77,17 @@ public class ResultValidationServiceImplTest {
 
         verify(analysis).setValidationDate(Date.valueOf("2026-05-28"));
     }
+
+    @Test
+    public void invalidatesAndRegistersApprovalsInsideValidationTransaction() {
+        when(statusService.getStatusID(org.openelisglobal.common.services.StatusService.AnalysisStatus.Finalized)).thenReturn("final");
+        when(statusService.getStatusID(org.openelisglobal.common.services.StatusService.AnalysisStatus.BiologistRejected)).thenReturn("rejected");
+        Analysis finalized = new Analysis(); finalized.setId("101"); finalized.setStatusId("final");
+        Analysis rejected = new Analysis(); rejected.setId("102"); rejected.setStatusId("rejected");
+        resultValidationService.synchronizeApprovals(List.of(finalized, rejected), "7");
+        verify(approvalService).clearApprovals("101", "7", "REVALIDATION");
+        verify(approvalService).registerApprovalAndGetCount("101", "7");
+        verify(approvalService).clearApprovals("102", "7", "REJECTION");
+    }
+
 }

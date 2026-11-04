@@ -1,0 +1,78 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<databaseChangeLog xmlns="http://www.liquibase.org/xml/ns/dbchangelog"
+ xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+ xsi:schemaLocation="http://www.liquibase.org/xml/ns/dbchangelog https://www.liquibase.org/xml/ns/dbchangelog/dbchangelog-4.8.xsd">
+ <changeSet id="103-delivered-analysis-lock" author="openelis">
+  <!-- Once the result is delivered its cycle is closed. The database enforces it
+       so result screens, validation, analyzer imports and scripts all stop.
+       Delivery bookkeeping (correction, admin reopening), reprint flags and
+       technical columns remain writable. -->
+  <sql splitStatements="false"><![CDATA[
+   -- Training cleanup wipes all clinical data, delivered or not. The bypass is
+   -- transaction-local and only granted in a training installation.
+   CREATE FUNCTION clinlims.delivered_lock_bypassed() RETURNS boolean
+   LANGUAGE sql STABLE AS $$
+    SELECT coalesce(current_setting('openelis.delivered_lock_bypass', true), '') = 'training-cleanup'
+   $$;
+
+   CREATE FUNCTION clinlims.allow_training_cleanup_of_delivered() RETURNS integer
+   LANGUAGE plpgsql SECURITY INVOKER SET search_path = pg_catalog, clinlims AS $$
+   BEGIN
+    IF NOT EXISTS (SELECT 1 FROM clinlims.site_information
+                   WHERE name = 'TrainingInstallation' AND lower(trim(value)) = 'true') THEN
+     RAISE EXCEPTION 'Delivered results may only be cleared in a training installation';
+    END IF;
+    PERFORM set_config('openelis.delivered_lock_bypass', 'training-cleanup', true);
+    RETURN 1;
+   END $$;
+
+   CREATE FUNCTION clinlims.guard_delivered_analysis() RETURNS trigger
+   LANGUAGE plpgsql SET search_path = pg_catalog, clinlims AS $$
+   DECLARE editable text[] := ARRAY['delivered_date', 'delivered_by', 'delivery_correction_reason',
+     'lastupdated', 'sys_user_id', 'fhir_uuid', 'printed_date', 'corrected'];
+   BEGIN
+    IF OLD.delivered_date IS NULL OR clinlims.delivered_lock_bypassed() THEN
+     RETURN COALESCE(NEW, OLD);
+    END IF;
+    IF TG_OP = 'UPDATE' AND (to_jsonb(OLD) - editable) IS NOT DISTINCT FROM (to_jsonb(NEW) - editable) THEN
+     RETURN NEW;
+    END IF;
+    RAISE EXCEPTION 'analysis.delivered.locked' USING ERRCODE = 'P0001',
+     DETAIL = 'Analysis ' || OLD.id || ' was delivered; create an amendment instead';
+   END $$;
+
+   CREATE FUNCTION clinlims.guard_delivered_analysis_child() RETURNS trigger
+   LANGUAGE plpgsql SET search_path = pg_catalog, clinlims AS $$
+   DECLARE technical text[] := ARRAY['lastupdated', 'last_updated', 'sys_user_id', 'fhir_uuid'];
+    old_id numeric; new_id numeric;
+   BEGIN
+    IF clinlims.delivered_lock_bypassed() THEN
+     RETURN COALESCE(NEW, OLD);
+    END IF;
+    IF TG_OP = 'UPDATE' AND (to_jsonb(OLD) - technical) IS NOT DISTINCT FROM (to_jsonb(NEW) - technical) THEN
+     RETURN NEW;
+    END IF;
+    IF TG_OP <> 'INSERT' THEN old_id := (to_jsonb(OLD)->>'analysis_id')::numeric; END IF;
+    IF TG_OP <> 'DELETE' THEN new_id := (to_jsonb(NEW)->>'analysis_id')::numeric; END IF;
+    IF EXISTS (SELECT 1 FROM clinlims.analysis a
+               WHERE a.id IN (old_id, new_id) AND a.delivered_date IS NOT NULL) THEN
+     RAISE EXCEPTION 'analysis.delivered.locked' USING ERRCODE = 'P0001',
+      DETAIL = TG_TABLE_NAME || ' belongs to a delivered analysis; create an amendment instead';
+    END IF;
+    RETURN COALESCE(NEW, OLD);
+   END $$;
+  ]]></sql>
+  <sql>CREATE TRIGGER analysis_delivered_lock BEFORE UPDATE OR DELETE ON clinlims.analysis FOR EACH ROW EXECUTE FUNCTION clinlims.guard_delivered_analysis()</sql>
+  <sql>CREATE TRIGGER result_delivered_lock BEFORE INSERT OR UPDATE OR DELETE ON clinlims.result FOR EACH ROW EXECUTE FUNCTION clinlims.guard_delivered_analysis_child()</sql>
+  <sql>CREATE TRIGGER analysis_field_delivered_lock BEFORE INSERT OR UPDATE OR DELETE ON clinlims.analysis_additional_field_value FOR EACH ROW EXECUTE FUNCTION clinlims.guard_delivered_analysis_child()</sql>
+  <rollback>
+   <sql>DROP TRIGGER analysis_field_delivered_lock ON clinlims.analysis_additional_field_value</sql>
+   <sql>DROP TRIGGER result_delivered_lock ON clinlims.result</sql>
+   <sql>DROP TRIGGER analysis_delivered_lock ON clinlims.analysis</sql>
+   <sql>DROP FUNCTION clinlims.guard_delivered_analysis_child()</sql>
+   <sql>DROP FUNCTION clinlims.guard_delivered_analysis()</sql>
+   <sql>DROP FUNCTION clinlims.allow_training_cleanup_of_delivered()</sql>
+   <sql>DROP FUNCTION clinlims.delivered_lock_bypassed()</sql>
+  </rollback>
+ </changeSet>
+</databaseChangeLog>

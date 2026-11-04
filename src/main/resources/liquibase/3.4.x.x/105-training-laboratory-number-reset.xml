@@ -1,0 +1,21 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<databaseChangeLog xmlns="http://www.liquibase.org/xml/ns/dbchangelog" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xsi:schemaLocation="http://www.liquibase.org/xml/ns/dbchangelog https://www.liquibase.org/xml/ns/dbchangelog/dbchangelog-4.8.xsd">
+ <changeSet id="105-training-laboratory-number-reset-guard" author="openelis">
+  <sql splitStatements="false"><![CDATA[
+   CREATE FUNCTION clinlims.guard_training_laboratory_number_reset() RETURNS integer
+   LANGUAGE plpgsql SECURITY INVOKER SET search_path = pg_catalog, clinlims AS $$
+   BEGIN
+    IF NOT EXISTS (SELECT 1 FROM clinlims.site_information WHERE name='TrainingInstallation' AND lower(trim(value))='true') THEN
+      RAISE EXCEPTION 'Laboratory numbers may only be reset in a training installation';
+    END IF;
+    LOCK TABLE clinlims.sample, clinlims.sample_item IN SHARE ROW EXCLUSIVE MODE;
+    IF EXISTS (SELECT 1 FROM clinlims.sample) OR EXISTS (SELECT 1 FROM clinlims.sample_item) THEN
+      RAISE EXCEPTION 'Clear clinical data before resetting laboratory numbers';
+    END IF;
+    RETURN 1;
+   END;
+   $$;
+  ]]></sql>
+  <rollback><sql>DROP FUNCTION clinlims.guard_training_laboratory_number_reset()</sql></rollback>
+ </changeSet>
+</databaseChangeLog>

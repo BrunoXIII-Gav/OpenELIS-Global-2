@@ -180,7 +180,7 @@ const hasRequiredDynamicFieldValue = (field, sampleOrderItems) => {
 
 const sampleOrderItemsSchema = Yup.object()
   .shape({
-    labNo: Yup.string().required("Sample Lab Number is required"),
+    labNo: Yup.string().required("El número de laboratorio es obligatorio"),
     referringSiteName: Yup.string(),
     referringSiteId: Yup.string(),
     providerId: Yup.string(),
@@ -219,18 +219,18 @@ const sampleOrderItemsSchema = Yup.object()
     return !!referringSiteName || !!referringSiteId;
   })
   .test(
-      "providerSelectionRequired",
-      "Search Requester is required",
-      function (value) {
-        const selectedProviderId = value?.providerId || value?.providerPersonId;
-        if (String(selectedProviderId || "").trim()) {
-          return true;
-        }
-        const providerFirstName = String(value?.providerFirstName || "").trim();
-        const providerLastName = String(value?.providerLastName || "").trim();
-        return !!providerFirstName && !!providerLastName;
-      },
-    )
+    "providerSelectionRequired",
+    "Search Requester is required",
+    function (value) {
+      const selectedProviderId = value?.providerId || value?.providerPersonId;
+      if (String(selectedProviderId || "").trim()) {
+        return true;
+      }
+      const providerFirstName = String(value?.providerFirstName || "").trim();
+      const providerLastName = String(value?.providerLastName || "").trim();
+      return !!providerFirstName && !!providerLastName;
+    },
+  )
   .test(
     "requiredOrderAdditionalFields",
     "Order additional field is required",

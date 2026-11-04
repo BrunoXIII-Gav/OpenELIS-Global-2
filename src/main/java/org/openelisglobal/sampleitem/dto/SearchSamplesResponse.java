@@ -15,6 +15,7 @@ package org.openelisglobal.sampleitem.dto;
 
 import java.util.ArrayList;
 import java.util.List;
+import org.openelisglobal.sample.bean.SampleOrderItem;
 
 /**
  * Response object for sample search operations.
@@ -30,6 +31,12 @@ public class SearchSamplesResponse {
 
     private String accessionNumber;
     private List<SampleItemDTO> sampleItems = new ArrayList<>();
+    private SampleOrderItem orderReceptionDetails;
+    private List<String> restrictedFieldGroupKeys = new ArrayList<>();
+    private List<String> restrictedFieldTagKeys = new ArrayList<>();
+    private boolean canRead;
+    private boolean canComplete;
+    private boolean canUpdate;
     private int totalCount;
 
     // ========== Constructors ==========
@@ -59,6 +66,63 @@ public class SearchSamplesResponse {
 
     public void setSampleItems(List<SampleItemDTO> sampleItems) {
         this.sampleItems = sampleItems;
+    }
+
+    /**
+     * Reception-only order data shown alongside the sample items.
+     *
+     * <p>
+     * This keeps Sample Management self-contained instead of requiring the legacy
+     * SampleEdit endpoint, which has Order permissions.
+     */
+    public SampleOrderItem getOrderReceptionDetails() {
+        return orderReceptionDetails;
+    }
+
+    public void setOrderReceptionDetails(SampleOrderItem orderReceptionDetails) {
+        this.orderReceptionDetails = orderReceptionDetails;
+    }
+
+    public List<String> getRestrictedFieldGroupKeys() {
+        return restrictedFieldGroupKeys;
+    }
+
+    public void setRestrictedFieldGroupKeys(List<String> restrictedFieldGroupKeys) {
+        this.restrictedFieldGroupKeys = restrictedFieldGroupKeys == null ? new ArrayList<>()
+                : new ArrayList<>(restrictedFieldGroupKeys);
+    }
+
+    public List<String> getRestrictedFieldTagKeys() {
+        return restrictedFieldTagKeys;
+    }
+
+    public void setRestrictedFieldTagKeys(List<String> restrictedFieldTagKeys) {
+        this.restrictedFieldTagKeys = restrictedFieldTagKeys == null ? new ArrayList<>()
+                : new ArrayList<>(restrictedFieldTagKeys);
+    }
+
+    public boolean isCanRead() {
+        return canRead;
+    }
+
+    public void setCanRead(boolean canRead) {
+        this.canRead = canRead;
+    }
+
+    public boolean isCanComplete() {
+        return canComplete;
+    }
+
+    public void setCanComplete(boolean canComplete) {
+        this.canComplete = canComplete;
+    }
+
+    public boolean isCanUpdate() {
+        return canUpdate;
+    }
+
+    public void setCanUpdate(boolean canUpdate) {
+        this.canUpdate = canUpdate;
     }
 
     public int getTotalCount() {

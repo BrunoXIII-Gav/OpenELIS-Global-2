@@ -1,0 +1,147 @@
+@use "@carbon/styles/scss/spacing";
+@use "@carbon/styles/scss/theme";
+@use "@carbon/styles/scss/type";
+@use "@carbon/styles/scss/breakpoint";
+
+.test-additional-fields {
+  margin-block-start: spacing.$spacing-07;
+
+  &__title {
+    @include type.type-style("heading-03");
+  }
+
+  &__description {
+    @include type.type-style("body-compact-01");
+    color: theme.$text-secondary;
+    margin-block: spacing.$spacing-03 spacing.$spacing-06;
+  }
+
+  &__item {
+    margin-block-end: spacing.$spacing-05;
+  }
+
+  &__block {
+    align-items: center;
+    margin-block: spacing.$spacing-08 spacing.$spacing-05;
+    padding-block: spacing.$spacing-05;
+    background: theme.$layer-01;
+    border-block-start: 1px solid theme.$border-strong-01;
+  }
+
+  &__eyebrow {
+    @include type.type-style("label-01");
+    color: theme.$text-secondary;
+    margin-block-end: spacing.$spacing-02;
+  }
+
+  &__block-title {
+    @include type.type-style("heading-03");
+    overflow-wrap: anywhere;
+  }
+
+  &__count {
+    text-align: end;
+  }
+
+  &__card {
+    margin-inline-start: spacing.$spacing-05;
+    background: theme.$layer-02;
+    border: 1px solid theme.$border-subtle-01;
+  }
+
+  &__primary-settings {
+    margin-block-start: spacing.$spacing-05;
+    padding-inline: spacing.$spacing-05;
+    row-gap: spacing.$spacing-05;
+  }
+
+  &__primary-row {
+    padding-inline: spacing.$spacing-05;
+  }
+
+  &__card--editing {
+    border-inline-start: 2px solid theme.$border-interactive;
+  }
+
+  &__card-header {
+    align-items: start;
+    row-gap: spacing.$spacing-05;
+    padding-block: spacing.$spacing-05;
+  }
+
+  &__field-title,
+  &__primary-title {
+    @include type.type-style("heading-02");
+    margin-block-end: spacing.$spacing-03;
+    overflow-wrap: anywhere;
+  }
+
+  &__tags {
+    margin-inline-start: calc(-1 * #{spacing.$spacing-02});
+  }
+
+  &__actions {
+    text-align: end;
+
+    > button {
+      margin-inline-start: spacing.$spacing-03;
+      margin-block-end: spacing.$spacing-03;
+    }
+  }
+
+  &__sections {
+    padding-block-end: spacing.$spacing-05;
+  }
+
+  &__section {
+    height: 100%;
+    padding-block: spacing.$spacing-05 spacing.$spacing-06;
+    border-block-start: 1px solid theme.$border-subtle-01;
+  }
+
+  &__section-title {
+    @include type.type-style("heading-compact-01");
+    margin-block-end: spacing.$spacing-05;
+    color: theme.$text-primary;
+  }
+
+  &__controls {
+    padding-inline: 0;
+    row-gap: spacing.$spacing-05;
+  }
+
+  &__reorder {
+    display: inline-block;
+    vertical-align: middle;
+  }
+
+  &__new-block {
+    margin-block-start: spacing.$spacing-05;
+    padding: spacing.$spacing-05;
+    background: theme.$layer-01;
+
+    > button {
+      margin-block-start: spacing.$spacing-04;
+      margin-inline-end: spacing.$spacing-03;
+    }
+  }
+
+  &__draft-divider {
+    margin-block: spacing.$spacing-07 spacing.$spacing-05;
+    border-block-start: 1px dashed theme.$border-strong-01;
+  }
+
+  @include breakpoint.breakpoint-down(md) {
+    &__card {
+      margin-inline-start: 0;
+    }
+
+    &__actions {
+      text-align: start;
+
+      > button {
+        margin-inline: 0 spacing.$spacing-03;
+      }
+    }
+  }
+}

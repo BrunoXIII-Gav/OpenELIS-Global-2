@@ -187,6 +187,10 @@ public class TestSectionConfigurationHandler implements DomainConfigurationHandl
         TestSection existingSection = testSectionService.getTestSectionByName(testSectionName);
 
         if (existingSection != null) {
+            if (TestSection.ORIGIN_UNKNOWN.equals(existingSection.getCreationOrigin())) {
+                existingSection.setCreationOrigin(TestSection.ORIGIN_SYSTEM);
+                existingSection.setCreationOriginAt(new java.sql.Timestamp(System.currentTimeMillis()));
+            }
             updateTestSection(existingSection, values, testSectionName, descriptionIndex, isActiveIndex, sortOrderIndex,
                     isExternalIndex, englishNameIndex, frenchNameIndex, defaultSortOrder);
             testSectionService.update(existingSection);
@@ -274,6 +278,8 @@ public class TestSectionConfigurationHandler implements DomainConfigurationHandl
 
         // Create test section
         TestSection section = new TestSection();
+        section.setCreationOrigin(TestSection.ORIGIN_SYSTEM);
+        section.setCreationOriginAt(new java.sql.Timestamp(System.currentTimeMillis()));
         section.setTestSectionName(testSectionName);
         section.setLocalization(localization);
 

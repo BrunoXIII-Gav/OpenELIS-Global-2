@@ -105,6 +105,7 @@ public class SamplePatientUpdateData {
     private List<String> patientSMSNotificationTestIds;
     private List<String> providerEmailNotificationTestIds;
     private List<String> providerSMSNotificationTestIds;
+    private boolean alternateOrderFlow;
 
     public SamplePatientUpdateData(String currentUserId) {
         this.currentUserId = currentUserId;
@@ -268,15 +269,27 @@ public class SamplePatientUpdateData {
     }
 
     public void validateSample(Errors errors) {
+        validateSample(errors, false);
+    }
+
+    public void validateSample(Errors errors, boolean deferAccessionUsageCheck) {
+        validateSample(errors, deferAccessionUsageCheck, false);
+    }
+
+    public void validateSample(Errors errors, boolean deferAccessionUsageCheck, boolean automaticAccession) {
         // assure accession number
+        // An automatic number is validated when assigned inside the save transaction.
+        if (!automaticAccession) {
+            IAccessionNumberValidator.ValidationResults result = deferAccessionUsageCheck
+                    ? AccessionNumberUtil.getGeneralAccessionNumberValidator().validFormat(accessionNumber, true)
+                    : AccessionNumberUtil.checkAccessionNumberValidity(accessionNumber, null, null, null);
 
-        // TODO
-        IAccessionNumberValidator.ValidationResults result = AccessionNumberUtil
-                .checkAccessionNumberValidity(accessionNumber, null, null, null);
-
-        if (result != IAccessionNumberValidator.ValidationResults.SUCCESS) {
-            String message = AccessionNumberUtil.getInvalidMessage(result);
-            errors.reject(message);
+            if (result != IAccessionNumberValidator.ValidationResults.SUCCESS) {
+                String message = deferAccessionUsageCheck
+                        ? AccessionNumberUtil.getGeneralAccessionNumberValidator().getInvalidFormatMessage(result)
+                        : AccessionNumberUtil.getInvalidMessage(result);
+                errors.reject(message);
+            }
         }
 
         // assure that there is at least 1 sample
@@ -285,7 +298,7 @@ public class SamplePatientUpdateData {
         }
 
         // assure that all samples have tests
-        if (!allSamplesHaveTests()) {
+        if (!alternateOrderFlow && !allSamplesHaveTests()) {
             errors.reject("errors.samples.with.no.tests");
         }
 
@@ -627,6 +640,14 @@ public class SamplePatientUpdateData {
 
     public List<String> getProviderSMSNotificationTestIds() {
         return providerSMSNotificationTestIds;
+    }
+
+    public boolean isAlternateOrderFlow() {
+        return alternateOrderFlow;
+    }
+
+    public void setAlternateOrderFlow(boolean alternateOrderFlow) {
+        this.alternateOrderFlow = alternateOrderFlow;
     }
 
     public void setProviderSMSNotificationTestIds(List<String> providerSMSNotificationTestIds) {

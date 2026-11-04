@@ -13,6 +13,7 @@ import org.openelisglobal.coldstorage.service.ThresholdProfileService;
 import org.openelisglobal.coldstorage.valueholder.ThresholdProfile;
 import org.openelisglobal.common.rest.BaseRestController;
 import org.springframework.http.ResponseEntity;
+import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.security.core.context.SecurityContextHolder;
 import org.springframework.validation.annotation.Validated;
 import org.springframework.web.bind.annotation.GetMapping;
@@ -25,6 +26,7 @@ import org.springframework.web.bind.annotation.RestController;
 @Validated
 @RestController
 @RequestMapping({ "/rest/coldstorage", "/rest/freezer-monitoring" })
+@PreAuthorize("@accessControl.hasStoragePermission('read')")
 public class FreezerThresholdController extends BaseRestController {
 
     private final ThresholdProfileService thresholdProfileService;
@@ -40,6 +42,7 @@ public class FreezerThresholdController extends BaseRestController {
     }
 
     @PostMapping("/thresholds")
+    @PreAuthorize("@accessControl.hasStoragePermission('manage')")
     public ThresholdProfileResponse createThreshold(@RequestBody @Valid CreateThresholdProfileRequest request) {
         ThresholdProfile profile = request.toEntity();
         String username = resolveCurrentUser();
@@ -48,6 +51,7 @@ public class FreezerThresholdController extends BaseRestController {
     }
 
     @PostMapping("/{freezerId}/thresholds/{profileId}/assign")
+    @PreAuthorize("@accessControl.hasStoragePermission('manage')")
     public ResponseEntity<FreezerThresholdAssignmentResponse> assignThreshold(@PathVariable Long freezerId,
             @PathVariable Long profileId, @RequestBody(required = false) AssignThresholdRequest request) {
         OffsetDateTime effectiveStart = request != null ? request.getEffectiveStart() : null;

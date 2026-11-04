@@ -51,6 +51,9 @@ public class StorageLocationServiceTest {
     @Mock
     private SampleStorageAssignmentDAO sampleStorageAssignmentDAO;
 
+    @Mock
+    private StorageAuthorizationService storageAuthorizationService;
+
     @InjectMocks
     private StorageLocationServiceImpl storageLocationService;
 

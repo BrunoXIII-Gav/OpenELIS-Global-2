@@ -1,8 +1,12 @@
 const CreatePatientFormValues = {
+  patientPK: "",
   patientUpdateStatus: "ADD",
   nationalId: "",
   subjectNumber: "",
   dni: "",
+  dniEnabled: false,
+  passportEnabled: false,
+  foreignIdEnabled: false,
   passportNumber: "",
   foreignId: "",
   primaryPatientIdentifierType: "",
@@ -32,5 +36,4 @@ const CreatePatientFormValues = {
   },
   patientAdditionalFieldValues: {},
 };
-
 export default CreatePatientFormValues;

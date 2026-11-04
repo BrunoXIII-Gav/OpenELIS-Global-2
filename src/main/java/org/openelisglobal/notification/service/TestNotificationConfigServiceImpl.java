@@ -162,7 +162,8 @@ public class TestNotificationConfigServiceImpl extends AuditableBaseObjectServic
         save(oldConfig);
     }
 
-    private void syncNotificationOptions(TestNotificationConfig oldConfig, TestNotificationConfig newConfig, String sysUserId) {
+    private void syncNotificationOptions(TestNotificationConfig oldConfig, TestNotificationConfig newConfig,
+            String sysUserId) {
         if (oldConfig.getOptions() == null) {
             oldConfig.setOptions(new ArrayList<>());
         }
@@ -198,7 +199,8 @@ public class TestNotificationConfigServiceImpl extends AuditableBaseObjectServic
         }
     }
 
-    private void removeMissingInternalProfileOptions(TestNotificationConfig oldConfig, TestNotificationConfig newConfig) {
+    private void removeMissingInternalProfileOptions(TestNotificationConfig oldConfig,
+            TestNotificationConfig newConfig) {
         List<NotificationConfigOption> newInternalProfileOptions = newConfig.getOptions().stream()
                 .filter(this::isInternalProfileEmailOption).toList();
         Iterator<NotificationConfigOption> iterator = oldConfig.getOptions().iterator();
@@ -215,12 +217,11 @@ public class TestNotificationConfigServiceImpl extends AuditableBaseObjectServic
         }
     }
 
-    private NotificationConfigOption findMatchingOption(TestNotificationConfig oldConfig, NotificationConfigOption newOption) {
+    private NotificationConfigOption findMatchingOption(TestNotificationConfig oldConfig,
+            NotificationConfigOption newOption) {
         if (isInternalProfileEmailOption(newOption)) {
-            return oldConfig.getOptions().stream()
-                    .filter(opt -> internalProfileOptionMatches(opt, newOption))
-                    .findFirst()
-                    .orElseGet(() -> {
+            return oldConfig.getOptions().stream().filter(opt -> internalProfileOptionMatches(opt, newOption))
+                    .findFirst().orElseGet(() -> {
                         NotificationConfigOption created = new NotificationConfigOption(NotificationMethod.EMAIL,
                                 NotificationPersonType.INTERNAL_PROFILE,
                                 newOption.getNotificationNature() == null ? NotificationNature.RESULT_PENDING_VALIDATION
@@ -283,11 +284,11 @@ public class TestNotificationConfigServiceImpl extends AuditableBaseObjectServic
         updatePayloadTemplatesMessageAndSubject(config, sysUserId);
         TestNotificationConfig persisted = get(savedConfig.getId());
         LogEvent.logInfo(this.getClass().getSimpleName(), "saveStatusAndMessages",
-                "saved testId=" + persisted.getTestId() + " internalRules=" + persisted.getInternalProfileEmailNotifications()
-                        .stream()
-                        .map(opt -> "nature=" + opt.getNotificationNature() + ",profile=" + opt.getProfessionalProfileCode()
-                                + ",active=" + opt.getActive() + ",subject=" + opt.getSubjectTemplate() + ",message="
-                                + opt.getMessageTemplate())
-                        .reduce((left, right) -> left + " || " + right).orElse("<none>"));
+                "saved testId=" + persisted.getTestId() + " internalRules="
+                        + persisted.getInternalProfileEmailNotifications().stream()
+                                .map(opt -> "nature=" + opt.getNotificationNature() + ",profile="
+                                        + opt.getProfessionalProfileCode() + ",active=" + opt.getActive() + ",subject="
+                                        + opt.getSubjectTemplate() + ",message=" + opt.getMessageTemplate())
+                                .reduce((left, right) -> left + " || " + right).orElse("<none>"));
     }
 }

@@ -24,6 +24,9 @@ public class StorageLocationServiceSearchTest {
     @Mock
     private StorageSearchService storageSearchService;
 
+    @Mock
+    private StorageAuthorizationService storageAuthorizationService;
+
     @InjectMocks
     private StorageLocationServiceImpl storageLocationService;
 

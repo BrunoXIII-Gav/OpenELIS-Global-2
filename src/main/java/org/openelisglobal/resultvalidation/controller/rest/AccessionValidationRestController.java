@@ -13,6 +13,7 @@ import org.openelisglobal.common.constants.Constants;
 import org.openelisglobal.common.constants.SystemPermission;
 import org.openelisglobal.common.exception.LIMSRuntimeException;
 import org.openelisglobal.common.log.LogEvent;
+import org.openelisglobal.common.service.ProfessionalProfilePermissionService;
 import org.openelisglobal.common.services.DisplayListService;
 import org.openelisglobal.common.services.DisplayListService.ListType;
 import org.openelisglobal.common.services.IResultSaveService;
@@ -48,6 +49,7 @@ import org.openelisglobal.resultvalidation.controller.BaseResultValidationContro
 import org.openelisglobal.resultvalidation.form.ResultValidationForm;
 import org.openelisglobal.resultvalidation.service.AnalysisValidationApprovalService;
 import org.openelisglobal.resultvalidation.service.ResultValidationService;
+import org.openelisglobal.resultvalidation.service.ValidationAuthorizationService;
 import org.openelisglobal.resultvalidation.util.ResultValidationSaveService;
 import org.openelisglobal.resultvalidation.util.ResultsValidationUtility;
 import org.openelisglobal.role.service.RoleService;
@@ -55,7 +57,6 @@ import org.openelisglobal.sample.service.SampleService;
 import org.openelisglobal.sample.valueholder.Sample;
 import org.openelisglobal.samplehuman.service.SampleHumanService;
 import org.openelisglobal.sampleitem.service.SampleItemService;
-import org.openelisglobal.sampleitem.valueholder.SampleItem;
 import org.openelisglobal.search.service.SearchResultsService;
 import org.openelisglobal.security.service.UserPermissionService;
 import org.openelisglobal.spring.util.SpringContext;
@@ -70,7 +71,7 @@ import org.openelisglobal.typeoftestresult.service.TypeOfTestResultServiceImpl;
 import org.openelisglobal.userrole.service.UserRoleService;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.http.MediaType;
-import org.springframework.security.access.prepost.PreAuthorize;
+import org.springframework.security.access.AccessDeniedException;
 import org.springframework.stereotype.Controller;
 import org.springframework.validation.BindingResult;
 import org.springframework.validation.Errors;
@@ -80,7 +81,6 @@ import org.springframework.web.bind.annotation.*;
 
 @Controller
 @RequestMapping(value = "/rest/")
-@PreAuthorize("@accessControl.hasPermission(T(org.openelisglobal.common.constants.SystemPermission).VALIDATION)")
 public class AccessionValidationRestController extends BaseResultValidationController {
     @Autowired
     private UserService userService;
@@ -99,6 +99,10 @@ public class AccessionValidationRestController extends BaseResultValidationContr
     private UserPermissionService userPermissionService;
     @Autowired
     private SampleItemService sampleItemService;
+    @Autowired
+    private ProfessionalProfilePermissionService profilePermissionService;
+    @Autowired
+    private ValidationAuthorizationService validationAuthorizationService;
 
     private static final String[] ALLOWED_FIELDS = new String[] { "testSectionId", "paging.currentPage", "testSection",
             "testName", "resultList*.accessionNumber", "resultList*.analysisId", "resultList*.testId",
@@ -160,6 +164,8 @@ public class AccessionValidationRestController extends BaseResultValidationContr
             @RequestParam(required = false) String unitType, @RequestParam(defaultValue = "true") Boolean doRange)
             throws IllegalAccessException, InvocationTargetException, NoSuchMethodException {
 
+        requirePermission(getSysUserId(request), "read");
+
         ResultValidationForm newForm = new ResultValidationForm();
         if (StringUtils.isNotBlank(accessionNumber)) {
             newForm.setAccessionNumber(accessionNumber);
@@ -210,6 +216,7 @@ public class AccessionValidationRestController extends BaseResultValidationContr
             if (!(GenericValidator.isBlankOrNull(form.getTestSectionId())
                     && GenericValidator.isBlankOrNull(form.getAccessionNumber())
                     && GenericValidator.isBlankOrNull(form.getTestDate()))) {
+
                 if (doRange) {
                     resultList = resultsValidationUtility.getResultValidationList(getValidationStatus(),
                             form.getTestSectionId(), form.getAccessionNumber(), form.getTestDate());
@@ -232,7 +239,9 @@ public class AccessionValidationRestController extends BaseResultValidationContr
                         }
                     }
                 }
-                filteredresultList = filterAnalysisResultsByValidationRoles(currentUserId, resultList);
+
+                filteredresultList = validationAuthorizationService.filterResults(currentUserId, resultList, "read",
+                        getValidationRoleNamesForScope(currentUserId));
                 request.setAttribute("pageSize", filteredresultList.size());
                 form.setSearchFinished(true);
             } else {
@@ -273,14 +282,16 @@ public class AccessionValidationRestController extends BaseResultValidationContr
         if (StringUtils.isBlank(userId)) {
             return false;
         }
-        return userPermissionService.hasPermission(userId, SystemPermission.VALIDATION);
+        // Validation is a single final operation; the former sign action is no longer
+        // separate.
+        return validationAuthorizationService.hasPermission(userId, "validate");
     }
 
     private boolean isBiologistValidator(String userId) {
         if (StringUtils.isBlank(userId)) {
             return false;
         }
-        return userPermissionService.hasPermission(userId, SystemPermission.VALIDATION);
+        return validationAuthorizationService.hasPermission(userId, "validate");
     }
 
     private List<IdValuePair> getUserValidationTestSections(String userId) {
@@ -318,8 +329,8 @@ public class AccessionValidationRestController extends BaseResultValidationContr
     }
 
     private List<String> getValidationRoleNamesForScope(String userId) {
-        List<String> roleNames = new ArrayList<>(userPermissionService.getGrantedLegacyRoleNames(userId,
-                SystemPermission.VALIDATION));
+        List<String> roleNames = new ArrayList<>(
+                userPermissionService.getGrantedLegacyRoleNames(userId, SystemPermission.VALIDATION));
         if (roleNames.isEmpty()) {
             roleNames.add(Constants.ROLE_VALIDATION);
         }
@@ -331,10 +342,17 @@ public class AccessionValidationRestController extends BaseResultValidationContr
     public ResultValidationForm showAccessionValidationRangeSave(HttpServletRequest request,
             @Validated(ResultValidationForm.ResultValidation.class) @RequestBody ResultValidationForm form,
             BindingResult result) throws IllegalAccessException, InvocationTargetException, NoSuchMethodException {
-
+        String sysUserId = getSysUserId(request);
         if ("true".equals(request.getParameter("pageResults"))) {
+            requirePermission(sysUserId, "read");
             return getResultValidation(request, form, false);
         }
+        requirePermission(sysUserId, "validate");
+        if (!profilePermissionService.hasValidationPermission(sysUserId)) {
+            throw new AccessDeniedException(
+                    "User " + sysUserId + " does not have required role permission for validation");
+        }
+
         form.setSearchFinished(false);
 
         if (result.hasErrors()) {
@@ -356,7 +374,10 @@ public class AccessionValidationRestController extends BaseResultValidationContr
         ResultValidationPaging paging = new ResultValidationPaging();
         paging.updatePagedResults(request, form);
         List<AnalysisItem> resultItemList = paging.getResults(request);
-
+        if (!validationAuthorizationService.canAccessAllResults(sysUserId, resultItemList, "validate",
+                getValidationRoleNamesForScope(sysUserId))) {
+            throw new AccessDeniedException("User cannot validate results outside the assigned laboratory units");
+        }
         String testSectionName = form.getTestSection();
         String testName = form.getTestName();
         setRequestType(testSectionName);
@@ -390,7 +411,7 @@ public class AccessionValidationRestController extends BaseResultValidationContr
         // }
         try {
             resultValidationService.persistdata(deletableList, analysisUpdateList, resultUpdateList, resultItemList,
-                    sampleUpdateList, noteUpdateList, resultSaveService, updaters, getSysUserId(request));
+                    sampleUpdateList, noteUpdateList, resultSaveService, updaters, sysUserId);
 
             try {
                 fhirTransformService.transformPersistResultValidationFhirObjects(deletableList, analysisUpdateList,
@@ -423,6 +444,12 @@ public class AccessionValidationRestController extends BaseResultValidationContr
         }
 
         return (form);
+    }
+
+    private void requirePermission(String sysUserId, String actionKey) {
+        if (!validationAuthorizationService.hasPermission(sysUserId, actionKey)) {
+            throw new AccessDeniedException("User does not have Validation module permission: " + actionKey);
+        }
     }
 
     private Errors validateModifiedItems(List<AnalysisItem> resultItemList) {
@@ -497,9 +524,6 @@ public class AccessionValidationRestController extends BaseResultValidationContr
 
                         if (medicalValidator && medicalPreviewConfirmed
                                 && !finalizedStatus.equals(analysis.getStatusId())) {
-                            analysisValidationApprovalService.clearApprovals(analysis.getId());
-                            analysisValidationApprovalService.registerApprovalAndGetCount(analysis.getId(),
-                                    currentUserId);
                             analysis.setStatusId(finalizedStatus);
                             if (!analysisIdList.contains(analysis.getId())) {
                                 analysisIdList.add(analysis.getId());
@@ -509,7 +533,6 @@ public class AccessionValidationRestController extends BaseResultValidationContr
                     }
 
                     if (analysisItem.getIsRejected()) {
-                        analysisValidationApprovalService.clearApprovals(analysis.getId());
                         analysis.setStatusId(biologistRejectedStatus);
                         analysisIdList.add(analysis.getId());
                         analysisUpdateList.add(analysis);

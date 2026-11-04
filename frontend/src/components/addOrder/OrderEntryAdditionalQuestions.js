@@ -68,6 +68,25 @@ const OrderEntryAdditionalQuestions = ({
     console.debug("default setOrderFormValues change function does nothing");
   },
 }) => {
+  const updateSampleOrderItems = (updater) => {
+    setOrderFormValues((previous) => {
+      const current = previous || orderFormValues || {};
+      const currentSampleOrderItems = current.sampleOrderItems || {};
+      const nextSampleOrderItems =
+        typeof updater === "function"
+          ? updater(currentSampleOrderItems)
+          : {
+              ...currentSampleOrderItems,
+              ...updater,
+            };
+
+      return {
+        ...current,
+        sampleOrderItems: nextSampleOrderItems,
+      };
+    });
+  };
+
   const [questionnaire, setQuestionnaire] = useState(
     orderFormValues?.sampleOrderItems?.questionnaire,
   );
@@ -75,23 +94,28 @@ const OrderEntryAdditionalQuestions = ({
     orderFormValues?.sampleOrderItems?.additionalQuestions,
   );
 
+  useEffect(() => {
+    setQuestionnaire(orderFormValues?.sampleOrderItems?.questionnaire || null);
+    setQuestionnaireResponse(
+      orderFormValues?.sampleOrderItems?.additionalQuestions || null,
+    );
+  }, [
+    orderFormValues?.sampleOrderItems?.questionnaire,
+    orderFormValues?.sampleOrderItems?.additionalQuestions,
+  ]);
+
   const handleProgramSelection = (event) => {
     if (!event?.target?.value) {
-      setAdditionalQuestions({});
-      setOrderFormValues({
-        ...orderFormValues,
-        sampleOrderItems: {
-          ...orderFormValues.sampleOrderItems,
-          programId: "",
-        },
+      setQuestionnaire(null);
+      setQuestionnaireResponse(null);
+      updateSampleOrderItems({
+        programId: "",
+        questionnaire: null,
+        additionalQuestions: null,
       });
     } else {
-      setOrderFormValues({
-        ...orderFormValues,
-        sampleOrderItems: {
-          ...orderFormValues.sampleOrderItems,
-          programId: event.target.value,
-        },
+      updateSampleOrderItems({
+        programId: event.target.value,
       });
       getFromOpenElisServer(
         "/rest/program/" + event.target.value + "/questionnaire",
@@ -127,20 +151,20 @@ const OrderEntryAdditionalQuestions = ({
 
   function setAdditionalQuestions(res, event) {
     console.debug(res);
-    if (res && "item" in res) {
-      setQuestionnaire(res);
-      var convertedQuestionnaireResponse = convertQuestionnaireToResponse(res);
-      setQuestionnaireResponse(convertedQuestionnaireResponse);
-      setOrderFormValues({
-        ...orderFormValues,
-        sampleOrderItems: {
-          ...orderFormValues.sampleOrderItems,
-          questionnaire: res,
-          programId: event ? event.target.value : "",
-          additionalQuestions: convertedQuestionnaireResponse,
-        },
-      });
-    }
+    const hasQuestionnaireItems = res && "item" in res;
+    const nextQuestionnaire = hasQuestionnaireItems ? res : null;
+    const convertedQuestionnaireResponse = hasQuestionnaireItems
+      ? convertQuestionnaireToResponse(res)
+      : null;
+
+    setQuestionnaire(nextQuestionnaire);
+    setQuestionnaireResponse(convertedQuestionnaireResponse);
+    updateSampleOrderItems((currentSampleOrderItems) => ({
+      ...currentSampleOrderItems,
+      questionnaire: nextQuestionnaire,
+      programId: event ? event.target.value : currentSampleOrderItems.programId,
+      additionalQuestions: convertedQuestionnaireResponse,
+    }));
   }
   const getAnswer = (linkId) => {
     var responseItem = questionnaireResponse?.item?.find(
@@ -249,12 +273,8 @@ const OrderEntryAdditionalQuestions = ({
       }
     }
     setQuestionnaireResponse(updatedQuestionnaireResponse);
-    setOrderFormValues({
-      ...orderFormValues,
-      sampleOrderItems: {
-        ...orderFormValues.sampleOrderItems,
-        additionalQuestions: updatedQuestionnaireResponse,
-      },
+    updateSampleOrderItems({
+      additionalQuestions: updatedQuestionnaireResponse,
     });
   };
 

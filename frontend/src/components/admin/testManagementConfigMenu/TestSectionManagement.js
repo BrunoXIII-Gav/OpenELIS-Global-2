@@ -42,6 +42,7 @@ import { FormattedMessage, injectIntl, useIntl } from "react-intl";
 import PageBreadCrumb from "../../common/PageBreadCrumb.js";
 import CustomCheckBox from "../../common/CustomCheckBox.js";
 import ActionPaginationButtonType from "../../common/ActionPaginationButtonType.js";
+import TestSectionOriginConfig from "./TestSectionOriginConfig";
 
 let breadcrumbs = [
   { label: "home.label", link: "/" },
@@ -106,6 +107,7 @@ function TestSectionManagement() {
                   <FormattedMessage id="configuration.panel.assign" />
                 </ClickableTile>
               </UnorderedList>
+              <TestSectionOriginConfig />
             </Column>
           </Grid>
         </div>

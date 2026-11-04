@@ -1,26 +1,29 @@
+@use "@carbon/styles/scss/spacing";
+@use "@carbon/styles/scss/theme";
+
 .consent-template-config-page {
-  padding: 1rem;
+  padding: spacing.$spacing-05;
 }
 
 .consent-template-config-header {
-  margin-bottom: 1rem;
+  margin-bottom: spacing.$spacing-05;
 }
 
 .consent-template-config-subtitle {
-  margin-top: 0.5rem;
-  color: #525252;
+  margin-top: spacing.$spacing-03;
+  color: theme.$text-secondary;
 }
 
 .consent-template-config-alert {
-  margin-bottom: 1rem;
+  margin-bottom: spacing.$spacing-05;
 }
 
 .consent-template-config-table {
-  margin-top: 1rem;
+  margin-top: spacing.$spacing-05;
 }
 
 .consent-template-config-actions {
-  margin-top: 1rem;
+  margin-top: spacing.$spacing-05;
   display: flex;
   justify-content: flex-end;
 }

@@ -20,7 +20,6 @@ import {
 import { FormattedMessage, injectIntl, useIntl } from "react-intl";
 import PageBreadCrumb from "../../common/PageBreadCrumb.js";
 import { CustomShowGuide } from "./customComponents/CustomShowGuide.js";
-import { CustomTestDataDisplay } from "./customComponents/CustomTestDataDisplay.js";
 import { TestStepForm } from "./customComponents/TestStepForm.js";
 import { mapTestCatBeanToFormData } from "./customComponents/TestFormData.js";
 import SearchTestNames from "./SearchTestNames";
@@ -308,6 +307,13 @@ function TestModifyEntry() {
       description: <FormattedMessage id="test.description.directSampleUsage" />,
     },
     {
+      id: "allowProcessingInAlternateFlow",
+      field: intl.formatMessage({ id: "test.allowProcessingInAlternateFlow" }),
+      description: (
+        <FormattedMessage id="test.description.allowProcessingInAlternateFlow" />
+      ),
+    },
+    {
       id: "skipValidationWhenParentComplete",
       field: intl.formatMessage({
         id: "test.field.skipValidationWhenParentComplete",
@@ -362,13 +368,7 @@ function TestModifyEntry() {
           <br />
           <hr />
           <br />
-          {selectedTestIdToEdit ? (
-            <CustomTestDataDisplay
-              testToDisplay={testMonifyList?.testCatBeanList?.find(
-                (test) => test.id === selectedTestIdToEdit,
-              )}
-            />
-          ) : (
+          {!selectedTestIdToEdit && (
             <>
               <TestModifyFilters
                 sampleTypeList={testMonifyList?.sampleTypeList}
@@ -412,8 +412,12 @@ function TestModifyEntry() {
               )}
             </>
           )}
-          <br />
-          <hr />
+          {!selectedTestIdToEdit && (
+            <>
+              <br />
+              <hr />
+            </>
+          )}
           {selectedTestIdToEdit ? (
             <>
               <TestStepForm

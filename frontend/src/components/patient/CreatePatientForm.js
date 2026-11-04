@@ -1,7 +1,12 @@
+import PatientRegistrationReadiness from "./PatientRegistrationReadiness";
+import HistoricalUserSelectItem from "../common/HistoricalUserSelectItem";
 import React, { useState, useRef, useEffect, useContext } from "react";
 import { FormattedMessage, injectIntl, useIntl } from "react-intl";
 import "../Style.css";
-import { getFromOpenElisServer, postToOpenElisServer } from "../utils/Utils";
+import {
+  getFromOpenElisServer,
+  postToOpenElisServerJsonResponse,
+} from "../utils/Utils";
 import { nationalityList } from "../data/countries";
 import format from "date-fns/format";
 import {
@@ -11,11 +16,11 @@ import {
   addYears,
   addMonths,
 } from "date-fns";
-
 import {
   Heading,
   Form,
   FormLabel,
+  InlineNotification,
   TextInput,
   TextArea,
   Checkbox,
@@ -31,16 +36,45 @@ import {
   Column,
 } from "@carbon/react";
 import AddressSearch from "./AddressSearch";
-
 import { Formik, Field, ErrorMessage } from "formik";
 import CreatePatientFormValues from "../formModel/innitialValues/CreatePatientFormValues";
 import PatientFormObserver from "./PatientFormObserver";
+import { sanitizePatientProperties } from "./patientPropertiesSanitizer";
 import { AlertDialog, NotificationKinds } from "../common/CustomNotification";
 import { NotificationContext, ConfigurationContext } from "../layout/Layout";
 import CreatePatientValidationSchema from "../formModel/validationSchema/CreatePatientValidationShema";
 import CustomDatePicker from "../common/CustomDatePicker";
 import PatientImageSelector from "./photoManagement/uploadPhoto/PatientImageSelector";
-
+import {
+  normalizePatientFixedFieldConfigs,
+  PATIENT_FIXED_FIELD_DEFINITION_MAP,
+} from "./patientFixedFieldConfig";
+const DOCUMENT_FIELDS = {
+  DNI: {
+    field: "dni",
+    enabled: "dniEnabled",
+    maxLength: 8,
+    pattern: /^[0-9]{1,8}$/,
+    invalidCharacters: /[^0-9]/g,
+    error: "patient.document.dni.format",
+  },
+  PASSPORT: {
+    field: "passportNumber",
+    enabled: "passportEnabled",
+    maxLength: 9,
+    pattern: /^[A-Za-z0-9]{1,9}$/,
+    invalidCharacters: /[^A-Za-z0-9]/g,
+    error: "patient.document.passport.format",
+  },
+  FOREIGN_ID: {
+    field: "foreignId",
+    enabled: "foreignIdEnabled",
+    maxLength: 20,
+    pattern: /^[A-Za-z0-9]{1,20}$/,
+    invalidCharacters: /[^A-Za-z0-9]/g,
+    error: "patient.document.foreign.format",
+  },
+};
 const PRIMARY_IDENTIFIER_OPTIONS = [
   {
     value: "DNI",
@@ -58,15 +92,27 @@ const PRIMARY_IDENTIFIER_OPTIONS = [
     toggleKey: "foreignId",
   },
 ];
-
+const PATIENT_FIXED_FIELD_TAGS = {
+  photo: "patient-photo",
+  subjectNumber: "patient-subject-number",
+  nationalId: "patient-national-id",
+  optionalIdentifiers: "patient-optional-identifiers",
+  lastName: "patient-last-name",
+  firstName: "patient-first-name",
+  primaryPhone: "patient-primary-phone",
+  email: "patient-email",
+  gender: "patient-gender",
+  birthDateAge: "patient-birth-date-age",
+  emergencyContact: "patient-emergency-contact",
+  additionalInfo: "patient-additional-information",
+};
 function CreatePatientForm(props) {
   const componentMounted = useRef(false);
   const selectedPatient = props.selectedPatient || {};
-
+  const isOrderEntryPatientStep = props.isOrderEntryPatientStep === true;
   const { notificationVisible, setNotificationVisible, addNotification } =
     useContext(NotificationContext);
   const { configurationProperties } = useContext(ConfigurationContext);
-
   const intl = useIntl();
   const showPatientPhotoOnOrderEntry =
     configurationProperties.SHOW_PATIENT_PHOTO_ON_ORDER_ENTRY !== "false";
@@ -81,7 +127,6 @@ function CreatePatientForm(props) {
     "false";
   const showPatientNationalIdField =
     configurationProperties.SHOW_PATIENT_NATIONAL_ID_FIELD !== "false";
-
   const [patientDetails, setPatientDetails] = useState(CreatePatientFormValues);
   const [healthRegions, setHealthRegions] = useState([]);
   const [healthDistricts, setHealthDistricts] = useState([]);
@@ -92,6 +137,9 @@ function CreatePatientForm(props) {
   const [educationList, setEducationList] = useState([]);
   const [maritalStatuses, setMaritalStatuses] = useState([]);
   const [patientAdditionalFields, setPatientAdditionalFields] = useState([]);
+  const [patientFixedFieldConfigs, setPatientFixedFieldConfigs] = useState(
+    normalizePatientFixedFieldConfigs(),
+  );
   const [prevfirstName, setPrevfirstName] = useState("");
   const [prevlastName, setPrevlastName] = useState("");
   const [prevfirstContactName, setPrevfirstContactName] = useState("");
@@ -106,49 +154,183 @@ function CreatePatientForm(props) {
     nationalId: selectedPatient.nationalId || "",
     subjectNumber: selectedPatient.subjectNumber || "",
   });
-
+  const untypedIdentifierRef = useRef("");
   const [isSubmitting, setIsSubmitting] = useState(false);
+  const saveInFlight = useRef(false);
+  const [patientReady, setPatientReady] = useState(false);
+  const [fixedFieldsLoaded, setFixedFieldsLoaded] = useState(false);
+  const [additionalFieldsLoaded, setAdditionalFieldsLoaded] = useState(false);
+  const [hasPatientPermission, setHasPatientPermission] = useState(false);
+  const [hasOrderPermission, setHasOrderPermission] = useState(false);
+  const [permissionsLoaded, setPermissionsLoaded] = useState(false);
+  const [patientModuleAccess, setPatientModuleAccess] = useState({
+    canRead: false,
+    canCreate: false,
+    canUpdate: false,
+    restrictedFieldTagKeys: [],
+  });
   const [phoneValidation, setPhoneValidation] = useState({
-    primaryPhone: { body: "", status: true },
-    contactPhone: { body: "", status: true },
+    primaryPhone: {
+      body: "",
+      status: true,
+    },
+    contactPhone: {
+      body: "",
+      status: true,
+    },
   });
   const [showDniField, setShowDniField] = useState(false);
   const [showPassportField, setShowPassportField] = useState(false);
   const [showForeignIdField, setShowForeignIdField] = useState(false);
-
-  const getPersistedPatientContext = () => {
-    const selectedPatientPk = String(props.selectedPatient?.patientPK || "").trim();
-    if (selectedPatientPk) {
-      return props.selectedPatient;
+  const isExistingPatient = Boolean(
+    selectedPatient?.patientPK || patientDetails?.patientPK,
+  );
+  const restrictedPatientFieldTags = new Set(
+    patientModuleAccess.restrictedFieldTagKeys || [],
+  );
+  const canEditPatientInCurrentContext =
+    !(patientDetails?.readOnly || selectedPatient?.readOnly) &&
+    (isExistingPatient
+      ? patientModuleAccess.canUpdate
+      : isOrderEntryPatientStep
+        ? hasOrderPermission
+        : patientModuleAccess.canCreate);
+  const getPatientFixedFieldConfig = (fieldKey) =>
+    patientFixedFieldConfigs.find((config) => config.fieldKey === fieldKey) ||
+    normalizePatientFixedFieldConfigs().find(
+      (config) => config.fieldKey === fieldKey,
+    ) || {
+      fieldKey,
+      visible: true,
+      required: false,
+      readonly: false,
+      sortOrder: Number.MAX_SAFE_INTEGER,
+    };
+  const getPatientFixedFieldOrder = (fieldKey, offset = 0) =>
+    (Number(getPatientFixedFieldConfig(fieldKey)?.sortOrder) || 0) + offset;
+  const getPatientFixedFieldStyle = (fieldKey, offset = 0) => ({
+    order: getPatientFixedFieldOrder(fieldKey, offset),
+  });
+  const hasPatientFieldValue = (fieldKey) => {
+    const contact = patientDetails?.patientContact?.person || {};
+    const additionalInfoValues = [
+      patientDetails?.city,
+      patientDetails?.streetAddress,
+      patientDetails?.commune,
+      patientDetails?.addressDepartment,
+      patientDetails?.healthRegion,
+      patientDetails?.healthDistrict,
+      patientDetails?.maritalStatus,
+      patientDetails?.education,
+      patientDetails?.nationality,
+      ...Object.values(patientDetails?.addressHierarchy || {}),
+    ];
+    const hasValue = (value) => String(value || "").trim().length > 0;
+    switch (fieldKey) {
+      case "photo":
+        return hasValue(patientDetails?.photo);
+      case "optionalIdentifiers":
+        return [
+          patientDetails?.dni,
+          patientDetails?.passportNumber,
+          patientDetails?.foreignId,
+        ].some(hasValue);
+      case "emergencyContact":
+        return [
+          contact.firstName,
+          contact.lastName,
+          contact.primaryPhone,
+          contact.email,
+        ].some(hasValue);
+      case "additionalInfo":
+        return additionalInfoValues.some(hasValue);
+      default:
+        return hasValue(patientDetails?.[fieldKey]);
     }
-    return props.orderFormValues?.patientProperties || {};
   };
-
-  const isExistingPatientIdentifier = (numberValue) => {
-    const normalizedNumberValue = String(numberValue || "").trim();
-    if (!normalizedNumberValue) {
+  const isUpdateOnlyPatientMode =
+    !isOrderEntryPatientStep &&
+    isExistingPatient &&
+    patientModuleAccess.canUpdate &&
+    !patientModuleAccess.canCreate &&
+    !patientModuleAccess.canRead;
+  const isPatientFixedFieldVisible = (fieldKey) => {
+    const config = getPatientFixedFieldConfig(fieldKey);
+    if (
+      config.visible === false ||
+      restrictedPatientFieldTags.has(PATIENT_FIXED_FIELD_TAGS[fieldKey])
+    ) {
       return false;
     }
-
-    const persistedPatient = getPersistedPatientContext();
-    const patientPk = String(persistedPatient?.patientPK || "").trim();
-    if (!patientPk) {
-      return false;
+    switch (fieldKey) {
+      case "photo":
+        if (!showPatientPhotoOnOrderEntry) {
+          return false;
+        }
+        break;
+      case "nationalId":
+        if (!showPatientNationalIdField) {
+          return false;
+        }
+        break;
+      case "optionalIdentifiers":
+        if (!showPatientOptionalIdentifiersOnOrderEntry) {
+          return false;
+        }
+        break;
+      case "emergencyContact":
+        if (!showPatientEmergencyContactOnOrderEntry) {
+          return false;
+        }
+        break;
+      case "additionalInfo":
+        if (!showPatientAdditionalInfoOnOrderEntry) {
+          return false;
+        }
+        break;
+      default:
+        break;
     }
-
-    const persistedIdentifiers = [
-      persistedPatient?.subjectNumber,
-      persistedPatient?.nationalId,
-      persistedPatient?.dni,
-      persistedPatient?.passportNumber,
-      persistedPatient?.foreignId,
-    ]
-      .map((value) => String(value || "").trim())
-      .filter(Boolean);
-
-    return persistedIdentifiers.includes(normalizedNumberValue);
+    if (isOrderEntryPatientStep) {
+      return true;
+    }
+    if (!isExistingPatient) {
+      return patientModuleAccess.canCreate;
+    }
+    return (
+      (patientModuleAccess.canRead || patientModuleAccess.canUpdate) &&
+      (!isUpdateOnlyPatientMode || hasPatientFieldValue(fieldKey))
+    );
   };
-
+  const isPatientFixedFieldRequired = (fieldKey) =>
+    isPatientFixedFieldVisible(fieldKey) &&
+    getPatientFixedFieldConfig(fieldKey)?.required === true;
+  const isPatientFixedFieldReadOnly = (fieldKey) => {
+    if (isSubmitting) return true;
+    if (fieldKey === "nationalId") {
+      return true;
+    }
+    return (
+      !permissionsLoaded ||
+      !canEditPatientInCurrentContext ||
+      getPatientFixedFieldConfig(fieldKey)?.readonly === true
+    );
+  };
+  const getPatientFixedFieldLabel = (fieldKey) => (
+    <>
+      {intl.formatMessage({
+        id:
+          PATIENT_FIXED_FIELD_DEFINITION_MAP[fieldKey]?.labelId ||
+          "patient.fixed.fields.unknown",
+        defaultMessage:
+          PATIENT_FIXED_FIELD_DEFINITION_MAP[fieldKey]?.defaultLabel ||
+          fieldKey,
+      })}
+      {fieldKey === "nationalId" || isPatientFixedFieldRequired(fieldKey) ? (
+        <span className="requiredlabel">*</span>
+      ) : null}
+    </>
+  );
   const getIdentifierValueByType = (values, type) => {
     switch (type) {
       case "DNI":
@@ -161,7 +343,6 @@ function CreatePatientForm(props) {
         return "";
     }
   };
-
   const getVisiblePrimaryIdentifierOptions = () =>
     PRIMARY_IDENTIFIER_OPTIONS.filter((option) => {
       if (option.value === "DNI") {
@@ -172,18 +353,15 @@ function CreatePatientForm(props) {
       }
       return showForeignIdField;
     });
-
   const inferPrimaryIdentifierType = (patient) => {
     const explicitType = (patient?.primaryPatientIdentifierType || "").trim();
     if (explicitType) {
       return explicitType;
     }
-
     const nationalId = (patient?.nationalId || "").trim();
     const dni = (patient?.dni || "").trim();
     const passportNumber = (patient?.passportNumber || "").trim();
     const foreignId = (patient?.foreignId || "").trim();
-
     if (nationalId && nationalId === dni) return "DNI";
     if (nationalId && nationalId === passportNumber) return "PASSPORT";
     if (nationalId && nationalId === foreignId) return "FOREIGN_ID";
@@ -192,28 +370,39 @@ function CreatePatientForm(props) {
     if (foreignId) return "FOREIGN_ID";
     return "";
   };
-
   const validatePatientIdentifiers = (values) => {
     const validationErrors = {};
+    if (!isPatientFixedFieldVisible("optionalIdentifiers")) {
+      return validationErrors;
+    }
+    Object.values(DOCUMENT_FIELDS).forEach((config) => {
+      const value = String(values?.[config.field] || "");
+      if (values?.[config.enabled] && !value.trim()) {
+        validationErrors[config.field] = intl.formatMessage({
+          id: "patient.document.required",
+        });
+      } else if (value && !config.pattern.test(value)) {
+        validationErrors[config.field] = intl.formatMessage({
+          id: config.error,
+        });
+      }
+    });
     const hasIdentifier =
       Boolean((values?.dni || "").trim()) ||
       Boolean((values?.passportNumber || "").trim()) ||
       Boolean((values?.foreignId || "").trim());
-
     if (!hasIdentifier) {
       validationErrors.primaryPatientIdentifierType = intl.formatMessage({
         id: "patient.identifier.required.one",
       });
       return validationErrors;
     }
-
     if (!values?.primaryPatientIdentifierType) {
       validationErrors.primaryPatientIdentifierType = intl.formatMessage({
         id: "patient.identifier.primary.required",
       });
       return validationErrors;
     }
-
     if (
       !getIdentifierValueByType(
         values,
@@ -224,28 +413,177 @@ function CreatePatientForm(props) {
         id: "patient.identifier.primary.value.required",
       });
     }
-
     return validationErrors;
   };
-
-  const syncOptionalIdentityVisibility = (patient) => {
-    setShowDniField(Boolean((patient?.dni || "").trim()));
-    setShowPassportField(Boolean((patient?.passportNumber || "").trim()));
-    setShowForeignIdField(Boolean((patient?.foreignId || "").trim()));
+  const validatePatientFixedFields = (values) => {
+    const validationErrors = {};
+    if (
+      isPatientFixedFieldVisible("subjectNumber") &&
+      isPatientFixedFieldRequired("subjectNumber") &&
+      !String(patientIdentifierRef.current.subjectNumber || "").trim()
+    ) {
+      validationErrors.subjectNumber = intl.formatMessage({
+        id: "patient.fixed.fields.required",
+        defaultMessage: "This field is required.",
+      });
+    }
+    if (
+      isPatientFixedFieldVisible("lastName") &&
+      isPatientFixedFieldRequired("lastName") &&
+      !String(values?.lastName || "").trim()
+    ) {
+      validationErrors.lastName = intl.formatMessage({
+        id: "patient.fixed.fields.required",
+        defaultMessage: "This field is required.",
+      });
+    }
+    if (
+      isPatientFixedFieldVisible("firstName") &&
+      isPatientFixedFieldRequired("firstName") &&
+      !String(values?.firstName || "").trim()
+    ) {
+      validationErrors.firstName = intl.formatMessage({
+        id: "patient.fixed.fields.required",
+        defaultMessage: "This field is required.",
+      });
+    }
+    if (
+      isPatientFixedFieldVisible("primaryPhone") &&
+      isPatientFixedFieldRequired("primaryPhone") &&
+      !String(values?.primaryPhone || "").trim()
+    ) {
+      validationErrors.primaryPhone = intl.formatMessage({
+        id: "patient.fixed.fields.required",
+        defaultMessage: "This field is required.",
+      });
+    }
+    if (
+      isPatientFixedFieldVisible("email") &&
+      isPatientFixedFieldRequired("email") &&
+      !String(values?.email || "").trim()
+    ) {
+      validationErrors.email = intl.formatMessage({
+        id: "patient.fixed.fields.required",
+        defaultMessage: "This field is required.",
+      });
+    }
+    if (
+      isPatientFixedFieldVisible("gender") &&
+      isPatientFixedFieldRequired("gender") &&
+      !String(values?.gender || "").trim()
+    ) {
+      validationErrors.gender = intl.formatMessage({
+        id: "patient.fixed.fields.required",
+        defaultMessage: "This field is required.",
+      });
+    }
+    if (
+      isPatientFixedFieldVisible("birthDateAge") &&
+      isPatientFixedFieldRequired("birthDateAge") &&
+      !String(values?.birthDateForDisplay || "").trim()
+    ) {
+      validationErrors.birthDateForDisplay = intl.formatMessage({
+        id: "patient.fixed.fields.required",
+        defaultMessage: "This field is required.",
+      });
+    }
+    return validationErrors;
   };
-
+  const validatePatientForm = (values) => ({
+    ...validatePatientIdentifiers(values),
+    ...validatePatientFixedFields(values),
+  });
+  const syncOptionalIdentityVisibility = (patient) => {
+    untypedIdentifierRef.current =
+      patient?.patientPK && !inferPrimaryIdentifierType(patient)
+        ? String(patient.nationalId || "").trim()
+        : "";
+    setShowDniField(
+      patient?.dniEnabled === true || Boolean((patient?.dni || "").trim()),
+    );
+    setShowPassportField(
+      patient?.passportEnabled === true ||
+        Boolean((patient?.passportNumber || "").trim()),
+    );
+    setShowForeignIdField(
+      patient?.foreignIdEnabled === true ||
+        Boolean((patient?.foreignId || "").trim()),
+    );
+  };
+  const handleIdentifierToggle = (type, checked, values, setValues) => {
+    const enabled = {
+      DNI: showDniField,
+      PASSPORT: showPassportField,
+      FOREIGN_ID: showForeignIdField,
+      [type]: checked,
+    };
+    const fields = {
+      DNI: "dni",
+      PASSPORT: "passportNumber",
+      FOREIGN_ID: "foreignId",
+    };
+    setShowDniField(enabled.DNI);
+    setShowPassportField(enabled.PASSPORT);
+    setShowForeignIdField(enabled.FOREIGN_ID);
+    const next = {
+      ...values,
+      [DOCUMENT_FIELDS[type].enabled]: checked,
+    };
+    if (checked) {
+      if (!next.primaryPatientIdentifierType) {
+        next.primaryPatientIdentifierType = type;
+        // The user's explicit selection classifies an existing, untyped ID.
+        if (
+          !getIdentifierValueByType(next, type) &&
+          untypedIdentifierRef.current
+        ) {
+          next[fields[type]] = untypedIdentifierRef.current;
+        }
+      }
+    } else {
+      next[fields[type]] = "";
+      if (next.primaryPatientIdentifierType === type) {
+        next.primaryPatientIdentifierType =
+          PRIMARY_IDENTIFIER_OPTIONS.find((option) => enabled[option.value])
+            ?.value || "";
+      }
+    }
+    next.nationalId =
+      getIdentifierValueByType(
+        next,
+        next.primaryPatientIdentifierType,
+      ).trim() || untypedIdentifierRef.current;
+    setValues(next);
+  };
+  const handleDocumentChange = (event, type, setValues) => {
+    event.stopPropagation();
+    const config = DOCUMENT_FIELDS[type];
+    const value = event.target.value
+      .replace(config.invalidCharacters, "")
+      .slice(0, config.maxLength);
+    setValues((previous) => ({
+      ...previous,
+      [config.field]: value,
+      ...(previous.primaryPatientIdentifierType === type
+        ? {
+            nationalId: value,
+          }
+        : {}),
+    }));
+  };
   const handlePhotoChange = (photo, setFieldValue) => {
     if (setFieldValue) {
       setFieldValue("photo", photo);
     }
   };
-
   const handleSubjectNoChange = (event) => {
     const newValue = event.target.value;
     patientIdentifierRef.current.subjectNumber = newValue;
   };
   const handleDatePickerChange = (values, date) => {
-    var patient = { ...values };
+    var patient = {
+      ...values,
+    };
     if ("date-picker-default-id" in patient) {
       delete patient["date-picker-default-id"];
     }
@@ -255,11 +593,24 @@ function CreatePatientForm(props) {
       getYearsMonthsDaysFromDOB(patient.birthDateForDisplay);
     }
   };
-
   const getPatientAdditionalFields = () => {
     return Array.isArray(patientAdditionalFields)
       ? [...patientAdditionalFields]
-          .filter((field) => field && field.active !== false && field.fieldKey)
+          .filter(
+            (field) =>
+              field &&
+              field.active !== false &&
+              field.fieldKey &&
+              !restrictedPatientFieldTags.has(
+                `patient-additional-field-${field.id}`,
+              ) &&
+              (!isUpdateOnlyPatientMode ||
+                String(
+                  patientDetails?.patientAdditionalFieldValues?.[
+                    field.fieldKey
+                  ] || "",
+                ).trim().length > 0),
+          )
           .sort((left, right) => {
             const leftSortOrder =
               left?.sortOrder !== null && left?.sortOrder !== undefined
@@ -269,31 +620,43 @@ function CreatePatientForm(props) {
               right?.sortOrder !== null && right?.sortOrder !== undefined
                 ? Number(right.sortOrder)
                 : Number.POSITIVE_INFINITY;
-
             if (leftSortOrder !== rightSortOrder) {
               return leftSortOrder - rightSortOrder;
             }
-
             const leftDisplayName = String(
               left?.displayName || left?.fieldKey || "",
             ).toLowerCase();
             const rightDisplayName = String(
               right?.displayName || right?.fieldKey || "",
             ).toLowerCase();
-
             if (leftDisplayName !== rightDisplayName) {
               return leftDisplayName.localeCompare(rightDisplayName);
             }
-
             return String(left?.id || left?.fieldKey || "").localeCompare(
               String(right?.id || right?.fieldKey || ""),
             );
           })
       : [];
   };
-
+  const filterPatientAdditionalFieldValues = (fieldValues = {}) => {
+    const allowedFieldKeys = new Set(
+      getPatientAdditionalFields()
+        .map((field) => field?.fieldKey)
+        .filter(Boolean),
+    );
+    if (allowedFieldKeys.size === 0) {
+      return {
+        ...(fieldValues || {}),
+      };
+    }
+    return Object.fromEntries(
+      Object.entries(fieldValues || {}).filter(([fieldKey]) =>
+        allowedFieldKeys.has(fieldKey),
+      ),
+    );
+  };
   const normalizePatientAdditionalFieldValues = (fieldValues = {}) => {
-    const normalized = { ...(fieldValues || {}) };
+    const normalized = filterPatientAdditionalFieldValues(fieldValues);
     getPatientAdditionalFields().forEach((field) => {
       if (
         normalized[field.fieldKey] === undefined ||
@@ -307,7 +670,6 @@ function CreatePatientForm(props) {
     });
     return normalized;
   };
-
   const handlePatientAdditionalFieldValueChange = (
     setFieldValue,
     fieldKey,
@@ -317,20 +679,20 @@ function CreatePatientForm(props) {
     if (props.setOrderFormValues && props.orderFormValues) {
       props.setOrderFormValues((previous) => ({
         ...(previous || props.orderFormValues),
-        patientProperties: {
+        patientProperties: sanitizePatientProperties({
           ...((previous || props.orderFormValues)?.patientProperties || {}),
           patientAdditionalFieldValues: {
             ...(((previous || props.orderFormValues)?.patientProperties || {})
               ?.patientAdditionalFieldValues || {}),
             [fieldKey]: value,
           },
-        },
+        }),
       }));
     }
   };
-
   const renderPatientAdditionalField = (field, values, setFieldValue) => {
     const fieldType = (field.fieldType || "TEXT").toUpperCase();
+    const isReadOnly = !permissionsLoaded || !canEditPatientInCurrentContext;
     const currentValue = values.patientAdditionalFieldValues?.[field.fieldKey];
     const value =
       currentValue !== undefined && currentValue !== null
@@ -346,7 +708,6 @@ function CreatePatientForm(props) {
         {required ? <span className="requiredlabel">*</span> : null}
       </>
     );
-
     switch (fieldType) {
       case "TEXTAREA":
         return (
@@ -355,6 +716,8 @@ function CreatePatientForm(props) {
               id={`patient-dynamic-${field.fieldKey}`}
               labelText={label}
               value={value}
+              disabled={isReadOnly}
+              readOnly={isReadOnly}
               onChange={(event) =>
                 handlePatientAdditionalFieldValueChange(
                   setFieldValue,
@@ -374,6 +737,8 @@ function CreatePatientForm(props) {
               labelText={label}
               type="number"
               value={value}
+              disabled={isReadOnly}
+              readOnly={isReadOnly}
               onChange={(event) =>
                 handlePatientAdditionalFieldValueChange(
                   setFieldValue,
@@ -392,6 +757,8 @@ function CreatePatientForm(props) {
               labelText={label}
               type="date"
               value={value}
+              disabled={isReadOnly}
+              readOnly={isReadOnly}
               onChange={(event) =>
                 handlePatientAdditionalFieldValueChange(
                   setFieldValue,
@@ -410,6 +777,8 @@ function CreatePatientForm(props) {
               labelText={label}
               type="time"
               value={value}
+              disabled={isReadOnly}
+              readOnly={isReadOnly}
               onChange={(event) =>
                 handlePatientAdditionalFieldValueChange(
                   setFieldValue,
@@ -428,6 +797,8 @@ function CreatePatientForm(props) {
               labelText={label}
               type="datetime-local"
               value={value}
+              disabled={isReadOnly}
+              readOnly={isReadOnly}
               onChange={(event) =>
                 handlePatientAdditionalFieldValueChange(
                   setFieldValue,
@@ -445,6 +816,7 @@ function CreatePatientForm(props) {
               id={`patient-dynamic-${field.fieldKey}`}
               labelText={field.displayName}
               checked={String(value).toLowerCase() === "true"}
+              disabled={isReadOnly}
               onChange={(_event, { checked }) =>
                 handlePatientAdditionalFieldValueChange(
                   setFieldValue,
@@ -456,12 +828,14 @@ function CreatePatientForm(props) {
           </Column>
         );
       case "SELECT":
+      case "USER":
         return (
           <Column key={field.fieldKey} lg={8} md={4} sm={4}>
             <Select
               id={`patient-dynamic-${field.fieldKey}`}
               labelText={label}
               value={value}
+              disabled={isReadOnly}
               onChange={(event) =>
                 handlePatientAdditionalFieldValueChange(
                   setFieldValue,
@@ -471,6 +845,11 @@ function CreatePatientForm(props) {
               }
             >
               <SelectItem value="" text="" />
+              <HistoricalUserSelectItem
+                fieldType={fieldType}
+                value={value}
+                options={options}
+              />
               {options.map((option) => (
                 <SelectItem
                   key={`${field.fieldKey}-${option.optionKey}`}
@@ -502,6 +881,7 @@ function CreatePatientForm(props) {
                   id={`patient-dynamic-${field.fieldKey}-${option.optionKey}`}
                   labelText={option.optionLabel}
                   value={option.optionKey}
+                  disabled={isReadOnly}
                 />
               ))}
             </RadioButtonGroup>
@@ -524,6 +904,7 @@ function CreatePatientForm(props) {
                   id={`patient-dynamic-${field.fieldKey}-${option.optionKey}`}
                   labelText={option.optionLabel}
                   checked={selectedValues.has(option.optionKey)}
+                  disabled={isReadOnly}
                   onChange={(_event, { checked }) => {
                     const nextValues = new Set(selectedValues);
                     if (checked) {
@@ -550,6 +931,8 @@ function CreatePatientForm(props) {
               id={`patient-dynamic-${field.fieldKey}`}
               labelText={label}
               value={value}
+              disabled={isReadOnly}
+              readOnly={isReadOnly}
               onChange={(event) =>
                 handlePatientAdditionalFieldValueChange(
                   setFieldValue,
@@ -563,7 +946,6 @@ function CreatePatientForm(props) {
         );
     }
   };
-
   function getYearsMonthsDaysFromDOB(date) {
     if (!date || date === "") {
       console.warn("trying to parse empty date");
@@ -583,7 +965,6 @@ function CreatePatientForm(props) {
       dd = parseInt(selectedDate[1]);
     }
     let formatDate = mm + "/" + dd + "/" + yy;
-
     const birthDate = new Date(formatDate);
     const now = new Date();
     const years = differenceInYears(now, birthDate);
@@ -592,7 +973,6 @@ function CreatePatientForm(props) {
       now,
       addMonths(addYears(birthDate, years), months),
     );
-
     setDateOfBirthFormatter({
       ...dateOfBirthFormatter,
       years: years,
@@ -600,11 +980,9 @@ function CreatePatientForm(props) {
       days: days,
     });
   }
-
   const getDOBByYearMonthsDays = (dobFormatter) => {
     const currentDate = new Date();
     const pastDate = new Date();
-
     pastDate.setFullYear(currentDate.getFullYear() - dobFormatter.years);
     pastDate.setMonth(currentDate.getMonth() - dobFormatter.months);
     pastDate.setDate(currentDate.getDate() - dobFormatter.days);
@@ -619,7 +997,6 @@ function CreatePatientForm(props) {
       birthDateForDisplay: dob,
     }));
   };
-
   function handleYearsChange(e, values) {
     // Ensure years is not negative
     const years = Math.max(0, Number(e.target.value));
@@ -630,14 +1007,12 @@ function CreatePatientForm(props) {
       // Update the specific field that contains years to ensure the form shows the corrected value
       [e.target.name]: years,
     });
-
     let dobFormatter = {
       ...dateOfBirthFormatter,
       years: years,
     };
     getDOBByYearMonthsDays(dobFormatter);
   }
-
   function handleMonthsChange(e, values) {
     // Ensure months is not negative
     const months = Math.max(0, Number(e.target.value));
@@ -648,14 +1023,12 @@ function CreatePatientForm(props) {
       // Update the specific field that contains months to ensure the form shows the corrected value
       [e.target.name]: months,
     });
-
     let dobFormatter = {
       ...dateOfBirthFormatter,
       months: months,
     };
     getDOBByYearMonthsDays(dobFormatter);
   }
-
   function handleDaysChange(e, values) {
     // Ensure days is not negative
     const days = Math.max(0, Number(e.target.value));
@@ -666,7 +1039,6 @@ function CreatePatientForm(props) {
       // Update the specific field that contains days to ensure the form shows the corrected value
       [e.target.name]: days,
     });
-
     let dobFormatter = {
       ...dateOfBirthFormatter,
       days: days,
@@ -682,14 +1054,15 @@ function CreatePatientForm(props) {
       fetchHeathDistricts,
     );
   };
-
   const handleAddressHierarchySelection = (
     levelIndex,
     selectedId,
     setFieldValue,
   ) => {
     // Clear all child levels
-    const clearedValues = { ...addressHierarchyValues };
+    const clearedValues = {
+      ...addressHierarchyValues,
+    };
     for (let i = levelIndex + 1; i < addressHierarchyLevels.length; i++) {
       clearedValues[i] = [];
       setFieldValue(`addressHierarchy_${i}`, "");
@@ -735,7 +1108,6 @@ function CreatePatientForm(props) {
     // Fetch child options for each level to populate the dropdowns
     const fetchChildrenForLevels = (levelIndex) => {
       if (levelIndex >= hierarchyLevels.length) return;
-
       const level = hierarchyLevels[levelIndex];
       const nextLevelIndex = levelIndex + 1;
 
@@ -760,14 +1132,15 @@ function CreatePatientForm(props) {
     // Start from the first level to populate all dropdowns
     fetchChildrenForLevels(0);
   };
-
   const fetchAddressHierarchyLevels = (levels) => {
     if (componentMounted.current && levels && levels.length > 0) {
       setAddressHierarchyLevels(levels);
       // Fetch top level values
       getFromOpenElisServer(`/rest/address-hierarchy/level/1`, (values) => {
         if (componentMounted.current) {
-          setAddressHierarchyValues({ 0: values });
+          setAddressHierarchyValues({
+            0: values,
+          });
           // Also populate healthRegions for backward compatibility
           setHealthRegions(values);
 
@@ -782,7 +1155,6 @@ function CreatePatientForm(props) {
       });
     }
   };
-
   const applyAddressHierarchyDefaults = (levels) => {
     // Build the defaults object and fetch child values for each level
     const defaults = {};
@@ -797,7 +1169,6 @@ function CreatePatientForm(props) {
         }
         return;
       }
-
       const level = levels[levelIndex];
       if (level.defaultId) {
         defaults[`addressHierarchy_${levelIndex}`] = level.defaultId;
@@ -829,23 +1200,46 @@ function CreatePatientForm(props) {
         }
       }
     };
-
     fetchChildrenForDefaultLevel(0);
   };
-
+  const translatePhoneValidation = (validation) => {
+    if (validation?.status !== false || !validation?.body) {
+      return validation;
+    }
+    if (
+      validation.body.includes("Phone number must be in the form of") ||
+      validation.body.includes("Numéro de téléphone doit être")
+    ) {
+      return {
+        ...validation,
+        body: intl.formatMessage(
+          {
+            id: "patient.validation.phone.invalid",
+            defaultMessage:
+              "Phone number must be in the form of {PHONE_FORMAT} plus an optional extension",
+          },
+          {
+            PHONE_FORMAT: configurationProperties.PHONE_FORMAT,
+          },
+        ),
+      };
+    }
+    return validation;
+  };
   const handlePhoneValidation = (e) => {
     const { id, value } = e.target;
     getFromOpenElisServer(
       "/rest/PhoneNumberValidationProvider?fieldId=patientPhone&value=" +
         encodeURIComponent(value),
       (resp) => {
-        const validation = { ...phoneValidation };
-        validation[id] = resp;
+        const validation = {
+          ...phoneValidation,
+        };
+        validation[id] = translatePhoneValidation(resp);
         setPhoneValidation(validation);
       },
     );
   };
-
   useEffect(() => {
     if (typeof props.setPhoneValidation === "function") {
       props.setPhoneValidation(phoneValidation);
@@ -863,7 +1257,6 @@ function CreatePatientForm(props) {
     }
     setPrevfirstName(event.target.value);
   }
-
   function handleLastNameChange(event) {
     const regexFlags = "iu";
     const regex = new RegExp(
@@ -876,7 +1269,6 @@ function CreatePatientForm(props) {
     }
     setPrevlastName(event.target.value);
   }
-
   function handleFirstContactNameChange(event) {
     const regexFlags = "iu";
     const regex = new RegExp(
@@ -889,7 +1281,6 @@ function CreatePatientForm(props) {
     }
     setPrevfirstContactName(event.target.value);
   }
-
   function handleLastContactNameChange(event) {
     const regexFlags = "iu";
     const regex = new RegExp(
@@ -902,11 +1293,9 @@ function CreatePatientForm(props) {
     }
     setPrevlastContactName(event.target.value);
   }
-
   function fetchHealthDistrictsCallback(res) {
     setHealthDistricts(res);
   }
-
   useEffect(() => {
     const selectedPatientPk = selectedPatient?.patientPK;
     // Reset address hierarchy initialization when patient changes
@@ -916,7 +1305,6 @@ function CreatePatientForm(props) {
     ) {
       setAddressHierarchyInitialized(null);
     }
-
     if (selectedPatientPk) {
       if (selectedPatient.healthRegion != null) {
         getFromOpenElisServer(
@@ -929,8 +1317,10 @@ function CreatePatientForm(props) {
         setHealthDistricts([]);
       }
       //merge objects together to avoid "A component is changing a controlled input to be uncontrolled"
-      let patient = { ...selectedPatient };
-      patient.patientUpdateStatus = "UPDATE";
+      let patient = sanitizePatientProperties({
+        ...selectedPatient,
+      });
+      patient.patientUpdateStatus = patient.readOnly ? "NO_ACTION" : "UPDATE";
       patient.photo = "";
       //merge objects together to avoid "A component is changing a controlled input to be uncontrolled"
       const patientContactPerson = {
@@ -949,7 +1339,7 @@ function CreatePatientForm(props) {
           flattenedAddressHierarchy[key] = value;
         });
       }
-      patient = {
+      patient = sanitizePatientProperties({
         ...patientDetails,
         ...patient,
         ...flattenedAddressHierarchy,
@@ -958,7 +1348,7 @@ function CreatePatientForm(props) {
           ...(patient.patientAdditionalFieldValues || {}),
         }),
         patientContact: patientContact,
-      };
+      });
       patientIdentifierRef.current = {
         nationalId: patient.nationalId || "",
         subjectNumber: patient.subjectNumber || "",
@@ -968,7 +1358,7 @@ function CreatePatientForm(props) {
         inferPrimaryIdentifierType(patient);
       syncOptionalIdentityVisibility(patient);
       setPatientDetails({
-        ...patientDetails,
+        ...sanitizePatientProperties(patientDetails),
         ...patient,
         ...flattenedAddressHierarchy,
         patientAdditionalFieldValues: normalizePatientAdditionalFieldValues({
@@ -979,19 +1369,20 @@ function CreatePatientForm(props) {
       });
       getYearsMonthsDaysFromDOB(patient.birthDateForDisplay);
       setFormAction("UPDATE");
-      // Fetch patient photo if patient exists
-      getFromOpenElisServer(
-        `/rest/patient-photos/${patient.patientPK}/${false}`,
-        (response) => {
-          if (response && response.data) {
-            // Update patient details with photo
-            setPatientDetails((prevDetails) => ({
-              ...prevDetails,
-              photo: response.data,
-            }));
-          }
-        },
-      );
+      // Hidden photo fields do not need a protected photo request.
+      if (isPatientFixedFieldVisible("photo"))
+        getFromOpenElisServer(
+          `/rest/patient-photos/${patient.patientPK}/${false}${isOrderEntryPatientStep ? "?forOrderEntry=true" : ""}`,
+          (response) => {
+            if (response && response.data) {
+              // Update patient details with photo
+              setPatientDetails((prevDetails) => ({
+                ...prevDetails,
+                photo: response.data,
+              }));
+            }
+          },
+        );
     } else {
       // Ensure ADD mode is restored when user switches from an existing
       // patient to manual/new patient entry.
@@ -1002,6 +1393,7 @@ function CreatePatientForm(props) {
         months: "",
         days: "",
       });
+      untypedIdentifierRef.current = "";
       patientIdentifierRef.current = {
         nationalId: "",
         subjectNumber: "",
@@ -1025,7 +1417,6 @@ function CreatePatientForm(props) {
       });
     }
   }, [selectedPatient?.patientPK]);
-
   const repopulatePatientInfo = () => {
     if (props.orderFormValues != null) {
       if (
@@ -1033,7 +1424,9 @@ function CreatePatientForm(props) {
         props.orderFormValues.patientProperties.guid !== ""
       ) {
         // Flatten addressHierarchy map into top-level form fields
-        const patient = props.orderFormValues.patientProperties;
+        const patient = sanitizePatientProperties(
+          props.orderFormValues.patientProperties,
+        );
         const flattenedAddressHierarchy = {};
         if (patient.addressHierarchy) {
           Object.entries(patient.addressHierarchy).forEach(([key, value]) => {
@@ -1043,6 +1436,9 @@ function CreatePatientForm(props) {
         setPatientDetails({
           ...patient,
           ...flattenedAddressHierarchy,
+          patientAdditionalFieldValues: normalizePatientAdditionalFieldValues(
+            patient.patientAdditionalFieldValues || {},
+          ),
         });
         patientIdentifierRef.current = {
           nationalId: patient.nationalId || "",
@@ -1052,52 +1448,125 @@ function CreatePatientForm(props) {
           patient.primaryPatientIdentifierType ||
           inferPrimaryIdentifierType(patient);
         syncOptionalIdentityVisibility(patient);
-        const isExistingPatient =
-          String(
-            patient.patientUpdateStatus ||
-              props.orderFormValues.patientUpdateStatus ||
-              "",
-          ).toUpperCase() === "UPDATE" ||
-          String(patient.patientPK || "").trim() !== "";
-        setFormAction(isExistingPatient ? "UPDATE" : "ADD");
         getYearsMonthsDaysFromDOB(
           props.orderFormValues.patientProperties.birthDateForDisplay,
         );
       }
     }
   };
-
   useEffect(() => {
     componentMounted.current = true;
     repopulatePatientInfo();
+    let patientAccessLoaded = false;
+    let orderAccessLoaded = !isOrderEntryPatientStep;
+    const finishPermissionLoading = () => {
+      if (
+        componentMounted.current &&
+        patientAccessLoaded &&
+        orderAccessLoaded
+      ) {
+        setPermissionsLoaded(true);
+      }
+    };
+    getFromOpenElisServer("/rest/patient-management/access", (response) => {
+      const access = response || {};
+      if (componentMounted.current) {
+        setPatientModuleAccess({
+          canRead: access.canRead === true,
+          canCreate: access.canCreate === true,
+          canUpdate: access.canUpdate === true,
+          restrictedFieldTagKeys: Array.isArray(access.restrictedFieldTagKeys)
+            ? access.restrictedFieldTagKeys
+            : [],
+        });
+        setHasPatientPermission(
+          access.canRead === true ||
+            access.canCreate === true ||
+            access.canUpdate === true,
+        );
+        patientAccessLoaded = true;
+        finishPermissionLoading();
+      }
+    });
+    if (isOrderEntryPatientStep) {
+      getFromOpenElisServer(
+        "/rest/professional-profile-permissions",
+        (response) => {
+          if (componentMounted.current) {
+            setHasOrderPermission(response?.hasOrderPermission === true);
+            orderAccessLoaded = true;
+            finishPermissionLoading();
+          }
+        },
+      );
+    }
     return () => {
       componentMounted.current = false;
     };
   }, []);
-
   useEffect(() => {
     if (showPatientAdditionalInfoOnOrderEntry && componentMounted.current) {
       getFromOpenElisServer("/rest/health-regions", fetchHeathRegions);
       getFromOpenElisServer("/rest/education-list", fetchEducationList);
       getFromOpenElisServer("/rest/marital-statuses", fetchMaritalStatuses);
-      getFromOpenElisServer("/rest/patient-additional-fields", (fields) => {
-        if (componentMounted.current) {
-          setPatientAdditionalFields(Array.isArray(fields) ? fields : []);
-        }
-      });
+      getFromOpenElisServer(
+        "/rest/patient-additional-fields?resolveUserOptions=true",
+        (fields) => {
+          if (componentMounted.current) {
+            setPatientAdditionalFields(Array.isArray(fields) ? fields : []);
+            setAdditionalFieldsLoaded(Array.isArray(fields));
+          }
+        },
+      );
+    } else if (!showPatientAdditionalInfoOnOrderEntry) {
+      setAdditionalFieldsLoaded(true);
     }
   }, [showPatientAdditionalInfoOnOrderEntry]);
-
+  useEffect(() => {
+    if (!componentMounted.current) {
+      return;
+    }
+    getFromOpenElisServer(
+      "/rest/patient-additional-fields/fixed",
+      (configs) => {
+        if (componentMounted.current) {
+          setPatientFixedFieldConfigs(
+            normalizePatientFixedFieldConfigs(configs),
+          );
+          setFixedFieldsLoaded(Array.isArray(configs));
+        }
+      },
+    );
+  }, []);
   useEffect(() => {
     if (patientAdditionalFields.length === 0) {
       return;
     }
-    setPatientDetails((current) => ({
-      ...current,
-      patientAdditionalFieldValues: normalizePatientAdditionalFieldValues(
+    setPatientDetails((current) => {
+      const normalizedValues = normalizePatientAdditionalFieldValues(
         current.patientAdditionalFieldValues || {},
-      ),
-    }));
+      );
+      return {
+        ...current,
+        patientAdditionalFieldValues: normalizedValues,
+      };
+    });
+    if (props.setOrderFormValues) {
+      props.setOrderFormValues((previous) => {
+        if (!previous?.patientProperties) {
+          return previous;
+        }
+        return {
+          ...previous,
+          patientProperties: sanitizePatientProperties({
+            ...previous.patientProperties,
+            patientAdditionalFieldValues: normalizePatientAdditionalFieldValues(
+              previous.patientProperties.patientAdditionalFieldValues || {},
+            ),
+          }),
+        };
+      });
+    }
   }, [patientAdditionalFields]);
 
   // Fetch address hierarchy levels when configurationProperties changes
@@ -1127,7 +1596,6 @@ function CreatePatientForm(props) {
     if (addressHierarchyInitialized === patientPK) {
       return;
     }
-
     if (
       showPatientAdditionalInfoOnOrderEntry &&
       configurationProperties.USE_NEW_ADDRESS_HIERARCHY === "true" &&
@@ -1165,7 +1633,6 @@ function CreatePatientForm(props) {
           );
         }
       };
-
       fetchChildrenForLevel(0);
     }
   }, [
@@ -1177,27 +1644,31 @@ function CreatePatientForm(props) {
     showPatientAdditionalInfoOnOrderEntry,
     addressHierarchyInitialized,
   ]);
-
   const fetchHeathRegions = (regions) => {
     if (componentMounted.current) {
       setHealthRegions(regions);
     }
   };
-
   const accessionNumberValidationResponse = (res, numberType, numberValue) => {
     let error;
-    if (res.status === false && !isExistingPatientIdentifier(numberValue)) {
+    if (
+      res.status === false &&
+      (selectedPatient.nationalId !== patientIdentifierRef.current.nationalId ||
+        selectedPatient.subjectNumber !==
+          patientIdentifierRef.current.subjectNumber)
+    ) {
       setNotificationVisible(true);
       addNotification({
         kind: NotificationKinds.error,
-        title: intl.formatMessage({ id: "notification.title" }),
+        title: intl.formatMessage({
+          id: "notification.title",
+        }),
         message: numberType + ":" + numberValue + " Already in use",
       });
       error = "duplicate";
     }
     return error;
   };
-
   const handleSubjectNoValidation = async (
     numberType,
     fieldId,
@@ -1213,31 +1684,34 @@ function CreatePatientForm(props) {
     }
     return error;
   };
-
   const fetchMaritalStatuses = (statuses) => {
     if (componentMounted.current) {
       setMaritalStatuses(statuses);
     }
   };
-
   const fetchEducationList = (eductationList) => {
     if (componentMounted.current) {
       setEducationList(eductationList);
     }
   };
-
   const fetchHeathDistricts = (districts) => {
     setHealthDistricts(districts);
   };
-
   const handleSubmit = async (values, { resetForm }) => {
-    // Prevent multiple submissions.
-    if (isSubmitting) {
+    // Prevent double clicks before React updates the saving state.
+    if (
+      !patientReady ||
+      saveInFlight.current ||
+      isSubmitting ||
+      !permissionsLoaded ||
+      !canEditPatientInCurrentContext
+    ) {
       return;
     }
-
+    saveInFlight.current = true;
     setIsSubmitting(true);
-
+    if (props.onSavingChange) props.onSavingChange(true);
+    values = JSON.parse(JSON.stringify(values));
     if ("years" in values) {
       delete values.years;
     }
@@ -1247,70 +1721,103 @@ function CreatePatientForm(props) {
     if ("days" in values) {
       delete values.days;
     }
-    values.nationalId = showPatientNationalIdField
-      ? getIdentifierValueByType(
-          values,
-          values.primaryPatientIdentifierType,
-        ).trim()
-      : getIdentifierValueByType(
-          values,
-          values.primaryPatientIdentifierType,
-        ).trim();
+    const primaryIdentifier = getIdentifierValueByType(
+      values,
+      values.primaryPatientIdentifierType,
+    ).trim();
+    values.nationalId =
+      primaryIdentifier ||
+      (!values.primaryPatientIdentifierType
+        ? untypedIdentifierRef.current
+        : "");
     values.subjectNumber = patientIdentifierRef.current.subjectNumber || "";
     values.dni = showDniField ? values.dni || "" : "";
     values.passportNumber = showPassportField
       ? values.passportNumber || ""
       : "";
     values.foreignId = showForeignIdField ? values.foreignId || "" : "";
-    postToOpenElisServer(
-      "/rest/PatientManagement",
+    postToOpenElisServerJsonResponse(
+      isOrderEntryPatientStep
+        ? "/rest/orders/patient"
+        : "/rest/PatientManagement",
       JSON.stringify(values),
-      (status) => {
-        handlePost(status);
-        resetForm({ values: CreatePatientFormValues });
-        setDateOfBirthFormatter({
-          years: "",
-          months: "",
-          days: "",
+      (response) => {
+        saveInFlight.current = false;
+        if (props.onSavingChange) props.onSavingChange(false);
+        const saved = response?.patientPK && !(response?.status >= 400);
+        handlePost(saved ? 200 : response?.status || 500, response?.code);
+        if (!saved) return;
+        const patient = sanitizePatientProperties({
+          ...values,
+          ...response,
+          readOnly: !patientModuleAccess.canUpdate,
+          patientUpdateStatus: patientModuleAccess.canUpdate
+            ? "UPDATE"
+            : "NO_ACTION",
         });
+        setFormAction(patient.patientUpdateStatus);
+        setPatientDetails(patient);
+        resetForm({
+          values: patient,
+        });
+        if (props.onPatientSaved) props.onPatientSaved(patient);
       },
     );
   };
-
-  const handlePost = (status) => {
+  const handlePost = (status, code) => {
     setNotificationVisible(true);
     setIsSubmitting(false);
     if (status === 200) {
       addNotification({
-        title: intl.formatMessage({ id: "notification.title" }),
-        message: intl.formatMessage({ id: "success.save.patient" }),
+        title: intl.formatMessage({
+          id: "notification.title",
+        }),
+        message: intl.formatMessage({
+          id: "success.save.patient",
+        }),
         kind: NotificationKinds.success,
       });
     } else {
       addNotification({
-        title: intl.formatMessage({ id: "notification.title" }),
-        message: intl.formatMessage({ id: "error.save.patient" }),
+        title: intl.formatMessage({
+          id: "notification.title",
+        }),
+        message: intl.formatMessage({
+          id:
+            code === "patient.identifier.duplicate"
+              ? code
+              : "error.save.patient",
+        }),
         kind: NotificationKinds.error,
       });
     }
   };
-
   const isNationalIdInvalid = (formikError) => {
     const nationalIdErrorFromProps = props.error
       ? props.error("patientProperties.nationalId")
       : "";
-
     return Boolean(nationalIdErrorFromProps) || Boolean(formikError);
   };
-
   return (
     <>
       {notificationVisible === true ? <AlertDialog /> : ""}
+      {!isOrderEntryPatientStep &&
+        permissionsLoaded &&
+        !hasPatientPermission && (
+          <InlineNotification
+            kind="warning"
+            title={intl.formatMessage({
+              id: "professionalProfile.permission.denied.patient",
+            })}
+            hideCloseButton={true}
+            lowContrast={true}
+          />
+        )}
       <Formik
         initialValues={patientDetails}
         enableReinitialize
-        validationSchema={CreatePatientValidationSchema}
-        validate={validatePatientIdentifiers}
+        validationSchema={CreatePatientValidationSchema(intl)}
+        validate={validatePatientForm}
         validateOnChange={false}
         validateOnBlur={true}
         onSubmit={handleSubmit}
@@ -1325,61 +1832,58 @@ function CreatePatientForm(props) {
           handleBlur,
           handleSubmit,
           setFieldValue,
-        }) => (
-          <Form
-            onSubmit={handleSubmit}
-            onChange={handleChange}
-            onBlur={handleBlur}
-          >
-            {props.orderFormValues && (
-              <PatientFormObserver
-                orderFormValues={props.orderFormValues}
-                setOrderFormValues={props.setOrderFormValues}
-                formAction={formAction}
-              />
-            )}
-            <Grid>
-              <Column lg={16} md={8} sm={4}>
-                <FormLabel>
-                  <Section>
-                    <Section>
-                      <Section>
-                        <Heading>
-                          <FormattedMessage id="patient.label.info" />
-                        </Heading>
-                      </Section>
-                    </Section>
-                  </Section>
-                </FormLabel>
-              </Column>
-              {showPatientPhotoOnOrderEntry && (
-                <>
-                  <Column lg={16} md={8} sm={4}>
-                    {" "}
-                    <br></br>
-                  </Column>
-                  <Column lg={16} md={8} sm={4}>
-                    <PatientImageSelector
-                      value={values.photo}
-                      onChange={(photo) =>
-                        handlePhotoChange(photo, setFieldValue)
-                      }
-                      required={false}
-                    />
-                  </Column>
-                </>
-              )}
-              <Column lg={8} md={4} sm={4}>
-                <Field name="subjectNumber">
-                  {({ field }) => (
-                    <>
+          setValues,
+        }) => {
+          const patientEditingDisabled =
+            isSubmitting ||
+            !permissionsLoaded ||
+            !canEditPatientInCurrentContext;
+          const emergencyContactDisabled =
+            patientEditingDisabled ||
+            isPatientFixedFieldReadOnly("emergencyContact");
+          const additionalInfoDisabled =
+            patientEditingDisabled ||
+            isPatientFixedFieldReadOnly("additionalInfo");
+          const renderOrderedPatientFields = () => {
+            const entries = [];
+            const pushEntry = (key, order, node) => {
+              const normalizedOrder = Number(order);
+              entries.push({
+                key,
+                order: Number.isFinite(normalizedOrder)
+                  ? normalizedOrder
+                  : Number.MAX_SAFE_INTEGER,
+                node,
+              });
+            };
+            if (isPatientFixedFieldVisible("photo")) {
+              pushEntry(
+                "photo",
+                getPatientFixedFieldOrder("photo"),
+                <Column lg={16} md={8} sm={4}>
+                  <PatientImageSelector
+                    value={values.photo}
+                    onChange={(photo) =>
+                      handlePhotoChange(photo, setFieldValue)
+                    }
+                    required={false}
+                    disabled={isPatientFixedFieldReadOnly("photo")}
+                  />
+                </Column>,
+              );
+            }
+            if (isPatientFixedFieldVisible("subjectNumber")) {
+              pushEntry(
+                "subjectNumber",
+                getPatientFixedFieldOrder("subjectNumber"),
+                <Column lg={8} md={4} sm={4}>
+                  <Field name="subjectNumber">
+                    {({ field }) => (
                       <TextInput
                         key={`subject-number-${selectedPatient.patientPK || "new"}`}
                         defaultValue={values.subjectNumber || ""}
                         name={field.name}
-                        labelText={intl.formatMessage({
-                          id: "patient.subject.number",
-                        })}
+                        labelText={getPatientFixedFieldLabel("subjectNumber")}
                         id={field.name}
                         invalid={errors.subjectNumber && touched.subjectNumber}
                         invalidText={errors.subjectNumber}
@@ -1401,15 +1905,20 @@ function CreatePatientForm(props) {
                           );
                           handleBlur(event);
                         }}
+                        disabled={isPatientFixedFieldReadOnly("subjectNumber")}
                         placeholder={intl.formatMessage({
                           id: "patient.information.healthid",
                         })}
                       />
-                    </>
-                  )}
-                </Field>
-              </Column>
-              {showPatientNationalIdField && (
+                    )}
+                  </Field>
+                </Column>,
+              );
+            }
+            if (isPatientFixedFieldVisible("nationalId")) {
+              pushEntry(
+                "nationalId",
+                getPatientFixedFieldOrder("nationalId"),
                 <Column lg={8} md={4} sm={4}>
                   <Field name="nationalId">
                     {({ field }) => (
@@ -1417,11 +1926,10 @@ function CreatePatientForm(props) {
                         key={`national-id-${props.selectedPatient.patientPK || "new"}`}
                         value={values.nationalId || ""}
                         name={field.name}
-                        labelText={intl.formatMessage({
-                          id: "patient.natioanalid",
-                        })}
+                        labelText={getPatientFixedFieldLabel("nationalId")}
                         id={field.name}
                         readOnly
+                        disabled={true}
                         invalid={isNationalIdInvalid(
                           errors.nationalId,
                           touched.nationalId,
@@ -1433,1032 +1941,1111 @@ function CreatePatientForm(props) {
                       />
                     )}
                   </Field>
-                </Column>
-              )}
-              {showPatientOptionalIdentifiersOnOrderEntry && (
-                <Column lg={16} md={8} sm={4} className="checkbox-group">
-                  <Section style={{ marginTop: "0.25rem" }}>
-                    <Checkbox
-                      id="patient-dni-enabled"
-                      labelText={intl.formatMessage({
-                        id: "patient.identifier.dni",
-                      })}
-                      checked={showDniField}
-                      onChange={(_event, { checked }) => {
-                        const isChecked = Boolean(checked);
-                        setShowDniField(isChecked);
-                        if (!isChecked) {
-                          setFieldValue("dni", "");
-                          if (values.primaryPatientIdentifierType === "DNI") {
-                            const nextType = showPassportField
-                              ? "PASSPORT"
-                              : showForeignIdField
-                                ? "FOREIGN_ID"
-                                : "";
-                            setFieldValue(
-                              "primaryPatientIdentifierType",
-                              nextType,
-                            );
-                            setFieldValue(
-                              "nationalId",
-                              getIdentifierValueByType(values, nextType).trim(),
-                              false,
-                            );
-                          }
-                        } else if (!values.primaryPatientIdentifierType) {
-                          setFieldValue("primaryPatientIdentifierType", "DNI");
-                        }
+                </Column>,
+              );
+            }
+            if (isPatientFixedFieldVisible("optionalIdentifiers")) {
+              pushEntry(
+                "optionalIdentifiers",
+                getPatientFixedFieldOrder("optionalIdentifiers"),
+                <>
+                  <Column lg={16} md={8} sm={4} className="checkbox-group">
+                    <Section
+                      style={{
+                        marginTop: "0.25rem",
                       }}
-                    />
-                    <Checkbox
-                      id="patient-passport-enabled"
-                      labelText={intl.formatMessage({
-                        id: "patient.identifier.passport",
-                      })}
-                      checked={showPassportField}
-                      onChange={(_event, { checked }) => {
-                        const isChecked = Boolean(checked);
-                        setShowPassportField(isChecked);
-                        if (!isChecked) {
-                          setFieldValue("passportNumber", "");
-                          if (
-                            values.primaryPatientIdentifierType === "PASSPORT"
-                          ) {
-                            const nextType = showDniField
-                              ? "DNI"
-                              : showForeignIdField
-                                ? "FOREIGN_ID"
-                                : "";
-                            setFieldValue(
-                              "primaryPatientIdentifierType",
-                              nextType,
-                            );
-                            setFieldValue(
-                              "nationalId",
-                              getIdentifierValueByType(values, nextType).trim(),
-                              false,
-                            );
-                          }
-                        } else if (!values.primaryPatientIdentifierType) {
-                          setFieldValue(
-                            "primaryPatientIdentifierType",
-                            "PASSPORT",
-                          );
-                        }
-                      }}
-                    />
-                    <Checkbox
-                      id="patient-foreign-id-enabled"
-                      labelText={intl.formatMessage({
-                        id: "patient.identifier.foreign.card",
-                      })}
-                      checked={showForeignIdField}
-                      onChange={(_event, { checked }) => {
-                        const isChecked = Boolean(checked);
-                        setShowForeignIdField(isChecked);
-                        if (!isChecked) {
-                          setFieldValue("foreignId", "");
-                          if (
-                            values.primaryPatientIdentifierType === "FOREIGN_ID"
-                          ) {
-                            const nextType = showDniField
-                              ? "DNI"
-                              : showPassportField
-                                ? "PASSPORT"
-                                : "";
-                            setFieldValue(
-                              "primaryPatientIdentifierType",
-                              nextType,
-                            );
-                            setFieldValue(
-                              "nationalId",
-                              getIdentifierValueByType(values, nextType).trim(),
-                              false,
-                            );
-                          }
-                        } else if (!values.primaryPatientIdentifierType) {
-                          setFieldValue(
-                            "primaryPatientIdentifierType",
-                            "FOREIGN_ID",
-                          );
-                        }
-                      }}
-                    />
-                  </Section>
-                </Column>
-              )}
-              {showPatientOptionalIdentifiersOnOrderEntry &&
-                getVisiblePrimaryIdentifierOptions().length > 0 && (
-                  <Column lg={8} md={4} sm={4}>
-                    <Field name="primaryPatientIdentifierType">
-                      {({ field }) => (
-                        <Select
-                          id={field.name}
-                          name={field.name}
-                          labelText={intl.formatMessage({
-                            id: "patient.identifier.primary",
-                          })}
-                          value={values.primaryPatientIdentifierType || ""}
-                          invalid={
-                            errors.primaryPatientIdentifierType &&
-                            touched.primaryPatientIdentifierType
-                          }
-                          invalidText={errors.primaryPatientIdentifierType}
-                          onChange={(event) => {
-                            const selectedType = event.target.value;
-                            setFieldValue(
-                              "primaryPatientIdentifierType",
-                              selectedType,
-                            );
-                            setFieldValue(
-                              "nationalId",
-                              getIdentifierValueByType(
-                                values,
-                                selectedType,
-                              ).trim(),
-                              false,
-                            );
-                          }}
-                        >
-                          <SelectItem
-                            value=""
-                            text={intl.formatMessage({
-                              id: "patient.identifier.primary.placeholder",
-                            })}
-                          />
-                          {getVisiblePrimaryIdentifierOptions().map(
-                            (option) => (
-                              <SelectItem
-                                key={option.value}
-                                value={option.value}
-                                text={intl.formatMessage({
-                                  id: option.labelId,
-                                })}
-                              />
-                            ),
-                          )}
-                        </Select>
-                      )}
-                    </Field>
-                  </Column>
-                )}
-              {showPatientOptionalIdentifiersOnOrderEntry && showDniField && (
-                <Column lg={8} md={4} sm={4}>
-                  <Field name="dni">
-                    {({ field }) => (
-                      <TextInput
-                        value={values.dni || ""}
-                        name={field.name}
+                    >
+                      <Checkbox
+                        id="patient-dni-enabled"
                         labelText={intl.formatMessage({
                           id: "patient.identifier.dni",
                         })}
+                        disabled={isPatientFixedFieldReadOnly(
+                          "optionalIdentifiers",
+                        )}
+                        checked={showDniField}
+                        onChange={(_event, { checked }) =>
+                          handleIdentifierToggle(
+                            "DNI",
+                            Boolean(checked),
+                            values,
+                            setValues,
+                          )
+                        }
+                      />
+                      <Checkbox
+                        id="patient-passport-enabled"
+                        labelText={intl.formatMessage({
+                          id: "patient.identifier.passport",
+                        })}
+                        disabled={isPatientFixedFieldReadOnly(
+                          "optionalIdentifiers",
+                        )}
+                        checked={showPassportField}
+                        onChange={(_event, { checked }) =>
+                          handleIdentifierToggle(
+                            "PASSPORT",
+                            Boolean(checked),
+                            values,
+                            setValues,
+                          )
+                        }
+                      />
+                      <Checkbox
+                        id="patient-foreign-id-enabled"
+                        labelText={intl.formatMessage({
+                          id: "patient.identifier.foreign.card",
+                        })}
+                        disabled={isPatientFixedFieldReadOnly(
+                          "optionalIdentifiers",
+                        )}
+                        checked={showForeignIdField}
+                        onChange={(_event, { checked }) =>
+                          handleIdentifierToggle(
+                            "FOREIGN_ID",
+                            Boolean(checked),
+                            values,
+                            setValues,
+                          )
+                        }
+                      />
+                    </Section>
+                    {untypedIdentifierRef.current &&
+                      !values.primaryPatientIdentifierType &&
+                      !patientEditingDisabled && (
+                        <InlineNotification
+                          kind="info"
+                          title={intl.formatMessage({
+                            id: "patient.identifier.untyped",
+                          })}
+                          hideCloseButton
+                          lowContrast
+                        />
+                      )}
+                  </Column>
+                  {getVisiblePrimaryIdentifierOptions().length > 0 && (
+                    <Column lg={8} md={4} sm={4}>
+                      <Field name="primaryPatientIdentifierType">
+                        {({ field }) => (
+                          <Select
+                            id={field.name}
+                            name={field.name}
+                            labelText={intl.formatMessage({
+                              id: "patient.identifier.primary",
+                            })}
+                            disabled={isPatientFixedFieldReadOnly(
+                              "optionalIdentifiers",
+                            )}
+                            value={values.primaryPatientIdentifierType || ""}
+                            invalid={
+                              errors.primaryPatientIdentifierType &&
+                              touched.primaryPatientIdentifierType
+                            }
+                            invalidText={errors.primaryPatientIdentifierType}
+                            onChange={(event) => {
+                              const selectedType = event.target.value;
+                              setFieldValue(
+                                "primaryPatientIdentifierType",
+                                selectedType,
+                              );
+                              setFieldValue(
+                                "nationalId",
+                                getIdentifierValueByType(
+                                  values,
+                                  selectedType,
+                                ).trim(),
+                                false,
+                              );
+                            }}
+                          >
+                            <SelectItem
+                              value=""
+                              text={intl.formatMessage({
+                                id: "patient.identifier.primary.placeholder",
+                              })}
+                            />
+                            {getVisiblePrimaryIdentifierOptions().map(
+                              (option) => (
+                                <SelectItem
+                                  key={option.value}
+                                  value={option.value}
+                                  text={intl.formatMessage({
+                                    id: option.labelId,
+                                  })}
+                                />
+                              ),
+                            )}
+                          </Select>
+                        )}
+                      </Field>
+                    </Column>
+                  )}
+                  {showDniField && (
+                    <Column lg={8} md={4} sm={4}>
+                      <Field name="dni">
+                        {({ field }) => (
+                          <TextInput
+                            value={values.dni || ""}
+                            name={field.name}
+                            labelText={
+                              <>
+                                {intl.formatMessage({
+                                  id: "patient.identifier.dni",
+                                })}
+                                <span className="requiredlabel">*</span>
+                              </>
+                            }
+                            required
+                            type="text"
+                            inputMode="numeric"
+                            maxLength={DOCUMENT_FIELDS.DNI.maxLength}
+                            id={field.name}
+                            disabled={isPatientFixedFieldReadOnly(
+                              "optionalIdentifiers",
+                            )}
+                            invalid={errors.dni && touched.dni}
+                            invalidText={errors.dni}
+                            onMouseOut={() => {
+                              handleSubjectNoValidation(
+                                "dni",
+                                "dni",
+                                values.dni || "",
+                              );
+                            }}
+                            onChange={(event) =>
+                              handleDocumentChange(event, "DNI", setValues)
+                            }
+                            placeholder={intl.formatMessage({
+                              id: "patient.information.dni",
+                            })}
+                          />
+                        )}
+                      </Field>
+                    </Column>
+                  )}
+                  {showPassportField && (
+                    <Column lg={8} md={4} sm={4}>
+                      <Field name="passportNumber">
+                        {({ field }) => (
+                          <TextInput
+                            value={values.passportNumber || ""}
+                            name={field.name}
+                            labelText={
+                              <>
+                                {intl.formatMessage({
+                                  id: "patient.identifier.passport",
+                                })}
+                                <span className="requiredlabel">*</span>
+                              </>
+                            }
+                            required
+                            type="text"
+                            inputMode="text"
+                            maxLength={DOCUMENT_FIELDS.PASSPORT.maxLength}
+                            id={field.name}
+                            disabled={isPatientFixedFieldReadOnly(
+                              "optionalIdentifiers",
+                            )}
+                            invalid={
+                              errors.passportNumber && touched.passportNumber
+                            }
+                            invalidText={errors.passportNumber}
+                            onMouseOut={() => {
+                              handleSubjectNoValidation(
+                                "passportNumber",
+                                "passportNumber",
+                                values.passportNumber || "",
+                              );
+                            }}
+                            onChange={(event) =>
+                              handleDocumentChange(event, "PASSPORT", setValues)
+                            }
+                            placeholder={intl.formatMessage({
+                              id: "patient.information.passport",
+                            })}
+                          />
+                        )}
+                      </Field>
+                    </Column>
+                  )}
+                  {showForeignIdField && (
+                    <Column lg={8} md={4} sm={4}>
+                      <Field name="foreignId">
+                        {({ field }) => (
+                          <TextInput
+                            value={values.foreignId || ""}
+                            name={field.name}
+                            labelText={
+                              <>
+                                {intl.formatMessage({
+                                  id: "patient.identifier.foreign.card",
+                                })}
+                                <span className="requiredlabel">*</span>
+                              </>
+                            }
+                            required
+                            type="text"
+                            inputMode="text"
+                            maxLength={DOCUMENT_FIELDS.FOREIGN_ID.maxLength}
+                            id={field.name}
+                            disabled={isPatientFixedFieldReadOnly(
+                              "optionalIdentifiers",
+                            )}
+                            invalid={errors.foreignId && touched.foreignId}
+                            invalidText={errors.foreignId}
+                            onMouseOut={() => {
+                              handleSubjectNoValidation(
+                                "foreignId",
+                                "foreignId",
+                                values.foreignId || "",
+                              );
+                            }}
+                            onChange={(event) =>
+                              handleDocumentChange(
+                                event,
+                                "FOREIGN_ID",
+                                setValues,
+                              )
+                            }
+                            placeholder={intl.formatMessage({
+                              id: "patient.information.foreign.card",
+                            })}
+                          />
+                        )}
+                      </Field>
+                    </Column>
+                  )}
+                </>,
+              );
+            }
+            if (isPatientFixedFieldVisible("lastName")) {
+              pushEntry(
+                "lastName",
+                getPatientFixedFieldOrder("lastName"),
+                <Column lg={8} md={4} sm={4}>
+                  <Field name="lastName">
+                    {({ field }) => (
+                      <TextInput
+                        value={values.lastName || ""}
+                        name={field.name}
+                        labelText={getPatientFixedFieldLabel("lastName")}
                         id={field.name}
-                        invalid={errors.dni && touched.dni}
-                        invalidText={errors.dni}
-                        onMouseOut={() => {
-                          handleSubjectNoValidation(
-                            "dni",
-                            "dni",
-                            values.dni || "",
-                          );
-                        }}
-                        onChange={(event) => {
-                          handleChange(event);
-                          if (values.primaryPatientIdentifierType === "DNI") {
-                            setFieldValue(
-                              "nationalId",
-                              event.target.value.trim(),
-                              false,
-                            );
-                          }
-                        }}
+                        disabled={isPatientFixedFieldReadOnly("lastName")}
+                        invalid={errors.lastName && touched.lastName}
+                        invalidText={errors.lastName}
                         placeholder={intl.formatMessage({
-                          id: "patient.information.dni",
+                          id: "patient.information.lastname",
+                        })}
+                        onChange={(e) => handleLastNameChange(e)}
+                      />
+                    )}
+                  </Field>
+                </Column>,
+              );
+            }
+            if (isPatientFixedFieldVisible("firstName")) {
+              pushEntry(
+                "firstName",
+                getPatientFixedFieldOrder("firstName"),
+                <Column lg={8} md={4} sm={4}>
+                  <Field name="firstName">
+                    {({ field }) => (
+                      <TextInput
+                        value={values.firstName || ""}
+                        name={field.name}
+                        labelText={getPatientFixedFieldLabel("firstName")}
+                        id={field.name}
+                        disabled={isPatientFixedFieldReadOnly("firstName")}
+                        invalid={errors.firstName && touched.firstName}
+                        invalidText={errors.firstName}
+                        placeholder={intl.formatMessage({
+                          id: "patient.information.firstname",
+                        })}
+                        onChange={(e) => handleFirstNameChange(e)}
+                      />
+                    )}
+                  </Field>
+                </Column>,
+              );
+            }
+            if (isPatientFixedFieldVisible("primaryPhone")) {
+              pushEntry(
+                "primaryPhone",
+                getPatientFixedFieldOrder("primaryPhone"),
+                <Column lg={8} md={4} sm={4}>
+                  <Field name="primaryPhone">
+                    {({ field }) => (
+                      <TextInput
+                        value={values.primaryPhone || ""}
+                        name={field.name}
+                        onBlur={(e) => {
+                          handlePhoneValidation(e);
+                        }}
+                        id="primaryPhone"
+                        labelText={intl.formatMessage(
+                          {
+                            id: "patient.label.primaryphone",
+                            defaultMessage: "Phone: {PHONE_FORMAT}",
+                          },
+                          {
+                            PHONE_FORMAT: configurationProperties.PHONE_FORMAT,
+                          },
+                        )}
+                        disabled={isPatientFixedFieldReadOnly("primaryPhone")}
+                        invalid={!phoneValidation.primaryPhone.status}
+                        invalidText={
+                          phoneValidation.primaryPhone.status
+                            ? ""
+                            : phoneValidation.primaryPhone.body
+                        }
+                        placeholder={intl.formatMessage({
+                          id: "patient.information.primaryphone",
                         })}
                       />
                     )}
                   </Field>
-                </Column>
-              )}
-              {showPatientOptionalIdentifiersOnOrderEntry &&
-                showPassportField && (
-                  <Column lg={8} md={4} sm={4}>
-                    <Field name="passportNumber">
-                      {({ field }) => (
-                        <TextInput
-                          value={values.passportNumber || ""}
-                          name={field.name}
-                          labelText={intl.formatMessage({
-                            id: "patient.identifier.passport",
-                          })}
-                          id={field.name}
-                          invalid={
-                            errors.passportNumber && touched.passportNumber
-                          }
-                          invalidText={errors.passportNumber}
-                          onMouseOut={() => {
-                            handleSubjectNoValidation(
-                              "passportNumber",
-                              "passportNumber",
-                              values.passportNumber || "",
-                            );
-                          }}
-                          onChange={(event) => {
-                            handleChange(event);
-                            if (
-                              values.primaryPatientIdentifierType === "PASSPORT"
-                            ) {
-                              setFieldValue(
-                                "nationalId",
-                                event.target.value.trim(),
-                                false,
-                              );
-                            }
-                          }}
-                          placeholder={intl.formatMessage({
-                            id: "patient.information.passport",
-                          })}
-                        />
-                      )}
-                    </Field>
-                  </Column>
-                )}
-              {showPatientOptionalIdentifiersOnOrderEntry &&
-                showForeignIdField && (
-                  <Column lg={8} md={4} sm={4}>
-                    <Field name="foreignId">
-                      {({ field }) => (
-                        <TextInput
-                          value={values.foreignId || ""}
-                          name={field.name}
-                          labelText={intl.formatMessage({
-                            id: "patient.identifier.foreign.card",
-                          })}
-                          id={field.name}
-                          invalid={errors.foreignId && touched.foreignId}
-                          invalidText={errors.foreignId}
-                          onMouseOut={() => {
-                            handleSubjectNoValidation(
-                              "foreignId",
-                              "foreignId",
-                              values.foreignId || "",
-                            );
-                          }}
-                          onChange={(event) => {
-                            handleChange(event);
-                            if (
-                              values.primaryPatientIdentifierType ===
-                              "FOREIGN_ID"
-                            ) {
-                              setFieldValue(
-                                "nationalId",
-                                event.target.value.trim(),
-                                false,
-                              );
-                            }
-                          }}
-                          placeholder={intl.formatMessage({
-                            id: "patient.information.foreign.card",
-                          })}
-                        />
-                      )}
-                    </Field>
-                  </Column>
-                )}
-              <Column lg={16} md={8} sm={4}>
-                {" "}
-                <br></br>
-              </Column>
-              <Column lg={8} md={4} sm={4}>
-                <Field name="lastName">
-                  {({ field }) => (
-                    <TextInput
-                      value={values.lastName || ""}
-                      name={field.name}
-                      labelText={intl.formatMessage({
-                        id: "patient.last.name",
-                      })}
-                      id={field.name}
-                      invalid={errors.lastName && touched.lastName}
-                      invalidText={errors.lastName}
-                      placeholder={intl.formatMessage({
-                        id: "patient.information.lastname",
-                      })}
-                      onChange={(e) => handleLastNameChange(e)}
-                    />
-                  )}
-                </Field>
-              </Column>
-              <Column lg={8} md={4} sm={4}>
-                <Field name="firstName">
-                  {({ field }) => (
-                    <TextInput
-                      value={values.firstName || ""}
-                      name={field.name}
-                      labelText={intl.formatMessage({
-                        id: "patient.first.name",
-                      })}
-                      id={field.name}
-                      invalid={errors.firstName && touched.firstName}
-                      invalidText={errors.firstName}
-                      placeholder={intl.formatMessage({
-                        id: "patient.information.firstname",
-                      })}
-                      onChange={(e) => handleFirstNameChange(e)}
-                    />
-                  )}
-                </Field>
-              </Column>
-              <Column lg={16} md={8} sm={4}>
-                {" "}
-                <br></br>
-              </Column>
-              <Column lg={8} md={4} sm={4}>
-                <Field name="primaryPhone">
-                  {({ field }) => (
-                    <TextInput
-                      value={values.primaryPhone || ""}
-                      name={field.name}
-                      onBlur={(e) => {
-                        handlePhoneValidation(e);
-                      }}
-                      id="primaryPhone"
-                      labelText={intl.formatMessage(
-                        {
-                          id: "patient.label.primaryphone",
-                          defaultMessage: "Phone: {PHONE_FORMAT}",
-                        },
-                        { PHONE_FORMAT: configurationProperties.PHONE_FORMAT },
-                      )}
-                      invalid={!phoneValidation.primaryPhone.status}
-                      invalidText={
-                        phoneValidation.primaryPhone.status
-                          ? ""
-                          : phoneValidation.primaryPhone.body
-                      }
-                      placeholder={intl.formatMessage({
-                        id: "patient.information.primaryphone",
-                      })}
-                    />
-                  )}
-                </Field>
-              </Column>
-              <Column lg={8} md={4} sm={4}>
-                <Field name="email">
-                  {({ field }) => (
-                    <TextInput
-                      value={values.email || ""}
-                      name={field.name}
-                      labelText={intl.formatMessage(
-                        {
-                          id: "patient.label.email",
-                          defaultMessage: "Patient Email",
-                        },
-                        {},
-                      )}
-                      id={field.name}
-                      invalid={errors.email && touched.email}
-                      invalidText={errors.email}
-                      placeholder={intl.formatMessage({
-                        id: "patient.information.email",
-                        defaultMessage: "Enter Patient Email",
-                      })}
-                    />
-                  )}
-                </Field>
-              </Column>
-              {getPatientAdditionalFields().map((field) =>
+                </Column>,
+              );
+            }
+            if (isPatientFixedFieldVisible("email")) {
+              pushEntry(
+                "email",
+                getPatientFixedFieldOrder("email"),
+                <Column lg={8} md={4} sm={4}>
+                  <Field name="email">
+                    {({ field }) => (
+                      <TextInput
+                        value={values.email || ""}
+                        name={field.name}
+                        labelText={getPatientFixedFieldLabel("email")}
+                        id={field.name}
+                        disabled={isPatientFixedFieldReadOnly("email")}
+                        invalid={errors.email && touched.email}
+                        invalidText={errors.email}
+                        placeholder={intl.formatMessage({
+                          id: "patient.information.email",
+                          defaultMessage: "Enter Patient Email",
+                        })}
+                      />
+                    )}
+                  </Field>
+                </Column>,
+              );
+            }
+            getPatientAdditionalFields().forEach((field) => {
+              pushEntry(
+                `patientAdditional-${field.fieldKey}`,
+                field?.sortOrder,
                 renderPatientAdditionalField(field, values, setFieldValue),
-              )}
-              <Column lg={16} md={8} sm={4}>
-                {" "}
-                <br></br>
-              </Column>
-              <Column lg={8} md={4} sm={4}>
-                {" "}
-              </Column>
-              <Column lg={8} md={4} sm={4}>
-                <Field name="gender">
-                  {({ field }) => (
-                    <RadioButtonGroup
-                      valueSelected={values.gender}
-                      legendText={
-                        <>
-                          {intl.formatMessage({ id: "patient.gender" })}{" "}
-                          <span className="requiredlabel">*</span>
-                        </>
-                      }
-                      name={field.name}
-                      invalid={errors.gender && touched.gender}
-                      invalidText={errors.gender}
-                      id="create_patient_gender"
-                    >
-                      <RadioButton
-                        id="radio-1"
-                        labelText={intl.formatMessage({ id: "patient.male" })}
-                        value="M"
-                      />
-                      <RadioButton
-                        id="radio-2"
-                        labelText={intl.formatMessage({ id: "patient.female" })}
-                        value="F"
-                      />
-                    </RadioButtonGroup>
-                  )}
-                </Field>
-                <div className="error">
-                  <ErrorMessage name="gender"></ErrorMessage>
-                </div>
-              </Column>
-              <Column lg={16} md={8} sm={4}>
-                {" "}
-                <br></br>
-              </Column>
-              <Column lg={8} md={4} sm={4}>
-                <Field name="birthDateForDisplay">
-                  {({ field }) => (
-                    <CustomDatePicker
-                      id={"date-picker-default-id"}
-                      labelText={
-                        <>
-                          {intl.formatMessage({
-                            id: "patient.dob",
+              );
+            });
+            if (isPatientFixedFieldVisible("gender")) {
+              pushEntry(
+                "gender",
+                getPatientFixedFieldOrder("gender"),
+                <Column lg={8} md={4} sm={4}>
+                  <Field name="gender">
+                    {({ field }) => (
+                      <RadioButtonGroup
+                        valueSelected={values.gender}
+                        legendText={getPatientFixedFieldLabel("gender")}
+                        name={field.name}
+                        invalid={errors.gender && touched.gender}
+                        invalidText={errors.gender}
+                        id="create_patient_gender"
+                        readOnly={isPatientFixedFieldReadOnly("gender")}
+                      >
+                        <RadioButton
+                          id="radio-1"
+                          labelText={intl.formatMessage({
+                            id: "patient.male",
                           })}
-                          <span className="requiredlabel">*</span>
-                        </>
-                      }
-                      autofillDate={true}
-                      value={values.birthDateForDisplay || ""}
-                      onChange={(date) => handleDatePickerChange(values, date)}
-                      invalid={
-                        errors.birthDateForDisplay &&
-                        touched.birthDateForDisplay
-                      }
-                      invalidText={errors.birthDateForDisplay}
-                      name={field.name}
-                      disallowFutureDate={true}
-                      updateStateValue={true}
-                    />
-                  )}
-                </Field>
-              </Column>
-              <Column lg={2} md={2} sm={2}>
-                <TextInput
-                  value={dateOfBirthFormatter.years}
-                  name="years"
-                  labelText={intl.formatMessage({
-                    id: "patient.age.years",
-                  })}
-                  id="years"
-                  type="number"
-                  min="0"
-                  onChange={(e) => handleYearsChange(e, values)}
-                  placeholder={intl.formatMessage({
-                    id: "patient.information.age",
-                  })}
-                />
-              </Column>
-              <Column lg={2} md={2} sm={2}>
-                <TextInput
-                  value={dateOfBirthFormatter.months}
-                  name="months"
-                  labelText={intl.formatMessage({ id: "patient.age.months" })}
-                  type="number"
-                  min="0"
-                  onChange={(e) => handleMonthsChange(e, values)}
-                  id="months"
-                  placeholder={intl.formatMessage({
-                    id: "patient.information.months",
-                  })}
-                />
-              </Column>
-              <Column lg={2} md={2} sm={2}>
-                <TextInput
-                  value={dateOfBirthFormatter.days}
-                  name="days"
-                  type="number"
-                  min="0"
-                  onChange={(e) => handleDaysChange(e, values)}
-                  labelText={intl.formatMessage({ id: "patient.age.days" })}
-                  id="days"
-                  placeholder={intl.formatMessage({
-                    id: "patient.information.days",
-                  })}
-                />
-                <div className="error">
-                  <ErrorMessage name="birthDateForDisplay"></ErrorMessage>
-                </div>
-              </Column>
-              <Column lg={16} md={8} sm={4}>
-                {" "}
-                <br></br>
-              </Column>
-              <Column lg={16} md={8} sm={4}>
-                {(showPatientEmergencyContactOnOrderEntry ||
-                  showPatientAdditionalInfoOnOrderEntry) && (
-                  <Accordion>
-                    {showPatientEmergencyContactOnOrderEntry && (
-                      <AccordionItem
-                        title={intl.formatMessage({
-                          id: "emergencyContactInfo.title",
-                        })}
-                      >
-                        <Grid>
-                          <Column lg={16} md={8} sm={4}>
-                            {" "}
-                            <br></br>
-                          </Column>
-                          <Column lg={8} md={4} sm={4}>
-                            <Field name="patientContact.person.lastName">
-                              {({ field }) => (
-                                <TextInput
-                                  value={
-                                    values.patientContact?.person?.lastName ||
-                                    ""
-                                  }
-                                  name={field.name}
-                                  labelText={intl.formatMessage({
-                                    id: "patientcontact.person.lastname",
-                                  })}
-                                  id={field.name}
-                                  onChange={(e) =>
-                                    handleLastContactNameChange(e)
-                                  }
-                                  placeholder={intl.formatMessage({
-                                    id: "patient.emergency.lastname",
-                                  })}
-                                />
-                              )}
-                            </Field>
-                          </Column>
-                          <Column lg={8} md={4} sm={4}>
-                            <Field name="patientContact.person.firstName">
-                              {({ field }) => (
-                                <TextInput
-                                  value={
-                                    values.patientContact?.person?.firstName ||
-                                    ""
-                                  }
-                                  name={field.name}
-                                  labelText={intl.formatMessage({
-                                    id: "patientcontact.person.firstname",
-                                  })}
-                                  id={field.name}
-                                  onChange={(e) =>
-                                    handleFirstContactNameChange(e)
-                                  }
-                                  placeholder={intl.formatMessage({
-                                    id: "patient.emergency.firstname",
-                                  })}
-                                />
-                              )}
-                            </Field>
-                          </Column>
-                          <Column lg={16} md={8} sm={4}>
-                            {" "}
-                            <br></br>
-                          </Column>
-                          <Column lg={8} md={4} sm={4}>
-                            <Field name="patientContact.person.email">
-                              {({ field }) => (
-                                <TextInput
-                                  value={
-                                    values.patientContact?.person?.email || ""
-                                  }
-                                  name={field.name}
-                                  labelText={intl.formatMessage({
-                                    id: "patientcontact.person.email",
-                                  })}
-                                  id={field.name}
-                                  placeholder={intl.formatMessage({
-                                    id: "patient.emergency.email",
-                                  })}
-                                />
-                              )}
-                            </Field>
-                            <div className="error">
-                              <ErrorMessage name="patientContact.person.email"></ErrorMessage>
-                            </div>
-                            <div className="error"></div>
-                          </Column>
-                          <Column lg={8} md={4} sm={4}>
-                            <Field name="patientContact.person.primaryPhone">
-                              {({ field }) => (
-                                <TextInput
-                                  value={
-                                    values.patientContact?.person
-                                      ?.primaryPhone || ""
-                                  }
-                                  name={field.name}
-                                  id="contactPhone"
-                                  onBlur={(e) => {
-                                    handlePhoneValidation(e);
-                                  }}
-                                  labelText={intl.formatMessage(
-                                    {
-                                      id: "patient.label.contactphone",
-                                      defaultMessage:
-                                        "Contact Phone: {PHONE_FORMAT}",
-                                    },
-                                    {
-                                      PHONE_FORMAT:
-                                        configurationProperties.PHONE_FORMAT,
-                                    },
-                                  )}
-                                  invalid={!phoneValidation.contactPhone.status}
-                                  invalidText={
-                                    phoneValidation.contactPhone.status
-                                      ? ""
-                                      : phoneValidation.contactPhone.body
-                                  }
-                                  placeholder={intl.formatMessage({
-                                    id: "patient.emergency.phone",
-                                  })}
-                                />
-                              )}
-                            </Field>
-                          </Column>
-                          <Column lg={16} md={8} sm={4}>
-                            {" "}
-                            <br></br>
-                          </Column>
-                        </Grid>
-                      </AccordionItem>
+                          value="M"
+                          disabled={isPatientFixedFieldReadOnly("gender")}
+                        />
+                        <RadioButton
+                          id="radio-2"
+                          labelText={intl.formatMessage({
+                            id: "patient.female",
+                          })}
+                          value="F"
+                          disabled={isPatientFixedFieldReadOnly("gender")}
+                        />
+                      </RadioButtonGroup>
                     )}
-                    {showPatientAdditionalInfoOnOrderEntry && (
-                      <AccordionItem
-                        title={intl.formatMessage({
-                          id: "patient.label.additionalInfo",
-                        })}
-                      >
-                        <Grid>
-                          {/* Legacy address fields - Show ONLY if new hierarchy is disabled */}
-                          {configurationProperties.USE_NEW_ADDRESS_HIERARCHY ===
-                            "false" && (
-                            <>
-                              <Column lg={16} md={8} sm={4}>
-                                {" "}
-                                <br></br>
-                              </Column>
-                              <Column lg={8} md={4} sm={4}>
-                                <Field name="city">
-                                  {({ field }) => (
-                                    <TextInput
-                                      value={values.city || ""}
-                                      name={field.name}
-                                      labelText={intl.formatMessage({
-                                        id: "patient.address.town",
-                                      })}
-                                      id={field.name}
-                                      placeholder={intl.formatMessage({
-                                        id: "patient.emergency.additional.town",
-                                      })}
-                                    />
-                                  )}
-                                </Field>
-                              </Column>
-                              <Column lg={8} md={4} sm={4}>
-                                <Field name="streetAddress">
-                                  {({ field }) => (
-                                    <TextInput
-                                      value={values.streetAddress || ""}
-                                      name={field.name}
-                                      labelText={intl.formatMessage({
-                                        id: "patient.address.street",
-                                      })}
-                                      id={field.name}
-                                      placeholder={intl.formatMessage({
-                                        id: "patient.emergency.additional.street",
-                                      })}
-                                    />
-                                  )}
-                                </Field>
-                              </Column>
-                              <Column lg={16} md={8} sm={4}>
-                                {" "}
-                                <br></br>
-                              </Column>
-                              <Column lg={8} md={4} sm={4}>
-                                <Field name="commune">
-                                  {({ field }) => (
-                                    <TextInput
-                                      value={values.commune || ""}
-                                      name={field.name}
-                                      labelText={intl.formatMessage({
-                                        id: "patient.address.camp",
-                                      })}
-                                      id={field.name}
-                                      placeholder={intl.formatMessage({
-                                        id: "patient.emergency.additional.camp",
-                                      })}
-                                    />
-                                  )}
-                                </Field>
-                              </Column>
-                            </>
-                          )}
-                          <Column lg={16} md={8} sm={4}>
-                            {" "}
-                            <br></br>
-                          </Column>
-                          {/* Address Hierarchy Section - Quick Search */}
-                          {configurationProperties.USE_NEW_ADDRESS_HIERARCHY ===
-                            "true" &&
-                            addressHierarchyLevels.length > 0 && (
-                              <Column lg={16} md={8} sm={4}>
-                                <AddressSearch
-                                  onAddressSelect={(levels) =>
-                                    handleAddressSearchSelect(
-                                      levels,
-                                      setFieldValue,
-                                    )
-                                  }
-                                  addressHierarchyLevels={
-                                    addressHierarchyLevels
-                                  }
-                                />
-                              </Column>
-                            )}
-                          {/* Dynamic Address Hierarchy Dropdowns - Always show when new hierarchy is enabled */}
-                          {configurationProperties.USE_NEW_ADDRESS_HIERARCHY ===
-                            "true" &&
-                            addressHierarchyLevels.length > 0 &&
-                            addressHierarchyLevels.map((level, levelIndex) => (
-                              <Column lg={8} md={4} sm={4} key={level.level}>
-                                <Field name={`addressHierarchy_${levelIndex}`}>
-                                  {({ field }) => (
-                                    <Select
-                                      id={`address_hierarchy_${levelIndex}`}
-                                      value={
-                                        values[
-                                          `addressHierarchy_${levelIndex}`
-                                        ] || ""
-                                      }
-                                      name={field.name}
-                                      labelText={level.typeName}
-                                      onChange={(e) => {
-                                        setFieldValue(
-                                          `addressHierarchy_${levelIndex}`,
-                                          e.target.value,
-                                        );
-                                        handleAddressHierarchySelection(
-                                          levelIndex,
-                                          e.target.value,
-                                          setFieldValue,
-                                        );
-                                        // For backward compatibility, also set healthRegion/healthDistrict
-                                        if (levelIndex === 0) {
-                                          setFieldValue(
-                                            "healthRegion",
-                                            e.target.value,
-                                          );
-                                          handleRegionSelection(e, values);
-                                        } else if (levelIndex === 1) {
-                                          setFieldValue(
-                                            "healthDistrict",
-                                            e.target.value,
-                                          );
-                                        }
-                                      }}
-                                    >
-                                      <SelectItem text="" value="" />
-                                      {(
-                                        addressHierarchyValues[levelIndex] || []
-                                      ).map((item, index) => (
-                                        <SelectItem
-                                          text={item.value}
-                                          value={item.id}
-                                          key={index}
-                                        />
-                                      ))}
-                                    </Select>
-                                  )}
-                                </Field>
-                              </Column>
-                            ))}
-                          {/* Legacy Health Region/District - Show ONLY if new hierarchy is explicitly disabled */}
-                          {configurationProperties.USE_NEW_ADDRESS_HIERARCHY ===
-                            "false" && (
-                            <>
-                              <Column lg={8} md={4} sm={4}>
-                                <Field name="healthRegion">
-                                  {({ field }) => (
-                                    <Select
-                                      id="health_region"
-                                      value={values.healthRegion || ""}
-                                      name={field.name}
-                                      labelText={intl.formatMessage({
-                                        id: "patient.address.healthregion",
-                                      })}
-                                      onChange={(e) =>
-                                        handleRegionSelection(e, values)
-                                      }
-                                      helperText={intl.formatMessage({
-                                        id: "patient.emergency.additional.region",
-                                      })}
-                                    >
-                                      <SelectItem text="" value="" />
-                                      {healthRegions?.map((region, index) => (
-                                        <SelectItem
-                                          text={region.value}
-                                          value={region.id}
-                                          key={index}
-                                        />
-                                      ))}
-                                    </Select>
-                                  )}
-                                </Field>
-                              </Column>
-
-                              <Column lg={8} md={4} sm={4}>
-                                <Field name="healthDistrict">
-                                  {({ field }) => (
-                                    <Select
-                                      id="health_district"
-                                      value={values.healthDistrict || ""}
-                                      name={field.name}
-                                      labelText={intl.formatMessage({
-                                        id: "patient.address.healthdistrict",
-                                      })}
-                                      onChange={() => {}}
-                                      helperText={intl.formatMessage({
-                                        id: "patient.emergency.additional.district",
-                                      })}
-                                    >
-                                      <SelectItem text="" value="" />
-                                      {healthDistricts.map(
-                                        (district, index) => (
-                                          <SelectItem
-                                            text={district.value}
-                                            value={district.value}
-                                            key={index}
-                                          />
-                                        ),
-                                      )}
-                                    </Select>
-                                  )}
-                                </Field>
-                              </Column>
-                            </>
-                          )}
-                          <Column lg={16} md={8} sm={4}>
-                            {" "}
-                            <br></br>
-                          </Column>
-                          <Column lg={8} md={4} sm={4}>
-                            <Field name="education">
-                              {({ field }) => (
-                                <Select
-                                  id="education"
-                                  value={values.education || ""}
-                                  name={field.name}
-                                  labelText={intl.formatMessage({
-                                    id: "patient.eduction",
-                                  })}
-                                  onChange={() => {}}
-                                  helperText={intl.formatMessage({
-                                    id: "patient.emergency.additional.education",
-                                  })}
-                                >
-                                  <SelectItem text="" value="" />
-                                  {educationList.map((education, index) => (
-                                    <SelectItem
-                                      text={education.value}
-                                      value={education.value}
-                                      key={index}
-                                    />
-                                  ))}
-                                </Select>
-                              )}
-                            </Field>
-                          </Column>
-                          <Column lg={8} md={4} sm={4}>
-                            <Field name="maritialStatus">
-                              {({ field }) => (
-                                <Select
-                                  id="maritialStatus"
-                                  value={values.maritialStatus || ""}
-                                  name={field.name}
-                                  labelText={intl.formatMessage({
-                                    id: "patient.maritalstatus",
-                                  })}
-                                  onChange={() => {}}
-                                  helperText={intl.formatMessage({
-                                    id: "patient.emergency.additional.maritalstatus",
-                                  })}
-                                >
-                                  <SelectItem text="" value="" />
-                                  {maritalStatuses.map((status, index) => (
-                                    <SelectItem
-                                      text={status.value}
-                                      value={status.value}
-                                      key={index}
-                                    />
-                                  ))}
-                                </Select>
-                              )}
-                            </Field>
-                          </Column>
-                          <Column lg={16} md={8} sm={4}>
-                            {" "}
-                            <br></br>
-                          </Column>
-                          <Column lg={8} md={4} sm={4}>
-                            <Field name="nationality">
-                              {({ field }) => (
-                                <Select
-                                  id="nationality"
-                                  value={values.nationality || ""}
-                                  name={field.name}
-                                  labelText={intl.formatMessage({
-                                    id: "patient.nationality",
-                                  })}
-                                  onChange={() => {}}
-                                  helperText={intl.formatMessage({
-                                    id: "patient.emergency.additional.nationnality",
-                                  })}
-                                >
-                                  <SelectItem text="" value="" />
-                                  {nationalityList.map((nationality, index) => (
-                                    <SelectItem
-                                      text={nationality.label}
-                                      value={nationality.value}
-                                      key={index}
-                                    />
-                                  ))}
-                                </Select>
-                              )}
-                            </Field>
-                          </Column>
-                          <Column lg={8} md={4} sm={4}>
-                            <Field name="otherNationality">
-                              {({ field }) => (
-                                <TextInput
-                                  value={values.otherNationality || ""}
-                                  name={field.name}
-                                  labelText={intl.formatMessage({
-                                    id: "patient.nationality.other",
-                                  })}
-                                  id={field.name}
-                                  placeholder={intl.formatMessage({
-                                    id: "patient.emergency.additional.othernationality",
-                                  })}
-                                />
-                              )}
-                            </Field>
-                          </Column>
-                        </Grid>
-                      </AccordionItem>
-                    )}
-                  </Accordion>
-                )}
-              </Column>
-              <Column lg={16} md={8} sm={4}>
-                {" "}
-                <br></br>
-              </Column>
-              {props.showActionsButton && (
+                  </Field>
+                  <div className="error">
+                    <ErrorMessage name="gender"></ErrorMessage>
+                  </div>
+                </Column>,
+              );
+            }
+            if (isPatientFixedFieldVisible("birthDateAge")) {
+              pushEntry(
+                "birthDateAge",
+                getPatientFixedFieldOrder("birthDateAge"),
                 <>
-                  <Column lg={4} md={4} sm={4}>
-                    <Button
-                      type="submit"
-                      id="submit"
-                      disabled={
-                        isSubmitting ||
-                        Object.values(phoneValidation).some(
-                          (item) => item.status === false,
-                        )
-                      }
-                    >
-                      <FormattedMessage id="label.button.save" />
-                    </Button>
+                  <Column lg={8} md={4} sm={4}>
+                    <Field name="birthDateForDisplay">
+                      {({ field }) => (
+                        <CustomDatePicker
+                          id={"date-picker-default-id"}
+                          labelText={getPatientFixedFieldLabel("birthDateAge")}
+                          autofillDate={true}
+                          value={values.birthDateForDisplay || ""}
+                          onChange={(date) =>
+                            handleDatePickerChange(values, date)
+                          }
+                          invalid={
+                            errors.birthDateForDisplay &&
+                            touched.birthDateForDisplay
+                          }
+                          invalidText={errors.birthDateForDisplay}
+                          name={field.name}
+                          disallowFutureDate={true}
+                          updateStateValue={true}
+                          disabled={isPatientFixedFieldReadOnly("birthDateAge")}
+                        />
+                      )}
+                    </Field>
                   </Column>
-                  <Column lg={4} md={4} sm={4}>
-                    <Button
-                      id="clear"
-                      kind="danger"
-                      disabled={isSubmitting}
-                      onClick={() => {
-                        resetForm({ values: CreatePatientFormValues });
-                        setHealthDistricts([]);
-                        setDateOfBirthFormatter({
-                          years: "",
-                          months: "",
-                          days: "",
-                        });
-                      }}
-                    >
-                      <FormattedMessage id="label.button.clear" />
-                    </Button>
+                  <Column lg={2} md={2} sm={2}>
+                    <TextInput
+                      value={dateOfBirthFormatter.years}
+                      name="years"
+                      labelText={intl.formatMessage({
+                        id: "patient.age.years",
+                      })}
+                      id="years"
+                      type="number"
+                      min="0"
+                      disabled={isPatientFixedFieldReadOnly("birthDateAge")}
+                      onChange={(e) => handleYearsChange(e, values)}
+                      placeholder={intl.formatMessage({
+                        id: "patient.information.age",
+                      })}
+                    />
                   </Column>
-                </>
+                  <Column lg={2} md={2} sm={2}>
+                    <TextInput
+                      value={dateOfBirthFormatter.months}
+                      name="months"
+                      labelText={intl.formatMessage({
+                        id: "patient.age.months",
+                      })}
+                      type="number"
+                      min="0"
+                      disabled={isPatientFixedFieldReadOnly("birthDateAge")}
+                      onChange={(e) => handleMonthsChange(e, values)}
+                      id="months"
+                      placeholder={intl.formatMessage({
+                        id: "patient.information.months",
+                      })}
+                    />
+                  </Column>
+                  <Column lg={2} md={2} sm={2}>
+                    <TextInput
+                      value={dateOfBirthFormatter.days}
+                      name="days"
+                      type="number"
+                      min="0"
+                      disabled={isPatientFixedFieldReadOnly("birthDateAge")}
+                      onChange={(e) => handleDaysChange(e, values)}
+                      labelText={intl.formatMessage({
+                        id: "patient.age.days",
+                      })}
+                      id="days"
+                      placeholder={intl.formatMessage({
+                        id: "patient.information.days",
+                      })}
+                    />
+                    <div className="error">
+                      <ErrorMessage name="birthDateForDisplay"></ErrorMessage>
+                    </div>
+                  </Column>
+                </>,
+              );
+            }
+            if (isPatientFixedFieldVisible("emergencyContact")) {
+              pushEntry(
+                "emergencyContact",
+                getPatientFixedFieldOrder("emergencyContact"),
+                <Column lg={16} md={8} sm={4}>
+                  <Accordion>
+                    <AccordionItem
+                      title={intl.formatMessage({
+                        id: "emergencyContactInfo.title",
+                      })}
+                    >
+                      <Grid>
+                        <Column lg={8} md={4} sm={4}>
+                          <Field name="patientContact.person.lastName">
+                            {({ field }) => (
+                              <TextInput
+                                value={
+                                  values.patientContact?.person?.lastName || ""
+                                }
+                                name={field.name}
+                                labelText={intl.formatMessage({
+                                  id: "patientcontact.person.lastname",
+                                })}
+                                id={field.name}
+                                disabled={emergencyContactDisabled}
+                                onChange={(e) => handleLastContactNameChange(e)}
+                                placeholder={intl.formatMessage({
+                                  id: "patient.emergency.lastname",
+                                })}
+                              />
+                            )}
+                          </Field>
+                        </Column>
+                        <Column lg={8} md={4} sm={4}>
+                          <Field name="patientContact.person.firstName">
+                            {({ field }) => (
+                              <TextInput
+                                value={
+                                  values.patientContact?.person?.firstName || ""
+                                }
+                                name={field.name}
+                                labelText={intl.formatMessage({
+                                  id: "patientcontact.person.firstname",
+                                })}
+                                id={field.name}
+                                disabled={emergencyContactDisabled}
+                                onChange={(e) =>
+                                  handleFirstContactNameChange(e)
+                                }
+                                placeholder={intl.formatMessage({
+                                  id: "patient.emergency.firstname",
+                                })}
+                              />
+                            )}
+                          </Field>
+                        </Column>
+                        <Column lg={8} md={4} sm={4}>
+                          <Field name="patientContact.person.email">
+                            {({ field }) => (
+                              <TextInput
+                                value={
+                                  values.patientContact?.person?.email || ""
+                                }
+                                name={field.name}
+                                labelText={intl.formatMessage({
+                                  id: "patientcontact.person.email",
+                                })}
+                                id={field.name}
+                                disabled={emergencyContactDisabled}
+                                placeholder={intl.formatMessage({
+                                  id: "patient.emergency.email",
+                                })}
+                              />
+                            )}
+                          </Field>
+                          <div className="error">
+                            <ErrorMessage name="patientContact.person.email"></ErrorMessage>
+                          </div>
+                        </Column>
+                        <Column lg={8} md={4} sm={4}>
+                          <Field name="patientContact.person.primaryPhone">
+                            {({ field }) => (
+                              <TextInput
+                                value={
+                                  values.patientContact?.person?.primaryPhone ||
+                                  ""
+                                }
+                                name={field.name}
+                                id="contactPhone"
+                                onBlur={(e) => {
+                                  handlePhoneValidation(e);
+                                }}
+                                labelText={intl.formatMessage(
+                                  {
+                                    id: "patient.label.contactphone",
+                                    defaultMessage:
+                                      "Contact Phone: {PHONE_FORMAT}",
+                                  },
+                                  {
+                                    PHONE_FORMAT:
+                                      configurationProperties.PHONE_FORMAT,
+                                  },
+                                )}
+                                disabled={emergencyContactDisabled}
+                                invalid={!phoneValidation.contactPhone.status}
+                                invalidText={
+                                  phoneValidation.contactPhone.status
+                                    ? ""
+                                    : phoneValidation.contactPhone.body
+                                }
+                                placeholder={intl.formatMessage({
+                                  id: "patient.emergency.phone",
+                                })}
+                              />
+                            )}
+                          </Field>
+                        </Column>
+                      </Grid>
+                    </AccordionItem>
+                  </Accordion>
+                </Column>,
+              );
+            }
+            if (isPatientFixedFieldVisible("additionalInfo")) {
+              pushEntry(
+                "additionalInfo",
+                getPatientFixedFieldOrder("additionalInfo"),
+                <Column lg={16} md={8} sm={4}>
+                  <Accordion>
+                    <AccordionItem
+                      title={intl.formatMessage({
+                        id: "patient.label.additionalInfo",
+                      })}
+                    >
+                      <Grid>
+                        {configurationProperties.USE_NEW_ADDRESS_HIERARCHY ===
+                          "false" && (
+                          <>
+                            <Column lg={8} md={4} sm={4}>
+                              <Field name="city">
+                                {({ field }) => (
+                                  <TextInput
+                                    value={values.city || ""}
+                                    name={field.name}
+                                    labelText={intl.formatMessage({
+                                      id: "patient.address.town",
+                                    })}
+                                    id={field.name}
+                                    disabled={additionalInfoDisabled}
+                                    placeholder={intl.formatMessage({
+                                      id: "patient.emergency.additional.town",
+                                    })}
+                                  />
+                                )}
+                              </Field>
+                            </Column>
+                            <Column lg={8} md={4} sm={4}>
+                              <Field name="streetAddress">
+                                {({ field }) => (
+                                  <TextInput
+                                    value={values.streetAddress || ""}
+                                    name={field.name}
+                                    labelText={intl.formatMessage({
+                                      id: "patient.address.street",
+                                    })}
+                                    id={field.name}
+                                    disabled={additionalInfoDisabled}
+                                    placeholder={intl.formatMessage({
+                                      id: "patient.emergency.additional.street",
+                                    })}
+                                  />
+                                )}
+                              </Field>
+                            </Column>
+                            <Column lg={8} md={4} sm={4}>
+                              <Field name="commune">
+                                {({ field }) => (
+                                  <TextInput
+                                    value={values.commune || ""}
+                                    name={field.name}
+                                    labelText={intl.formatMessage({
+                                      id: "patient.address.camp",
+                                    })}
+                                    id={field.name}
+                                    disabled={additionalInfoDisabled}
+                                    placeholder={intl.formatMessage({
+                                      id: "patient.emergency.additional.camp",
+                                    })}
+                                  />
+                                )}
+                              </Field>
+                            </Column>
+                          </>
+                        )}
+                        {configurationProperties.USE_NEW_ADDRESS_HIERARCHY ===
+                          "true" &&
+                          addressHierarchyLevels.length > 0 && (
+                            <Column lg={16} md={8} sm={4}>
+                              <AddressSearch
+                                disabled={additionalInfoDisabled}
+                                onAddressSelect={(levels) =>
+                                  handleAddressSearchSelect(
+                                    levels,
+                                    setFieldValue,
+                                  )
+                                }
+                                addressHierarchyLevels={addressHierarchyLevels}
+                              />
+                            </Column>
+                          )}
+                        {configurationProperties.USE_NEW_ADDRESS_HIERARCHY ===
+                          "true" &&
+                          addressHierarchyLevels.length > 0 &&
+                          addressHierarchyLevels.map((level, levelIndex) => (
+                            <Column lg={8} md={4} sm={4} key={level.level}>
+                              <Field name={`addressHierarchy_${levelIndex}`}>
+                                {({ field }) => (
+                                  <Select
+                                    id={`address_hierarchy_${levelIndex}`}
+                                    value={
+                                      values[
+                                        `addressHierarchy_${levelIndex}`
+                                      ] || ""
+                                    }
+                                    disabled={additionalInfoDisabled}
+                                    name={field.name}
+                                    labelText={level.typeName}
+                                    onChange={(e) => {
+                                      setFieldValue(
+                                        `addressHierarchy_${levelIndex}`,
+                                        e.target.value,
+                                      );
+                                      handleAddressHierarchySelection(
+                                        levelIndex,
+                                        e.target.value,
+                                        setFieldValue,
+                                      );
+                                      if (levelIndex === 0) {
+                                        setFieldValue(
+                                          "healthRegion",
+                                          e.target.value,
+                                        );
+                                        handleRegionSelection(e, values);
+                                      } else if (levelIndex === 1) {
+                                        setFieldValue(
+                                          "healthDistrict",
+                                          e.target.value,
+                                        );
+                                      }
+                                    }}
+                                  >
+                                    <SelectItem text="" value="" />
+                                    {(
+                                      addressHierarchyValues[levelIndex] || []
+                                    ).map((item, index) => (
+                                      <SelectItem
+                                        text={item.value}
+                                        value={item.id}
+                                        key={index}
+                                      />
+                                    ))}
+                                  </Select>
+                                )}
+                              </Field>
+                            </Column>
+                          ))}
+                        {configurationProperties.USE_NEW_ADDRESS_HIERARCHY ===
+                          "false" && (
+                          <>
+                            <Column lg={8} md={4} sm={4}>
+                              <Field name="healthRegion">
+                                {({ field }) => (
+                                  <Select
+                                    id="health_region"
+                                    value={values.healthRegion || ""}
+                                    disabled={additionalInfoDisabled}
+                                    name={field.name}
+                                    labelText={intl.formatMessage({
+                                      id: "patient.address.healthregion",
+                                    })}
+                                    onChange={(e) =>
+                                      handleRegionSelection(e, values)
+                                    }
+                                    helperText={intl.formatMessage({
+                                      id: "patient.emergency.additional.region",
+                                    })}
+                                  >
+                                    <SelectItem text="" value="" />
+                                    {healthRegions?.map((region, index) => (
+                                      <SelectItem
+                                        text={region.value}
+                                        value={region.id}
+                                        key={index}
+                                      />
+                                    ))}
+                                  </Select>
+                                )}
+                              </Field>
+                            </Column>
+                            <Column lg={8} md={4} sm={4}>
+                              <Field name="healthDistrict">
+                                {({ field }) => (
+                                  <Select
+                                    id="health_district"
+                                    value={values.healthDistrict || ""}
+                                    disabled={additionalInfoDisabled}
+                                    name={field.name}
+                                    labelText={intl.formatMessage({
+                                      id: "patient.address.healthdistrict",
+                                    })}
+                                    onChange={() => {}}
+                                    helperText={intl.formatMessage({
+                                      id: "patient.emergency.additional.district",
+                                    })}
+                                  >
+                                    <SelectItem text="" value="" />
+                                    {healthDistricts.map((district, index) => (
+                                      <SelectItem
+                                        text={district.value}
+                                        value={district.value}
+                                        key={index}
+                                      />
+                                    ))}
+                                  </Select>
+                                )}
+                              </Field>
+                            </Column>
+                          </>
+                        )}
+                        <Column lg={8} md={4} sm={4}>
+                          <Field name="education">
+                            {({ field }) => (
+                              <Select
+                                id="education"
+                                value={values.education || ""}
+                                disabled={additionalInfoDisabled}
+                                name={field.name}
+                                labelText={intl.formatMessage({
+                                  id: "patient.eduction",
+                                })}
+                                onChange={() => {}}
+                                helperText={intl.formatMessage({
+                                  id: "patient.emergency.additional.education",
+                                })}
+                              >
+                                <SelectItem text="" value="" />
+                                {educationList.map((education, index) => (
+                                  <SelectItem
+                                    text={education.value}
+                                    value={education.value}
+                                    key={index}
+                                  />
+                                ))}
+                              </Select>
+                            )}
+                          </Field>
+                        </Column>
+                        <Column lg={8} md={4} sm={4}>
+                          <Field name="maritialStatus">
+                            {({ field }) => (
+                              <Select
+                                id="maritialStatus"
+                                value={values.maritialStatus || ""}
+                                disabled={additionalInfoDisabled}
+                                name={field.name}
+                                labelText={intl.formatMessage({
+                                  id: "patient.maritalstatus",
+                                })}
+                                onChange={() => {}}
+                                helperText={intl.formatMessage({
+                                  id: "patient.emergency.additional.maritalstatus",
+                                })}
+                              >
+                                <SelectItem text="" value="" />
+                                {maritalStatuses.map((status, index) => (
+                                  <SelectItem
+                                    text={status.value}
+                                    value={status.value}
+                                    key={index}
+                                  />
+                                ))}
+                              </Select>
+                            )}
+                          </Field>
+                        </Column>
+                        <Column lg={8} md={4} sm={4}>
+                          <Field name="nationality">
+                            {({ field }) => (
+                              <Select
+                                id="nationality"
+                                value={values.nationality || ""}
+                                disabled={additionalInfoDisabled}
+                                name={field.name}
+                                labelText={intl.formatMessage({
+                                  id: "patient.nationality",
+                                })}
+                                onChange={() => {}}
+                                helperText={intl.formatMessage({
+                                  id: "patient.emergency.additional.nationnality",
+                                })}
+                              >
+                                <SelectItem text="" value="" />
+                                {nationalityList.map((nationality, index) => (
+                                  <SelectItem
+                                    text={nationality.label}
+                                    value={nationality.value}
+                                    key={index}
+                                  />
+                                ))}
+                              </Select>
+                            )}
+                          </Field>
+                        </Column>
+                        <Column lg={8} md={4} sm={4}>
+                          <Field name="otherNationality">
+                            {({ field }) => (
+                              <TextInput
+                                value={values.otherNationality || ""}
+                                name={field.name}
+                                labelText={intl.formatMessage({
+                                  id: "patient.nationality.other",
+                                })}
+                                id={field.name}
+                                disabled={additionalInfoDisabled}
+                                placeholder={intl.formatMessage({
+                                  id: "patient.emergency.additional.othernationality",
+                                })}
+                              />
+                            )}
+                          </Field>
+                        </Column>
+                      </Grid>
+                    </AccordionItem>
+                  </Accordion>
+                </Column>,
+              );
+            }
+            return entries
+              .sort((left, right) => {
+                if (left.order !== right.order) {
+                  return left.order - right.order;
+                }
+                return left.key.localeCompare(right.key);
+              })
+              .map((entry) => (
+                <React.Fragment key={entry.key}>{entry.node}</React.Fragment>
+              ));
+          };
+          return (
+            <Form
+              onSubmit={handleSubmit}
+              onChange={handleChange}
+              onBlur={handleBlur}
+            >
+              <PatientRegistrationReadiness
+                ready={
+                  permissionsLoaded &&
+                  fixedFieldsLoaded &&
+                  additionalFieldsLoaded &&
+                  !Object.values(phoneValidation).some(
+                    (item) => item.status === false,
+                  )
+                }
+                validate={(patient) => {
+                  const errors = validatePatientForm(patient);
+                  patientAdditionalFields.forEach((field) => {
+                    if (
+                      field.required &&
+                      !String(
+                        patient.patientAdditionalFieldValues?.[
+                          field.fieldKey
+                        ] || "",
+                      ).trim()
+                    ) {
+                      errors[field.fieldKey] = intl.formatMessage({
+                        id: "patient.fixed.fields.required",
+                      });
+                    }
+                  });
+                  return errors;
+                }}
+                onReadyChange={setPatientReady}
+              />
+              {props.orderFormValues && (
+                <PatientFormObserver
+                  orderFormValues={props.orderFormValues}
+                  setOrderFormValues={props.setOrderFormValues}
+                  formAction={formAction}
+                  readOnly={
+                    permissionsLoaded &&
+                    isExistingPatient &&
+                    !canEditPatientInCurrentContext
+                  }
+                />
               )}
-            </Grid>
-          </Form>
-        )}
+              <Grid>
+                <Column lg={16} md={8} sm={4}>
+                  <FormLabel>
+                    <Section>
+                      <Section>
+                        <Section>
+                          <Heading>
+                            <FormattedMessage id="patient.label.info" />
+                          </Heading>
+                        </Section>
+                      </Section>
+                    </Section>
+                  </FormLabel>
+                </Column>
+                {renderOrderedPatientFields()}
+                <Column lg={16} md={8} sm={4}></Column>
+                <Column lg={16} md={8} sm={4}>
+                  {" "}
+                  <br></br>
+                </Column>
+                {(props.showActionsButton ||
+                  (isOrderEntryPatientStep && !values.patientPK)) && (
+                  <>
+                    <Column lg={4} md={4} sm={4}>
+                      <Button
+                        type="submit"
+                        id="submit"
+                        disabled={
+                          patientEditingDisabled ||
+                          !patientReady ||
+                          isSubmitting ||
+                          Object.values(phoneValidation).some(
+                            (item) => item.status === false,
+                          )
+                        }
+                      >
+                        <FormattedMessage
+                          id={
+                            isOrderEntryPatientStep
+                              ? "label.button.save"
+                              : "label.button.save"
+                          }
+                        />
+                      </Button>
+                    </Column>
+                    {!isOrderEntryPatientStep && (
+                      <Column lg={4} md={4} sm={4}>
+                        <Button
+                          id="clear"
+                          kind="danger"
+                          disabled={patientEditingDisabled || isSubmitting}
+                          onClick={() => {
+                            untypedIdentifierRef.current = "";
+                            patientIdentifierRef.current = {
+                              nationalId: "",
+                              subjectNumber: "",
+                            };
+                            setShowDniField(false);
+                            setShowPassportField(false);
+                            setShowForeignIdField(false);
+                            resetForm({
+                              values: CreatePatientFormValues,
+                            });
+                            setPatientDetails(CreatePatientFormValues);
+                            setFormAction("ADD");
+                            setHealthDistricts([]);
+                            setDateOfBirthFormatter({
+                              years: "",
+                              months: "",
+                              days: "",
+                            });
+                          }}
+                        >
+                          <FormattedMessage id="label.button.clear" />
+                        </Button>
+                      </Column>
+                    )}
+                  </>
+                )}
+              </Grid>
+            </Form>
+          );
+        }}
       </Formik>
     </>
   );
 }
-
 export default injectIntl(CreatePatientForm);

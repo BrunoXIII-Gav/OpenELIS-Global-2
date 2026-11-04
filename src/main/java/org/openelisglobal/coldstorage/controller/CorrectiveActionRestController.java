@@ -17,6 +17,7 @@ import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
+import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.PostMapping;
@@ -28,6 +29,7 @@ import org.springframework.web.bind.annotation.RestController;
 
 @RestController
 @RequestMapping("/rest/coldstorage/corrective-actions")
+@PreAuthorize("@accessControl.hasStoragePermission('read')")
 public class CorrectiveActionRestController extends BaseRestController {
 
     private static final Logger logger = LoggerFactory.getLogger(CorrectiveActionRestController.class);
@@ -39,6 +41,7 @@ public class CorrectiveActionRestController extends BaseRestController {
     private FreezerService freezerService;
 
     @PostMapping
+    @PreAuthorize("@accessControl.hasStoragePermission('update')")
     public ResponseEntity<CorrectiveActionDTO> createCorrectiveAction(
             @RequestBody CreateCorrectiveActionRequest request) {
 
@@ -112,6 +115,7 @@ public class CorrectiveActionRestController extends BaseRestController {
     }
 
     @PutMapping("/{id}")
+    @PreAuthorize("@accessControl.hasStoragePermission('update')")
     public ResponseEntity<CorrectiveActionDTO> updateCorrectiveAction(@PathVariable Long id,
             @RequestBody UpdateCorrectiveActionRequest request) {
 
@@ -148,6 +152,7 @@ public class CorrectiveActionRestController extends BaseRestController {
     }
 
     @PutMapping("/{id}/complete")
+    @PreAuthorize("@accessControl.hasStoragePermission('update')")
     public ResponseEntity<CorrectiveActionDTO> completeCorrectiveAction(@PathVariable Long id,
             @RequestBody UpdateCorrectiveActionRequest request) {
 
@@ -171,6 +176,7 @@ public class CorrectiveActionRestController extends BaseRestController {
     }
 
     @PutMapping("/{id}/retract")
+    @PreAuthorize("@accessControl.hasStoragePermission('update')")
     public ResponseEntity<CorrectiveActionDTO> retractCorrectiveAction(@PathVariable Long id,
             @RequestBody UpdateCorrectiveActionRequest request) {
 

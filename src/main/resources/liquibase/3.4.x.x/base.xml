@@ -39,10 +39,7 @@
   <include relativeToChangelogFile="true" file="026-add-validation-medical-biologist-roles.xml"/>
   <include relativeToChangelogFile="true" file="027-add-provider-dni-column.xml"/>
   <include relativeToChangelogFile="true" file="027-create-sample-fixed-field-config.xml"/>
-  <include relativeToChangelogFile="true" file="029-add-cug-to-sample-item.xml"/>
-  <include relativeToChangelogFile="true" file="030-create-sample-cug-prefix-sequence.xml"/>
-  <include relativeToChangelogFile="true" file="031-create-sample-cug-reservation.xml"/>
-  <include relativeToChangelogFile="true" file="032-normalize-sample-cug-prefix-sequence.xml"/>
+
   <include relativeToChangelogFile="true" file="033-add-result-storage-location-config.xml"/>
   <include relativeToChangelogFile="true" file="034-add-patient-passport-max-length-config.xml"/>
   <include relativeToChangelogFile="true" file="035-add-order-entry-patient-visibility-config.xml"/>
@@ -74,5 +71,44 @@
   <include relativeToChangelogFile="true" file="060-set-order-provider-selection-self-only.xml"/>
   <include relativeToChangelogFile="true" file="061-map-order-permission-to-legacy-order-modules.xml"/>
   <include relativeToChangelogFile="true" file="062-remap-sample-management-route-to-generic-sample-module.xml"/>
-  <include relativeToChangelogFile="true" file="063-disable-cug-for-incn-branch.xml"/>
+  <include relativeToChangelogFile="true" file="063-add-provider-profile-dynamic-fields.xml"/>
+  <include relativeToChangelogFile="true" file="064-expand-site-information-value-for-profile-fields.xml"/>
+  <include relativeToChangelogFile="true" file="065-add-professional-profile-specialty-options-config.xml"/>
+  <include relativeToChangelogFile="true" file="066-create-provider-profile-field-values-table.xml"/>
+  <include relativeToChangelogFile="true" file="067-add-missing-professional-profile-module-configs.xml"/>
+  <include relativeToChangelogFile="true" file="068-add-dashboard-waiting-threshold-config.xml"/>
+  <include relativeToChangelogFile="true" file="069-add-allow-duplicate-subject-number-config.xml"/>
+  <include relativeToChangelogFile="true" file="070-create-patient-fixed-field-config.xml"/>
+  <include relativeToChangelogFile="true" file="071-add-visible-submenu-route-permission-roles.xml"/>
+  <include relativeToChangelogFile="true" file="072-hide-seeded-sample-types.xml"/>
+  <include relativeToChangelogFile="true" file="073-create-role-module-permissions.xml"/>
+  <include relativeToChangelogFile="true" file="074-create-role-field-restrictions.xml"/>
+  <include relativeToChangelogFile="true" file="075-create-role-field-tag-restrictions.xml"/>
+  <include relativeToChangelogFile="true" file="076-add-sample-item-data-completion-status.xml"/>
+  <include relativeToChangelogFile="true" file="077-backfill-pending-sample-data-completion-status.xml"/>
+  <include relativeToChangelogFile="true" file="078-backfill-partial-sample-data-completion-status.xml"/>
+  <include relativeToChangelogFile="true" file="079-backfill-missing-required-sample-additional-fields.xml"/>
+  <include relativeToChangelogFile="true" file="080-create-role-patient-search-restrictions.xml"/>
+  <include relativeToChangelogFile="true" file="081-add-role-patient-search-restriction-audit-column.xml"/>
+  <include relativeToChangelogFile="true" file="082-merge-validation-sign-permission.xml"/>
+  <include relativeToChangelogFile="true" file="083-add-simplified-test-names-config.xml"/>
+  <include relativeToChangelogFile="true" file="084-add-collector-user-reference.xml"/>
+  <include relativeToChangelogFile="true" file="085-test-configuration-packages.xml"/>
+  <include relativeToChangelogFile="true" file="086-test-creation-origin.xml"/>
+  <include relativeToChangelogFile="true" file="087-verify-test-creation-origin.xml"/>
+  <include relativeToChangelogFile="true" file="088-complete-audit-trail.xml"/>
+  <include relativeToChangelogFile="true" file="089-audit-test-filter.xml"/>
+  <include relativeToChangelogFile="true" file="090-add-traceability-menu.xml"/>
+  <include relativeToChangelogFile="true" file="091-default-routine-stat-priorities.xml"/>
+  <include relativeToChangelogFile="true" file="092-test-section-creation-origin.xml"/>
+  <include relativeToChangelogFile="true" file="093-training-cleanup-audit-archive.xml"/>
+
+  <include relativeToChangelogFile="true" file="098-patient-document-uniqueness.xml"/>
+  <include relativeToChangelogFile="true" file="099-order-accession-confirmation.xml"/>
+
+  <include relativeToChangelogFile="true" file="101-analysis-result-delivery.xml"/>
+  <include relativeToChangelogFile="true" file="102-analysis-amendment.xml"/>
+  <include relativeToChangelogFile="true" file="103-delivered-analysis-lock.xml"/>
+  <include relativeToChangelogFile="true" file="104-test-alternate-flow-processing.xml"/>
+  <include relativeToChangelogFile="true" file="105-training-laboratory-number-reset.xml"/>
 </databaseChangeLog>

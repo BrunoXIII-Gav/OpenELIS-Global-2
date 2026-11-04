@@ -80,7 +80,7 @@
         entered_birth_date="1997-10-09" lastupdated="2023-11-01 12:00:02" />
     <patient id="3" person_id="2" race="black" gender="M"
         birth_date="1992-12-12 02:00:00" birth_time="1992-12-12 02:00:00"
-        national_id="1234" ethnicity="U" external_id="EX432"
+        national_id="90123" ethnicity="U" external_id="EX432"
         school_attend="MaKerere College" birth_place="Kawempe"
         entered_birth_date="1992-12-12" lastupdated="2023-11-01 12:00:02" />
     <!-- New Patient entry -->

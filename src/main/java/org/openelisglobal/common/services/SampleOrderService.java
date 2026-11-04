@@ -98,7 +98,7 @@ public class SampleOrderService {
         this.sample = sample;
     }
 
-    private SampleOrderItem getBaseSampleOrderItem() {
+    private SampleOrderItem getBaseSampleOrderItem(SampleOrderItem sharedCatalogs) {
         SampleOrderItem orderItems = new SampleOrderItem();
 
         String dateAsText = DateUtil.getCurrentDateAsText();
@@ -107,6 +107,22 @@ public class SampleOrderService {
         orderItems.setRequestDate(dateAsText);
         orderItems.setRequestTime(timeAsText);
         orderItems.setReceivedTime(timeAsText);
+
+        // History reads many orders in one request. Reuse only lookup definitions;
+        // dates, answers, files and requester data still belong to each new item.
+        if (sharedCatalogs != null) {
+            orderItems.setProvidersList(sharedCatalogs.getProvidersList());
+            orderItems.setPriorityList(sharedCatalogs.getPriorityList());
+            orderItems.setReferringSiteList(sharedCatalogs.getReferringSiteList());
+            orderItems.setPaymentOptions(sharedCatalogs.getPaymentOptions());
+            orderItems.setTestLocationCodeList(sharedCatalogs.getTestLocationCodeList());
+            orderItems.setProgramList(sharedCatalogs.getProgramList());
+            orderItems.setAdditionalFields(sharedCatalogs.getAdditionalFields());
+            orderItems.setFixedFieldConfigs(sharedCatalogs.getFixedFieldConfigs());
+            orderItems.setAdditionalFieldValues(buildDefaultAdditionalFieldValues(orderItems.getAdditionalFields()));
+            orderItems.setAdditionalFieldFiles(new HashMap<>());
+            return orderItems;
+        }
 
         orderItems.setProvidersList(
                 DisplayListService.getInstance().getFreshList(DisplayListService.ListType.ORDER_PROVIDER_PERSONS));
@@ -135,7 +151,7 @@ public class SampleOrderService {
                     DisplayListService.getInstance().getList(DisplayListService.ListType.DICTIONARY_PROGRAM));
         }
 
-        List<OrderAdditionalFieldPayload> additionalFields = orderAdditionalFieldService.getFields(false);
+        List<OrderAdditionalFieldPayload> additionalFields = orderAdditionalFieldService.getFields(false, true);
         orderItems.setAdditionalFields(additionalFields);
         orderItems.setFixedFieldConfigs(orderAdditionalFieldService.getFixedFieldConfigs());
         orderItems.setAdditionalFieldValues(buildDefaultAdditionalFieldValues(additionalFields));
@@ -152,7 +168,11 @@ public class SampleOrderService {
      * @return The SampleOrderItem
      */
     public SampleOrderItem getSampleOrderItem() {
-        sampleOrder = getBaseSampleOrderItem();
+        return getSampleOrderItem(null);
+    }
+
+    public SampleOrderItem getSampleOrderItem(SampleOrderItem sharedCatalogs) {
+        sampleOrder = getBaseSampleOrderItem(sharedCatalogs);
 
         if (sample != null) {
             SampleService sampleService = SpringContext.getBean(SampleService.class);
@@ -220,7 +240,7 @@ public class SampleOrderService {
 
             List<OrderAdditionalFieldPayload> additionalFields = sampleOrder.getAdditionalFields();
             if (additionalFields == null) {
-                additionalFields = orderAdditionalFieldService.getFields(false);
+                additionalFields = orderAdditionalFieldService.getFields(false, true);
                 sampleOrder.setAdditionalFields(additionalFields);
             }
             Map<String, String> persistedValues = orderAdditionalFieldService.getSampleValues(sample.getId(),
@@ -307,6 +327,9 @@ public class SampleOrderService {
     private void createProviderArtifacts(SampleOrderItem sampleOrder, String currentUserId,
             SampleOrderPersistenceArtifacts artifacts) {
         RequesterService requesterService = new RequesterService(sampleOrder.getSampleId());
+        SpringContext.getBean(org.openelisglobal.common.service.UserFieldOptionResolver.class)
+                .validateOrderProviderAssignment(sampleOrder.getProviderPersonId(),
+                        requesterService.getRequesterPersonId());
         createPersonProviderArtifacts(sampleOrder, currentUserId, artifacts, requesterService);
         createObservationHistoryArtifacts(sampleOrder, currentUserId, artifacts);
         createOrganizationProviderArtifacts(sampleOrder, currentUserId, artifacts, requesterService);

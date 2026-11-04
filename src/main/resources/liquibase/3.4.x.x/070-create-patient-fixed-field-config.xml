@@ -1,0 +1,63 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<databaseChangeLog
+    xmlns="http://www.liquibase.org/xml/ns/dbchangelog"
+    xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+    xsi:schemaLocation="http://www.liquibase.org/xml/ns/dbchangelog
+        http://www.liquibase.org/xml/ns/dbchangelog/dbchangelog-3.8.xsd">
+
+    <changeSet id="070-001-create-patient-fixed-field-config" author="patient-fixed-fields">
+        <preConditions onFail="MARK_RAN">
+            <not>
+                <tableExists tableName="patient_fixed_field_config"/>
+            </not>
+        </preConditions>
+        <createTable tableName="patient_fixed_field_config">
+            <column name="id" type="NUMERIC(10,0)">
+                <constraints primaryKey="true" nullable="false"/>
+            </column>
+            <column name="field_key" type="VARCHAR(80)">
+                <constraints nullable="false"/>
+            </column>
+            <column name="visible" type="BOOLEAN" defaultValueBoolean="true">
+                <constraints nullable="false"/>
+            </column>
+            <column name="required" type="BOOLEAN" defaultValueBoolean="false">
+                <constraints nullable="false"/>
+            </column>
+            <column name="readonly" type="BOOLEAN" defaultValueBoolean="false">
+                <constraints nullable="false"/>
+            </column>
+            <column name="sort_order" type="INTEGER" defaultValueNumeric="0">
+                <constraints nullable="false"/>
+            </column>
+            <column name="sys_user_id" type="NUMERIC(10,0)">
+                <constraints nullable="false"/>
+            </column>
+            <column name="last_updated" type="TIMESTAMP" defaultValueComputed="NOW()">
+                <constraints nullable="false"/>
+            </column>
+        </createTable>
+        <addUniqueConstraint tableName="patient_fixed_field_config"
+            columnNames="field_key"
+            constraintName="uq_patient_fixed_field_config_key"/>
+        <createIndex tableName="patient_fixed_field_config" indexName="idx_patient_fixed_field_config_sort_order">
+            <column name="sort_order"/>
+        </createIndex>
+        <rollback>
+            <dropTable tableName="patient_fixed_field_config"/>
+        </rollback>
+    </changeSet>
+
+    <changeSet id="070-002-create-patient-fixed-field-config-seq" author="patient-fixed-fields">
+        <preConditions onFail="MARK_RAN">
+            <not>
+                <sequenceExists sequenceName="patient_fixed_field_config_seq"/>
+            </not>
+        </preConditions>
+        <createSequence sequenceName="patient_fixed_field_config_seq" startValue="1" incrementBy="1"/>
+        <rollback>
+            <dropSequence sequenceName="patient_fixed_field_config_seq"/>
+        </rollback>
+    </changeSet>
+
+</databaseChangeLog>

@@ -7,6 +7,7 @@ import java.time.Duration;
 import java.time.LocalDate;
 import java.time.ZoneId;
 import java.util.ArrayList;
+import java.util.Collections;
 import java.util.HashMap;
 import java.util.HashSet;
 import java.util.LinkedHashMap;
@@ -14,12 +15,14 @@ import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
+import java.util.stream.Collectors;
 import org.apache.commons.lang3.StringUtils;
 import org.apache.commons.validator.GenericValidator;
 import org.hl7.fhir.r4.model.Coding;
 import org.hl7.fhir.r4.model.ServiceRequest;
 import org.openelisglobal.analysis.service.AnalysisService;
 import org.openelisglobal.analysis.valueholder.Analysis;
+import org.openelisglobal.common.log.LogEvent;
 import org.openelisglobal.common.rest.provider.bean.homedashboard.AverageTimeDisplayBean;
 import org.openelisglobal.common.rest.provider.bean.homedashboard.DashBoardMetrics;
 import org.openelisglobal.common.rest.provider.bean.homedashboard.DashBoardTile;
@@ -29,39 +32,45 @@ import org.openelisglobal.common.rest.util.PatientDashBoardPaging;
 import org.openelisglobal.common.services.IStatusService;
 import org.openelisglobal.common.services.StatusService.AnalysisStatus;
 import org.openelisglobal.common.services.StatusService.ExternalOrderStatus;
+import org.openelisglobal.common.util.DateUtil;
 import org.openelisglobal.dataexchange.fhir.FhirConfig;
 import org.openelisglobal.dataexchange.fhir.FhirUtil;
 import org.openelisglobal.dataexchange.order.valueholder.ElectronicOrder;
 import org.openelisglobal.dataexchange.service.order.ElectronicOrderService;
+import org.openelisglobal.observationhistory.service.ObservationHistoryService;
+import org.openelisglobal.observationhistory.service.ObservationHistoryServiceImpl.ObservationType;
+import org.openelisglobal.orderadditionalfield.service.AlternateOrderFlowService;
+import org.openelisglobal.patient.util.PatientUtil;
+import org.openelisglobal.patientidentity.valueholder.PatientIdentity;
+import org.openelisglobal.patientidentitytype.util.PatientIdentityTypeMap;
+import org.openelisglobal.sample.bean.SampleTypeAdditionalFieldPayload;
 import org.openelisglobal.sample.service.SampleService;
 import org.openelisglobal.sample.service.SampleTypeAdditionalFieldService;
-import org.openelisglobal.sample.bean.SampleTypeAdditionalFieldPayload;
 import org.openelisglobal.sample.valueholder.Sample;
 import org.openelisglobal.samplehuman.service.SampleHumanService;
 import org.openelisglobal.sampleitem.valueholder.SampleItem;
 import org.openelisglobal.siteinformation.service.SiteInformationService;
-import org.springframework.web.bind.annotation.GetMapping;
-import org.springframework.web.bind.annotation.ResponseBody;
-import org.springframework.http.MediaType;
 import org.openelisglobal.systemuser.service.SystemUserService;
 import org.openelisglobal.systemuser.valueholder.SystemUser;
 import org.openelisglobal.test.service.TestService;
 import org.openelisglobal.test.valueholder.Test;
-import org.openelisglobal.patient.util.PatientUtil;
-import org.openelisglobal.patientidentity.valueholder.PatientIdentity;
-import org.openelisglobal.patientidentitytype.util.PatientIdentityTypeMap;
-import org.openelisglobal.observationhistory.service.ObservationHistoryService;
-import org.openelisglobal.observationhistory.service.ObservationHistoryServiceImpl.ObservationType;
-import org.openelisglobal.common.util.DateUtil;
 import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.http.MediaType;
 import org.springframework.stereotype.Controller;
+import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RequestParam;
+import org.springframework.web.bind.annotation.ResponseBody;
 
 @Controller
 @RequestMapping(value = "/rest/")
 public class PatientDashBoardProvider {
+
+    private static final String DASH_WAITING_YELLOW_DAYS = "dash_waiting_yellow_days";
+    private static final String DASH_WAITING_RED_DAYS = "dash_waiting_red_days";
+    private static final int DEFAULT_DASH_WAITING_YELLOW_DAYS = 5;
+    private static final int DEFAULT_DASH_WAITING_RED_DAYS = 10;
 
     @Autowired
     AnalysisService analysisService;
@@ -98,6 +107,9 @@ public class PatientDashBoardProvider {
 
     @Autowired
     private ObservationHistoryService observationHistoryService;
+
+    @Autowired
+    private AlternateOrderFlowService alternateOrderFlowService;
 
     private Long toEpochMillis(java.sql.Date date) {
         if (date == null) {
@@ -150,7 +162,8 @@ public class PatientDashBoardProvider {
         }
         String requestDate = observationHistoryService.getValueForSample(ObservationType.REQUEST_DATE, sample.getId());
         if (StringUtils.isNotBlank(requestDate)) {
-            String requestTime = observationHistoryService.getValueForSample(ObservationType.REQUEST_TIME, sample.getId());
+            String requestTime = observationHistoryService.getValueForSample(ObservationType.REQUEST_TIME,
+                    sample.getId());
             try {
                 String requestDateTime = StringUtils.isNotBlank(requestTime) ? requestDate + " " + requestTime
                         : requestDate + " 00:00";
@@ -238,7 +251,8 @@ public class PatientDashBoardProvider {
             if (!Boolean.TRUE.equals(fieldDefinition.getRequired())) {
                 continue;
             }
-            String value = additionalFieldValues == null ? null : additionalFieldValues.get(fieldDefinition.getFieldKey());
+            String value = additionalFieldValues == null ? null
+                    : additionalFieldValues.get(fieldDefinition.getFieldKey());
             if (StringUtils.isBlank(value)) {
                 return false;
             }
@@ -247,8 +261,103 @@ public class PatientDashBoardProvider {
         return true;
     }
 
+    private LocalDate resolveDashboardStartDate(String startDate) {
+        return StringUtils.isNotBlank(startDate) ? LocalDate.parse(startDate) : LocalDate.parse("2000-01-01");
+    }
+
+    private LocalDate resolveDashboardEndDate(String endDate) {
+        return StringUtils.isNotBlank(endDate) ? LocalDate.parse(endDate) : LocalDate.now();
+    }
+
+    private String toOpenElisDateText(LocalDate date) {
+        return DateUtil.convertSqlDateToStringDate(java.sql.Date.valueOf(date));
+    }
+
+    private List<Sample> getAlternateOrderFlowSamples(String startDate, String endDate) {
+        LocalDate lowerDate = resolveDashboardStartDate(startDate);
+        LocalDate upperDate = resolveDashboardEndDate(endDate);
+        List<Sample> samplesInRange = sampleService.getSamplesReceivedInDateRange(toOpenElisDateText(lowerDate),
+                toOpenElisDateText(upperDate));
+        if (samplesInRange == null || samplesInRange.isEmpty()) {
+            return Collections.emptyList();
+        }
+
+        Set<String> alternateOrderFlowSampleIds = alternateOrderFlowService.getAlternateOrderFlowSampleIds(
+                samplesInRange.stream().map(Sample::getId).filter(StringUtils::isNotBlank).distinct().toList());
+        if (alternateOrderFlowSampleIds.isEmpty()) {
+            return Collections.emptyList();
+        }
+
+        return samplesInRange.stream().filter(sample -> alternateOrderFlowSampleIds.contains(sample.getId()))
+                .collect(Collectors.toList());
+    }
+
+    private Set<String> getAlternateOrderFlowSampleIdsForAnalyses(List<Analysis> analyses) {
+        if (analyses == null || analyses.isEmpty()) {
+            return Collections.emptySet();
+        }
+
+        List<String> sampleIds = analyses.stream().map(this::resolveSampleId).filter(StringUtils::isNotBlank).distinct()
+                .toList();
+        if (sampleIds.isEmpty()) {
+            return Collections.emptySet();
+        }
+
+        return alternateOrderFlowService.getAlternateOrderFlowSampleIds(sampleIds);
+    }
+
+    private List<Analysis> excludeAlternateOrderFlowAnalyses(List<Analysis> analyses) {
+        return excludeAlternateOrderFlowAnalyses(analyses, getAlternateOrderFlowSampleIdsForAnalyses(analyses));
+    }
+
+    private List<Analysis> excludeAlternateOrderFlowAnalyses(List<Analysis> analyses, Set<String> alternateSampleIds) {
+        if (analyses == null || analyses.isEmpty()) {
+            return Collections.emptyList();
+        }
+        if (alternateSampleIds == null || alternateSampleIds.isEmpty()) {
+            return analyses;
+        }
+
+        return analyses.stream().filter(analysis -> !alternateSampleIds.contains(resolveSampleId(analysis)))
+                .collect(Collectors.toList());
+    }
+
+    private String resolveSampleId(Analysis analysis) {
+        if (analysis == null || analysis.getSampleItem() == null || analysis.getSampleItem().getSample() == null) {
+            return null;
+        }
+        return analysis.getSampleItem().getSample().getId();
+    }
+
+    private List<OrderDisplayBean> convertSamplesToOrderBean(List<Sample> samples) {
+        List<OrderDisplayBean> orderBeanList = new ArrayList<>();
+        if (samples == null || samples.isEmpty()) {
+            return orderBeanList;
+        }
+
+        Set<String> processedSampleIds = new LinkedHashSet<>();
+        for (Sample sample : samples) {
+            if (sample == null || StringUtils.isBlank(sample.getId()) || !processedSampleIds.add(sample.getId())) {
+                continue;
+            }
+
+            OrderDisplayBean orderBean = new OrderDisplayBean();
+            orderBean.setId(sample.getId());
+            orderBean.setPriority(sample.getPriority() != null ? sample.getPriority().toString() : "");
+            orderBean.setLabNumber(sample.getAccessionNumber() != null ? sample.getAccessionNumber() : "");
+            orderBean.setPatientId(getDisplayPatientIdentifier(sampleHumanService.getPatientForSample(sample)));
+            orderBean.setOrderDate(resolveOrderCreatedDateTime(sample));
+            orderBean.setWaitingStartDate(resolveOrderCreatedDateTime(sample));
+            orderBean.setTestName("");
+            orderBean.setTestSection("");
+            orderBeanList.add(orderBean);
+        }
+        return orderBeanList;
+    }
+
     private double calculateAverageReceptionToValidationTime(java.sql.Date start, java.sql.Date end) {
-        List<Analysis> analyses = analysisService.getAnalysisStartedOrCompletedInDateRange(start, end);
+        List<Analysis> analyses = excludeAlternateOrderFlowAnalyses(
+                analysisService.getAnalysisStartedOrCompletedInDateRange(start, end));
         if (analyses == null || analyses.isEmpty()) {
             return 0.0;
         }
@@ -281,7 +390,8 @@ public class PatientDashBoardProvider {
     }
 
     private double calculateAverageReceptionToResultTime(java.sql.Date start, java.sql.Date end) {
-        List<Analysis> analyses = analysisService.getAnalysisStartedOrCompletedInDateRange(start, end);
+        List<Analysis> analyses = excludeAlternateOrderFlowAnalyses(
+                analysisService.getAnalysisStartedOrCompletedInDateRange(start, end));
         if (analyses == null || analyses.isEmpty()) {
             return 0.0;
         }
@@ -312,7 +422,8 @@ public class PatientDashBoardProvider {
     }
 
     private double calculateAverageResultToValidationTime(java.sql.Date start, java.sql.Date end) {
-        List<Analysis> analyses = analysisService.getAnalysisStartedOrCompletedInDateRange(start, end);
+        List<Analysis> analyses = excludeAlternateOrderFlowAnalyses(
+                analysisService.getAnalysisStartedOrCompletedInDateRange(start, end));
         if (analyses == null || analyses.isEmpty()) {
             return 0.0;
         }
@@ -348,7 +459,8 @@ public class PatientDashBoardProvider {
     }
 
     private List<Analysis> analysesWithDelayedTurnAroundTime(java.sql.Date start, java.sql.Date end) {
-        List<Analysis> analyses = analysisService.getAnalysisStartedOrCompletedInDateRange(start, end);
+        List<Analysis> analyses = excludeAlternateOrderFlowAnalyses(
+                analysisService.getAnalysisStartedOrCompletedInDateRange(start, end));
         String finalizedId = iStatusService.getStatusID(AnalysisStatus.Finalized);
         List<Analysis> delayedAnalyses = new ArrayList<>();
 
@@ -366,7 +478,8 @@ public class PatientDashBoardProvider {
     }
 
     private List<Analysis> unprintedResults(java.sql.Date start, java.sql.Date end) {
-        List<Analysis> analyses = analysisService.getAnalysisStartedOrCompletedInDateRange(start, end);
+        List<Analysis> analyses = excludeAlternateOrderFlowAnalyses(
+                analysisService.getAnalysisStartedOrCompletedInDateRange(start, end));
         String finalizedId = iStatusService.getStatusID(AnalysisStatus.Finalized);
         List<Analysis> unprintedAnalyses = new ArrayList<>();
 
@@ -398,7 +511,8 @@ public class PatientDashBoardProvider {
                         orderBean.setPriority(sample.getPriority() != null ? sample.getPriority().toString() : "");
                         orderBean.setLabNumber(sample.getAccessionNumber() != null ? sample.getAccessionNumber() : "");
                         try {
-                            orderBean.setPatientId(getDisplayPatientIdentifier(sampleHumanService.getPatientForSample(sample)));
+                            orderBean.setPatientId(
+                                    getDisplayPatientIdentifier(sampleHumanService.getPatientForSample(sample)));
                         } catch (Exception e) {
                             orderBean.setPatientId("");
                         }
@@ -409,9 +523,9 @@ public class PatientDashBoardProvider {
                     }
 
                     orderBean.setOrderDate(resolveOrderCreatedDateTime(sample));
-                    orderBean.setWaitingStartDate(readyForValidationWaitingTime
-                            ? resolveReadyForValidationWaitingStart(analysis)
-                            : resolveAwaitingResultsWaitingStart(analysis));
+                    orderBean.setWaitingStartDate(
+                            readyForValidationWaitingTime ? resolveReadyForValidationWaitingStart(analysis)
+                                    : resolveAwaitingResultsWaitingStart(analysis));
                     if (readyForValidationWaitingTime && sample != null) {
                         orderBean.setOrderCreatedStartDate(resolveOrderCreatedDateTime(sample));
                     }
@@ -454,7 +568,7 @@ public class PatientDashBoardProvider {
                 orderBean.setPriority(sample.getPriority() != null ? sample.getPriority().toString() : "");
                 orderBean.setLabNumber(labNumber);
                 orderBean.setPatientId(getDisplayPatientIdentifier(sampleHumanService.getPatientForSample(sample)));
-        
+
                 orderBean.setOrderDate(resolveOrderCreatedDateTime(sample));
                 orderBean.setWaitingStartDate(resolveReadyForValidationWaitingStart(analysis));
 
@@ -499,12 +613,10 @@ public class PatientDashBoardProvider {
                 userOrderBean.setId(userId);
                 userOrderBean.setUserFirstName(user.getFirstName());
                 userOrderBean.setUserLastName(user.getLastName());
-                
-                long uniqueOrdersCount = analysisList.stream()
-                        .map(a -> a.getSampleItem().getSample().getId())
-                        .distinct()
-                        .count();
-                
+
+                long uniqueOrdersCount = analysisList.stream().map(a -> a.getSampleItem().getSample().getId())
+                        .distinct().count();
+
                 userOrderBean.setCountOfOrdersEntered((int) uniqueOrdersCount);
                 userOrders.add(userOrderBean);
             }
@@ -580,7 +692,8 @@ public class PatientDashBoardProvider {
 
         if (analyses != null) {
             analyses.forEach(analysis -> {
-                if (analysis != null && analysis.getSampleItem() != null && analysis.getSampleItem().getSample() != null) {
+                if (analysis != null && analysis.getSampleItem() != null
+                        && analysis.getSampleItem().getSample() != null) {
                     SampleItem sampleItem = analysis.getSampleItem();
                     if (processedSampleItems.contains(sampleItem.getId())) {
                         return;
@@ -593,12 +706,13 @@ public class PatientDashBoardProvider {
                     orderBean.setPriority(sample.getPriority() != null ? sample.getPriority().toString() : "");
                     orderBean.setLabNumber(sample.getAccessionNumber() != null ? sample.getAccessionNumber() : "");
                     orderBean.setPatientId(getDisplayPatientIdentifier(sampleHumanService.getPatientForSample(sample)));
-                    
+
                     orderBean.setOrderDate(resolveOrderCreatedDateTime(sample));
                     orderBean.setWaitingStartDate(resolveOrderCreatedDateTime(sample));
 
                     orderBean.setTestName("");
-                    orderBean.setTestSection(analysis.getTestSection() != null ? analysis.getTestSection().getId() : "");
+                    orderBean
+                            .setTestSection(analysis.getTestSection() != null ? analysis.getTestSection().getId() : "");
                     orderBeanList.add(orderBean);
                 }
             });
@@ -638,130 +752,137 @@ public class PatientDashBoardProvider {
 
         java.sql.Date sqlEndDate;
         if (endDate != null && !endDate.isEmpty()) {
-            
+
             sqlEndDate = java.sql.Date.valueOf(LocalDate.parse(endDate).plusDays(1));
         } else {
-            
+
             sqlEndDate = java.sql.Date.valueOf(LocalDate.now().plusDays(1));
         }
 
         List<Analysis> allAnalysesInRange = analysisService.getAnalysisStartedOrCompletedInDateRange(sqlStartDate,
                 sqlEndDate);
+        Set<String> alternateOrderFlowSampleIds = getAlternateOrderFlowSampleIdsForAnalyses(allAnalysesInRange);
+        List<Analysis> standardFlowAnalysesInRange = excludeAlternateOrderFlowAnalyses(allAnalysesInRange,
+                alternateOrderFlowSampleIds);
         Map<String, List<SampleTypeAdditionalFieldPayload>> additionalFieldsBySampleType = new HashMap<>();
         Map<String, Map<String, String>> additionalFieldValuesBySampleItem = new HashMap<>();
 
         DashBoardTile.TileType.stream().forEach(type -> {
-            switch (type) {
-            case ORDERS_IN_PROGRESS: {
-                String finalizedId = iStatusService.getStatusID(AnalysisStatus.Finalized);
-                String rejectedId = iStatusService.getStatusID(AnalysisStatus.SampleRejected);
-                long uniqueOrders = allAnalysesInRange.stream()
-                        .filter(a -> !a.getStatusId().equals(finalizedId) && !a.getStatusId().equals(rejectedId))
-                        .map(a -> a.getSampleItem().getSample().getId()).distinct().count();
-                metrics.setOrdersInProgress((int) uniqueOrders);
-                break;
-            }
-            case AWAITING_SAMPLE:
-                String nsId = iStatusService.getStatusID(AnalysisStatus.NotStarted);
-                long incompleteSamples = allAnalysesInRange.stream()
-                        .filter(a -> a.getStatusId().equals(nsId) && a.getSampleItem() != null).filter(a -> {
-                            return !isSampleItemCompleteForDashboard(a.getSampleItem(), additionalFieldsBySampleType,
-                                    additionalFieldValuesBySampleItem);
-                        }).map(a -> a.getSampleItem().getId()).distinct().count();
-
-                metrics.setAwaitingSample((int) incompleteSamples);
-                break;
-            case AWAITING_RESULTS:
-                String notStartedForSamplesId = iStatusService.getStatusID(AnalysisStatus.NotStarted);
-                long awaitingResultRows = allAnalysesInRange.stream()
-                        .filter(a -> a.getStatusId().equals(notStartedForSamplesId) && a.getSampleItem() != null)
-                        .filter(a -> {
-                            return isSampleItemCompleteForDashboard(a.getSampleItem(), additionalFieldsBySampleType,
-                                    additionalFieldValuesBySampleItem);
-                        }).count();
-                metrics.setAwaitingResults((int) awaitingResultRows);
-                break;
-            case ORDERS_READY_FOR_VALIDATION:
-                String readyId = iStatusService.getStatusID(AnalysisStatus.TechnicalAcceptance);
-                long ready = allAnalysesInRange.stream().filter(a -> a.getStatusId().equals(readyId)).count();
-                metrics.setOrdersReadyForValidation((int) ready);
-                break;
-            case ORDERS_COMPLETED_TODAY: {
-                String finId = iStatusService.getStatusID(AnalysisStatus.Finalized);
-                String rejId = iStatusService.getStatusID(AnalysisStatus.SampleRejected);
-
-                // 1. Identificar Órdenes que aún tienen tests en proceso
-                Set<String> incompleteSampleIds = new HashSet<>();
-                for (Analysis a : allAnalysesInRange) {
-                    if (!a.getStatusId().equals(finId) && !a.getStatusId().equals(rejId)) {
-                        if (a.getSampleItem() != null && a.getSampleItem().getSample() != null) {
-                            incompleteSampleIds.add(a.getSampleItem().getSample().getId());
-                        }
-                    }
+            try {
+                switch (type) {
+                case ORDERS_IN_PROGRESS: {
+                    String finalizedId = iStatusService.getStatusID(AnalysisStatus.Finalized);
+                    String rejectedId = iStatusService.getStatusID(AnalysisStatus.SampleRejected);
+                    long uniqueOrders = standardFlowAnalysesInRange.stream()
+                            .filter(a -> !a.getStatusId().equals(finalizedId) && !a.getStatusId().equals(rejectedId))
+                            .map(a -> a.getSampleItem().getSample().getId()).distinct().count();
+                    metrics.setOrdersInProgress((int) uniqueOrders);
+                    break;
                 }
+                case AWAITING_SAMPLE:
+                    String nsId = iStatusService.getStatusID(AnalysisStatus.NotStarted);
+                    long incompleteSamples = standardFlowAnalysesInRange.stream()
+                            .filter(a -> a.getStatusId().equals(nsId) && a.getSampleItem() != null).filter(a -> {
+                                return !isSampleItemCompleteForDashboard(a.getSampleItem(),
+                                        additionalFieldsBySampleType, additionalFieldValuesBySampleItem);
+                            }).map(a -> a.getSampleItem().getId()).distinct().count();
 
-                Set<String> completedOrderIds = new HashSet<>();
-                for (Analysis a : allAnalysesInRange) {
-                    if (a.getStatusId().equals(finId)) {
-                        if (a.getSampleItem() != null && a.getSampleItem().getSample() != null) {
-                            String sampleId = a.getSampleItem().getSample().getId();
-                            
-                            if (!incompleteSampleIds.contains(sampleId)) {
-                                completedOrderIds.add(sampleId);
+                    metrics.setAwaitingSample((int) incompleteSamples);
+                    break;
+                case AWAITING_RESULTS:
+                    String notStartedForSamplesId = iStatusService.getStatusID(AnalysisStatus.NotStarted);
+                    long awaitingResultRows = standardFlowAnalysesInRange.stream()
+                            .filter(a -> a.getStatusId().equals(notStartedForSamplesId) && a.getSampleItem() != null)
+                            .filter(a -> {
+                                return isSampleItemCompleteForDashboard(a.getSampleItem(), additionalFieldsBySampleType,
+                                        additionalFieldValuesBySampleItem);
+                            }).count();
+                    metrics.setAwaitingResults((int) awaitingResultRows);
+                    break;
+                case ORDERS_READY_FOR_VALIDATION:
+                    String readyId = iStatusService.getStatusID(AnalysisStatus.TechnicalAcceptance);
+                    long ready = standardFlowAnalysesInRange.stream().filter(a -> a.getStatusId().equals(readyId))
+                            .count();
+                    metrics.setOrdersReadyForValidation((int) ready);
+                    break;
+                case ORDERS_COMPLETED_TODAY: {
+                    String finId = iStatusService.getStatusID(AnalysisStatus.Finalized);
+                    String rejId = iStatusService.getStatusID(AnalysisStatus.SampleRejected);
+
+                    Set<String> incompleteSampleIds = new HashSet<>();
+                    for (Analysis a : standardFlowAnalysesInRange) {
+                        if (!a.getStatusId().equals(finId) && !a.getStatusId().equals(rejId)) {
+                            if (a.getSampleItem() != null && a.getSampleItem().getSample() != null) {
+                                incompleteSampleIds.add(a.getSampleItem().getSample().getId());
                             }
                         }
                     }
-                }
 
-                metrics.setOrdersCompletedToday(completedOrderIds.size());
-                break;
-            }
-            case ORDERS_PATIALLY_COMPLETED_TODAY:
-            case ORDERS_ENTERED_BY_USER_TODAY: {
-                
-                String rejId = iStatusService.getStatusID(AnalysisStatus.SampleRejected);
-                String finId = iStatusService.getStatusID(AnalysisStatus.Finalized);
-                long partial = allAnalysesInRange.stream()
-                        .filter(a -> !a.getStatusId().equals(rejId) && !a.getStatusId().equals(finId))
-                        .map(a -> a.getSampleItem().getSample().getId()).distinct().count();
-                metrics.setPatiallyCompletedToday((int) partial);
-                metrics.setOrderEnterdByUserToday((int) partial);
-                break;
-            }
-            case ORDERS_REJECTED_TODAY:
-                String rejectedId = iStatusService.getStatusID(AnalysisStatus.SampleRejected);
-                long rejected = allAnalysesInRange.stream()
-                        .filter(a -> a.getStatusId().equals(rejectedId))
-                        .map(a -> a.getSampleItem().getSample().getId()).distinct().count();
-                metrics.setOrdersRejectedToday((int) rejected);
-                break;
-            case UN_PRINTED_RESULTS:
-                long unprintedOrders = unprintedResults(sqlStartDate, sqlEndDate).stream()
-                        .map(a -> a.getSampleItem().getSample().getId())
-                        .distinct()
-                        .count();
-                metrics.setUnPritendResults((int) unprintedOrders);
-                break;
-            case INCOMING_ORDERS:
-                List<Integer> estausIds = new ArrayList<>();
-                estausIds.add(Integer.parseInt(iStatusService.getStatusID(ExternalOrderStatus.Entered)));
-                estausIds.add(Integer.parseInt(iStatusService.getStatusID(ExternalOrderStatus.NonConforming)));
-                metrics.setIncomigOrders(electronicOrderService.getCountOfElectronicOrdersByStatusList(estausIds));
-                break;
-            case AVERAGE_TURN_AROUND_TIME:
-                java.sql.Date allTimeStart = java.sql.Date.valueOf("2000-01-01");
-                java.sql.Date allTimeEnd = new java.sql.Date(System.currentTimeMillis());
-                metrics.setAverageTurnAroudTime(calculateAverageReceptionToValidationTime(allTimeStart, allTimeEnd));
-                break;
-            case DELAYED_TURN_AROUND:
-                long delayedOrders = analysesWithDelayedTurnAroundTime(sqlStartDate, sqlEndDate).stream()
-                        .map(a -> a.getSampleItem().getSample().getId())
-                        .distinct()
-                        .count();
-                metrics.setDelayedTurnAround((int) delayedOrders);
-                break;
-            default:
-                break;
+                    Set<String> completedOrderIds = new HashSet<>();
+                    for (Analysis a : standardFlowAnalysesInRange) {
+                        if (a.getStatusId().equals(finId)) {
+                            if (a.getSampleItem() != null && a.getSampleItem().getSample() != null) {
+                                String sampleId = a.getSampleItem().getSample().getId();
+
+                                if (!incompleteSampleIds.contains(sampleId)) {
+                                    completedOrderIds.add(sampleId);
+                                }
+                            }
+                        }
+                    }
+
+                    metrics.setOrdersCompletedToday(completedOrderIds.size());
+                    break;
+                }
+                case ORDERS_PATIALLY_COMPLETED_TODAY:
+                case ORDERS_ENTERED_BY_USER_TODAY: {
+                    String rejId = iStatusService.getStatusID(AnalysisStatus.SampleRejected);
+                    String finId = iStatusService.getStatusID(AnalysisStatus.Finalized);
+                    long partial = standardFlowAnalysesInRange.stream()
+                            .filter(a -> !a.getStatusId().equals(rejId) && !a.getStatusId().equals(finId))
+                            .map(a -> a.getSampleItem().getSample().getId()).distinct().count();
+                    metrics.setPatiallyCompletedToday((int) partial);
+                    metrics.setOrderEnterdByUserToday((int) partial);
+                    break;
+                }
+                case ORDERS_REJECTED_TODAY:
+                    String rejectedId = iStatusService.getStatusID(AnalysisStatus.SampleRejected);
+                    long rejected = standardFlowAnalysesInRange.stream().filter(a -> a.getStatusId().equals(rejectedId))
+                            .map(a -> a.getSampleItem().getSample().getId()).distinct().count();
+                    metrics.setOrdersRejectedToday((int) rejected);
+                    break;
+                case UN_PRINTED_RESULTS:
+                    long unprintedOrders = unprintedResults(sqlStartDate, sqlEndDate).stream()
+                            .map(a -> a.getSampleItem().getSample().getId()).distinct().count();
+                    metrics.setUnPritendResults((int) unprintedOrders);
+                    break;
+                case INCOMING_ORDERS:
+                    List<Integer> estausIds = new ArrayList<>();
+                    estausIds.add(Integer.parseInt(iStatusService.getStatusID(ExternalOrderStatus.Entered)));
+                    estausIds.add(Integer.parseInt(iStatusService.getStatusID(ExternalOrderStatus.NonConforming)));
+                    metrics.setIncomigOrders(electronicOrderService.getCountOfElectronicOrdersByStatusList(estausIds));
+                    break;
+                case AVERAGE_TURN_AROUND_TIME:
+                    java.sql.Date allTimeStart = java.sql.Date.valueOf("2000-01-01");
+                    java.sql.Date allTimeEnd = new java.sql.Date(System.currentTimeMillis());
+                    metrics.setAverageTurnAroudTime(
+                            calculateAverageReceptionToValidationTime(allTimeStart, allTimeEnd));
+                    break;
+                case DELAYED_TURN_AROUND:
+                    long delayedOrders = analysesWithDelayedTurnAroundTime(sqlStartDate, sqlEndDate).stream()
+                            .map(a -> a.getSampleItem().getSample().getId()).distinct().count();
+                    metrics.setDelayedTurnAround((int) delayedOrders);
+                    break;
+                case ALTERNATE_ORDER_FLOW:
+                    metrics.setAlternateOrderFlow(getAlternateOrderFlowSamples(startDate, endDate).size());
+                    break;
+                default:
+                    break;
+                }
+            } catch (Exception e) {
+                LogEvent.logError(e);
+                LogEvent.logWarn(this.getClass().getSimpleName(), "getDasBoardTiles",
+                        "Skipping dashboard metric due to calculation error for tile " + type.name());
             }
         });
 
@@ -786,14 +907,14 @@ public class PatientDashBoardProvider {
 
         String requestedPage = request.getParameter("page");
         if (GenericValidator.isBlankOrNull(requestedPage)) {
-            
+
             orderDisplayBeans = retreiveOrders(listType, systemUserId, startDate, endDate, testType);
 
             if (orderDisplayBeans != null) {
                 orderDisplayBeans.sort((bean1, bean2) -> {
                     String date1 = bean1.getOrderDate() != null ? bean1.getOrderDate() : "";
                     String date2 = bean2.getOrderDate() != null ? bean2.getOrderDate() : "";
-                    
+
                     return date2.compareTo(date1);
                 });
             }
@@ -818,15 +939,18 @@ public class PatientDashBoardProvider {
 
         java.sql.Date sqlEndDate;
         if (endDate != null && !endDate.isEmpty()) {
-            
+
             sqlEndDate = java.sql.Date.valueOf(LocalDate.parse(endDate).plusDays(1));
         } else {
-            
+
             sqlEndDate = java.sql.Date.valueOf(LocalDate.now().plusDays(1));
         }
 
         List<Analysis> allAnalysesInRange = analysisService.getAnalysisStartedOrCompletedInDateRange(sqlStartDate,
                 sqlEndDate);
+        Set<String> alternateOrderFlowSampleIds = getAlternateOrderFlowSampleIdsForAnalyses(allAnalysesInRange);
+        List<Analysis> standardFlowAnalysesInRange = excludeAlternateOrderFlowAnalyses(allAnalysesInRange,
+                alternateOrderFlowSampleIds);
         List<Analysis> filteredAnalyses = new ArrayList<>();
         Map<String, List<SampleTypeAdditionalFieldPayload>> additionalFieldsBySampleType = new HashMap<>();
         Map<String, Map<String, String>> additionalFieldValuesBySampleItem = new HashMap<>();
@@ -835,7 +959,7 @@ public class PatientDashBoardProvider {
         case ORDERS_IN_PROGRESS: {
             String finalizedId = iStatusService.getStatusID(AnalysisStatus.Finalized);
             String rejectedId = iStatusService.getStatusID(AnalysisStatus.SampleRejected);
-            allAnalysesInRange.forEach(a -> {
+            standardFlowAnalysesInRange.forEach(a -> {
                 if (!a.getStatusId().equals(finalizedId) && !a.getStatusId().equals(rejectedId))
                     filteredAnalyses.add(a);
             });
@@ -845,7 +969,7 @@ public class PatientDashBoardProvider {
 
         case AWAITING_SAMPLE:
             String nsIdId = iStatusService.getStatusID(AnalysisStatus.NotStarted);
-            allAnalysesInRange.forEach(a -> {
+            standardFlowAnalysesInRange.forEach(a -> {
                 SampleItem si = a.getSampleItem();
                 if (a.getStatusId().equals(nsIdId) && si != null) {
                     if (!isSampleItemCompleteForDashboard(si, additionalFieldsBySampleType,
@@ -858,7 +982,7 @@ public class PatientDashBoardProvider {
 
         case ORDERS_READY_FOR_VALIDATION:
             String readyId = iStatusService.getStatusID(AnalysisStatus.TechnicalAcceptance);
-            allAnalysesInRange.forEach(a -> {
+            standardFlowAnalysesInRange.forEach(a -> {
                 if (a.getStatusId().equals(readyId))
                     filteredAnalyses.add(a);
             });
@@ -866,7 +990,7 @@ public class PatientDashBoardProvider {
 
         case AWAITING_RESULTS:
             String awaitingId = iStatusService.getStatusID(AnalysisStatus.NotStarted);
-            allAnalysesInRange.forEach(a -> {
+            standardFlowAnalysesInRange.forEach(a -> {
                 SampleItem si = a.getSampleItem();
                 if (a.getStatusId().equals(awaitingId) && si != null) {
                     if (isSampleItemCompleteForDashboard(si, additionalFieldsBySampleType,
@@ -883,7 +1007,7 @@ public class PatientDashBoardProvider {
             String rejId = iStatusService.getStatusID(AnalysisStatus.SampleRejected);
 
             Set<String> incompleteSampleIds = new HashSet<>();
-            for (Analysis a : allAnalysesInRange) {
+            for (Analysis a : standardFlowAnalysesInRange) {
                 if (!a.getStatusId().equals(finId) && !a.getStatusId().equals(rejId)) {
                     if (a.getSampleItem() != null && a.getSampleItem().getSample() != null) {
                         incompleteSampleIds.add(a.getSampleItem().getSample().getId());
@@ -891,7 +1015,7 @@ public class PatientDashBoardProvider {
                 }
             }
 
-            allAnalysesInRange.forEach(a -> {
+            standardFlowAnalysesInRange.forEach(a -> {
                 if (a.getStatusId().equals(finId)) {
                     if (a.getSampleItem() != null && a.getSampleItem().getSample() != null) {
                         String sampleId = a.getSampleItem().getSample().getId();
@@ -907,7 +1031,7 @@ public class PatientDashBoardProvider {
         case ORDERS_PATIALLY_COMPLETED_TODAY:
             String rejId = iStatusService.getStatusID(AnalysisStatus.SampleRejected);
             String finId = iStatusService.getStatusID(AnalysisStatus.Finalized);
-            allAnalysesInRange.forEach(a -> {
+            standardFlowAnalysesInRange.forEach(a -> {
                 if (!a.getStatusId().equals(rejId) && !a.getStatusId().equals(finId))
                     filteredAnalyses.add(a);
             });
@@ -915,7 +1039,7 @@ public class PatientDashBoardProvider {
 
         case ORDERS_ENTERED_BY_USER_TODAY:
             String rejectedOnly = iStatusService.getStatusID(AnalysisStatus.SampleRejected);
-            allAnalysesInRange.forEach(a -> {
+            standardFlowAnalysesInRange.forEach(a -> {
                 if (!a.getStatusId().equals(rejectedOnly))
                     filteredAnalyses.add(a);
             });
@@ -923,7 +1047,7 @@ public class PatientDashBoardProvider {
 
         case ORDERS_REJECTED_TODAY:
             String rejectedId = iStatusService.getStatusID(AnalysisStatus.SampleRejected);
-            allAnalysesInRange.forEach(a -> {
+            standardFlowAnalysesInRange.forEach(a -> {
                 if (a.getStatusId().equals(rejectedId))
                     filteredAnalyses.add(a);
             });
@@ -946,10 +1070,13 @@ public class PatientDashBoardProvider {
         case DELAYED_TURN_AROUND:
             return convertAnalysesToGroupedOrderBean(analysesWithDelayedTurnAroundTime(sqlStartDate, sqlEndDate));
 
+        case ALTERNATE_ORDER_FLOW:
+            return convertSamplesToOrderBean(getAlternateOrderFlowSamples(startDate, endDate));
+
         case ORDERS_FOR_USER:
             if (StringUtils.isNotBlank(systemUserId)) {
                 String rejUser = iStatusService.getStatusID(AnalysisStatus.SampleRejected);
-                allAnalysesInRange.forEach(a -> {
+                standardFlowAnalysesInRange.forEach(a -> {
                     if (!a.getStatusId().equals(rejUser))
                         filteredAnalyses.add(a);
                 });
@@ -992,17 +1119,25 @@ public class PatientDashBoardProvider {
         return timeBean;
     }
 
+    @GetMapping(value = "home-dashboard/waiting-time-config", produces = MediaType.APPLICATION_JSON_VALUE)
+    @ResponseBody
+    public Map<String, Integer> getDashboardWaitingTimeConfig() {
+        Map<String, Integer> waitingTimeConfig = new HashMap<>();
+        waitingTimeConfig.put("yellowThresholdDays",
+                getSiteInformationIntValue(DASH_WAITING_YELLOW_DAYS, DEFAULT_DASH_WAITING_YELLOW_DAYS));
+        waitingTimeConfig.put("redThresholdDays",
+                getSiteInformationIntValue(DASH_WAITING_RED_DAYS, DEFAULT_DASH_WAITING_RED_DAYS));
+        return waitingTimeConfig;
+    }
+
     @GetMapping(value = "home-dashboard/visibility-config", produces = MediaType.APPLICATION_JSON_VALUE)
     @ResponseBody
     public Map<String, Boolean> getDashboardVisibilityConfig() {
         Map<String, Boolean> visibilityMap = new HashMap<>();
-        String[][] configMapping = {
-            {"dash_show_partial_comp", "ORDERS_PATIALLY_COMPLETED_TODAY"},
-            {"dash_show_user_orders", "ORDERS_ENTERED_BY_USER_TODAY"},
-            {"dash_show_rejected", "ORDERS_REJECTED_TODAY"},
-            {"dash_show_unprinted", "UN_PRINTED_RESULTS"},
-            {"dash_show_incoming", "INCOMING_ORDERS"}
-        };
+        String[][] configMapping = { { "dash_show_partial_comp", "ORDERS_PATIALLY_COMPLETED_TODAY" },
+                { "dash_show_user_orders", "ORDERS_ENTERED_BY_USER_TODAY" },
+                { "dash_show_rejected", "ORDERS_REJECTED_TODAY" }, { "dash_show_unprinted", "UN_PRINTED_RESULTS" },
+                { "dash_show_incoming", "INCOMING_ORDERS" } };
         for (String[] mapping : configMapping) {
             try {
                 String dbValue = siteInformationService.getSiteInformationByName(mapping[0]).getValue();
@@ -1012,5 +1147,18 @@ public class PatientDashBoardProvider {
             }
         }
         return visibilityMap;
+    }
+
+    private int getSiteInformationIntValue(String siteInformationName, int defaultValue) {
+        try {
+            String dbValue = siteInformationService.getSiteInformationByName(siteInformationName).getValue();
+            if (StringUtils.isBlank(dbValue)) {
+                return defaultValue;
+            }
+            int parsedValue = Integer.parseInt(dbValue.trim());
+            return parsedValue < 0 ? defaultValue : parsedValue;
+        } catch (Exception e) {
+            return defaultValue;
+        }
     }
 }

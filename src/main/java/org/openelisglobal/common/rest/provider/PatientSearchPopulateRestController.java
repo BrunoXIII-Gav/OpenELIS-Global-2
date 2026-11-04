@@ -1,31 +1,37 @@
 package org.openelisglobal.common.rest.provider;
 
+import jakarta.servlet.http.HttpServletRequest;
 import java.util.List;
 import org.apache.commons.validator.GenericValidator;
 import org.openelisglobal.address.service.AddressPartService;
 import org.openelisglobal.address.service.PersonAddressService;
 import org.openelisglobal.address.valueholder.AddressPart;
 import org.openelisglobal.address.valueholder.PersonAddress;
+import org.openelisglobal.common.rest.BaseRestController;
 import org.openelisglobal.common.rest.provider.bean.PatientInfoBean;
 import org.openelisglobal.common.util.ConfigurationProperties;
 import org.openelisglobal.common.util.ConfigurationProperties.Property;
 import org.openelisglobal.common.util.DateUtil;
+import org.openelisglobal.patient.action.IPatientUpdate.PatientUpdateStatus;
+import org.openelisglobal.patient.service.PatientAuthorizationService;
 import org.openelisglobal.patient.service.PatientContactService;
 import org.openelisglobal.patient.service.PatientService;
-import org.openelisglobal.patientadditionalfield.service.PatientAdditionalFieldService;
 import org.openelisglobal.patient.util.PatientIdentifierUtil;
 import org.openelisglobal.patient.util.PatientUtil;
 import org.openelisglobal.patient.valueholder.Patient;
 import org.openelisglobal.patient.valueholder.PatientContact;
+import org.openelisglobal.patientadditionalfield.service.PatientAdditionalFieldService;
 import org.openelisglobal.patientidentity.valueholder.PatientIdentity;
 import org.openelisglobal.patientidentitytype.service.PatientIdentityTypeService;
 import org.openelisglobal.patientidentitytype.util.PatientIdentityTypeMap;
 import org.openelisglobal.patienttype.service.PatientPatientTypeService;
 import org.openelisglobal.patienttype.valueholder.PatientType;
 import org.openelisglobal.person.valueholder.Person;
+import org.openelisglobal.sample.service.OrderAuthorizationService;
+import org.openelisglobal.sample.service.OrderPatientContextService;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.http.MediaType;
-import org.springframework.security.access.prepost.PreAuthorize;
+import org.springframework.security.access.AccessDeniedException;
 import org.springframework.stereotype.Controller;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.RequestMapping;
@@ -34,9 +40,7 @@ import org.springframework.web.bind.annotation.ResponseBody;
 
 @Controller
 @RequestMapping(value = "/rest/")
-@PreAuthorize("@accessControl.hasAnyPermission(T(org.openelisglobal.common.constants.SystemPermission).PATIENT, "
-        + "T(org.openelisglobal.common.constants.SystemPermission).ORDER)")
-public class PatientSearchPopulateRestController {
+public class PatientSearchPopulateRestController extends BaseRestController {
 
     @Autowired
     PatientService patientService;
@@ -59,21 +63,46 @@ public class PatientSearchPopulateRestController {
     @Autowired
     PatientAdditionalFieldService patientAdditionalFieldService;
 
-    private String ADDRESS_PART_VILLAGE_ID;
+    @Autowired
+    PatientAuthorizationService patientAuthorizationService;
 
-    private String ADDRESS_PART_COMMUNE_ID;
+    @Autowired
+    OrderAuthorizationService orderAuthorizationService;
 
-    private String ADDRESS_PART_DEPT_ID;
+    @Autowired
+    OrderPatientContextService orderPatientContextService;
 
     @GetMapping(value = "patient-details", produces = MediaType.APPLICATION_JSON_VALUE)
     @ResponseBody
-    public PatientInfoBean getPatientResults(@RequestParam String patientID) {
+    public PatientInfoBean getPatientResults(HttpServletRequest request, @RequestParam String patientID) {
+        String sysUserId = getSysUserId(request);
+        requirePatientLookupPermission(sysUserId);
+        orderPatientContextService.isOrderEntryLookup(request, sysUserId);
 
         if (!GenericValidator.isBlankOrNull(patientID)) {
-            return getPatientDetails(getPatientForID(patientID));
+            Patient patient = getPatientForID(patientID);
+            if (patient == null)
+                return new PatientInfoBean();
+            PatientInfoBean details = getPatientDetails(patient);
+            if (!patientAuthorizationService.hasPermission(sysUserId, "update")) {
+                details.setReadOnly(true);
+                details.setPatientUpdateStatus(PatientUpdateStatus.NO_ACTION);
+            }
+            return details;
         } else {
             return new PatientInfoBean();
         }
+    }
+
+    private void requirePatientLookupPermission(String sysUserId) {
+        if (patientAuthorizationService.hasPermission(sysUserId, "read")
+                || patientAuthorizationService.hasPermission(sysUserId, "update")
+                || orderAuthorizationService.hasPermission(sysUserId, "create")
+                || orderAuthorizationService.hasPermission(sysUserId, "read")
+                || orderAuthorizationService.hasPermission(sysUserId, "update")) {
+            return;
+        }
+        throw new AccessDeniedException("User does not have permission to read patient details");
     }
 
     private Patient getPatientForID(String patientID) {
@@ -89,15 +118,18 @@ public class PatientSearchPopulateRestController {
         }
     }
 
-    private PatientInfoBean getPatientDetails(Patient patient) {
+    protected PatientInfoBean getPatientDetails(Patient patient) {
+        String villageId = null;
+        String communeId = null;
+        String departmentId = null;
         List<AddressPart> partList = addressPartService.getAll();
         for (AddressPart addressPart : partList) {
             if ("department".equals(addressPart.getPartName())) {
-                ADDRESS_PART_DEPT_ID = addressPart.getId();
+                departmentId = addressPart.getId();
             } else if ("commune".equals(addressPart.getPartName())) {
-                ADDRESS_PART_COMMUNE_ID = addressPart.getId();
+                communeId = addressPart.getId();
             } else if ("village".equals(addressPart.getPartName())) {
-                ADDRESS_PART_VILLAGE_ID = addressPart.getId();
+                villageId = addressPart.getId();
             }
         }
 
@@ -108,12 +140,12 @@ public class PatientSearchPopulateRestController {
         List<PatientIdentity> identityList = PatientUtil.getIdentityListForPatient(patient.getId());
         List<PatientContact> patientContacts = patientContactService.getForPatient(patient.getId());
 
-        String city = getAddress(person, ADDRESS_PART_VILLAGE_ID);
+        String city = getAddress(person, villageId);
         if (GenericValidator.isBlankOrNull(city)) {
             city = person.getCity();
         }
-        String commune = getAddress(person, ADDRESS_PART_COMMUNE_ID);
-        String dept = getAddress(person, ADDRESS_PART_DEPT_ID);
+        String commune = getAddress(person, communeId);
+        String dept = getAddress(person, departmentId);
 
         PatientInfoBean patientInfo = new PatientInfoBean();
         patientInfo.setPatientPK(patient.getId());
@@ -157,8 +189,8 @@ public class PatientSearchPopulateRestController {
         }
         patientInfo.setPrimaryPatientIdentifierType(primaryPatientIdentifierType);
         patientInfo.setGuid(identityMap.getIdentityValue(identityList, "GUID"));
-        patientInfo.setPatientAdditionalFieldValues(
-                patientAdditionalFieldService.getPatientValues(patient.getId(), null));
+        patientInfo
+                .setPatientAdditionalFieldValues(patientAdditionalFieldService.getPatientValues(patient.getId(), null));
 
         // Retrieve dynamic address hierarchy values (ADDRESS_HIERARCHY_0,
         // ADDRESS_HIERARCHY_1, etc.)

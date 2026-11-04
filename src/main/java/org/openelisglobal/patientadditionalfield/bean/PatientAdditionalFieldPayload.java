@@ -15,6 +15,7 @@ public class PatientAdditionalFieldPayload {
     private String defaultValue;
     private Integer maxLength;
     private String metadataJson;
+    private Boolean hasSavedValues;
     private List<PatientAdditionalFieldOptionPayload> options = new ArrayList<>();
 
     public Integer getId() {
@@ -95,6 +96,14 @@ public class PatientAdditionalFieldPayload {
 
     public void setMetadataJson(String metadataJson) {
         this.metadataJson = metadataJson;
+    }
+
+    public Boolean getHasSavedValues() {
+        return hasSavedValues;
+    }
+
+    public void setHasSavedValues(Boolean hasSavedValues) {
+        this.hasSavedValues = hasSavedValues;
     }
 
     public List<PatientAdditionalFieldOptionPayload> getOptions() {

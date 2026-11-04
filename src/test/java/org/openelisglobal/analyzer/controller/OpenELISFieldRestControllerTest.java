@@ -13,8 +13,6 @@ import org.openelisglobal.analyzer.service.OpenELISFieldService;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.http.MediaType;
 import org.springframework.jdbc.core.JdbcTemplate;
-import org.springframework.test.web.servlet.MockMvc;
-import org.springframework.test.web.servlet.setup.MockMvcBuilders;
 import org.springframework.web.context.WebApplicationContext;
 
 /**
@@ -37,14 +35,13 @@ public class OpenELISFieldRestControllerTest extends BaseWebContextSensitiveTest
     @Autowired
     private DataSource dataSource;
 
-    private MockMvc mockMvc;
     private ObjectMapper objectMapper;
     private JdbcTemplate jdbcTemplate;
 
     @Before
     public void setUp() throws Exception {
         super.setUp();
-        mockMvc = MockMvcBuilders.webAppContextSetup(webApplicationContext).build();
+        useAuthenticatedAdminRequests();
         objectMapper = new ObjectMapper();
         jdbcTemplate = new JdbcTemplate(dataSource);
         cleanTestData();

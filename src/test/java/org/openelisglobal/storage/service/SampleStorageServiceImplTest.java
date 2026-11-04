@@ -38,8 +38,17 @@ public class SampleStorageServiceImplTest {
     @Mock
     private IStatusService statusService;
 
+    @Mock
+    private StorageAuthorizationService storageAuthorizationService;
+
     @InjectMocks
     private SampleStorageServiceImpl sampleStorageService;
+
+    @org.junit.Before
+    public void unrestrictedInternalCalls() {
+        org.mockito.Mockito.lenient().when(storageAuthorizationService.getAccessibleSampleItemIdsForCurrentUser("read"))
+                .thenReturn(null);
+    }
 
     @Test
     public void testGetSampleAssignments_WithPageable_ReturnsCorrectPageSize() {

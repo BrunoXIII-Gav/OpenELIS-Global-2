@@ -61,6 +61,11 @@ public final class ClinicalPatientData {
     private String alerts;
     private String completeFlag;
     private String orderFinishDate;
+    private String validationDate;
+    private String deliveryDate;
+    private String amendedValidationDate;
+    private String amendedDeliveryDate;
+    private String amendmentReason;
     private String panelName;
     private Boolean separator = false;
     private Panel panel;
@@ -74,6 +79,7 @@ public final class ClinicalPatientData {
     private String billingNumber;
     private String sampleType;
     private String sampleId;
+    private String analysisId;
     private String sampleSortOrder;
     private String analysisStatus;
     private String contactTracingIndexName;
@@ -142,6 +148,11 @@ public final class ClinicalPatientData {
         alerts = data.getAlerts();
         completeFlag = data.getCompleteFlag();
         orderFinishDate = data.getOrderFinishDate();
+        validationDate = data.getValidationDate();
+        deliveryDate = data.getDeliveryDate();
+        amendedValidationDate = data.getAmendedValidationDate();
+        amendedDeliveryDate = data.getAmendedDeliveryDate();
+        amendmentReason = data.getAmendmentReason();
         panelName = data.getPanelName();
         separator = data.getSeparator();
         panel = data.getPanel();
@@ -155,6 +166,7 @@ public final class ClinicalPatientData {
         billingNumber = data.getBillingNumber();
         sampleType = data.getSampleType();
         sampleId = data.getSampleId();
+        analysisId = data.getAnalysisId();
         sampleSortOrder = data.getSampleSortOrder();
         analysisStatus = data.getAnalysisStatus();
         prescriber = data.getPrescriber();
@@ -528,6 +540,49 @@ public final class ClinicalPatientData {
         this.orderFinishDate = orderFinishDate;
     }
 
+    public String getValidationDate() {
+        return validationDate;
+    }
+
+    public void setValidationDate(String validationDate) {
+        this.validationDate = validationDate;
+    }
+
+    /** Date the result was handed to the patient; blank until it is recorded. */
+    public String getDeliveryDate() {
+        return deliveryDate;
+    }
+
+    public void setDeliveryDate(String deliveryDate) {
+        this.deliveryDate = deliveryDate;
+    }
+
+    /** For an amended report: validation date of the report it replaces. */
+    public String getAmendedValidationDate() {
+        return amendedValidationDate;
+    }
+
+    public void setAmendedValidationDate(String amendedValidationDate) {
+        this.amendedValidationDate = amendedValidationDate;
+    }
+
+    /** For an amended report: delivery date of the report it replaces. */
+    public String getAmendedDeliveryDate() {
+        return amendedDeliveryDate;
+    }
+
+    public void setAmendedDeliveryDate(String amendedDeliveryDate) {
+        this.amendedDeliveryDate = amendedDeliveryDate;
+    }
+
+    public String getAmendmentReason() {
+        return amendmentReason;
+    }
+
+    public void setAmendmentReason(String amendmentReason) {
+        this.amendmentReason = amendmentReason;
+    }
+
     public String getOrderDate() {
         return orderDate;
     }
@@ -606,6 +661,14 @@ public final class ClinicalPatientData {
 
     public void setSampleId(String sampleId) {
         this.sampleId = sampleId;
+    }
+
+    public String getAnalysisId() {
+        return analysisId;
+    }
+
+    public void setAnalysisId(String analysisId) {
+        this.analysisId = analysisId;
     }
 
     public String getAnalysisStatus() {

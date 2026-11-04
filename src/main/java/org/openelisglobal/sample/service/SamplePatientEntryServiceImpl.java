@@ -40,6 +40,8 @@ import org.openelisglobal.notification.valueholder.TestNotificationConfig;
 import org.openelisglobal.observationhistory.service.ObservationHistoryService;
 import org.openelisglobal.observationhistory.valueholder.ObservationHistory;
 import org.openelisglobal.orderadditionalfield.bean.OrderAdditionalFieldFilePayload;
+import org.openelisglobal.orderadditionalfield.service.AlternateOrderFlowPolicy;
+import org.openelisglobal.orderadditionalfield.service.AlternateOrderFlowService;
 import org.openelisglobal.orderadditionalfield.service.OrderAdditionalFieldService;
 import org.openelisglobal.organization.service.OrganizationService;
 import org.openelisglobal.organization.valueholder.Organization;
@@ -120,10 +122,19 @@ public class SamplePatientEntryServiceImpl implements SamplePatientEntryService 
     private SampleTypeAdditionalFieldService sampleTypeAdditionalFieldService;
     @Autowired
     private OrderAdditionalFieldService orderAdditionalFieldService;
+    @Autowired
+    private AlternateOrderFlowService alternateOrderFlowService;
+
+    @Autowired
+    private OrderAccessionService orderAccessionService;
+
     @Transactional
     @Override
     public void persistData(SamplePatientUpdateData updateData, PatientManagementUpdate patientUpdate,
             PatientManagementInfo patientInfo, SamplePatientEntryForm form, HttpServletRequest request) {
+        // Always take the accession lock before patient locks to keep a consistent
+        // order.
+        String assignedLabNo = assignLaboratoryNumber(updateData, form.getSampleOrderItems());
         boolean useInitialSampleCondition = FormFields.getInstance().useField(Field.InitialSampleCondition);
         boolean useSampleNature = FormFields.getInstance().useField(Field.SampleNature);
 
@@ -154,6 +165,25 @@ public class SamplePatientEntryServiceImpl implements SamplePatientEntryService 
 
         request.getSession().setAttribute("lastAccessionNumber", updateData.getAccessionNumber());
         request.getSession().setAttribute("lastPatientId", updateData.getPatientId());
+        form.getSampleOrderItems().setLabNo(assignedLabNo);
+    }
+
+    private String assignLaboratoryNumber(SamplePatientUpdateData updateData,
+            org.openelisglobal.sample.bean.SampleOrderItem orderItems) {
+        String programCode = orderItems.getProgram();
+        if (GenericValidator.isBlankOrNull(programCode) && updateData.getProgramSample() != null
+                && updateData.getProgramSample().getProgram() != null) {
+            programCode = updateData.getProgramSample().getProgram().getCode();
+        }
+        String assignedLabNo = GenericValidator.isBlankOrNull(orderItems.getLabNo())
+                ? orderAccessionService.generate(programCode)
+                : orderAccessionService.confirm(orderItems.getLabNo(), orderItems.isLabNoGenerated());
+        updateData.setAccessionNumber(assignedLabNo);
+        updateData.getSample().setAccessionNumber(assignedLabNo);
+        for (SampleTestCollection sampleTest : updateData.getSampleItemsTests()) {
+            sampleTest.item.setExternalId(assignedLabNo + "-" + sampleTest.item.getSortOrder());
+        }
+        return assignedLabNo;
     }
 
     private void persistObservations(SamplePatientUpdateData updateData) {
@@ -256,6 +286,7 @@ public class SamplePatientEntryServiceImpl implements SamplePatientEntryService 
         updateData.getSample().setPriority(updateData.getPriority());
         orderAdditionalFieldService.validateAndPersistSampleValues(updateData.getSample().getId(),
                 orderAdditionalFieldValues, orderAdditionalFieldFiles, updateData.getCurrentUserId(), null);
+        boolean alternateOrderFlow = alternateOrderFlowService.isAlternateOrderFlow(orderAdditionalFieldValues);
 
         for (SampleAdditionalField field : updateData.getSampleFields()) {
             field.setSample(updateData.getSample());
@@ -309,6 +340,9 @@ public class SamplePatientEntryServiceImpl implements SamplePatientEntryService 
             sampleTestCollection.analysises = new ArrayList<>();
             for (Test test : sampleTestCollection.tests) {
                 test = testService.get(test.getId());
+                if (!AlternateOrderFlowPolicy.allowsProcessing(alternateOrderFlow, test)) {
+                    continue;
+                }
 
                 Analysis analysis = populateAnalysis(analysisRevision, sampleTestCollection, test,
                         sampleTestCollection.testIdToUserSectionMap.get(test.getId()),
@@ -354,21 +388,18 @@ public class SamplePatientEntryServiceImpl implements SamplePatientEntryService 
         }
 
         this.persistAnalysisNotificationConfig(analysis, analysisNotificationConfig, testNotificationConfig,
-                NotificationMethod.EMAIL,
-                NotificationPersonType.PATIENT);
+                NotificationMethod.EMAIL, NotificationPersonType.PATIENT);
         this.persistAnalysisNotificationConfig(analysis, analysisNotificationConfig, testNotificationConfig,
-                NotificationMethod.SMS,
-                NotificationPersonType.PATIENT);
+                NotificationMethod.SMS, NotificationPersonType.PATIENT);
         this.persistAnalysisNotificationConfig(analysis, analysisNotificationConfig, testNotificationConfig,
-                NotificationMethod.EMAIL,
-                NotificationPersonType.PROVIDER);
+                NotificationMethod.EMAIL, NotificationPersonType.PROVIDER);
         this.persistAnalysisNotificationConfig(analysis, analysisNotificationConfig, testNotificationConfig,
-                NotificationMethod.SMS,
-                NotificationPersonType.PROVIDER);
+                NotificationMethod.SMS, NotificationPersonType.PROVIDER);
         analysisNotificationConfigService.save(analysisNotificationConfig);
     }
 
-    private void persistAnalysisNotificationConfig(Analysis analysis, AnalysisNotificationConfig analysisNotificationConfig,
+    private void persistAnalysisNotificationConfig(Analysis analysis,
+            AnalysisNotificationConfig analysisNotificationConfig,
             Optional<TestNotificationConfig> testNotificationConfig, NotificationMethod method,
             NotificationPersonType personType) {
         NotificationNature notificationNature = NotificationNature.RESULT_VALIDATION;

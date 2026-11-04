@@ -1,3 +1,4 @@
+import { convertAlphaNumLabNumForDisplay } from "../utils/Utils";
 import React from "react";
 import {
   Tile,
@@ -29,18 +30,13 @@ import "./Dashboard.css";
 import { Minimize, Maximize, ArrowLeft, ArrowRight } from "@carbon/react/icons";
 import { Copy } from "@carbon/icons-react";
 import { useState, useEffect, useRef, useContext } from "react";
-import {
-  getFromOpenElisServer,
-  convertAlphaNumLabNumForDisplay,
-  hasRole,
-} from "../utils/Utils.js";
+import { getFromOpenElisServer, hasRole } from "../utils/Utils.js";
 import { FormattedMessage, useIntl } from "react-intl";
 import UserSessionDetailsContext from "../../UserSessionDetailsContext";
 import { NotificationContext } from "../layout/Layout";
 import { AlertDialog, NotificationKinds } from "../common/CustomNotification";
-
 interface DashBoardProps {}
-
+type WaitingTagType = "red" | "yellow" | "green" | "gray";
 interface Tile {
   title: string | JSX.Element;
   subTitle: string | JSX.Element;
@@ -61,21 +57,22 @@ type MetricType =
   | "INCOMING_ORDERS"
   | "AVERAGE_TURN_AROUND_TIME"
   | "DELAYED_TURN_AROUND"
+  | "ALTERNATE_ORDER_FLOW"
   | "ORDERS_FOR_USER";
-
 interface UserSessionDetails {
   userSessionDetails: any;
 }
-
 interface Notification {
   notificationVisible: any;
   setNotificationVisible: any;
   addNotification: any;
 }
-
+interface WaitingThresholds {
+  yellowThresholdDays: number;
+  redThresholdDays: number;
+}
 const HomeDashBoard: React.FC<DashBoardProps> = () => {
   const intl = useIntl();
-
   const [counts, setCounts] = useState({
     ordersInProgress: 0,
     awaitingSample: 0,
@@ -89,8 +86,8 @@ const HomeDashBoard: React.FC<DashBoardProps> = () => {
     incomigOrders: 0,
     averageTurnAroudTime: 0,
     delayedTurnAround: 0,
+    alternateOrderFlow: 0,
   });
-
   const [tileVisibility, setTileVisibility] = useState({
     ORDERS_PATIALLY_COMPLETED_TODAY: true,
     ORDERS_ENTERED_BY_USER_TODAY: true,
@@ -98,42 +95,41 @@ const HomeDashBoard: React.FC<DashBoardProps> = () => {
     UN_PRINTED_RESULTS: true,
     INCOMING_ORDERS: true,
   });
-
+  const [waitingThresholds, setWaitingThresholds] = useState<WaitingThresholds>(
+    {
+      yellowThresholdDays: 5,
+      redThresholdDays: 10,
+    },
+  );
   const [startDate, setStartDate] = useState("");
   const [endDate, setEndDate] = useState("");
   const [selectedTestType, setSelectedTestType] = useState("all");
   const [waitingTimeSort, setWaitingTimeSort] = useState("mostUrgent");
-
   const handleDateChange = (dates) => {
     if (!dates || dates.length === 0) {
       setStartDate("");
       setEndDate("");
       return;
     }
-
     const formatSafeDate = (d) => {
       const year = d.getFullYear();
       const month = String(d.getMonth() + 1).padStart(2, "0");
       const day = String(d.getDate()).padStart(2, "0");
       return `${year}-${month}-${day}`;
     };
-
     if (dates.length >= 1) {
       const start = formatSafeDate(dates[0]);
       const end =
         dates.length === 2 && dates[1] ? formatSafeDate(dates[1]) : start;
-
       setStartDate(start);
       setEndDate(end);
     }
   };
-
   const [timeMetrics, setTimeMetrics] = useState({
     receptionToResult: 0,
     resultToValidation: 0,
     receptionToValidation: 0,
   });
-
   const [data, setData] = useState([]);
   const [testSections, setTestSections] = useState([]);
   const [selectedTestSection, setSelectedTestSection] = useState("");
@@ -153,46 +149,60 @@ const HomeDashBoard: React.FC<DashBoardProps> = () => {
   ) as UserSessionDetails;
   const { notificationVisible, setNotificationVisible, addNotification } =
     useContext(NotificationContext) as Notification;
-
   const supportsTestTypeFilter =
     selectedTile?.type === "AWAITING_RESULTS" ||
     selectedTile?.type === "ORDERS_READY_FOR_VALIDATION";
-
   const supportsWaitingCounter =
     selectedTile?.type === "AWAITING_SAMPLE" ||
     selectedTile?.type === "AWAITING_RESULTS" ||
     selectedTile?.type === "ORDERS_READY_FOR_VALIDATION";
-
   const buildTestTypeParam = () => {
     if (!supportsTestTypeFilter || selectedTestType === "all") {
       return "";
     }
     return `&testType=${encodeURIComponent(selectedTestType)}`;
   };
-
   useEffect(() => {
     setNextPage(null);
     setPreviousPage(null);
     setPagination(false);
   }, []);
-
   useEffect(() => {
-    getFromOpenElisServer(
-      `/rest/home-dashboard/metrics?startDate=${startDate}&endDate=${endDate}`,
-      loadCount,
-    );
-
     getFromOpenElisServer(`/rest/home-dashboard/visibility-config`, (data) => {
       if (data) {
         setTileVisibility(data);
       }
     });
-
+    getFromOpenElisServer(
+      `/rest/home-dashboard/waiting-time-config`,
+      (data) => {
+        if (data) {
+          setWaitingThresholds({
+            yellowThresholdDays: normalizeThresholdValue(
+              data.yellowThresholdDays,
+              5,
+            ),
+            redThresholdDays: normalizeThresholdValue(
+              data.redThresholdDays,
+              10,
+            ),
+          });
+        }
+      },
+    );
+    return () => {
+      componentMounted.current = false;
+    };
+  }, []);
+  useEffect(() => {
+    getFromOpenElisServer(
+      `/rest/home-dashboard/metrics?startDate=${startDate}&endDate=${endDate}`,
+      loadCount,
+    );
     return () => {
       componentMounted.current = false;
     };
   }, [startDate, endDate]);
-
   useEffect(() => {
     if (selectedTile != null) {
       setNextPage(null);
@@ -222,15 +232,13 @@ const HomeDashBoard: React.FC<DashBoardProps> = () => {
         );
       }
     }
-
     return () => {
       componentMounted.current = false;
     };
   }, [selectedTile, startDate, endDate, selectedTestType]);
-
   useEffect(() => {
     getFromOpenElisServer(
-      "/rest/user-test-sections/ALL",
+      "/rest/user-test-sections/ALL?userCreatedOnly=true",
       (fetchedTestSections) => {
         fetchTestSections(fetchedTestSections);
       },
@@ -239,7 +247,6 @@ const HomeDashBoard: React.FC<DashBoardProps> = () => {
       componentMounted.current = false;
     };
   }, []);
-
   const fetchTestSections = (res) => {
     setTestSections(res);
     hasRole(userSessionDetails, "Global Administrator")
@@ -248,7 +255,6 @@ const HomeDashBoard: React.FC<DashBoardProps> = () => {
           res && res.length > 0 && res[0]?.id != null ? String(res[0].id) : "",
         );
   };
-
   const loadNextResultsPage = () => {
     setLoading(true);
     getFromOpenElisServer(
@@ -260,7 +266,6 @@ const HomeDashBoard: React.FC<DashBoardProps> = () => {
       loadData,
     );
   };
-
   const loadPreviousResultsPage = () => {
     setLoading(true);
     getFromOpenElisServer(
@@ -272,7 +277,6 @@ const HomeDashBoard: React.FC<DashBoardProps> = () => {
       loadData,
     );
   };
-
   const loadCount = (data) => {
     if (componentMounted.current) {
       if (data) {
@@ -281,7 +285,6 @@ const HomeDashBoard: React.FC<DashBoardProps> = () => {
       setLoading(false);
     }
   };
-
   const loadData = (res) => {
     // If the response object is not null and has displayItems array with length greater than 0 then set it as data.
     if (res && res.displayItems && res.displayItems.length > 0) {
@@ -302,7 +305,6 @@ const HomeDashBoard: React.FC<DashBoardProps> = () => {
         } else {
           setNextPage(null);
         }
-
         if (parseInt(currentPage) > 1) {
           setPreviousPage(parseInt(currentPage) - 1);
         } else {
@@ -310,15 +312,12 @@ const HomeDashBoard: React.FC<DashBoardProps> = () => {
         }
       }
     }
-
     setLoading(false);
   };
-
   const loadTimeMetrics = (data) => {
     setTimeMetrics(data);
     setLoading(false);
   };
-
   const allTiles: Array<Tile> = [
     {
       title: <FormattedMessage id="dashboard.in.progress.label" />,
@@ -404,15 +403,21 @@ const HomeDashBoard: React.FC<DashBoardProps> = () => {
       type: "DELAYED_TURN_AROUND",
       value: counts.delayedTurnAround,
     },
+    {
+      title: <FormattedMessage id="dashboard.alternate.order.flow.label" />,
+      subTitle: (
+        <FormattedMessage id="dashboard.alternate.order.flow.subtitle.label" />
+      ),
+      type: "ALTERNATE_ORDER_FLOW",
+      value: counts.alternateOrderFlow,
+    },
   ];
-
   const tileList = allTiles.filter((tile) => {
     if (tileVisibility[tile.type] !== undefined) {
       return tileVisibility[tile.type];
     }
     return true;
   });
-
   const averageTimeTileList: Array<Tile> = [
     {
       title: (
@@ -445,7 +450,6 @@ const HomeDashBoard: React.FC<DashBoardProps> = () => {
       value: timeMetrics.resultToValidation,
     },
   ];
-
   const tilesWithTabs = [
     "ORDERS_IN_PROGRESS",
     "AWAITING_SAMPLE",
@@ -458,14 +462,11 @@ const HomeDashBoard: React.FC<DashBoardProps> = () => {
     "ORDERS_FOR_USER",
     "ORDERS_PATIALLY_COMPLETED_TODAY",
   ];
-
   const handleMinimizeClick = () => {
     console.log("Icon clicked!");
-
     setStartDate("");
     setEndDate("");
     setSelectedTestType("all");
-
     if (selectedTile.type == "ORDERS_FOR_USER") {
       const tile: Tile = {
         title: <FormattedMessage id="dashboard.user.orders.label" />,
@@ -490,9 +491,10 @@ const HomeDashBoard: React.FC<DashBoardProps> = () => {
           );
     }
   };
-
   const handleMaximizeClick = (tile) => {
+    const requiresSectionAccess = tilesWithTabs.includes(tile.type);
     if (
+      !requiresSectionAccess ||
       testSections?.length > 0 ||
       hasRole(userSessionDetails, "Global Administrator")
     ) {
@@ -501,12 +503,15 @@ const HomeDashBoard: React.FC<DashBoardProps> = () => {
       setNotificationVisible(true);
       addNotification({
         kind: NotificationKinds.warning,
-        title: intl.formatMessage({ id: "accessDenied.title" }),
-        message: intl.formatMessage({ id: "accessDenied.message" }),
+        title: intl.formatMessage({
+          id: "accessDenied.title",
+        }),
+        message: intl.formatMessage({
+          id: "accessDenied.message",
+        }),
       });
     }
   };
-
   const viewUserOrders = (row) => {
     console.log("Icon clicked!");
     const rowCells = Array.isArray(row?.cells) ? row.cells : [];
@@ -519,7 +524,6 @@ const HomeDashBoard: React.FC<DashBoardProps> = () => {
     const value = rowCells.find(
       (e) => e.info.header === "countOfOrdersEntered",
     )?.value;
-
     const tile: Tile = {
       title: <FormattedMessage id="dashboard.user.orders.today.label" />,
       subTitle: `${firstName || ""} ${lastName || ""}`.trim(),
@@ -529,17 +533,14 @@ const HomeDashBoard: React.FC<DashBoardProps> = () => {
     };
     setSelectedTile(tile);
   };
-
   const handlePageChange = (pageInfo) => {
     if (page != pageInfo.page) {
       setPage(pageInfo.page);
     }
-
     if (pageSize != pageInfo.pageSize) {
       setPageSize(pageInfo.pageSize);
     }
   };
-
   const buildTileHref = (
     tileType: MetricType,
     searchValue: string,
@@ -559,9 +560,11 @@ const HomeDashBoard: React.FC<DashBoardProps> = () => {
     if (tileType === "ORDERS_READY_FOR_VALIDATION") {
       return "validation?type=order&accessionNumber=" + searchValue;
     }
+    if (tileType === "ALTERNATE_ORDER_FLOW") {
+      return "/ModifyOrder?accessionNumber=" + searchValue;
+    }
     return null;
   };
-
   const renderCell = (cell, row) => {
     if (cell.info.header === "labNumber" && cell.value) {
       const accessionHref = buildTileHref(selectedTile.type, cell.value);
@@ -569,7 +572,8 @@ const HomeDashBoard: React.FC<DashBoardProps> = () => {
         selectedTile.type == "ORDERS_IN_PROGRESS" ||
         selectedTile.type == "AWAITING_SAMPLE" ||
         selectedTile.type == "AWAITING_RESULTS" ||
-        selectedTile.type == "ORDERS_READY_FOR_VALIDATION";
+        selectedTile.type == "ORDERS_READY_FOR_VALIDATION" ||
+        selectedTile.type == "ALTERNATE_ORDER_FLOW";
       return (
         <TableCell key={cell.id}>
           <>
@@ -600,10 +604,28 @@ const HomeDashBoard: React.FC<DashBoardProps> = () => {
           </>
         </TableCell>
       );
+    } else if (cell.info.header === "priority") {
+      const priority = String(cell.value ?? "");
+      return (
+        <TableCell key={cell.id}>
+          {priority
+            ? intl.formatMessage({
+                id: `config.display.value.${priority}`,
+                defaultMessage: priority,
+              })
+            : ""}
+        </TableCell>
+      );
     } else if (cell.info.header === "countOfOrdersEntered" && cell.value) {
       return (
         <TableCell key={cell.id}>
-          <Link style={{ color: "blue" }}>{cell.value} </Link>
+          <Link
+            style={{
+              color: "blue",
+            }}
+          >
+            {cell.value}{" "}
+          </Link>
         </TableCell>
       );
     } else if (
@@ -614,10 +636,12 @@ const HomeDashBoard: React.FC<DashBoardProps> = () => {
         cell.value || `${Number.MAX_SAFE_INTEGER}|gray|Sin fecha`,
       ).split("|");
       const label = labelParts.join("|");
-
+      const { carbonTagType, className } = getWaitingTagPresentation(
+        tagType as WaitingTagType,
+      );
       return (
         <TableCell key={cell.id}>
-          <Tag type={tagType as any} className="awaiting-results-counter-tag">
+          <Tag type={carbonTagType} className={className}>
             {label}
           </Tag>
         </TableCell>
@@ -626,7 +650,6 @@ const HomeDashBoard: React.FC<DashBoardProps> = () => {
       return <TableCell key={cell.id}>{cell.value}</TableCell>;
     }
   };
-
   const orderHeadersInProgress = [
     {
       key: "priority",
@@ -637,15 +660,10 @@ const HomeDashBoard: React.FC<DashBoardProps> = () => {
       header: <FormattedMessage id="sample.label.orderdate" />,
     },
     {
-      key: "patientId",
-      header: <FormattedMessage id="patient.merge.nationalId" />,
-    },
-    {
       key: "labNumber",
       header: <FormattedMessage id="eorder.labNumber" />,
     },
   ];
-
   const orderHeadersWithTest = [
     {
       key: "priority",
@@ -656,10 +674,6 @@ const HomeDashBoard: React.FC<DashBoardProps> = () => {
       header: <FormattedMessage id="sample.label.orderdate" />,
     },
     {
-      key: "patientId",
-      header: <FormattedMessage id="patient.merge.nationalId" />,
-    },
-    {
       key: "labNumber",
       header: <FormattedMessage id="eorder.labNumber" />,
     },
@@ -668,7 +682,6 @@ const HomeDashBoard: React.FC<DashBoardProps> = () => {
       header: <FormattedMessage id="eorder.test.name" />,
     },
   ];
-
   const orderHeadersAwaitingResults = [
     ...orderHeadersWithTest,
     {
@@ -681,7 +694,6 @@ const HomeDashBoard: React.FC<DashBoardProps> = () => {
       ),
     },
   ];
-
   const orderHeadersAwaitingSample = [
     {
       key: "priority",
@@ -690,10 +702,6 @@ const HomeDashBoard: React.FC<DashBoardProps> = () => {
     {
       key: "orderDate",
       header: <FormattedMessage id="sample.label.orderdate" />,
-    },
-    {
-      key: "patientId",
-      header: <FormattedMessage id="patient.merge.nationalId" />,
     },
     {
       key: "labNumber",
@@ -709,7 +717,24 @@ const HomeDashBoard: React.FC<DashBoardProps> = () => {
       ),
     },
   ];
-
+  const orderHeadersAlternateOrderFlow = [
+    {
+      key: "priority",
+      header: <FormattedMessage id="eorder.priority" />,
+    },
+    {
+      key: "orderDate",
+      header: <FormattedMessage id="sample.label.orderdate" />,
+    },
+    {
+      key: "patientId",
+      header: <FormattedMessage id="patient.merge.nationalId" />,
+    },
+    {
+      key: "labNumber",
+      header: <FormattedMessage id="eorder.labNumber" />,
+    },
+  ];
   const orderHeadersReadyForValidation = [
     ...orderHeadersWithTest,
     {
@@ -731,7 +756,6 @@ const HomeDashBoard: React.FC<DashBoardProps> = () => {
       ),
     },
   ];
-
   const userHeaders = [
     {
       key: "userFirstName",
@@ -746,7 +770,6 @@ const HomeDashBoard: React.FC<DashBoardProps> = () => {
       header: "Orders Entered",
     },
   ];
-
   const testTypeOptions = Array.from(
     new Set(
       (data || [])
@@ -754,41 +777,52 @@ const HomeDashBoard: React.FC<DashBoardProps> = () => {
         .filter((name) => typeof name === "string" && name.trim().length > 0),
     ),
   ).sort((a, b) => a.localeCompare(b));
-
   const parseOrderDateTime = (orderDate?: string): Date | null => {
     if (!orderDate) {
       return null;
     }
-
     const normalizedDate = String(orderDate).trim().replace(" ", "T");
     const parsedDate = new Date(normalizedDate);
-
     if (Number.isNaN(parsedDate.getTime())) {
       return null;
     }
-
     return parsedDate;
   };
-
+  const normalizeThresholdValue = (value, fallbackValue: number) => {
+    const parsedValue = Number.parseInt(String(value ?? ""), 10);
+    return Number.isNaN(parsedValue) || parsedValue < 0
+      ? fallbackValue
+      : parsedValue;
+  };
+  const getWaitingTagPresentation = (tagType: WaitingTagType) => {
+    if (tagType === "yellow") {
+      return {
+        carbonTagType: "warm-gray" as const,
+        className:
+          "awaiting-results-counter-tag awaiting-results-counter-tag--yellow",
+      };
+    }
+    return {
+      carbonTagType: tagType,
+      className: "awaiting-results-counter-tag",
+    };
+  };
   const getWaitingInfo = (waitingStartDate?: string) => {
     const parsedOrderDate = parseOrderDateTime(waitingStartDate);
-
     if (!parsedOrderDate) {
       return {
         label: intl.formatMessage({
           id: "dashboard.awaitingResults.waiting.noDate",
           defaultMessage: "Sin fecha",
         }),
-        tagType: "gray",
+        tagType: "gray" as WaitingTagType,
         waitingMs: -1,
       };
     }
-
     const now = new Date();
     const waitingMs = Math.max(0, now.getTime() - parsedOrderDate.getTime());
     const totalHours = Math.floor(waitingMs / (1000 * 60 * 60));
     const totalDays = Math.floor(totalHours / 24);
-
     const label =
       totalHours < 24
         ? intl.formatMessage(
@@ -797,7 +831,9 @@ const HomeDashBoard: React.FC<DashBoardProps> = () => {
               defaultMessage:
                 "hace {count, plural, one {# hora} other {# horas}}",
             },
-            { count: totalHours },
+            {
+              count: totalHours,
+            },
           )
         : intl.formatMessage(
             {
@@ -805,24 +841,22 @@ const HomeDashBoard: React.FC<DashBoardProps> = () => {
               defaultMessage:
                 "hace {count, plural, one {# día} other {# días}}",
             },
-            { count: totalDays },
+            {
+              count: totalDays,
+            },
           );
-
-    let tagType = "green";
-
-    if (totalDays >= 10) {
+    let tagType: WaitingTagType = "green";
+    if (totalDays >= waitingThresholds.redThresholdDays) {
       tagType = "red";
-    } else if (totalDays >= 5) {
+    } else if (totalDays >= waitingThresholds.yellowThresholdDays) {
       tagType = "yellow";
     }
-
     return {
       label,
       tagType,
       waitingMs,
     };
   };
-
   const serializeWaitingCounterValue = (
     waitingMs?: number,
     tagType?: string,
@@ -835,13 +869,11 @@ const HomeDashBoard: React.FC<DashBoardProps> = () => {
     const sortableValue = String(normalizedWaitingMs).padStart(16, "0");
     return `${sortableValue}|${tagType || "gray"}|${label || ""}`;
   };
-
   const matchesSelectedFilters = (item) => {
     const shouldFilterBySection =
       tilesWithTabs.includes(selectedTile.type) &&
       selectedTestSection != "all" &&
       selectedTestSection !== "";
-
     const matchesSection = (() => {
       if (!shouldFilterBySection) {
         return true;
@@ -856,15 +888,12 @@ const HomeDashBoard: React.FC<DashBoardProps> = () => {
         .filter((value) => value.length > 0);
       return sectionIds.includes(String(selectedTestSection));
     })();
-
     const matchesTestType =
       supportsTestTypeFilter && selectedTestType !== "all"
         ? item?.testName === selectedTestType
         : true;
-
     return matchesSection && matchesTestType;
   };
-
   const filteredTableData =
     selectedTile != null
       ? data
@@ -873,16 +902,13 @@ const HomeDashBoard: React.FC<DashBoardProps> = () => {
             if (!supportsWaitingCounter) {
               return item;
             }
-
             const waitingInfo = getWaitingInfo(
               item.waitingStartDate || item.orderDate,
             );
-
             const orderWaitingInfo =
               selectedTile?.type === "ORDERS_READY_FOR_VALIDATION"
                 ? getWaitingInfo(item.orderCreatedStartDate || item.orderDate)
                 : null;
-
             return {
               ...item,
               waitingMs: waitingInfo.waitingMs,
@@ -907,18 +933,14 @@ const HomeDashBoard: React.FC<DashBoardProps> = () => {
             if (!supportsWaitingCounter) {
               return 0;
             }
-
             const firstWaitingMs = a.waitingMs ?? -1;
             const secondWaitingMs = b.waitingMs ?? -1;
-
             if (waitingTimeSort === "mostUrgent") {
               return secondWaitingMs - firstWaitingMs;
             }
-
             return firstWaitingMs - secondWaitingMs;
           })
       : [];
-
   return (
     <>
       {loading && <Loading description="Loading Dasboard..." />}
@@ -989,7 +1011,11 @@ const HomeDashBoard: React.FC<DashBoardProps> = () => {
                   padding: "1rem 0",
                 }}
               >
-                <div style={{ minWidth: "25rem" }}>
+                <div
+                  style={{
+                    minWidth: "25rem",
+                  }}
+                >
                   <DatePicker
                     datePickerType="range"
                     onChange={handleDateChange}
@@ -1017,7 +1043,12 @@ const HomeDashBoard: React.FC<DashBoardProps> = () => {
                 </div>
 
                 {supportsWaitingCounter && (
-                  <div style={{ minWidth: "18rem", maxWidth: "22rem" }}>
+                  <div
+                    style={{
+                      minWidth: "18rem",
+                      maxWidth: "22rem",
+                    }}
+                  >
                     <Select
                       id="awaiting-results-priority-sort"
                       labelText={intl.formatMessage({
@@ -1049,7 +1080,12 @@ const HomeDashBoard: React.FC<DashBoardProps> = () => {
                 )}
 
                 {supportsTestTypeFilter && (
-                  <div style={{ minWidth: "18rem", maxWidth: "22rem" }}>
+                  <div
+                    style={{
+                      minWidth: "18rem",
+                      maxWidth: "22rem",
+                    }}
+                  >
                     <Select
                       id="dashboard-test-type-filter"
                       labelText={intl.formatMessage({
@@ -1113,7 +1149,12 @@ const HomeDashBoard: React.FC<DashBoardProps> = () => {
                           <Link>
                             {currentApiPage} / {totalApiPages}
                           </Link>
-                          <div style={{ display: "flex", gap: "10px" }}>
+                          <div
+                            style={{
+                              display: "flex",
+                              gap: "10px",
+                            }}
+                          >
                             <Button
                               hasIconOnly
                               id="loadpreviousresults"
@@ -1143,7 +1184,9 @@ const HomeDashBoard: React.FC<DashBoardProps> = () => {
                               "Global Administrator",
                             ) ? (
                               <TabList
-                                style={{ width: "100%" }}
+                                style={{
+                                  width: "100%",
+                                }}
                                 aria-label="List of tabs"
                                 contained
                               >
@@ -1168,7 +1211,9 @@ const HomeDashBoard: React.FC<DashBoardProps> = () => {
                               </TabList>
                             ) : (
                               <TabList
-                                style={{ width: "100%" }}
+                                style={{
+                                  width: "100%",
+                                }}
                                 aria-label="List of tabs"
                                 contained
                               >
@@ -1209,8 +1254,11 @@ const HomeDashBoard: React.FC<DashBoardProps> = () => {
                                   "UN_PRINTED_RESULTS",
                                   "INCOMING_ORDERS",
                                   "DELAYED_TURN_AROUND",
+                                  "ALTERNATE_ORDER_FLOW",
                                 ].includes(selectedTile.type)
-                              ? orderHeadersInProgress
+                              ? selectedTile.type === "ALTERNATE_ORDER_FLOW"
+                                ? orderHeadersAlternateOrderFlow
+                                : orderHeadersInProgress
                               : selectedTile.type ===
                                   "ORDERS_ENTERED_BY_USER_TODAY"
                                 ? userHeaders
@@ -1228,7 +1276,9 @@ const HomeDashBoard: React.FC<DashBoardProps> = () => {
                                 {headers.map((header) => (
                                   <TableHeader
                                     key={header.key}
-                                    {...getHeaderProps({ header })}
+                                    {...getHeaderProps({
+                                      header,
+                                    })}
                                   >
                                     {header.header}
                                   </TableHeader>
@@ -1272,8 +1322,14 @@ const HomeDashBoard: React.FC<DashBoardProps> = () => {
                       })}
                       itemRangeText={(min, max, total) =>
                         intl.formatMessage(
-                          { id: "pagination.item-range" },
-                          { min: min, max: max, total: total },
+                          {
+                            id: "pagination.item-range",
+                          },
+                          {
+                            min: min,
+                            max: max,
+                            total: total,
+                          },
                         )
                       }
                       itemsPerPageText={intl.formatMessage({
@@ -1281,8 +1337,13 @@ const HomeDashBoard: React.FC<DashBoardProps> = () => {
                       })}
                       itemText={(min, max) =>
                         intl.formatMessage(
-                          { id: "pagination.item" },
-                          { min: min, max: max },
+                          {
+                            id: "pagination.item",
+                          },
+                          {
+                            min: min,
+                            max: max,
+                          },
                         )
                       }
                       pageNumberText={intl.formatMessage({
@@ -1290,14 +1351,22 @@ const HomeDashBoard: React.FC<DashBoardProps> = () => {
                       })}
                       pageRangeText={(_current, total) =>
                         intl.formatMessage(
-                          { id: "pagination.page-range" },
-                          { total: total },
+                          {
+                            id: "pagination.page-range",
+                          },
+                          {
+                            total: total,
+                          },
                         )
                       }
                       pageText={(page, pagesUnknown) =>
                         intl.formatMessage(
-                          { id: "pagination.page" },
-                          { page: pagesUnknown ? "" : page },
+                          {
+                            id: "pagination.page",
+                          },
+                          {
+                            page: pagesUnknown ? "" : page,
+                          },
                         )
                       }
                     />

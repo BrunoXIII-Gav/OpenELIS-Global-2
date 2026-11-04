@@ -37,6 +37,25 @@ import org.openelisglobal.sample.bean.SampleTypeAdditionalFieldPayload;
  * @see org.openelisglobal.sampleitem.valueholder.SampleItem
  */
 public class SampleItemDTO {
+    private boolean alternateFlowTestAssociationAllowed;
+
+    public boolean isAlternateFlowTestAssociationAllowed() {
+        return alternateFlowTestAssociationAllowed;
+    }
+
+    public void setAlternateFlowTestAssociationAllowed(boolean allowed) {
+        alternateFlowTestAssociationAllowed = allowed;
+    }
+
+    private boolean alternateOrderFlowProcessingAllowed;
+
+    public boolean isAlternateOrderFlowProcessingAllowed() {
+        return alternateOrderFlowProcessingAllowed;
+    }
+
+    public void setAlternateOrderFlowProcessingAllowed(boolean value) {
+        alternateOrderFlowProcessingAllowed = value;
+    }
 
     private String id;
     private String externalId;
@@ -49,8 +68,20 @@ public class SampleItemDTO {
     private String unitOfMeasureId;
     private String status;
     private String statusId;
+    private String dataCompletionStatus;
+    private boolean editable;
+    private boolean alternateOrderFlow;
     private Timestamp collectionDate;
     private String collector;
+    private String collectorUserId;
+
+    public String getCollectorUserId() {
+        return collectorUserId;
+    }
+
+    public void setCollectorUserId(String value) {
+        collectorUserId = value;
+    }
 
     // Parent-child relationship fields
     private String parentId;
@@ -177,6 +208,30 @@ public class SampleItemDTO {
 
     public void setStatusId(String statusId) {
         this.statusId = statusId;
+    }
+
+    public String getDataCompletionStatus() {
+        return dataCompletionStatus;
+    }
+
+    public void setDataCompletionStatus(String dataCompletionStatus) {
+        this.dataCompletionStatus = dataCompletionStatus;
+    }
+
+    public boolean isEditable() {
+        return editable;
+    }
+
+    public void setEditable(boolean editable) {
+        this.editable = editable;
+    }
+
+    public boolean isAlternateOrderFlow() {
+        return alternateOrderFlow;
+    }
+
+    public void setAlternateOrderFlow(boolean alternateOrderFlow) {
+        this.alternateOrderFlow = alternateOrderFlow;
     }
 
     public Timestamp getCollectionDate() {

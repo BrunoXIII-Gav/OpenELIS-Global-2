@@ -17,6 +17,7 @@ public class SampleTypeAdditionalFieldPayload {
     private String defaultValue;
     private Integer maxLength;
     private String metadataJson;
+    private Boolean hasSavedValues;
     private List<SampleTypeAdditionalFieldOptionPayload> options = new ArrayList<>();
 
     public String getDisplaySection() {
@@ -113,6 +114,14 @@ public class SampleTypeAdditionalFieldPayload {
 
     public void setMetadataJson(String metadataJson) {
         this.metadataJson = metadataJson;
+    }
+
+    public Boolean getHasSavedValues() {
+        return hasSavedValues;
+    }
+
+    public void setHasSavedValues(Boolean hasSavedValues) {
+        this.hasSavedValues = hasSavedValues;
     }
 
     public List<SampleTypeAdditionalFieldOptionPayload> getOptions() {

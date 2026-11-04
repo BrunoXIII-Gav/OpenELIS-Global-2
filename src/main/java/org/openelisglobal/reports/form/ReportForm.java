@@ -96,6 +96,7 @@ public class ReportForm extends BaseForm {
     private boolean previewValidated;
 
     private List<String> previewAnalysisIds;
+    private String previewValidationDates;
     private String validationTemplateConfigJson;
 
     private boolean usePredefinedDateRanges = false;
@@ -580,6 +581,14 @@ public class ReportForm extends BaseForm {
 
     public void setPreviewAnalysisIds(List<String> previewAnalysisIds) {
         this.previewAnalysisIds = previewAnalysisIds;
+    }
+
+    public String getPreviewValidationDates() {
+        return previewValidationDates;
+    }
+
+    public void setPreviewValidationDates(String previewValidationDates) {
+        this.previewValidationDates = previewValidationDates;
     }
 
     public String getValidationTemplateConfigJson() {

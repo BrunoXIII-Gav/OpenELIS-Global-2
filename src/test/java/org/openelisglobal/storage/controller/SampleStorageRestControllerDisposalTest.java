@@ -22,8 +22,10 @@ public class SampleStorageRestControllerDisposalTest extends BaseWebContextSensi
     @Before
     public void setUp() throws Exception {
         super.setUp();
+        useAuthenticatedAdminRequests();
         objectMapper = new ObjectMapper();
         executeDataSetWithStateManagement("testdata/sample-disposal-test-data.xml");
+        executeDataSetWithStateManagement("testdata/storage-controller-access.xml", false);
     }
 
     @After

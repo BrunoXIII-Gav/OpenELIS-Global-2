@@ -111,8 +111,8 @@ public class ValidatePatientInfo {
         }
     }
 
-    private static void validateIdentityTypeDuplicates(Errors errors, String patientPK, String identityValue, String type,
-            String errorKey) {
+    private static void validateIdentityTypeDuplicates(Errors errors, String patientPK, String identityValue,
+            String type, String errorKey) {
         if (GenericValidator.isBlankOrNull(identityValue)) {
             return;
         }

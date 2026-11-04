@@ -1,37 +1,69 @@
 import config from "../../config.json";
 import { emitAccessDeniedEvent } from "../security/accessDenied";
+import {
+  isSessionExpiredResponse,
+  requestSamlSessionRecovery,
+  SamlSessionRecoveryRequired,
+} from "../security/sessionRecovery";
 
-const notifyIfAccessDenied = (response) => {
-  if (response?.status === 403) {
+const fetchWithSessionRecovery = (endPoint, options) =>
+  fetch(config.serverBaseUrl + endPoint, options).then((response) => {
+    if (
+      isSessionExpiredResponse(response, endPoint) &&
+      requestSamlSessionRecovery()
+    ) {
+      // Stop response callbacks; they must not parse login HTML or report a save.
+      throw new SamlSessionRecoveryRequired();
+    }
+    return response;
+  });
+
+const FRONTEND_HIDDEN_SAMPLE_TYPE_NAMES = new Set([
+  "DBS",
+  "Fluid",
+  "Genital Specimen",
+  "Histopathology specimen",
+  "Immunohistochemistry specimen",
+  "Plasma",
+  "Respiratory Swab",
+  "Serum",
+  "Skin",
+  "Sputum",
+  "Tissue",
+  "Tissue antemortem",
+  "Tissue post mortem",
+  "Urine",
+  "Urines",
+  "Vaginal Fluid",
+  "Whole Blood",
+]);
+
+const filterFrontendHiddenSampleTypes = (endPoint, payload) => {
+  if (
+    !String(endPoint || "").startsWith("/rest/user-sample-types") ||
+    !Array.isArray(payload)
+  ) {
+    return payload;
+  }
+
+  return payload.filter((item) => {
+    const sampleTypeName = String(item?.value || "").trim();
+    return !FRONTEND_HIDDEN_SAMPLE_TYPE_NAMES.has(sampleTypeName);
+  });
+};
+
+const notifyIfAccessDenied = (response, options = {}) => {
+  if (response?.status === 403 && !options?.suppressAccessDeniedDialog) {
     emitAccessDeniedEvent();
   }
 };
 
-export const redirectToPortalOnSamlExpiry = () => {
-  const portalLogoutUrl =
-    sessionStorage.getItem("openelis.portalLogoutUrl") || "";
-  const lastLoginMethod =
-    sessionStorage.getItem("openelis.lastLoginMethod") || "";
-  if (lastLoginMethod !== "SAML" || !portalLogoutUrl) {
-    return false;
-  }
-
-  try {
-    const portalUrl = new URL(portalLogoutUrl, window.location.origin);
-    portalUrl.searchParams.set("source", "openelis");
-    portalUrl.searchParams.set("session_expired", "1");
-    sessionStorage.removeItem("openelis.lastLoginMethod");
-    window.location.replace(portalUrl.toString());
-    return true;
-  } catch (error) {
-    console.error(error);
-    return false;
-  }
-};
+// Compatibility for existing callers: expiry now offers SAML recovery.
+export const redirectToPortalOnSamlExpiry = requestSamlSessionRecovery;
 
 export const getFromOpenElisServer = (endPoint, callback, signal = null) => {
-  fetch(
-    config.serverBaseUrl + endPoint,
+  fetchWithSessionRecovery(
+    endPoint,
 
     {
       //includes the browser sessionId in the Header for Authentication on the backend server
@@ -45,9 +77,6 @@ export const getFromOpenElisServer = (endPoint, callback, signal = null) => {
       // if (response.url.includes("LoginPage")) {
       //     throw "No Login Session";
       // }
-      if (response.status === 401 && redirectToPortalOnSamlExpiry()) {
-        return;
-      }
       if (!response.ok) {
         notifyIfAccessDenied(response);
         callback(undefined);
@@ -56,13 +85,16 @@ export const getFromOpenElisServer = (endPoint, callback, signal = null) => {
       const contentType = response.headers.get("content-type");
       if (contentType && contentType.indexOf("application/json") !== -1) {
         return response.json().then((jsonResp) => {
-          callback(jsonResp);
+          callback(filterFrontendHiddenSampleTypes(endPoint, jsonResp));
         });
       } else {
         callback();
       }
     })
     .catch((error) => {
+      if (error instanceof SamlSessionRecoveryRequired) {
+        return;
+      }
       // Don't log AbortError - it's expected when component unmounts
       if (error.name !== "AbortError") {
         console.error(error);
@@ -77,9 +109,10 @@ export const postToOpenElisServer = (
   payLoad,
   callback,
   extraParams,
+  options = {},
 ) => {
-  fetch(
-    config.serverBaseUrl + endPoint,
+  fetchWithSessionRecovery(
+    endPoint,
 
     {
       //includes the browser sessionId in the Header for Authentication on the backend server
@@ -93,13 +126,16 @@ export const postToOpenElisServer = (
     },
   )
     .then((response) => {
-      notifyIfAccessDenied(response);
+      notifyIfAccessDenied(response, options);
       return response.status;
     })
     .then((status) => {
       callback(status, extraParams);
     })
     .catch((error) => {
+      if (error instanceof SamlSessionRecoveryRequired) {
+        return;
+      }
       console.error(error);
       callback(0, extraParams);
     });
@@ -111,8 +147,8 @@ export const postToOpenElisServerFullResponse = (
   callback,
   extraParams,
 ) => {
-  fetch(
-    config.serverBaseUrl + endPoint,
+  fetchWithSessionRecovery(
+    endPoint,
 
     {
       //includes the browser sessionId in the Header for Authentication on the backend server
@@ -130,6 +166,9 @@ export const postToOpenElisServerFullResponse = (
       callback(response, extraParams);
     })
     .catch((error) => {
+      if (error instanceof SamlSessionRecoveryRequired) {
+        return;
+      }
       console.error(error);
       callback(
         {
@@ -148,8 +187,8 @@ export const postToOpenElisServerFormData = (
   callback,
   extraParams,
 ) => {
-  fetch(
-    config.serverBaseUrl + endPoint,
+  fetchWithSessionRecovery(
+    endPoint,
 
     {
       credentials: "include",
@@ -168,6 +207,9 @@ export const postToOpenElisServerFormData = (
       callback(status, extraParams);
     })
     .catch((error) => {
+      if (error instanceof SamlSessionRecoveryRequired) {
+        return;
+      }
       console.error(error);
     });
 };
@@ -178,8 +220,8 @@ export const postToOpenElisServerFormDataJsonResponse = (
   callback,
   extraParams,
 ) => {
-  fetch(
-    config.serverBaseUrl + endPoint,
+  fetchWithSessionRecovery(
+    endPoint,
 
     {
       credentials: "include",
@@ -213,6 +255,9 @@ export const postToOpenElisServerFormDataJsonResponse = (
       );
     })
     .catch((error) => {
+      if (error instanceof SamlSessionRecoveryRequired) {
+        return;
+      }
       console.error(error);
       callback(
         {
@@ -231,8 +276,8 @@ export const postToOpenElisServerJsonResponse = (
   callback,
   extraParams,
 ) => {
-  fetch(
-    config.serverBaseUrl + endPoint,
+  fetchWithSessionRecovery(
+    endPoint,
 
     {
       //includes the browser sessionId in the Header for Authentication on the backend server
@@ -267,6 +312,9 @@ export const postToOpenElisServerJsonResponse = (
       callback(json, extraParams);
     })
     .catch((error) => {
+      if (error instanceof SamlSessionRecoveryRequired) {
+        return;
+      }
       console.error("postToOpenElisServerJsonResponse error:", error);
       // Pass error to callback so calling code can handle it
       callback(
@@ -298,8 +346,8 @@ export const postToOpenElisServerForBlob = (
   callback,
   errorCallback,
 ) => {
-  fetch(
-    config.serverBaseUrl + endPoint,
+  fetchWithSessionRecovery(
+    endPoint,
 
     {
       //includes the browser sessionId in the Header for Authentication on the backend server
@@ -322,6 +370,9 @@ export const postToOpenElisServerForBlob = (
       callback(blob, response);
     })
     .catch((error) => {
+      if (error instanceof SamlSessionRecoveryRequired) {
+        return;
+      }
       console.error(error);
       if (errorCallback) {
         errorCallback(error);
@@ -330,8 +381,8 @@ export const postToOpenElisServerForBlob = (
 };
 
 export const postToOpenElisServerForPDF = (endPoint, payLoad, callback) => {
-  fetch(
-    config.serverBaseUrl + endPoint,
+  fetchWithSessionRecovery(
+    endPoint,
 
     {
       //includes the browser sessionId in the Header for Authentication on the backend server
@@ -355,6 +406,9 @@ export const postToOpenElisServerForPDF = (endPoint, payLoad, callback) => {
       document.body.removeChild(link);
     })
     .catch((error) => {
+      if (error instanceof SamlSessionRecoveryRequired) {
+        return;
+      }
       callback(false);
       console.error(error);
     });
@@ -377,7 +431,7 @@ export const putToOpenElisServer = (endPoint, payLoad, callback) => {
     options.body = payLoad;
   }
 
-  fetch(config.serverBaseUrl + endPoint, options)
+  fetchWithSessionRecovery(endPoint, options)
     .then((response) => {
       notifyIfAccessDenied(response);
       return response.status;
@@ -386,6 +440,9 @@ export const putToOpenElisServer = (endPoint, payLoad, callback) => {
       callback(status);
     })
     .catch((error) => {
+      if (error instanceof SamlSessionRecoveryRequired) {
+        return;
+      }
       console.error(error);
     });
 };
@@ -396,7 +453,7 @@ export const putToOpenElisServerFullResponse = (
   callback,
   extraParams,
 ) => {
-  fetch(config.serverBaseUrl + endPoint, {
+  fetchWithSessionRecovery(endPoint, {
     //includes the browser sessionId in the Header for Authentication on the backend server
     credentials: "include",
     method: "PUT",
@@ -411,12 +468,15 @@ export const putToOpenElisServerFullResponse = (
       callback(response, extraParams);
     })
     .catch((error) => {
+      if (error instanceof SamlSessionRecoveryRequired) {
+        return;
+      }
       console.error(error);
     });
 };
 
 export const deleteFromOpenElisServer = (endPoint, callback) => {
-  fetch(config.serverBaseUrl + endPoint, {
+  fetchWithSessionRecovery(endPoint, {
     // includes the browser sessionId in the Header for Authentication on the backend server
     credentials: "include",
     method: "DELETE",
@@ -433,6 +493,9 @@ export const deleteFromOpenElisServer = (endPoint, callback) => {
       callback(status);
     })
     .catch((error) => {
+      if (error instanceof SamlSessionRecoveryRequired) {
+        return;
+      }
       console.error(error);
     });
 };
@@ -442,7 +505,7 @@ export const deleteFromOpenElisServerFullResponse = (
   callback,
   extraParams,
 ) => {
-  fetch(config.serverBaseUrl + endPoint, {
+  fetchWithSessionRecovery(endPoint, {
     // includes the browser sessionId in the Header for Authentication on the backend server
     credentials: "include",
     method: "DELETE",
@@ -456,6 +519,9 @@ export const deleteFromOpenElisServerFullResponse = (
       callback(response, extraParams);
     })
     .catch((error) => {
+      if (error instanceof SamlSessionRecoveryRequired) {
+        return;
+      }
       console.error(error);
     });
 };
@@ -492,8 +558,8 @@ export const patchToOpenElisServerJsonResponse = (
   callback,
   extraParams,
 ) => {
-  fetch(
-    config.serverBaseUrl + endPoint,
+  fetchWithSessionRecovery(
+    endPoint,
 
     {
       //includes the browser sessionId in the Header for Authentication on the backend server
@@ -517,6 +583,9 @@ export const patchToOpenElisServerJsonResponse = (
       callback(json, extraParams);
     })
     .catch((error) => {
+      if (error instanceof SamlSessionRecoveryRequired) {
+        return;
+      }
       console.error(error);
     });
 };
@@ -658,13 +727,24 @@ export const Roles = {
   PATHOLOGIST: "Pathologist",
   RECEPTION: "Reception",
   GENERIC_SAMPLE: "Generic Sample",
+  SAMPLE_MANAGEMENT: "Sample Management",
   ORDER: "Order",
+  ORDER_ADD: "Order Add",
+  ORDER_EDIT: "Order Edit",
   PATIENT: "Patient",
+  PATIENT_MANAGEMENT: "Patient Management",
+  PATIENT_HISTORY: "Patient History",
   RESULTS: "Results",
+  RESULTS_BY_UNIT: "Results By Unit",
+  RESULTS_BY_PATIENT: "Results By Patient",
+  RESULTS_BY_ORDER: "Results By Order",
   VALIDATION: "Validation",
+  VALIDATION_ROUTINE: "Validation Routine",
+  VALIDATION_BY_ORDER: "Validation By Order",
   REPORTS: "Reports",
   ALIQUOT: "Aliquot",
   STORAGE: "Storage",
+  STORAGE_MANAGEMENT: "Storage Management",
 };
 
 export const toBase64 = (file) =>

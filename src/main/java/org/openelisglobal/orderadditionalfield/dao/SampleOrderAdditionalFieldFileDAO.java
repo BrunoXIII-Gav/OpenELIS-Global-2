@@ -12,4 +12,6 @@ public interface SampleOrderAdditionalFieldFileDAO extends BaseDAO<SampleOrderAd
 
     List<SampleOrderAdditionalFieldFile> findBySampleIdAndFieldDefinitionIds(Integer sampleId,
             List<Integer> fieldDefinitionIds);
+
+    long countByFieldDefinitionId(Integer fieldDefinitionId);
 }

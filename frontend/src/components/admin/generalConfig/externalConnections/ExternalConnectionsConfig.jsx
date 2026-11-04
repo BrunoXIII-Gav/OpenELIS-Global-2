@@ -96,11 +96,15 @@ const ExternalConnectionsConfig = () => {
       },
       {
         key: "uri",
-        header: intl.formatMessage({ id: "externalConnections.table.endpoint" }),
+        header: intl.formatMessage({
+          id: "externalConnections.table.endpoint",
+        }),
       },
       {
         key: "lastUpdated",
-        header: intl.formatMessage({ id: "externalConnections.table.lastUpdated" }),
+        header: intl.formatMessage({
+          id: "externalConnections.table.lastUpdated",
+        }),
       },
       {
         key: "actions",
@@ -112,11 +116,14 @@ const ExternalConnectionsConfig = () => {
 
   const loadData = () => {
     setLoading(true);
-    getFromOpenElisServer("/rest/external-connections/options", (optionsRes) => {
-      setOptions(
-        optionsRes || { programmedConnections: [], authenticationTypes: [] },
-      );
-    });
+    getFromOpenElisServer(
+      "/rest/external-connections/options",
+      (optionsRes) => {
+        setOptions(
+          optionsRes || { programmedConnections: [], authenticationTypes: [] },
+        );
+      },
+    );
     getFromOpenElisServer("/rest/external-connections", (response) => {
       setConnections(response || []);
       setLoading(false);
@@ -164,7 +171,10 @@ const ExternalConnectionsConfig = () => {
   const removeContact = (index) => {
     setFormData((prev) => {
       const contacts = prev.contacts.filter((_, idx) => idx !== index);
-      return { ...prev, contacts: contacts.length ? contacts : [emptyContact()] };
+      return {
+        ...prev,
+        contacts: contacts.length ? contacts : [emptyContact()],
+      };
     });
   };
 
@@ -322,7 +332,7 @@ const ExternalConnectionsConfig = () => {
                                         id: "externalConnections.button.edit",
                                       })}
                                       hasIconOnly
-                                  onClick={() => loadConnection(row.id)}
+                                      onClick={() => loadConnection(row.id)}
                                     />
                                     <Button
                                       kind="ghost"
@@ -335,7 +345,8 @@ const ExternalConnectionsConfig = () => {
                                       onClick={() =>
                                         handleDelete(
                                           connections.find(
-                                            (connection) => connection.id === row.id,
+                                            (connection) =>
+                                              connection.id === row.id,
                                           ),
                                         )
                                       }
@@ -344,7 +355,9 @@ const ExternalConnectionsConfig = () => {
                                 );
                               }
                               return (
-                                <TableCell key={cell.id}>{cell.value}</TableCell>
+                                <TableCell key={cell.id}>
+                                  {cell.value}
+                                </TableCell>
                               );
                             })}
                           </TableRow>
@@ -462,9 +475,7 @@ const ExternalConnectionsConfig = () => {
                         id: "externalConnections.field.username",
                       })}
                       value={formData.username || ""}
-                      onChange={(e) =>
-                        updateField("username", e.target.value)
-                      }
+                      onChange={(e) => updateField("username", e.target.value)}
                     />
                   </Column>
                   <Column lg={8} md={4} sm={4}>
@@ -475,9 +486,7 @@ const ExternalConnectionsConfig = () => {
                         id: "externalConnections.field.password",
                       })}
                       value={formData.password || ""}
-                      onChange={(e) =>
-                        updateField("password", e.target.value)
-                      }
+                      onChange={(e) => updateField("password", e.target.value)}
                     />
                   </Column>
                 </>

@@ -11,4 +11,6 @@ public interface SampleItemAdditionalFieldValueDAO extends BaseDAO<SampleItemAdd
 
     Optional<SampleItemAdditionalFieldValue> findBySampleItemIdAndFieldDefinitionId(Integer sampleItemId,
             Integer fieldDefinitionId);
+
+    long countByFieldDefinitionId(Integer fieldDefinitionId);
 }

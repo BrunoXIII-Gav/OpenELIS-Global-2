@@ -1,0 +1,102 @@
+@use "@carbon/styles/scss/spacing";
+@use "@carbon/styles/scss/theme";
+@use "@carbon/styles/scss/type";
+@use "@carbon/styles/scss/breakpoint";
+
+.test-configuration-packages {
+  margin-block-end: spacing.$spacing-07;
+  padding: spacing.$spacing-06;
+  border: 1px solid theme.$border-subtle-01;
+  min-inline-size: 0;
+
+  & &__title {
+    @include type.type-style("heading-03");
+    margin: 0;
+  }
+
+  & &__subtitle {
+    @include type.type-style("heading-02");
+    margin: 0;
+  }
+
+  & &__description {
+    @include type.type-style("body-01");
+    color: theme.$text-secondary;
+    margin: 0;
+  }
+
+  &__actions {
+    inline-size: fit-content;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: spacing.$spacing-03;
+  }
+
+  & &__action {
+    inline-size: auto;
+    max-inline-size: 100%;
+    white-space: normal;
+  }
+
+  &__content,
+  &__review {
+    grid-template-columns: minmax(0, 1fr);
+
+    > * {
+      min-inline-size: 0;
+    }
+  }
+
+  &__review {
+    padding-block-start: spacing.$spacing-06;
+    border-block-start: 1px solid theme.$border-subtle-01;
+
+    p {
+      margin: 0;
+    }
+  }
+
+  &__grid {
+    --cds-grid-gutter-start: 0;
+    --cds-grid-gutter-end: 0;
+    --cds-grid-mode-start: 0;
+    --cds-grid-mode-end: 0;
+
+    margin-inline: 0;
+    padding-inline: 0;
+    column-gap: spacing.$spacing-05;
+    row-gap: spacing.$spacing-05;
+  }
+
+  &__history {
+    padding-block-start: spacing.$spacing-05;
+    border-block-start: 1px solid theme.$border-subtle-01;
+
+    summary {
+      @include type.type-style("body-compact-01");
+      cursor: pointer;
+    }
+
+    p {
+      margin-block-start: spacing.$spacing-03;
+    }
+  }
+
+  pre {
+    overflow: auto;
+  }
+
+  @include breakpoint.breakpoint-down(md) {
+    padding: spacing.$spacing-05;
+
+    &__actions {
+      inline-size: 100%;
+      flex-direction: column;
+      align-items: stretch;
+    }
+
+    & &__action {
+      inline-size: 100%;
+    }
+  }
+}

@@ -9,6 +9,7 @@ import {
 } from "@carbon/react";
 import EditSample from "./EditSample";
 import AddOrder from "../addOrder/AddOrder";
+import ConsentDownloadButton from "../addOrder/ConsentDownloadButton";
 import "../addOrder/add-order.scss";
 import { ModifyOrderFormValues } from "../formModel/innitialValues/OrderEntryFormValues";
 import { NotificationContext, ConfigurationContext } from "../layout/Layout";
@@ -59,6 +60,8 @@ const ModifyOrder = () => {
   const [errors, setErrors] = useState([]);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [patientId, setPatientId] = useState("");
+  const [hasOrderPermission, setHasOrderPermission] = useState(false);
+  const [permissionsLoaded, setPermissionsLoaded] = useState(false);
   const [removedExistingSampleItemIds, setRemovedExistingSampleItemIds] =
     useState([]);
   const [changed, setChanged] = useState({
@@ -99,6 +102,15 @@ const ModifyOrder = () => {
         accessionNumber,
       loadOrderValues,
     );
+    getFromOpenElisServer(
+      "/rest/module-action-access?moduleKey=orders&actionKey=update",
+      (response) => {
+        if (componentMounted.current) {
+          setHasOrderPermission(response?.allowed === true);
+          setPermissionsLoaded(true);
+        }
+      },
+    );
     return () => {
       componentMounted.current = false;
     };
@@ -118,6 +130,21 @@ const ModifyOrder = () => {
       });
   }, [changed, orderFormValues]);
 
+  useEffect(() => {
+    if (!permissionsLoaded || hasOrderPermission) {
+      return;
+    }
+    if (page === samplePageNumber) {
+      setPage(orderPageNumber);
+    }
+  }, [
+    hasOrderPermission,
+    orderPageNumber,
+    page,
+    permissionsLoaded,
+    samplePageNumber,
+  ]);
+
   const loadOrderValues = (data) => {
     if (componentMounted.current) {
       if (data.sampleOrderItems) {
@@ -131,6 +158,8 @@ const ModifyOrder = () => {
 
   const { notificationVisible, setNotificationVisible, addNotification } =
     useContext(NotificationContext);
+
+  const isOrderReadOnly = !permissionsLoaded || !hasOrderPermission;
 
   const showAlertMessage = (msg, kind) => {
     setNotificationVisible(true);
@@ -190,7 +219,7 @@ const ModifyOrder = () => {
   };
   const handleSubmitOrderForm = (e) => {
     e.preventDefault();
-    if (isSubmitting) {
+    if (isSubmitting || !hasOrderPermission) {
       return;
     }
     setIsSubmitting(true);
@@ -229,7 +258,10 @@ const ModifyOrder = () => {
   const handleExistingSampleRemoved = (sampleItemId) => {
     setRemovedExistingSampleItemIds((previous) => {
       const normalizedSampleItemId = String(sampleItemId || "").trim();
-      if (!normalizedSampleItemId || previous.includes(normalizedSampleItemId)) {
+      if (
+        !normalizedSampleItemId ||
+        previous.includes(normalizedSampleItemId)
+      ) {
         return previous;
       }
       return [...previous, normalizedSampleItemId];
@@ -238,7 +270,11 @@ const ModifyOrder = () => {
 
   const navigateForward = () => {
     if (page <= lastPageNumber && page >= firstPageNumber) {
-      setPage(page + 1);
+      let nextPage = page + 1;
+      if (!hasOrderPermission && nextPage === samplePageNumber) {
+        nextPage = orderPageNumber;
+      }
+      setPage(nextPage);
     }
   };
 
@@ -248,6 +284,9 @@ const ModifyOrder = () => {
     }
   };
   const handleTabClickHandler = (e) => {
+    if (!hasOrderPermission && e === samplePageNumber) {
+      return;
+    }
     setPage(e);
   };
 
@@ -296,7 +335,8 @@ const ModifyOrder = () => {
                           />
                           <ProgressStep
                             disabled={
-                              orderFormValues.sampleOrderItems.labNo == ""
+                              orderFormValues.sampleOrderItems.labNo == "" ||
+                              isOrderReadOnly
                             }
                             label={intl.formatMessage({
                               id: "order.step.add.request",
@@ -320,7 +360,8 @@ const ModifyOrder = () => {
                         >
                           <ProgressStep
                             disabled={
-                              orderFormValues.sampleOrderItems.labNo == ""
+                              orderFormValues.sampleOrderItems.labNo == "" ||
+                              isOrderReadOnly
                             }
                             label={intl.formatMessage({
                               id: "order.step.add.request",
@@ -353,6 +394,7 @@ const ModifyOrder = () => {
                       patientId={patientId}
                       patientNationalId={orderFormValues?.nationalId}
                       onRemoveExistingSample={handleExistingSampleRemoved}
+                      hideExistingSamplesSections={true}
                     />
                   )}
                   {page === orderPageNumber && (
@@ -364,6 +406,7 @@ const ModifyOrder = () => {
                       isModifyOrder={true}
                       changed={changed}
                       setChanged={setChanged}
+                      isOrderReadOnly={isOrderReadOnly}
                     />
                   )}
 
@@ -397,19 +440,44 @@ const ModifyOrder = () => {
                     )}
 
                     {page <= orderPageNumber && (
-                      <Button
-                        data-cy="submit-order"
-                        kind="primary"
-                        className="forwardButton"
-                        onClick={handleSubmitOrderForm}
-                        disabled={
-                          isSubmitting || errors?.errors?.length > 0
-                            ? true
-                            : false
+                      <div
+                        className={
+                          page === orderPageNumber
+                            ? "orderPageActionButtons"
+                            : undefined
                         }
                       >
-                        <FormattedMessage id="label.button.submit" />
-                      </Button>
+                        {page === orderPageNumber && (
+                          <ConsentDownloadButton
+                            orderFormValues={orderFormValues}
+                            samples={samples.filter(
+                              (sample) =>
+                                !removedExistingSampleItemIds.includes(
+                                  String(sample.existingSampleItemId),
+                                ),
+                            )}
+                            patientId={patientId}
+                            disabled={
+                              !patientId || !orderFormValues.accessionNumber
+                            }
+                          />
+                        )}
+                        <Button
+                          data-cy="submit-order"
+                          kind="primary"
+                          className="forwardButton"
+                          onClick={handleSubmitOrderForm}
+                          disabled={
+                            isOrderReadOnly ||
+                            isSubmitting ||
+                            errors?.errors?.length > 0
+                              ? true
+                              : false
+                          }
+                        >
+                          <FormattedMessage id="label.button.submit" />
+                        </Button>
+                      </div>
                     )}
                   </div>
                 </div>

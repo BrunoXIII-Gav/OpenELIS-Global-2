@@ -24,7 +24,9 @@ public class StorageDashboardRestControllerTest extends BaseWebContextSensitiveT
     @Before
     public void setUp() throws Exception {
         super.setUp();
+        useAuthenticatedAdminRequests();
         executeDataSetWithStateManagement("testdata/storage-dashboard-test-data.xml");
+        executeDataSetWithStateManagement("testdata/storage-controller-access.xml", false);
     }
 
     @Test

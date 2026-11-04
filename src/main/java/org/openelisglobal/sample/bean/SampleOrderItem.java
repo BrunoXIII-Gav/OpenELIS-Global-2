@@ -32,6 +32,7 @@ import org.openelisglobal.common.validator.ValidationHelper;
 import org.openelisglobal.orderadditionalfield.bean.OrderAdditionalFieldFilePayload;
 import org.openelisglobal.orderadditionalfield.bean.OrderAdditionalFieldPayload;
 import org.openelisglobal.orderadditionalfield.bean.OrderFixedFieldConfigPayload;
+import org.openelisglobal.professionalprofile.form.ProfessionalProfileFieldDefinitionForm;
 import org.openelisglobal.sample.form.SampleEditForm;
 import org.openelisglobal.sample.form.SamplePatientEntryForm;
 import org.openelisglobal.sample.form.SamplePatientEntryForm.SamplePatientEntryBatch;
@@ -63,10 +64,22 @@ public class SampleOrderItem implements Serializable {
             SamplePatientEntryBatch.class })
     private String externalOrderNumber;
 
-    @NotBlank(groups = { SamplePatientEntryForm.SamplePatientEntry.class, SamplePatientEntryBatch.class })
+    // Individual orders assign this number in the save transaction; batches supply
+    // it.
+    @NotBlank(groups = { SamplePatientEntryBatch.class })
     @ValidAccessionNumber(groups = { SamplePatientEntryForm.SamplePatientEntry.class, SamplePatientEntryBatch.class,
             SampleEditForm.SampleEdit.class })
     private String labNo;
+
+    private boolean labNoGenerated;
+
+    public boolean isLabNoGenerated() {
+        return labNoGenerated;
+    }
+
+    public void setLabNoGenerated(boolean labNoGenerated) {
+        this.labNoGenerated = labNoGenerated;
+    }
 
     @OptionalNotBlank(formFields = { Field.SampleEntryUseRequestDate }, groups = {
             SamplePatientEntryForm.SamplePatientEntry.class, SampleEditForm.SampleEdit.class })
@@ -145,6 +158,8 @@ public class SampleOrderItem implements Serializable {
     @Pattern(regexp = ValidationHelper.ID_REGEX, groups = { SamplePatientEntryForm.SamplePatientEntry.class,
             SamplePatientEntryBatch.class })
     private String providerPersonId;
+
+    private String providerProfessionalProfileCode;
 
     @ValidName(nameType = NameType.FIRST_NAME, groups = { SamplePatientEntryForm.SamplePatientEntry.class,
             SamplePatientEntryBatch.class, SampleEditForm.SampleEdit.class })
@@ -249,6 +264,10 @@ public class SampleOrderItem implements Serializable {
     private List<OrderAdditionalFieldPayload> additionalFields;
 
     private Map<String, String> additionalFieldValues;
+
+    private List<ProfessionalProfileFieldDefinitionForm> providerProfileFields;
+
+    private Map<String, String> providerProfileFieldValues;
 
     private Map<String, OrderAdditionalFieldFilePayload> additionalFieldFiles;
 
@@ -451,6 +470,14 @@ public class SampleOrderItem implements Serializable {
 
     public void setProviderPersonId(String providerPersonId) {
         this.providerPersonId = providerPersonId;
+    }
+
+    public String getProviderProfessionalProfileCode() {
+        return providerProfessionalProfileCode;
+    }
+
+    public void setProviderProfessionalProfileCode(String providerProfessionalProfileCode) {
+        this.providerProfessionalProfileCode = providerProfessionalProfileCode;
     }
 
     public String getProviderFirstName() {
@@ -715,6 +742,22 @@ public class SampleOrderItem implements Serializable {
 
     public void setAdditionalFieldValues(Map<String, String> additionalFieldValues) {
         this.additionalFieldValues = additionalFieldValues;
+    }
+
+    public List<ProfessionalProfileFieldDefinitionForm> getProviderProfileFields() {
+        return providerProfileFields;
+    }
+
+    public void setProviderProfileFields(List<ProfessionalProfileFieldDefinitionForm> providerProfileFields) {
+        this.providerProfileFields = providerProfileFields;
+    }
+
+    public Map<String, String> getProviderProfileFieldValues() {
+        return providerProfileFieldValues;
+    }
+
+    public void setProviderProfileFieldValues(Map<String, String> providerProfileFieldValues) {
+        this.providerProfileFieldValues = providerProfileFieldValues;
     }
 
     public Map<String, OrderAdditionalFieldFilePayload> getAdditionalFieldFiles() {

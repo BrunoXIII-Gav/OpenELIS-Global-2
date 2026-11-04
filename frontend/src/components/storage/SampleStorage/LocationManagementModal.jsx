@@ -1088,15 +1088,7 @@ const LocationManagementModal = ({
               <FormattedMessage
                 id="storage.box.position.dropdown.label"
                 defaultMessage="Box position"
-              />{" "}
-              <span className="optional-text">
-                (
-                <FormattedMessage
-                  id="label.optional"
-                  defaultMessage="optional"
-                />
-                )
-              </span>
+              />
             </label>
             <Dropdown
               id="box-position-dropdown"

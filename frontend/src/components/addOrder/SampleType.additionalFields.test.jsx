@@ -5,22 +5,21 @@ import UserSessionDetailsContext from "../../UserSessionDetailsContext";
 import { ConfigurationContext, NotificationContext } from "../layout/Layout";
 import SampleType from "./SampleType";
 import messages from "../../languages/en.json";
-import { getFromOpenElisServer } from "../utils/Utils";
-
+import {
+  getFromOpenElisServer,
+  postToOpenElisServerJsonResponse,
+} from "../utils/Utils";
 jest.mock("../utils/Utils", () => ({
   getFromOpenElisServer: jest.fn(),
+  postToOpenElisServerJsonResponse: jest.fn(),
 }));
-
 jest.mock("../addOrder/OrderReferralRequest", () => () => null);
-
 jest.mock("../storage/StorageLocationSelector", () => () => (
   <div data-testid="storage-location-selector" />
 ));
-
 jest.mock("./GpsCoordinatesCapture", () => () => (
   <div data-testid="gps-capture" />
 ));
-
 jest.mock("../common/CustomCheckBox", () => ({ id, onChange, label }) => (
   <label htmlFor={id}>
     {label}
@@ -31,7 +30,6 @@ jest.mock("../common/CustomCheckBox", () => ({ id, onChange, label }) => (
     />
   </label>
 ));
-
 jest.mock("../common/CustomDatePicker", () => ({ id, onChange, value }) => (
   <input
     id={id}
@@ -40,7 +38,6 @@ jest.mock("../common/CustomDatePicker", () => ({ id, onChange, value }) => (
     onChange={(event) => onChange(event.target.value)}
   />
 ));
-
 jest.mock("../common/CustomTimePicker", () => ({ id, onChange, value }) => (
   <input
     id={id}
@@ -49,7 +46,6 @@ jest.mock("../common/CustomTimePicker", () => ({ id, onChange, value }) => (
     onChange={(event) => onChange(event.target.value)}
   />
 ));
-
 jest.mock("../common/CustomTextInput", () => ({ id, onChange, value }) => (
   <input
     id={id}
@@ -58,7 +54,6 @@ jest.mock("../common/CustomTextInput", () => ({ id, onChange, value }) => (
     onChange={(event) => onChange(event.target.value)}
   />
 ));
-
 jest.mock(
   "../common/CustomSelect",
   () =>
@@ -78,14 +73,12 @@ jest.mock(
       </select>
     ),
 );
-
 const userSessionDetailsContextValue = {
   userSessionDetails: {
     firstName: "Test",
     lastName: "User",
   },
 };
-
 const configurationContextValue = {
   configurationProperties: {
     AUTOFILL_COLLECTION_DATE: "false",
@@ -94,12 +87,10 @@ const configurationContextValue = {
     currentTimeAsText: "10:30",
   },
 };
-
 const notificationContextValue = {
   setNotificationVisible: jest.fn(),
   addNotification: jest.fn(),
 };
-
 const baseSample = {
   index: 1,
   sampleRejected: false,
@@ -112,7 +103,6 @@ const baseSample = {
   tests: [],
   additionalFields: [],
 };
-
 const renderComponent = (overrideProps = {}) => {
   const props = {
     index: 0,
@@ -123,7 +113,6 @@ const renderComponent = (overrideProps = {}) => {
     error: null,
     ...overrideProps,
   };
-
   const rendered = render(
     <IntlProvider locale="en" messages={messages}>
       <UserSessionDetailsContext.Provider
@@ -137,17 +126,14 @@ const renderComponent = (overrideProps = {}) => {
       </UserSessionDetailsContext.Provider>
     </IntlProvider>,
   );
-
   return {
     ...rendered,
     props,
   };
 };
-
 describe("SampleType additional fields", () => {
   beforeEach(() => {
     jest.clearAllMocks();
-
     getFromOpenElisServer.mockImplementation((url, callback) => {
       if (url === "/rest/referral-reasons") {
         callback([]);
@@ -158,7 +144,12 @@ describe("SampleType additional fields", () => {
         return;
       }
       if (url === "/rest/user-sample-types") {
-        callback([{ id: "1", value: "Blood" }]);
+        callback([
+          {
+            id: "1",
+            value: "Blood",
+          },
+        ]);
         return;
       }
       if (url === "/rest/displayList/UNIT_OF_MEASURE") {
@@ -186,32 +177,28 @@ describe("SampleType additional fields", () => {
         });
         return;
       }
-
       callback([]);
     });
   });
-
   test("loads and applies additional fields defaults for selected sample type", async () => {
     const { container, props } = renderComponent();
-
     await wait(() => {
       expect(getFromOpenElisServer).toHaveBeenCalledWith(
         "/rest/user-sample-types",
         expect.any(Function),
       );
     });
-
     fireEvent.change(container.querySelector("#sampleId_0"), {
-      target: { value: "1" },
+      target: {
+        value: "1",
+      },
     });
-
     await wait(() => {
       expect(getFromOpenElisServer).toHaveBeenCalledWith(
         "/rest/sample-type-tests?sampleType=1",
         expect.any(Function),
       );
     });
-
     await wait(() => {
       const additionalFieldInput = container.querySelector(
         "#additional_field_0_batch_code",
@@ -219,7 +206,6 @@ describe("SampleType additional fields", () => {
       expect(additionalFieldInput).toBeTruthy();
       expect(additionalFieldInput.value).toBe("B-01");
     });
-
     const hasAdditionalFieldCallback = props.sampleTypeObject.mock.calls.some(
       ([arg]) =>
         Object.prototype.hasOwnProperty.call(arg, "additionalFields") &&
@@ -227,7 +213,6 @@ describe("SampleType additional fields", () => {
         arg.additionalFields.length === 1,
     );
     expect(hasAdditionalFieldCallback).toBe(true);
-
     const sampleXmlCalls = props.sampleTypeObject.mock.calls.filter(([arg]) =>
       Object.prototype.hasOwnProperty.call(arg, "sampleXML"),
     );
@@ -236,28 +221,27 @@ describe("SampleType additional fields", () => {
       "B-01",
     );
   });
-
   test("updates additional field value and emits updated sampleXML", async () => {
     const { container, props } = renderComponent();
-
     fireEvent.change(container.querySelector("#sampleId_0"), {
-      target: { value: "1" },
+      target: {
+        value: "1",
+      },
     });
-
     await wait(() => {
       const additionalFieldInput = container.querySelector(
         "#additional_field_0_batch_code",
       );
       expect(additionalFieldInput).toBeTruthy();
     });
-
     fireEvent.change(
       container.querySelector("#additional_field_0_batch_code"),
       {
-        target: { value: "B-77" },
+        target: {
+          value: "B-77",
+        },
       },
     );
-
     await wait(() => {
       const sampleXmlCalls = props.sampleTypeObject.mock.calls.filter(([arg]) =>
         Object.prototype.hasOwnProperty.call(arg, "sampleXML"),
@@ -267,5 +251,18 @@ describe("SampleType additional fields", () => {
         "B-77",
       );
     });
+  });
+  test("a valid UCD sample uses its ordinary fields without requesting another identifier", async () => {
+    const { container } = renderComponent();
+    fireEvent.change(container.querySelector("#sampleId_0"), {
+      target: { value: "1" },
+    });
+    await wait(() =>
+      expect(
+        container.querySelector("#additional_field_0_batch_code"),
+      ).toBeTruthy(),
+    );
+    expect(container.querySelector('[id^="cug_"]')).toBeNull();
+    expect(postToOpenElisServerJsonResponse).not.toHaveBeenCalled();
   });
 });

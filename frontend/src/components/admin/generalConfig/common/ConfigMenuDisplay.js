@@ -21,9 +21,7 @@ import {
   ClickableTile,
   UnorderedList,
 } from "@carbon/react";
-import {
-  getFromOpenElisServer,
-} from "../../../utils/Utils.js";
+import { getFromOpenElisServer } from "../../../utils/Utils.js";
 import { NotificationContext } from "../../../layout/Layout.js";
 import {
   AlertDialog,
@@ -33,6 +31,12 @@ import { FormattedMessage, useIntl } from "react-intl";
 import PageBreadCrumb from "../../../common/PageBreadCrumb.js";
 import GenericConfigEdit from "../../generalConfig/common/GenericConfigEdit.js";
 import { useHistory } from "react-router-dom";
+import {
+  getSiteInformationDisplayDescription,
+  getSiteInformationDisplayName,
+  getSiteInformationDisplayValue,
+  isSiteInformationConfig,
+} from "./siteInformationDisplay.js";
 
 function ConfigMenuDisplay(props) {
   const { notificationVisible, setNotificationVisible, addNotification } =
@@ -55,7 +59,7 @@ function ConfigMenuDisplay(props) {
   let breadcrumbs = [
     { label: "home.label", link: "/" },
     { label: "breadcrums.admin.managment", link: "/MasterListsPage" },
-    { label: `${props.label}`, link: `/MasterListsPage/${props.menuType}` },
+    { label: `${props.id}`, link: `/MasterListsPage/${props.menuType}` },
   ];
 
   function handleModify(event) {
@@ -97,7 +101,9 @@ function ConfigMenuDisplay(props) {
       }
 
       if (!response) {
-        handleMenuItems(firstResponse ? { ...firstResponse, menuList: [] } : []);
+        handleMenuItems(
+          firstResponse ? { ...firstResponse, menuList: [] } : [],
+        );
         return;
       }
 
@@ -137,8 +143,16 @@ function ConfigMenuDisplay(props) {
     const value = res?.value || "";
     const updatedItem = {
       id: item.id,
-      name: item.name,
-      description: item.description,
+      name: isSiteInformationConfig(props.menuType)
+        ? getSiteInformationDisplayName(intl, item.name)
+        : item.name,
+      description: isSiteInformationConfig(props.menuType)
+        ? getSiteInformationDisplayDescription(
+            intl,
+            item.description,
+            item.name,
+          )
+        : item.description,
       value: value,
       valueType: item.valueType,
     };
@@ -189,9 +203,24 @@ function ConfigMenuDisplay(props) {
             }
             return {
               id: item.id,
-              name: item.name,
-              description: item.description,
-              value: value,
+              name: isSiteInformationConfig(props.menuType)
+                ? getSiteInformationDisplayName(intl, item.name)
+                : item.name,
+              description: isSiteInformationConfig(props.menuType)
+                ? getSiteInformationDisplayDescription(
+                    intl,
+                    item.description,
+                    item.name,
+                  )
+                : item.description,
+              value: isSiteInformationConfig(props.menuType)
+                ? getSiteInformationDisplayValue(
+                    intl,
+                    item.name,
+                    value,
+                    item.valueType,
+                  )
+                : value,
               valueType: item.valueType,
             };
           })
@@ -202,7 +231,7 @@ function ConfigMenuDisplay(props) {
     };
 
     updateConfigList();
-  }, [formEntryConfigMenuList]);
+  }, [formEntryConfigMenuList, intl, props.menuType]);
 
   const renderCell = (cell, row) => {
     if (cell.info.header === "select") {
@@ -282,7 +311,9 @@ function ConfigMenuDisplay(props) {
                           id="ValidationTemplateOverridesFromValidationConfig"
                           onClick={(event) => {
                             event.preventDefault();
-                            history.push("/MasterListsPage/ValidationTemplateOverrides");
+                            history.push(
+                              "/MasterListsPage/ValidationTemplateOverrides",
+                            );
                           }}
                         >
                           <FormattedMessage

@@ -1,0 +1,26 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<databaseChangeLog
+  xmlns="http://www.liquibase.org/xml/ns/dbchangelog"
+  xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+  xsi:schemaLocation="http://www.liquibase.org/xml/ns/dbchangelog http://www.liquibase.org/xml/ns/dbchangelog/dbchangelog-3.8.xsd">
+
+  <changeSet id="078-01-backfill-partial-sample-data-completion-status" author="openelis">
+    <comment>
+      A generic sample remains pending while any core collection value is missing. This corrects historical records that
+      contain only a partial value, such as quantity without its unit, collection timestamp, or collector.
+    </comment>
+    <update tableName="sample_item" schemaName="clinlims">
+      <column name="data_completion_status" value="PENDING_COMPLETION" />
+      <where>
+        data_completion_status = 'COMPLETED'
+        AND (quantity IS NULL OR uom_id IS NULL OR collection_date IS NULL OR COALESCE(BTRIM(collector), '') = '')
+      </where>
+    </update>
+    <rollback>
+      <update tableName="sample_item" schemaName="clinlims">
+        <column name="data_completion_status" value="COMPLETED" />
+        <where>data_completion_status = 'PENDING_COMPLETION'</where>
+      </update>
+    </rollback>
+  </changeSet>
+</databaseChangeLog>

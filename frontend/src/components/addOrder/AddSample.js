@@ -4,9 +4,9 @@ import { Add } from "@carbon/react/icons";
 import { getFromOpenElisServer } from "../utils/Utils";
 import SampleType from "./SampleType";
 import { FormattedMessage } from "react-intl";
-
 const buildEmptySample = (index) => ({
   index,
+  clientKey: `sample-${Date.now()}-${Math.random()}`,
   sampleRejected: false,
   rejectionReason: "",
   requestReferralEnabled: false,
@@ -17,13 +17,18 @@ const buildEmptySample = (index) => ({
   tests: [],
   additionalFields: [],
 });
-
 const AddSample = (props) => {
-  const { samples, setSamples, error } = props;
+  const { samples, setSamples, error, orderFormValues } = props;
   const componentMounted = useRef(false);
-
   const [rejectSampleReasons, setRejectSampleReasons] = useState([]);
-
+  const patientUpdateStatus = String(
+    orderFormValues?.patientProperties?.patientUpdateStatus ||
+      orderFormValues?.patientUpdateStatus ||
+      "ADD",
+  ).toUpperCase();
+  const patientProperties = orderFormValues?.patientProperties || {};
+  const patientPk = String(patientProperties?.patientPK || "").trim();
+  const patientNationalId = String(patientProperties?.nationalId || "").trim();
   const handleAddNewSample = () => {
     setSamples((previous) => {
       const updateSamples = [
@@ -34,22 +39,20 @@ const AddSample = (props) => {
       return updateSamples;
     });
   };
-
   const sampleTypeObject = (object) => {
     const sampleIndex = object.sampleObjectIndex;
     if (sampleIndex === undefined || sampleIndex === null) {
       return;
     }
-
     setSamples((previous) => {
       const newState = [...previous];
       const previousSample = newState[sampleIndex];
       if (!previousSample) {
         return previous;
       }
-
-      const updatedSample = { ...previousSample };
-
+      const updatedSample = {
+        ...previousSample,
+      };
       if (Object.prototype.hasOwnProperty.call(object, "sampleTypeId")) {
         updatedSample.sampleTypeId = object.sampleTypeId;
       } else if (
@@ -90,13 +93,11 @@ const AddSample = (props) => {
       ) {
         updatedSample.additionalFields = [...(object.additionalFields || [])];
       }
-
       newState[sampleIndex] = updatedSample;
       console.debug(JSON.stringify(newState));
       return newState;
     });
   };
-
   const removeSample = (index) => {
     setSamples((previous) => {
       const updateSamples = previous.filter(
@@ -106,13 +107,11 @@ const AddSample = (props) => {
       return updateSamples;
     });
   };
-
   const fetchRejectSampleReasons = (res) => {
     if (componentMounted.current) {
       setRejectSampleReasons(Array.isArray(res) ? res : []);
     }
   };
-
   const handleRemoveSample = (e, sample) => {
     e.preventDefault();
     let filtered = samples.filter(function (element) {
@@ -121,7 +120,6 @@ const AddSample = (props) => {
     console.debug(JSON.stringify(filtered));
     setSamples(filtered);
   };
-
   useEffect(() => {
     componentMounted.current = true;
     getFromOpenElisServer(
@@ -133,7 +131,6 @@ const AddSample = (props) => {
       componentMounted.current = false;
     };
   }, []);
-
   return (
     <>
       <h3>
@@ -144,7 +141,10 @@ const AddSample = (props) => {
           <div className="orderLegendBody">
             {samples.map((sample, i) => {
               return (
-                <div className="sampleType" key={i}>
+                <div
+                  className="sampleType"
+                  key={sample.clientKey || sample.index || i}
+                >
                   <h4>
                     <FormattedMessage id="order.sample.card.label" /> {i + 1}
                     <span className="requiredlabel">*</span>
@@ -180,5 +180,4 @@ const AddSample = (props) => {
     </>
   );
 };
-
 export default AddSample;

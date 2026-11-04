@@ -12,7 +12,8 @@ public interface ProfessionalProfileDefinitionService {
 
     ProfessionalProfileDefinitionForm createProfile(ProfessionalProfileDefinitionForm form, String currentUserId);
 
-    ProfessionalProfileDefinitionForm updateProfile(String code, ProfessionalProfileDefinitionForm form, String currentUserId);
+    ProfessionalProfileDefinitionForm updateProfile(String code, ProfessionalProfileDefinitionForm form,
+            String currentUserId);
 
     void deleteProfile(String code, String currentUserId);
 

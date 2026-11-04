@@ -69,6 +69,7 @@ export const SampleOrderFormValues = {
     orderType: "",
     externalOrderNumber: "",
     labNo: "",
+    labNoGenerated: false,
     requestDate: "",
     requestTime: "",
     receivedDateForDisplay: "",
@@ -88,6 +89,7 @@ export const SampleOrderFormValues = {
     linkedProviderPersonId: "",
     providerId: "",
     providerPersonId: "",
+    providerProfessionalProfileCode: "",
     providerFirstName: "",
     providerLastName: "",
     providerWorkPhone: "",
@@ -122,6 +124,8 @@ export const SampleOrderFormValues = {
     additionalFieldValues: {},
     additionalFieldFiles: {},
     fixedFieldConfigs: [],
+    providerProfileFields: [],
+    providerProfileFieldValues: {},
   },
   initialSampleConditionList: [],
   sampleNatureList: null,
@@ -130,10 +134,8 @@ export const SampleOrderFormValues = {
   useReferral: false,
   rejectReasonList: null,
 };
-
 export const createSampleOrderFormValues = () =>
   JSON.parse(JSON.stringify(SampleOrderFormValues));
-
 export const ReferralItem = {
   referralId: null,
   accessionNumber: null,
@@ -165,7 +167,6 @@ export const ReferralItem = {
   multiSelectResultValues: null,
   qualifiedResultValue: null,
 };
-
 export const ModifyOrderFormValues = {
   patientName: "",
   dob: "",

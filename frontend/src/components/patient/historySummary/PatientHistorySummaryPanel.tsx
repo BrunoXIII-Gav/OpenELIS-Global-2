@@ -1,12 +1,16 @@
 import React, { useEffect, useMemo, useState } from "react";
 import {
   Button,
+  Link,
   DataTableSkeleton,
+  InlineNotification,
+  Modal,
   Tab,
   TabList,
   TabPanel,
   TabPanels,
   Table,
+  Tag,
   TableBody,
   TableCell,
   TableContainer,
@@ -14,13 +18,17 @@ import {
   TableHeader,
   TableRow,
   Tabs,
+  TextArea,
   TextInput,
 } from "@carbon/react";
 import { useIntl } from "react-intl";
-import { getFromOpenElisServer } from "../../utils/Utils";
+import {
+  getFromOpenElisServer,
+  postToOpenElisServerFullResponse,
+  putToOpenElisServerFullResponse,
+} from "../../utils/Utils";
 import config from "../../../config.json";
 import "./patient-history-summary.scss";
-
 type PatientHistoryMetrics = {
   totalOrders: number;
   totalSamples: number;
@@ -29,7 +37,6 @@ type PatientHistoryMetrics = {
   completedTests: number;
   pendingTests: number;
 };
-
 type DetailField = {
   key: string;
   label: string;
@@ -37,7 +44,6 @@ type DetailField = {
   fieldType: string;
   source: string;
 };
-
 type TestAdditionalFieldOption = {
   id?: number;
   optionKey: string;
@@ -45,7 +51,6 @@ type TestAdditionalFieldOption = {
   sortOrder?: number;
   active?: boolean;
 };
-
 type TestAdditionalFieldDefinition = {
   id?: number;
   testId?: string;
@@ -65,7 +70,6 @@ type TestAdditionalFieldDefinition = {
   includeInValidation?: boolean;
   options?: TestAdditionalFieldOption[];
 };
-
 type PatientHistoryOrder = {
   id: string;
   accessionNumber: string;
@@ -79,7 +83,6 @@ type PatientHistoryOrder = {
   requesterName: string;
   orderFields: DetailField[];
 };
-
 type PatientHistorySample = {
   id: string;
   accessionNumber: string;
@@ -103,7 +106,6 @@ type PatientHistorySample = {
   orderFields: DetailField[];
   additionalFields: DetailField[];
 };
-
 type PatientHistoryResult = {
   id: string;
   accessionNumber: string;
@@ -125,34 +127,74 @@ type PatientHistoryResult = {
   additionalFieldDefinitions: TestAdditionalFieldDefinition[];
   additionalFieldValues: Record<string, string>;
 };
+type PatientValidation = {
+  analysisId: string;
+  accessionNumber: string;
+  clinicalOrderId: string;
+  testName: string;
+  validationDate?: string;
+  validators: Array<{
+    name: string;
+    approvedAt?: string;
+  }>;
+  reportAvailable: boolean;
+  deliveredDate?: string;
+  canRegisterDelivery?: boolean;
+  amendsAnalysisId?: string;
+  amendedByAnalysisId?: string;
+  canAmend?: boolean;
+  canReopenDelivery?: boolean;
+};
 
+// "delivery" records or corrects the date; "amendment" branches a delivered
+// result into a new analysis; "reopen" requires its own Validation permission.
+type DeliveryDialogMode = "delivery" | "amendment" | "reopen";
+const deliveryDialogTitles: Record<DeliveryDialogMode, string> = {
+  delivery: "patientHistory.validation.registerDelivery",
+  amendment: "patientHistory.validation.createAmendment",
+  reopen: "patientHistory.validation.reopenDelivery",
+};
+type DeliveryDraft = {
+  mode: DeliveryDialogMode;
+  row: PatientValidation;
+  date: string;
+  reason: string;
+  error?: string;
+  saving: boolean;
+};
+const todayIso = () => {
+  const now = new Date();
+  now.setMinutes(now.getMinutes() - now.getTimezoneOffset());
+  return now.toISOString().slice(0, 10);
+};
 type PatientHistorySummary = {
   patientId: string;
+  restrictedFieldTagKeys?: string[];
+  restrictedFieldGroupKeys?: string[];
+  validations?: PatientValidation[];
   metrics: PatientHistoryMetrics;
   orders: PatientHistoryOrder[];
   samples: PatientHistorySample[];
   results: PatientHistoryResult[];
 };
-
 type FilterState = {
   search: string;
   fromDate: string;
   toDate: string;
 };
-
 type Column<T> = {
   key: string;
   header: string;
   render: (row: T) => React.ReactNode;
 };
-
 const ORDER_FIXED_FIELD_LABEL_MESSAGE_IDS: Record<string, string> = {
   externalOrderNumber: "patientHistory.table.clinicalOrderId",
   labNo: "patientHistory.table.accessionNumber",
   priority: "sample.management.order.fixed.priority",
   requestDate: "sample.management.order.fixed.requestDate",
   requestTime: "sample.management.order.fixed.requestTime",
-  receivedDateForDisplay: "sample.management.order.fixed.receivedDateForDisplay",
+  receivedDateForDisplay:
+    "sample.management.order.fixed.receivedDateForDisplay",
   receivedTime: "sample.management.order.fixed.receivedTime",
   nextVisitDate: "sample.management.order.fixed.nextVisitDate",
   requesterSampleID: "patientHistory.table.sampleIdentifier",
@@ -172,14 +214,14 @@ const ORDER_FIXED_FIELD_LABEL_MESSAGE_IDS: Record<string, string> = {
   providerFax: "sample.management.order.fixed.providerFax",
   providerEmail: "sample.management.order.fixed.providerEmail",
   billingReferenceNumber: "patientHistory.table.clinicalOrderId",
-  paymentOptionSelection: "sample.management.order.fixed.paymentOptionSelection",
+  paymentOptionSelection:
+    "sample.management.order.fixed.paymentOptionSelection",
   testLocationCode: "sample.management.order.fixed.testLocationCode",
   otherLocationCode: "sample.management.order.fixed.otherLocationCode",
   program: "label.program",
   rememberSiteAndRequester:
     "sample.management.order.fixed.rememberSiteAndRequester",
 };
-
 const SAMPLE_FIXED_FIELD_LABEL_MESSAGE_IDS: Record<string, string> = {
   quantity: "sample.quantity.label",
   uom: "sample.uom.label",
@@ -187,7 +229,6 @@ const SAMPLE_FIXED_FIELD_LABEL_MESSAGE_IDS: Record<string, string> = {
   collectionDate: "sample.collection.date",
   collectionTime: "sample.collection.time",
 };
-
 const DETAIL_LABEL_MESSAGE_IDS: Record<string, string> = {
   accessionNumber: "patientHistory.table.accessionNumber",
   clinicalOrderId: "patientHistory.table.clinicalOrderId",
@@ -208,7 +249,6 @@ const DETAIL_LABEL_MESSAGE_IDS: Record<string, string> = {
   sampleStatus: "patientHistory.table.sampleStatus",
   resultDate: "patientHistory.table.resultDate",
 };
-
 const emptySummary: PatientHistorySummary = {
   patientId: "",
   metrics: {
@@ -222,18 +262,19 @@ const emptySummary: PatientHistorySummary = {
   orders: [],
   samples: [],
   results: [],
+  validations: [],
 };
-
 const emptyFilters: FilterState = {
   search: "",
   fromDate: "",
   toDate: "",
 };
-
 const parseAdditionalFieldMetadata = (
   fieldDefinition:
     | TestAdditionalFieldDefinition
-    | { metadataJson?: string }
+    | {
+        metadataJson?: string;
+      }
     | null
     | undefined,
 ): Record<string, any> => {
@@ -241,7 +282,6 @@ const parseAdditionalFieldMetadata = (
   if (!metadataJson || typeof metadataJson !== "string") {
     return {};
   }
-
   try {
     const parsed = JSON.parse(metadataJson);
     return parsed && typeof parsed === "object" ? parsed : {};
@@ -249,26 +289,27 @@ const parseAdditionalFieldMetadata = (
     return {};
   }
 };
-
 const parseDocumentFieldValue = (rawValue: string | null | undefined) => {
   if (!rawValue || typeof rawValue !== "string") {
     return null;
   }
-
   try {
     const parsed = JSON.parse(rawValue);
     if (!parsed || typeof parsed !== "object") {
       return null;
     }
-
     const fileName = String(parsed.fileName || "").trim();
     const fileType = String(parsed.fileType || "").trim();
-    return fileName ? { fileName, fileType } : null;
+    return fileName
+      ? {
+          fileName,
+          fileType,
+        }
+      : null;
   } catch (error) {
     return null;
   }
 };
-
 const buildOrderDocumentPreviewHref = (
   sampleId: string | null | undefined,
   fieldKey: string | null | undefined,
@@ -278,10 +319,8 @@ const buildOrderDocumentPreviewHref = (
   if (!normalizedSampleId || !normalizedFieldKey) {
     return "";
   }
-
   return `${config.serverBaseUrl}/rest/order-additional-fields/files/${normalizedSampleId}/${normalizedFieldKey}?download=false`;
 };
-
 const buildResultDocumentPreviewHref = (
   analysisId: string | null | undefined,
   fieldKey: string | null | undefined,
@@ -291,15 +330,12 @@ const buildResultDocumentPreviewHref = (
   if (!normalizedAnalysisId || !normalizedFieldKey) {
     return "";
   }
-
   return `${config.serverBaseUrl}/rest/test-additional-fields/files/${normalizedAnalysisId}/${normalizedFieldKey}?download=false`;
 };
-
 const normalizeResultEntryScope = (scopeValue: string | null | undefined) =>
   String(scopeValue || "").toUpperCase() === "PRELIMINARY"
     ? "PRELIMINARY"
     : "OFFICIAL";
-
 const parsePositiveSortOrder = (
   value: number | string | null | undefined,
   fallbackValue: number,
@@ -309,7 +345,6 @@ const parsePositiveSortOrder = (
     ? parsedValue
     : fallbackValue;
 };
-
 const getFieldBlockAndScope = (
   fieldDefinition: TestAdditionalFieldDefinition,
 ): {
@@ -330,7 +365,6 @@ const getFieldBlockAndScope = (
     typeof blockNameRaw === "string" && blockNameRaw.trim().length > 0
       ? blockNameRaw.trim()
       : fallbackBlock;
-
   return {
     blockName,
     entryScope,
@@ -344,7 +378,6 @@ const getFieldBlockAndScope = (
     ),
   };
 };
-
 const getPrimaryResultLayout = (
   data: PatientHistoryResult,
   intl: ReturnType<typeof useIntl>,
@@ -369,7 +402,6 @@ const getPrimaryResultLayout = (
     typeof metadata.resultBlock === "string" && metadata.resultBlock.trim()
       ? metadata.resultBlock.trim()
       : fallbackBlock;
-
   return {
     blockName,
     entryScope,
@@ -377,16 +409,14 @@ const getPrimaryResultLayout = (
     fieldSortOrder: parsePositiveSortOrder(metadata.fieldSortOrder, 1),
   };
 };
-
 const isPrimaryResultActive = (data: PatientHistoryResult) =>
   parseAdditionalFieldMetadata({
     metadataJson: data?.resultDisplayConfigJson,
   })?.active !== false;
-
 const isTubeSelectorFieldDefinition = (
   fieldDefinition: TestAdditionalFieldDefinition,
-) => parseAdditionalFieldMetadata(fieldDefinition)?.tubeSelector?.enabled === true;
-
+) =>
+  parseAdditionalFieldMetadata(fieldDefinition)?.tubeSelector?.enabled === true;
 const getTubeActivationCount = (
   fieldDefinition: TestAdditionalFieldDefinition,
 ) => {
@@ -395,7 +425,6 @@ const getTubeActivationCount = (
   const parsedValue = Number.parseInt(String(activationCount ?? ""), 10);
   return Number.isFinite(parsedValue) && parsedValue > 0 ? parsedValue : 0;
 };
-
 const getVisibleAdditionalFields = (
   data: PatientHistoryResult,
   fieldDefinitions: TestAdditionalFieldDefinition[],
@@ -410,29 +439,24 @@ const getVisibleAdditionalFields = (
     : selectorField?.fieldKey
       ? data?.additionalFieldValues?.[selectorField.fieldKey]
       : null;
-
   if (!primaryMetadata?.tubeSelector?.enabled && !selectorField?.fieldKey) {
     return definitions;
   }
-
   const selectedTubeCount = Number.parseInt(String(selectorRawValue ?? ""), 10);
   if (!Number.isFinite(selectedTubeCount) || selectedTubeCount <= 0) {
     return definitions.filter(
       (fieldDefinition) => getTubeActivationCount(fieldDefinition) <= 0,
     );
   }
-
   return definitions.filter((fieldDefinition) => {
     const activationCount = getTubeActivationCount(fieldDefinition);
     return activationCount <= 0 || activationCount <= selectedTubeCount;
   });
 };
-
 const isPrimaryResultVisible = (data: PatientHistoryResult) => {
   if (!isPrimaryResultActive(data)) {
     return false;
   }
-
   const metadata = parseAdditionalFieldMetadata({
     metadataJson: data?.resultDisplayConfigJson,
   });
@@ -440,16 +464,16 @@ const isPrimaryResultVisible = (data: PatientHistoryResult) => {
     String(metadata?.tubeBlock?.activationCount ?? ""),
     10,
   );
-
   if (!Number.isFinite(activationCount) || activationCount <= 0) {
     return true;
   }
-
   let selectorRawValue: string | null | undefined = null;
   if (metadata?.tubeSelector?.enabled) {
     selectorRawValue = data?.resultValue;
   } else {
-    const activeAdditionalFields = Array.isArray(data?.additionalFieldDefinitions)
+    const activeAdditionalFields = Array.isArray(
+      data?.additionalFieldDefinitions,
+    )
       ? data.additionalFieldDefinitions.filter(
           (fieldDefinition) => fieldDefinition?.active !== false,
         )
@@ -461,13 +485,11 @@ const isPrimaryResultVisible = (data: PatientHistoryResult) => {
       selectorRawValue = data?.additionalFieldValues?.[selectorField.fieldKey];
     }
   }
-
   const selectedTubeCount = Number.parseInt(String(selectorRawValue ?? ""), 10);
   return (
     Number.isFinite(selectedTubeCount) && selectedTubeCount >= activationCount
   );
 };
-
 const resolveAdditionalFieldOptionLabel = (
   fieldDefinition: TestAdditionalFieldDefinition,
   rawValue: string,
@@ -480,7 +502,6 @@ const resolveAdditionalFieldOptionLabel = (
     rawValue
   );
 };
-
 const formatConfiguredFieldValue = (
   intl: ReturnType<typeof useIntl>,
   fieldDefinition: TestAdditionalFieldDefinition,
@@ -490,17 +511,20 @@ const formatConfiguredFieldValue = (
   if (!normalizedValue) {
     return "-";
   }
-
   const fieldType = String(fieldDefinition?.fieldType || "TEXT").toUpperCase();
   if (fieldType === "DOCUMENT") {
     return parseDocumentFieldValue(normalizedValue)?.fileName || "-";
   }
   if (fieldType === "BOOLEAN") {
     if (normalizedValue.toLowerCase() === "true") {
-      return intl.formatMessage({ id: "yes.option" });
+      return intl.formatMessage({
+        id: "yes.option",
+      });
     }
     if (normalizedValue.toLowerCase() === "false") {
-      return intl.formatMessage({ id: "no.option" });
+      return intl.formatMessage({
+        id: "no.option",
+      });
     }
   }
   if (
@@ -518,32 +542,31 @@ const formatConfiguredFieldValue = (
       .map((value) => resolveAdditionalFieldOptionLabel(fieldDefinition, value))
       .join(", ");
   }
-
   return normalizedValue;
 };
-
-const PatientHistorySummaryPanel: React.FC<{ patientId: string }> = ({
-  patientId,
-}) => {
+const PatientHistorySummaryPanel: React.FC<{
+  patientId: string;
+}> = ({ patientId }) => {
   const intl = useIntl();
   const [summary, setSummary] = useState<PatientHistorySummary>(emptySummary);
   const [loading, setLoading] = useState(true);
   const [loadError, setLoadError] = useState(false);
   const [filters, setFilters] = useState<FilterState>(emptyFilters);
-
+  const [reloadKey, setReloadKey] = useState(0);
+  const [deliveryDraft, setDeliveryDraft] = useState<DeliveryDraft | null>(
+    null,
+  );
   useEffect(() => {
     let mounted = true;
     const controller = new AbortController();
     setLoading(true);
     setLoadError(false);
-
     getFromOpenElisServer(
       `/rest/patient-history/${patientId}/summary`,
       (response) => {
         if (!mounted) {
           return;
         }
-
         if (!response) {
           setLoadError(true);
           setSummary(emptySummary);
@@ -554,13 +577,92 @@ const PatientHistorySummaryPanel: React.FC<{ patientId: string }> = ({
       },
       controller.signal,
     );
-
     return () => {
       mounted = false;
       controller.abort();
     };
-  }, [patientId]);
-
+  }, [patientId, reloadKey]);
+  const openDeliveryDialog = (
+    row: PatientValidation,
+    mode: DeliveryDialogMode = "delivery",
+  ) =>
+    setDeliveryDraft({
+      mode,
+      row,
+      date: row.deliveredDate || todayIso(),
+      reason: "",
+      saving: false,
+    });
+  const saveDelivery = () => {
+    if (!deliveryDraft) {
+      return;
+    }
+    const { mode, row, date, reason } = deliveryDraft;
+    const reasonRequired =
+      mode !== "delivery" || (row.deliveredDate && row.deliveredDate !== date);
+    if (reasonRequired && !reason.trim()) {
+      setDeliveryDraft({
+        ...deliveryDraft,
+        error:
+          mode === "amendment"
+            ? "patient.validation.amendment.error.reasonRequired"
+            : "patient.validation.delivery.error.reasonRequired",
+      });
+      return;
+    }
+    setDeliveryDraft({
+      ...deliveryDraft,
+      saving: true,
+      error: undefined,
+    });
+    const base = `/rest/patient-history/${encodeURIComponent(patientId)}/validations/${encodeURIComponent(row.analysisId)}`;
+    const send =
+      mode === "delivery"
+        ? putToOpenElisServerFullResponse
+        : postToOpenElisServerFullResponse;
+    send(
+      mode === "delivery"
+        ? `${base}/delivery`
+        : mode === "amendment"
+          ? `${base}/amendment`
+          : `${base}/delivery/reopen`,
+      JSON.stringify(
+        mode === "delivery"
+          ? {
+              deliveredDate: date,
+              reason,
+            }
+          : {
+              reason,
+            },
+      ),
+      async (response: Response) => {
+        if (response.ok) {
+          setDeliveryDraft(null);
+          setReloadKey((key) => key + 1);
+          return;
+        }
+        let error = "patient.validation.delivery.error.saveFailed";
+        try {
+          const body = await response.json();
+          if (typeof body?.error === "string") {
+            error = body.error;
+          }
+        } catch {
+          // Non-JSON errors (e.g. 403) keep the generic message.
+        }
+        setDeliveryDraft((draft) =>
+          draft
+            ? {
+                ...draft,
+                saving: false,
+                error,
+              }
+            : draft,
+        );
+      },
+    );
+  };
   const filteredOrders = useMemo(
     () =>
       summary.orders.filter((order) =>
@@ -579,7 +681,191 @@ const PatientHistorySummaryPanel: React.FC<{ patientId: string }> = ({
       ),
     [filters, summary.orders],
   );
-
+  const hasRestrictedTag = (tagKey: string) =>
+    (summary.restrictedFieldTagKeys || []).includes(tagKey);
+  const showOverview = !hasRestrictedTag("patient-history-overview");
+  const showOrders = !hasRestrictedTag("patient-history-orders");
+  const showOrderDetails = !hasRestrictedTag("patient-history-order-details");
+  const showSamples = !hasRestrictedTag("patient-history-samples");
+  const showSampleDetails = !hasRestrictedTag("patient-history-sample-details");
+  const showResults = !hasRestrictedTag("patient-history-results");
+  const showResultValues = !hasRestrictedTag("patient-history-result-values");
+  const showStorage = !hasRestrictedTag("patient-history-storage");
+  const showValidations =
+    !hasRestrictedTag("patient-history-validations") &&
+    !(summary.restrictedFieldGroupKeys || []).some((group) =>
+      ["patient-history", "patient-validations"].includes(group),
+    );
+  const showValidationReport = ![
+    "patient-validation-report",
+    "patient-validation-validator",
+    "patient-validation-date",
+    "patient-history-result-values",
+  ].some(hasRestrictedTag);
+  const filteredValidations = useMemo(
+    () =>
+      (summary.validations || []).filter((row) =>
+        matchesFilters(
+          filters,
+          [
+            row.accessionNumber,
+            row.clinicalOrderId,
+            row.testName,
+            ...(row.validators || []).map((validator) => validator.name),
+          ],
+          [row.validationDate],
+        ),
+      ),
+    [filters, summary.validations],
+  );
+  const validationColumns = useMemo<Column<PatientValidation>[]>(
+    () => [
+      {
+        key: "accessionNumber",
+        header: intl.formatMessage({
+          id: "patientHistory.table.accessionNumber",
+        }),
+        render: (row) => row.accessionNumber || "-",
+      },
+      {
+        key: "testName",
+        header: intl.formatMessage({
+          id: "patientHistory.table.testName",
+        }),
+        render: (row) => (
+          <>
+            {row.testName || "-"}
+            {row.amendsAnalysisId ? (
+              <Tag type="purple" size="sm">
+                {intl.formatMessage({
+                  id: "patientHistory.validation.amendment",
+                })}
+              </Tag>
+            ) : null}
+            {row.amendedByAnalysisId ? (
+              <Tag type="gray" size="sm">
+                {intl.formatMessage({
+                  id: "patientHistory.validation.amended",
+                })}
+              </Tag>
+            ) : null}
+          </>
+        ),
+      },
+      ...(!hasRestrictedTag("patient-validation-date")
+        ? [
+            {
+              key: "validationDate",
+              header: intl.formatMessage({
+                id: "patientHistory.validation.date",
+              }),
+              render: (row: PatientValidation) =>
+                row.validationDate
+                  ? intl.formatDate(new Date(row.validationDate + "T00:00:00"))
+                  : "-",
+            },
+          ]
+        : []),
+      ...(!hasRestrictedTag("patient-validation-validator")
+        ? [
+            {
+              key: "validators",
+              header: intl.formatMessage({
+                id: "patientHistory.validation.validator",
+              }),
+              render: (row: PatientValidation) =>
+                row.validators?.length
+                  ? row.validators
+                      .map((v) => v.name)
+                      .filter(Boolean)
+                      .join(", ")
+                  : intl.formatMessage({
+                      id: "patientHistory.validation.unknownValidator",
+                    }),
+            },
+          ]
+        : []),
+      ...(!hasRestrictedTag("patient-validation-delivery-date")
+        ? [
+            {
+              key: "deliveredDate",
+              header: intl.formatMessage({
+                id: "patientHistory.validation.deliveredDate",
+              }),
+              render: (row: PatientValidation) => (
+                <>
+                  {row.deliveredDate
+                    ? intl.formatDate(new Date(row.deliveredDate + "T00:00:00"))
+                    : intl.formatMessage({
+                        id: "patientHistory.validation.notDelivered",
+                      })}
+                  {row.canRegisterDelivery ? (
+                    <Button
+                      kind="ghost"
+                      size="sm"
+                      onClick={() => openDeliveryDialog(row)}
+                    >
+                      {intl.formatMessage({
+                        id: row.deliveredDate
+                          ? "patientHistory.validation.correctDelivery"
+                          : "patientHistory.validation.registerDelivery",
+                      })}
+                    </Button>
+                  ) : null}
+                  {row.canAmend ? (
+                    <Button
+                      kind="ghost"
+                      size="sm"
+                      onClick={() => openDeliveryDialog(row, "amendment")}
+                    >
+                      {intl.formatMessage({
+                        id: "patientHistory.validation.createAmendment",
+                      })}
+                    </Button>
+                  ) : null}
+                  {row.canReopenDelivery ? (
+                    <Button
+                      kind="danger--ghost"
+                      size="sm"
+                      onClick={() => openDeliveryDialog(row, "reopen")}
+                    >
+                      {intl.formatMessage({
+                        id: "patientHistory.validation.reopenDelivery",
+                      })}
+                    </Button>
+                  ) : null}
+                </>
+              ),
+            },
+          ]
+        : []),
+      ...(showValidationReport
+        ? [
+            {
+              key: "report",
+              header: intl.formatMessage({
+                id: "patientHistory.validation.report",
+              }),
+              render: (row: PatientValidation) =>
+                row.reportAvailable ? (
+                  <Link
+                    href={`${config.serverBaseUrl}/rest/patient-history/${encodeURIComponent(patientId)}/validations/${encodeURIComponent(row.analysisId)}/report`}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                  >
+                    {intl.formatMessage({
+                      id: "patientHistory.validation.openPdf",
+                    })}
+                  </Link>
+                ) : (
+                  "-"
+                ),
+            },
+          ]
+        : []),
+    ],
+    [intl, patientId, summary.restrictedFieldTagKeys, showValidationReport],
+  );
   const filteredSamples = useMemo(
     () =>
       summary.samples.filter((sample) =>
@@ -597,7 +883,6 @@ const PatientHistorySummaryPanel: React.FC<{ patientId: string }> = ({
       ),
     [filters, summary.samples],
   );
-
   const filteredStoredSamples = useMemo(
     () =>
       summary.samples.filter(
@@ -619,7 +904,6 @@ const PatientHistorySummaryPanel: React.FC<{ patientId: string }> = ({
       ),
     [filters, summary.samples],
   );
-
   const filteredResults = useMemo(
     () =>
       summary.results.filter((result) =>
@@ -640,7 +924,6 @@ const PatientHistorySummaryPanel: React.FC<{ patientId: string }> = ({
       ),
     [filters, summary.results],
   );
-
   const filteredMetrics = useMemo(
     () => ({
       totalOrders: filteredOrders.length,
@@ -656,17 +939,20 @@ const PatientHistorySummaryPanel: React.FC<{ patientId: string }> = ({
     }),
     [filteredOrders, filteredResults, filteredSamples, filteredStoredSamples],
   );
-
   const metricCards = useMemo(
     () => [
       {
         key: "orders",
-        label: intl.formatMessage({ id: "patientHistory.metrics.orders" }),
+        label: intl.formatMessage({
+          id: "patientHistory.metrics.orders",
+        }),
         value: filteredMetrics.totalOrders,
       },
       {
         key: "samples",
-        label: intl.formatMessage({ id: "patientHistory.metrics.samples" }),
+        label: intl.formatMessage({
+          id: "patientHistory.metrics.samples",
+        }),
         value: filteredMetrics.totalSamples,
       },
       {
@@ -678,7 +964,9 @@ const PatientHistorySummaryPanel: React.FC<{ patientId: string }> = ({
       },
       {
         key: "totalTests",
-        label: intl.formatMessage({ id: "patientHistory.metrics.totalTests" }),
+        label: intl.formatMessage({
+          id: "patientHistory.metrics.totalTests",
+        }),
         value: filteredMetrics.totalTests,
       },
       {
@@ -690,13 +978,14 @@ const PatientHistorySummaryPanel: React.FC<{ patientId: string }> = ({
       },
       {
         key: "pendingTests",
-        label: intl.formatMessage({ id: "patientHistory.metrics.pendingTests" }),
+        label: intl.formatMessage({
+          id: "patientHistory.metrics.pendingTests",
+        }),
         value: filteredMetrics.pendingTests,
       },
     ],
     [filteredMetrics, intl],
   );
-
   const orderColumns = useMemo<Column<PatientHistoryOrder>[]>(
     () => [
       {
@@ -715,33 +1004,42 @@ const PatientHistorySummaryPanel: React.FC<{ patientId: string }> = ({
       },
       {
         key: "requestDate",
-        header: intl.formatMessage({ id: "patientHistory.table.requestDate" }),
+        header: intl.formatMessage({
+          id: "patientHistory.table.requestDate",
+        }),
         render: (row) => row.requestDate || "-",
       },
       {
         key: "priority",
-        header: intl.formatMessage({ id: "patientHistory.table.priority" }),
+        header: intl.formatMessage({
+          id: "patientHistory.table.priority",
+        }),
         render: (row) => row.priority || "-",
       },
       {
         key: "receivedDate",
-        header: intl.formatMessage({ id: "patientHistory.table.receivedDate" }),
+        header: intl.formatMessage({
+          id: "patientHistory.table.receivedDate",
+        }),
         render: (row) => row.receivedDate || "-",
       },
       {
         key: "status",
-        header: intl.formatMessage({ id: "patientHistory.table.status" }),
+        header: intl.formatMessage({
+          id: "patientHistory.table.status",
+        }),
         render: (row) => row.status || "-",
       },
       {
         key: "requesterName",
-        header: intl.formatMessage({ id: "patientHistory.table.requester" }),
+        header: intl.formatMessage({
+          id: "patientHistory.table.requester",
+        }),
         render: (row) => row.requesterName || "-",
       },
     ],
     [intl],
   );
-
   const sampleColumns = useMemo<Column<PatientHistorySample>[]>(
     () => [
       {
@@ -753,7 +1051,9 @@ const PatientHistorySummaryPanel: React.FC<{ patientId: string }> = ({
       },
       {
         key: "sampleType",
-        header: intl.formatMessage({ id: "patientHistory.table.sampleType" }),
+        header: intl.formatMessage({
+          id: "patientHistory.table.sampleType",
+        }),
         render: (row) => row.sampleType || "-",
       },
       {
@@ -765,18 +1065,21 @@ const PatientHistorySummaryPanel: React.FC<{ patientId: string }> = ({
       },
       {
         key: "status",
-        header: intl.formatMessage({ id: "patientHistory.table.status" }),
+        header: intl.formatMessage({
+          id: "patientHistory.table.status",
+        }),
         render: (row) => row.status || "-",
       },
       {
         key: "totalTests",
-        header: intl.formatMessage({ id: "patientHistory.table.totalTests" }),
+        header: intl.formatMessage({
+          id: "patientHistory.table.totalTests",
+        }),
         render: (row) => String(row.totalTests ?? 0),
       },
     ],
     [intl],
   );
-
   const resultColumns = useMemo<Column<PatientHistoryResult>[]>(
     () => [
       {
@@ -788,23 +1091,28 @@ const PatientHistorySummaryPanel: React.FC<{ patientId: string }> = ({
       },
       {
         key: "testName",
-        header: intl.formatMessage({ id: "patientHistory.table.testName" }),
+        header: intl.formatMessage({
+          id: "patientHistory.table.testName",
+        }),
         render: (row) => row.testName || "-",
       },
       {
         key: "testStatus",
-        header: intl.formatMessage({ id: "patientHistory.table.resultStatus" }),
+        header: intl.formatMessage({
+          id: "patientHistory.table.resultStatus",
+        }),
         render: (row) => row.testStatus || "-",
       },
       {
         key: "resultDate",
-        header: intl.formatMessage({ id: "patientHistory.table.resultDate" }),
+        header: intl.formatMessage({
+          id: "patientHistory.table.resultDate",
+        }),
         render: (row) => row.resultDate || row.collectionDate || "-",
       },
     ],
     [intl],
   );
-
   const storageColumns = useMemo<Column<PatientHistorySample>[]>(
     () => [
       {
@@ -816,49 +1124,63 @@ const PatientHistorySummaryPanel: React.FC<{ patientId: string }> = ({
       },
       {
         key: "sampleType",
-        header: intl.formatMessage({ id: "patientHistory.table.sampleType" }),
+        header: intl.formatMessage({
+          id: "patientHistory.table.sampleType",
+        }),
         render: (row) => row.sampleType || "-",
       },
       {
         key: "storageLocation",
-        header: intl.formatMessage({ id: "patientHistory.table.location" }),
+        header: intl.formatMessage({
+          id: "patientHistory.table.location",
+        }),
         render: (row) => row.storageLocation || "-",
       },
       {
         key: "storagePositionCoordinate",
-        header: intl.formatMessage({ id: "patientHistory.table.position" }),
+        header: intl.formatMessage({
+          id: "patientHistory.table.position",
+        }),
         render: (row) => row.storagePositionCoordinate || "-",
       },
       {
         key: "storageAssignedDate",
-        header: intl.formatMessage({ id: "patientHistory.table.assignedDate" }),
+        header: intl.formatMessage({
+          id: "patientHistory.table.assignedDate",
+        }),
         render: (row) => row.storageAssignedDate || "-",
       },
     ],
     [intl],
   );
-
   if (loading) {
     return <DataTableSkeleton columnCount={6} rowCount={6} />;
   }
-
   return (
     <div className="patient-history-summary">
       <div className="patient-history-summary__header">
         <div className="patient-history-summary__title">
-          {intl.formatMessage({ id: "patientHistory.summary.title" })}
+          {intl.formatMessage({
+            id: "patientHistory.summary.title",
+          })}
         </div>
         <div className="patient-history-summary__subtitle">
           {loadError
-            ? intl.formatMessage({ id: "patientHistory.summary.unavailable" })
-            : intl.formatMessage({ id: "patientHistory.summary.subtitle" })}
+            ? intl.formatMessage({
+                id: "patientHistory.summary.unavailable",
+              })
+            : intl.formatMessage({
+                id: "patientHistory.summary.subtitle",
+              })}
         </div>
       </div>
 
       <div className="patient-history-summary__filters">
         <TextInput
           id="patient-history-search"
-          labelText={intl.formatMessage({ id: "patientHistory.filters.search" })}
+          labelText={intl.formatMessage({
+            id: "patientHistory.filters.search",
+          })}
           placeholder={intl.formatMessage({
             id: "patientHistory.filters.searchPlaceholder",
           })}
@@ -903,114 +1225,294 @@ const PatientHistorySummaryPanel: React.FC<{ patientId: string }> = ({
           className="patient-history-summary__clear-button"
           onClick={() => setFilters(emptyFilters)}
         >
-          {intl.formatMessage({ id: "label.clear" })}
+          {intl.formatMessage({
+            id: "label.clear",
+          })}
         </Button>
       </div>
 
-      <div className="patient-history-summary__metrics">
-        {metricCards.map((metric) => (
-          <div className="patient-history-summary__metric" key={metric.key}>
-            <div className="patient-history-summary__metric-label">
-              {metric.label}
+      {showOverview ? (
+        <div className="patient-history-summary__metrics">
+          {metricCards.map((metric) => (
+            <div className="patient-history-summary__metric" key={metric.key}>
+              <div className="patient-history-summary__metric-label">
+                {metric.label}
+              </div>
+              <div className="patient-history-summary__metric-value">
+                {metric.value}
+              </div>
             </div>
-            <div className="patient-history-summary__metric-value">
-              {metric.value}
-            </div>
-          </div>
-        ))}
-      </div>
+          ))}
+        </div>
+      ) : null}
 
       <Tabs>
         <TabList
-          aria-label={intl.formatMessage({ id: "label.page.patientHistory" })}
+          aria-label={intl.formatMessage({
+            id: "label.page.patientHistory",
+          })}
         >
-          <Tab>{intl.formatMessage({ id: "patientHistory.tabs.orders" })}</Tab>
-          <Tab>{intl.formatMessage({ id: "patientHistory.tabs.samples" })}</Tab>
-          <Tab>{intl.formatMessage({ id: "patientHistory.tabs.results" })}</Tab>
-          <Tab>{intl.formatMessage({ id: "patientHistory.tabs.storage" })}</Tab>
+          {[
+            showOrders ? (
+              <Tab key="orders">
+                {intl.formatMessage({
+                  id: "patientHistory.tabs.orders",
+                })}
+              </Tab>
+            ) : null,
+            showSamples ? (
+              <Tab key="samples">
+                {intl.formatMessage({
+                  id: "patientHistory.tabs.samples",
+                })}
+              </Tab>
+            ) : null,
+            showResults ? (
+              <Tab key="results">
+                {intl.formatMessage({
+                  id: "patientHistory.tabs.results",
+                })}
+              </Tab>
+            ) : null,
+            showStorage ? (
+              <Tab key="storage">
+                {intl.formatMessage({
+                  id: "patientHistory.tabs.storage",
+                })}
+              </Tab>
+            ) : null,
+            showValidations ? (
+              <Tab key="validation">
+                {intl.formatMessage({
+                  id: "patientHistory.tabs.validation",
+                })}
+              </Tab>
+            ) : null,
+          ].filter(Boolean)}
         </TabList>
         <TabPanels>
-          <TabPanel>
-            <ExpandableHistoryTable
-              title={intl.formatMessage({ id: "patientHistory.tabs.orders" })}
-              columns={orderColumns}
-              rows={filteredOrders}
-              emptyMessage={intl.formatMessage({
-                id: "patientHistory.empty.orders",
-              })}
-              rowId={(row) => row.id}
-              renderDetails={(row) => (
-                <OrderDetails
-                  row={row}
-                  resolveFieldLabel={(field) => resolveFieldLabel(intl, field)}
-                  getFieldDisplayText={(field) =>
-                    getFieldDisplayText(intl, field)
-                  }
-                  renderFieldValue={(field) =>
-                    renderFieldValue(
-                      intl,
-                      field,
-                      String(field?.fieldType || "").toUpperCase() ===
-                        "DOCUMENT"
-                        ? buildOrderDocumentPreviewHref(row.id, field.key)
-                        : "",
-                    )
-                  }
-                />
-              )}
-            />
-          </TabPanel>
-          <TabPanel>
-            <ExpandableHistoryTable
-              title={intl.formatMessage({ id: "patientHistory.tabs.samples" })}
-              columns={sampleColumns}
-              rows={filteredSamples}
-              emptyMessage={intl.formatMessage({
-                id: "patientHistory.empty.samples",
-              })}
-              rowId={(row) => row.id}
-              renderDetails={(row) => (
-                <SampleDetails
-                  row={row}
-                  resolveFieldLabel={(field) => resolveFieldLabel(intl, field)}
-                  getFieldDisplayText={(field) =>
-                    getFieldDisplayText(intl, field)
-                  }
-                  renderFieldValue={(field) =>
-                    renderFieldValue(intl, field)
+          {[
+            showOrders ? (
+              <TabPanel key="orders">
+                <ExpandableHistoryTable
+                  title={intl.formatMessage({
+                    id: "patientHistory.tabs.orders",
+                  })}
+                  columns={orderColumns}
+                  rows={filteredOrders}
+                  emptyMessage={intl.formatMessage({
+                    id: "patientHistory.empty.orders",
+                  })}
+                  rowId={(row) => row.id}
+                  renderDetails={
+                    showOrderDetails
+                      ? (row) => (
+                          <OrderDetails
+                            row={row}
+                            resolveFieldLabel={(field) =>
+                              resolveFieldLabel(intl, field)
+                            }
+                            getFieldDisplayText={(field) =>
+                              getFieldDisplayText(intl, field)
+                            }
+                            renderFieldValue={(field) =>
+                              renderFieldValue(
+                                intl,
+                                field,
+                                String(field?.fieldType || "").toUpperCase() ===
+                                  "DOCUMENT"
+                                  ? buildOrderDocumentPreviewHref(
+                                      row.id,
+                                      field.key,
+                                    )
+                                  : "",
+                              )
+                            }
+                          />
+                        )
+                      : undefined
                   }
                 />
-              )}
-            />
-          </TabPanel>
-          <TabPanel>
-            <ExpandableHistoryTable
-              title={intl.formatMessage({ id: "patientHistory.tabs.results" })}
-              columns={resultColumns}
-              rows={filteredResults}
-              emptyMessage={intl.formatMessage({
-                id: "patientHistory.empty.results",
-              })}
-              rowId={(row) => row.id}
-              renderDetails={(row) => <ResultDetails row={row} />}
-            />
-          </TabPanel>
-          <TabPanel>
-            <SimpleHistoryTable
-              title={intl.formatMessage({ id: "patientHistory.tabs.storage" })}
-              columns={storageColumns}
-              rows={filteredStoredSamples}
-              emptyMessage={intl.formatMessage({
-                id: "patientHistory.empty.storage",
-              })}
-            />
-          </TabPanel>
+              </TabPanel>
+            ) : null,
+            showSamples ? (
+              <TabPanel key="samples">
+                <ExpandableHistoryTable
+                  title={intl.formatMessage({
+                    id: "patientHistory.tabs.samples",
+                  })}
+                  columns={sampleColumns}
+                  rows={filteredSamples}
+                  emptyMessage={intl.formatMessage({
+                    id: "patientHistory.empty.samples",
+                  })}
+                  rowId={(row) => row.id}
+                  renderDetails={
+                    showSampleDetails
+                      ? (row) => (
+                          <SampleDetails
+                            row={row}
+                            resolveFieldLabel={(field) =>
+                              resolveFieldLabel(intl, field)
+                            }
+                            getFieldDisplayText={(field) =>
+                              getFieldDisplayText(intl, field)
+                            }
+                            renderFieldValue={(field) =>
+                              renderFieldValue(intl, field)
+                            }
+                          />
+                        )
+                      : undefined
+                  }
+                />
+              </TabPanel>
+            ) : null,
+            showResults ? (
+              <TabPanel key="results">
+                <ExpandableHistoryTable
+                  title={intl.formatMessage({
+                    id: "patientHistory.tabs.results",
+                  })}
+                  columns={resultColumns}
+                  rows={filteredResults}
+                  emptyMessage={intl.formatMessage({
+                    id: "patientHistory.empty.results",
+                  })}
+                  rowId={(row) => row.id}
+                  renderDetails={
+                    showResultValues
+                      ? (row) => <ResultDetails row={row} />
+                      : undefined
+                  }
+                />
+              </TabPanel>
+            ) : null,
+            showStorage ? (
+              <TabPanel key="storage">
+                <SimpleHistoryTable
+                  title={intl.formatMessage({
+                    id: "patientHistory.tabs.storage",
+                  })}
+                  columns={storageColumns}
+                  rows={filteredStoredSamples}
+                  emptyMessage={intl.formatMessage({
+                    id: "patientHistory.empty.storage",
+                  })}
+                />
+              </TabPanel>
+            ) : null,
+            showValidations ? (
+              <TabPanel key="validation">
+                <SimpleHistoryTable
+                  title={intl.formatMessage({
+                    id: "patientHistory.tabs.validation",
+                  })}
+                  columns={validationColumns}
+                  rows={filteredValidations}
+                  emptyMessage={intl.formatMessage({
+                    id: "patientHistory.empty.validations",
+                  })}
+                />
+              </TabPanel>
+            ) : null,
+          ].filter(Boolean)}
         </TabPanels>
       </Tabs>
+      {deliveryDraft ? (
+        <Modal
+          open
+          modalHeading={intl.formatMessage({
+            id:
+              deliveryDraft.mode === "delivery" &&
+              deliveryDraft.row.deliveredDate
+                ? "patientHistory.validation.correctDelivery"
+                : deliveryDialogTitles[deliveryDraft.mode],
+          })}
+          modalLabel={`${deliveryDraft.row.accessionNumber || ""} · ${deliveryDraft.row.testName || ""}`}
+          primaryButtonText={intl.formatMessage({
+            id: "label.button.save",
+          })}
+          secondaryButtonText={intl.formatMessage({
+            id: "label.button.cancel",
+          })}
+          primaryButtonDisabled={deliveryDraft.saving || !deliveryDraft.date}
+          onRequestClose={() => setDeliveryDraft(null)}
+          onRequestSubmit={saveDelivery}
+        >
+          {deliveryDraft.error ? (
+            <InlineNotification
+              kind="error"
+              lowContrast
+              hideCloseButton
+              title={intl.formatMessage({
+                id: deliveryDraft.error,
+              })}
+            />
+          ) : null}
+          {deliveryDraft.mode === "amendment" ? (
+            <p className="patient-history-summary__dialog-text">
+              {intl.formatMessage({
+                id: "patientHistory.validation.amendmentHelp",
+              })}
+            </p>
+          ) : null}
+          {deliveryDraft.mode === "reopen" ? (
+            <p className="patient-history-summary__dialog-text">
+              {intl.formatMessage({
+                id: "patientHistory.validation.reopenHelp",
+              })}
+            </p>
+          ) : null}
+          {deliveryDraft.mode === "delivery" ? (
+            <TextInput
+              id="patient-history-delivery-date"
+              type="date"
+              labelText={intl.formatMessage({
+                id: "patientHistory.validation.deliveredDate",
+              })}
+              value={deliveryDraft.date}
+              min={deliveryDraft.row.validationDate}
+              max={todayIso()}
+              onChange={(e) =>
+                setDeliveryDraft({
+                  ...deliveryDraft,
+                  date: e.target.value,
+                })
+              }
+            />
+          ) : null}
+          {deliveryDraft.mode !== "delivery" ||
+          deliveryDraft.row.deliveredDate ||
+          // Someone else may have recorded it since this list was loaded.
+          deliveryDraft.error ===
+            "patient.validation.delivery.error.reasonRequired" ? (
+            <TextArea
+              id="patient-history-delivery-reason"
+              labelText={intl.formatMessage({
+                id:
+                  deliveryDraft.mode === "amendment"
+                    ? "patientHistory.validation.amendmentReason"
+                    : deliveryDraft.mode === "reopen"
+                      ? "patientHistory.validation.reopenReason"
+                      : "patientHistory.validation.deliveryCorrectionReason",
+              })}
+              maxCount={255}
+              enableCounter
+              value={deliveryDraft.reason}
+              onChange={(e) =>
+                setDeliveryDraft({
+                  ...deliveryDraft,
+                  reason: e.target.value,
+                })
+              }
+            />
+          ) : null}
+        </Modal>
+      ) : null}
     </div>
   );
 };
-
 const SimpleHistoryTable = <T extends object>({
   title,
   columns,
@@ -1025,7 +1527,6 @@ const SimpleHistoryTable = <T extends object>({
   if (!rows.length) {
     return <div className="patient-history-summary__empty">{emptyMessage}</div>;
   }
-
   return (
     <div className="patient-history-summary__table">
       <TableContainer title={title}>
@@ -1053,7 +1554,6 @@ const SimpleHistoryTable = <T extends object>({
     </div>
   );
 };
-
 const ExpandableHistoryTable = <T extends object>({
   title,
   columns,
@@ -1067,30 +1567,31 @@ const ExpandableHistoryTable = <T extends object>({
   rows: T[];
   emptyMessage: string;
   rowId: (row: T) => string;
-  renderDetails: (row: T) => React.ReactNode;
+  renderDetails?: (row: T) => React.ReactNode;
 }) => {
   const intl = useIntl();
   const [expandedRowId, setExpandedRowId] = useState<string | null>(null);
-
   useEffect(() => {
     setExpandedRowId((current) =>
       current && rows.some((row) => rowId(row) === current) ? current : null,
     );
   }, [rowId, rows]);
-
   if (!rows.length) {
     return <div className="patient-history-summary__empty">{emptyMessage}</div>;
   }
-
   return (
     <div className="patient-history-summary__table">
       <TableContainer title={title}>
         <Table size="sm" useZebraStyles>
           <TableHead>
             <TableRow>
-              <TableHeader className="patient-history-summary__expand-column">
-                {intl.formatMessage({ id: "patientHistory.table.details" })}
-              </TableHeader>
+              {renderDetails ? (
+                <TableHeader className="patient-history-summary__expand-column">
+                  {intl.formatMessage({
+                    id: "patientHistory.table.details",
+                  })}
+                </TableHeader>
+              ) : null}
               {columns.map((column) => (
                 <TableHeader key={column.key}>{column.header}</TableHeader>
               ))}
@@ -1100,36 +1601,37 @@ const ExpandableHistoryTable = <T extends object>({
             {rows.map((row) => {
               const currentRowId = rowId(row);
               const isExpanded = expandedRowId === currentRowId;
-
               return (
                 <React.Fragment key={currentRowId}>
                   <TableRow>
-                    <TableCell className="patient-history-summary__expand-cell">
-                      <button
-                        type="button"
-                        className="patient-history-summary__expand-button"
-                        onClick={() =>
-                          setExpandedRowId((current) =>
-                            current === currentRowId ? null : currentRowId,
-                          )
-                        }
-                      >
-                        {isExpanded
-                          ? intl.formatMessage({
-                              id: "patientHistory.table.hideDetails",
-                            })
-                          : intl.formatMessage({
-                              id: "patientHistory.table.viewDetails",
-                            })}
-                      </button>
-                    </TableCell>
+                    {renderDetails ? (
+                      <TableCell className="patient-history-summary__expand-cell">
+                        <button
+                          type="button"
+                          className="patient-history-summary__expand-button"
+                          onClick={() =>
+                            setExpandedRowId((current) =>
+                              current === currentRowId ? null : currentRowId,
+                            )
+                          }
+                        >
+                          {isExpanded
+                            ? intl.formatMessage({
+                                id: "patientHistory.table.hideDetails",
+                              })
+                            : intl.formatMessage({
+                                id: "patientHistory.table.viewDetails",
+                              })}
+                        </button>
+                      </TableCell>
+                    ) : null}
                     {columns.map((column) => (
                       <TableCell key={column.key}>
                         {column.render(row) || "-"}
                       </TableCell>
                     ))}
                   </TableRow>
-                  {isExpanded ? (
+                  {renderDetails && isExpanded ? (
                     <TableRow className="patient-history-summary__expanded-row">
                       <TableCell colSpan={columns.length + 1}>
                         <div className="patient-history-summary__expanded-content">
@@ -1147,7 +1649,6 @@ const ExpandableHistoryTable = <T extends object>({
     </div>
   );
 };
-
 const SampleDetails: React.FC<{
   row: PatientHistorySample;
   resolveFieldLabel: (field: DetailField) => string;
@@ -1181,7 +1682,6 @@ const SampleDetails: React.FC<{
     />
   </div>
 );
-
 const OrderDetails: React.FC<{
   row: PatientHistoryOrder;
   resolveFieldLabel: (field: DetailField) => string;
@@ -1199,7 +1699,6 @@ const OrderDetails: React.FC<{
     />
   </div>
 );
-
 const ResultDetails: React.FC<{
   row: PatientHistoryResult;
 }> = ({ row }) => {
@@ -1250,7 +1749,6 @@ const ResultDetails: React.FC<{
   >();
   const blockSortOrderByKey = new Map<string, number>();
   let nextBlockSortOrder = 1;
-
   const resolvedAdditionalFields = visibleAdditionalFields.map(
     (fieldDefinition) => {
       const layout = getFieldBlockAndScope(fieldDefinition);
@@ -1262,7 +1760,6 @@ const ResultDetails: React.FC<{
         );
         nextBlockSortOrder += 1;
       }
-
       return {
         fieldDefinition,
         layout: {
@@ -1272,7 +1769,6 @@ const ResultDetails: React.FC<{
       };
     },
   );
-
   [...resolvedAdditionalFields]
     .sort((leftField, rightField) => {
       const leftLayout = leftField.layout;
@@ -1289,8 +1785,10 @@ const ResultDetails: React.FC<{
       if (leftLayout.fieldSortOrder !== rightLayout.fieldSortOrder) {
         return leftLayout.fieldSortOrder - rightLayout.fieldSortOrder;
       }
-      return (leftField.fieldDefinition?.sortOrder || 0) -
-        (rightField.fieldDefinition?.sortOrder || 0);
+      return (
+        (leftField.fieldDefinition?.sortOrder || 0) -
+        (rightField.fieldDefinition?.sortOrder || 0)
+      );
     })
     .forEach(({ fieldDefinition, layout }) => {
       const { blockName, blockSortOrder, fieldSortOrder } = layout;
@@ -1310,7 +1808,6 @@ const ResultDetails: React.FC<{
         fieldSortOrder,
       });
     });
-
   const officialBlockName = intl.formatMessage({
     id: "results.block.official",
     defaultMessage: "Official",
@@ -1324,7 +1821,6 @@ const ResultDetails: React.FC<{
         });
   const primaryBlockName = primaryLayout.blockName || officialBlockName;
   const primaryBlockKey = String(primaryBlockName || "").trim();
-
   if (primaryResultVisible && !groupedByName.has(primaryBlockKey)) {
     const group = {
       blockName: primaryBlockName,
@@ -1334,14 +1830,12 @@ const ResultDetails: React.FC<{
     groupedByName.set(primaryBlockKey, group);
     groupedBlocks.push(group);
   }
-
   if (primaryResultVisible) {
     groupedByName.get(primaryBlockKey)?.items.push({
       type: "primary",
       fieldSortOrder: primaryLayout.fieldSortOrder,
     });
   }
-
   const sortedBlocks = groupedBlocks
     .map((block) => ({
       ...block,
@@ -1362,13 +1856,14 @@ const ResultDetails: React.FC<{
       }
       return leftBlock.blockName.localeCompare(rightBlock.blockName);
     });
-
   if (!sortedBlocks.length) {
     return (
       <div className="patient-history-summary__details">
         <section className="patient-history-summary__detail-section">
           <h4 className="patient-history-summary__detail-title">
-            {intl.formatMessage({ id: "patientHistory.detail.testFields" })}
+            {intl.formatMessage({
+              id: "patientHistory.detail.testFields",
+            })}
           </h4>
           <div className="patient-history-summary__detail-empty">
             {intl.formatMessage({
@@ -1379,7 +1874,6 @@ const ResultDetails: React.FC<{
       </div>
     );
   }
-
   return (
     <div className="patient-history-summary__details">
       {sortedBlocks.map((block, blockIndex) => (
@@ -1407,10 +1901,8 @@ const ResultDetails: React.FC<{
                   </div>
                 );
               }
-
-              const value = row?.additionalFieldValues?.[
-                item.fieldDefinition.fieldKey
-              ];
+              const value =
+                row?.additionalFieldValues?.[item.fieldDefinition.fieldKey];
               return (
                 <div
                   key={`${item.fieldDefinition.fieldKey}-${row.id}-${blockIndex}-${itemIndex}`}
@@ -1423,37 +1915,33 @@ const ResultDetails: React.FC<{
                   <div className="patient-history-summary__detail-value">
                     {String(
                       item.fieldDefinition?.fieldType || "",
-                    ).toUpperCase() === "DOCUMENT" ? (
-                      (() => {
-                        const documentValue = parseDocumentFieldValue(value);
-                        const previewHref = buildResultDocumentPreviewHref(
-                          row.id,
-                          item.fieldDefinition.fieldKey,
-                        );
-
-                        if (!documentValue?.fileName) {
-                          return "-";
-                        }
-
-                        return previewHref ? (
-                          <a
-                            href={previewHref}
-                            target="_blank"
-                            rel="noopener noreferrer"
-                          >
-                            {documentValue.fileName}
-                          </a>
-                        ) : (
-                          documentValue.fileName
-                        );
-                      })()
-                    ) : (
-                      formatConfiguredFieldValue(
-                        intl,
-                        item.fieldDefinition,
-                        value,
-                      )
-                    )}
+                    ).toUpperCase() === "DOCUMENT"
+                      ? (() => {
+                          const documentValue = parseDocumentFieldValue(value);
+                          const previewHref = buildResultDocumentPreviewHref(
+                            row.id,
+                            item.fieldDefinition.fieldKey,
+                          );
+                          if (!documentValue?.fileName) {
+                            return "-";
+                          }
+                          return previewHref ? (
+                            <a
+                              href={previewHref}
+                              target="_blank"
+                              rel="noopener noreferrer"
+                            >
+                              {documentValue.fileName}
+                            </a>
+                          ) : (
+                            documentValue.fileName
+                          );
+                        })()
+                      : formatConfiguredFieldValue(
+                          intl,
+                          item.fieldDefinition,
+                          value,
+                        )}
                   </div>
                 </div>
               );
@@ -1464,7 +1952,6 @@ const ResultDetails: React.FC<{
     </div>
   );
 };
-
 const DetailSection: React.FC<{
   titleId: string;
   fields: DetailField[];
@@ -1481,22 +1968,19 @@ const DetailSection: React.FC<{
   emptyId = "patientHistory.detail.empty.generic",
 }) => {
   const intl = useIntl();
-
   return (
     <section className="patient-history-summary__detail-section">
       <h4 className="patient-history-summary__detail-title">
-        {intl.formatMessage({ id: titleId })}
+        {intl.formatMessage({
+          id: titleId,
+        })}
       </h4>
       {fields.length ? (
         <div className="patient-history-summary__detail-grid">
           {fields.map((field, index) => (
             <div
               key={`${field.source}-${field.key}-${index}`}
-              className={`patient-history-summary__detail-item ${
-                getFieldDisplayText(field).length > 120
-                  ? "patient-history-summary__detail-item--wide"
-                  : ""
-              }`}
+              className={`patient-history-summary__detail-item ${getFieldDisplayText(field).length > 120 ? "patient-history-summary__detail-item--wide" : ""}`}
             >
               <div className="patient-history-summary__detail-label">
                 {resolveFieldLabel(field)}
@@ -1509,13 +1993,14 @@ const DetailSection: React.FC<{
         </div>
       ) : (
         <div className="patient-history-summary__detail-empty">
-          {intl.formatMessage({ id: emptyId })}
+          {intl.formatMessage({
+            id: emptyId,
+          })}
         </div>
       )}
     </section>
   );
 };
-
 const resolveFieldLabel = (
   intl: ReturnType<typeof useIntl>,
   field: DetailField,
@@ -1527,7 +2012,6 @@ const resolveFieldLabel = (
       defaultMessage: field.label || field.key,
     });
   }
-
   if (field?.source === "orderFixed") {
     const messageId = ORDER_FIXED_FIELD_LABEL_MESSAGE_IDS[field.key];
     if (messageId) {
@@ -1537,7 +2021,6 @@ const resolveFieldLabel = (
       });
     }
   }
-
   const messageId = DETAIL_LABEL_MESSAGE_IDS[field?.key];
   if (messageId) {
     return intl.formatMessage({
@@ -1545,10 +2028,8 @@ const resolveFieldLabel = (
       defaultMessage: field.label || field.key,
     });
   }
-
   return field?.label || field?.key || "-";
 };
-
 const getFieldDisplayText = (
   intl: ReturnType<typeof useIntl>,
   field: DetailField,
@@ -1558,17 +2039,20 @@ const getFieldDisplayText = (
     return "-";
   }
   if (rawValue.toLowerCase() === "true") {
-    return intl.formatMessage({ id: "yes.option" });
+    return intl.formatMessage({
+      id: "yes.option",
+    });
   }
   if (rawValue.toLowerCase() === "false") {
-    return intl.formatMessage({ id: "no.option" });
+    return intl.formatMessage({
+      id: "no.option",
+    });
   }
   if (String(field?.fieldType || "").toUpperCase() === "DOCUMENT") {
     return parseDocumentFieldValue(rawValue)?.fileName || "-";
   }
   return rawValue;
 };
-
 const renderFieldValue = (
   intl: ReturnType<typeof useIntl>,
   field: DetailField,
@@ -1578,7 +2062,6 @@ const renderFieldValue = (
   if (displayText === "-") {
     return displayText;
   }
-
   if (String(field?.fieldType || "").toUpperCase() === "DOCUMENT") {
     return previewHref ? (
       <a href={previewHref} target="_blank" rel="noopener noreferrer">
@@ -1588,10 +2071,8 @@ const renderFieldValue = (
       displayText
     );
   }
-
   return displayText;
 };
-
 const matchesFilters = (
   filters: FilterState,
   searchableFields: Array<string | null | undefined>,
@@ -1605,23 +2086,18 @@ const matchesFilters = (
         .toLowerCase()
         .includes(normalizedSearch),
     );
-
   if (!matchesSearch) {
     return false;
   }
-
   if (!filters.fromDate && !filters.toDate) {
     return true;
   }
-
   const comparableDates = dateFields
     .map((value) => parseComparableDate(value))
     .filter((value): value is string => Boolean(value));
-
   if (!comparableDates.length) {
     return false;
   }
-
   return comparableDates.some((value) => {
     if (filters.fromDate && value < filters.fromDate) {
       return false;
@@ -1632,22 +2108,18 @@ const matchesFilters = (
     return true;
   });
 };
-
 const parseComparableDate = (value: string | null | undefined) => {
   if (!value) {
     return "";
   }
-
   const normalizedValue = value.trim();
   if (!normalizedValue) {
     return "";
   }
-
   const isoMatch = normalizedValue.match(/^(\d{4})-(\d{2})-(\d{2})/);
   if (isoMatch) {
     return `${isoMatch[1]}-${isoMatch[2]}-${isoMatch[3]}`;
   }
-
   const slashMatch = normalizedValue.match(/^(\d{2})\/(\d{2})\/(\d{4})$/);
   if (slashMatch) {
     const first = Number(slashMatch[1]);
@@ -1660,17 +2132,17 @@ const parseComparableDate = (value: string | null | undefined) => {
     }
     return `${slashMatch[3]}-${slashMatch[1]}-${slashMatch[2]}`;
   }
-
   const parsedDate = new Date(normalizedValue);
   if (!Number.isNaN(parsedDate.getTime())) {
     return parsedDate.toISOString().slice(0, 10);
   }
-
   return "";
 };
-
 const isCompletedStatus = (status: string | null | undefined) =>
-  String(status || "").toLowerCase().includes("final") ||
-  String(status || "").toLowerCase().includes("complete");
-
+  String(status || "")
+    .toLowerCase()
+    .includes("final") ||
+  String(status || "")
+    .toLowerCase()
+    .includes("complete");
 export default PatientHistorySummaryPanel;

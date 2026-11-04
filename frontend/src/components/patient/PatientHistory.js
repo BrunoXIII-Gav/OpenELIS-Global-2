@@ -21,16 +21,16 @@ const PatientHistory = () => {
   };
   useEffect(() => {
     componentMounted.current = true;
-    openPatientResults(selectedPatient.patientPK);
+    openPatientHistory(selectedPatient.patientPK);
 
     return () => {
       componentMounted.current = false;
     };
   }, [selectedPatient]);
 
-  const openPatientResults = (patientId) => {
+  const openPatientHistory = (patientId) => {
     if (patientId) {
-      window.location.href = "/PatientResults/" + patientId;
+      window.location.href = "/PatientHistory/" + patientId;
     }
   };
 
@@ -53,7 +53,11 @@ const PatientHistory = () => {
       <div className="orderLegendBody">
         <Grid fullWidth={true}>
           <Column lg={16} md={8} sm={4}>
-            <SearchPatientForm getSelectedPatient={getSelectedPatient} />
+            <SearchPatientForm
+              getSelectedPatient={getSelectedPatient}
+              hideNationalIdColumn={true}
+              disableNationalIdSearch={true}
+            />
           </Column>
         </Grid>
       </div>

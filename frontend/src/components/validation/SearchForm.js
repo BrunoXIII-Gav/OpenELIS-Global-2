@@ -25,13 +25,10 @@ import { NotificationKinds } from "../common/CustomNotification";
 import { format } from "date-fns";
 import CustomDatePicker from "../common/CustomDatePicker";
 import { ArrowLeft, ArrowRight } from "@carbon/react/icons";
-
 const SearchForm = (props) => {
   const { setNotificationVisible, addNotification } =
     useContext(NotificationContext);
-
   const intl = useIntl();
-
   const [searchResults, setSearchResults] = useState();
   const [searchBy, setSearchBy] = useState();
   const [doRange, setDoRagnge] = useState(true);
@@ -49,7 +46,6 @@ const SearchForm = (props) => {
   const [currentApiPage, setCurrentApiPage] = useState(null);
   const [totalApiPages, setTotalApiPages] = useState(null);
   const [url, setUrl] = useState("");
-
   const validationResults = (data) => {
     if (data) {
       setSearchResults(data);
@@ -74,7 +70,9 @@ const SearchForm = (props) => {
       }
       if (data?.resultList?.length > 0) {
         const newResultsList = data.resultList.map((data, id) => {
-          let tempData = { ...data };
+          let tempData = {
+            ...data,
+          };
           tempData.id = id;
           return tempData;
         });
@@ -88,21 +86,22 @@ const SearchForm = (props) => {
           ...prevState,
           resultList: [],
         }));
-
         addNotification({
           kind: NotificationKinds.warning,
-          title: intl.formatMessage({ id: "notification.title" }),
-          message: intl.formatMessage({ id: "validation.search.noresult" }),
+          title: intl.formatMessage({
+            id: "notification.title",
+          }),
+          message: intl.formatMessage({
+            id: "validation.search.noresult",
+          }),
         });
         setNotificationVisible(true);
       }
     }
   };
-
   useEffect(() => {
     props.setResults(searchResults);
   }, [searchResults]);
-
   const handleSubmit = (values) => {
     setNextPage(null);
     setPreviousPage(null);
@@ -145,14 +144,11 @@ const SearchForm = (props) => {
     }
     getFromOpenElisServer(searchEndPoint, validationResults);
   };
-
   const handleChange = () => {};
-
   const loadNextResultsPage = () => {
     setIsLoading(true);
     getFromOpenElisServer(url + "&page=" + nextPage, validationResults);
   };
-
   const loadPreviousResultsPage = () => {
     setIsLoading(true);
     getFromOpenElisServer(url + "&page=" + previousPage, validationResults);
@@ -160,19 +156,18 @@ const SearchForm = (props) => {
   const fetchTestSections = (response) => {
     setTestSections(Array.isArray(response) ? response : []);
   };
-
   const submitOnSelect = (e) => {
     setNextPage(null);
     setPreviousPage(null);
     setPagination(false);
-    var values = { unitType: e.target.value };
+    var values = {
+      unitType: e.target.value,
+    };
     handleSubmit(values);
   };
-
   function handleDatePickerChange(date) {
     setTestDate(date);
   }
-
   useEffect(() => {
     var param = "";
     if (window.location.pathname == "/validation") {
@@ -212,12 +207,13 @@ const SearchForm = (props) => {
           },
         );
         if (testSectionId) {
-          let values = { unitType: testSectionId };
+          let values = {
+            unitType: testSectionId,
+          };
           handleSubmit(values);
         }
         break;
       }
-
       case "order":
       case "range": {
         let accessionNumber = new URLSearchParams(window.location.search).get(
@@ -237,12 +233,13 @@ const SearchForm = (props) => {
         let date = new URLSearchParams(window.location.search).get("date");
         if (date) {
           setTestDate(date);
-          handleSubmit({ defaultDate: date });
+          handleSubmit({
+            defaultDate: date,
+          });
         }
         break;
       }
     }
-
     setNextPage(null);
     setPreviousPage(null);
     setPagination(false);
@@ -285,7 +282,11 @@ const SearchForm = (props) => {
                       <Field name="accessionNumber">
                         {({ field }) => (
                           <CustomLabNumberInput
-                            placeholder={"Enter Lab No"}
+                            placeholder={intl.formatMessage({
+                              id: "validation.search.input.placeholder",
+                              defaultMessage:
+                                "Enter order or laboratory number",
+                            })}
                             name={field.name}
                             id={field.name}
                             value={values[field.name]}
@@ -294,10 +295,19 @@ const SearchForm = (props) => {
                             }}
                             labelText={
                               searchBy == "order" ? (
-                                <FormattedMessage id="search.label.accession" />
+                                <FormattedMessage id="validation.search.input.label" />
                               ) : (
                                 <FormattedMessage id="search.label.loadnext" />
                               )
+                            }
+                            helperText={
+                              searchBy == "order"
+                                ? intl.formatMessage({
+                                    id: "validation.search.input.helper",
+                                    defaultMessage:
+                                      "You can search using the order or laboratory number.",
+                                  })
+                                : undefined
                             }
                           />
                         )}
@@ -332,7 +342,9 @@ const SearchForm = (props) => {
                     <Button
                       type="submit"
                       id="submit"
-                      style={{ marginTop: "16px" }}
+                      style={{
+                        marginTop: "16px",
+                      }}
                       data-testid="Search-btn"
                     >
                       <FormattedMessage id="label.button.search" />
@@ -350,7 +362,9 @@ const SearchForm = (props) => {
           <Grid>
             <Column lg={6} md={8} sm={4}>
               <Select
-                labelText={intl.formatMessage({ id: "search.label.testunit" })}
+                labelText={intl.formatMessage({
+                  id: "search.label.testunit",
+                })}
                 name="unitType"
                 id="unitType"
                 onChange={submitOnSelect}
@@ -394,7 +408,12 @@ const SearchForm = (props) => {
               <Link>
                 {currentApiPage} / {totalApiPages}
               </Link>
-              <div style={{ display: "flex", gap: "10px" }}>
+              <div
+                style={{
+                  display: "flex",
+                  gap: "10px",
+                }}
+              >
                 <Button
                   hasIconOnly
                   id="loadpreviousresults"
@@ -419,5 +438,4 @@ const SearchForm = (props) => {
     </>
   );
 };
-
 export default SearchForm;

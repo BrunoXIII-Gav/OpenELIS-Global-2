@@ -137,6 +137,9 @@ public interface AnalysisDAO extends BaseDAO<Analysis, String> {
 
     List<Analysis> getAnalysesBySampleId(String id) throws LIMSRuntimeException;
 
+    boolean hasAnalysisForPatientInTestSections(String patientId, List<Integer> testSectionIds)
+            throws LIMSRuntimeException;
+
     List<Analysis> getAnalysesBySampleIdExcludedByStatusId(String id, Set<Integer> statusIds)
             throws LIMSRuntimeException;
 

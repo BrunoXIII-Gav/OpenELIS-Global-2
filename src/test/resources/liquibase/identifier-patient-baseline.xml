@@ -1,0 +1,27 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<databaseChangeLog
+    xmlns="http://www.liquibase.org/xml/ns/dbchangelog"
+    xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+    xsi:schemaLocation="http://www.liquibase.org/xml/ns/dbchangelog https://www.liquibase.org/xml/ns/dbchangelog/dbchangelog-4.8.xsd">
+    <changeSet id="identifier-test-patient" author="openelis">
+        <createTable tableName="patient">
+            <column name="id" type="NUMERIC(10,0)">
+                <constraints primaryKey="true" />
+            </column>
+        </createTable>
+    </changeSet>
+    <changeSet id="identifier-test-settings" author="openelis">
+        <createTable tableName="site_information">
+            <column name="name" type="VARCHAR(128)" />
+            <column name="value" type="VARCHAR(128)" />
+        </createTable>
+    </changeSet>
+    <changeSet id="identifier-test-historical-order"
+        author="openelis">
+        <createTable tableName="sample">
+            <column name="id" type="NUMERIC(10,0)">
+                <constraints primaryKey="true" />
+            </column>
+        </createTable>
+    </changeSet>
+</databaseChangeLog>

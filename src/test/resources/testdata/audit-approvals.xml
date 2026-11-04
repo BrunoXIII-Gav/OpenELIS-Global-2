@@ -1,0 +1,9 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<dataset>
+    <analysis_validation_approval
+        id="existing-approval-1" analysis_id="100" approver_user_id="7"
+        approved_at="2026-10-01 12:00:00" last_updated="2026-10-01 12:00:00" />
+    <analysis_validation_approval
+        id="existing-approval-2" analysis_id="100" approver_user_id="8"
+        approved_at="2026-10-01 12:01:00" last_updated="2026-10-01 12:01:00" />
+</dataset>

@@ -14,6 +14,9 @@ import org.hl7.fhir.r4.model.Coding;
 import org.hl7.fhir.r4.model.Identifier;
 import org.hl7.fhir.r4.model.ServiceRequest;
 import org.hl7.fhir.r4.model.Task;
+import org.openelisglobal.authorization.service.ModuleAuthorizationService;
+import org.openelisglobal.authorization.service.ModuleAuthorizationService.AuthorizationDecision;
+import org.openelisglobal.authorization.service.ModuleAuthorizationService.AuthorizationSource;
 import org.openelisglobal.common.controller.BaseController;
 import org.openelisglobal.common.log.LogEvent;
 import org.openelisglobal.common.services.DisplayListService;
@@ -31,12 +34,14 @@ import org.openelisglobal.organization.service.OrganizationService;
 import org.openelisglobal.organization.valueholder.Organization;
 import org.openelisglobal.patient.service.PatientService;
 import org.openelisglobal.patient.valueholder.Patient;
+import org.openelisglobal.sample.service.OrderAuthorizationService;
 import org.openelisglobal.sample.service.SampleService;
 import org.openelisglobal.sample.valueholder.Sample;
 import org.openelisglobal.statusofsample.service.StatusOfSampleService;
 import org.openelisglobal.test.service.TestService;
 import org.openelisglobal.test.valueholder.Test;
 import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.security.access.AccessDeniedException;
 import org.springframework.validation.BindingResult;
 import org.springframework.web.bind.WebDataBinder;
 import org.springframework.web.bind.annotation.InitBinder;
@@ -67,6 +72,10 @@ public class RestElectronicOrdersController extends BaseController {
     private FhirUtil fhirUtil;
     @Autowired
     private FhirConfig fhirConfig;
+    @Autowired
+    private OrderAuthorizationService orderAuthorizationService;
+    @Autowired
+    private ModuleAuthorizationService moduleAuthorizationService;
 
     @InitBinder
     public void initBinder(final WebDataBinder webdataBinder) {
@@ -79,6 +88,14 @@ public class RestElectronicOrdersController extends BaseController {
     public ElectronicOrderViewForm showElectronicOrders(HttpServletRequest request,
             @ModelAttribute("form") @Valid ElectronicOrderViewForm form, BindingResult result)
             throws IllegalAccessException, InvocationTargetException, NoSuchMethodException {
+        String userId = getSysUserId(request);
+        AuthorizationDecision decision = moduleAuthorizationService.getAuthorization(userId, "orders", "read");
+        if (!orderAuthorizationService.hasPermission(userId, "read")) {
+            throw new AccessDeniedException("The user does not have permission to read orders");
+        }
+        if (decision.source() == AuthorizationSource.MODULE_PERMISSION && !decision.allLabUnits()) {
+            throw new AccessDeniedException("Scoped electronic-order searches are not supported");
+        }
         form.setReferralFacilitySelectionList(
                 DisplayListService.getInstance().getList(ListType.REFERRAL_ORGANIZATIONS));
         form.setTestSelectionList(DisplayListService.getInstance().getList(ListType.ORDERABLE_TESTS));

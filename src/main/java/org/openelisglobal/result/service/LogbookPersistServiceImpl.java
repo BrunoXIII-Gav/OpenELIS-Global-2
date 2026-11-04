@@ -9,6 +9,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.Set;
 import java.util.UUID;
+import java.util.function.Consumer;
 import org.openelisglobal.analysis.service.AnalysisService;
 import org.openelisglobal.analysis.valueholder.Analysis;
 import org.openelisglobal.common.services.IStatusService;
@@ -18,6 +19,7 @@ import org.openelisglobal.common.services.registration.interfaces.IResultUpdate;
 import org.openelisglobal.dataexchange.orderresult.OrderResponseWorker.Event;
 import org.openelisglobal.note.service.NoteService;
 import org.openelisglobal.note.valueholder.Note;
+import org.openelisglobal.orderadditionalfield.service.AlternateOrderFlowService;
 import org.openelisglobal.referral.service.ReferralResultService;
 import org.openelisglobal.referral.service.ReferralService;
 import org.openelisglobal.referral.service.ReferralSetService;
@@ -37,11 +39,20 @@ import org.openelisglobal.testcalculated.action.util.TestCalculatedUtil;
 import org.openelisglobal.testreflex.action.util.TestReflexBean;
 import org.openelisglobal.testreflex.action.util.TestReflexUtil;
 import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.security.access.AccessDeniedException;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 @Service
 public class LogbookPersistServiceImpl implements LogbookResultsPersistService {
+    @Autowired
+    private AlternateOrderFlowService alternateOrderFlowService;
+
+    private void requireProcessingAllowed(String analysisId) {
+        if (alternateOrderFlowService.isAnalysisProcessingBlocked(analysisId)) {
+            throw new AccessDeniedException("sample.management.alternateOrderFlow.processingBlocked");
+        }
+    }
 
     @Autowired
     private AnalysisService analysisService;
@@ -68,8 +79,35 @@ public class LogbookPersistServiceImpl implements LogbookResultsPersistService {
 
     @Override
     @Transactional
+    public List<Analysis> prepareAndPersistDataSet(ResultsUpdateDataSet actionDataSet, List<IResultUpdate> updaters,
+            String sysUserId, Consumer<ResultsUpdateDataSet> preparation) {
+        List<TestResultItem> items = new ArrayList<>(actionDataSet.getModifiedItems());
+        items.addAll(actionDataSet.getAnalysisOnlyChangeResults());
+        items.forEach(item -> requireProcessingAllowed(item.getAnalysisId()));
+        testAdditionalFieldService.prepareConcurrentUpdates(items);
+        // Keep the existing preparation rules under the same transaction and
+        // row locks as persistence, before analyses or results are materialized.
+        preparation.accept(actionDataSet);
+        return persistDataSet(actionDataSet, updaters, sysUserId);
+    }
+
+    @Override
+    @Transactional
     public List<Analysis> persistDataSet(ResultsUpdateDataSet actionDataSet, List<IResultUpdate> updaters,
             String sysUserId) {
+        actionDataSet.getModifiedItems().forEach(item -> requireProcessingAllowed(item.getAnalysisId()));
+        actionDataSet.getAnalysisOnlyChangeResults().forEach(item -> requireProcessingAllowed(item.getAnalysisId()));
+        actionDataSet.getModifiedAnalysis().forEach(analysis -> requireProcessingAllowed(analysis.getId()));
+        actionDataSet.getNewResults().forEach(set -> requireProcessingAllowed(set.result.getAnalysis().getId()));
+        actionDataSet.getModifiedResults().forEach(set -> requireProcessingAllowed(set.result.getAnalysis().getId()));
+        actionDataSet.getDeletableResults().forEach(result -> requireProcessingAllowed(result.getAnalysis().getId()));
+        List<TestResultItem> unprepared = new ArrayList<>(actionDataSet.getModifiedItems());
+        unprepared.addAll(actionDataSet.getAnalysisOnlyChangeResults());
+        unprepared.removeIf(
+                item -> item.getAdditionalFieldChanges() != null || item.getAdditionalFieldValues().isEmpty());
+        if (!unprepared.isEmpty()) {
+            testAdditionalFieldService.prepareConcurrentUpdates(unprepared);
+        }
         for (Note note : actionDataSet.getNoteList()) {
             noteService.insert(note);
         }
@@ -166,11 +204,14 @@ public class LogbookPersistServiceImpl implements LogbookResultsPersistService {
                 : testAdditionalFieldService.getActiveFieldsForTests(testIds);
 
         for (TestResultItem item : allModifiedItems) {
-            if (item.getAdditionalFieldDefinitions() == null || item.getAdditionalFieldDefinitions().isEmpty()) {
+            if ((item.getAdditionalFieldDefinitions() == null || item.getAdditionalFieldDefinitions().isEmpty())
+                    && item.getAdditionalFieldValues().isEmpty()) {
                 continue;
             }
             testAdditionalFieldService.validateAndPersistAnalysisValues(item.getTestId(), item.getAnalysisId(),
-                    item.getAdditionalFieldValues(), sysUserId, activeFieldsByTestCache, false);
+                    item.getAdditionalFieldChanges() != null ? item.getAdditionalFieldChanges()
+                            : item.getAdditionalFieldValues(),
+                    sysUserId, activeFieldsByTestCache, false);
         }
     }
 
@@ -193,12 +234,16 @@ public class LogbookPersistServiceImpl implements LogbookResultsPersistService {
     protected List<Analysis> setTestReflexes(ResultsUpdateDataSet actionDataSet, String sysUserId) {
         TestReflexUtil testReflexUtil = new TestReflexUtil();
         TestCalculatedUtil testCaliculatedUtil = new TestCalculatedUtil();
-        List allResults = actionDataSet.getNewResults();
+        List<ResultSet> allResults = new ArrayList<>(actionDataSet.getNewResults());
         allResults.addAll(actionDataSet.getModifiedResults());
+        // Alternate-flow exceptions stop at their own results; they do not start
+        // the ordinary reflex/calculated-test workflow.
+        allResults.removeIf(set -> alternateOrderFlowService.isResultsOnlyAnalysis(set.result.getAnalysis().getId()));
         List<Analysis> reflexAnalysises = testReflexUtil
                 .addNewTestsToDBForReflexTests(convertToTestReflexBeanList(allResults), sysUserId);
-        testReflexUtil.updateModifiedReflexes(convertToTestReflexBeanList(actionDataSet.getModifiedResults()),
-                sysUserId);
+        testReflexUtil.updateModifiedReflexes(convertToTestReflexBeanList(actionDataSet.getModifiedResults().stream()
+                .filter(set -> !alternateOrderFlowService.isResultsOnlyAnalysis(set.result.getAnalysis().getId()))
+                .collect(java.util.stream.Collectors.toList())), sysUserId);
         List<Analysis> caclculatedAnalyses = testCaliculatedUtil.addNewTestsToDBForCalculatedTests(allResults,
                 sysUserId);
         reflexAnalysises.addAll(caclculatedAnalyses);

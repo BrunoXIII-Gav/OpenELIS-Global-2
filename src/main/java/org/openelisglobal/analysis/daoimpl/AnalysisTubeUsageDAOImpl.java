@@ -50,10 +50,10 @@ public class AnalysisTubeUsageDAOImpl extends BaseDAOImpl<AnalysisTubeUsage, Lon
     @Override
     public void deleteByAnalysisId(String analysisId) throws LIMSRuntimeException {
         try {
-            String sql = "DELETE FROM analysis_tube_usage WHERE analysis_id = :analysisId";
-            Query<?> query = entityManager.unwrap(Session.class).createNativeQuery(sql);
-            query.setParameter("analysisId", toNumericAnalysisId(analysisId));
-            query.executeUpdate();
+            for (AnalysisTubeUsage usage : getByAnalysisId(analysisId)) {
+                entityManager.remove(usage);
+            }
+            entityManager.flush();
         } catch (Exception e) {
             throw new LIMSRuntimeException("Error deleting analysis tube usage by analysis ID", e);
         }

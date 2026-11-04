@@ -169,7 +169,7 @@ public class TestModifyEntryRestController extends BaseController {
     private List<TestCatalogBean> createTestCatBeanList(String sampleTypeParam, String testSectionParam) {
         List<TestCatalogBean> beanList = new ArrayList<>();
 
-        List<Test> testList = testService.getAllTests(false);
+        List<Test> testList = testService.getAllActiveTests(false);
 
         // Apply server-side filtering if parameters are provided
         if (StringUtils.isNotBlank(sampleTypeParam)) {
@@ -208,16 +208,17 @@ public class TestModifyEntryRestController extends BaseController {
             bean.setResultName(test.getStoredName());
             bean.setResultDisplayConfigJson(test.getResultDisplayConfigJson());
             bean.setDirectSampleUsageEnabled(Boolean.TRUE.equals(test.getDirectSampleUsageEnabled()));
-            bean.setActiveChildDependency(testParentChildDependencyService.getActiveByChildTestId(test.getId()) != null);
+            bean.setActiveChildDependency(
+                    testParentChildDependencyService.getActiveByChildTestId(test.getId()) != null);
             bean.setActiveParentDependency(testParentChildDependencyService.getByParentTestId(test.getId()).stream()
                     .anyMatch(dependency -> Boolean.TRUE.equals(dependency.getActive())));
-            bean.setSkipValidationWhenParentComplete(
-                    Boolean.TRUE.equals(test.getSkipValidationWhenParentComplete()));
+            bean.setAllowProcessingInAlternateFlow(Boolean.TRUE.equals(test.getAllowProcessingInAlternateFlow()));
+            bean.setSkipValidationWhenParentComplete(Boolean.TRUE.equals(test.getSkipValidationWhenParentComplete()));
             bean.setActive(test.isActive() ? "Active" : "Not active");
             bean.setUom(testService.getUOM(test, false));
             // Include inactive fields so Test Modify UI can display and reactivate
             // previously disabled additional fields.
-            bean.setAdditionalFields(testAdditionalFieldService.getFieldsForTest(test.getId(), true));
+            bean.setAdditionalFields(testAdditionalFieldService.getFieldsForTest(test.getId(), true, true));
             if (TypeOfTestResultServiceImpl.ResultType.NUMERIC.matches(resultType)
                     && testResultService.getAllActiveTestResultsPerTest(test).size() != 0) {
                 bean.setSignificantDigits(
@@ -658,6 +659,7 @@ public class TestModifyEntryRestController extends BaseController {
             test.setIsActive(testAddParams.active);
             test.setOrderable("Y".equals(testAddParams.orderable));
             test.setDirectSampleUsageEnabled("Y".equals(testAddParams.directSampleUsageEnabled));
+            test.setAllowProcessingInAlternateFlow("Y".equals(testAddParams.allowProcessingInAlternateFlow));
             test.setSkipValidationWhenParentComplete("Y".equals(testAddParams.skipValidationWhenParentComplete));
             test.setNotifyResults("Y".equals(testAddParams.notifyResults));
             test.setInLabOnly("Y".equals(testAddParams.inLabOnly));
@@ -772,6 +774,7 @@ public class TestModifyEntryRestController extends BaseController {
             testAddParams.orderable = asString(obj.get("orderable"));
             testAddParams.directSampleUsageEnabled = asString(obj.get("directSampleUsageEnabled"));
             testAddParams.skipValidationWhenParentComplete = asString(obj.get("skipValidationWhenParentComplete"));
+            testAddParams.allowProcessingInAlternateFlow = asString(obj.get("allowProcessingInAlternateFlow"));
             testAddParams.notifyResults = asString(obj.get("notifyResults"));
             testAddParams.inLabOnly = asString(obj.get("inLabOnly"));
             testAddParams.antimicrobialResistance = asString(obj.get("antimicrobialResistance"));

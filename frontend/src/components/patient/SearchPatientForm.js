@@ -25,7 +25,6 @@ import {
   Link,
 } from "@carbon/react";
 import { Person, ArrowLeft, ArrowRight } from "@carbon/react/icons";
-import CustomLabNumberInput from "../common/CustomLabNumberInput";
 import { patientSearchHeaderData } from "../data/PatientResultsTableHeaders";
 import { Formik, Field } from "formik";
 import SearchPatientFormValues from "../formModel/innitialValues/SearchPatientFormValues";
@@ -35,14 +34,12 @@ import CustomDatePicker from "../common/CustomDatePicker";
 import { ConfigurationContext } from "../layout/Layout";
 import CreatePatientFormValues from "../formModel/innitialValues/CreatePatientFormValues";
 import AsyncAvatar from "./photoManagement/photoAvatar/AyncAvatar";
-
 function SearchPatientForm(props) {
+  const forOrderEntry = props.forOrderEntry === true;
   const { notificationVisible, setNotificationVisible, addNotification } =
     useContext(NotificationContext);
   const { configurationProperties } = useContext(ConfigurationContext);
-
   const intl = useIntl();
-
   const [dob, setDob] = useState("");
   const [patientSearchResults, setPatientSearchResults] = useState([]);
   const [importStatus, setImportStatus] = useState({});
@@ -61,24 +58,52 @@ function SearchPatientForm(props) {
   );
   const [prevfirstName, setPrevfirstName] = useState("");
   const [prevlastName, setPrevlastName] = useState("");
-
+  const [restrictedCriteria, setRestrictedCriteria] = useState([]);
+  const hideNationalIdColumn = props.hideNationalIdColumn === true;
+  const disableNationalIdSearch = props.disableNationalIdSearch === true;
+  const isRestricted = (criterion) => restrictedCriteria.includes(criterion);
+  const isNameCriterionRestricted = (criterion) =>
+    isRestricted("name") || isRestricted(criterion);
+  const nationalIdRestricted =
+    disableNationalIdSearch || isRestricted("national-id");
+  const firstNameRestricted = isNameCriterionRestricted("first-name");
+  const lastNameRestricted = isNameCriterionRestricted("last-name");
+  const patientTableHeaders = patientSearchHeaderData.filter((header) => {
+    if (
+      (hideNationalIdColumn || isRestricted("national-id")) &&
+      header.key === "nationalId"
+    ) {
+      return false;
+    }
+    if (firstNameRestricted && header.key === "firstName") {
+      return false;
+    }
+    if (lastNameRestricted && header.key === "lastName") {
+      return false;
+    }
+    if (isRestricted("gender") && header.key === "gender") {
+      return false;
+    }
+    return !(isRestricted("birth-date") && header.key === "dob");
+  });
   const handlePatientImport = (patientId) => {
     console.log("Import button clicked, patientId:", patientId);
-
     const patientSelected = patientSearchResults.find(
       (patient) => patient.patientID === patientId,
     );
     console.log("Patient selected:", patientSelected);
-
     if (!patientSelected) {
       addNotification({
-        title: intl.formatMessage({ id: "notification.title" }),
-        message: intl.formatMessage({ id: "error.no.patient.data" }),
+        title: intl.formatMessage({
+          id: "notification.title",
+        }),
+        message: intl.formatMessage({
+          id: "error.no.patient.data",
+        }),
         kind: NotificationKinds.error,
       });
       return;
     }
-
     const dataToSend = {
       ...CreatePatientFormValues,
       patientPK: "",
@@ -107,9 +132,7 @@ function SearchPatientForm(props) {
         },
       },
     };
-
     console.log("Data to send:", dataToSend);
-
     postToOpenElisServer(
       "/rest/PatientManagement",
       JSON.stringify(dataToSend),
@@ -118,13 +141,16 @@ function SearchPatientForm(props) {
       },
     );
   };
-
   const handlePost = (status, patientId) => {
     setNotificationVisible(true);
     if (status === 200) {
       addNotification({
-        title: intl.formatMessage({ id: "notification.title" }),
-        message: intl.formatMessage({ id: "success.import.patient" }),
+        title: intl.formatMessage({
+          id: "notification.title",
+        }),
+        message: intl.formatMessage({
+          id: "success.import.patient",
+        }),
         kind: NotificationKinds.success,
       });
       setImportStatus((prevStatus) => ({
@@ -133,33 +159,39 @@ function SearchPatientForm(props) {
       }));
     } else {
       addNotification({
-        title: intl.formatMessage({ id: "notification.title" }),
-        message: intl.formatMessage({ id: "error.import.patient" }),
+        title: intl.formatMessage({
+          id: "notification.title",
+        }),
+        message: intl.formatMessage({
+          id: "error.import.patient",
+        }),
         kind: NotificationKinds.error,
       });
     }
   };
-
   const handleSubmit = (values) => {
     setNextPage(null);
     setPreviousPage(null);
     setPagination(false);
     setLoading(true);
     values.dateOfBirth = dob;
+    const nationalIdSearchValue = nationalIdRestricted ? "" : values.nationalId;
+    const firstNameSearchValue = firstNameRestricted ? "" : values.firstName;
+    const lastNameSearchValue = lastNameRestricted ? "" : values.lastName;
     let searchEndPoint =
       "/rest/patient-search-results?" +
       "lastName=" +
-      values.lastName +
+      lastNameSearchValue +
       "&firstName=" +
-      values.firstName +
+      firstNameSearchValue +
       "&STNumber=" +
       "" +
       "&subjectNumber=" +
       values.patientId +
       "&nationalID=" +
-      values.patientId +
+      nationalIdSearchValue +
       "&labNumber=" +
-      values.labNumber +
+      encodeURIComponent(String(values.labNumber || "").trim()) +
       "&guid=" +
       values.guid +
       "&dateOfBirth=" +
@@ -168,30 +200,44 @@ function SearchPatientForm(props) {
       values.gender +
       "&suppressExternalSearch=" +
       values.suppressExternalSearch;
-
     if (values.crSearch === true) {
       searchEndPoint += "&crSearch=true";
     }
-
+    if (forOrderEntry) searchEndPoint += "&forOrderEntry=true";
     getFromOpenElisServer(searchEndPoint, fetchPatientResults);
     setUrl(searchEndPoint);
   };
-
   const loadNextResultsPage = () => {
     setLoading(true);
     getFromOpenElisServer(url + "&page=" + nextPage, fetchPatientResults);
   };
-
   const loadPreviousResultsPage = () => {
     setLoading(true);
     getFromOpenElisServer(url + "&page=" + previousPage, fetchPatientResults);
   };
-
   const toggle = () => {
     setIsToggled((prev) => !prev);
   };
-
+  const notifyPatientLoadFailure = (messageId) => {
+    addNotification({
+      title: intl.formatMessage({
+        id: "notification.title",
+      }),
+      message: intl.formatMessage({
+        id: messageId,
+      }),
+      kind: NotificationKinds.error,
+    });
+    setNotificationVisible(true);
+  };
   const fetchPatientResults = (res) => {
+    setLoading(false);
+    if (!Array.isArray(res?.patientSearchResults)) {
+      setPatientSearchResults([]);
+      setPagination(false);
+      notifyPatientLoadFailure("patient.search.unavailable");
+      return;
+    }
     let patientsResults = res.patientSearchResults;
     if (patientsResults.length > 0) {
       patientsResults.forEach((item) => (item.id = item.patientID));
@@ -199,8 +245,12 @@ function SearchPatientForm(props) {
     } else {
       setPatientSearchResults([]);
       addNotification({
-        title: intl.formatMessage({ id: "notification.title" }),
-        message: intl.formatMessage({ id: "patient.search.nopatient" }),
+        title: intl.formatMessage({
+          id: "notification.title",
+        }),
+        message: intl.formatMessage({
+          id: "patient.search.nopatient",
+        }),
         kind: NotificationKinds.warning,
       });
       setNotificationVisible(true);
@@ -225,10 +275,13 @@ function SearchPatientForm(props) {
     }
     setLoading(false);
   };
-
   const fetchPatientDetails = (patientDetails) => {
+    if (!String(patientDetails?.patientPK ?? "").trim()) {
+      notifyPatientLoadFailure("patient.details.unavailable");
+      return;
+    }
     getFromOpenElisServer(
-      `/rest/patient-photos/${patientDetails.patientPK}/${false}`,
+      `/rest/patient-photos/${patientDetails.patientPK}/${false}${forOrderEntry ? "?forOrderEntry=true" : ""}`,
       (response) => {
         if (response && response.data) {
           patientDetails.photo = response.data;
@@ -237,11 +290,9 @@ function SearchPatientForm(props) {
     );
     props.getSelectedPatient(patientDetails);
   };
-
   const handleDatePickerChange = (date) => {
     setDob(date);
   };
-
   function handleFirstNameChange(event) {
     const regexFlags = "iu";
     const regex = new RegExp(
@@ -254,7 +305,6 @@ function SearchPatientForm(props) {
     }
     setPrevfirstName(event.target.value);
   }
-
   function handleLastNameChange(event) {
     const regexFlags = "iu";
     const regex = new RegExp(
@@ -267,25 +317,37 @@ function SearchPatientForm(props) {
     }
     setPrevlastName(event.target.value);
   }
-
   const patientSelected = (e) => {
     const patientSelected = patientSearchResults.find((patient) => {
       return patient.patientID == e.target.id;
     });
+    if (!patientSelected) {
+      notifyPatientLoadFailure("patient.details.unavailable");
+      return;
+    }
     const searchEndPoint =
-      "/rest/patient-details?patientID=" + patientSelected.patientID;
+      "/rest/patient-details?patientID=" +
+      patientSelected.patientID +
+      (forOrderEntry ? "&forOrderEntry=true" : "");
     getFromOpenElisServer(searchEndPoint, fetchPatientDetails);
   };
-
   const handlePageChange = (pageInfo) => {
     if (page != pageInfo.page) {
       setPage(pageInfo.page);
     }
-
     if (pageSize != pageInfo.pageSize) {
       setPageSize(pageInfo.pageSize);
     }
   };
+  useEffect(() => {
+    getFromOpenElisServer("/rest/patient-search/access", (response) => {
+      setRestrictedCriteria(
+        Array.isArray(response?.restrictedCriteria)
+          ? response.restrictedCriteria
+          : [],
+      );
+    });
+  }, []);
   useEffect(() => {
     let patientId = new URLSearchParams(window.location.search).get(
       "patientId",
@@ -330,139 +392,169 @@ function SearchPatientForm(props) {
                 {" "}
                 <br />{" "}
               </Column>
-              <Column lg={8} md={4} sm={4}>
-                <Field name="patientId">
-                  {({ field }) => (
-                    <TextInput
-                      name={field.name}
-                      value={values[field.name]}
-                      placeholder={intl.formatMessage({
-                        id: "input.placeholder.patientId",
-                      })}
-                      labelText={intl.formatMessage({
-                        id: "patient.id",
-                        defaultMessage: "Patient Id",
-                      })}
-                      id={field.name}
-                    />
-                  )}
-                </Field>
-              </Column>
-              <Column lg={8} md={4} sm={4}>
-                <Field name="labNumber">
-                  {({ field }) => (
-                    <CustomLabNumberInput
-                      name={field.name}
-                      placeholder={intl.formatMessage({
-                        id: "input.placeholder.prevLabNumber",
-                      })}
-                      labelText={intl.formatMessage({
-                        id: "order.label.number",
-                        defaultMessage: "Order Number",
-                      })}
-                      id={field.name}
-                      value={values[field.name]}
-                      onChange={(e, rawValue) => {
-                        setFieldValue(field.name, rawValue);
-                      }}
-                    />
-                  )}
-                </Field>
-              </Column>
+              {!isRestricted("patient-id") && (
+                <Column lg={8} md={4} sm={4}>
+                  <Field name="patientId">
+                    {({ field }) => (
+                      <TextInput
+                        name={field.name}
+                        value={values[field.name]}
+                        placeholder={intl.formatMessage({
+                          id: "input.placeholder.patientId",
+                        })}
+                        labelText={intl.formatMessage({
+                          id: "patient.id",
+                          defaultMessage: "Patient Id",
+                        })}
+                        id={field.name}
+                      />
+                    )}
+                  </Field>
+                </Column>
+              )}
+              {!isRestricted("lab-number") && (
+                <Column lg={8} md={4} sm={4}>
+                  <Field name="labNumber">
+                    {({ field }) => (
+                      <TextInput
+                        name={field.name}
+                        placeholder={intl.formatMessage({
+                          id: "patient.search.order.placeholder",
+                        })}
+                        labelText={intl.formatMessage({
+                          id: "patient.search.order.label",
+                        })}
+                        id={field.name}
+                        value={values[field.name]}
+                        onChange={(e) => {
+                          setFieldValue(field.name, e.target.value);
+                        }}
+                      />
+                    )}
+                  </Field>
+                </Column>
+              )}
               <Column lg={16} md={8} sm={4}>
                 {" "}
                 <br />{" "}
               </Column>
-              <Column lg={8} md={4} sm={4}>
-                <Field name="lastName">
-                  {({ field }) => (
-                    <TextInput
-                      name={field.name}
-                      placeholder={intl.formatMessage({
-                        id: "input.placeholder.patientLastName",
-                      })}
-                      labelText={intl.formatMessage({
-                        id: "patient.last.name",
-                        defaultMessage: "Last Name",
-                      })}
-                      id={field.name}
-                      onChange={(e) => handleLastNameChange(e)}
-                    />
-                  )}
-                </Field>
-              </Column>
-              <Column lg={8} md={4} sm={4}>
-                <Field name="firstName">
-                  {({ field }) => (
-                    <TextInput
-                      name={field.name}
-                      placeholder={intl.formatMessage({
-                        id: "input.placeholder.patientFirstName",
-                      })}
-                      labelText={intl.formatMessage({
-                        id: "patient.first.name",
-                        defaultMessage: "First Name",
-                      })}
-                      id={field.name}
-                      onChange={(e) => handleFirstNameChange(e)}
-                    />
-                  )}
-                </Field>
-              </Column>
+              {!nationalIdRestricted && (
+                <Column lg={8} md={4} sm={4}>
+                  <Field name="nationalId">
+                    {({ field }) => (
+                      <TextInput
+                        name={field.name}
+                        value={values[field.name]}
+                        placeholder={intl.formatMessage({
+                          id: "patient.nationalid",
+                        })}
+                        labelText={intl.formatMessage({
+                          id: "patient.nationalid",
+                        })}
+                        id={field.name}
+                      />
+                    )}
+                  </Field>
+                </Column>
+              )}
+              {!lastNameRestricted && (
+                <Column lg={8} md={4} sm={4}>
+                  <Field name="lastName">
+                    {({ field }) => (
+                      <TextInput
+                        name={field.name}
+                        placeholder={intl.formatMessage({
+                          id: "input.placeholder.patientLastName",
+                        })}
+                        labelText={intl.formatMessage({
+                          id: "patient.last.name",
+                          defaultMessage: "Last Name",
+                        })}
+                        id={field.name}
+                        onChange={(e) => handleLastNameChange(e)}
+                      />
+                    )}
+                  </Field>
+                </Column>
+              )}
+              {!firstNameRestricted && (
+                <Column lg={8} md={4} sm={4}>
+                  <Field name="firstName">
+                    {({ field }) => (
+                      <TextInput
+                        name={field.name}
+                        placeholder={intl.formatMessage({
+                          id: "input.placeholder.patientFirstName",
+                        })}
+                        labelText={intl.formatMessage({
+                          id: "patient.first.name",
+                          defaultMessage: "First Name",
+                        })}
+                        id={field.name}
+                        onChange={(e) => handleFirstNameChange(e)}
+                      />
+                    )}
+                  </Field>
+                </Column>
+              )}
               <Column lg={16} md={8} sm={4}>
                 {" "}
                 <br />{" "}
               </Column>
-              <Column lg={8} md={4} sm={4}>
-                <Field name="dateOfBirth">
-                  {({ field }) => (
-                    <CustomDatePicker
-                      id={"date-picker-default-id"}
-                      labelText={intl.formatMessage({
-                        id: "patient.dob",
-                        defaultMessage: "Date of Birth",
-                      })}
-                      autofillDate={true}
-                      value={values.birthDateForDisplay || ""}
-                      onChange={(date) => handleDatePickerChange(date)}
-                      name={field.name}
-                      disallowFutureDate={true}
-                    />
-                  )}
-                </Field>
-              </Column>
-              <Column lg={8} md={4} sm={4}>
-                <Field name="gender">
-                  {({ field }) => (
-                    <RadioButtonGroup
-                      defaultSelected=""
-                      legendText={intl.formatMessage({
-                        id: "patient.gender",
-                        defaultMessage: "Gender",
-                      })}
-                      name={field.name}
-                      id="search_patient_gender"
-                    >
-                      <RadioButton
-                        id="search-radio-1"
+              {!isRestricted("birth-date") && (
+                <Column lg={8} md={4} sm={4}>
+                  <Field name="dateOfBirth">
+                    {({ field }) => (
+                      <CustomDatePicker
+                        id={"date-picker-default-id"}
                         labelText={intl.formatMessage({
-                          id: "patient.male",
-                          defaultMessage: "Male",
+                          id: "patient.dob",
+                          defaultMessage: "Date of Birth",
                         })}
-                        value="M"
+                        autofillDate={true}
+                        value={values.birthDateForDisplay || ""}
+                        onChange={(date) => handleDatePickerChange(date)}
+                        name={field.name}
+                        disallowFutureDate={true}
                       />
-                      <RadioButton
-                        id="search-radio-2"
-                        labelText={intl.formatMessage({
-                          id: "patient.female",
-                          defaultMessage: "Female",
+                    )}
+                  </Field>
+                </Column>
+              )}
+              {!isRestricted("gender") && (
+                <Column lg={8} md={4} sm={4}>
+                  <Field name="gender">
+                    {({ field }) => (
+                      <RadioButtonGroup
+                        defaultSelected=""
+                        legendText={intl.formatMessage({
+                          id: "patient.gender",
+                          defaultMessage: "Gender",
                         })}
-                        value="F"
-                      />
-                    </RadioButtonGroup>
-                  )}
-                </Field>
-              </Column>
+                        name={field.name}
+                        id="search_patient_gender"
+                      >
+                        <RadioButton
+                          id="search-radio-1"
+                          labelText={intl.formatMessage({
+                            id: "patient.male",
+                            defaultMessage: "Male",
+                          })}
+                          value="M"
+                        />
+                        <RadioButton
+                          id="search-radio-2"
+                          labelText={intl.formatMessage({
+                            id: "patient.female",
+                            defaultMessage: "Female",
+                          })}
+                          value="F"
+                        />
+                      </RadioButtonGroup>
+                    )}
+                  </Field>
+                </Column>
+              )}
               <Column lg={16} md={8} sm={4}>
                 {" "}
                 <br />{" "}
@@ -478,37 +570,42 @@ function SearchPatientForm(props) {
                   <FormattedMessage id="label.button.search" />
                 </Button>
               </Column>
-              <Column lg={4} md={4} sm={2}>
-                <Button
-                  id="external_search"
-                  type="submit"
-                  disabled={
-                    configurationProperties.UseExternalPatientInfo === "false"
-                  }
-                  kind="tertiary"
-                  onClick={() => setFieldValue("suppressExternalSearch", false)}
-                >
-                  <FormattedMessage
-                    id="label.button.externalsearch"
-                    defaultMessage="External Search"
-                  />
-                </Button>
-              </Column>
-              {configurationProperties.ENABLE_CLIENT_REGISTRY === "true" && (
+              {!isRestricted("external-search") && (
                 <Column lg={4} md={4} sm={2}>
-                  <Toggle
-                    labelText="Client Registry Search"
-                    labelA="false"
-                    labelB="true"
-                    id="toggle-cr"
-                    toggled={isToggled}
-                    onClick={() => {
-                      toggle();
-                      setFieldValue("crSearch", !isToggled);
-                    }}
-                  />
+                  <Button
+                    id="external_search"
+                    type="submit"
+                    disabled={
+                      configurationProperties.UseExternalPatientInfo === "false"
+                    }
+                    kind="tertiary"
+                    onClick={() =>
+                      setFieldValue("suppressExternalSearch", false)
+                    }
+                  >
+                    <FormattedMessage
+                      id="label.button.externalsearch"
+                      defaultMessage="External Search"
+                    />
+                  </Button>
                 </Column>
               )}
+              {configurationProperties.ENABLE_CLIENT_REGISTRY === "true" &&
+                !isRestricted("external-search") && (
+                  <Column lg={4} md={4} sm={2}>
+                    <Toggle
+                      labelText="Client Registry Search"
+                      labelA="false"
+                      labelB="true"
+                      id="toggle-cr"
+                      toggled={isToggled}
+                      onClick={() => {
+                        toggle();
+                        setFieldValue("crSearch", !isToggled);
+                      }}
+                    />
+                  </Column>
+                )}
               <Column lg={16}>
                 {" "}
                 <br />
@@ -538,7 +635,12 @@ function SearchPatientForm(props) {
             <Link>
               {currentApiPage} / {totalApiPages}
             </Link>
-            <div style={{ display: "flex", gap: "10px" }}>
+            <div
+              style={{
+                display: "flex",
+                gap: "10px",
+              }}
+            >
               <Button
                 hasIconOnly
                 id="loadpreviousresults"
@@ -561,7 +663,7 @@ function SearchPatientForm(props) {
       )}
       <DataTable
         rows={patientSearchResults}
-        headers={patientSearchHeaderData}
+        headers={patientTableHeaders}
         isSortable
       >
         {({ rows, headers, getHeaderProps, getTableProps }) => (
@@ -578,7 +680,9 @@ function SearchPatientForm(props) {
                   {headers.map((header) => (
                     <TableHeader
                       key={header.key}
-                      {...getHeaderProps({ header })}
+                      {...getHeaderProps({
+                        header,
+                      })}
                     >
                       {header.header}
                     </TableHeader>
@@ -600,13 +704,15 @@ function SearchPatientForm(props) {
                         ?.value || "";
                     const patientName =
                       `${firstName} ${lastName}`.trim() || "Patient";
-
                     return (
                       <TableRow key={row.id}>
                         <TableCell>
                           {dataSourceName === "OpenElis" ? (
                             <div
-                              style={{ display: "flex", flexDirection: "row" }}
+                              style={{
+                                display: "flex",
+                                flexDirection: "row",
+                              }}
                             >
                               <RadioButton
                                 data-cy="radioButton"
@@ -616,6 +722,7 @@ function SearchPatientForm(props) {
                                 id={row.id}
                               />
                               <AsyncAvatar
+                                forOrderEntry={forOrderEntry}
                                 patientId={row.id}
                                 hasPhoto={true}
                                 patientName={patientName}
@@ -683,35 +790,63 @@ function SearchPatientForm(props) {
         pageSize={pageSize}
         pageSizes={[10, 20, 30, 50, 100]}
         totalItems={patientSearchResults.length}
-        forwardText={intl.formatMessage({ id: "pagination.forward" })}
-        backwardText={intl.formatMessage({ id: "pagination.backward" })}
+        forwardText={intl.formatMessage({
+          id: "pagination.forward",
+        })}
+        backwardText={intl.formatMessage({
+          id: "pagination.backward",
+        })}
         itemRangeText={(min, max, total) =>
           intl.formatMessage(
-            { id: "pagination.item-range" },
-            { min: min, max: max, total: total },
+            {
+              id: "pagination.item-range",
+            },
+            {
+              min: min,
+              max: max,
+              total: total,
+            },
           )
         }
         itemsPerPageText={intl.formatMessage({
           id: "pagination.items-per-page",
         })}
         itemText={(min, max) =>
-          intl.formatMessage({ id: "pagination.item" }, { min: min, max: max })
+          intl.formatMessage(
+            {
+              id: "pagination.item",
+            },
+            {
+              min: min,
+              max: max,
+            },
+          )
         }
         pageNumberText={intl.formatMessage({
           id: "pagination.page-number",
         })}
         pageRangeText={(_current, total) =>
-          intl.formatMessage({ id: "pagination.page-range" }, { total: total })
+          intl.formatMessage(
+            {
+              id: "pagination.page-range",
+            },
+            {
+              total: total,
+            },
+          )
         }
         pageText={(page, pagesUnknown) =>
           intl.formatMessage(
-            { id: "pagination.page" },
-            { page: pagesUnknown ? "" : page },
+            {
+              id: "pagination.page",
+            },
+            {
+              page: pagesUnknown ? "" : page,
+            },
           )
         }
       />
     </>
   );
 }
-
 export default injectIntl(SearchPatientForm);

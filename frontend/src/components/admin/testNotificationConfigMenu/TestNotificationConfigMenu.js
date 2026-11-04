@@ -22,9 +22,7 @@ import {
   getFromOpenElisServer,
   postToOpenElisServerJsonResponse,
 } from "../../utils/Utils.js";
-import {
-  NotificationContext,
-} from "../../layout/Layout.js";
+import { NotificationContext } from "../../layout/Layout.js";
 import {
   AlertDialog,
   NotificationKinds,
@@ -390,7 +388,8 @@ function TestNotificationConfigMenu() {
                   },
                   {
                     shown: filteredMenuList.length,
-                    total: testNotificationConfigMenuDataPost?.menuList.length || 0,
+                    total:
+                      testNotificationConfigMenuDataPost?.menuList.length || 0,
                   },
                 )}
               </Section>
@@ -442,12 +441,7 @@ function TestNotificationConfigMenu() {
                   },
                 ]}
               >
-                {({
-                  rows,
-                  headers,
-                  getHeaderProps,
-                  getTableProps,
-                }) => (
+                {({ rows, headers, getHeaderProps, getTableProps }) => (
                   <TableContainer>
                     <Table {...getTableProps()}>
                       <TableHead>

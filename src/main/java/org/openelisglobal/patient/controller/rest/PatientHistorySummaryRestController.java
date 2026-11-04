@@ -1,29 +1,94 @@
 package org.openelisglobal.patient.controller.rest;
 
+import jakarta.servlet.http.HttpServletRequest;
+import java.util.Map;
+import org.openelisglobal.authorization.service.ModuleAuthorizationService;
 import org.openelisglobal.common.rest.BaseRestController;
 import org.openelisglobal.patient.form.PatientHistorySummary;
+import org.openelisglobal.patient.form.ResultDeliveryForm;
+import org.openelisglobal.patient.service.PatientAuthorizationService;
 import org.openelisglobal.patient.service.PatientHistorySummaryService;
+import org.openelisglobal.patient.service.PatientValidationHistoryService;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.http.MediaType;
-import org.springframework.security.access.prepost.PreAuthorize;
+import org.springframework.http.ResponseEntity;
+import org.springframework.security.access.AccessDeniedException;
 import org.springframework.stereotype.Controller;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PathVariable;
+import org.springframework.web.bind.annotation.PostMapping;
+import org.springframework.web.bind.annotation.PutMapping;
+import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.ResponseBody;
 
 @Controller
 @RequestMapping(value = "/rest/")
-@PreAuthorize("@accessControl.hasAnyPermission(T(org.openelisglobal.common.constants.SystemPermission).PATIENT, "
-        + "T(org.openelisglobal.common.constants.SystemPermission).ORDER)")
 public class PatientHistorySummaryRestController extends BaseRestController {
 
     @Autowired
     private PatientHistorySummaryService patientHistorySummaryService;
 
+    @Autowired
+    private PatientAuthorizationService patientAuthorizationService;
+
+    @Autowired
+    private ModuleAuthorizationService moduleAuthorizationService;
+
+    @Autowired
+    private PatientValidationHistoryService patientValidationHistoryService;
+
     @GetMapping(value = "patient-history/{patientId}/summary", produces = MediaType.APPLICATION_JSON_VALUE)
     @ResponseBody
-    public PatientHistorySummary getPatientHistorySummary(@PathVariable String patientId) {
-        return patientHistorySummaryService.getSummary(patientId);
+    public PatientHistorySummary getPatientHistorySummary(HttpServletRequest request, @PathVariable String patientId) {
+        if (!patientAuthorizationService.canAccessPatient(getSysUserId(request), patientId, "read")) {
+            throw new AccessDeniedException("User does not have Patients module permission: read");
+        }
+        PatientHistorySummary summary = patientHistorySummaryService.getSummary(patientId);
+        summary.setRestrictedFieldTagKeys(
+                moduleAuthorizationService.getRestrictedFieldTagKeys(getSysUserId(request), "patients"));
+        summary.setRestrictedFieldGroupKeys(
+                moduleAuthorizationService.getRestrictedFieldGroupKeys(getSysUserId(request), "patients"));
+        summary.setValidations(patientValidationHistoryService.getRecords(patientId, getSysUserId(request)));
+        return summary;
+    }
+
+    @PutMapping(value = "patient-history/{patientId}/validations/{analysisId}/delivery", consumes = MediaType.APPLICATION_JSON_VALUE)
+    @ResponseBody
+    public ResponseEntity<?> registerDelivery(HttpServletRequest request, @PathVariable String patientId,
+            @PathVariable String analysisId, @RequestBody ResultDeliveryForm form) {
+        try {
+            patientValidationHistoryService.registerDelivery(patientId, analysisId,
+                    form == null ? null : form.deliveredDate(), form == null ? null : form.reason(),
+                    getSysUserId(request));
+            return ResponseEntity.noContent().build();
+        } catch (IllegalArgumentException e) {
+            return ResponseEntity.badRequest().body(Map.of("error", e.getMessage()));
+        }
+    }
+
+    @PostMapping(value = "patient-history/{patientId}/validations/{analysisId}/amendment", consumes = MediaType.APPLICATION_JSON_VALUE)
+    @ResponseBody
+    public ResponseEntity<?> createAmendment(HttpServletRequest request, @PathVariable String patientId,
+            @PathVariable String analysisId, @RequestBody ResultDeliveryForm form) {
+        try {
+            return ResponseEntity.ok(Map.of("analysisId", patientValidationHistoryService.createAmendment(patientId,
+                    analysisId, form == null ? null : form.reason(), getSysUserId(request))));
+        } catch (IllegalArgumentException e) {
+            return ResponseEntity.badRequest().body(Map.of("error", e.getMessage()));
+        }
+    }
+
+    @PostMapping(value = "patient-history/{patientId}/validations/{analysisId}/delivery/reopen", consumes = MediaType.APPLICATION_JSON_VALUE)
+    @ResponseBody
+    public ResponseEntity<?> reopenDelivery(HttpServletRequest request, @PathVariable String patientId,
+            @PathVariable String analysisId, @RequestBody ResultDeliveryForm form) {
+        try {
+            patientValidationHistoryService.reopenDelivery(patientId, analysisId, form == null ? null : form.reason(),
+                    getSysUserId(request));
+            return ResponseEntity.noContent().build();
+        } catch (IllegalArgumentException e) {
+            return ResponseEntity.badRequest().body(Map.of("error", e.getMessage()));
+        }
     }
 }

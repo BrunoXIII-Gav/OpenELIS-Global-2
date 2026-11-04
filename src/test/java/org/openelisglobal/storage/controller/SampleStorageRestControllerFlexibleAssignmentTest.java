@@ -23,8 +23,10 @@ public class SampleStorageRestControllerFlexibleAssignmentTest extends BaseWebCo
     @Before
     public void setUp() throws Exception {
         super.setUp();
+        useAuthenticatedAdminRequests();
         objectMapper = new ObjectMapper();
         executeDataSetWithStateManagement("testdata/flexible-assignment-test-data.xml");
+        executeDataSetWithStateManagement("testdata/storage-controller-access.xml", false);
     }
 
     @Test

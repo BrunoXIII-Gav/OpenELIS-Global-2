@@ -1,3 +1,4 @@
+import HistoricalUserSelectItem from "../common/HistoricalUserSelectItem";
 import {
   Checkbox,
   FormGroup,
@@ -24,20 +25,19 @@ import CustomTimePicker from "../common/CustomTimePicker";
 import { sampleTypeTestsStructure } from "../data/SampleEntryTestsForTypeProvider";
 import { ConfigurationContext, NotificationContext } from "../layout/Layout";
 import StorageLocationSelector from "../storage/StorageLocationSelector";
-import { getFromOpenElisServer } from "../utils/Utils";
+import {
+  getFromOpenElisServer,
+  postToOpenElisServerJsonResponse,
+} from "../utils/Utils";
 import GpsCoordinatesCapture from "./GpsCoordinatesCapture";
-
 const SampleType = (props) => {
   const { userSessionDetails } = useContext(UserSessionDetailsContext);
   const { configurationProperties } = useContext(ConfigurationContext);
-
   const intl = useIntl();
-
   const componentMounted = useRef(false);
   const sampleTypesRef = useRef(null);
-
   const { index, rejectSampleReasons, sample } = props;
-
+  const isExistingSample = Boolean(sample?.existingSampleItemId);
   const [sampleTypes, setSampleTypes] = useState([]);
   const [selectedSampleType, setSelectedSampleType] = useState({
     id: sample?.sampleTypeId || null,
@@ -99,7 +99,6 @@ const SampleType = (props) => {
     waitingForSampleFixedFieldConfig,
     setWaitingForSampleFixedFieldConfig,
   ] = useState(true);
-
   function getSampleFixedFieldConfig(fieldKey) {
     return (
       sampleFixedFieldConfigs.find(
@@ -107,7 +106,6 @@ const SampleType = (props) => {
       ) || null
     );
   }
-
   function isSampleFieldVisible(fieldKey) {
     if (waitingForSampleFixedFieldConfig && !sampleFixedFieldConfigs.length) {
       return false;
@@ -115,7 +113,6 @@ const SampleType = (props) => {
     const config = getSampleFixedFieldConfig(fieldKey);
     return config ? config.visible !== false : true;
   }
-
   function isSampleFieldRequired(fieldKey, fallback = false) {
     const config = getSampleFixedFieldConfig(fieldKey);
     if (!config) {
@@ -126,17 +123,21 @@ const SampleType = (props) => {
     }
     return config.required != null ? !!config.required : fallback;
   }
-
+  function isSampleFieldReadonly(fieldKey, fallback = false) {
+    const config = getSampleFixedFieldConfig(fieldKey);
+    if (!config) {
+      return fallback;
+    }
+    return config.readonly != null ? !!config.readonly : fallback;
+  }
   const additionalFieldsVisible = isSampleFieldVisible("additionalFields");
   const referralFieldVisible = isSampleFieldVisible("referral");
-
   function handleCollectionDate(date) {
     setSampleXml({
       ...sampleXml,
       collectionDate: date,
     });
   }
-
   function handleReasons(value) {
     setSampleXml({
       ...sampleXml,
@@ -147,21 +148,18 @@ const SampleType = (props) => {
       sampleObjectIndex: index,
     });
   }
-
   function handleCollectionTime(time) {
     setSampleXml({
       ...sampleXml,
       collectionTime: time,
     });
   }
-
   function handleCollector(value) {
     setSampleXml({
       ...sampleXml,
       collector: value,
     });
   }
-
   const handleGpsCoordinatesChange = useCallback(
     (gpsData) => {
       const updatedSampleXml = {
@@ -179,7 +177,6 @@ const SampleType = (props) => {
     },
     [sampleXml, props.sampleTypeObject, index],
   );
-
   function handleStorageLocationChange(location, positionCoordinate) {
     const normalizedLocation = {
       ...(location || {}),
@@ -209,28 +206,24 @@ const SampleType = (props) => {
         location?.position?.coordinate ||
         "",
     };
-
     setSampleXml({
       ...sampleXml,
       storageLocation: normalizedLocation,
       storagePositionId: location?.position?.id || null,
     });
   }
-
   function handleQuantity(value) {
     setSampleXml({
       ...sampleXml,
       quantity: value.target.value,
     });
   }
-
   function handleUom(value) {
     setSampleXml({
       ...sampleXml,
       uom: value,
     });
   }
-
   function handleAdditionalFieldValueChange(fieldKey, value) {
     setSampleXml((previous) => ({
       ...previous,
@@ -240,30 +233,25 @@ const SampleType = (props) => {
       },
     }));
   }
-
   function handleAdditionalMultiSelectOption(fieldKey, optionKey, checked) {
     const currentValues = (sampleXml.additionalFieldValues?.[fieldKey] || "")
       .split(",")
       .map((value) => value.trim())
       .filter((value) => value !== "");
     const currentSet = new Set(currentValues);
-
     if (checked) {
       currentSet.add(optionKey);
     } else {
       currentSet.delete(optionKey);
     }
-
     handleAdditionalFieldValueChange(
       fieldKey,
       Array.from(currentSet).join(","),
     );
   }
-
   useEffect(() => {
     updateSampleXml(sampleXml, index);
   }, [sampleXml]);
-
   const handleReferralRequest = () => {
     setRequestTestReferral(!requestTestReferral);
     if (selectedTests.length > 0) {
@@ -281,7 +269,6 @@ const SampleType = (props) => {
       setReferralRequests(defaultReferralRequest);
     }
   };
-
   const handleTestSearchChange = (event) => {
     const query = event.target.value;
     setTestSearchTerm(query);
@@ -290,16 +277,13 @@ const SampleType = (props) => {
     });
     setSearchBoxTests(results);
   };
-
   const handleRemoveSelectedTest = (test) => {
     removedTestFromSelectedTests(test);
   };
-
   const handleFilterSelectTest = (test) => {
     setTestSearchTerm("");
     addTestToSelectedTests(test);
   };
-
   const handleTestCheckbox = (e, test) => {
     if (isTestLocked(test.id)) {
       return;
@@ -310,15 +294,12 @@ const SampleType = (props) => {
       removedTestFromSelectedTests(test);
     }
   };
-
   function findTestById(testId) {
     return sampleTypeTests.tests.find((test) => test.id === testId);
   }
-
   function findTestIndex(testId) {
     return sampleTypeTests.tests.findIndex((test) => test.id === testId);
   }
-
   const panelIsSelected = (panelId) => {
     for (let i in selectedPanels) {
       if (selectedPanels[i].id === panelId) {
@@ -327,7 +308,6 @@ const SampleType = (props) => {
     }
     return false;
   };
-
   const testIsSelected = (testId) => {
     for (let i in selectedTests) {
       if (selectedTests[i].id === testId) {
@@ -336,7 +316,6 @@ const SampleType = (props) => {
     }
     return false;
   };
-
   const isTestLocked = (testId) => {
     const lockedTestIds = Array.isArray(props.lockedTestIds)
       ? props.lockedTestIds
@@ -345,7 +324,6 @@ const SampleType = (props) => {
       (lockedTestId) => String(lockedTestId) === String(testId),
     );
   };
-
   const triggerPanelCheckBoxChange = (isChecked, testIds) => {
     const testIdsList = testIds.split(",").map((id) => id.trim());
     testIdsList.map((testId) => {
@@ -355,7 +333,13 @@ const SampleType = (props) => {
         if (isChecked) {
           if (!testIsSelected(test.id)) {
             setSelectedTests((prevState) => {
-              return [...prevState, { id: test.id, name: test.name }];
+              return [
+                ...prevState,
+                {
+                  id: test.id,
+                  name: test.name,
+                },
+              ];
             });
           }
         } else {
@@ -364,7 +348,6 @@ const SampleType = (props) => {
       }
     });
   };
-
   const removedTestFromSelectedTests = (test) => {
     if (isTestLocked(test?.id)) {
       return;
@@ -373,7 +356,6 @@ const SampleType = (props) => {
       previous.filter((selectedTest) => selectedTest.id !== test.id),
     );
   };
-
   const handleFetchSampleTypeTests = (e, index) => {
     setSelectedTests([]);
     setSelectedPanels([]);
@@ -391,14 +373,21 @@ const SampleType = (props) => {
       ...previous,
       additionalFieldValues: {},
     }));
-    props.sampleTypeObject({ sampleTypeId: value, sampleObjectIndex: index });
-    props.sampleTypeObject({ additionalFields: [], sampleObjectIndex: index });
+    props.sampleTypeObject({
+      sampleTypeId: value,
+      sampleObjectIndex: index,
+    });
+    props.sampleTypeObject({
+      additionalFields: [],
+      sampleObjectIndex: index,
+    });
   };
-
   const updateSampleXml = (sampleXML, index) => {
-    props.sampleTypeObject({ sampleXML: sampleXML, sampleObjectIndex: index });
+    props.sampleTypeObject({
+      sampleXML: sampleXML,
+      sampleObjectIndex: index,
+    });
   };
-
   const fetchSamplesTypes = (res) => {
     if (componentMounted.current) {
       const normalized = (Array.isArray(res) ? res : []).map((sampleType) => {
@@ -408,7 +397,6 @@ const SampleType = (props) => {
           sampleType?.description,
           sampleType?.id,
         ].find((entry) => String(entry || "").trim() !== "");
-
         return {
           ...sampleType,
           value: displayValue || "",
@@ -418,7 +406,6 @@ const SampleType = (props) => {
       setLoading(false);
     }
   };
-
   const fetchSampleTypeTests = (res) => {
     if (componentMounted.current) {
       setSampleTypeTests({
@@ -428,14 +415,12 @@ const SampleType = (props) => {
       });
     }
   };
-
   useEffect(() => {
     if (props.sample.referralItems.length > 0 && referralReasons.length > 0) {
       setRequestTestReferral(props.sample.requestReferralEnabled);
       setReferralRequests(props.sample.referralItems);
     }
   }, [referralReasons]);
-
   useEffect(() => {
     props.sampleTypeObject({
       requestReferralEnabled: requestTestReferral,
@@ -445,19 +430,16 @@ const SampleType = (props) => {
       setReferralRequests([]);
     }
   }, [requestTestReferral]);
-
   useEffect(() => {
     props.sampleTypeObject({
       referralItems: referralRequests,
       sampleObjectIndex: index,
     });
   }, [referralRequests]);
-
   useEffect(() => {
     if (referralFieldVisible) {
       return;
     }
-
     if (requestTestReferral) {
       setRequestTestReferral(false);
     }
@@ -465,7 +447,6 @@ const SampleType = (props) => {
       setReferralRequests([]);
     }
   }, [referralFieldVisible, referralRequests.length, requestTestReferral]);
-
   const displayReferralReasonsOptions = (res) => {
     if (componentMounted.current) {
       setReferralReasons(Array.isArray(res) ? res : []);
@@ -476,13 +457,16 @@ const SampleType = (props) => {
       setReferralOrganizations(Array.isArray(res) ? res : []);
     }
   };
-
   function handleRejection(checked) {
     if (checked) {
       addNotification({
         kind: NotificationKinds.warning,
-        title: intl.formatMessage({ id: "notification.title" }),
-        message: intl.formatMessage({ id: "reject.order.sample.notification" }),
+        title: intl.formatMessage({
+          id: "notification.title",
+        }),
+        message: intl.formatMessage({
+          id: "reject.order.sample.notification",
+        }),
       });
       setNotificationVisible(true);
     }
@@ -492,14 +476,12 @@ const SampleType = (props) => {
     });
     setRejectionReasonsDisabled(!rejectionReasonsDisabled);
   }
-
   const removedPanelFromSelectedPanels = (panel) => {
     triggerPanelCheckBoxChange(false, panel.testIds);
     setSelectedPanels((previous) =>
       previous.filter((selectedPanel) => selectedPanel.id !== panel.id),
     );
   };
-
   const handlePanelSearchChange = (event) => {
     const query = event.target.value;
     setPanelSearchTerm(query);
@@ -508,12 +490,10 @@ const SampleType = (props) => {
     });
     setSearchBoxPanels(results);
   };
-
   const handleFilterSelectPanel = (panel) => {
     setPanelSearchTerm("");
     addPanelToSelectedPanels(panel);
   };
-
   const handlePanelCheckbox = (panel) => {
     if (!panelIsSelected(panel.id)) {
       addPanelToSelectedPanels(panel);
@@ -521,24 +501,30 @@ const SampleType = (props) => {
       removedPanelFromSelectedPanels(panel);
     }
   };
-
   const handleRemoveSelectedPanel = (panel) => {
     removedPanelFromSelectedPanels(panel);
   };
-
   function addTestToSelectedTests(test) {
     if (!testIsSelected(test.id)) {
-      setSelectedTests([...selectedTests, { id: test.id, name: test.name }]);
+      setSelectedTests([
+        ...selectedTests,
+        {
+          id: test.id,
+          name: test.name,
+        },
+      ]);
     }
   }
-
   const addPanelToSelectedPanels = (panel) => {
     setSelectedPanels([
       ...selectedPanels,
-      { id: panel.id, name: panel.name, testIds: panel.testIds },
+      {
+        id: panel.id,
+        name: panel.name,
+        testIds: panel.testIds,
+      },
     ]);
   };
-
   useEffect(() => {
     componentMounted.current = true;
     if (selectedSampleType.id !== "" && selectedSampleType.id != null) {
@@ -551,7 +537,6 @@ const SampleType = (props) => {
       componentMounted.current = false;
     };
   }, [selectedSampleType.id]);
-
   useEffect(() => {
     const additionalFields = additionalFieldsVisible
       ? sampleTypeTests?.additionalFields || []
@@ -560,16 +545,15 @@ const SampleType = (props) => {
       additionalFields: additionalFields,
       sampleObjectIndex: index,
     });
-
     if (additionalFields.length === 0) {
       return;
     }
-
     setSampleXml((previous) => {
       const existingValues = previous.additionalFieldValues || {};
-      const updatedValues = { ...existingValues };
+      const updatedValues = {
+        ...existingValues,
+      };
       let changed = previous.additionalFieldValues == null;
-
       additionalFields.forEach((field) => {
         const fieldKey = field.fieldKey;
         const defaultValue = field.defaultValue;
@@ -586,18 +570,15 @@ const SampleType = (props) => {
           changed = true;
         }
       });
-
       if (!changed) {
         return previous;
       }
-
       return {
         ...previous,
         additionalFieldValues: updatedValues,
       };
     });
   }, [sampleTypeTests.additionalFields, additionalFieldsVisible, index]);
-
   useEffect(() => {
     getFromOpenElisServer(`/rest/displayList/UNIT_OF_MEASURE`, fetchUomCreate);
     getFromOpenElisServer("/rest/sample-type-uoms/assignments", (res) => {
@@ -606,7 +587,6 @@ const SampleType = (props) => {
       }
     });
   }, []);
-
   const availableUomsForSampleType = (() => {
     const sampleTypeId = String(selectedSampleType.id || "");
     const assignedIds = uomAssignmentsBySampleType[sampleTypeId] || [];
@@ -615,7 +595,6 @@ const SampleType = (props) => {
     }
     return uomList.filter((uom) => assignedIds.includes(String(uom.id)));
   })();
-
   useEffect(() => {
     if (!sampleXml.uom) {
       return;
@@ -630,7 +609,6 @@ const SampleType = (props) => {
       }));
     }
   }, [availableUomsForSampleType, sampleXml.uom]);
-
   const fetchUomCreate = (res) => {
     if (componentMounted.current) {
       if (Array.isArray(res)) {
@@ -642,21 +620,18 @@ const SampleType = (props) => {
       );
     }
   };
-
   useEffect(() => {
     props.sampleTypeObject({
       sampleRejected: rejectionReasonsDisabled,
       sampleObjectIndex: index,
     });
   }, [rejectionReasonsDisabled]);
-
   useEffect(() => {
     props.sampleTypeObject({
       selectedTests: [...selectedTests],
       sampleObjectIndex: index,
     });
   }, [selectedTests]);
-
   useEffect(() => {
     props.sampleTypeObject({
       selectedPanels: [...selectedPanels],
@@ -666,7 +641,6 @@ const SampleType = (props) => {
       triggerPanelCheckBoxChange(true, selectedPanels[i].testIds);
     }
   }, [selectedPanels, sampleTypeTests]);
-
   useEffect(() => {
     componentMounted.current = true;
     getFromOpenElisServer(
@@ -691,7 +665,6 @@ const SampleType = (props) => {
       componentMounted.current = false;
     };
   }, []);
-
   const renderAdditionalField = (field) => {
     const fieldType = (field.fieldType || "TEXT").toUpperCase();
     const fieldKey = field.fieldKey;
@@ -699,7 +672,6 @@ const SampleType = (props) => {
     const options = field.options || [];
     const required = Boolean(field.required);
     const fieldLabel = field.displayName || field.fieldKey;
-
     if (fieldType === "BOOLEAN") {
       return (
         <Checkbox
@@ -715,11 +687,10 @@ const SampleType = (props) => {
         />
       );
     }
-
     if (
       fieldType === "SELECT" ||
       fieldType === "RADIO" ||
-      fieldType === "SYSTEM_USER_BIOLOGIST_SELECT"
+      fieldType === "USER"
     ) {
       return (
         <Select
@@ -732,8 +703,15 @@ const SampleType = (props) => {
           }
         >
           <SelectItem
-            text={intl.formatMessage({ id: "label.select" })}
+            text={intl.formatMessage({
+              id: "label.select",
+            })}
             value=""
+          />
+          <HistoricalUserSelectItem
+            fieldType={fieldType}
+            value={value}
+            options={options}
           />
           {options.map((option, optionIndex) => (
             <SelectItem
@@ -745,7 +723,6 @@ const SampleType = (props) => {
         </Select>
       );
     }
-
     if (fieldType === "MULTISELECT") {
       const selectedValues = new Set(
         value
@@ -753,7 +730,6 @@ const SampleType = (props) => {
           .map((entry) => entry.trim())
           .filter((entry) => entry !== ""),
       );
-
       return (
         <FormGroup legendText={fieldLabel}>
           {options.map((option, optionIndex) => (
@@ -774,7 +750,6 @@ const SampleType = (props) => {
         </FormGroup>
       );
     }
-
     if (fieldType === "TEXTAREA") {
       return (
         <TextArea
@@ -789,7 +764,6 @@ const SampleType = (props) => {
         />
       );
     }
-
     const htmlInputType =
       fieldType === "NUMBER"
         ? "number"
@@ -800,7 +774,6 @@ const SampleType = (props) => {
             : fieldType === "DATETIME"
               ? "datetime-local"
               : "text";
-
     return (
       <TextInput
         id={`additional_field_${index}_${fieldKey}`}
@@ -815,7 +788,6 @@ const SampleType = (props) => {
       />
     );
   };
-
   return (
     <>
       {loading && <Loading />}
@@ -836,7 +808,9 @@ const SampleType = (props) => {
           required
         >
           <SelectItem
-            text={intl.formatMessage({ id: "sample.type.select.placeholder" })}
+            text={intl.formatMessage({
+              id: "sample.type.select.placeholder",
+            })}
             value=""
           />
           {sampleTypes?.map((sampleType, i) => (
@@ -847,7 +821,9 @@ const SampleType = (props) => {
           <CustomCheckBox
             id={"reject_" + index}
             onChange={(value) => handleRejection(value)}
-            label={intl.formatMessage({ id: "sample.reject.label" })}
+            label={intl.formatMessage({
+              id: "sample.reject.label",
+            })}
           />
         )}
         {sampleXml.rejected && (
@@ -859,8 +835,15 @@ const SampleType = (props) => {
             onChange={(e) => handleReasons(e)}
           />
         )}
+
         {isSampleFieldVisible("quantity") && (
-          <div className="inlineDiv" style={{ display: "flex", gap: "1rem" }}>
+          <div
+            className="inlineDiv"
+            style={{
+              display: "flex",
+              gap: "1rem",
+            }}
+          >
             <TextInput
               value={sampleXml.quantity}
               name="quantity"
@@ -878,7 +861,9 @@ const SampleType = (props) => {
 
             <CustomSelect
               id={"uomId_" + index}
-              labelText={intl.formatMessage({ id: "sample.uom.label" })}
+              labelText={intl.formatMessage({
+                id: "sample.uom.label",
+              })}
               options={availableUomsForSampleType}
               disabled={false}
               value={sampleXml.uom}
@@ -895,7 +880,9 @@ const SampleType = (props) => {
               }
               onChange={(date) => handleCollectionDate(date)}
               value={sampleXml.collectionDate}
-              labelText={intl.formatMessage({ id: "sample.collection.date" })}
+              labelText={intl.formatMessage({
+                id: "sample.collection.date",
+              })}
               className="inputText"
               disallowFutureDate={true}
             />
@@ -908,7 +895,9 @@ const SampleType = (props) => {
               onChange={(time) => handleCollectionTime(time)}
               value={sampleXml.collectionTime}
               className="inputText"
-              labelText={intl.formatMessage({ id: "sample.collection.time" })}
+              labelText={intl.formatMessage({
+                id: "sample.collection.time",
+              })}
             />
           </div>
         )}
@@ -919,7 +908,9 @@ const SampleType = (props) => {
               onChange={(value) => handleCollector(value)}
               defaultValue={""}
               value={sampleXml.collector}
-              labelText={intl.formatMessage({ id: "collector.label" })}
+              labelText={intl.formatMessage({
+                id: "collector.label",
+              })}
               className="inputText"
             />
           </div>
@@ -937,7 +928,9 @@ const SampleType = (props) => {
                   <div
                     key={`additional_field_${index}_${field.fieldKey}_${fieldIndex}`}
                     className="inputText"
-                    style={{ width: "100%" }}
+                    style={{
+                      width: "100%",
+                    }}
                   >
                     {renderAdditionalField(field)}
                   </div>
@@ -995,7 +988,9 @@ const SampleType = (props) => {
               </h4>
               <div
                 className={"searchTestText"}
-                style={{ marginBottom: "1.188rem" }}
+                style={{
+                  marginBottom: "1.188rem",
+                }}
               >
                 {selectedPanels && selectedPanels.length ? (
                   <>
@@ -1004,7 +999,9 @@ const SampleType = (props) => {
                         filter
                         key={`panelTags_` + panel_index}
                         onClose={() => handleRemoveSelectedPanel(panel)}
-                        style={{ marginRight: "0.5rem" }}
+                        style={{
+                          marginRight: "0.5rem",
+                        }}
                         type={"green"}
                       >
                         {panel.name}
@@ -1104,7 +1101,9 @@ const SampleType = (props) => {
             )}
             <div
               className={"searchTestText"}
-              style={{ marginBottom: "1.188rem" }}
+              style={{
+                marginBottom: "1.188rem",
+              }}
             >
               {selectedTests && selectedTests.length ? (
                 <>
@@ -1117,7 +1116,9 @@ const SampleType = (props) => {
                           ? undefined
                           : () => handleRemoveSelectedTest(test)
                       }
-                      style={{ marginRight: "0.5rem" }}
+                      style={{
+                        marginRight: "0.5rem",
+                      }}
                       type={"red"}
                     >
                       {test.name}
@@ -1230,5 +1231,4 @@ const SampleType = (props) => {
     </>
   );
 };
-
 export default SampleType;

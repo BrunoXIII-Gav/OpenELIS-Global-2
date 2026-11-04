@@ -23,8 +23,8 @@ public class PatientAdditionalFieldDefinitionDAOImpl extends BaseDAOImpl<Patient
     @Override
     @Transactional(readOnly = true)
     public List<PatientAdditionalFieldDefinition> findAll(boolean activeOnly) {
-        String hql = "from PatientAdditionalFieldDefinition d"
-                + (activeOnly ? " where d.active = true" : "") + " order by d.sortOrder asc, d.id asc";
+        String hql = "from PatientAdditionalFieldDefinition d" + (activeOnly ? " where d.active = true" : "")
+                + " order by d.sortOrder asc, d.id asc";
         Query<PatientAdditionalFieldDefinition> query = entityManager.unwrap(Session.class).createQuery(hql,
                 PatientAdditionalFieldDefinition.class);
         return query.list();

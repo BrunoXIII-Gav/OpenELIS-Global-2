@@ -1,0 +1,45 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<databaseChangeLog xmlns="http://www.liquibase.org/xml/ns/dbchangelog"
+  xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+  xsi:schemaLocation="http://www.liquibase.org/xml/ns/dbchangelog http://www.liquibase.org/xml/ns/dbchangelog/dbchangelog-3.8.xsd">
+  <changeSet id="087-verify-test-creation-origin" author="openelis">
+    <comment>
+      Historical origins cannot be inferred from a test's current name, code or GUID.
+      Recover explicit import receipts; recognize configuration-managed legacy tests
+      from unchanged initialization files; let administrators classify other legacy definitions.
+      Future SQL initialization records default to verified system origin.
+    </comment>
+    <addColumn tableName="test" schemaName="clinlims">
+      <column name="creation_origin_verified" type="BOOLEAN" defaultValueBoolean="true"><constraints nullable="false"/></column>
+      <column name="creation_origin_verified_by" type="VARCHAR(40)"/>
+      <column name="creation_origin_verified_at" type="TIMESTAMP" defaultValueComputed="CURRENT_TIMESTAMP"/>
+    </addColumn>
+    <createTable tableName="test_creation_origin" schemaName="clinlims">
+      <column name="test_id" type="NUMERIC(10,0)"><constraints primaryKey="true" nullable="false"/></column>
+      <column name="user_created" type="BOOLEAN"><constraints nullable="false"/></column>
+      <column name="actor_id" type="VARCHAR(40)"/>
+      <column name="verified_at" type="TIMESTAMP"><constraints nullable="false"/></column>
+      <column name="last_updated" type="TIMESTAMP" defaultValueComputed="CURRENT_TIMESTAMP"/>
+    </createTable>
+    <addForeignKeyConstraint baseTableName="test_creation_origin" baseTableSchemaName="clinlims" baseColumnNames="test_id"
+      referencedTableName="test" referencedTableSchemaName="clinlims" referencedColumnNames="id" constraintName="fk_test_creation_origin_test"/>
+    <update tableName="test" schemaName="clinlims">
+      <column name="creation_origin_verified" valueBoolean="false"/>
+      <column name="creation_origin_verified_at" valueComputed="NULL"/>
+    </update>
+    <sql>
+      UPDATE clinlims.test t
+      SET user_created = true, creation_origin_verified = true,
+          creation_origin_verified_by = r.actor_id, creation_origin_verified_at = r.created_at
+      FROM clinlims.test_configuration_identity i
+      JOIN clinlims.test_configuration_revision r ON r.id = i.revision_id
+      WHERE i.entity_key = 'Test:' || CAST(t.id AS TEXT);
+    </sql>
+    <rollback>
+      <dropTable tableName="test_creation_origin" schemaName="clinlims"/>
+      <dropColumn tableName="test" schemaName="clinlims" columnName="creation_origin_verified_at"/>
+      <dropColumn tableName="test" schemaName="clinlims" columnName="creation_origin_verified_by"/>
+      <dropColumn tableName="test" schemaName="clinlims" columnName="creation_origin_verified"/>
+    </rollback>
+  </changeSet>
+</databaseChangeLog>

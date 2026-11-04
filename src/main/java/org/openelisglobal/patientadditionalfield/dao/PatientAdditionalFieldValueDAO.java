@@ -14,4 +14,6 @@ public interface PatientAdditionalFieldValueDAO extends BaseDAO<PatientAdditiona
             List<Integer> fieldDefinitionIds);
 
     List<PatientAdditionalFieldValue> findByPatientId(Integer patientId);
+
+    long countByFieldDefinitionId(Integer fieldDefinitionId);
 }

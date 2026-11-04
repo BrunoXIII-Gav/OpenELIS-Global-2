@@ -54,7 +54,9 @@ function RoleManagement() {
   const loadRoles = () => {
     setLoading(true);
     getFromOpenElisServer("/rest/custom-roles/catalog", (response) => {
-      setRoles(Array.isArray(response?.customRoles) ? response.customRoles : []);
+      setRoles(
+        Array.isArray(response?.customRoles) ? response.customRoles : [],
+      );
       setLoading(false);
     });
   };
@@ -144,7 +146,9 @@ function RoleManagement() {
             </Heading>
           </Section>
           <br />
-          <Button onClick={() => history.push("/MasterListsPage/roleEdit?ID=0")}>
+          <Button
+            onClick={() => history.push("/MasterListsPage/roleEdit?ID=0")}
+          >
             <FormattedMessage
               id="customRole.actions.add"
               defaultMessage="Create custom role"

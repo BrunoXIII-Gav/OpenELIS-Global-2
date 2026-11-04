@@ -23,8 +23,10 @@ public class SampleStorageRestControllerIntegrationTest extends BaseWebContextSe
     @Before
     public void setUp() throws Exception {
         super.setUp();
+        useAuthenticatedAdminRequests();
         objectMapper = new ObjectMapper();
         executeDataSetWithStateManagement("testdata/sample-storage-integration-test-data.xml");
+        executeDataSetWithStateManagement("testdata/storage-controller-access.xml", false);
     }
 
     @Test

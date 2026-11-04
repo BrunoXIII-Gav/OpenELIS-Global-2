@@ -1,0 +1,292 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<databaseChangeLog
+  xmlns="http://www.liquibase.org/xml/ns/dbchangelog"
+  xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+  xsi:schemaLocation="http://www.liquibase.org/xml/ns/dbchangelog http://www.liquibase.org/xml/ns/dbchangelog/dbchangelog-3.8.xsd">
+
+  <changeSet id="071-01-add-visible-submenu-route-permission-roles" author="codex">
+    <preConditions onFail="MARK_RAN">
+      <tableExists tableName="system_role" schemaName="clinlims" />
+      <sqlCheck expectedResult="1">SELECT COUNT(*) FROM clinlims.system_role WHERE name = 'Lab Unit Roles'</sqlCheck>
+    </preConditions>
+
+    <comment>Create lab-unit submenu permissions for the visible SPA routes only</comment>
+    <sql>
+      INSERT INTO clinlims.system_role (
+        id,
+        name,
+        description,
+        is_grouping_role,
+        grouping_parent,
+        display_key,
+        active,
+        editable
+      )
+      SELECT
+        nextval('clinlims.system_role_seq'),
+        'Sample Management',
+        'Access to the visible Sample Management submenu entry',
+        false,
+        parent_role.id,
+        'role.sample.management',
+        true,
+        false
+      FROM clinlims.system_role parent_role
+      WHERE parent_role.name = 'Lab Unit Roles'
+        AND NOT EXISTS (
+          SELECT 1 FROM clinlims.system_role existing WHERE existing.name = 'Sample Management'
+        );
+
+      INSERT INTO clinlims.system_role (
+        id,
+        name,
+        description,
+        is_grouping_role,
+        grouping_parent,
+        display_key,
+        active,
+        editable
+      )
+      SELECT
+        nextval('clinlims.system_role_seq'),
+        'Order Add',
+        'Access to the visible Add Order submenu entry',
+        false,
+        parent_role.id,
+        'role.order.add',
+        true,
+        false
+      FROM clinlims.system_role parent_role
+      WHERE parent_role.name = 'Lab Unit Roles'
+        AND NOT EXISTS (
+          SELECT 1 FROM clinlims.system_role existing WHERE existing.name = 'Order Add'
+        );
+
+      INSERT INTO clinlims.system_role (
+        id,
+        name,
+        description,
+        is_grouping_role,
+        grouping_parent,
+        display_key,
+        active,
+        editable
+      )
+      SELECT
+        nextval('clinlims.system_role_seq'),
+        'Order Edit',
+        'Access to the visible Edit Order submenu entry',
+        false,
+        parent_role.id,
+        'role.order.edit',
+        true,
+        false
+      FROM clinlims.system_role parent_role
+      WHERE parent_role.name = 'Lab Unit Roles'
+        AND NOT EXISTS (
+          SELECT 1 FROM clinlims.system_role existing WHERE existing.name = 'Order Edit'
+        );
+
+      INSERT INTO clinlims.system_role (
+        id,
+        name,
+        description,
+        is_grouping_role,
+        grouping_parent,
+        display_key,
+        active,
+        editable
+      )
+      SELECT
+        nextval('clinlims.system_role_seq'),
+        'Patient Management',
+        'Access to the visible Add or Edit Patient submenu entry',
+        false,
+        parent_role.id,
+        'role.patient.management',
+        true,
+        false
+      FROM clinlims.system_role parent_role
+      WHERE parent_role.name = 'Lab Unit Roles'
+        AND NOT EXISTS (
+          SELECT 1 FROM clinlims.system_role existing WHERE existing.name = 'Patient Management'
+        );
+
+      INSERT INTO clinlims.system_role (
+        id,
+        name,
+        description,
+        is_grouping_role,
+        grouping_parent,
+        display_key,
+        active,
+        editable
+      )
+      SELECT
+        nextval('clinlims.system_role_seq'),
+        'Patient History',
+        'Access to the visible Patient History submenu entry',
+        false,
+        parent_role.id,
+        'role.patient.history',
+        true,
+        false
+      FROM clinlims.system_role parent_role
+      WHERE parent_role.name = 'Lab Unit Roles'
+        AND NOT EXISTS (
+          SELECT 1 FROM clinlims.system_role existing WHERE existing.name = 'Patient History'
+        );
+
+      INSERT INTO clinlims.system_role (
+        id,
+        name,
+        description,
+        is_grouping_role,
+        grouping_parent,
+        display_key,
+        active,
+        editable
+      )
+      SELECT
+        nextval('clinlims.system_role_seq'),
+        'Storage Management',
+        'Access to the visible Storage Management submenu entry',
+        false,
+        parent_role.id,
+        'role.storage.management',
+        true,
+        false
+      FROM clinlims.system_role parent_role
+      WHERE parent_role.name = 'Lab Unit Roles'
+        AND NOT EXISTS (
+          SELECT 1 FROM clinlims.system_role existing WHERE existing.name = 'Storage Management'
+        );
+
+      INSERT INTO clinlims.system_role (
+        id,
+        name,
+        description,
+        is_grouping_role,
+        grouping_parent,
+        display_key,
+        active,
+        editable
+      )
+      SELECT
+        nextval('clinlims.system_role_seq'),
+        'Results By Unit',
+        'Access to the visible Results by Unit submenu entry',
+        false,
+        parent_role.id,
+        'role.results.by.unit',
+        true,
+        false
+      FROM clinlims.system_role parent_role
+      WHERE parent_role.name = 'Lab Unit Roles'
+        AND NOT EXISTS (
+          SELECT 1 FROM clinlims.system_role existing WHERE existing.name = 'Results By Unit'
+        );
+
+      INSERT INTO clinlims.system_role (
+        id,
+        name,
+        description,
+        is_grouping_role,
+        grouping_parent,
+        display_key,
+        active,
+        editable
+      )
+      SELECT
+        nextval('clinlims.system_role_seq'),
+        'Results By Patient',
+        'Access to the visible Results by Patient submenu entry',
+        false,
+        parent_role.id,
+        'role.results.by.patient',
+        true,
+        false
+      FROM clinlims.system_role parent_role
+      WHERE parent_role.name = 'Lab Unit Roles'
+        AND NOT EXISTS (
+          SELECT 1 FROM clinlims.system_role existing WHERE existing.name = 'Results By Patient'
+        );
+
+      INSERT INTO clinlims.system_role (
+        id,
+        name,
+        description,
+        is_grouping_role,
+        grouping_parent,
+        display_key,
+        active,
+        editable
+      )
+      SELECT
+        nextval('clinlims.system_role_seq'),
+        'Results By Order',
+        'Access to the visible Results by Order submenu entry',
+        false,
+        parent_role.id,
+        'role.results.by.order',
+        true,
+        false
+      FROM clinlims.system_role parent_role
+      WHERE parent_role.name = 'Lab Unit Roles'
+        AND NOT EXISTS (
+          SELECT 1 FROM clinlims.system_role existing WHERE existing.name = 'Results By Order'
+        );
+
+      INSERT INTO clinlims.system_role (
+        id,
+        name,
+        description,
+        is_grouping_role,
+        grouping_parent,
+        display_key,
+        active,
+        editable
+      )
+      SELECT
+        nextval('clinlims.system_role_seq'),
+        'Validation Routine',
+        'Access to the visible Routine Validation submenu entry',
+        false,
+        parent_role.id,
+        'role.validation.routine',
+        true,
+        false
+      FROM clinlims.system_role parent_role
+      WHERE parent_role.name = 'Lab Unit Roles'
+        AND NOT EXISTS (
+          SELECT 1 FROM clinlims.system_role existing WHERE existing.name = 'Validation Routine'
+        );
+
+      INSERT INTO clinlims.system_role (
+        id,
+        name,
+        description,
+        is_grouping_role,
+        grouping_parent,
+        display_key,
+        active,
+        editable
+      )
+      SELECT
+        nextval('clinlims.system_role_seq'),
+        'Validation By Order',
+        'Access to the visible Validation by Order submenu entry',
+        false,
+        parent_role.id,
+        'role.validation.by.order',
+        true,
+        false
+      FROM clinlims.system_role parent_role
+      WHERE parent_role.name = 'Lab Unit Roles'
+        AND NOT EXISTS (
+          SELECT 1 FROM clinlims.system_role existing WHERE existing.name = 'Validation By Order'
+        );
+    </sql>
+  </changeSet>
+
+</databaseChangeLog>

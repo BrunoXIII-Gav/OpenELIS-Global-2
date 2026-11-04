@@ -1,3 +1,6 @@
+import UserFieldPermissionConfig, {
+  userTaskFromMetadata,
+} from "./customComponents/UserFieldPermissionConfig.js";
 import React, { useContext, useEffect, useMemo, useState } from "react";
 import {
   Button,
@@ -6,6 +9,7 @@ import {
   DataTable,
   Grid,
   Heading,
+  MultiSelect,
   Section,
   Select,
   SelectItem,
@@ -18,7 +22,6 @@ import {
   TableHeader,
   TableRow,
   Tag,
-  TextArea,
   TextInput,
 } from "@carbon/react";
 import { FormattedMessage, useIntl } from "react-intl";
@@ -34,23 +37,22 @@ import {
   AlertDialog,
   NotificationKinds,
 } from "../../common/CustomNotification";
-
-const FIELD_TYPE_OPTIONS = [
-  "TEXT",
-  "TEXTAREA",
-  "NUMBER",
-  "DATE",
-  "TIME",
-  "DATETIME",
-  "BOOLEAN",
-  "SELECT",
-  "MULTISELECT",
-  "RADIO",
-  "DOCUMENT",
-];
-
+import AdditionalFieldOptionsEditor from "./customComponents/AdditionalFieldOptionsEditor";
+import {
+  createEmptyOption,
+  FIELD_TYPE_OPTIONS,
+  getAdditionalFieldTypeLabel,
+  normalizeOptionForUi,
+  normalizeOptionsForPayload,
+  OPTION_FIELD_TYPES,
+  toCodeCandidate,
+} from "./additionalFieldOptionUtils";
+const LEGACY_USER_FIELD_TYPE = "SYSTEM_USER_BIOLOGIST_SELECT";
+const GENERIC_USER_FIELD_TYPE = "USER";
+const USER_DISPLAY_MODE_INITIALS = "INITIALS";
+const USER_DISPLAY_MODE_NAME = "NAME";
+const USER_DISPLAY_MODE_BOTH = "BOTH";
 const CONDITION_LOGIC_OPTIONS = ["ALL", "ANY"];
-
 const CONDITION_OPERATOR_OPTIONS = [
   "equals",
   "notequals",
@@ -60,20 +62,22 @@ const CONDITION_OPERATOR_OPTIONS = [
   "istrue",
   "isfalse",
 ];
-
 const VALUE_OPTIONAL_OPERATORS = new Set(["hasvalue", "istrue", "isfalse"]);
-
 const MULTI_VALUE_OPERATORS = new Set(["in", "notin"]);
-
 const createEmptyCondition = () => ({
   fieldKey: "",
   operator: "equals",
   value: "",
 });
-
 const breadcrumbs = [
-  { label: "home.label", link: "/" },
-  { label: "breadcrums.admin.managment", link: "/MasterListsPage" },
+  {
+    label: "home.label",
+    link: "/",
+  },
+  {
+    label: "breadcrums.admin.managment",
+    link: "/MasterListsPage",
+  },
   {
     label: "master.lists.page.test.management",
     link: "/MasterListsPage/testManagementConfigMenu",
@@ -83,11 +87,11 @@ const breadcrumbs = [
     link: "/MasterListsPage/OrderAdditionalFields",
   },
 ];
-
 const defaultNewField = {
   displayName: "",
   fieldKey: "",
   fieldType: "TEXT",
+  hasSavedValues: false,
   required: false,
   searchable: false,
   searchUnique: false,
@@ -95,7 +99,7 @@ const defaultNewField = {
   defaultValue: "",
   maxLength: "",
   sortOrder: "",
-  optionLines: "",
+  options: [],
   rulesLogic: "ALL",
   visibleWhen: [],
   requiredWhen: [],
@@ -103,13 +107,32 @@ const defaultNewField = {
   documentMaxSizeMb: "5",
   showInSampleReception: false,
   storageAssignmentRequired: false,
+  alternateOrderFlow: false,
+  alternateOrderFlowTriggerValue: "",
+  userProfileCodes: [],
+  userDisplayMode: USER_DISPLAY_MODE_BOTH,
 };
-
+const normalizeFieldType = (fieldType) =>
+  String(fieldType || "").toUpperCase() === LEGACY_USER_FIELD_TYPE
+    ? GENERIC_USER_FIELD_TYPE
+    : fieldType || "TEXT";
+const resolveUserProfileCodes = (fieldType, metadata) => {
+  if (Array.isArray(metadata?.userProfileCodes)) {
+    return metadata.userProfileCodes;
+  }
+  return [];
+};
+const resolveUserDisplayMode = (metadata) => {
+  const mode = String(metadata?.userDisplayMode || "").toUpperCase();
+  if (mode === USER_DISPLAY_MODE_INITIALS || mode === USER_DISPLAY_MODE_NAME) {
+    return mode;
+  }
+  return USER_DISPLAY_MODE_BOTH;
+};
 const OrderAdditionalFieldsManagement = () => {
   const intl = useIntl();
   const { notificationVisible, setNotificationVisible, addNotification } =
     useContext(NotificationContext);
-
   const [fields, setFields] = useState([]);
   const [fixedConfigs, setFixedConfigs] = useState([]);
   const [newField, setNewField] = useState(defaultNewField);
@@ -119,7 +142,7 @@ const OrderAdditionalFieldsManagement = () => {
   const [savingSortFieldId, setSavingSortFieldId] = useState(null);
   const [sampleFixedConfigs, setSampleFixedConfigs] = useState([]);
   const [savingSampleFixed, setSavingSampleFixed] = useState(false);
-
+  const structureLocked = editingFieldId !== null && newField.hasSavedValues;
   const loadFields = () => {
     getFromOpenElisServer(
       "/rest/order-additional-fields?includeInactive=true",
@@ -128,25 +151,21 @@ const OrderAdditionalFieldsManagement = () => {
       },
     );
   };
-
   const loadSampleFixedConfigs = () => {
     getFromOpenElisServer("/rest/sample-additional-fields/fixed", (data) =>
       setSampleFixedConfigs(Array.isArray(data) ? data : []),
     );
   };
-
   const loadFixedConfigs = () => {
     getFromOpenElisServer("/rest/order-additional-fields/fixed", (response) => {
       setFixedConfigs(response || []);
     });
   };
-
   useEffect(() => {
     loadFields();
     loadFixedConfigs();
     loadSampleFixedConfigs();
   }, []);
-
   const sampleFixedRows = useMemo(
     () =>
       [...sampleFixedConfigs].sort(
@@ -154,6 +173,9 @@ const OrderAdditionalFieldsManagement = () => {
       ),
     [sampleFixedConfigs],
   );
+  const getSampleFixedFieldDisplayLabel = (fieldKey) => {
+    return fieldKey;
+  };
   const fixedRows = useMemo(
     () =>
       [...fixedConfigs].sort((left, right) => {
@@ -163,10 +185,8 @@ const OrderAdditionalFieldsManagement = () => {
       }),
     [fixedConfigs],
   );
-
   const conditionFieldOptions = useMemo(() => {
     const map = new Map();
-
     fixedRows.forEach((config) => {
       if (!config?.fieldKey) {
         return;
@@ -176,7 +196,6 @@ const OrderAdditionalFieldsManagement = () => {
         text: config.fieldKey,
       });
     });
-
     (fields || []).forEach((field) => {
       if (!field?.fieldKey) {
         return;
@@ -186,61 +205,29 @@ const OrderAdditionalFieldsManagement = () => {
         text: `${field.displayName || field.fieldKey} (${field.fieldKey})`,
       });
     });
-
     return Array.from(map.values()).sort((left, right) =>
       left.text.localeCompare(right.text),
     );
   }, [fields, fixedRows]);
-
   const showNotification = (kind, message) => {
     setNotificationVisible(true);
     addNotification({
       kind,
-      title: intl.formatMessage({ id: "notification.title" }),
+      title: intl.formatMessage({
+        id: "notification.title",
+      }),
       message,
     });
   };
-
   const resetFieldForm = () => {
     setNewField(defaultNewField);
     setEditingFieldId(null);
   };
-
-  const parseOptions = (optionLines) => {
-    if (!optionLines || !optionLines.trim()) {
-      return [];
-    }
-
-    return optionLines
-      .split("\n")
-      .map((line) => line.trim())
-      .filter(Boolean)
-      .map((line, index) => {
-        const splitLine = line.split("|");
-        if (splitLine.length >= 2) {
-          return {
-            optionKey: splitLine[0].trim(),
-            optionLabel: splitLine.slice(1).join("|").trim(),
-            active: true,
-            sortOrder: index + 1,
-          };
-        }
-        return {
-          optionKey: splitLine[0].trim().toLowerCase().replace(/\s+/g, "_"),
-          optionLabel: splitLine[0].trim(),
-          active: true,
-          sortOrder: index + 1,
-        };
-      })
-      .filter((option) => option.optionLabel);
-  };
-
   const parseCsvValues = (rawValue) =>
     String(rawValue || "")
       .split(",")
       .map((value) => value.trim())
       .filter(Boolean);
-
   const extractConditionValue = (condition) => {
     if (!condition) {
       return "";
@@ -250,7 +237,6 @@ const OrderAdditionalFieldsManagement = () => {
     }
     return String(condition.value || "");
   };
-
   const mapFieldToForm = (field) => {
     let metadata = {};
     if (field?.metadataJson) {
@@ -260,7 +246,6 @@ const OrderAdditionalFieldsManagement = () => {
         metadata = {};
       }
     }
-
     const rules = metadata?.rules || {};
     const visibleWhen = Array.isArray(rules.visibleWhen)
       ? rules.visibleWhen.map((condition) => ({
@@ -276,24 +261,14 @@ const OrderAdditionalFieldsManagement = () => {
           value: extractConditionValue(condition),
         }))
       : [];
-
     const documentMetadata = metadata?.document || {};
     const sampleReceptionMetadata = metadata?.sampleReception || {};
-    const optionLines = (field?.options || [])
-      .filter((option) => option?.active !== false)
-      .sort((left, right) => (left?.sortOrder ?? 0) - (right?.sortOrder ?? 0))
-      .map((option) =>
-        option?.optionKey
-          ? `${option.optionKey}|${option.optionLabel || option.optionKey}`
-          : option?.optionLabel || "",
-      )
-      .filter(Boolean)
-      .join("\n");
-
+    const workflowMetadata = metadata?.workflow || {};
     return {
       displayName: field?.displayName || "",
       fieldKey: field?.fieldKey || "",
-      fieldType: field?.fieldType || "TEXT",
+      fieldType: normalizeFieldType(field?.fieldType),
+      hasSavedValues: field?.hasSavedValues === true,
       required: !!field?.required,
       searchable: !!field?.searchable,
       searchUnique: !!field?.searchUnique,
@@ -307,7 +282,11 @@ const OrderAdditionalFieldsManagement = () => {
         field?.sortOrder !== null && field?.sortOrder !== undefined
           ? String(field.sortOrder)
           : "",
-      optionLines,
+      options: Array.isArray(field?.options)
+        ? field.options
+            .filter((option) => option?.active !== false)
+            .map((option, index) => normalizeOptionForUi(option, index))
+        : [],
       rulesLogic: rules.logic || "ALL",
       visibleWhen,
       requiredWhen,
@@ -322,9 +301,17 @@ const OrderAdditionalFieldsManagement = () => {
       storageAssignmentRequired: Boolean(
         metadata?.storage?.requireCheckedForStorageAssignment,
       ),
+      userTask: userTaskFromMetadata(metadata, "orders"),
+      alternateOrderFlow: Boolean(workflowMetadata.alternateOrderFlow),
+      alternateOrderFlowTriggerValue:
+        workflowMetadata.triggerValue !== undefined &&
+        workflowMetadata.triggerValue !== null
+          ? String(workflowMetadata.triggerValue)
+          : "",
+      userProfileCodes: resolveUserProfileCodes(field?.fieldType, metadata),
+      userDisplayMode: resolveUserDisplayMode(metadata),
     };
   };
-
   const updateCondition = (groupKey, index, property, value) => {
     setNewField((previous) => ({
       ...previous,
@@ -338,14 +325,12 @@ const OrderAdditionalFieldsManagement = () => {
       ),
     }));
   };
-
   const addCondition = (groupKey) => {
     setNewField((previous) => ({
       ...previous,
       [groupKey]: [...(previous[groupKey] || []), createEmptyCondition()],
     }));
   };
-
   const removeCondition = (groupKey, index) => {
     setNewField((previous) => ({
       ...previous,
@@ -354,7 +339,6 @@ const OrderAdditionalFieldsManagement = () => {
       ),
     }));
   };
-
   const normalizeCondition = (condition) => {
     const fieldKey = String(condition?.fieldKey || "").trim();
     const operator = String(condition?.operator || "equals").trim();
@@ -362,14 +346,12 @@ const OrderAdditionalFieldsManagement = () => {
     if (!fieldKey || !operator) {
       return null;
     }
-
     if (VALUE_OPTIONAL_OPERATORS.has(operator)) {
       return {
         fieldKey,
         operator,
       };
     }
-
     if (MULTI_VALUE_OPERATORS.has(operator)) {
       const values = parseCsvValues(rawValue);
       if (!values.length) {
@@ -381,21 +363,17 @@ const OrderAdditionalFieldsManagement = () => {
         values,
       };
     }
-
     if (!rawValue) {
       return null;
     }
-
     return {
       fieldKey,
       operator,
       value: rawValue,
     };
   };
-
   const isConditionValid = (condition) =>
     normalizeCondition(condition) !== null;
-
   const buildMetadataFromForm = (formValue) => {
     const hasInvalidVisibleCondition = (formValue.visibleWhen || []).some(
       (condition) => !isConditionValid(condition),
@@ -403,23 +381,19 @@ const OrderAdditionalFieldsManagement = () => {
     const hasInvalidRequiredCondition = (formValue.requiredWhen || []).some(
       (condition) => !isConditionValid(condition),
     );
-
     if (hasInvalidVisibleCondition || hasInvalidRequiredCondition) {
       return {
         errorMessageId: "order.additional.fields.rules.invalid",
         metadataJson: null,
       };
     }
-
     const visibleWhen = (formValue.visibleWhen || [])
       .map(normalizeCondition)
       .filter(Boolean);
     const requiredWhen = (formValue.requiredWhen || [])
       .map(normalizeCondition)
       .filter(Boolean);
-
     const metadata = {};
-
     if (visibleWhen.length > 0 || requiredWhen.length > 0) {
       metadata.rules = {
         logic: formValue.rulesLogic || "ALL",
@@ -431,7 +405,6 @@ const OrderAdditionalFieldsManagement = () => {
         metadata.rules.requiredWhen = requiredWhen;
       }
     }
-
     if ((formValue.fieldType || "").toUpperCase() === "DOCUMENT") {
       const acceptedMimeTypes = parseCsvValues(formValue.documentAccept);
       const maxSizeMb = Number.parseInt(formValue.documentMaxSizeMb, 10);
@@ -445,14 +418,12 @@ const OrderAdditionalFieldsManagement = () => {
         }
       }
     }
-
     if (formValue.showInSampleReception) {
       metadata.sampleReception = {
         ...(metadata.sampleReception || {}),
         showInSampleReception: true,
       };
     }
-
     if (
       String(formValue.fieldType || "").toUpperCase() === "BOOLEAN" &&
       formValue.storageAssignmentRequired
@@ -462,14 +433,41 @@ const OrderAdditionalFieldsManagement = () => {
         requireCheckedForStorageAssignment: true,
       };
     }
-
+    if (formValue.alternateOrderFlow) {
+      const triggerValue =
+        String(formValue.fieldType || "").toUpperCase() === "BOOLEAN"
+          ? "true"
+          : String(formValue.alternateOrderFlowTriggerValue || "").trim();
+      metadata.workflow = {
+        ...(metadata.workflow || {}),
+        alternateOrderFlow: true,
+      };
+      if (triggerValue !== "") {
+        metadata.workflow.triggerValue = triggerValue;
+      }
+    } else if (metadata.workflow) {
+      delete metadata.workflow;
+    }
+    if (String(formValue.fieldType || "").toUpperCase() === "USER") {
+      delete metadata.userProfileCodes;
+      Object.assign(
+        metadata,
+        formValue.userTask || userTaskFromMetadata(null, "orders"),
+      );
+      metadata.userDisplayMode =
+        formValue.userDisplayMode || USER_DISPLAY_MODE_BOTH;
+    } else if (metadata.userProfileCodes) {
+      delete metadata.userProfileCodes;
+      delete metadata.userDisplayMode;
+    } else if (metadata.userDisplayMode) {
+      delete metadata.userDisplayMode;
+    }
     return {
       metadataJson:
         Object.keys(metadata).length > 0 ? JSON.stringify(metadata) : null,
       errorMessageId: null,
     };
   };
-
   const normalizeSortOrder = (sortOrder) => {
     if (sortOrder === null || sortOrder === undefined || sortOrder === "") {
       return null;
@@ -477,11 +475,47 @@ const OrderAdditionalFieldsManagement = () => {
     const parsed = Number.parseInt(sortOrder, 10);
     return Number.isNaN(parsed) ? null : parsed;
   };
-
+  const addOption = () => {
+    setNewField((previous) => ({
+      ...previous,
+      options: [
+        ...(previous.options || []),
+        createEmptyOption((previous.options || []).length + 1),
+      ],
+    }));
+  };
+  const updateOptionLabel = (optionIndex, nextLabel) => {
+    setNewField((previous) => ({
+      ...previous,
+      options: (previous.options || []).map((option, index) => {
+        if (index !== optionIndex) {
+          return option;
+        }
+        const nextGeneratedKey = toCodeCandidate(nextLabel);
+        return {
+          ...option,
+          optionLabel: nextLabel,
+          optionKey: option.isAutoGeneratedKey
+            ? nextGeneratedKey
+            : option.optionKey,
+        };
+      }),
+    }));
+  };
+  const removeOption = (optionIndex) => {
+    setNewField((previous) => ({
+      ...previous,
+      options: (previous.options || [])
+        .filter((_, index) => index !== optionIndex)
+        .map((option, index) => ({
+          ...option,
+          sortOrder: index + 1,
+        })),
+    }));
+  };
   const saveField = (event) => {
     event.preventDefault();
     setSavingField(true);
-
     const metadataBuildResult = buildMetadataFromForm(newField);
     if (metadataBuildResult.errorMessageId) {
       setSavingField(false);
@@ -493,7 +527,6 @@ const OrderAdditionalFieldsManagement = () => {
       );
       return;
     }
-
     const sourceField = fields.find((field) => field.id === editingFieldId);
     const payload = {
       displayName: newField.displayName,
@@ -509,33 +542,20 @@ const OrderAdditionalFieldsManagement = () => {
         : null,
       sortOrder: normalizeSortOrder(newField.sortOrder),
       metadataJson: metadataBuildResult.metadataJson,
-      options: parseOptions(newField.optionLines),
+      options: OPTION_FIELD_TYPES.has(newField.fieldType)
+        ? normalizeOptionsForPayload(newField.options)
+        : [],
     };
-
-    if (
-      sourceField &&
-      (newField.fieldType === "SELECT" ||
-        newField.fieldType === "MULTISELECT" ||
-        newField.fieldType === "RADIO")
-    ) {
-      const existingOptionsByKey = new Map(
-        (sourceField.options || []).map((option) => [option.optionKey, option]),
-      );
-      payload.options = payload.options.map((option) => {
-        const existing = existingOptionsByKey.get(option.optionKey);
-        return existing ? { ...option, id: existing.id } : option;
-      });
-    }
-
     const onSaveSuccess = () => {
       resetFieldForm();
       showNotification(
         NotificationKinds.success,
-        intl.formatMessage({ id: "order.additional.fields.saved" }),
+        intl.formatMessage({
+          id: "order.additional.fields.saved",
+        }),
       );
       loadFields();
     };
-
     if (!editingFieldId) {
       postToOpenElisServerJsonResponse(
         "/rest/order-additional-fields",
@@ -546,16 +566,17 @@ const OrderAdditionalFieldsManagement = () => {
             onSaveSuccess();
             return;
           }
-
           showNotification(
             NotificationKinds.error,
-            response?.message || intl.formatMessage({ id: "server.error.msg" }),
+            response?.message ||
+              intl.formatMessage({
+                id: "server.error.msg",
+              }),
           );
         },
       );
       return;
     }
-
     putToOpenElisServerFullResponse(
       `/rest/order-additional-fields/${editingFieldId}`,
       JSON.stringify(payload),
@@ -565,15 +586,16 @@ const OrderAdditionalFieldsManagement = () => {
           onSaveSuccess();
           return;
         }
-
         showNotification(
           NotificationKinds.error,
-          response?.message || intl.formatMessage({ id: "server.error.msg" }),
+          response?.message ||
+            intl.formatMessage({
+              id: "server.error.msg",
+            }),
         );
       },
     );
   };
-
   const startEditingField = (field) => {
     if (!field?.id) {
       return;
@@ -581,12 +603,10 @@ const OrderAdditionalFieldsManagement = () => {
     setEditingFieldId(field.id);
     setNewField(mapFieldToForm(field));
   };
-
   const toggleFieldStatus = (field) => {
     if (!field?.id) {
       return;
     }
-
     if (field.active) {
       deleteFromOpenElisServer(
         `/rest/order-additional-fields/${field.id}`,
@@ -595,19 +615,22 @@ const OrderAdditionalFieldsManagement = () => {
             loadFields();
             showNotification(
               NotificationKinds.success,
-              intl.formatMessage({ id: "order.additional.fields.updated" }),
+              intl.formatMessage({
+                id: "order.additional.fields.updated",
+              }),
             );
             return;
           }
           showNotification(
             NotificationKinds.error,
-            intl.formatMessage({ id: "server.error.msg" }),
+            intl.formatMessage({
+              id: "server.error.msg",
+            }),
           );
         },
       );
       return;
     }
-
     const payload = {
       active: true,
       displayName: field.displayName,
@@ -621,7 +644,6 @@ const OrderAdditionalFieldsManagement = () => {
       metadataJson: field.metadataJson,
       options: field.options || [],
     };
-
     putToOpenElisServerFullResponse(
       `/rest/order-additional-fields/${field.id}`,
       JSON.stringify(payload),
@@ -630,23 +652,25 @@ const OrderAdditionalFieldsManagement = () => {
           loadFields();
           showNotification(
             NotificationKinds.success,
-            intl.formatMessage({ id: "order.additional.fields.updated" }),
+            intl.formatMessage({
+              id: "order.additional.fields.updated",
+            }),
           );
           return;
         }
         showNotification(
           NotificationKinds.error,
-          intl.formatMessage({ id: "server.error.msg" }),
+          intl.formatMessage({
+            id: "server.error.msg",
+          }),
         );
       },
     );
   };
-
   const saveFieldSortOrder = (field) => {
     if (!field?.id) {
       return;
     }
-
     setSavingSortFieldId(field.id);
     const payload = {
       displayName: field.displayName,
@@ -661,7 +685,6 @@ const OrderAdditionalFieldsManagement = () => {
       metadataJson: field.metadataJson,
       options: field.options || [],
     };
-
     putToOpenElisServerFullResponse(
       `/rest/order-additional-fields/${field.id}`,
       JSON.stringify(payload),
@@ -671,28 +694,34 @@ const OrderAdditionalFieldsManagement = () => {
           loadFields();
           showNotification(
             NotificationKinds.success,
-            intl.formatMessage({ id: "order.additional.fields.saved" }),
+            intl.formatMessage({
+              id: "order.additional.fields.saved",
+            }),
           );
           return;
         }
         showNotification(
           NotificationKinds.error,
-          intl.formatMessage({ id: "server.error.msg" }),
+          intl.formatMessage({
+            id: "server.error.msg",
+          }),
         );
       },
     );
   };
-
   const updateSampleFixedConfig = (fieldKey, property, rawValue) => {
     setSampleFixedConfigs((previous) =>
-      previous.map((config) =>
-        config.fieldKey !== fieldKey
-          ? config
-          : { ...config, [property]: rawValue },
-      ),
+      previous.map((config) => {
+        if (config.fieldKey !== fieldKey) {
+          return config;
+        }
+        return {
+          ...config,
+          [property]: rawValue,
+        };
+      }),
     );
   };
-
   const saveSampleFixedConfigs = () => {
     setSavingSampleFixed(true);
     putToOpenElisServerFullResponse(
@@ -703,8 +732,12 @@ const OrderAdditionalFieldsManagement = () => {
         if (response.status >= 200 && response.status < 300) {
           addNotification({
             kind: NotificationKinds.success,
-            title: intl.formatMessage({ id: "notification.title" }),
-            message: intl.formatMessage({ id: "save.success.msg" }),
+            title: intl.formatMessage({
+              id: "notification.title",
+            }),
+            message: intl.formatMessage({
+              id: "save.success.msg",
+            }),
           });
           setNotificationVisible(true);
           loadSampleFixedConfigs();
@@ -712,14 +745,17 @@ const OrderAdditionalFieldsManagement = () => {
         }
         addNotification({
           kind: NotificationKinds.error,
-          title: intl.formatMessage({ id: "notification.title" }),
-          message: intl.formatMessage({ id: "server.error.msg" }),
+          title: intl.formatMessage({
+            id: "notification.title",
+          }),
+          message: intl.formatMessage({
+            id: "server.error.msg",
+          }),
         });
         setNotificationVisible(true);
       },
     );
   };
-
   const updateFixedConfig = (fieldKey, property, rawValue) => {
     setFixedConfigs((previous) =>
       previous.map((config) => {
@@ -733,7 +769,6 @@ const OrderAdditionalFieldsManagement = () => {
       }),
     );
   };
-
   const saveFixedConfigs = () => {
     setSavingFixed(true);
     putToOpenElisServerFullResponse(
@@ -744,22 +779,24 @@ const OrderAdditionalFieldsManagement = () => {
         if (response.status >= 200 && response.status < 300) {
           showNotification(
             NotificationKinds.success,
-            intl.formatMessage({ id: "order.additional.fields.saved" }),
+            intl.formatMessage({
+              id: "order.additional.fields.saved",
+            }),
           );
           loadFixedConfigs();
           return;
         }
         showNotification(
           NotificationKinds.error,
-          intl.formatMessage({ id: "server.error.msg" }),
+          intl.formatMessage({
+            id: "server.error.msg",
+          }),
         );
       },
     );
   };
-
   const renderConditionGroup = (groupKey, titleMessageId) => {
     const conditions = newField[groupKey] || [];
-
     return (
       <Stack gap={4}>
         <Heading>
@@ -868,7 +905,6 @@ const OrderAdditionalFieldsManagement = () => {
       </Stack>
     );
   };
-
   return (
     <>
       {notificationVisible ? <AlertDialog /> : null}
@@ -1050,6 +1086,7 @@ const OrderAdditionalFieldsManagement = () => {
                     id: "order.additional.fields.fieldType",
                   })}
                   value={newField.fieldType}
+                  disabled={structureLocked}
                   onChange={(event) =>
                     setNewField((previous) => ({
                       ...previous,
@@ -1063,9 +1100,12 @@ const OrderAdditionalFieldsManagement = () => {
                 >
                   {FIELD_TYPE_OPTIONS.map((fieldType) => (
                     <SelectItem
-                      key={fieldType}
-                      value={fieldType}
-                      text={fieldType}
+                      key={fieldType.value}
+                      value={fieldType.value}
+                      text={intl.formatMessage({
+                        id: fieldType.labelId,
+                        defaultMessage: fieldType.defaultMessage,
+                      })}
                     />
                   ))}
                 </Select>
@@ -1183,6 +1223,26 @@ const OrderAdditionalFieldsManagement = () => {
                   }
                 />
               </Column>
+              <Column lg={8} md={4} sm={4}>
+                <Checkbox
+                  id="order-additional-alternate-order-flow"
+                  labelText={intl.formatMessage({
+                    id: "order.additional.fields.alternateOrderFlow",
+                  })}
+                  checked={newField.alternateOrderFlow}
+                  onChange={(_event, { checked }) =>
+                    setNewField((previous) => ({
+                      ...previous,
+                      alternateOrderFlow: checked,
+                      alternateOrderFlowTriggerValue: checked
+                        ? previous.fieldType === "BOOLEAN"
+                          ? "true"
+                          : previous.alternateOrderFlowTriggerValue
+                        : "",
+                    }))
+                  }
+                />
+              </Column>
               {newField.fieldType === "BOOLEAN" ? (
                 <Column lg={8} md={4} sm={4}>
                   <Checkbox
@@ -1200,28 +1260,94 @@ const OrderAdditionalFieldsManagement = () => {
                   />
                 </Column>
               ) : null}
+              {newField.alternateOrderFlow &&
+              newField.fieldType !== "BOOLEAN" ? (
+                <Column lg={8} md={4} sm={4}>
+                  <TextInput
+                    id="order-additional-alternate-order-flow-trigger-value"
+                    labelText={intl.formatMessage({
+                      id: "order.additional.fields.alternateOrderFlowTriggerValue",
+                    })}
+                    helperText={intl.formatMessage({
+                      id: "order.additional.fields.alternateOrderFlowTriggerValue.helper",
+                    })}
+                    value={newField.alternateOrderFlowTriggerValue}
+                    onChange={(event) =>
+                      setNewField((previous) => ({
+                        ...previous,
+                        alternateOrderFlowTriggerValue: event.target.value,
+                      }))
+                    }
+                  />
+                </Column>
+              ) : null}
             </Grid>
 
-            {(newField.fieldType === "SELECT" ||
-              newField.fieldType === "MULTISELECT" ||
-              newField.fieldType === "RADIO") && (
-              <TextArea
-                id="order-additional-options"
-                labelText={intl.formatMessage({
-                  id: "order.additional.fields.options",
-                })}
-                helperText={intl.formatMessage({
-                  id: "order.additional.fields.options.helper",
-                })}
-                value={newField.optionLines}
-                onChange={(event) =>
-                  setNewField((previous) => ({
-                    ...previous,
-                    optionLines: event.target.value,
-                  }))
-                }
+            {OPTION_FIELD_TYPES.has(newField.fieldType) ? (
+              <AdditionalFieldOptionsEditor
+                idPrefix="order-additional"
+                options={newField.options || []}
+                locked={structureLocked}
+                onAddOption={addOption}
+                onOptionLabelChange={updateOptionLabel}
+                onRemoveOption={removeOption}
               />
-            )}
+            ) : null}
+            {newField.fieldType === "USER" ? (
+              <Grid fullWidth condensed>
+                <Column lg={8} md={4} sm={4}>
+                  <UserFieldPermissionConfig
+                    id={`user-task-${"orders"}`}
+                    value={newField.userTask}
+                    module="orders"
+                    onChange={(userTask) =>
+                      setNewField((previous) => ({
+                        ...previous,
+                        userTask,
+                      }))
+                    }
+                  />
+                </Column>
+                <Column lg={4} md={4} sm={4}>
+                  <Select
+                    id="orderAdditionalUserDisplayMode"
+                    labelText={intl.formatMessage({
+                      id: "user.field.display.mode.label",
+                      defaultMessage: "Display user as",
+                    })}
+                    value={newField.userDisplayMode || USER_DISPLAY_MODE_BOTH}
+                    onChange={(event) =>
+                      setNewField((previous) => ({
+                        ...previous,
+                        userDisplayMode: event.target.value,
+                      }))
+                    }
+                  >
+                    <SelectItem
+                      value={USER_DISPLAY_MODE_INITIALS}
+                      text={intl.formatMessage({
+                        id: "user.field.display.mode.initials",
+                        defaultMessage: "Initials only",
+                      })}
+                    />
+                    <SelectItem
+                      value={USER_DISPLAY_MODE_NAME}
+                      text={intl.formatMessage({
+                        id: "user.field.display.mode.name",
+                        defaultMessage: "Name only",
+                      })}
+                    />
+                    <SelectItem
+                      value={USER_DISPLAY_MODE_BOTH}
+                      text={intl.formatMessage({
+                        id: "user.field.display.mode.both",
+                        defaultMessage: "Initials and name",
+                      })}
+                    />
+                  </Select>
+                </Column>
+              </Grid>
+            ) : null}
             <Stack gap={5}>
               <Heading>
                 <FormattedMessage id="order.additional.fields.rules.title" />
@@ -1333,7 +1459,7 @@ const OrderAdditionalFieldsManagement = () => {
                 id: String(field.id),
                 displayName: field.displayName,
                 fieldKey: field.fieldKey,
-                fieldType: field.fieldType,
+                fieldType: getAdditionalFieldTypeLabel(intl, field.fieldType),
                 sortOrder: field.sortOrder,
                 required: field.required,
                 searchable: field.searchable,
@@ -1350,6 +1476,19 @@ const OrderAdditionalFieldsManagement = () => {
                         parsed?.sampleReception?.showInSampleReception ??
                           parsed?.showInSampleReception,
                       );
+                    } catch (_error) {
+                      return false;
+                    }
+                  })(),
+                ),
+                alternateOrderFlow: Boolean(
+                  (() => {
+                    if (!field?.metadataJson) {
+                      return false;
+                    }
+                    try {
+                      const parsed = JSON.parse(field.metadataJson);
+                      return Boolean(parsed?.workflow?.alternateOrderFlow);
                     } catch (_error) {
                       return false;
                     }
@@ -1413,6 +1552,12 @@ const OrderAdditionalFieldsManagement = () => {
                   }),
                 },
                 {
+                  key: "alternateOrderFlow",
+                  header: intl.formatMessage({
+                    id: "order.additional.fields.alternateOrderFlow",
+                  }),
+                },
+                {
                   key: "actions",
                   header: intl.formatMessage({
                     id: "order.additional.fields.actions",
@@ -1428,7 +1573,9 @@ const OrderAdditionalFieldsManagement = () => {
                         {headers.map((header) => (
                           <TableHeader
                             key={header.key}
-                            {...getHeaderProps({ header })}
+                            {...getHeaderProps({
+                              header,
+                            })}
                           >
                             {header.header}
                           </TableHeader>
@@ -1545,6 +1692,17 @@ const OrderAdditionalFieldsManagement = () => {
                               )}
                             </TableCell>
                             <TableCell>
+                              {row.cells[9].value ? (
+                                <Tag type="blue">
+                                  <FormattedMessage id="yes.option" />
+                                </Tag>
+                              ) : (
+                                <Tag type="gray">
+                                  <FormattedMessage id="no.option" />
+                                </Tag>
+                              )}
+                            </TableCell>
+                            <TableCell>
                               <Stack gap={2}>
                                 <Button
                                   kind="ghost"
@@ -1559,7 +1717,9 @@ const OrderAdditionalFieldsManagement = () => {
                                   disabled={
                                     savingSortFieldId === sourceField?.id
                                   }
-                                  onClick={() => saveFieldSortOrder(sourceField)}
+                                  onClick={() =>
+                                    saveFieldSortOrder(sourceField)
+                                  }
                                 >
                                   <FormattedMessage id="button.save" />
                                 </Button>
@@ -1620,7 +1780,9 @@ const OrderAdditionalFieldsManagement = () => {
                 <TableBody>
                   {sampleFixedRows.map((config) => (
                     <TableRow key={config.fieldKey}>
-                      <TableCell>{config.fieldKey}</TableCell>
+                      <TableCell>
+                        {getSampleFixedFieldDisplayLabel(config.fieldKey)}
+                      </TableCell>
                       <TableCell>
                         <Checkbox
                           id={`sample-fixed-visible-${config.fieldKey}`}
@@ -1696,5 +1858,4 @@ const OrderAdditionalFieldsManagement = () => {
     </>
   );
 };
-
 export default OrderAdditionalFieldsManagement;

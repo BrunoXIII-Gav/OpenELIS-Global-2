@@ -19,6 +19,7 @@ public class TestAdditionalFieldPayload {
     private String blockName;
     private String entryScope;
     private Boolean includeInValidation;
+    private Boolean hasSavedValues;
     private List<TestAdditionalFieldOptionPayload> options = new ArrayList<>();
 
     public Integer getId() {
@@ -131,6 +132,14 @@ public class TestAdditionalFieldPayload {
 
     public void setIncludeInValidation(Boolean includeInValidation) {
         this.includeInValidation = includeInValidation;
+    }
+
+    public Boolean getHasSavedValues() {
+        return hasSavedValues;
+    }
+
+    public void setHasSavedValues(Boolean hasSavedValues) {
+        this.hasSavedValues = hasSavedValues;
     }
 
     public List<TestAdditionalFieldOptionPayload> getOptions() {

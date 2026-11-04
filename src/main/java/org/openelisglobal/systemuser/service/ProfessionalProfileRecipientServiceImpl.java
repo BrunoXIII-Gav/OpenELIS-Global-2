@@ -23,8 +23,6 @@ import org.springframework.transaction.annotation.Transactional;
 public class ProfessionalProfileRecipientServiceImpl implements ProfessionalProfileRecipientService {
 
     private static final String YES = "Y";
-    private static final String BIOLOGIST = "BIOLOGIST";
-    private static final String MEDICAL_DOCTOR = "MEDICAL_DOCTOR";
 
     @Autowired
     private SystemUserService systemUserService;
@@ -48,14 +46,14 @@ public class ProfessionalProfileRecipientServiceImpl implements ProfessionalProf
             return Collections.emptyList();
         }
 
-        Map<String, Provider> providersByPersonId = providerService.getAllActiveProviders().stream()
-                .filter(provider -> provider.getPerson() != null && StringUtils.isNotBlank(provider.getPerson().getId()))
+        Map<String, Provider> providersByPersonId = providerService.getAllActiveProviders().stream().filter(
+                provider -> provider.getPerson() != null && StringUtils.isNotBlank(provider.getPerson().getId()))
                 .collect(Collectors.toMap(provider -> provider.getPerson().getId(), provider -> provider,
                         (left, right) -> left));
 
         Map<String, LoginUser> loginBySystemUserId = loginUserService.getAll().stream()
-                .collect(Collectors.toMap(login -> String.valueOf(loginUserService.getSystemUserId(login)), login -> login,
-                        (left, right) -> left));
+                .collect(Collectors.toMap(login -> String.valueOf(loginUserService.getSystemUserId(login)),
+                        login -> login, (left, right) -> left));
 
         return systemUserService.getAll().stream()
                 .filter(user -> !activeOnly || YES.equalsIgnoreCase(user.getIsActive()))
@@ -81,8 +79,8 @@ public class ProfessionalProfileRecipientServiceImpl implements ProfessionalProf
     @Override
     public List<IdValuePair> getEligibleUserOptionsForProfessionalProfile(String profileCode, boolean activeOnly,
             boolean useFullNameLabel, boolean requireDeliverableEmail) {
-        Map<String, Provider> providersByPersonId = providerService.getAllActiveProviders().stream()
-                .filter(provider -> provider.getPerson() != null && StringUtils.isNotBlank(provider.getPerson().getId()))
+        Map<String, Provider> providersByPersonId = providerService.getAllActiveProviders().stream().filter(
+                provider -> provider.getPerson() != null && StringUtils.isNotBlank(provider.getPerson().getId()))
                 .collect(Collectors.toMap(provider -> provider.getPerson().getId(), provider -> provider,
                         (left, right) -> left));
 
@@ -90,23 +88,12 @@ public class ProfessionalProfileRecipientServiceImpl implements ProfessionalProf
                 .map(user -> new IdValuePair(user.getId(),
                         buildProfessionalDisplayLabel(user, providersByPersonId.get(user.getLinkedProviderPersonId()),
                                 useFullNameLabel)))
-                .filter(option -> StringUtils.isNotBlank(option.getValue()))
-                .collect(Collectors.toList());
+                .filter(option -> StringUtils.isNotBlank(option.getValue())).collect(Collectors.toList());
     }
 
     @Override
     public String normalizeProfessionalProfileCode(String rawValue) {
-        String normalized = StringUtils.upperCase(StringUtils.trimToEmpty(rawValue));
-        if (StringUtils.isBlank(normalized)) {
-            return "";
-        }
-        if ("BIOLOGO".equals(normalized) || "BIOLOGISTA".equals(normalized)) {
-            return BIOLOGIST;
-        }
-        if ("MEDICO".equals(normalized) || "MÉDICO".equals(normalized) || "DOCTOR".equals(normalized)) {
-            return MEDICAL_DOCTOR;
-        }
-        return normalized;
+        return StringUtils.upperCase(StringUtils.trimToEmpty(rawValue));
     }
 
     private boolean isUserEligibleForProfile(SystemUser user, Map<String, Provider> providersByPersonId,
@@ -124,15 +111,13 @@ public class ProfessionalProfileRecipientServiceImpl implements ProfessionalProf
             return false;
         }
 
-        if (!BIOLOGIST.equals(normalizedProfileCode)) {
-            return true;
-        }
-
         String providerProfileCode = normalizeProfessionalProfileCode(linkedProvider.getProfessionalProfileCode());
-        if (!BIOLOGIST.equals(providerProfileCode)) {
+        if (!normalizedProfileCode.equals(providerProfileCode)) {
             return false;
         }
-        return true;
+
+        String userProfileCode = normalizeProfessionalProfileCode(user.getProfessionalProfileCode());
+        return normalizedProfileCode.equals(userProfileCode);
     }
 
     private boolean isLoginEligible(LoginUser login) {
@@ -151,17 +136,16 @@ public class ProfessionalProfileRecipientServiceImpl implements ProfessionalProf
     }
 
     private String buildProfessionalDisplayLabel(SystemUser user, Provider linkedProvider, boolean useFullNameLabel) {
+        String fullName = StringUtils.trimToEmpty(user.getNameForDisplay());
         if (useFullNameLabel) {
-            return user.getNameForDisplay();
+            return fullName;
         }
-        String profileCode = normalizeProfessionalProfileCode(user.getProfessionalProfileCode());
-        if (BIOLOGIST.equals(profileCode) && linkedProvider != null) {
+        if (linkedProvider != null) {
             String initials = StringUtils.trimToEmpty(linkedProvider.getProfessionalInitials());
             if (StringUtils.isNotBlank(initials)) {
                 return initials;
             }
-            return user.getNameForDisplay();
         }
-        return user.getNameForDisplay();
+        return fullName;
     }
 }
