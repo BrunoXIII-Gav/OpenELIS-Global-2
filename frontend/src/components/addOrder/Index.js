@@ -48,6 +48,8 @@ const Index = () => {
   const firstPageNumber = 0;
   const patientInfoPageNumber = firstPageNumber;
   const { configurationProperties } = useContext(ConfigurationContext);
+  const consentDownloadEnabled =
+    configurationProperties.ORDER_CONSENT_DOWNLOAD_ENABLED === "true";
   const showProgramStep =
     configurationProperties.SHOW_ORDER_PROGRAM_ON_ORDER_ENTRY !== "false";
   const programPageNumber = showProgramStep ? firstPageNumber + 1 : -1;
@@ -728,7 +730,7 @@ const Index = () => {
     if (submissionInFlight.current) {
       return;
     }
-    if (!consentDownloadToken) {
+    if (consentDownloadEnabled && !consentDownloadToken) {
       showAlertMessage(
         intl.formatMessage({
           id: "consent.download.requiredBeforeSubmit",
@@ -746,7 +748,9 @@ const Index = () => {
         ...attachedSamplePayload,
       }),
     );
-    payload.consentDownloadToken = consentDownloadToken;
+    if (consentDownloadEnabled) {
+      payload.consentDownloadToken = consentDownloadToken;
+    }
     payload.patientProperties = payload.patientProperties || {};
     payload.sampleOrderItems.labNo = "";
     payload.sampleOrderItems.labNoGenerated = true;
@@ -1102,11 +1106,13 @@ const Index = () => {
 
               {page === orderPageNumber && (
                 <div className="orderPageActionButtons">
-                  <ConsentDownloadButton
-                    orderFormValues={orderFormValues}
-                    samples={samples}
-                    onDownloaded={setConsentDownloadToken}
-                  />
+                  {consentDownloadEnabled && (
+                    <ConsentDownloadButton
+                      orderFormValues={orderFormValues}
+                      samples={samples}
+                      onDownloaded={setConsentDownloadToken}
+                    />
+                  )}
                   <Button
                     kind="primary"
                     className="forwardButton"

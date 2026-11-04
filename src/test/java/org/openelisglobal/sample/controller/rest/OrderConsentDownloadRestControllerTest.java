@@ -12,6 +12,8 @@ import org.openelisglobal.common.action.IActionConstants;
 import org.openelisglobal.common.services.IStatusService;
 import org.openelisglobal.common.services.StatusService.AnalysisStatus;
 import org.openelisglobal.common.services.StatusService.SampleStatus;
+import org.openelisglobal.common.util.ConfigurationProperties.Property;
+import org.openelisglobal.common.util.DefaultConfigurationProperties;
 import org.openelisglobal.config.AppConfig;
 import org.openelisglobal.config.ControllerSetup;
 import org.openelisglobal.dataexchange.fhir.service.FhirTransformService;
@@ -20,11 +22,13 @@ import org.openelisglobal.reportdefinition.controller.ConsentTemplateRestControl
 import org.openelisglobal.reports.service.ConsentTemplateService;
 import org.openelisglobal.sample.exception.ConsentDownloadRequiredException;
 import org.openelisglobal.sample.form.SampleEditForm;
+import org.openelisglobal.sample.form.SamplePatientEntryForm;
 import org.openelisglobal.sample.service.OrderAuthorizationService;
 import org.openelisglobal.sample.service.OrderConsentDownloadServiceImpl;
 import org.openelisglobal.sample.service.SampleEditService;
 import org.openelisglobal.sample.service.SamplePatientEntryService;
 import org.openelisglobal.sample.validator.SampleEditFormValidator;
+import org.openelisglobal.sample.validator.SamplePatientEntryFormValidator;
 import org.openelisglobal.spring.util.SpringContext;
 import org.springframework.beans.factory.config.AutowireCapableBeanFactory;
 import org.springframework.http.MediaType;
@@ -36,9 +40,11 @@ import org.springframework.test.web.servlet.setup.MockMvcBuilders;
 import org.springframework.validation.BeanPropertyBindingResult;
 import org.springframework.validation.Errors;
 import org.springframework.validation.Validator;
+import org.springframework.web.servlet.mvc.support.RedirectAttributesModelMap;
 
 public class OrderConsentDownloadRestControllerTest {
     private OrderConsentDownloadServiceImpl receipts;
+    private DefaultConfigurationProperties configuration;
     private ConsentTemplateService templates;
     private MockHttpSession session;
     private MockMvc reports;
@@ -46,6 +52,9 @@ public class OrderConsentDownloadRestControllerTest {
     @Before
     public void setup() {
         receipts = spy(new OrderConsentDownloadServiceImpl());
+        configuration = mock(DefaultConfigurationProperties.class);
+        when(configuration.isPropertyValueEqual(Property.ORDER_CONSENT_DOWNLOAD_ENABLED, "true")).thenReturn(true);
+        ReflectionTestUtils.setField(receipts, "configurationProperties", configuration);
         templates = mock(ConsentTemplateService.class);
         when(templates.generateConsentPdf(any())).thenReturn(new byte[] { 37, 80, 68, 70 });
         var controller = new ConsentTemplateRestController();
@@ -120,6 +129,45 @@ public class OrderConsentDownloadRestControllerTest {
                     .andExpect(header().string("X-OpenELIS-Error-Code", ConsentDownloadRequiredException.CODE));
         }
         verifyZeroInteractions(persistence);
+    }
+
+    @Test
+    public void disabledDownloadsDoNotBypassCreateAuthorizationOrNormalValidation() throws Exception {
+        Object previousFactory = ReflectionTestUtils.getField(SpringContext.class, "factory");
+        var factory = mock(AutowireCapableBeanFactory.class);
+        when(factory.getBean(DefaultConfigurationProperties.class)).thenReturn(configuration);
+        ReflectionTestUtils.setField(SpringContext.class, "factory", factory);
+        try {
+            when(configuration.isPropertyValueEqual(Property.ORDER_CONSENT_DOWNLOAD_ENABLED, "true")).thenReturn(false);
+            var controller = new SamplePatientEntryRestController();
+            var authorization = mock(OrderAuthorizationService.class);
+            when(authorization.hasPermission("42", "create")).thenReturn(true);
+            var persistence = mock(SamplePatientEntryService.class);
+            var validator = mock(SamplePatientEntryFormValidator.class);
+            ReflectionTestUtils.setField(controller, "orderAuthorizationService", authorization);
+            ReflectionTestUtils.setField(controller, "orderConsentDownloadService", receipts);
+            ReflectionTestUtils.setField(controller, "samplePatientService", persistence);
+            ReflectionTestUtils.setField(controller, "formValidator", validator);
+            var request = new MockHttpServletRequest();
+            request.setSession(session);
+            var form = new SamplePatientEntryForm();
+            var errors = new BeanPropertyBindingResult(form, "form");
+
+            // No receipt is needed, but normal validation and laboratory access still run.
+            assertThrows(org.springframework.security.access.AccessDeniedException.class,
+                    () -> controller.samplePatientEntrySave(request, form, errors, new RedirectAttributesModelMap()));
+            verify(validator).validate(form, errors);
+            verify(authorization).canAccessSampleXml("42", form.getSampleXML(), "create");
+            verifyZeroInteractions(persistence);
+
+            when(authorization.hasPermission("42", "create")).thenReturn(false);
+            assertThrows(org.springframework.security.access.AccessDeniedException.class,
+                    () -> controller.samplePatientEntrySave(request, form, errors, new RedirectAttributesModelMap()));
+            verify(validator, times(1)).validate(form, errors);
+            verifyZeroInteractions(persistence);
+        } finally {
+            ReflectionTestUtils.setField(SpringContext.class, "factory", previousFactory);
+        }
     }
 
     @Test

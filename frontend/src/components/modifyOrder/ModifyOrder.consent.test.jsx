@@ -209,13 +209,17 @@ beforeEach(() => {
   );
 });
 afterEach(() => jest.restoreAllMocks());
-const open = (child = <ModifyOrder />) =>
+const open = (
+  child = <ModifyOrder />,
+  configurationProperties = { ORDER_CONSENT_DOWNLOAD_ENABLED: "true" },
+) =>
   render(
     <IntlProvider locale="es" messages={messages}>
       <ConfigurationContext.Provider
         value={{
           configurationProperties: {
             SHOW_ORDER_PROGRAM_ON_ORDER_ENTRY: "true",
+            ...configurationProperties,
           },
         }}
       >
@@ -415,3 +419,22 @@ test("creating an order continues using its entered patient data without a saved
   expect(payload.orderPatientId).toBe("10");
   expect(payload.orderAccessionNumber).toBe("");
 });
+
+test.each([{}, { ORDER_CONSENT_DOWNLOAD_ENABLED: "false" }])(
+  "UCD hides the download button while editing with configuration %j",
+  async (configurationProperties) => {
+    const page = open(undefined, configurationProperties);
+    orderStep(page);
+    const submit = page.getByText(messages["label.button.submit"]);
+    await wait(() => expect(submit.disabled).toBe(false));
+    expect(page.queryByText(messages["consent.download.button"])).toBeNull();
+    fireEvent.click(submit);
+    expect(postToOpenElisServerFullResponse).toHaveBeenCalledTimes(1);
+    expect(
+      JSON.parse(postToOpenElisServerFullResponse.mock.calls[0][1])
+        .consentDownloadToken,
+    ).toBeUndefined();
+    expect(postToOpenElisServerForBlob).not.toHaveBeenCalled();
+    expect(addNotification).not.toHaveBeenCalled();
+  },
+);

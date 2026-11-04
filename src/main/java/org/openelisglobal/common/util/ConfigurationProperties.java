@@ -212,6 +212,7 @@ public abstract class ConfigurationProperties {
                                                                                                // ID optional fields
         SHOW_ORDER_PROGRAM_ON_ORDER_ENTRY("showOrderProgramOnOrderEntry", "text"), // If true show Program step in
                                                                                    // order entry workflow
+        ORDER_CONSENT_DOWNLOAD_ENABLED("orderConsentDownloadEnabled", "text"),
         ENABLE_RESULT_LEVEL_FILE_UPLOAD("enableResultLevelFileUpload", "text"), // If true show test-level result
                                                                                 // file upload in results and
                                                                                 // validation

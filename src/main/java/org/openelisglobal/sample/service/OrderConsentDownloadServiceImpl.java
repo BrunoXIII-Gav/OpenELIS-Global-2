@@ -8,7 +8,10 @@ import java.util.LinkedHashMap;
 import java.util.Map;
 import java.util.UUID;
 import org.apache.commons.lang3.StringUtils;
+import org.openelisglobal.common.util.ConfigurationProperties.Property;
+import org.openelisglobal.common.util.DefaultConfigurationProperties;
 import org.openelisglobal.sample.exception.ConsentDownloadRequiredException;
+import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
 
 /**
@@ -19,6 +22,18 @@ public class OrderConsentDownloadServiceImpl implements OrderConsentDownloadServ
     private static final String SESSION_KEY = OrderConsentDownloadServiceImpl.class.getName();
     private static final long TTL = Duration.ofHours(2).toMillis();
     private static final int MAX_RECEIPTS = 32;
+    private static final Permit DOWNLOAD_NOT_REQUIRED = new Permit() {
+        @Override
+        public void complete() {
+        }
+
+        @Override
+        public void close() {
+        }
+    };
+
+    @Autowired
+    private DefaultConfigurationProperties configurationProperties;
 
     protected long now() {
         return System.currentTimeMillis();
@@ -47,6 +62,8 @@ public class OrderConsentDownloadServiceImpl implements OrderConsentDownloadServ
     @Override
     public void requireDownload(HttpServletRequest request, String userId, String token, String patientId,
             String accessionNumber) {
+        if (!configurationProperties.isPropertyValueEqual(Property.ORDER_CONSENT_DOWNLOAD_ENABLED, "true"))
+            return;
         HttpSession session = request.getSession(false);
         if (session == null)
             throw new ConsentDownloadRequiredException();
@@ -58,6 +75,8 @@ public class OrderConsentDownloadServiceImpl implements OrderConsentDownloadServ
     @Override
     public Permit claim(HttpServletRequest request, String userId, String token, String patientId,
             String accessionNumber) {
+        if (!configurationProperties.isPropertyValueEqual(Property.ORDER_CONSENT_DOWNLOAD_ENABLED, "true"))
+            return DOWNLOAD_NOT_REQUIRED;
         HttpSession session = request.getSession(false);
         if (session == null)
             throw new ConsentDownloadRequiredException();

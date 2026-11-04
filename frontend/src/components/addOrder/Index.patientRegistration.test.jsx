@@ -125,13 +125,16 @@ const notifications = {
   setNotificationVisible: jest.fn(),
   addNotification: jest.fn(),
 };
-const renderOrder = () =>
+const renderOrder = (
+  configurationProperties = { ORDER_CONSENT_DOWNLOAD_ENABLED: "true" },
+) =>
   render(
     <IntlProvider locale="en" messages={messages}>
       <ConfigurationContext.Provider
         value={{
           configurationProperties: {
             SHOW_ORDER_PROGRAM_ON_ORDER_ENTRY: "false",
+            ...configurationProperties,
           },
         }}
       >
@@ -398,3 +401,42 @@ test("an expired server receipt shows the consent instruction and requires downl
   fireEvent.click(view.getByText(messages["label.button.submit"]));
   expect(postToOpenElisServerFullResponse).toHaveBeenCalledTimes(2);
 });
+
+test.each([{}, { ORDER_CONSENT_DOWNLOAD_ENABLED: "false" }])(
+  "UCD hides the download button and saves without a receipt with configuration %j",
+  async (configurationProperties) => {
+    postToOpenElisServerFullResponse.mockImplementation(
+      (_url, _body, callback) =>
+        callback({
+          status: 200,
+          json: async () => ({
+            sampleOrderItems: { labNo: "LAB0000000000002" },
+          }),
+        }),
+    );
+    const view = renderOrder(configurationProperties);
+    fireEvent.click(view.getByText("Save test patient"));
+    fireEvent.click(view.getByText(messages["next.action.button"]));
+    fireEvent.click(view.getByText("Select sample"));
+    fireEvent.click(view.getByText(messages["next.action.button"]));
+    const submit = view
+      .getByText(messages["label.button.submit"])
+      .closest("button");
+    await wait(() => expect(submit.disabled).toBe(false));
+    expect(view.queryByText(messages["consent.download.button"])).toBeNull();
+    fireEvent.click(submit);
+    await wait(() => expect(view.getByText(/LAB0000000000002/)).toBeTruthy());
+    expect(postToOpenElisServerFullResponse).toHaveBeenCalledTimes(1);
+    expect(
+      JSON.parse(postToOpenElisServerFullResponse.mock.calls[0][1])
+        .consentDownloadToken,
+    ).toBeUndefined();
+    expect(postToOpenElisServerForBlob).not.toHaveBeenCalled();
+    expect(notifications.addNotification).not.toHaveBeenCalledWith(
+      expect.objectContaining({ kind: "error" }),
+    );
+    expect(notifications.addNotification).toHaveBeenCalledWith(
+      expect.objectContaining({ kind: "success" }),
+    );
+  },
+);

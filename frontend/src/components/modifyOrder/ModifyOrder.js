@@ -38,6 +38,8 @@ const ModifyOrder = () => {
 
   const intl = useIntl();
   const { configurationProperties } = useContext(ConfigurationContext);
+  const consentDownloadEnabled =
+    configurationProperties.ORDER_CONSENT_DOWNLOAD_ENABLED === "true";
 
   const showProgramStep =
     configurationProperties.SHOW_ORDER_PROGRAM_ON_ORDER_ENTRY !== "false";
@@ -447,7 +449,7 @@ const ModifyOrder = () => {
                             : undefined
                         }
                       >
-                        {page === orderPageNumber && (
+                        {page === orderPageNumber && consentDownloadEnabled && (
                           <ConsentDownloadButton
                             orderFormValues={orderFormValues}
                             samples={samples.filter(
