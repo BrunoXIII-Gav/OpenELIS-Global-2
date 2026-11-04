@@ -38,6 +38,10 @@ public class PatientDAORedirectIntegrationTest extends BaseWebContextSensitiveTe
 
     @Before
     public void setUp() throws Exception {
+        // Other fixtures insert explicit IDs without advancing the sequences.
+        // Isolate these generated-ID records from data left by earlier tests.
+        cleanRowsInCurrentConnection(new String[] { "patient", "person" });
+
         // Create persons for test patients
         primaryPerson = new Person();
         primaryPerson.setFirstName("John");
