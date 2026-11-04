@@ -1009,6 +1009,7 @@ const EditSample = (props) => {
                   rejectSampleReasons={rejectSampleReasons}
                   removeSample={removeSample}
                   sample={sample}
+                  lockedTestIds={sample.lockedTestIds}
                   setSample={(newSample) => {
                     let newSamples = [...samples];
                     newSamples[i] = newSample;
