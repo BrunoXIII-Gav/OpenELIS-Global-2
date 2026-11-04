@@ -45,7 +45,11 @@ export function unregisterServiceWorker() {
       .then((keys) =>
         Promise.all(
           keys.map((key) => {
-            if (key.includes("workbox") || key.includes("precache") || key.includes("runtime")) {
+            if (
+              key.includes("workbox") ||
+              key.includes("precache") ||
+              key.includes("runtime")
+            ) {
               return caches.delete(key);
             }
 

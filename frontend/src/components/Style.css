@@ -1190,11 +1190,7 @@ nav.cds--side-nav .cds--side-nav__link::before {
   min-height: 3rem;
   background-color: var(--site-branding-header, #295785) !important;
   border-bottom: 1px solid
-    color-mix(
-      in srgb,
-      var(--site-branding-header, #295785) 78%,
-      white
-    );
+    color-mix(in srgb, var(--site-branding-header, #295785) 78%, white);
   box-shadow: 0 2px 10px rgba(15, 23, 42, 0.16);
 }
 
@@ -1237,11 +1233,7 @@ nav.cds--side-nav .cds--side-nav__link::before {
 
 nav.cds--side-nav {
   border-right: 1px solid
-    color-mix(
-      in srgb,
-      var(--site-branding-sidenav-bg, #295785) 78%,
-      white
-    );
+    color-mix(in srgb, var(--site-branding-sidenav-bg, #295785) 78%, white);
   box-shadow: 4px 0 14px rgba(15, 23, 42, 0.12);
 }
 

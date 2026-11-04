@@ -50,7 +50,9 @@
   background: #ffffff;
   border: 1px solid #e0e6ef;
   border-radius: 10px;
-  transition: box-shadow 0.15s ease, transform 0.15s ease;
+  transition:
+    box-shadow 0.15s ease,
+    transform 0.15s ease;
 }
 
 .sample-mgmt-test-card:hover {
@@ -152,7 +154,9 @@
   background: #ffffff;
   border: 1px solid #e0e6ef;
   border-radius: 10px;
-  transition: box-shadow 0.15s ease, transform 0.15s ease;
+  transition:
+    box-shadow 0.15s ease,
+    transform 0.15s ease;
 }
 
 .sample-mgmt-test-card:hover {

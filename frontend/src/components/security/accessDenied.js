@@ -19,8 +19,11 @@ export const emitAccessDeniedEvent = (detail = {}) => {
 };
 
 export const showAccessDeniedDialog = (intl, options = {}) => {
-  const { onAcknowledge, closeOnClickOutside = false, closeOnEscape = false } =
-    options;
+  const {
+    onAcknowledge,
+    closeOnClickOutside = false,
+    closeOnEscape = false,
+  } = options;
 
   confirmAlert({
     title: intl.formatMessage({ id: "accessDenied.title" }),
