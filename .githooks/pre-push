@@ -1,0 +1,6 @@
+#!/bin/bash
+# Catch inherited format failures before sending a branch to GitHub.
+set -euo pipefail
+
+REPO_ROOT="$(git rev-parse --show-toplevel)"
+exec bash "$REPO_ROOT/scripts/check-format.sh"
