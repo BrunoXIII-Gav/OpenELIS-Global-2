@@ -1,7 +1,11 @@
 FROM hapiproject/hapi:v6.6.0-tomcat
 
 USER root
-RUN apt-get update && apt-get install -y curl
+# Bullseye security packages are now hosted in the Debian archive.
+RUN sed -i 's|http://security.debian.org/|http://archive.debian.org/debian-security/|g' /etc/apt/sources.list \
+    && apt-get update \
+    && apt-get install -y curl \
+    && rm -rf /var/lib/apt/lists/*
 
 COPY ./tomcat/hapi_server.xml /opt/bitnami/tomcat/conf/server.xml
 
