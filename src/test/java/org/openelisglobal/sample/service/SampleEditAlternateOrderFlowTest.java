@@ -68,6 +68,7 @@ public class SampleEditAlternateOrderFlowTest {
         when(bean(IStatusService.class).getStatusID(AnalysisStatus.NotStarted)).thenReturn("not-started");
         when(bean(IStatusService.class).getStatusID(AnalysisStatus.Canceled)).thenReturn("6");
         when(bean(IStatusService.class).getStatusID(SampleStatus.Entered)).thenReturn("1");
+        when(bean(IStatusService.class).getStatusID(SampleStatus.Canceled)).thenReturn("7");
         when(bean(DefaultConfigurationProperties.class).getPropertyValue(Property.DEFAULT_DATE_LOCALE))
                 .thenReturn("en");
         previousMessageUtil = ReflectionTestUtils.getField(MessageUtil.class, "instance");
@@ -96,6 +97,7 @@ public class SampleEditAlternateOrderFlowTest {
         }
         analyses = bean(AnalysisService.class);
         reset(analyses);
+        reset(bean(SampleItemService.class), bean(SampleCugService.class), bean(OrderAuthorizationService.class));
         when(analyses.insert(any(Analysis.class))).thenReturn("80");
 
         sample = new Sample();
@@ -154,6 +156,81 @@ public class SampleEditAlternateOrderFlowTest {
         selection.setTestId("30");
         selection.setAdd(true);
         when(form.getPossibleTests()).thenReturn(List.of(selection));
+    }
+
+    @Test
+    public void removingASampleCancelsAllItsAnalysesEvenWhenTheyAreNotGroupedInThePayload() {
+        var first = analysis("80", item);
+        var second = analysis("81", item);
+        when(analyses.getAnalysesBySampleItemsExcludingByStatusIds(eq(item), anySet()))
+                .thenReturn(List.of(first, second));
+        var authorization = bean(OrderAuthorizationService.class);
+        when(authorization.hasPermission("42", "cancel")).thenReturn(true);
+        when(authorization.canAccessAllTests(eq("42"), anyList(), eq("cancel"))).thenReturn(true);
+        when(form.getRemovedSampleItemIds()).thenReturn(List.of("55", "55"));
+        when(form.getPossibleTests()).thenReturn(List.of());
+
+        service.editSample(form, new MockHttpServletRequest(), sample, false, "42");
+
+        assertEquals(ReflectionTestUtils.getField(SampleEditServiceImpl.class, "CANCELED_SAMPLE_STATUS_ID"),
+                item.getStatusId());
+        assertTrue(item.isVoided());
+        assertEquals(ReflectionTestUtils.getField(SampleEditServiceImpl.class, "CANCELED_TEST_STATUS_ID"),
+                first.getStatusId());
+        assertEquals(ReflectionTestUtils.getField(SampleEditServiceImpl.class, "CANCELED_TEST_STATUS_ID"),
+                second.getStatusId());
+        verify(analyses).update(first);
+        verify(analyses).update(second);
+        verify(bean(SampleCugService.class)).releaseRemovedSampleCug(item, "10", "42");
+        verify(bean(SampleItemService.class), times(1)).update(item);
+    }
+
+    @Test
+    public void legacyRemoveFlagAlsoRemovesASampleWithoutAnAnalysisId() {
+        var row = new SampleEditItem();
+        row.setSampleItemId("55");
+        row.setRemoveSample(true);
+        when(form.getExistingTests()).thenReturn(List.of(row));
+        when(form.getPossibleTests()).thenReturn(List.of());
+        when(bean(OrderAuthorizationService.class).hasPermission("42", "cancel")).thenReturn(true);
+        when(bean(OrderAuthorizationService.class).canAccessAllTests(eq("42"), anyList(), eq("cancel")))
+                .thenReturn(true);
+        when(analyses.getAnalysesBySampleItemsExcludingByStatusIds(eq(item), anySet())).thenReturn(List.of());
+
+        service.editSample(form, new MockHttpServletRequest(), sample, false, "42");
+
+        assertTrue(item.isVoided());
+        verify(analyses, never()).get((String) null);
+    }
+
+    @Test
+    public void removingASampleFromAnotherOrderIsRejectedBeforeChangingIt() {
+        var other = new Sample();
+        other.setId("999");
+        item.setSample(other);
+        when(form.getRemovedSampleItemIds()).thenReturn(List.of("55"));
+        when(bean(OrderAuthorizationService.class).hasPermission("42", "cancel")).thenReturn(true);
+        assertThrows(org.springframework.security.access.AccessDeniedException.class,
+                () -> service.editSample(form, new MockHttpServletRequest(), sample, false, "42"));
+        assertFalse(item.isVoided());
+        assertEquals("5411.1", item.getCugCode());
+    }
+
+    @Test
+    public void removalRequiresCancellationPermissionEvenWithAnExplicitSampleId() {
+        when(form.getRemovedSampleItemIds()).thenReturn(List.of("55"));
+        when(bean(OrderAuthorizationService.class).hasPermission("42", "cancel")).thenReturn(false);
+        assertThrows(org.springframework.security.access.AccessDeniedException.class,
+                () -> service.editSample(form, new MockHttpServletRequest(), sample, false, "42"));
+        assertFalse(item.isVoided());
+    }
+
+    private Analysis analysis(String id, SampleItem sampleItem) {
+        var analysis = new Analysis();
+        analysis.setId(id);
+        analysis.setSampleItem(sampleItem);
+        analysis.setTest(bean(TestService.class).get("30"));
+        return analysis;
     }
 
     @Test

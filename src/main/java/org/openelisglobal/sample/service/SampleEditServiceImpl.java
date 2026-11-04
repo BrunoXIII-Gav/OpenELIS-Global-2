@@ -69,6 +69,7 @@ import org.openelisglobal.userrole.service.UserRoleService;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.security.access.AccessDeniedException;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -131,6 +132,9 @@ public class SampleEditServiceImpl implements SampleEditService {
     private UnitOfMeasureService unitOfMeasureService;
     @Autowired
     private SampleCugService sampleCugService;
+
+    @Autowired
+    private OrderAuthorizationService orderAuthorizationService;
     private List<String> analysisList = new ArrayList<>();
 
     @Transactional
@@ -148,9 +152,18 @@ public class SampleEditServiceImpl implements SampleEditService {
 
         List<SampleEditItem> existingTests = form.getExistingTests() != null ? form.getExistingTests()
                 : new ArrayList<>();
+        Set<String> removedSampleItemIds = new HashSet<>();
+        if (form.getRemovedSampleItemIds() != null) {
+            removedSampleItemIds.addAll(form.getRemovedSampleItemIds());
+        }
+        existingTests.stream().filter(SampleEditItem::isRemoveSample).map(SampleEditItem::getSampleItemId)
+                .forEach(removedSampleItemIds::add);
         List<Analysis> cancelAnalysisList = createRemoveList(existingTests, sysUserId);
-        List<SampleItem> updateSampleItemList = createSampleItemUpdateList(existingTests, sysUserId);
-        List<SampleItem> cancelSampleItemList = createCancelSampleList(existingTests, cancelAnalysisList, sysUserId);
+        List<SampleItem> cancelSampleItemList = createCancelSampleList(removedSampleItemIds, updatedSample,
+                cancelAnalysisList, sysUserId);
+        List<SampleItem> updateSampleItemList = createSampleItemUpdateList(
+                existingTests.stream().filter(row -> !removedSampleItemIds.contains(row.getSampleItemId())).toList(),
+                sysUserId);
         List<Analysis> addAnalysisList = new ArrayList<>();
 
         List<IResultUpdate> updaters = ResultUpdateRegister.getRegisteredUpdaters();
@@ -166,7 +179,7 @@ public class SampleEditServiceImpl implements SampleEditService {
         List<SampleEditItem> selectedTests = form.getPossibleTests() != null ? form.getPossibleTests()
                 : new ArrayList<>();
         addAnalysisList = createAddAanlysisList(
-                selectedTests.stream()
+                selectedTests.stream().filter(selection -> !removedSampleItemIds.contains(selection.getSampleItemId()))
                         .filter(selection -> AlternateOrderFlowPolicy.allowsProcessing(alternateOrderFlow,
                                 testService.get(selection.getTestId())))
                         .collect(java.util.stream.Collectors.toList()),
@@ -192,6 +205,12 @@ public class SampleEditServiceImpl implements SampleEditService {
         if (orderArtifacts.getSample() != null) {
             sampleChanged = true;
             updatedSample = orderArtifacts.getSample();
+        }
+        // Release removed codes before assigning new samples in the same transaction.
+        // A failed save rolls back both the removal and the release.
+        for (SampleItem sampleItem : cancelSampleItemList) {
+            sampleCugService.releaseRemovedSampleCug(sampleItem, patient.getId(), sysUserId);
+            sampleItemService.update(sampleItem);
         }
         sampleCugService.assignMissingCugCodes(addedSamples, patient == null ? null : patient.getId(), sysUserId,
                 updatedSample.getId());
@@ -230,10 +249,6 @@ public class SampleEditServiceImpl implements SampleEditService {
                 analysisService.update(analysis);
             }
             analysisIds.add(analysisId);
-        }
-
-        for (SampleItem sampleItem : cancelSampleItemList) {
-            sampleItemService.update(sampleItem);
         }
 
         if (sampleChanged) {
@@ -485,32 +500,34 @@ public class SampleEditServiceImpl implements SampleEditService {
         return sampleAddService.createSampleTestCollection();
     }
 
-    private List<SampleItem> createCancelSampleList(List<SampleEditItem> list, List<Analysis> cancelAnalysisList,
-            String sysUserId) {
+    private List<SampleItem> createCancelSampleList(Set<String> sampleItemIds, Sample sample,
+            List<Analysis> cancelAnalysisList, String sysUserId) {
         List<SampleItem> cancelList = new ArrayList<>();
-
-        boolean cancelTest = false;
-
-        for (SampleEditItem editItem : list) {
-            if (editItem.getAccessionNumber() != null) {
-                cancelTest = false;
+        if (!sampleItemIds.isEmpty() && !orderAuthorizationService.hasPermission(sysUserId, "cancel")) {
+            throw new AccessDeniedException("The user does not have permission to remove samples");
+        }
+        for (String id : sampleItemIds) {
+            SampleItem item = sampleItemService.get(id);
+            if (item == null || item.getSample() == null || !sample.getId().equals(item.getSample().getId())) {
+                throw new AccessDeniedException("The sample item does not belong to this order");
             }
-            if (cancelTest && !cancelAnalysisListContainsId(editItem.getAnalysisId(), cancelAnalysisList)) {
-                Analysis analysis = getCancelableAnalysis(editItem, sysUserId);
-                cancelAnalysisList.add(analysis);
+            List<Analysis> analyses = analysisService.getAnalysesBySampleItemsExcludingByStatusIds(item,
+                    Set.of(Integer.valueOf(CANCELED_TEST_STATUS_ID)));
+            if (!orderAuthorizationService.canAccessAllTests(sysUserId,
+                    analyses.stream().map(analysis -> analysis.getTest().getId()).toList(), "cancel")) {
+                throw new AccessDeniedException("The user cannot remove tests from these laboratory units");
             }
-
-            if (editItem.isRemoveSample()) {
-                cancelTest = true;
-                SampleItem sampleItem = getCancelableSampleItem(editItem, sysUserId);
-                if (sampleItem != null) {
-                    cancelList.add(sampleItem);
-                }
-                if (!cancelAnalysisListContainsId(editItem.getAnalysisId(), cancelAnalysisList)) {
-                    Analysis analysis = getCancelableAnalysis(editItem, sysUserId);
+            for (Analysis analysis : analyses) {
+                if (!cancelAnalysisListContainsId(analysis.getId(), cancelAnalysisList)) {
+                    analysis.setStatusId(CANCELED_TEST_STATUS_ID);
+                    analysis.setSysUserId(sysUserId);
                     cancelAnalysisList.add(analysis);
                 }
             }
+            item.setStatusId(CANCELED_SAMPLE_STATUS_ID);
+            item.setVoided(true);
+            item.setSysUserId(sysUserId);
+            cancelList.add(item);
         }
 
         return cancelList;
@@ -581,19 +598,6 @@ public class SampleEditServiceImpl implements SampleEditService {
         analysis.setSysUserId(sysUserId);
         analysis.setStatusId(SpringContext.getBean(IStatusService.class).getStatusID(AnalysisStatus.Canceled));
         return analysis;
-    }
-
-    private SampleItem getCancelableSampleItem(SampleEditItem editItem, String sysUserId) {
-        String sampleItemId = editItem.getSampleItemId();
-        SampleItem item = sampleItemService.get(sampleItemId);
-
-        if (item.getId() != null) {
-            item.setStatusId(CANCELED_SAMPLE_STATUS_ID);
-            item.setSysUserId(sysUserId);
-            return item;
-        }
-
-        return null;
     }
 
     private boolean cancelAnalysisListContainsId(String analysisId, List<Analysis> cancelAnalysisList) {

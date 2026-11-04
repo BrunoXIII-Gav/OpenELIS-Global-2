@@ -125,6 +125,22 @@ public class SampleCugReservationDAOImpl extends BaseDAOImpl<SampleCugReservatio
     }
 
     @Override
+    public void releaseConsumedValue(String cugCode, String sampleId, String patientId) {
+        // Reservations are transport records. The clinical removal is retained in
+        // the sample and audit history, while this unique value can be reserved again.
+        var consumed = entityManager
+                .createQuery(
+                        "from SampleCugReservation r where r.reservedValue = :code "
+                                + "and r.sampleId = :sample and r.patientId = :patient and r.status = :status",
+                        SampleCugReservation.class)
+                .setParameter("code", cugCode).setParameter("sample", Integer.valueOf(sampleId))
+                .setParameter("patient", Integer.valueOf(patientId))
+                .setParameter("status", ReservationStatus.CONSUMED.name()).setLockMode(LockModeType.PESSIMISTIC_WRITE)
+                .getResultList();
+        consumed.forEach(this::delete);
+    }
+
+    @Override
     public List<SampleCugReservation> lockReservedForPatient(String patientId) {
         return entityManager
                 .createQuery("from SampleCugReservation r where r.patientId = :patient "

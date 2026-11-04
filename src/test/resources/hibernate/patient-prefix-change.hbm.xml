@@ -11,6 +11,7 @@
         <version name="lastupdated" column="lastupdated"
             type="timestamp" access="field" />
         <property name="cugCode" column="cug_code" type="string" />
+        <property name="voided" column="voided" type="boolean" />
         <many-to-one name="sample"
             class="org.openelisglobal.sample.valueholder.Sample" column="samp_id"
             lazy="false" />

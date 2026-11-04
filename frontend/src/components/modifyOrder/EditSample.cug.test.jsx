@@ -63,6 +63,7 @@ function Harness({ rows, possibleRows }) {
     sampleOrderItems: { labNo: "LNG83" },
   });
   const [samples, setSamples] = useState(() => buildSamplesFromOrder(form));
+  const [removedIds, setRemovedIds] = useState([]);
   return (
     <>
       <EditSample
@@ -73,9 +74,7 @@ function Harness({ rows, possibleRows }) {
         hideExistingSamplesSections
         patientId="10"
         onRemoveExistingSample={(id) =>
-          setSamples((previous) =>
-            previous.filter((sample) => sample.existingSampleItemId !== id),
-          )
+          setRemovedIds((previous) => [...previous, id])
         }
       />
       <ConsentDownloadButton
@@ -84,7 +83,7 @@ function Harness({ rows, possibleRows }) {
         patientId="10"
       />
       <output data-testid="order-payload">
-        {JSON.stringify(buildModifyOrderPayload(form, samples))}
+        {JSON.stringify(buildModifyOrderPayload(form, samples, removedIds))}
       </output>
     </>
   );
@@ -259,6 +258,16 @@ test("removing an earlier sample keeps the remaining sample CUG on screen and in
       "5010.2",
     ),
   );
+  const editPayload = JSON.parse(page.getByTestId("order-payload").textContent);
+  expect(editPayload.removedSampleItemIds).toEqual(["20"]);
+  expect(
+    editPayload.existingTests.find((row) => row.sampleItemId === "20")
+      .removeSample,
+  ).toBe(true);
+  expect(
+    editPayload.existingTests.find((row) => row.sampleItemId === "21")
+      .removeSample,
+  ).toBe(false);
   fireEvent.click(page.getByText(messages["consent.download.button"]));
   await wait(() =>
     expect(postToOpenElisServerForBlob).toHaveBeenCalledTimes(1),
@@ -267,4 +276,28 @@ test("removing an earlier sample keeps the remaining sample CUG on screen and in
   expect(payload.cug).toBe("5010.2");
   expect(payload.sourceValues["sample.cug"]).toBe("5010.2");
   expect(payload.selectedTests).toEqual(["ATXN10"]);
+});
+
+test("removing the last existing sample sends only its ID and preserves the first sample", async () => {
+  const page = open();
+  fireEvent.click(page.getAllByText(messages["sample.remove.action"])[1]);
+  const payload = JSON.parse(page.getByTestId("order-payload").textContent);
+  expect(payload.removedSampleItemIds).toEqual(["21"]);
+  expect(payload.existingTests[0].removeSample).toBe(false);
+  expect(payload.existingTests[1].removeSample).toBe(true);
+  expect(page.getByLabelText(messages["sample.cug.label"]).value).toBe(
+    "5010.1",
+  );
+});
+
+test("an existing sample without analyses can also be removed explicitly", async () => {
+  const page = open(
+    [],
+    [{ ...tests[0], testId: "30", testName: "Extracción de ADN" }],
+  );
+  fireEvent.click(page.getByText(messages["sample.remove.action"]));
+  const payload = JSON.parse(page.getByTestId("order-payload").textContent);
+  expect(payload.removedSampleItemIds).toEqual(["20"]);
+  expect(payload.existingTests).toEqual([]);
+  expect(payload.possibleTests.every((row) => row.add === false)).toBe(true);
 });

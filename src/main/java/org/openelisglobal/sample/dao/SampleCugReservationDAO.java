@@ -20,4 +20,6 @@ public interface SampleCugReservationDAO extends BaseDAO<SampleCugReservation, I
     int expireReservations(Timestamp asOf);
 
     java.util.List<SampleCugReservation> lockReservedForPatient(String patientId);
+
+    void releaseConsumedValue(String cugCode, String sampleId, String patientId);
 }
