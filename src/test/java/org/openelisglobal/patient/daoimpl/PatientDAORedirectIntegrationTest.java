@@ -38,6 +38,9 @@ public class PatientDAORedirectIntegrationTest extends BaseWebContextSensitiveTe
 
     @Before
     public void setUp() throws Exception {
+        // Other fixtures insert explicit IDs without advancing the Hibernate sequences.
+        cleanRowsInCurrentConnection(new String[] { "person", "patient" });
+
         // Create persons for test patients
         primaryPerson = new Person();
         primaryPerson.setFirstName("John");
