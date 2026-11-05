@@ -1,4 +1,5 @@
 {
+  "order.edit.test.hasResults": "A test with saved results cannot be removed. Reload the order to see its current results.",
   "config.display.alertWhenInvalidResult.name": "Out-of-range result alert",
   "config.display.alertWhenInvalidResult.description": "Should there be an alert when the user enters a result outside of the valid range",
   "config.display.Allow_duplicate_national_ids.name": "Allow duplicate national IDs",

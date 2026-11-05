@@ -133,6 +133,8 @@ public class SampleEditServiceImpl implements SampleEditService {
 
     @Autowired
     private OrderAuthorizationService orderAuthorizationService;
+    @Autowired
+    private OrderTestRemovalService orderTestRemovalService;
     private List<String> analysisList = new ArrayList<>();
 
     @Transactional
@@ -153,9 +155,19 @@ public class SampleEditServiceImpl implements SampleEditService {
         }
         existingTests.stream().filter(SampleEditItem::isRemoveSample).map(SampleEditItem::getSampleItemId)
                 .forEach(removedSampleItemIds::add);
-        List<Analysis> cancelAnalysisList = createRemoveList(existingTests, sysUserId);
+        List<Analysis> cancelAnalysisList = createRemoveList(existingTests, updatedSample);
         List<SampleItem> cancelSampleItemList = createCancelSampleList(removedSampleItemIds, updatedSample,
                 cancelAnalysisList, sysUserId);
+        orderTestRemovalService.validateRemoval(cancelAnalysisList);
+        for (Analysis analysis : cancelAnalysisList) {
+            analysis.setStatusId(CANCELED_TEST_STATUS_ID);
+            analysis.setSysUserId(sysUserId);
+        }
+        for (SampleItem item : cancelSampleItemList) {
+            item.setStatusId(CANCELED_SAMPLE_STATUS_ID);
+            item.setVoided(true);
+            item.setSysUserId(sysUserId);
+        }
         List<SampleItem> updateSampleItemList = createSampleItemUpdateList(
                 existingTests.stream().filter(row -> !removedSampleItemIds.contains(row.getSampleItemId())).toList(),
                 sysUserId);
@@ -510,14 +522,9 @@ public class SampleEditServiceImpl implements SampleEditService {
             }
             for (Analysis analysis : analyses) {
                 if (!cancelAnalysisListContainsId(analysis.getId(), cancelAnalysisList)) {
-                    analysis.setStatusId(CANCELED_TEST_STATUS_ID);
-                    analysis.setSysUserId(sysUserId);
                     cancelAnalysisList.add(analysis);
                 }
             }
-            item.setStatusId(CANCELED_SAMPLE_STATUS_ID);
-            item.setVoided(true);
-            item.setSysUserId(sysUserId);
             cancelList.add(item);
         }
 
@@ -571,12 +578,12 @@ public class SampleEditServiceImpl implements SampleEditService {
         return new Analysis();
     }
 
-    private List<Analysis> createRemoveList(List<SampleEditItem> tests, String sysUserId) {
+    private List<Analysis> createRemoveList(List<SampleEditItem> tests, Sample sample) {
         List<Analysis> removeAnalysisList = new ArrayList<>();
 
         for (SampleEditItem sampleEditItem : tests) {
             if (sampleEditItem.isCanceled()) {
-                Analysis analysis = getCancelableAnalysis(sampleEditItem, sysUserId);
+                Analysis analysis = getCancelableAnalysis(sampleEditItem, sample);
                 removeAnalysisList.add(analysis);
             }
         }
@@ -584,10 +591,14 @@ public class SampleEditServiceImpl implements SampleEditService {
         return removeAnalysisList;
     }
 
-    private Analysis getCancelableAnalysis(SampleEditItem sampleEditItem, String sysUserId) {
+    private Analysis getCancelableAnalysis(SampleEditItem sampleEditItem, Sample sample) {
         Analysis analysis = analysisService.get(sampleEditItem.getAnalysisId());
-        analysis.setSysUserId(sysUserId);
-        analysis.setStatusId(SpringContext.getBean(IStatusService.class).getStatusID(AnalysisStatus.Canceled));
+        if (analysis == null || analysis.getSampleItem() == null || analysis.getSampleItem().getSample() == null
+                || !sample.getId().equals(analysis.getSampleItem().getSample().getId())
+                || !analysis.getSampleItem().getId().equals(sampleEditItem.getSampleItemId())
+                || analysis.getTest() == null || !analysis.getTest().getId().equals(sampleEditItem.getTestId())) {
+            throw new AccessDeniedException("The test does not belong to this sample and order");
+        }
         return analysis;
     }
 

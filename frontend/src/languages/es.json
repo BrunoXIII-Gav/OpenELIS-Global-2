@@ -1,4 +1,5 @@
 {
+  "order.edit.test.hasResults": "No se puede quitar una prueba que ya tiene resultados guardados. Vuelva a abrir la orden para ver sus resultados actuales.",
   "config.display.alertWhenInvalidResult.name": "Alerta por resultado fuera de rango",
   "config.display.alertWhenInvalidResult.description": "Mostrar una alerta cuando se ingrese un resultado fuera del rango válido.",
   "config.display.Allow_duplicate_national_ids.name": "Permitir documentos de identidad duplicados",

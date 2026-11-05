@@ -8,6 +8,7 @@ import java.util.Collections;
 import java.util.Comparator;
 import java.util.HashSet;
 import java.util.List;
+import java.util.Map;
 import java.util.Set;
 import org.apache.commons.validator.GenericValidator;
 import org.hibernate.StaleObjectStateException;
@@ -36,9 +37,11 @@ import org.openelisglobal.patient.valueholder.Patient;
 import org.openelisglobal.person.service.PersonService;
 import org.openelisglobal.sample.bean.SampleEditItem;
 import org.openelisglobal.sample.controller.BaseSampleEntryController;
+import org.openelisglobal.sample.exception.OrderTestHasResultsException;
 import org.openelisglobal.sample.form.SampleEditForm;
 import org.openelisglobal.sample.form.SampleEditForm.SampleEdit;
 import org.openelisglobal.sample.service.OrderAuthorizationService;
+import org.openelisglobal.sample.service.OrderTestRemovalService;
 import org.openelisglobal.sample.service.SampleEditService;
 import org.openelisglobal.sample.service.SampleService;
 import org.openelisglobal.sample.service.SampleTypeAdditionalFieldService;
@@ -59,6 +62,7 @@ import org.openelisglobal.typeofsample.valueholder.TypeOfSample;
 import org.openelisglobal.typeofsample.valueholder.TypeOfSampleTest;
 import org.openelisglobal.userrole.service.UserRoleService;
 import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.http.HttpStatus;
 import org.springframework.http.MediaType;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.access.AccessDeniedException;
@@ -66,6 +70,7 @@ import org.springframework.stereotype.Controller;
 import org.springframework.validation.BindingResult;
 import org.springframework.validation.Errors;
 import org.springframework.validation.annotation.Validated;
+import org.springframework.web.bind.annotation.ExceptionHandler;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestBody;
@@ -127,6 +132,8 @@ public class SampleEditRestController extends BaseSampleEntryController {
     private SampleTypeAdditionalFieldService sampleTypeAdditionalFieldService;
     @Autowired
     private OrderAuthorizationService orderAuthorizationService;
+    @Autowired
+    private OrderTestRemovalService orderTestRemovalService;
     @Autowired
     private ModuleAuthorizationService moduleAuthorizationService;
     @Autowired
@@ -292,6 +299,8 @@ public class SampleEditRestController extends BaseSampleEntryController {
         try {
             sampleEditService.editSample(form, request, updatedSample, sampleChanged, getSysUserId(request));
 
+        } catch (OrderTestHasResultsException e) {
+            throw e;
         } catch (LIMSRuntimeException e) {
             if (e.getCause() instanceof StaleObjectStateException) {
                 result.reject("errors.OptimisticLockException", "errors.OptimisticLockException");
@@ -353,6 +362,11 @@ public class SampleEditRestController extends BaseSampleEntryController {
     protected String findLocalForward(String forward) {
         // TODO Auto-generated method stub
         throw new UnsupportedOperationException("Unimplemented method 'findLocalForward'");
+    }
+
+    @ExceptionHandler(OrderTestHasResultsException.class)
+    public ResponseEntity<Map<String, String>> handleTestHasResults(OrderTestHasResultsException error) {
+        return ResponseEntity.status(HttpStatus.CONFLICT).body(Map.of("code", OrderTestHasResultsException.CODE));
     }
 
     private Boolean hasResults(List<SampleEditItem> currentTestList, boolean allowedToCancelResults) {
@@ -469,10 +483,12 @@ public class SampleEditRestController extends BaseSampleEntryController {
             sampleEditItem.setSampleItemId(sampleItem.getId());
             sampleEditItem.setSampleTypeId(typeOfSample.getId());
 
-            boolean canCancel = allowedToCancelAll || (!SpringContext.getBean(IStatusService.class)
+            boolean hasResults = orderTestRemovalService.hasResults(analysis);
+            boolean canCancelByPermission = allowedToCancelAll || (!SpringContext.getBean(IStatusService.class)
                     .matches(analysis.getStatusId(), AnalysisStatus.Canceled)
                     && SpringContext.getBean(IStatusService.class).matches(analysis.getStatusId(),
                             AnalysisStatus.NotStarted));
+            boolean canCancel = canCancelByPermission && !hasResults;
 
             if (!canCancel) {
                 canRemove = false;
@@ -482,8 +498,7 @@ public class SampleEditRestController extends BaseSampleEntryController {
             sampleEditItem
                     .setStatus(SpringContext.getBean(IStatusService.class).getStatusNameFromId(analysis.getStatusId()));
             sampleEditItem.setSortOrder(analysis.getTest().getSortOrder());
-            sampleEditItem.setHasResults(!SpringContext.getBean(IStatusService.class).matches(analysis.getStatusId(),
-                    AnalysisStatus.NotStarted));
+            sampleEditItem.setHasResults(hasResults);
 
             analysisSampleItemList.add(sampleEditItem);
         }

@@ -438,3 +438,26 @@ test.each([{}, { ORDER_CONSENT_DOWNLOAD_ENABLED: "false" }])(
     expect(addNotification).not.toHaveBeenCalled();
   },
 );
+
+test("a result entered after opening the order shows a removal conflict and keeps editing available", async () => {
+  postToOpenElisServerFullResponse.mockImplementation((_url, _body, callback) =>
+    callback({
+      status: 409,
+      text: async () => JSON.stringify({ code: "order.edit.test.hasResults" }),
+    }),
+  );
+  const page = open();
+  orderStep(page);
+  const submit = page.getByText(messages["label.button.submit"]);
+  await wait(() => expect(submit.disabled).toBe(false));
+  fireEvent.click(submit);
+  await wait(() =>
+    expect(addNotification).toHaveBeenCalledWith(
+      expect.objectContaining({
+        message: messages["order.edit.test.hasResults"],
+        kind: "error",
+      }),
+    ),
+  );
+  expect(submit.disabled).toBe(false);
+});
