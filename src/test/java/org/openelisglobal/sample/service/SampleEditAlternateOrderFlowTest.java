@@ -348,7 +348,8 @@ public class SampleEditAlternateOrderFlowTest {
         analysis.setStatusId("2");
         cancellation(analysis);
         service.editSample(form, new MockHttpServletRequest(), sample, false, "42");
-        assertEquals("6", analysis.getStatusId());
+        assertEquals(ReflectionTestUtils.getField(SampleEditServiceImpl.class, "CANCELED_TEST_STATUS_ID"),
+                analysis.getStatusId());
         verify(analyses).update(analysis);
         assertFalse(item.isVoided());
     }
