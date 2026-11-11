@@ -4744,5 +4744,11 @@
   "patient.cug.prefix.stale": "Le préfixe du patient a changé depuis l’ouverture du formulaire. Rechargez le patient et les échantillons avant d’enregistrer.",
   "patient.cug.prefix.inconsistent": "Certains CUG d’échantillons ne correspondent pas au préfixe du patient ou ont un format invalide. Aucune modification n’a été enregistrée. Vérifiez les codes existants.",
   "patient.cug.prefix.change.help": "L’enregistrement modifiera le préfixe des CUG de tous les échantillons de ce patient en conservant leurs suffixes.",
-  "patient.cug.prefix.cancel": "Annuler le changement de préfixe"
+  "patient.cug.prefix.cancel": "Annuler le changement de préfixe",
+  "order.additional.fields.group.definition": "Configuration du champ",
+  "order.additional.fields.group.behavior": "Comportement",
+  "order.additional.fields.group.search": "Recherche",
+  "order.additional.fields.group.workflow": "Flux de la commande",
+  "order.additional.fields.group.fields": "Champs configurés",
+  "order.additional.fields.rules.conditional": "Conditionnel"
 }

@@ -4840,5 +4840,11 @@
   "patient.cug.prefix.stale": "The patient prefix changed after you opened this form. Reload the patient and samples before saving.",
   "patient.cug.prefix.inconsistent": "Some sample CUGs do not match the patient prefix or have an invalid format. No changes were saved. Review the existing codes first.",
   "patient.cug.prefix.change.help": "Saving changes the prefix on all this patient’s sample CUGs, preserving their suffixes.",
-  "patient.cug.prefix.cancel": "Cancel prefix change"
+  "patient.cug.prefix.cancel": "Cancel prefix change",
+  "order.additional.fields.group.definition": "Field configuration",
+  "order.additional.fields.group.behavior": "Behavior",
+  "order.additional.fields.group.search": "Search",
+  "order.additional.fields.group.workflow": "Order workflow",
+  "order.additional.fields.group.fields": "Configured fields",
+  "order.additional.fields.rules.conditional": "Conditional"
 }

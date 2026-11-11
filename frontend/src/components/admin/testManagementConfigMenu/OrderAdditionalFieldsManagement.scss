@@ -1,0 +1,136 @@
+@use "@carbon/styles/scss/spacing";
+@use "@carbon/styles/scss/type";
+@use "@carbon/styles/scss/theme";
+@use "@carbon/styles/scss/breakpoint";
+
+.order-field-config {
+  &__panel {
+    margin-block-start: spacing.$spacing-08;
+    padding: spacing.$spacing-06;
+    border-block-start: 1px solid theme.$border-subtle-01;
+    min-inline-size: 0;
+
+    > .cds--stack-vertical {
+      grid-template-columns: minmax(0, 1fr);
+    }
+
+    h2 {
+      @include type.type-style("heading-03");
+    }
+
+    h3 {
+      @include type.type-style("heading-02");
+    }
+
+    h4,
+    h5 {
+      @include type.type-style("heading-compact-01");
+    }
+
+    .cds--data-table-container {
+      overflow-x: auto;
+      max-inline-size: 100%;
+    }
+  }
+
+  &__editor {
+    display: flex;
+    flex-direction: column;
+    gap: spacing.$spacing-06;
+    min-inline-size: 0;
+  }
+
+  & &__form-grid,
+  & &__condition-row {
+    padding-inline: 0;
+    row-gap: spacing.$spacing-05;
+    column-gap: spacing.$spacing-05;
+    inline-size: 100%;
+
+    > .cds--css-grid-column {
+      min-inline-size: 0;
+      margin-inline: 0;
+    }
+  }
+
+  &__preferences,
+  &__rules,
+  &__list {
+    padding-block-start: spacing.$spacing-06;
+    border-block-start: 1px solid theme.$border-subtle-01;
+  }
+
+  &__preferences .cds--fieldset {
+    margin: 0;
+    min-inline-size: 0;
+  }
+
+  &__rules {
+    display: flex;
+    flex-direction: column;
+    gap: spacing.$spacing-05;
+  }
+
+  &__condition-group {
+    padding-block: spacing.$spacing-05;
+    border-block-start: 1px solid theme.$border-subtle-01;
+  }
+
+  &__group-header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    flex-wrap: wrap;
+    gap: spacing.$spacing-03;
+  }
+
+  &__empty {
+    @include type.type-style("body-compact-01");
+    margin-block-start: spacing.$spacing-03;
+  }
+
+  &__condition-row {
+    margin-block-start: spacing.$spacing-05;
+    align-items: end;
+  }
+
+  &__condition-remove {
+    align-self: end;
+    padding-block-end: spacing.$spacing-02;
+  }
+
+  &__actions,
+  &__row-actions {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: spacing.$spacing-03;
+  }
+
+  &__actions {
+    padding-block-start: spacing.$spacing-06;
+    border-block-start: 1px solid theme.$border-subtle-01;
+  }
+
+  &__row-actions {
+    min-inline-size: max-content;
+  }
+
+  &__list > h3 {
+    margin-block-end: spacing.$spacing-05;
+  }
+
+  &__list {
+    min-inline-size: 0;
+  }
+
+  @include breakpoint.breakpoint-down(md) {
+    &__panel {
+      padding-inline: spacing.$spacing-04;
+    }
+
+    & &__condition-remove {
+      grid-column: 1 / -1;
+    }
+  }
+}

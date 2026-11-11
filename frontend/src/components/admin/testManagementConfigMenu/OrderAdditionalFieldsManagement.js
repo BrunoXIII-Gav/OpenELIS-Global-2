@@ -9,7 +9,7 @@ import {
   DataTable,
   Grid,
   Heading,
-  MultiSelect,
+  FormGroup,
   Section,
   Select,
   SelectItem,
@@ -24,6 +24,9 @@ import {
   Tag,
   TextInput,
 } from "@carbon/react";
+import { Add, Subtract } from "@carbon/icons-react";
+import "./OrderAdditionalFieldsManagement.scss";
+import { parseOrderFieldMetadata } from "../../utils/orderFieldRules";
 import { FormattedMessage, useIntl } from "react-intl";
 import {
   deleteFromOpenElisServer,
@@ -275,14 +278,14 @@ const OrderAdditionalFieldsManagement = () => {
     const visibleWhen = Array.isArray(rules.visibleWhen)
       ? rules.visibleWhen.map((condition) => ({
           fieldKey: condition?.fieldKey || "",
-          operator: condition?.operator || "equals",
+          operator: String(condition?.operator || "equals").toLowerCase(),
           value: extractConditionValue(condition),
         }))
       : [];
     const requiredWhen = Array.isArray(rules.requiredWhen)
       ? rules.requiredWhen.map((condition) => ({
           fieldKey: condition?.fieldKey || "",
-          operator: condition?.operator || "equals",
+          operator: String(condition?.operator || "equals").toLowerCase(),
           value: extractConditionValue(condition),
         }))
       : [];
@@ -313,7 +316,7 @@ const OrderAdditionalFieldsManagement = () => {
             .filter((option) => option?.active !== false)
             .map((option, index) => normalizeOptionForUi(option, index))
         : [],
-      rulesLogic: rules.logic || "ALL",
+      rulesLogic: String(rules.logic || "ALL").toUpperCase(),
       visibleWhen,
       requiredWhen,
       documentAccept: Array.isArray(documentMetadata.accept)
@@ -371,7 +374,9 @@ const OrderAdditionalFieldsManagement = () => {
 
   const normalizeCondition = (condition) => {
     const fieldKey = String(condition?.fieldKey || "").trim();
-    const operator = String(condition?.operator || "equals").trim();
+    const operator = String(condition?.operator || "equals")
+      .trim()
+      .toLowerCase();
     const rawValue = String(condition?.value || "").trim();
     if (!fieldKey || !operator) {
       return null;
@@ -859,12 +864,25 @@ const OrderAdditionalFieldsManagement = () => {
     const conditions = newField[groupKey] || [];
 
     return (
-      <Stack gap={4}>
-        <Heading>
-          <FormattedMessage id={titleMessageId} />
-        </Heading>
+      <Section
+        className="order-field-config__condition-group"
+        aria-labelledby={`${groupKey}-title`}
+      >
+        <div className="order-field-config__group-header">
+          <Heading id={`${groupKey}-title`}>
+            <FormattedMessage id={titleMessageId} />
+          </Heading>
+          <Button
+            kind="ghost"
+            size="sm"
+            renderIcon={Add}
+            onClick={() => addCondition(groupKey)}
+          >
+            <FormattedMessage id="order.additional.fields.rules.add" />
+          </Button>
+        </div>
         {conditions.length === 0 ? (
-          <p>
+          <p className="order-field-config__empty">
             <FormattedMessage id="order.additional.fields.rules.empty" />
           </p>
         ) : null}
@@ -873,8 +891,12 @@ const OrderAdditionalFieldsManagement = () => {
           const showValueInput =
             !VALUE_OPTIONAL_OPERATORS.has(selectedOperator);
           return (
-            <Grid fullWidth key={`${groupKey}-${index}`}>
-              <Column lg={5} md={4} sm={4}>
+            <Grid
+              fullWidth
+              className="order-field-config__condition-row"
+              key={`${groupKey}-${index}`}
+            >
+              <Column lg={showValueInput ? 6 : 10} md={4} sm={4}>
                 <Select
                   id={`${groupKey}-field-${index}`}
                   labelText={intl.formatMessage({
@@ -900,7 +922,7 @@ const OrderAdditionalFieldsManagement = () => {
                   ))}
                 </Select>
               </Column>
-              <Column lg={5} md={4} sm={4}>
+              <Column lg={4} md={4} sm={4}>
                 <Select
                   id={`${groupKey}-operator-${index}`}
                   labelText={intl.formatMessage({
@@ -927,8 +949,8 @@ const OrderAdditionalFieldsManagement = () => {
                   ))}
                 </Select>
               </Column>
-              <Column lg={4} md={4} sm={4}>
-                {showValueInput ? (
+              {showValueInput ? (
+                <Column lg={4} md={6} sm={3}>
                   <TextInput
                     id={`${groupKey}-value-${index}`}
                     labelText={intl.formatMessage({
@@ -946,12 +968,18 @@ const OrderAdditionalFieldsManagement = () => {
                       )
                     }
                   />
-                ) : null}
-              </Column>
-              <Column lg={2} md={4} sm={4}>
+                </Column>
+              ) : null}
+              <Column
+                lg={2}
+                md={2}
+                sm={1}
+                className="order-field-config__condition-remove"
+              >
                 <Button
                   kind="ghost"
                   size="sm"
+                  renderIcon={Subtract}
                   onClick={() => removeCondition(groupKey, index)}
                 >
                   <FormattedMessage id="order.additional.fields.rules.remove" />
@@ -960,28 +988,23 @@ const OrderAdditionalFieldsManagement = () => {
             </Grid>
           );
         })}
-        <Button kind="ghost" size="sm" onClick={() => addCondition(groupKey)}>
-          <FormattedMessage id="order.additional.fields.rules.add" />
-        </Button>
-      </Stack>
+      </Section>
     );
   };
 
   return (
     <>
       {notificationVisible ? <AlertDialog /> : null}
-      <div className="adminPageContent">
+      <div className="adminPageContent order-field-config">
         <PageBreadCrumb breadcrumbs={breadcrumbs} />
         <Grid fullWidth>
           <Column lg={16} md={8} sm={4}>
-            <Section>
-              <Heading>
-                <FormattedMessage id="order.additional.fields.title" />
-              </Heading>
-            </Section>
+            <Heading>
+              <FormattedMessage id="order.additional.fields.title" />
+            </Heading>
           </Column>
         </Grid>
-        <div className="orderLegendBody">
+        <Section className="order-field-config__panel">
           <Stack gap={6}>
             <Heading>
               <FormattedMessage id="order.additional.fields.fixed.title" />
@@ -1098,717 +1121,765 @@ const OrderAdditionalFieldsManagement = () => {
               <FormattedMessage id="order.additional.fields.saveFixed" />
             </Button>
           </Stack>
-        </div>
+        </Section>
 
-        <br />
-
-        <div className="orderLegendBody">
+        <Section className="order-field-config__panel">
           <Stack gap={6}>
             <Heading>
               <FormattedMessage id="order.additional.fields.custom.title" />
             </Heading>
-            <Grid fullWidth>
-              <Column lg={8} md={4} sm={4}>
-                <TextInput
-                  id="order-additional-display-name"
-                  labelText={intl.formatMessage({
-                    id: "order.additional.fields.displayName",
-                  })}
-                  value={newField.displayName}
-                  onChange={(event) =>
-                    setNewField((previous) => ({
-                      ...previous,
-                      displayName: event.target.value,
-                    }))
-                  }
-                />
-              </Column>
-              <Column lg={8} md={4} sm={4}>
-                <TextInput
-                  id="order-additional-field-key"
-                  labelText={intl.formatMessage({
-                    id: "order.additional.fields.fieldKey",
-                  })}
-                  value={newField.fieldKey}
-                  disabled={editingFieldId !== null}
-                  onChange={(event) =>
-                    setNewField((previous) => ({
-                      ...previous,
-                      fieldKey: event.target.value,
-                    }))
-                  }
-                />
-              </Column>
-            </Grid>
-            <Grid fullWidth>
-              <Column lg={8} md={4} sm={4}>
-                <Select
-                  id="order-additional-field-type"
-                  labelText={intl.formatMessage({
-                    id: "order.additional.fields.fieldType",
-                  })}
-                  value={newField.fieldType}
-                  disabled={structureLocked}
-                  onChange={(event) =>
-                    setNewField((previous) => ({
-                      ...previous,
-                      fieldType: event.target.value,
-                      storageAssignmentRequired:
-                        event.target.value === "BOOLEAN"
-                          ? previous.storageAssignmentRequired
-                          : false,
-                    }))
-                  }
-                >
-                  {FIELD_TYPE_OPTIONS.map((fieldType) => (
-                    <SelectItem
-                      key={fieldType.value}
-                      value={fieldType.value}
-                      text={intl.formatMessage({
-                        id: fieldType.labelId,
-                        defaultMessage: fieldType.defaultMessage,
-                      })}
-                    />
-                  ))}
-                </Select>
-              </Column>
-              <Column lg={8} md={4} sm={4}>
-                <TextInput
-                  id="order-additional-default-value"
-                  labelText={intl.formatMessage({
-                    id: "order.additional.fields.defaultValue",
-                  })}
-                  value={newField.defaultValue}
-                  onChange={(event) =>
-                    setNewField((previous) => ({
-                      ...previous,
-                      defaultValue: event.target.value,
-                    }))
-                  }
-                />
-              </Column>
-            </Grid>
-            <Grid fullWidth>
-              <Column lg={8} md={4} sm={4}>
-                <TextInput
-                  id="order-additional-max-length"
-                  labelText={intl.formatMessage({
-                    id: "order.additional.fields.maxLength",
-                  })}
-                  type="number"
-                  value={newField.maxLength}
-                  onChange={(event) =>
-                    setNewField((previous) => ({
-                      ...previous,
-                      maxLength: event.target.value,
-                    }))
-                  }
-                />
-              </Column>
-              <Column lg={8} md={4} sm={4}>
-                <TextInput
-                  id="order-additional-sort-order"
-                  labelText={intl.formatMessage({
-                    id: "order.additional.fields.sortOrder",
-                  })}
-                  type="number"
-                  value={newField.sortOrder}
-                  onChange={(event) =>
-                    setNewField((previous) => ({
-                      ...previous,
-                      sortOrder: event.target.value,
-                    }))
-                  }
-                />
-              </Column>
-            </Grid>
-            <Grid fullWidth>
-              <Column lg={8} md={4} sm={4}>
-                <Checkbox
-                  id="order-additional-required"
-                  labelText={intl.formatMessage({
-                    id: "order.additional.fields.required",
-                  })}
-                  checked={newField.required}
-                  onChange={(_event, { checked }) =>
-                    setNewField((previous) => ({
-                      ...previous,
-                      required: checked,
-                    }))
-                  }
-                />
-              </Column>
-              <Column lg={8} md={4} sm={4}>
-                <Checkbox
-                  id="order-additional-searchable"
-                  labelText={intl.formatMessage({
-                    id: "order.additional.fields.searchable",
-                  })}
-                  checked={newField.searchable}
-                  onChange={(_event, { checked }) =>
-                    setNewField((previous) => ({
-                      ...previous,
-                      searchable: checked,
-                      searchUnique: checked ? previous.searchUnique : false,
-                    }))
-                  }
-                />
-              </Column>
-              <Column lg={8} md={4} sm={4}>
-                <Checkbox
-                  id="order-additional-search-unique"
-                  labelText={intl.formatMessage({
-                    id: "order.additional.fields.searchUnique",
-                  })}
-                  checked={newField.searchUnique}
-                  disabled={!newField.searchable}
-                  onChange={(_event, { checked }) =>
-                    setNewField((previous) => ({
-                      ...previous,
-                      searchUnique: checked,
-                    }))
-                  }
-                />
-              </Column>
-              <Column lg={8} md={4} sm={4}>
-                <Checkbox
-                  id="order-additional-show-in-sample-reception"
-                  labelText={intl.formatMessage({
-                    id: "order.additional.fields.showInSampleReception",
-                  })}
-                  checked={newField.showInSampleReception}
-                  onChange={(_event, { checked }) =>
-                    setNewField((previous) => ({
-                      ...previous,
-                      showInSampleReception: checked,
-                    }))
-                  }
-                />
-              </Column>
-              <Column lg={8} md={4} sm={4}>
-                <Checkbox
-                  id="order-additional-alternate-order-flow"
-                  labelText={intl.formatMessage({
-                    id: "order.additional.fields.alternateOrderFlow",
-                  })}
-                  checked={newField.alternateOrderFlow}
-                  onChange={(_event, { checked }) =>
-                    setNewField((previous) => ({
-                      ...previous,
-                      alternateOrderFlow: checked,
-                      alternateOrderFlowTriggerValue: checked
-                        ? previous.fieldType === "BOOLEAN"
-                          ? "true"
-                          : previous.alternateOrderFlowTriggerValue
-                        : "",
-                    }))
-                  }
-                />
-              </Column>
-              {newField.fieldType === "BOOLEAN" ? (
-                <Column lg={8} md={4} sm={4}>
-                  <Checkbox
-                    id="order-additional-storage-assignment-required"
-                    labelText={intl.formatMessage({
-                      id: "order.additional.fields.storageAssignmentRequired",
-                    })}
-                    checked={newField.storageAssignmentRequired}
-                    onChange={(_event, { checked }) =>
-                      setNewField((previous) => ({
-                        ...previous,
-                        storageAssignmentRequired: checked,
-                      }))
-                    }
-                  />
-                </Column>
-              ) : null}
-              {newField.alternateOrderFlow &&
-              newField.fieldType !== "BOOLEAN" ? (
+            <Section className="order-field-config__editor">
+              <Heading>
+                <FormattedMessage id="order.additional.fields.group.definition" />
+              </Heading>
+              <Grid fullWidth className="order-field-config__form-grid">
                 <Column lg={8} md={4} sm={4}>
                   <TextInput
-                    id="order-additional-alternate-order-flow-trigger-value"
+                    id="order-additional-display-name"
                     labelText={intl.formatMessage({
-                      id: "order.additional.fields.alternateOrderFlowTriggerValue",
+                      id: "order.additional.fields.displayName",
                     })}
-                    helperText={intl.formatMessage({
-                      id: "order.additional.fields.alternateOrderFlowTriggerValue.helper",
-                    })}
-                    value={newField.alternateOrderFlowTriggerValue}
+                    value={newField.displayName}
                     onChange={(event) =>
                       setNewField((previous) => ({
                         ...previous,
-                        alternateOrderFlowTriggerValue: event.target.value,
+                        displayName: event.target.value,
                       }))
                     }
                   />
                 </Column>
-              ) : null}
-            </Grid>
-
-            {OPTION_FIELD_TYPES.has(newField.fieldType) ? (
-              <AdditionalFieldOptionsEditor
-                idPrefix="order-additional"
-                options={newField.options || []}
-                locked={structureLocked}
-                onAddOption={addOption}
-                onOptionLabelChange={updateOptionLabel}
-                onRemoveOption={removeOption}
-              />
-            ) : null}
-            {newField.fieldType === "USER" ? (
-              <Grid fullWidth condensed>
                 <Column lg={8} md={4} sm={4}>
-                  <UserFieldPermissionConfig
-                    id={`user-task-${"orders"}`}
-                    value={newField.userTask}
-                    module="orders"
-                    onChange={(userTask) =>
-                      setNewField((previous) => ({ ...previous, userTask }))
-                    }
-                  />
-                </Column>
-                <Column lg={4} md={4} sm={4}>
-                  <Select
-                    id="orderAdditionalUserDisplayMode"
+                  <TextInput
+                    id="order-additional-field-key"
                     labelText={intl.formatMessage({
-                      id: "user.field.display.mode.label",
-                      defaultMessage: "Display user as",
+                      id: "order.additional.fields.fieldKey",
                     })}
-                    value={newField.userDisplayMode || USER_DISPLAY_MODE_BOTH}
+                    value={newField.fieldKey}
+                    disabled={editingFieldId !== null}
                     onChange={(event) =>
                       setNewField((previous) => ({
                         ...previous,
-                        userDisplayMode: event.target.value,
+                        fieldKey: event.target.value,
                       }))
                     }
-                  >
-                    <SelectItem
-                      value={USER_DISPLAY_MODE_INITIALS}
-                      text={intl.formatMessage({
-                        id: "user.field.display.mode.initials",
-                        defaultMessage: "Initials only",
-                      })}
-                    />
-                    <SelectItem
-                      value={USER_DISPLAY_MODE_NAME}
-                      text={intl.formatMessage({
-                        id: "user.field.display.mode.name",
-                        defaultMessage: "Name only",
-                      })}
-                    />
-                    <SelectItem
-                      value={USER_DISPLAY_MODE_BOTH}
-                      text={intl.formatMessage({
-                        id: "user.field.display.mode.both",
-                        defaultMessage: "Initials and name",
-                      })}
-                    />
-                  </Select>
+                  />
                 </Column>
               </Grid>
-            ) : null}
-            <Stack gap={5}>
-              <Heading>
-                <FormattedMessage id="order.additional.fields.rules.title" />
-              </Heading>
-              <Grid fullWidth>
-                <Column lg={6} md={4} sm={4}>
+              <Grid fullWidth className="order-field-config__form-grid">
+                <Column lg={8} md={4} sm={4}>
                   <Select
-                    id="order-additional-rules-logic"
+                    id="order-additional-field-type"
                     labelText={intl.formatMessage({
-                      id: "order.additional.fields.rules.logic",
+                      id: "order.additional.fields.fieldType",
                     })}
-                    value={newField.rulesLogic}
+                    value={newField.fieldType}
+                    disabled={structureLocked}
                     onChange={(event) =>
                       setNewField((previous) => ({
                         ...previous,
-                        rulesLogic: event.target.value,
+                        fieldType: event.target.value,
+                        storageAssignmentRequired:
+                          event.target.value === "BOOLEAN"
+                            ? previous.storageAssignmentRequired
+                            : false,
                       }))
                     }
                   >
-                    {CONDITION_LOGIC_OPTIONS.map((logic) => (
+                    {FIELD_TYPE_OPTIONS.map((fieldType) => (
                       <SelectItem
-                        key={`logic-${logic}`}
-                        value={logic}
+                        key={fieldType.value}
+                        value={fieldType.value}
                         text={intl.formatMessage({
-                          id: `order.additional.fields.rules.logic.${logic.toLowerCase()}`,
+                          id: fieldType.labelId,
+                          defaultMessage: fieldType.defaultMessage,
                         })}
                       />
                     ))}
                   </Select>
                 </Column>
+                <Column lg={8} md={4} sm={4}>
+                  <TextInput
+                    id="order-additional-default-value"
+                    labelText={intl.formatMessage({
+                      id: "order.additional.fields.defaultValue",
+                    })}
+                    value={newField.defaultValue}
+                    onChange={(event) =>
+                      setNewField((previous) => ({
+                        ...previous,
+                        defaultValue: event.target.value,
+                      }))
+                    }
+                  />
+                </Column>
+              </Grid>
+              <Grid fullWidth className="order-field-config__form-grid">
+                <Column lg={8} md={4} sm={4}>
+                  <TextInput
+                    id="order-additional-max-length"
+                    labelText={intl.formatMessage({
+                      id: "order.additional.fields.maxLength",
+                    })}
+                    type="number"
+                    value={newField.maxLength}
+                    onChange={(event) =>
+                      setNewField((previous) => ({
+                        ...previous,
+                        maxLength: event.target.value,
+                      }))
+                    }
+                  />
+                </Column>
+                <Column lg={8} md={4} sm={4}>
+                  <TextInput
+                    id="order-additional-sort-order"
+                    labelText={intl.formatMessage({
+                      id: "order.additional.fields.sortOrder",
+                    })}
+                    type="number"
+                    value={newField.sortOrder}
+                    onChange={(event) =>
+                      setNewField((previous) => ({
+                        ...previous,
+                        sortOrder: event.target.value,
+                      }))
+                    }
+                  />
+                </Column>
+              </Grid>
+              <Grid
+                fullWidth
+                className="order-field-config__form-grid order-field-config__preferences"
+              >
+                <Column lg={5} md={4} sm={4}>
+                  <FormGroup
+                    legendText={intl.formatMessage({
+                      id: "order.additional.fields.group.behavior",
+                    })}
+                  >
+                    <Stack gap={4}>
+                      <Checkbox
+                        id="order-additional-required"
+                        labelText={intl.formatMessage({
+                          id: "order.additional.fields.required",
+                        })}
+                        checked={newField.required}
+                        onChange={(_event, { checked }) =>
+                          setNewField((previous) => ({
+                            ...previous,
+                            required: checked,
+                          }))
+                        }
+                      />
+                      <Checkbox
+                        id="order-additional-show-in-sample-reception"
+                        labelText={intl.formatMessage({
+                          id: "order.additional.fields.showInSampleReception",
+                        })}
+                        checked={newField.showInSampleReception}
+                        onChange={(_event, { checked }) =>
+                          setNewField((previous) => ({
+                            ...previous,
+                            showInSampleReception: checked,
+                          }))
+                        }
+                      />
+                    </Stack>
+                  </FormGroup>
+                </Column>
+                <Column lg={5} md={4} sm={4}>
+                  <FormGroup
+                    legendText={intl.formatMessage({
+                      id: "order.additional.fields.group.search",
+                    })}
+                  >
+                    <Stack gap={4}>
+                      <Checkbox
+                        id="order-additional-searchable"
+                        labelText={intl.formatMessage({
+                          id: "order.additional.fields.searchable",
+                        })}
+                        checked={newField.searchable}
+                        onChange={(_event, { checked }) =>
+                          setNewField((previous) => ({
+                            ...previous,
+                            searchable: checked,
+                            searchUnique: checked
+                              ? previous.searchUnique
+                              : false,
+                          }))
+                        }
+                      />
+                      <Checkbox
+                        id="order-additional-search-unique"
+                        labelText={intl.formatMessage({
+                          id: "order.additional.fields.searchUnique",
+                        })}
+                        checked={newField.searchUnique}
+                        disabled={!newField.searchable}
+                        onChange={(_event, { checked }) =>
+                          setNewField((previous) => ({
+                            ...previous,
+                            searchUnique: checked,
+                          }))
+                        }
+                      />
+                    </Stack>
+                  </FormGroup>
+                </Column>
+                <Column lg={6} md={4} sm={4}>
+                  <FormGroup
+                    legendText={intl.formatMessage({
+                      id: "order.additional.fields.group.workflow",
+                    })}
+                  >
+                    <Stack gap={4}>
+                      <Checkbox
+                        id="order-additional-alternate-order-flow"
+                        labelText={intl.formatMessage({
+                          id: "order.additional.fields.alternateOrderFlow",
+                        })}
+                        checked={newField.alternateOrderFlow}
+                        onChange={(_event, { checked }) =>
+                          setNewField((previous) => ({
+                            ...previous,
+                            alternateOrderFlow: checked,
+                            alternateOrderFlowTriggerValue: checked
+                              ? previous.fieldType === "BOOLEAN"
+                                ? "true"
+                                : previous.alternateOrderFlowTriggerValue
+                              : "",
+                          }))
+                        }
+                      />
+                      {newField.fieldType === "BOOLEAN" ? (
+                        <div>
+                          <Checkbox
+                            id="order-additional-storage-assignment-required"
+                            labelText={intl.formatMessage({
+                              id: "order.additional.fields.storageAssignmentRequired",
+                            })}
+                            checked={newField.storageAssignmentRequired}
+                            onChange={(_event, { checked }) =>
+                              setNewField((previous) => ({
+                                ...previous,
+                                storageAssignmentRequired: checked,
+                              }))
+                            }
+                          />
+                        </div>
+                      ) : null}
+                      {newField.alternateOrderFlow &&
+                      newField.fieldType !== "BOOLEAN" ? (
+                        <div>
+                          <TextInput
+                            id="order-additional-alternate-order-flow-trigger-value"
+                            labelText={intl.formatMessage({
+                              id: "order.additional.fields.alternateOrderFlowTriggerValue",
+                            })}
+                            helperText={intl.formatMessage({
+                              id: "order.additional.fields.alternateOrderFlowTriggerValue.helper",
+                            })}
+                            value={newField.alternateOrderFlowTriggerValue}
+                            onChange={(event) =>
+                              setNewField((previous) => ({
+                                ...previous,
+                                alternateOrderFlowTriggerValue:
+                                  event.target.value,
+                              }))
+                            }
+                          />
+                        </div>
+                      ) : null}
+                    </Stack>
+                  </FormGroup>
+                </Column>
               </Grid>
 
-              {renderConditionGroup(
-                "visibleWhen",
-                "order.additional.fields.rules.visibleWhen",
-              )}
-              {renderConditionGroup(
-                "requiredWhen",
-                "order.additional.fields.rules.requiredWhen",
-              )}
-            </Stack>
-
-            {newField.fieldType === "DOCUMENT" && (
-              <Stack gap={4}>
-                <Heading>
-                  <FormattedMessage id="order.additional.fields.document.title" />
-                </Heading>
-                <Grid fullWidth>
+              {OPTION_FIELD_TYPES.has(newField.fieldType) ? (
+                <AdditionalFieldOptionsEditor
+                  idPrefix="order-additional"
+                  options={newField.options || []}
+                  locked={structureLocked}
+                  onAddOption={addOption}
+                  onOptionLabelChange={updateOptionLabel}
+                  onRemoveOption={removeOption}
+                />
+              ) : null}
+              {newField.fieldType === "USER" ? (
+                <Grid
+                  fullWidth
+                  condensed
+                  className="order-field-config__form-grid"
+                >
                   <Column lg={8} md={4} sm={4}>
-                    <TextInput
-                      id="order-additional-document-accept"
-                      labelText={intl.formatMessage({
-                        id: "order.additional.fields.document.accept",
-                      })}
-                      helperText={intl.formatMessage({
-                        id: "order.additional.fields.document.accept.helper",
-                      })}
-                      value={newField.documentAccept}
-                      onChange={(event) =>
-                        setNewField((previous) => ({
-                          ...previous,
-                          documentAccept: event.target.value,
-                        }))
+                    <UserFieldPermissionConfig
+                      id={`user-task-${"orders"}`}
+                      value={newField.userTask}
+                      module="orders"
+                      onChange={(userTask) =>
+                        setNewField((previous) => ({ ...previous, userTask }))
                       }
                     />
                   </Column>
-                  <Column lg={8} md={4} sm={4}>
-                    <TextInput
-                      id="order-additional-document-max-size"
+                  <Column lg={4} md={4} sm={4}>
+                    <Select
+                      id="orderAdditionalUserDisplayMode"
                       labelText={intl.formatMessage({
-                        id: "order.additional.fields.document.maxSizeMb",
+                        id: "user.field.display.mode.label",
+                        defaultMessage: "Display user as",
                       })}
-                      type="number"
-                      min="1"
-                      value={newField.documentMaxSizeMb}
+                      value={newField.userDisplayMode || USER_DISPLAY_MODE_BOTH}
                       onChange={(event) =>
                         setNewField((previous) => ({
                           ...previous,
-                          documentMaxSizeMb: event.target.value,
+                          userDisplayMode: event.target.value,
                         }))
                       }
-                    />
+                    >
+                      <SelectItem
+                        value={USER_DISPLAY_MODE_INITIALS}
+                        text={intl.formatMessage({
+                          id: "user.field.display.mode.initials",
+                          defaultMessage: "Initials only",
+                        })}
+                      />
+                      <SelectItem
+                        value={USER_DISPLAY_MODE_NAME}
+                        text={intl.formatMessage({
+                          id: "user.field.display.mode.name",
+                          defaultMessage: "Name only",
+                        })}
+                      />
+                      <SelectItem
+                        value={USER_DISPLAY_MODE_BOTH}
+                        text={intl.formatMessage({
+                          id: "user.field.display.mode.both",
+                          defaultMessage: "Initials and name",
+                        })}
+                      />
+                    </Select>
                   </Column>
                 </Grid>
-              </Stack>
-            )}
-
-            <Stack orientation="horizontal" gap={4}>
-              <Button
-                onClick={saveField}
-                disabled={savingField}
-                data-cy="create-order-additional-field"
-              >
-                {editingFieldId ? (
-                  <FormattedMessage id="button.save" />
-                ) : (
-                  <FormattedMessage id="order.additional.fields.create" />
-                )}
-              </Button>
-              {editingFieldId ? (
-                <Button kind="ghost" onClick={resetFieldForm}>
-                  <FormattedMessage id="button.cancel" />
-                </Button>
               ) : null}
-            </Stack>
-
-            <DataTable
-              rows={(fields || []).map((field) => ({
-                id: String(field.id),
-                displayName: field.displayName,
-                fieldKey: field.fieldKey,
-                fieldType: getAdditionalFieldTypeLabel(intl, field.fieldType),
-                sortOrder: field.sortOrder,
-                required: field.required,
-                searchable: field.searchable,
-                searchUnique: field.searchUnique,
-                active: field.active,
-                showInSampleReception: Boolean(
-                  (() => {
-                    if (!field?.metadataJson) {
-                      return false;
-                    }
-                    try {
-                      const parsed = JSON.parse(field.metadataJson);
-                      return Boolean(
-                        parsed?.sampleReception?.showInSampleReception ??
-                          parsed?.showInSampleReception,
-                      );
-                    } catch (_error) {
-                      return false;
-                    }
-                  })(),
-                ),
-                alternateOrderFlow: Boolean(
-                  (() => {
-                    if (!field?.metadataJson) {
-                      return false;
-                    }
-                    try {
-                      const parsed = JSON.parse(field.metadataJson);
-                      return Boolean(parsed?.workflow?.alternateOrderFlow);
-                    } catch (_error) {
-                      return false;
-                    }
-                  })(),
-                ),
-                options: field.options || [],
-              }))}
-              headers={[
-                {
-                  key: "displayName",
-                  header: intl.formatMessage({
-                    id: "order.additional.fields.displayName",
-                  }),
-                },
-                {
-                  key: "fieldKey",
-                  header: intl.formatMessage({
-                    id: "order.additional.fields.fieldKey",
-                  }),
-                },
-                {
-                  key: "fieldType",
-                  header: intl.formatMessage({
-                    id: "order.additional.fields.fieldType",
-                  }),
-                },
-                {
-                  key: "sortOrder",
-                  header: intl.formatMessage({
-                    id: "order.additional.fields.sortOrder",
-                  }),
-                },
-                {
-                  key: "required",
-                  header: intl.formatMessage({
-                    id: "order.additional.fields.required",
-                  }),
-                },
-                {
-                  key: "searchable",
-                  header: intl.formatMessage({
-                    id: "order.additional.fields.searchable",
-                  }),
-                },
-                {
-                  key: "searchUnique",
-                  header: intl.formatMessage({
-                    id: "order.additional.fields.searchUnique",
-                  }),
-                },
-                {
-                  key: "active",
-                  header: intl.formatMessage({
-                    id: "order.additional.fields.active",
-                  }),
-                },
-                {
-                  key: "showInSampleReception",
-                  header: intl.formatMessage({
-                    id: "order.additional.fields.showInSampleReception",
-                  }),
-                },
-                {
-                  key: "alternateOrderFlow",
-                  header: intl.formatMessage({
-                    id: "order.additional.fields.alternateOrderFlow",
-                  }),
-                },
-                {
-                  key: "actions",
-                  header: intl.formatMessage({
-                    id: "order.additional.fields.actions",
-                  }),
-                },
-              ]}
-            >
-              {({ rows, headers, getHeaderProps, getTableProps }) => (
-                <TableContainer>
-                  <Table {...getTableProps()}>
-                    <TableHead>
-                      <TableRow>
-                        {headers.map((header) => (
-                          <TableHeader
-                            key={header.key}
-                            {...getHeaderProps({ header })}
-                          >
-                            {header.header}
-                          </TableHeader>
-                        ))}
-                      </TableRow>
-                    </TableHead>
-                    <TableBody>
-                      {rows.map((row) => {
-                        const sourceField = fields.find(
-                          (field) => String(field.id) === row.id,
-                        );
-                        return (
-                          <TableRow key={row.id}>
-                            <TableCell>{row.cells[0].value}</TableCell>
-                            <TableCell>{row.cells[1].value}</TableCell>
-                            <TableCell>{row.cells[2].value}</TableCell>
-                            <TableCell>
-                              <TextInput
-                                id={`custom-field-sort-order-${row.id}`}
-                                labelText=""
-                                type="number"
-                                value={String(row.cells[3].value ?? "")}
-                                onChange={(event) => {
-                                  const nextSortOrder = event.target.value;
-                                  setFields((previous) =>
-                                    previous.map((field) => {
-                                      if (String(field.id) !== row.id) {
-                                        return field;
-                                      }
-                                      return {
-                                        ...field,
-                                        sortOrder: nextSortOrder,
-                                      };
-                                    }),
-                                  );
-                                }}
-                              />
-                            </TableCell>
-                            <TableCell>
-                              {row.cells[4].value ? (
-                                <Tag type="green">
-                                  <FormattedMessage id="yes.option" />
-                                </Tag>
-                              ) : (
-                                <Tag type="gray">
-                                  <FormattedMessage id="no.option" />
-                                </Tag>
-                              )}
-                            </TableCell>
-                            <TableCell>
-                              <Checkbox
-                                id={`custom-field-searchable-${row.id}`}
-                                labelText=""
-                                checked={!!sourceField?.searchable}
-                                onChange={(_event, { checked }) => {
-                                  setFields((previous) =>
-                                    previous.map((field) => {
-                                      if (String(field.id) !== row.id) {
-                                        return field;
-                                      }
-                                      return {
-                                        ...field,
-                                        searchable: checked,
-                                        searchUnique: checked
-                                          ? field.searchUnique
-                                          : false,
-                                      };
-                                    }),
-                                  );
-                                }}
-                              />
-                            </TableCell>
-                            <TableCell>
-                              <Checkbox
-                                id={`custom-field-search-unique-${row.id}`}
-                                labelText=""
-                                checked={!!sourceField?.searchUnique}
-                                disabled={!sourceField?.searchable}
-                                onChange={(_event, { checked }) => {
-                                  setFields((previous) =>
-                                    previous.map((field) => {
-                                      if (String(field.id) !== row.id) {
-                                        return field;
-                                      }
-                                      return {
-                                        ...field,
-                                        searchUnique: checked,
-                                      };
-                                    }),
-                                  );
-                                }}
-                              />
-                            </TableCell>
-                            <TableCell>
-                              {row.cells[7].value ? (
-                                <Tag type="green">
-                                  <FormattedMessage id="status.active" />
-                                </Tag>
-                              ) : (
-                                <Tag type="red">
-                                  <FormattedMessage id="status.inactive" />
-                                </Tag>
-                              )}
-                            </TableCell>
-                            <TableCell>
-                              {row.cells[8].value ? (
-                                <Tag type="blue">
-                                  <FormattedMessage id="yes.option" />
-                                </Tag>
-                              ) : (
-                                <Tag type="gray">
-                                  <FormattedMessage id="no.option" />
-                                </Tag>
-                              )}
-                            </TableCell>
-                            <TableCell>
-                              {row.cells[9].value ? (
-                                <Tag type="blue">
-                                  <FormattedMessage id="yes.option" />
-                                </Tag>
-                              ) : (
-                                <Tag type="gray">
-                                  <FormattedMessage id="no.option" />
-                                </Tag>
-                              )}
-                            </TableCell>
-                            <TableCell>
-                              <Stack gap={2}>
-                                <Button
-                                  kind="ghost"
-                                  size="sm"
-                                  onClick={() => startEditingField(sourceField)}
-                                >
-                                  <FormattedMessage id="button.edit" />
-                                </Button>
-                                <Button
-                                  kind="tertiary"
-                                  size="sm"
-                                  disabled={
-                                    savingSortFieldId === sourceField?.id
-                                  }
-                                  onClick={() =>
-                                    saveFieldSortOrder(sourceField)
-                                  }
-                                >
-                                  <FormattedMessage id="button.save" />
-                                </Button>
-                                <Button
-                                  kind={
-                                    row.cells[7].value ? "danger" : "secondary"
-                                  }
-                                  size="sm"
-                                  onClick={() => toggleFieldStatus(sourceField)}
-                                >
-                                  {row.cells[7].value ? (
-                                    <FormattedMessage id="order.additional.fields.disable" />
-                                  ) : (
-                                    <FormattedMessage id="order.additional.fields.enable" />
-                                  )}
-                                </Button>
-                              </Stack>
-                            </TableCell>
-                          </TableRow>
-                        );
-                      })}
-                    </TableBody>
-                  </Table>
-                </TableContainer>
+              {newField.fieldType === "DOCUMENT" && (
+                <Stack gap={4}>
+                  <Heading>
+                    <FormattedMessage id="order.additional.fields.document.title" />
+                  </Heading>
+                  <Grid fullWidth className="order-field-config__form-grid">
+                    <Column lg={8} md={4} sm={4}>
+                      <TextInput
+                        id="order-additional-document-accept"
+                        labelText={intl.formatMessage({
+                          id: "order.additional.fields.document.accept",
+                        })}
+                        helperText={intl.formatMessage({
+                          id: "order.additional.fields.document.accept.helper",
+                        })}
+                        value={newField.documentAccept}
+                        onChange={(event) =>
+                          setNewField((previous) => ({
+                            ...previous,
+                            documentAccept: event.target.value,
+                          }))
+                        }
+                      />
+                    </Column>
+                    <Column lg={8} md={4} sm={4}>
+                      <TextInput
+                        id="order-additional-document-max-size"
+                        labelText={intl.formatMessage({
+                          id: "order.additional.fields.document.maxSizeMb",
+                        })}
+                        type="number"
+                        min="1"
+                        value={newField.documentMaxSizeMb}
+                        onChange={(event) =>
+                          setNewField((previous) => ({
+                            ...previous,
+                            documentMaxSizeMb: event.target.value,
+                          }))
+                        }
+                      />
+                    </Column>
+                  </Grid>
+                </Stack>
               )}
-            </DataTable>
+
+              <Section className="order-field-config__rules">
+                <Heading>
+                  <FormattedMessage id="order.additional.fields.rules.title" />
+                </Heading>
+                <Grid fullWidth className="order-field-config__form-grid">
+                  <Column lg={6} md={4} sm={4}>
+                    <Select
+                      id="order-additional-rules-logic"
+                      labelText={intl.formatMessage({
+                        id: "order.additional.fields.rules.logic",
+                      })}
+                      value={newField.rulesLogic}
+                      onChange={(event) =>
+                        setNewField((previous) => ({
+                          ...previous,
+                          rulesLogic: event.target.value,
+                        }))
+                      }
+                    >
+                      {CONDITION_LOGIC_OPTIONS.map((logic) => (
+                        <SelectItem
+                          key={`logic-${logic}`}
+                          value={logic}
+                          text={intl.formatMessage({
+                            id: `order.additional.fields.rules.logic.${logic.toLowerCase()}`,
+                          })}
+                        />
+                      ))}
+                    </Select>
+                  </Column>
+                </Grid>
+
+                {renderConditionGroup(
+                  "visibleWhen",
+                  "order.additional.fields.rules.visibleWhen",
+                )}
+                {renderConditionGroup(
+                  "requiredWhen",
+                  "order.additional.fields.rules.requiredWhen",
+                )}
+              </Section>
+
+              <div className="order-field-config__actions">
+                <Button
+                  onClick={saveField}
+                  disabled={savingField}
+                  data-cy="create-order-additional-field"
+                >
+                  {editingFieldId ? (
+                    <FormattedMessage id="button.save" />
+                  ) : (
+                    <FormattedMessage id="order.additional.fields.create" />
+                  )}
+                </Button>
+                {editingFieldId ? (
+                  <Button kind="ghost" onClick={resetFieldForm}>
+                    <FormattedMessage id="button.cancel" />
+                  </Button>
+                ) : null}
+              </div>
+            </Section>
+            <Section className="order-field-config__list">
+              <Heading>
+                <FormattedMessage id="order.additional.fields.group.fields" />
+              </Heading>
+              <DataTable
+                rows={(fields || []).map((field) => ({
+                  id: String(field.id),
+                  displayName: field.displayName,
+                  fieldKey: field.fieldKey,
+                  fieldType: getAdditionalFieldTypeLabel(intl, field.fieldType),
+                  sortOrder: field.sortOrder,
+                  required: field.required,
+                  searchable: field.searchable,
+                  searchUnique: field.searchUnique,
+                  active: field.active,
+                  showInSampleReception: Boolean(
+                    (() => {
+                      if (!field?.metadataJson) {
+                        return false;
+                      }
+                      try {
+                        const parsed = JSON.parse(field.metadataJson);
+                        return Boolean(
+                          parsed?.sampleReception?.showInSampleReception ??
+                            parsed?.showInSampleReception,
+                        );
+                      } catch (_error) {
+                        return false;
+                      }
+                    })(),
+                  ),
+                  alternateOrderFlow: Boolean(
+                    (() => {
+                      if (!field?.metadataJson) {
+                        return false;
+                      }
+                      try {
+                        const parsed = JSON.parse(field.metadataJson);
+                        return Boolean(parsed?.workflow?.alternateOrderFlow);
+                      } catch (_error) {
+                        return false;
+                      }
+                    })(),
+                  ),
+                  options: field.options || [],
+                }))}
+                headers={[
+                  {
+                    key: "displayName",
+                    header: intl.formatMessage({
+                      id: "order.additional.fields.displayName",
+                    }),
+                  },
+                  {
+                    key: "fieldKey",
+                    header: intl.formatMessage({
+                      id: "order.additional.fields.fieldKey",
+                    }),
+                  },
+                  {
+                    key: "fieldType",
+                    header: intl.formatMessage({
+                      id: "order.additional.fields.fieldType",
+                    }),
+                  },
+                  {
+                    key: "sortOrder",
+                    header: intl.formatMessage({
+                      id: "order.additional.fields.sortOrder",
+                    }),
+                  },
+                  {
+                    key: "required",
+                    header: intl.formatMessage({
+                      id: "order.additional.fields.required",
+                    }),
+                  },
+                  {
+                    key: "searchable",
+                    header: intl.formatMessage({
+                      id: "order.additional.fields.searchable",
+                    }),
+                  },
+                  {
+                    key: "searchUnique",
+                    header: intl.formatMessage({
+                      id: "order.additional.fields.searchUnique",
+                    }),
+                  },
+                  {
+                    key: "active",
+                    header: intl.formatMessage({
+                      id: "order.additional.fields.active",
+                    }),
+                  },
+                  {
+                    key: "showInSampleReception",
+                    header: intl.formatMessage({
+                      id: "order.additional.fields.showInSampleReception",
+                    }),
+                  },
+                  {
+                    key: "alternateOrderFlow",
+                    header: intl.formatMessage({
+                      id: "order.additional.fields.alternateOrderFlow",
+                    }),
+                  },
+                  {
+                    key: "actions",
+                    header: intl.formatMessage({
+                      id: "order.additional.fields.actions",
+                    }),
+                  },
+                ]}
+              >
+                {({ rows, headers, getHeaderProps, getTableProps }) => (
+                  <TableContainer>
+                    <Table {...getTableProps()}>
+                      <TableHead>
+                        <TableRow>
+                          {headers.map((header) => (
+                            <TableHeader
+                              key={header.key}
+                              {...getHeaderProps({ header })}
+                            >
+                              {header.header}
+                            </TableHeader>
+                          ))}
+                        </TableRow>
+                      </TableHead>
+                      <TableBody>
+                        {rows.map((row) => {
+                          const sourceField = fields.find(
+                            (field) => String(field.id) === row.id,
+                          );
+                          return (
+                            <TableRow key={row.id}>
+                              <TableCell>{row.cells[0].value}</TableCell>
+                              <TableCell>{row.cells[1].value}</TableCell>
+                              <TableCell>{row.cells[2].value}</TableCell>
+                              <TableCell>
+                                <TextInput
+                                  id={`custom-field-sort-order-${row.id}`}
+                                  labelText=""
+                                  type="number"
+                                  value={String(row.cells[3].value ?? "")}
+                                  onChange={(event) => {
+                                    const nextSortOrder = event.target.value;
+                                    setFields((previous) =>
+                                      previous.map((field) => {
+                                        if (String(field.id) !== row.id) {
+                                          return field;
+                                        }
+                                        return {
+                                          ...field,
+                                          sortOrder: nextSortOrder,
+                                        };
+                                      }),
+                                    );
+                                  }}
+                                />
+                              </TableCell>
+                              <TableCell>
+                                {row.cells[4].value ? (
+                                  <Tag type="green">
+                                    <FormattedMessage id="yes.option" />
+                                  </Tag>
+                                ) : (
+                                  <Tag type="gray">
+                                    <FormattedMessage
+                                      id={
+                                        parseOrderFieldMetadata(sourceField)
+                                          ?.rules?.requiredWhen?.length
+                                          ? "order.additional.fields.rules.conditional"
+                                          : "no.option"
+                                      }
+                                    />
+                                  </Tag>
+                                )}
+                              </TableCell>
+                              <TableCell>
+                                <Checkbox
+                                  id={`custom-field-searchable-${row.id}`}
+                                  labelText=""
+                                  checked={!!sourceField?.searchable}
+                                  onChange={(_event, { checked }) => {
+                                    setFields((previous) =>
+                                      previous.map((field) => {
+                                        if (String(field.id) !== row.id) {
+                                          return field;
+                                        }
+                                        return {
+                                          ...field,
+                                          searchable: checked,
+                                          searchUnique: checked
+                                            ? field.searchUnique
+                                            : false,
+                                        };
+                                      }),
+                                    );
+                                  }}
+                                />
+                              </TableCell>
+                              <TableCell>
+                                <Checkbox
+                                  id={`custom-field-search-unique-${row.id}`}
+                                  labelText=""
+                                  checked={!!sourceField?.searchUnique}
+                                  disabled={!sourceField?.searchable}
+                                  onChange={(_event, { checked }) => {
+                                    setFields((previous) =>
+                                      previous.map((field) => {
+                                        if (String(field.id) !== row.id) {
+                                          return field;
+                                        }
+                                        return {
+                                          ...field,
+                                          searchUnique: checked,
+                                        };
+                                      }),
+                                    );
+                                  }}
+                                />
+                              </TableCell>
+                              <TableCell>
+                                {row.cells[7].value ? (
+                                  <Tag type="green">
+                                    <FormattedMessage id="status.active" />
+                                  </Tag>
+                                ) : (
+                                  <Tag type="red">
+                                    <FormattedMessage id="status.inactive" />
+                                  </Tag>
+                                )}
+                              </TableCell>
+                              <TableCell>
+                                {row.cells[8].value ? (
+                                  <Tag type="blue">
+                                    <FormattedMessage id="yes.option" />
+                                  </Tag>
+                                ) : (
+                                  <Tag type="gray">
+                                    <FormattedMessage id="no.option" />
+                                  </Tag>
+                                )}
+                              </TableCell>
+                              <TableCell>
+                                {row.cells[9].value ? (
+                                  <Tag type="blue">
+                                    <FormattedMessage id="yes.option" />
+                                  </Tag>
+                                ) : (
+                                  <Tag type="gray">
+                                    <FormattedMessage id="no.option" />
+                                  </Tag>
+                                )}
+                              </TableCell>
+                              <TableCell>
+                                <div className="order-field-config__row-actions">
+                                  <Button
+                                    kind="ghost"
+                                    size="sm"
+                                    onClick={() =>
+                                      startEditingField(sourceField)
+                                    }
+                                  >
+                                    <FormattedMessage id="button.edit" />
+                                  </Button>
+                                  <Button
+                                    kind="tertiary"
+                                    size="sm"
+                                    disabled={
+                                      savingSortFieldId === sourceField?.id
+                                    }
+                                    onClick={() =>
+                                      saveFieldSortOrder(sourceField)
+                                    }
+                                  >
+                                    <FormattedMessage id="button.save" />
+                                  </Button>
+                                  <Button
+                                    kind={
+                                      row.cells[7].value
+                                        ? "danger"
+                                        : "secondary"
+                                    }
+                                    size="sm"
+                                    onClick={() =>
+                                      toggleFieldStatus(sourceField)
+                                    }
+                                  >
+                                    {row.cells[7].value ? (
+                                      <FormattedMessage id="order.additional.fields.disable" />
+                                    ) : (
+                                      <FormattedMessage id="order.additional.fields.enable" />
+                                    )}
+                                  </Button>
+                                </div>
+                              </TableCell>
+                            </TableRow>
+                          );
+                        })}
+                      </TableBody>
+                    </Table>
+                  </TableContainer>
+                )}
+              </DataTable>
+            </Section>
           </Stack>
-        </div>
+        </Section>
 
-        <br />
-
-        <div className="orderLegendBody">
+        <Section className="order-field-config__panel">
           <Stack gap={6}>
             <Heading>
               <FormattedMessage id="sample.fixed.fields.title" />
@@ -1918,7 +1989,7 @@ const OrderAdditionalFieldsManagement = () => {
               <FormattedMessage id="sample.fixed.fields.save" />
             </Button>
           </Stack>
-        </div>
+        </Section>
       </div>
     </>
   );
