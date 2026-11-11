@@ -12,11 +12,15 @@ jest.mock("../common/AutoComplete", () => () => null);
 jest.mock("../common/CustomDatePicker", () => () => null);
 jest.mock("../common/CustomTimePicker", () => () => null);
 
-const renderOrder = (isModifyOrder = false) => {
+const renderOrder = (isModifyOrder = false, sampleOrderItems = {}) => {
   const Wrapper = () => {
     const [values, setValues] = useState(() => ({
       ...createSampleOrderFormValues(),
       newAccessionNumber: "",
+      sampleOrderItems: {
+        ...createSampleOrderFormValues().sampleOrderItems,
+        ...sampleOrderItems,
+      },
     }));
     return (
       <IntlProvider locale="en" messages={messages}>
@@ -87,3 +91,41 @@ test("the existing modify-order generation path remains available", () => {
     expect.any(Function),
   );
 });
+
+test.each([false, true])(
+  "checkbox required state follows rules (modify: %p)",
+  (isModifyOrder) => {
+    const sampleOrderItems = {
+      additionalFields: [
+        { fieldKey: "genomic", displayName: "Genomic", fieldType: "BOOLEAN" },
+        {
+          fieldKey: "consent",
+          displayName: "Consent",
+          fieldType: "BOOLEAN",
+          metadataJson: JSON.stringify({
+            rules: {
+              requiredWhen: [{ fieldKey: "genomic", operator: "isTrue" }],
+            },
+          }),
+        },
+      ],
+      additionalFieldValues: { genomic: "false", consent: "false" },
+    };
+    getFromOpenElisServer.mockImplementation((url, callback) => {
+      callback(url === "/rest/SamplePatientEntry" ? { sampleOrderItems } : []);
+    });
+    const view = renderOrder(isModifyOrder, sampleOrderItems);
+    const consent = view.container.querySelector("#order-dynamic-consent");
+    const label = view.container.querySelector(
+      'label[for="order-dynamic-consent"]',
+    );
+    expect(consent.required).toBe(false);
+    expect(label.textContent).toBe("Consent");
+    fireEvent.click(view.getByLabelText("Genomic"));
+    expect(consent.required).toBe(true);
+    expect(label.textContent).toBe("Consent*");
+    fireEvent.click(view.getByLabelText("Genomic"));
+    expect(consent.required).toBe(false);
+    expect(label.textContent).toBe("Consent");
+  },
+);

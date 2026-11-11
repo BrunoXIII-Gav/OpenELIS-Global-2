@@ -7,10 +7,11 @@ export const evaluateSingleCondition = (condition, context) => {
   const leftValue = String(context?.[condition.fieldKey] ?? "").trim();
   const rightValue = String(condition.value ?? "").trim();
   const rightValues = Array.isArray(condition.values)
-    ? condition.values.map((value) => String(value ?? "").trim())
-    : rightValue
-      ? [rightValue]
-      : [];
+    ? condition.values
+        .map((value) => String(value ?? "").trim())
+        .filter(Boolean)
+    : [];
+  if (rightValues.length === 0 && rightValue) rightValues.push(rightValue);
 
   switch (operator) {
     case "equals":

@@ -1,4 +1,10 @@
-import { evaluateConditions } from "../utils/fieldConditions";
+import {
+  buildOrderConditionContext,
+  getOrderFieldValue,
+  isOrderFieldRequired,
+  isOrderFieldVisible,
+  parseOrderFieldMetadata as parseFieldMetadata,
+} from "../utils/orderFieldRules";
 import HistoricalUserSelectItem from "../common/HistoricalUserSelectItem";
 import React, { useContext, useEffect, useRef, useState } from "react";
 import {
@@ -52,7 +58,6 @@ const DEFAULT_FIXED_FIELD_ORDER = [
   { fieldKey: "rememberSiteAndRequester", sortOrder: 200 },
 ];
 
-const DEFAULT_CONDITION_LOGIC = "ALL";
 const DEFAULT_DOCUMENT_MAX_SIZE_MB = 5;
 const BYTES_PER_MEGABYTE = 1024 * 1024;
 const RETIRED_PROVIDER_FIXED_FIELDS = new Set(["providercmp", "providerrne"]);
@@ -402,77 +407,17 @@ const AddOrder = (props) => {
     return providerIdentifier;
   };
 
-  const parseFieldMetadata = (field) => {
-    if (!field?.metadataJson) {
-      return {};
-    }
-    try {
-      return JSON.parse(field.metadataJson);
-    } catch (_error) {
-      return {};
-    }
-  };
-
-  const getDynamicConditionContext = () => {
-    const sampleOrderItems = orderFormValues?.sampleOrderItems || {};
-    return {
-      ...(sampleOrderItems.additionalFieldValues || {}),
-      ...(sampleOrderItems.providerProfileFieldValues || {}),
-      priority: sampleOrderItems.priority,
-      requestDate: sampleOrderItems.requestDate,
-      requestTime: sampleOrderItems.requestTime,
-      receivedDateForDisplay: sampleOrderItems.receivedDateForDisplay,
-      receivedTime: sampleOrderItems.receivedTime,
-      nextVisitDate: sampleOrderItems.nextVisitDate,
-      referringSiteName: sampleOrderItems.referringSiteName,
-      referringSiteDepartmentId: sampleOrderItems.referringSiteDepartmentId,
-      provisionalClinicalDiagnosis:
-        sampleOrderItems.provisionalClinicalDiagnosis,
-      providerFirstName: sampleOrderItems.providerFirstName,
-      providerLastName: sampleOrderItems.providerLastName,
-      providerCmp: sampleOrderItems.providerCmp,
-      providerRne: sampleOrderItems.providerRne,
-      providerDni: sampleOrderItems.providerDni,
-      providerWorkPhone: sampleOrderItems.providerWorkPhone,
-      providerFax: sampleOrderItems.providerFax,
-      providerEmail: sampleOrderItems.providerEmail,
-      paymentOptionSelection: sampleOrderItems.paymentOptionSelection,
-      testLocationCode: sampleOrderItems.testLocationCode,
-      otherLocationCode: sampleOrderItems.otherLocationCode,
-      rememberSiteAndRequester: orderFormValues?.rememberSiteAndRequester
-        ? "true"
-        : "false",
-    };
-  };
-
-  const isDynamicFieldVisible = (field) => {
-    if (!field || !field.fieldKey || field.active === false) {
-      return false;
-    }
-    const metadata = parseFieldMetadata(field);
-    const rules = metadata?.rules || {};
-    return evaluateConditions(
-      rules.visibleWhen,
-      rules.logic || DEFAULT_CONDITION_LOGIC,
-      getDynamicConditionContext(),
+  const getDynamicConditionContext = () =>
+    buildOrderConditionContext(
+      orderFormValues?.sampleOrderItems,
+      orderFormValues,
     );
-  };
 
-  const isDynamicFieldRequired = (field) => {
-    if (field?.required) {
-      return true;
-    }
-    const metadata = parseFieldMetadata(field);
-    const rules = metadata?.rules || {};
-    if (!Array.isArray(rules.requiredWhen) || rules.requiredWhen.length === 0) {
-      return false;
-    }
-    return evaluateConditions(
-      rules.requiredWhen,
-      rules.logic || DEFAULT_CONDITION_LOGIC,
-      getDynamicConditionContext(),
-    );
-  };
+  const isDynamicFieldVisible = (field) =>
+    isOrderFieldVisible(field, getDynamicConditionContext());
+
+  const isDynamicFieldRequired = (field) =>
+    isOrderFieldRequired(field, getDynamicConditionContext());
 
   const handleAdditionalFieldValueChange = (fieldKey, value) => {
     setOrderFormValues({
@@ -722,10 +667,10 @@ const AddOrder = (props) => {
     }
 
     const fieldType = (field.fieldType || "TEXT").toUpperCase();
-    const currentValue =
-      orderFormValues.sampleOrderItems.additionalFieldValues?.[field.fieldKey];
-    const hasValue = currentValue !== undefined && currentValue !== null;
-    const value = hasValue ? currentValue : field.defaultValue || "";
+    const value = getOrderFieldValue(
+      field,
+      orderFormValues.sampleOrderItems.additionalFieldValues,
+    );
     const options = (field.options || []).filter((option) => option.active);
     const required = isDynamicFieldRequired(field);
     const readonly = isFieldReadonly(field.fieldKey);
@@ -839,7 +784,8 @@ const AddOrder = (props) => {
           <Column key={field.fieldKey} lg={16} md={8} sm={4}>
             <Checkbox
               id={`order-dynamic-${field.fieldKey}`}
-              labelText={field.displayName}
+              labelText={label}
+              required={required}
               checked={String(value).toLowerCase() === "true"}
               onChange={(_event, { checked }) =>
                 handleAdditionalFieldValueChange(

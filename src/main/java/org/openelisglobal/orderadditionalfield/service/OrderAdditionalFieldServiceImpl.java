@@ -40,6 +40,8 @@ import org.openelisglobal.orderadditionalfield.valueholder.OrderAdditionalFieldO
 import org.openelisglobal.orderadditionalfield.valueholder.OrderFixedFieldConfig;
 import org.openelisglobal.orderadditionalfield.valueholder.SampleOrderAdditionalFieldFile;
 import org.openelisglobal.orderadditionalfield.valueholder.SampleOrderAdditionalFieldValue;
+import org.openelisglobal.sample.bean.SampleOrderItem;
+import org.springframework.beans.BeanWrapperImpl;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -367,6 +369,29 @@ public class OrderAdditionalFieldServiceImpl implements OrderAdditionalFieldServ
     public void validateAndPersistSampleValues(String sampleId, Map<String, String> fieldValues,
             Map<String, OrderAdditionalFieldFilePayload> fieldFiles, String currentUserId,
             List<OrderAdditionalFieldPayload> activeFieldCache) {
+        validateAndPersistSampleValues(sampleId, fieldValues, fieldFiles, currentUserId, activeFieldCache,
+                Collections.emptyMap());
+    }
+
+    public static Map<String, String> fixedConditionValues(SampleOrderItem order, Boolean rememberSiteAndRequester) {
+        Map<String, String> context = new HashMap<>();
+        if (order != null) {
+            BeanWrapperImpl properties = new BeanWrapperImpl(order);
+            for (FixedFieldDefault field : FIXED_FIELD_DEFAULTS) {
+                if (properties.isReadableProperty(field.fieldKey)) {
+                    Object value = properties.getPropertyValue(field.fieldKey);
+                    context.put(field.fieldKey, value == null ? "" : value.toString());
+                }
+            }
+        }
+        context.put("rememberSiteAndRequester", Boolean.TRUE.equals(rememberSiteAndRequester) ? "true" : "false");
+        return context;
+    }
+
+    @Override
+    public void validateAndPersistSampleValues(String sampleId, Map<String, String> fieldValues,
+            Map<String, OrderAdditionalFieldFilePayload> fieldFiles, String currentUserId,
+            List<OrderAdditionalFieldPayload> activeFieldCache, Map<String, String> fixedFieldValues) {
         List<OrderAdditionalFieldPayload> activeFields = activeFieldCache;
         if (activeFields == null) {
             activeFields = getFields(false, true);
@@ -396,7 +421,12 @@ public class OrderAdditionalFieldServiceImpl implements OrderAdditionalFieldServ
             }
         }
 
-        Map<String, String> evaluationContext = buildEvaluationContext(activeFields, safeFieldValues);
+        Map<String, String> effectiveValues = new HashMap<>(getSampleValues(sampleId, activeFields));
+        effectiveValues.putAll(safeFieldValues);
+        Map<String, String> evaluationContext = buildEvaluationContext(activeFields, effectiveValues);
+        if (fixedFieldValues != null) {
+            evaluationContext.putAll(fixedFieldValues);
+        }
         for (OrderAdditionalFieldPayload definition : activeFields) {
             FieldType fieldType = parseFieldType(definition.getFieldType());
             FieldMetadata metadata = parseFieldMetadata(definition.getMetadataJson());
@@ -423,14 +453,21 @@ public class OrderAdditionalFieldServiceImpl implements OrderAdditionalFieldServ
             }
 
             existingFile.ifPresent(fileDAO::delete);
-            if (!safeFieldValues.containsKey(definition.getFieldKey()) && existing.isPresent())
+            boolean valueOmitted = !safeFieldValues.containsKey(definition.getFieldKey());
+            if (valueOmitted && existing.isPresent() && !required) {
                 continue;
-            String rawValue = safeFieldValues.get(definition.getFieldKey());
-            if (StringUtils.isBlank(rawValue) && StringUtils.isNotBlank(definition.getDefaultValue())) {
+            }
+            String rawValue = valueOmitted && existing.isPresent() ? existing.get().getFieldValue()
+                    : safeFieldValues.get(definition.getFieldKey());
+            if (rawValue == null && StringUtils.isNotBlank(definition.getDefaultValue())) {
                 rawValue = definition.getDefaultValue();
             }
 
             String normalizedValue = normalizeAndValidateValue(definition, rawValue);
+            if (required && fieldType == FieldType.BOOLEAN && !"true".equals(normalizedValue)) {
+                throw new LIMSRuntimeException(
+                        "Order field is required: " + StringUtils.defaultString(definition.getDisplayName()));
+            }
             if (userFieldOptionResolver.isUserFieldType(definition.getFieldType())
                     && StringUtils.isNotBlank(normalizedValue) && !java.util.Objects.equals(normalizedValue,
                             existing.map(SampleOrderAdditionalFieldValue::getFieldValue).orElse(null))) {
@@ -1123,9 +1160,13 @@ public class OrderAdditionalFieldServiceImpl implements OrderAdditionalFieldServ
             if (definition == null || StringUtils.isBlank(definition.getFieldKey())) {
                 continue;
             }
-            if (!context.containsKey(definition.getFieldKey())
-                    && StringUtils.isNotBlank(definition.getDefaultValue())) {
-                context.put(definition.getFieldKey(), definition.getDefaultValue());
+            if (context.get(definition.getFieldKey()) == null) {
+                String defaultValue = StringUtils.defaultString(definition.getDefaultValue());
+                context.put(definition.getFieldKey(), defaultValue);
+            }
+            if ("BOOLEAN".equalsIgnoreCase(definition.getFieldType())
+                    && "".equals(context.get(definition.getFieldKey()))) {
+                context.put(definition.getFieldKey(), "false");
             }
         }
 

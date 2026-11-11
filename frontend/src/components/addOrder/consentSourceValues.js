@@ -8,6 +8,7 @@ import {
   addMonths,
 } from "date-fns";
 import { evaluateConditions } from "../utils/fieldConditions";
+import { buildOrderConditionContext } from "../utils/orderFieldRules";
 import { nationalityList } from "../data/countries";
 // Resolve only the public sources advertised by the server. Do not serialize the
 // order form wholesale: it also contains primary keys, codes and workflow state.
@@ -210,9 +211,7 @@ export const buildConsentSourceValues = (
       }
       const context = {
         ...patient,
-        ...order,
-        ...(order.additionalFieldValues || {}),
-        ...(order.providerProfileFieldValues || {}),
+        ...buildOrderConditionContext(order, root),
         ...(root.sampleXML || {}),
         ...(root.sampleXML?.additionalFieldValues || {}),
       };

@@ -40,6 +40,10 @@ public interface OrderAdditionalFieldService {
             Map<String, OrderAdditionalFieldFilePayload> fieldFiles, String currentUserId,
             List<OrderAdditionalFieldPayload> activeFieldCache);
 
+    void validateAndPersistSampleValues(String sampleId, Map<String, String> fieldValues,
+            Map<String, OrderAdditionalFieldFilePayload> fieldFiles, String currentUserId,
+            List<OrderAdditionalFieldPayload> activeFieldCache, Map<String, String> fixedFieldValues);
+
     Map<String, OrderAdditionalFieldFilePayload> getSampleFileValues(String sampleId,
             List<OrderAdditionalFieldPayload> fieldDefinitions);
 

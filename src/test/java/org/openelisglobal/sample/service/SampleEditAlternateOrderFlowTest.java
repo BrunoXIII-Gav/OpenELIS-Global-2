@@ -141,7 +141,7 @@ public class SampleEditAlternateOrderFlowTest {
             if (submitted != null)
                 savedValues.putAll(submitted);
             return null;
-        }).when(fields).validateAndPersistSampleValues(eq("44"), any(), any(), eq("42"), isNull());
+        }).when(fields).validateAndPersistSampleValues(eq("44"), any(), any(), eq("42"), isNull(), anyMap());
 
         var values = mock(SampleOrderAdditionalFieldValueDAO.class);
         when(values.findBySampleIdsAndFieldDefinitionIds(anyList(), anyList())).thenAnswer(call -> {
@@ -376,7 +376,7 @@ public class SampleEditAlternateOrderFlowTest {
         assertFalse(item.isVoided());
         verify(analyses, never()).update(any());
         verify(bean(OrderAdditionalFieldService.class), never()).validateAndPersistSampleValues(any(), any(), any(),
-                any(), any());
+                any(), any(), any());
     }
 
     @Test
