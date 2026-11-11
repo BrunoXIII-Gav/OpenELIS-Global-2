@@ -1,0 +1,107 @@
+@use "@carbon/styles/scss/spacing";
+@use "@carbon/styles/scss/type";
+@use "@carbon/styles/scss/theme";
+@use "@carbon/styles/scss/breakpoint";
+
+.additional-field-config {
+  &__panel {
+    margin-block-start: spacing.$spacing-08;
+    padding: spacing.$spacing-06;
+    border-block-start: 1px solid theme.$border-subtle-01;
+    min-inline-size: 0;
+
+    > .cds--stack-vertical {
+      grid-template-columns: minmax(0, 1fr);
+    }
+
+    h2 {
+      @include type.type-style("heading-03");
+    }
+
+    h3 {
+      @include type.type-style("heading-02");
+    }
+
+    .cds--data-table-container {
+      overflow-x: auto;
+      max-inline-size: 100%;
+    }
+
+    .cds--data-table .cds--tag {
+      white-space: nowrap;
+    }
+  }
+
+  &__editor {
+    display: flex;
+    flex-direction: column;
+    gap: spacing.$spacing-06;
+    min-inline-size: 0;
+  }
+
+  & &__grid {
+    padding-inline: 0;
+    row-gap: spacing.$spacing-05;
+    column-gap: spacing.$spacing-05;
+    inline-size: 100%;
+
+    > .cds--css-grid-column {
+      min-inline-size: 0;
+      margin-inline: 0;
+    }
+  }
+
+  &__selector {
+    padding: spacing.$spacing-06;
+  }
+
+  &__user-settings {
+    display: grid;
+    gap: spacing.$spacing-05;
+
+    > p {
+      @include type.type-style("body-compact-01");
+      margin: 0;
+    }
+  }
+
+  &__preferences,
+  &__list {
+    padding-block-start: spacing.$spacing-06;
+    border-block-start: 1px solid theme.$border-subtle-01;
+    min-inline-size: 0;
+  }
+
+  &__list > h3,
+  &__list > h2 {
+    margin-block-end: spacing.$spacing-05;
+  }
+
+  &__actions,
+  &__row-actions {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: spacing.$spacing-03;
+  }
+
+  &__actions {
+    padding-block-start: spacing.$spacing-06;
+    border-block-start: 1px solid theme.$border-subtle-01;
+  }
+
+  &__row-actions {
+    min-inline-size: max-content;
+  }
+
+  &__option-tag {
+    margin-inline-end: spacing.$spacing-02;
+  }
+
+  @include breakpoint.breakpoint-down(md) {
+    &__panel,
+    &__selector {
+      padding-inline: spacing.$spacing-04;
+    }
+  }
+}

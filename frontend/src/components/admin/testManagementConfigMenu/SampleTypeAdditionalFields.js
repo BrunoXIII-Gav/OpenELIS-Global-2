@@ -1,6 +1,7 @@
 import UserFieldPermissionConfig, {
   userTaskFromMetadata,
 } from "./customComponents/UserFieldPermissionConfig.js";
+import "./AdditionalFieldsManagement.scss";
 import React, { useContext, useEffect, useRef, useState } from "react";
 import {
   Button,
@@ -8,11 +9,9 @@ import {
   Grid,
   Heading,
   Loading,
-  MultiSelect,
   Section,
   Select,
   SelectItem,
-  Stack,
   Table,
   TableBody,
   TableCell,
@@ -489,21 +488,18 @@ const SampleTypeAdditionalFields = () => {
       {loading ? (
         <Loading />
       ) : (
-        <div className="adminPageContent">
+        <div className="adminPageContent additional-field-config">
           <PageBreadCrumb breadcrumbs={breadcrumbs} />
-          <div className="orderLegendBody">
-            <Grid fullWidth>
-              <Column lg={16} md={8} sm={4}>
-                <Section>
-                  <Heading>
-                    <FormattedMessage id="configuration.sampleType.additional.fields" />
-                  </Heading>
-                </Section>
-              </Column>
-            </Grid>
-
-            <br />
-            <Grid fullWidth>
+          <Grid fullWidth>
+            <Column lg={16} md={8} sm={4}>
+              <Heading>
+                <FormattedMessage id="configuration.sampleType.additional.fields" />
+              </Heading>
+            </Column>
+          </Grid>
+          <div className="additional-field-config__selector">
+            {" "}
+            <Grid fullWidth className="additional-field-config__grid">
               <Column lg={8} md={8} sm={4}>
                 <Select
                   id="sampleTypeAdditionalFieldsSelector"
@@ -532,428 +528,411 @@ const SampleTypeAdditionalFields = () => {
                 </Select>
               </Column>
             </Grid>
-
-            <br />
-            <hr />
-            <br />
-
-            <Grid fullWidth>
-              <Column lg={16} md={8} sm={4}>
-                <Stack gap={5}>
-                  <Heading>
-                    <FormattedMessage id="sample.additional.fields.new.field.title" />
-                  </Heading>
-                  <Grid fullWidth>
-                    <Column lg={4} md={4} sm={4}>
-                      <TextInput
-                        id="sampleAdditionalFieldDisplayName"
-                        labelText={intl.formatMessage({
-                          id: "sample.additional.fields.display.name",
-                        })}
-                        value={formState.displayName}
-                        onChange={(event) =>
-                          setFormState((previous) => ({
-                            ...previous,
-                            displayName: event.target.value,
-                          }))
-                        }
-                      />
-                    </Column>
-                    <Column lg={4} md={4} sm={4}>
-                      <TextInput
-                        id="sampleAdditionalFieldKey"
-                        labelText={intl.formatMessage({
-                          id: "sample.additional.fields.field.key",
-                        })}
-                        value={formState.fieldKey}
-                        onChange={(event) =>
-                          setFormState((previous) => ({
-                            ...previous,
-                            fieldKey: event.target.value,
-                          }))
-                        }
-                      />
-                    </Column>
-                    <Column lg={4} md={4} sm={4}>
-                      <Select
-                        id="sampleAdditionalFieldType"
-                        labelText={intl.formatMessage({
-                          id: "sample.additional.fields.field.type",
-                        })}
-                        value={formState.fieldType}
-                        disabled={structureLocked}
-                        onChange={(event) =>
-                          setFormState((previous) => ({
-                            ...previous,
-                            fieldType: event.target.value,
-                            userDisplayMode:
-                              event.target.value === "USER"
-                                ? previous.userDisplayMode ||
-                                  USER_DISPLAY_MODE_BOTH
-                                : USER_DISPLAY_MODE_BOTH,
-                          }))
-                        }
-                      >
-                        {FIELD_TYPE_OPTIONS.filter(
-                          (option) => option.value !== "DOCUMENT",
-                        ).map((option) => (
-                          <SelectItem
-                            key={option.value}
-                            value={option.value}
-                            text={intl.formatMessage({
-                              id: option.labelId,
-                              defaultMessage: option.defaultMessage,
-                            })}
-                          />
-                        ))}
-                      </Select>
-                    </Column>
-                    {formState.fieldType === "USER" ? (
-                      <>
-                        <Column lg={8} md={4} sm={4}>
-                          <UserFieldPermissionConfig
-                            id={`user-task-${"sample-management"}`}
-                            value={formState.userTask}
-                            module="sample-management"
-                            onChange={(userTask) =>
-                              setFormState((previous) => ({
-                                ...previous,
-                                userTask,
-                              }))
-                            }
-                          />
-                        </Column>
-                        <Column lg={4} md={4} sm={4}>
-                          <Select
-                            id="sampleAdditionalUserDisplayMode"
-                            labelText={intl.formatMessage({
-                              id: "user.field.display.mode.label",
-                              defaultMessage: "Display user as",
-                            })}
-                            value={
-                              formState.userDisplayMode ||
-                              USER_DISPLAY_MODE_BOTH
-                            }
-                            onChange={(event) =>
-                              setFormState((previous) => ({
-                                ...previous,
-                                userDisplayMode: event.target.value,
-                              }))
-                            }
-                          >
-                            <SelectItem
-                              value={USER_DISPLAY_MODE_INITIALS}
-                              text={intl.formatMessage({
-                                id: "user.field.display.mode.initials",
-                                defaultMessage: "Initials only",
-                              })}
-                            />
-                            <SelectItem
-                              value={USER_DISPLAY_MODE_NAME}
-                              text={intl.formatMessage({
-                                id: "user.field.display.mode.name",
-                                defaultMessage: "Name only",
-                              })}
-                            />
-                            <SelectItem
-                              value={USER_DISPLAY_MODE_BOTH}
-                              text={intl.formatMessage({
-                                id: "user.field.display.mode.both",
-                                defaultMessage: "Initials and name",
-                              })}
-                            />
-                          </Select>
-                        </Column>
-                      </>
-                    ) : null}
-                    <Column lg={4} md={4} sm={4}>
-                      <Select
-                        id="sampleAdditionalFieldRequired"
-                        labelText={intl.formatMessage({
-                          id: "sample.additional.fields.required",
-                        })}
-                        value={formState.required ? "true" : "false"}
-                        onChange={(event) =>
-                          setFormState((previous) => ({
-                            ...previous,
-                            required: event.target.value === "true",
-                          }))
-                        }
-                      >
-                        <SelectItem
-                          value="false"
-                          text={intl.formatMessage({ id: "label.no" })}
-                        />
-                        <SelectItem
-                          value="true"
-                          text={intl.formatMessage({ id: "label.yes" })}
-                        />
-                      </Select>
-                    </Column>
-                    <Column lg={4} md={4} sm={4}>
-                      <Select
-                        id="sampleAdditionalFieldDisplaySection"
-                        labelText={intl.formatMessage({
-                          id: "sample.additional.fields.display.section",
-                          defaultMessage: "Mostrar en",
-                        })}
-                        value={formState.displaySection}
-                        onChange={(event) =>
-                          setFormState((previous) => ({
-                            ...previous,
-                            displaySection: event.target.value,
-                          }))
-                        }
-                      >
-                        <SelectItem
-                          value="COLLECTION"
-                          text={intl.formatMessage({
-                            id: "sample.additional.fields.display.section.collection",
-                            defaultMessage:
-                              "Datos de recolección de la muestra",
-                          })}
-                        />
-                        <SelectItem
-                          value="RECEPTION"
-                          text={intl.formatMessage({
-                            id: "sample.additional.fields.display.section.reception",
-                            defaultMessage: "Recepción de la muestra",
-                          })}
-                        />
-                      </Select>
-                    </Column>
-                  </Grid>
-
-                  <Grid fullWidth>
-                    <Column lg={4} md={4} sm={4}>
-                      <TextInput
-                        id="sampleAdditionalFieldSortOrder"
-                        type="number"
-                        min="0"
-                        labelText={intl.formatMessage({
-                          id: "order.additional.fields.sortOrder",
-                        })}
-                        value={formState.sortOrder}
-                        onChange={(event) =>
-                          setFormState((previous) => ({
-                            ...previous,
-                            sortOrder: event.target.value,
-                          }))
-                        }
-                      />
-                    </Column>
-                    <Column lg={4} md={4} sm={4}>
-                      <TextInput
-                        id="sampleAdditionalFieldDefaultValue"
-                        labelText={intl.formatMessage({
-                          id: "sample.additional.fields.default.value",
-                        })}
-                        value={formState.defaultValue}
-                        onChange={(event) =>
-                          setFormState((previous) => ({
-                            ...previous,
-                            defaultValue: event.target.value,
-                          }))
-                        }
-                      />
-                    </Column>
-                    <Column lg={4} md={4} sm={4}>
-                      <TextInput
-                        id="sampleAdditionalFieldMaxLength"
-                        type="number"
-                        min="0"
-                        labelText={intl.formatMessage({
-                          id: "sample.additional.fields.max.length",
-                        })}
-                        value={formState.maxLength}
-                        onChange={(event) =>
-                          setFormState((previous) => ({
-                            ...previous,
-                            maxLength: event.target.value,
-                          }))
-                        }
-                      />
-                    </Column>
-                    <Column lg={8} md={8} sm={4}>
-                      {optionsRequired ? (
-                        <AdditionalFieldOptionsEditor
-                          idPrefix="sample-additional"
-                          options={formState.options || []}
-                          locked={structureLocked}
-                          onAddOption={addOption}
-                          onOptionLabelChange={updateOptionLabel}
-                          onRemoveOption={removeOption}
-                        />
-                      ) : null}
-                    </Column>
-                  </Grid>
-
-                  <div>
-                    <Button
-                      onClick={handleSaveField}
-                      disabled={!selectedSampleTypeId}
-                    >
-                      {editingFieldId ? (
-                        <FormattedMessage id="button.save" />
-                      ) : (
-                        <FormattedMessage id="sample.additional.fields.create.action" />
-                      )}
-                    </Button>
-                    {editingFieldId ? (
-                      <Button kind="ghost" onClick={resetForm}>
-                        <FormattedMessage id="button.cancel" />
-                      </Button>
-                    ) : null}
-                  </div>
-                </Stack>
-              </Column>
-            </Grid>
-
-            <br />
-            <hr />
-            <br />
-
-            <Grid fullWidth>
-              <Column lg={16} md={8} sm={4}>
-                <TableContainer
-                  title={intl.formatMessage({
-                    id: "sample.additional.fields.list.title",
-                  })}
-                >
-                  <Table>
-                    <TableHead>
-                      <TableRow>
-                        <TableHeader>
-                          <FormattedMessage id="sample.additional.fields.display.name" />
-                        </TableHeader>
-                        <TableHeader>
-                          <FormattedMessage id="sample.additional.fields.field.key" />
-                        </TableHeader>
-                        <TableHeader>
-                          <FormattedMessage id="sample.additional.fields.field.type" />
-                        </TableHeader>
-                        <TableHeader>
-                          <FormattedMessage id="sample.additional.fields.required" />
-                        </TableHeader>
-                        <TableHeader>
-                          <FormattedMessage
-                            id="sample.additional.fields.display.section"
-                            defaultMessage="Mostrar en"
-                          />
-                        </TableHeader>
-                        <TableHeader>
-                          <FormattedMessage id="order.additional.fields.sortOrder" />
-                        </TableHeader>
-                        <TableHeader>
-                          <FormattedMessage id="label.status" />
-                        </TableHeader>
-                        <TableHeader>
-                          <FormattedMessage id="sample.additional.fields.options" />
-                        </TableHeader>
-                        <TableHeader>
-                          <FormattedMessage id="label.action" />
-                        </TableHeader>
-                      </TableRow>
-                    </TableHead>
-                    <TableBody>
-                      {fields.length === 0 ? (
-                        <TableRow>
-                          <TableCell colSpan={9}>
-                            <FormattedMessage id="sample.additional.fields.list.empty" />
-                          </TableCell>
-                        </TableRow>
-                      ) : (
-                        (Array.isArray(fields) ? fields : []).map((field) => (
-                          <TableRow key={`sample_additional_field_${field.id}`}>
-                            <TableCell>{field.displayName}</TableCell>
-                            <TableCell>{field.fieldKey}</TableCell>
-                            <TableCell>
-                              {getAdditionalFieldTypeLabel(
-                                intl,
-                                field.fieldType,
-                              )}
-                            </TableCell>
-                            <TableCell>
-                              {field.required ? (
-                                <FormattedMessage id="label.yes" />
-                              ) : (
-                                <FormattedMessage id="label.no" />
-                              )}
-                            </TableCell>
-                            <TableCell>
-                              {field.displaySection === "COLLECTION" ? (
-                                <FormattedMessage
-                                  id="sample.additional.fields.display.section.collection"
-                                  defaultMessage="Datos de recolección de la muestra"
-                                />
-                              ) : (
-                                <FormattedMessage
-                                  id="sample.additional.fields.display.section.reception"
-                                  defaultMessage="Recepción de la muestra"
-                                />
-                              )}
-                            </TableCell>
-                            <TableCell>{field.sortOrder ?? 0}</TableCell>
-                            <TableCell>
-                              <Tag type={field.active ? "green" : "gray"}>
-                                {field.active
-                                  ? intl.formatMessage({ id: "label.active" })
-                                  : intl.formatMessage({
-                                      id: "label.inactive",
-                                    })}
-                              </Tag>
-                            </TableCell>
-                            <TableCell>
-                              {(field.options || []).map(
-                                (option, optionIndex) => (
-                                  <Tag
-                                    key={`sample_additional_field_option_${field.id}_${optionIndex}`}
-                                    type="cool-gray"
-                                    style={{ marginRight: "0.25rem" }}
-                                  >
-                                    {option.optionLabel}
-                                  </Tag>
-                                ),
-                              )}
-                            </TableCell>
-                            <TableCell>
-                              <Button
-                                kind="ghost"
-                                size="sm"
-                                onClick={() => startEditingField(field)}
-                              >
-                                <FormattedMessage id="button.edit" />
-                              </Button>
-                              {"  "}
-                              {field.active ? (
-                                <Button
-                                  kind="danger--tertiary"
-                                  size="sm"
-                                  onClick={() =>
-                                    handleDeactivateField(field.id)
-                                  }
-                                >
-                                  <FormattedMessage id="label.disable" />
-                                </Button>
-                              ) : (
-                                <Button
-                                  kind="tertiary"
-                                  size="sm"
-                                  onClick={() => handleReactivateField(field)}
-                                >
-                                  <FormattedMessage id="button.activate" />
-                                </Button>
-                              )}
-                            </TableCell>
-                          </TableRow>
-                        ))
-                      )}
-                    </TableBody>
-                  </Table>
-                </TableContainer>
-              </Column>
-            </Grid>
           </div>
+          <Section className="additional-field-config__panel additional-field-config__editor">
+            <Heading>
+              <FormattedMessage id="sample.additional.fields.new.field.title" />
+            </Heading>
+            <Grid fullWidth className="additional-field-config__grid">
+              <Column lg={8} md={4} sm={4}>
+                <TextInput
+                  id="sampleAdditionalFieldDisplayName"
+                  labelText={intl.formatMessage({
+                    id: "sample.additional.fields.display.name",
+                  })}
+                  value={formState.displayName}
+                  onChange={(event) =>
+                    setFormState((previous) => ({
+                      ...previous,
+                      displayName: event.target.value,
+                    }))
+                  }
+                />
+              </Column>
+              <Column lg={8} md={4} sm={4}>
+                <TextInput
+                  id="sampleAdditionalFieldKey"
+                  labelText={intl.formatMessage({
+                    id: "sample.additional.fields.field.key",
+                  })}
+                  value={formState.fieldKey}
+                  onChange={(event) =>
+                    setFormState((previous) => ({
+                      ...previous,
+                      fieldKey: event.target.value,
+                    }))
+                  }
+                />
+              </Column>
+            </Grid>
+            <Grid fullWidth className="additional-field-config__grid">
+              <Column lg={8} md={4} sm={4}>
+                <Select
+                  id="sampleAdditionalFieldType"
+                  labelText={intl.formatMessage({
+                    id: "sample.additional.fields.field.type",
+                  })}
+                  value={formState.fieldType}
+                  disabled={structureLocked}
+                  onChange={(event) =>
+                    setFormState((previous) => ({
+                      ...previous,
+                      fieldType: event.target.value,
+                      userDisplayMode:
+                        event.target.value === "USER"
+                          ? previous.userDisplayMode || USER_DISPLAY_MODE_BOTH
+                          : USER_DISPLAY_MODE_BOTH,
+                    }))
+                  }
+                >
+                  {FIELD_TYPE_OPTIONS.filter(
+                    (option) => option.value !== "DOCUMENT",
+                  ).map((option) => (
+                    <SelectItem
+                      key={option.value}
+                      value={option.value}
+                      text={intl.formatMessage({
+                        id: option.labelId,
+                        defaultMessage: option.defaultMessage,
+                      })}
+                    />
+                  ))}
+                </Select>
+              </Column>
+              <Column lg={8} md={4} sm={4}>
+                <TextInput
+                  id="sampleAdditionalFieldDefaultValue"
+                  labelText={intl.formatMessage({
+                    id: "sample.additional.fields.default.value",
+                  })}
+                  value={formState.defaultValue}
+                  onChange={(event) =>
+                    setFormState((previous) => ({
+                      ...previous,
+                      defaultValue: event.target.value,
+                    }))
+                  }
+                />
+              </Column>
+            </Grid>
+            <Grid fullWidth className="additional-field-config__grid">
+              <Column lg={8} md={4} sm={4}>
+                <TextInput
+                  id="sampleAdditionalFieldMaxLength"
+                  type="number"
+                  min="0"
+                  labelText={intl.formatMessage({
+                    id: "sample.additional.fields.max.length",
+                  })}
+                  value={formState.maxLength}
+                  onChange={(event) =>
+                    setFormState((previous) => ({
+                      ...previous,
+                      maxLength: event.target.value,
+                    }))
+                  }
+                />
+              </Column>
+              <Column lg={8} md={4} sm={4}>
+                <TextInput
+                  id="sampleAdditionalFieldSortOrder"
+                  type="number"
+                  min="0"
+                  labelText={intl.formatMessage({
+                    id: "order.additional.fields.sortOrder",
+                  })}
+                  value={formState.sortOrder}
+                  onChange={(event) =>
+                    setFormState((previous) => ({
+                      ...previous,
+                      sortOrder: event.target.value,
+                    }))
+                  }
+                />
+              </Column>
+            </Grid>
+            <Grid
+              fullWidth
+              className="additional-field-config__grid additional-field-config__preferences"
+            >
+              <Column lg={8} md={4} sm={4}>
+                <Select
+                  id="sampleAdditionalFieldRequired"
+                  labelText={intl.formatMessage({
+                    id: "sample.additional.fields.required",
+                  })}
+                  value={formState.required ? "true" : "false"}
+                  onChange={(event) =>
+                    setFormState((previous) => ({
+                      ...previous,
+                      required: event.target.value === "true",
+                    }))
+                  }
+                >
+                  <SelectItem
+                    value="false"
+                    text={intl.formatMessage({ id: "label.no" })}
+                  />
+                  <SelectItem
+                    value="true"
+                    text={intl.formatMessage({ id: "label.yes" })}
+                  />
+                </Select>
+              </Column>
+              <Column lg={8} md={4} sm={4}>
+                <Select
+                  id="sampleAdditionalFieldDisplaySection"
+                  labelText={intl.formatMessage({
+                    id: "sample.additional.fields.display.section",
+                    defaultMessage: "Mostrar en",
+                  })}
+                  value={formState.displaySection}
+                  onChange={(event) =>
+                    setFormState((previous) => ({
+                      ...previous,
+                      displaySection: event.target.value,
+                    }))
+                  }
+                >
+                  <SelectItem
+                    value="COLLECTION"
+                    text={intl.formatMessage({
+                      id: "sample.additional.fields.display.section.collection",
+                      defaultMessage: "Datos de recolección de la muestra",
+                    })}
+                  />
+                  <SelectItem
+                    value="RECEPTION"
+                    text={intl.formatMessage({
+                      id: "sample.additional.fields.display.section.reception",
+                      defaultMessage: "Recepción de la muestra",
+                    })}
+                  />
+                </Select>
+              </Column>
+            </Grid>
+            {formState.fieldType === "USER" ? (
+              <Grid
+                fullWidth
+                className="additional-field-config__grid additional-field-config__preferences"
+              >
+                <Column
+                  lg={8}
+                  md={4}
+                  sm={4}
+                  className="additional-field-config__user-settings"
+                >
+                  <UserFieldPermissionConfig
+                    id={`user-task-${"sample-management"}`}
+                    value={formState.userTask}
+                    module="sample-management"
+                    onChange={(userTask) =>
+                      setFormState((previous) => ({
+                        ...previous,
+                        userTask,
+                      }))
+                    }
+                  />
+                </Column>
+                <Column lg={8} md={4} sm={4}>
+                  <Select
+                    id="sampleAdditionalUserDisplayMode"
+                    labelText={intl.formatMessage({
+                      id: "user.field.display.mode.label",
+                      defaultMessage: "Display user as",
+                    })}
+                    value={formState.userDisplayMode || USER_DISPLAY_MODE_BOTH}
+                    onChange={(event) =>
+                      setFormState((previous) => ({
+                        ...previous,
+                        userDisplayMode: event.target.value,
+                      }))
+                    }
+                  >
+                    <SelectItem
+                      value={USER_DISPLAY_MODE_INITIALS}
+                      text={intl.formatMessage({
+                        id: "user.field.display.mode.initials",
+                        defaultMessage: "Initials only",
+                      })}
+                    />
+                    <SelectItem
+                      value={USER_DISPLAY_MODE_NAME}
+                      text={intl.formatMessage({
+                        id: "user.field.display.mode.name",
+                        defaultMessage: "Name only",
+                      })}
+                    />
+                    <SelectItem
+                      value={USER_DISPLAY_MODE_BOTH}
+                      text={intl.formatMessage({
+                        id: "user.field.display.mode.both",
+                        defaultMessage: "Initials and name",
+                      })}
+                    />
+                  </Select>
+                </Column>
+              </Grid>
+            ) : null}
+            {optionsRequired ? (
+              <AdditionalFieldOptionsEditor
+                idPrefix="sample-additional"
+                options={formState.options || []}
+                locked={structureLocked}
+                onAddOption={addOption}
+                onOptionLabelChange={updateOptionLabel}
+                onRemoveOption={removeOption}
+              />
+            ) : null}{" "}
+            <div className="additional-field-config__actions">
+              <Button
+                onClick={handleSaveField}
+                disabled={!selectedSampleTypeId}
+              >
+                {editingFieldId ? (
+                  <FormattedMessage id="button.save" />
+                ) : (
+                  <FormattedMessage id="sample.additional.fields.create.action" />
+                )}
+              </Button>
+              {editingFieldId ? (
+                <Button kind="ghost" onClick={resetForm}>
+                  <FormattedMessage id="button.cancel" />
+                </Button>
+              ) : null}
+            </div>
+          </Section>
+          <Section className="additional-field-config__panel additional-field-config__list">
+            <Heading>
+              <FormattedMessage id="sample.additional.fields.list.title" />
+            </Heading>
+            <TableContainer>
+              <Table>
+                <TableHead>
+                  <TableRow>
+                    <TableHeader>
+                      <FormattedMessage id="sample.additional.fields.display.name" />
+                    </TableHeader>
+                    <TableHeader>
+                      <FormattedMessage id="sample.additional.fields.field.key" />
+                    </TableHeader>
+                    <TableHeader>
+                      <FormattedMessage id="sample.additional.fields.field.type" />
+                    </TableHeader>
+                    <TableHeader>
+                      <FormattedMessage id="sample.additional.fields.required" />
+                    </TableHeader>
+                    <TableHeader>
+                      <FormattedMessage
+                        id="sample.additional.fields.display.section"
+                        defaultMessage="Mostrar en"
+                      />
+                    </TableHeader>
+                    <TableHeader>
+                      <FormattedMessage id="order.additional.fields.sortOrder" />
+                    </TableHeader>
+                    <TableHeader>
+                      <FormattedMessage id="label.status" />
+                    </TableHeader>
+                    <TableHeader>
+                      <FormattedMessage id="sample.additional.fields.options" />
+                    </TableHeader>
+                    <TableHeader>
+                      <FormattedMessage id="label.action" />
+                    </TableHeader>
+                  </TableRow>
+                </TableHead>
+                <TableBody>
+                  {fields.length === 0 ? (
+                    <TableRow>
+                      <TableCell colSpan={9}>
+                        <FormattedMessage id="sample.additional.fields.list.empty" />
+                      </TableCell>
+                    </TableRow>
+                  ) : (
+                    (Array.isArray(fields) ? fields : []).map((field) => (
+                      <TableRow key={`sample_additional_field_${field.id}`}>
+                        <TableCell>{field.displayName}</TableCell>
+                        <TableCell>{field.fieldKey}</TableCell>
+                        <TableCell>
+                          {getAdditionalFieldTypeLabel(intl, field.fieldType)}
+                        </TableCell>
+                        <TableCell>
+                          {field.required ? (
+                            <FormattedMessage id="label.yes" />
+                          ) : (
+                            <FormattedMessage id="label.no" />
+                          )}
+                        </TableCell>
+                        <TableCell>
+                          {field.displaySection === "COLLECTION" ? (
+                            <FormattedMessage
+                              id="sample.additional.fields.display.section.collection"
+                              defaultMessage="Datos de recolección de la muestra"
+                            />
+                          ) : (
+                            <FormattedMessage
+                              id="sample.additional.fields.display.section.reception"
+                              defaultMessage="Recepción de la muestra"
+                            />
+                          )}
+                        </TableCell>
+                        <TableCell>{field.sortOrder ?? 0}</TableCell>
+                        <TableCell>
+                          <Tag type={field.active ? "green" : "gray"}>
+                            {field.active
+                              ? intl.formatMessage({ id: "label.active" })
+                              : intl.formatMessage({
+                                  id: "label.inactive",
+                                })}
+                          </Tag>
+                        </TableCell>
+                        <TableCell>
+                          {(field.options || []).map((option, optionIndex) => (
+                            <Tag
+                              key={`sample_additional_field_option_${field.id}_${optionIndex}`}
+                              type="cool-gray"
+                              className="additional-field-config__option-tag"
+                            >
+                              {option.optionLabel}
+                            </Tag>
+                          ))}
+                        </TableCell>
+                        <TableCell>
+                          <div className="additional-field-config__row-actions">
+                            <Button
+                              kind="ghost"
+                              size="sm"
+                              onClick={() => startEditingField(field)}
+                            >
+                              <FormattedMessage id="button.edit" />
+                            </Button>
+                            {field.active ? (
+                              <Button
+                                kind="danger--tertiary"
+                                size="sm"
+                                onClick={() => handleDeactivateField(field.id)}
+                              >
+                                <FormattedMessage id="label.disable" />
+                              </Button>
+                            ) : (
+                              <Button
+                                kind="tertiary"
+                                size="sm"
+                                onClick={() => handleReactivateField(field)}
+                              >
+                                <FormattedMessage id="button.activate" />
+                              </Button>
+                            )}
+                          </div>
+                        </TableCell>
+                      </TableRow>
+                    ))
+                  )}
+                </TableBody>
+              </Table>
+            </TableContainer>
+          </Section>
         </div>
       )}
     </>

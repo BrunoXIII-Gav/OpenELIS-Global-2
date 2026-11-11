@@ -1,6 +1,7 @@
 import UserFieldPermissionConfig, {
   userTaskFromMetadata,
 } from "./customComponents/UserFieldPermissionConfig.js";
+import "./AdditionalFieldsManagement.scss";
 import React, { useContext, useEffect, useMemo, useState } from "react";
 import {
   Button,
@@ -9,7 +10,6 @@ import {
   DataTable,
   Grid,
   Heading,
-  MultiSelect,
   Section,
   Select,
   SelectItem,
@@ -506,19 +506,17 @@ const PatientAdditionalFieldsManagement = () => {
   return (
     <>
       {notificationVisible ? <AlertDialog /> : null}
-      <div className="adminPageContent">
+      <div className="adminPageContent additional-field-config">
         <PageBreadCrumb breadcrumbs={breadcrumbs} />
         <Grid fullWidth>
           <Column lg={16} md={8} sm={4}>
-            <Section>
-              <Heading>
-                <FormattedMessage id="patient.additional.fields.title" />
-              </Heading>
-            </Section>
+            <Heading>
+              <FormattedMessage id="patient.additional.fields.title" />
+            </Heading>
           </Column>
         </Grid>
 
-        <div className="orderLegendBody">
+        <Section className="additional-field-config__panel">
           <Stack gap={6}>
             <Heading>
               <FormattedMessage id="patient.fixed.fields.title" />
@@ -624,95 +622,160 @@ const PatientAdditionalFieldsManagement = () => {
             <Button onClick={saveFixedConfigs} disabled={savingFixed}>
               <FormattedMessage id="button.save" />
             </Button>
-
+          </Stack>
+        </Section>
+        <Section className="additional-field-config__panel">
+          <Stack gap={6}>
             <Heading>
               <FormattedMessage id="patient.additional.fields.custom.title" />
             </Heading>
-            <Grid fullWidth>
-              <Column lg={8} md={4} sm={4}>
-                <TextInput
-                  id="patient-additional-display-name"
-                  labelText={intl.formatMessage({
-                    id: "order.additional.fields.displayName",
-                  })}
-                  value={newField.displayName}
-                  onChange={(event) =>
-                    setNewField((previous) => ({
-                      ...previous,
-                      displayName: event.target.value,
-                    }))
-                  }
-                />
-              </Column>
-              <Column lg={8} md={4} sm={4}>
-                <TextInput
-                  id="patient-additional-field-key"
-                  labelText={intl.formatMessage({
-                    id: "order.additional.fields.fieldKey",
-                  })}
-                  value={newField.fieldKey}
-                  disabled={editingFieldId !== null}
-                  onChange={(event) =>
-                    setNewField((previous) => ({
-                      ...previous,
-                      fieldKey: event.target.value,
-                    }))
-                  }
-                />
-              </Column>
-            </Grid>
-            <Grid fullWidth>
-              <Column lg={8} md={4} sm={4}>
-                <Select
-                  id="patient-additional-field-type"
-                  labelText={intl.formatMessage({
-                    id: "order.additional.fields.fieldType",
-                  })}
-                  value={newField.fieldType}
-                  disabled={structureLocked}
-                  onChange={(event) =>
-                    setNewField((previous) => ({
-                      ...previous,
-                      fieldType: event.target.value,
-                      userDisplayMode:
-                        event.target.value === "USER"
-                          ? previous.userDisplayMode || USER_DISPLAY_MODE_BOTH
-                          : USER_DISPLAY_MODE_BOTH,
-                    }))
-                  }
-                >
-                  {FIELD_TYPE_OPTIONS.filter(
-                    (fieldType) => fieldType.value !== "DOCUMENT",
-                  ).map((fieldType) => (
-                    <SelectItem
-                      key={fieldType.value}
-                      value={fieldType.value}
-                      text={intl.formatMessage({
-                        id: fieldType.labelId,
-                        defaultMessage: fieldType.defaultMessage,
-                      })}
-                    />
-                  ))}
-                </Select>
-              </Column>
-              <Column lg={8} md={4} sm={4}>
-                <TextInput
-                  id="patient-additional-default-value"
-                  labelText={intl.formatMessage({
-                    id: "order.additional.fields.defaultValue",
-                  })}
-                  value={newField.defaultValue}
-                  onChange={(event) =>
-                    setNewField((previous) => ({
-                      ...previous,
-                      defaultValue: event.target.value,
-                    }))
-                  }
-                />
-              </Column>
+            <div className="additional-field-config__editor">
+              <Grid fullWidth className="additional-field-config__grid">
+                <Column lg={8} md={4} sm={4}>
+                  <TextInput
+                    id="patient-additional-display-name"
+                    labelText={intl.formatMessage({
+                      id: "order.additional.fields.displayName",
+                    })}
+                    value={newField.displayName}
+                    onChange={(event) =>
+                      setNewField((previous) => ({
+                        ...previous,
+                        displayName: event.target.value,
+                      }))
+                    }
+                  />
+                </Column>
+                <Column lg={8} md={4} sm={4}>
+                  <TextInput
+                    id="patient-additional-field-key"
+                    labelText={intl.formatMessage({
+                      id: "order.additional.fields.fieldKey",
+                    })}
+                    value={newField.fieldKey}
+                    disabled={editingFieldId !== null}
+                    onChange={(event) =>
+                      setNewField((previous) => ({
+                        ...previous,
+                        fieldKey: event.target.value,
+                      }))
+                    }
+                  />
+                </Column>
+              </Grid>
+              <Grid fullWidth className="additional-field-config__grid">
+                <Column lg={8} md={4} sm={4}>
+                  <Select
+                    id="patient-additional-field-type"
+                    labelText={intl.formatMessage({
+                      id: "order.additional.fields.fieldType",
+                    })}
+                    value={newField.fieldType}
+                    disabled={structureLocked}
+                    onChange={(event) =>
+                      setNewField((previous) => ({
+                        ...previous,
+                        fieldType: event.target.value,
+                        userDisplayMode:
+                          event.target.value === "USER"
+                            ? previous.userDisplayMode || USER_DISPLAY_MODE_BOTH
+                            : USER_DISPLAY_MODE_BOTH,
+                      }))
+                    }
+                  >
+                    {FIELD_TYPE_OPTIONS.filter(
+                      (fieldType) => fieldType.value !== "DOCUMENT",
+                    ).map((fieldType) => (
+                      <SelectItem
+                        key={fieldType.value}
+                        value={fieldType.value}
+                        text={intl.formatMessage({
+                          id: fieldType.labelId,
+                          defaultMessage: fieldType.defaultMessage,
+                        })}
+                      />
+                    ))}
+                  </Select>
+                </Column>
+                <Column lg={8} md={4} sm={4}>
+                  <TextInput
+                    id="patient-additional-default-value"
+                    labelText={intl.formatMessage({
+                      id: "order.additional.fields.defaultValue",
+                    })}
+                    value={newField.defaultValue}
+                    onChange={(event) =>
+                      setNewField((previous) => ({
+                        ...previous,
+                        defaultValue: event.target.value,
+                      }))
+                    }
+                  />
+                </Column>
+              </Grid>
+              <Grid fullWidth className="additional-field-config__grid">
+                <Column lg={8} md={4} sm={4}>
+                  <TextInput
+                    id="patient-additional-max-length"
+                    labelText={intl.formatMessage({
+                      id: "order.additional.fields.maxLength",
+                    })}
+                    type="number"
+                    value={newField.maxLength}
+                    onChange={(event) =>
+                      setNewField((previous) => ({
+                        ...previous,
+                        maxLength: event.target.value,
+                      }))
+                    }
+                  />
+                </Column>
+                <Column lg={8} md={4} sm={4}>
+                  <TextInput
+                    id="patient-additional-sort-order"
+                    labelText={intl.formatMessage({
+                      id: "order.additional.fields.sortOrder",
+                    })}
+                    type="number"
+                    value={newField.sortOrder}
+                    onChange={(event) =>
+                      setNewField((previous) => ({
+                        ...previous,
+                        sortOrder: event.target.value,
+                      }))
+                    }
+                  />
+                </Column>
+              </Grid>
+              <Grid fullWidth className="additional-field-config__grid">
+                <Column lg={8} md={4} sm={4}>
+                  <Checkbox
+                    id="patient-additional-required"
+                    labelText={intl.formatMessage({
+                      id: "order.additional.fields.required",
+                    })}
+                    checked={newField.required}
+                    onChange={(_event, { checked }) =>
+                      setNewField((previous) => ({
+                        ...previous,
+                        required: checked,
+                      }))
+                    }
+                  />
+                </Column>
+              </Grid>
+
               {newField.fieldType === "USER" ? (
-                <>
-                  <Column lg={8} md={4} sm={4}>
+                <Grid
+                  fullWidth
+                  className="additional-field-config__grid additional-field-config__preferences"
+                >
+                  <Column
+                    lg={8}
+                    md={4}
+                    sm={4}
+                    className="additional-field-config__user-settings"
+                  >
                     <UserFieldPermissionConfig
                       id={`user-task-${"patients"}`}
                       value={newField.userTask}
@@ -760,249 +823,211 @@ const PatientAdditionalFieldsManagement = () => {
                       />
                     </Select>
                   </Column>
-                </>
+                </Grid>
               ) : null}
-            </Grid>
-            <Grid fullWidth>
-              <Column lg={8} md={4} sm={4}>
-                <TextInput
-                  id="patient-additional-max-length"
-                  labelText={intl.formatMessage({
-                    id: "order.additional.fields.maxLength",
-                  })}
-                  type="number"
-                  value={newField.maxLength}
-                  onChange={(event) =>
-                    setNewField((previous) => ({
-                      ...previous,
-                      maxLength: event.target.value,
-                    }))
-                  }
+              {OPTION_FIELD_TYPES.has(newField.fieldType) ? (
+                <AdditionalFieldOptionsEditor
+                  idPrefix="patient-additional"
+                  options={newField.options || []}
+                  locked={structureLocked}
+                  onAddOption={addOption}
+                  onOptionLabelChange={updateOptionLabel}
+                  onRemoveOption={removeOption}
                 />
-              </Column>
-              <Column lg={8} md={4} sm={4}>
-                <TextInput
-                  id="patient-additional-sort-order"
-                  labelText={intl.formatMessage({
-                    id: "order.additional.fields.sortOrder",
-                  })}
-                  type="number"
-                  value={newField.sortOrder}
-                  onChange={(event) =>
-                    setNewField((previous) => ({
-                      ...previous,
-                      sortOrder: event.target.value,
-                    }))
-                  }
-                />
-              </Column>
-            </Grid>
-            <Grid fullWidth>
-              <Column lg={8} md={4} sm={4}>
-                <Checkbox
-                  id="patient-additional-required"
-                  labelText={intl.formatMessage({
-                    id: "order.additional.fields.required",
-                  })}
-                  checked={newField.required}
-                  onChange={(_event, { checked }) =>
-                    setNewField((previous) => ({
-                      ...previous,
-                      required: checked,
-                    }))
-                  }
-                />
-              </Column>
-            </Grid>
+              ) : null}
 
-            {OPTION_FIELD_TYPES.has(newField.fieldType) ? (
-              <AdditionalFieldOptionsEditor
-                idPrefix="patient-additional"
-                options={newField.options || []}
-                locked={structureLocked}
-                onAddOption={addOption}
-                onOptionLabelChange={updateOptionLabel}
-                onRemoveOption={removeOption}
-              />
-            ) : null}
-
-            <Stack orientation="horizontal" gap={4}>
-              <Button
-                onClick={saveField}
-                disabled={savingField}
-                data-cy="create-patient-additional-field"
-              >
-                {editingFieldId ? (
-                  <FormattedMessage id="button.save" />
-                ) : (
-                  <FormattedMessage id="order.additional.fields.create" />
-                )}
-              </Button>
-              {editingFieldId ? (
-                <Button kind="ghost" onClick={resetFieldForm}>
-                  <FormattedMessage id="button.cancel" />
+              <div className="additional-field-config__actions">
+                <Button
+                  onClick={saveField}
+                  disabled={savingField}
+                  data-cy="create-patient-additional-field"
+                >
+                  {editingFieldId ? (
+                    <FormattedMessage id="button.save" />
+                  ) : (
+                    <FormattedMessage id="order.additional.fields.create" />
+                  )}
                 </Button>
-              ) : null}
-            </Stack>
-
-            <DataTable
-              rows={rows}
-              headers={[
-                {
-                  key: "displayName",
-                  header: intl.formatMessage({
-                    id: "order.additional.fields.displayName",
-                  }),
-                },
-                {
-                  key: "fieldKey",
-                  header: intl.formatMessage({
-                    id: "order.additional.fields.fieldKey",
-                  }),
-                },
-                {
-                  key: "fieldType",
-                  header: intl.formatMessage({
-                    id: "order.additional.fields.fieldType",
-                  }),
-                },
-                {
-                  key: "sortOrder",
-                  header: intl.formatMessage({
-                    id: "order.additional.fields.sortOrder",
-                  }),
-                },
-                {
-                  key: "required",
-                  header: intl.formatMessage({
-                    id: "order.additional.fields.required",
-                  }),
-                },
-                {
-                  key: "active",
-                  header: intl.formatMessage({
-                    id: "order.additional.fields.active",
-                  }),
-                },
-                {
-                  key: "actions",
-                  header: intl.formatMessage({
-                    id: "order.additional.fields.actions",
-                  }),
-                },
-              ]}
-            >
-              {({ rows, headers, getHeaderProps, getTableProps }) => (
-                <TableContainer>
-                  <Table {...getTableProps()}>
-                    <TableHead>
-                      <TableRow>
-                        {headers.map((header) => (
-                          <TableHeader
-                            key={header.key}
-                            {...getHeaderProps({ header })}
-                          >
-                            {header.header}
-                          </TableHeader>
-                        ))}
-                      </TableRow>
-                    </TableHead>
-                    <TableBody>
-                      {rows.map((row) => {
-                        const sourceField = fields.find(
-                          (field) => String(field.id) === row.id,
-                        );
-                        return (
-                          <TableRow key={row.id}>
-                            <TableCell>{row.cells[0].value}</TableCell>
-                            <TableCell>{row.cells[1].value}</TableCell>
-                            <TableCell>{row.cells[2].value}</TableCell>
-                            <TableCell>
-                              <TextInput
-                                id={`patient-custom-field-sort-order-${row.id}`}
-                                labelText=""
-                                type="number"
-                                value={String(row.cells[3].value ?? "")}
-                                onChange={(event) => {
-                                  const nextSortOrder = event.target.value;
-                                  setFields((previous) =>
-                                    previous.map((field) => {
-                                      if (String(field.id) !== row.id) {
-                                        return field;
-                                      }
-                                      return {
-                                        ...field,
-                                        sortOrder: nextSortOrder,
-                                      };
-                                    }),
-                                  );
-                                }}
-                              />
-                            </TableCell>
-                            <TableCell>
-                              {row.cells[4].value ? (
-                                <Tag type="green">
-                                  <FormattedMessage id="yes.option" />
-                                </Tag>
-                              ) : (
-                                <Tag type="gray">
-                                  <FormattedMessage id="no.option" />
-                                </Tag>
-                              )}
-                            </TableCell>
-                            <TableCell>
-                              {row.cells[5].value ? (
-                                <Tag type="green">
-                                  <FormattedMessage id="status.active" />
-                                </Tag>
-                              ) : (
-                                <Tag type="red">
-                                  <FormattedMessage id="status.inactive" />
-                                </Tag>
-                              )}
-                            </TableCell>
-                            <TableCell>
-                              <Button
-                                kind="ghost"
-                                size="sm"
-                                onClick={() => startEditingField(sourceField)}
-                              >
-                                <FormattedMessage id="button.edit" />
-                              </Button>
-                              {"  "}
-                              <Button
-                                kind="tertiary"
-                                size="sm"
-                                disabled={savingSortFieldId === sourceField?.id}
-                                onClick={() => saveFieldSortOrder(sourceField)}
-                              >
-                                <FormattedMessage id="button.save" />
-                              </Button>
-                              {"  "}
-                              <Button
-                                kind={
-                                  row.cells[5].value ? "danger" : "secondary"
-                                }
-                                size="sm"
-                                onClick={() => toggleFieldStatus(sourceField)}
-                              >
-                                {row.cells[5].value ? (
-                                  <FormattedMessage id="order.additional.fields.disable" />
+                {editingFieldId ? (
+                  <Button kind="ghost" onClick={resetFieldForm}>
+                    <FormattedMessage id="button.cancel" />
+                  </Button>
+                ) : null}
+              </div>
+            </div>
+            <Section className="additional-field-config__list">
+              <Heading>
+                <FormattedMessage id="order.additional.fields.group.fields" />
+              </Heading>
+              <DataTable
+                rows={rows}
+                headers={[
+                  {
+                    key: "displayName",
+                    header: intl.formatMessage({
+                      id: "order.additional.fields.displayName",
+                    }),
+                  },
+                  {
+                    key: "fieldKey",
+                    header: intl.formatMessage({
+                      id: "order.additional.fields.fieldKey",
+                    }),
+                  },
+                  {
+                    key: "fieldType",
+                    header: intl.formatMessage({
+                      id: "order.additional.fields.fieldType",
+                    }),
+                  },
+                  {
+                    key: "sortOrder",
+                    header: intl.formatMessage({
+                      id: "order.additional.fields.sortOrder",
+                    }),
+                  },
+                  {
+                    key: "required",
+                    header: intl.formatMessage({
+                      id: "order.additional.fields.required",
+                    }),
+                  },
+                  {
+                    key: "active",
+                    header: intl.formatMessage({
+                      id: "order.additional.fields.active",
+                    }),
+                  },
+                  {
+                    key: "actions",
+                    header: intl.formatMessage({
+                      id: "order.additional.fields.actions",
+                    }),
+                  },
+                ]}
+              >
+                {({ rows, headers, getHeaderProps, getTableProps }) => (
+                  <TableContainer>
+                    <Table {...getTableProps()}>
+                      <TableHead>
+                        <TableRow>
+                          {headers.map((header) => (
+                            <TableHeader
+                              key={header.key}
+                              {...getHeaderProps({ header })}
+                            >
+                              {header.header}
+                            </TableHeader>
+                          ))}
+                        </TableRow>
+                      </TableHead>
+                      <TableBody>
+                        {rows.map((row) => {
+                          const sourceField = fields.find(
+                            (field) => String(field.id) === row.id,
+                          );
+                          return (
+                            <TableRow key={row.id}>
+                              <TableCell>{row.cells[0].value}</TableCell>
+                              <TableCell>{row.cells[1].value}</TableCell>
+                              <TableCell>{row.cells[2].value}</TableCell>
+                              <TableCell>
+                                <TextInput
+                                  id={`patient-custom-field-sort-order-${row.id}`}
+                                  labelText=""
+                                  type="number"
+                                  value={String(row.cells[3].value ?? "")}
+                                  onChange={(event) => {
+                                    const nextSortOrder = event.target.value;
+                                    setFields((previous) =>
+                                      previous.map((field) => {
+                                        if (String(field.id) !== row.id) {
+                                          return field;
+                                        }
+                                        return {
+                                          ...field,
+                                          sortOrder: nextSortOrder,
+                                        };
+                                      }),
+                                    );
+                                  }}
+                                />
+                              </TableCell>
+                              <TableCell>
+                                {row.cells[4].value ? (
+                                  <Tag type="green">
+                                    <FormattedMessage id="yes.option" />
+                                  </Tag>
                                 ) : (
-                                  <FormattedMessage id="order.additional.fields.enable" />
+                                  <Tag type="gray">
+                                    <FormattedMessage id="no.option" />
+                                  </Tag>
                                 )}
-                              </Button>
-                            </TableCell>
-                          </TableRow>
-                        );
-                      })}
-                    </TableBody>
-                  </Table>
-                </TableContainer>
-              )}
-            </DataTable>
+                              </TableCell>
+                              <TableCell>
+                                {row.cells[5].value ? (
+                                  <Tag type="green">
+                                    <FormattedMessage id="status.active" />
+                                  </Tag>
+                                ) : (
+                                  <Tag type="red">
+                                    <FormattedMessage id="status.inactive" />
+                                  </Tag>
+                                )}
+                              </TableCell>
+                              <TableCell>
+                                <div className="additional-field-config__row-actions">
+                                  <Button
+                                    kind="ghost"
+                                    size="sm"
+                                    onClick={() =>
+                                      startEditingField(sourceField)
+                                    }
+                                  >
+                                    <FormattedMessage id="button.edit" />
+                                  </Button>
+                                  <Button
+                                    kind="tertiary"
+                                    size="sm"
+                                    disabled={
+                                      savingSortFieldId === sourceField?.id
+                                    }
+                                    onClick={() =>
+                                      saveFieldSortOrder(sourceField)
+                                    }
+                                  >
+                                    <FormattedMessage id="button.save" />
+                                  </Button>
+                                  <Button
+                                    kind={
+                                      row.cells[5].value
+                                        ? "danger"
+                                        : "secondary"
+                                    }
+                                    size="sm"
+                                    onClick={() =>
+                                      toggleFieldStatus(sourceField)
+                                    }
+                                  >
+                                    {row.cells[5].value ? (
+                                      <FormattedMessage id="order.additional.fields.disable" />
+                                    ) : (
+                                      <FormattedMessage id="order.additional.fields.enable" />
+                                    )}
+                                  </Button>
+                                </div>
+                              </TableCell>
+                            </TableRow>
+                          );
+                        })}
+                      </TableBody>
+                    </Table>
+                  </TableContainer>
+                )}
+              </DataTable>
+            </Section>
           </Stack>
-        </div>
+        </Section>
       </div>
     </>
   );
