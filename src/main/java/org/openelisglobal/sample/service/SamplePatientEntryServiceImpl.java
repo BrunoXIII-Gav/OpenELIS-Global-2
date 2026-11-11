@@ -1,5 +1,7 @@
 package org.openelisglobal.sample.service;
 
+import static org.openelisglobal.orderadditionalfield.service.OrderAdditionalFieldServiceImpl.fixedConditionValues;
+
 import jakarta.servlet.http.HttpServletRequest;
 import java.util.ArrayList;
 import java.util.List;
@@ -170,7 +172,8 @@ public class SamplePatientEntryServiceImpl implements SamplePatientEntryService 
         Map<String, OrderAdditionalFieldFilePayload> orderAdditionalFieldFiles = form.getSampleOrderItems() == null
                 ? null
                 : form.getSampleOrderItems().getAdditionalFieldFiles();
-        persistSampleData(updateData, orderAdditionalFieldValues, orderAdditionalFieldFiles);
+        persistSampleData(updateData, orderAdditionalFieldValues, orderAdditionalFieldFiles,
+                fixedConditionValues(orderItems, form.getRememberSiteAndRequester()));
         form.setAssignedCugs(updateData.getSampleItemsTests().stream().filter(item -> item != null && item.item != null)
                 .map(item -> item.item.getCugCode()).collect(Collectors.toList()));
         persistRequesterData(updateData);
@@ -248,7 +251,8 @@ public class SamplePatientEntryServiceImpl implements SamplePatientEntryService 
     }
 
     private void persistSampleData(SamplePatientUpdateData updateData, Map<String, String> orderAdditionalFieldValues,
-            Map<String, OrderAdditionalFieldFilePayload> orderAdditionalFieldFiles) {
+            Map<String, OrderAdditionalFieldFilePayload> orderAdditionalFieldFiles,
+            Map<String, String> conditionValues) {
         String analysisRevision = ConfigurationProperties.getInstance().getPropertyValue("analysis.default.revision");
 
         if (updateData.getSampleItemsTests() != null && !updateData.getSampleItemsTests().isEmpty()) {
@@ -287,7 +291,8 @@ public class SamplePatientEntryServiceImpl implements SamplePatientEntryService 
         sampleService.insertDataWithAccessionNumber(updateData.getSample());
         updateData.getSample().setPriority(updateData.getPriority());
         orderAdditionalFieldService.validateAndPersistSampleValues(updateData.getSample().getId(),
-                orderAdditionalFieldValues, orderAdditionalFieldFiles, updateData.getCurrentUserId(), null);
+                orderAdditionalFieldValues, orderAdditionalFieldFiles, updateData.getCurrentUserId(), null,
+                conditionValues);
         boolean alternateOrderFlow = alternateOrderFlowService.isAlternateOrderFlow(orderAdditionalFieldValues);
 
         for (SampleAdditionalField field : updateData.getSampleFields()) {

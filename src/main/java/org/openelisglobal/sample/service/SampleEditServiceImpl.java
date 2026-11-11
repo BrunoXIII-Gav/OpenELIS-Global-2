@@ -1,5 +1,7 @@
 package org.openelisglobal.sample.service;
 
+import static org.openelisglobal.orderadditionalfield.service.OrderAdditionalFieldServiceImpl.fixedConditionValues;
+
 import jakarta.servlet.http.HttpServletRequest;
 import java.util.ArrayList;
 import java.util.HashSet;
@@ -186,7 +188,7 @@ public class SampleEditServiceImpl implements SampleEditService {
         orderAdditionalFieldService.validateAndPersistSampleValues(updatedSample.getId(),
                 form.getSampleOrderItems() == null ? null : form.getSampleOrderItems().getAdditionalFieldValues(),
                 form.getSampleOrderItems() == null ? null : form.getSampleOrderItems().getAdditionalFieldFiles(),
-                sysUserId, null);
+                sysUserId, null, fixedConditionValues(form.getSampleOrderItems(), null));
         boolean alternateOrderFlow = alternateOrderFlowService.isAlternateOrderFlow(updatedSample.getId());
         List<SampleEditItem> selectedTests = form.getPossibleTests() != null ? form.getPossibleTests()
                 : new ArrayList<>();
