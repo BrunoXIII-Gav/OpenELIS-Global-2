@@ -671,7 +671,21 @@ const AddOrder = (props) => {
       field,
       orderFormValues.sampleOrderItems.additionalFieldValues,
     );
-    const options = (field.options || []).filter((option) => option.active);
+    const savedSelections = new Set(
+      String(
+        orderFormValues.sampleOrderItems.additionalFieldValues?.[
+          field.fieldKey
+        ] || "",
+      )
+        .split(",")
+        .map((selection) => selection.trim())
+        .filter(Boolean),
+    );
+    const options = (field.options || []).filter(
+      (option) =>
+        option.active ||
+        (isModifyOrder && savedSelections.has(option.optionKey)),
+    );
     const required = isDynamicFieldRequired(field);
     const readonly = isFieldReadonly(field.fieldKey);
     const fieldMetadata = parseFieldMetadata(field);
@@ -824,6 +838,7 @@ const AddOrder = (props) => {
                   key={`${field.fieldKey}-${option.optionKey}`}
                   value={option.optionKey}
                   text={option.optionLabel}
+                  disabled={!option.active}
                 />
               ))}
             </Select>
@@ -846,7 +861,7 @@ const AddOrder = (props) => {
                   id={`order-dynamic-${field.fieldKey}-${option.optionKey}`}
                   labelText={option.optionLabel}
                   value={option.optionKey}
-                  disabled={readonly}
+                  disabled={readonly || !option.active}
                 />
               ))}
             </RadioButtonGroup>
@@ -876,7 +891,7 @@ const AddOrder = (props) => {
                       checked,
                     )
                   }
-                  disabled={readonly}
+                  disabled={readonly || !option.active}
                 />
               ))}
             </div>

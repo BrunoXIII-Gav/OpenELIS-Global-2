@@ -1,3 +1,4 @@
+import { getAdditionalFieldOptions } from "../utils/additionalFieldOptions";
 import HistoricalUserSelectItem from "../common/HistoricalUserSelectItem";
 import React, {
   useMemo,
@@ -1768,7 +1769,10 @@ function SampleResultsTable({
                           ] ??
                           "";
                         const fieldId = `sample_mgmt_collection_additional_${row.id}_${fieldKey}_${idx}`;
-                        const options = field.options || [];
+                        const options = getAdditionalFieldOptions(
+                          field,
+                          fieldValue,
+                        );
 
                         if (fieldType === "BOOLEAN") {
                           return (
@@ -1825,6 +1829,7 @@ function SampleResultsTable({
                                   key={`${fieldId}_option_${optionIdx}`}
                                   text={option.optionLabel}
                                   value={option.optionKey}
+                                  disabled={option.active === false}
                                 />
                               ))}
                             </Select>
@@ -1854,7 +1859,9 @@ function SampleResultsTable({
                                   id={`${fieldId}_multi_${optionIdx}`}
                                   labelText={option.optionLabel}
                                   checked={selectedValues.has(option.optionKey)}
-                                  disabled={rowReadOnly}
+                                  disabled={
+                                    rowReadOnly || option.active === false
+                                  }
                                   onChange={(e) =>
                                     updateAdditionalMultiSelectOption(
                                       row.id,
@@ -2005,7 +2012,7 @@ function SampleResultsTable({
                     ] ??
                     "";
                   const fieldId = `sample_mgmt_additional_${row.id}_${fieldKey}_${idx}`;
-                  const options = field.options || [];
+                  const options = getAdditionalFieldOptions(field, fieldValue);
 
                   if (fieldType === "BOOLEAN") {
                     return (
@@ -2060,6 +2067,7 @@ function SampleResultsTable({
                             key={`${fieldId}_option_${optionIdx}`}
                             text={option.optionLabel}
                             value={option.optionKey}
+                            disabled={option.active === false}
                           />
                         ))}
                       </Select>
@@ -2086,7 +2094,7 @@ function SampleResultsTable({
                             id={`${fieldId}_multi_${optionIdx}`}
                             labelText={option.optionLabel}
                             checked={selectedValues.has(option.optionKey)}
-                            disabled={rowReadOnly}
+                            disabled={rowReadOnly || option.active === false}
                             onChange={(e) =>
                               updateAdditionalMultiSelectOption(
                                 row.id,

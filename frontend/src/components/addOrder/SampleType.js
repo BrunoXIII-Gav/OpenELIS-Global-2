@@ -1,3 +1,4 @@
+import { getAdditionalFieldOptions } from "../utils/additionalFieldOptions";
 import HistoricalUserSelectItem from "../common/HistoricalUserSelectItem";
 import {
   Checkbox,
@@ -947,7 +948,10 @@ const SampleType = (props) => {
     const fieldType = (field.fieldType || "TEXT").toUpperCase();
     const fieldKey = field.fieldKey;
     const value = sampleXml.additionalFieldValues?.[fieldKey] || "";
-    const options = field.options || [];
+    const options = getAdditionalFieldOptions(
+      field,
+      isExistingSample ? value : "",
+    );
     const required = Boolean(field.required);
     const fieldLabel = field.displayName || field.fieldKey;
 
@@ -996,6 +1000,7 @@ const SampleType = (props) => {
               key={`additional_field_option_${fieldKey}_${optionIndex}`}
               text={option.optionLabel}
               value={option.optionKey}
+              disabled={option.active === false}
             />
           ))}
         </Select>
@@ -1018,6 +1023,7 @@ const SampleType = (props) => {
               id={`additional_field_${index}_${fieldKey}_${optionIndex}`}
               labelText={option.optionLabel}
               checked={selectedValues.has(option.optionKey)}
+              disabled={option.active === false}
               onChange={(event) =>
                 handleAdditionalMultiSelectOption(
                   fieldKey,

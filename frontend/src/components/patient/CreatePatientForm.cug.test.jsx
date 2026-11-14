@@ -48,6 +48,7 @@ const renderForm = (
   syncOrder = false,
   orderEntry = true,
   documentFields = false,
+  showAdditionalFields = false,
 ) => {
   const selectedValues = initialSelected.patientPK
     ? { birthDateForDisplay: "01/01/2000", ...initialSelected }
@@ -66,7 +67,9 @@ const renderForm = (
         <ConfigurationContext.Provider
           value={{
             configurationProperties: {
-              SHOW_PATIENT_ADDITIONAL_INFO_ON_ORDER_ENTRY: "false",
+              SHOW_PATIENT_ADDITIONAL_INFO_ON_ORDER_ENTRY: showAdditionalFields
+                ? "true"
+                : "false",
               SHOW_PATIENT_NATIONAL_ID_FIELD: documentFields ? "true" : "false",
               FIRST_NAME_REGEX: ".*",
               LAST_NAME_REGEX: ".*",
@@ -111,6 +114,66 @@ beforeEach(() => {
     else callback([]);
   });
 });
+
+test.each(["SELECT", "RADIO", "MULTISELECT"])(
+  "%s shows a retired patient value without allowing new inactive assignments",
+  async (fieldType) => {
+    const originalGet = getFromOpenElisServer.getMockImplementation();
+    getFromOpenElisServer.mockImplementation((url, callback) => {
+      if (url === "/rest/patient-additional-fields?resolveUserOptions=true")
+        callback([
+          {
+            id: 10,
+            fieldKey: "procedure",
+            displayName: "Procedure",
+            fieldType,
+            active: true,
+            options: [
+              {
+                optionKey: "old",
+                optionLabel: "Historical choice",
+                active: false,
+              },
+              { optionKey: "new", optionLabel: "New choice", active: true },
+              {
+                optionKey: "retired",
+                optionLabel: "Other retired choice",
+                active: false,
+              },
+            ],
+          },
+        ]);
+      else originalGet(url, callback);
+    });
+    const view = renderForm(
+      jest.fn(),
+      {
+        patientPK: "11",
+        firstName: "Ana",
+        lastName: "Perez",
+        patientAdditionalFieldValues: { procedure: "old" },
+      },
+      true,
+      true,
+      false,
+      true,
+    );
+    await wait(() => expect(view.getByText("Historical choice")).toBeTruthy());
+    const historical =
+      fieldType === "SELECT"
+        ? view.getByRole("option", { name: "Historical choice" })
+        : view.getByLabelText("Historical choice");
+    expect(historical.disabled).toBe(true);
+    expect(
+      fieldType === "SELECT" ? historical.selected : historical.checked,
+    ).toBe(true);
+    expect(view.queryByText("Other retired choice")).toBeNull();
+    view.unmount();
+    const newPatient = renderForm(jest.fn(), {}, false, true, false, true);
+    await wait(() => expect(newPatient.getByText("New choice")).toBeTruthy());
+    expect(newPatient.queryByText("Historical choice")).toBeNull();
+  },
+);
 
 test("an existing order patient without update permission is displayed without editable registration fields", async () => {
   const view = renderForm(

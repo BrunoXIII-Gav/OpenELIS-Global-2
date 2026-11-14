@@ -1,3 +1,4 @@
+import { getAdditionalFieldOptions } from "../utils/additionalFieldOptions";
 import HistoricalUserSelectItem from "../common/HistoricalUserSelectItem";
 import React, { useContext, useEffect, useRef, useState } from "react";
 import {
@@ -294,7 +295,7 @@ const EditSample = (props) => {
     const fieldType = (field.fieldType || "TEXT").toUpperCase();
     const fieldKey = field.fieldKey;
     const value = sample.additionalFieldValues?.[fieldKey] || "";
-    const options = field.options || [];
+    const options = getAdditionalFieldOptions(field, value);
     const required = Boolean(field.required);
     const fieldLabel = field.displayName || field.fieldKey;
     const fieldId = `edit_sample_additional_${sample.sampleItemId}_${fieldKey}`;
@@ -349,6 +350,7 @@ const EditSample = (props) => {
               key={`edit_sample_additional_option_${fieldKey}_${optionIndex}`}
               text={option.optionLabel}
               value={option.optionKey}
+              disabled={option.active === false}
             />
           ))}
         </Select>
@@ -371,6 +373,7 @@ const EditSample = (props) => {
               id={`${fieldId}_${optionIndex}`}
               labelText={option.optionLabel}
               checked={selectedValues.has(option.optionKey)}
+              disabled={option.active === false}
               onChange={(event) =>
                 handleAdditionalMultiSelectOption(
                   sample.sampleItemId,
