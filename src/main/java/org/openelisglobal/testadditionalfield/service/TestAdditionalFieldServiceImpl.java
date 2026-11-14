@@ -105,7 +105,7 @@ public class TestAdditionalFieldServiceImpl implements TestAdditionalFieldServic
 
         List<Integer> definitionIds = definitions.stream().map(TestAdditionalFieldDefinition::getId)
                 .collect(Collectors.toList());
-        List<TestAdditionalFieldOption> options = optionDAO.findByDefinitionIds(definitionIds, !includeInactive);
+        List<TestAdditionalFieldOption> options = optionDAO.findByDefinitionIds(definitionIds, false);
 
         return mapDefinitionsToPayload(definitions, options, resolveUserOptions);
     }
@@ -140,7 +140,7 @@ public class TestAdditionalFieldServiceImpl implements TestAdditionalFieldServic
 
         List<Integer> definitionIds = definitions.stream().map(TestAdditionalFieldDefinition::getId)
                 .collect(Collectors.toList());
-        List<TestAdditionalFieldOption> options = optionDAO.findByDefinitionIds(definitionIds, true);
+        List<TestAdditionalFieldOption> options = optionDAO.findByDefinitionIds(definitionIds, false);
 
         Map<Integer, List<TestAdditionalFieldPayload>> byTestId = mapDefinitionsToPayload(definitions, options, true)
                 .stream().collect(Collectors.groupingBy(payload -> Integer.valueOf(payload.getTestId())));
@@ -208,11 +208,9 @@ public class TestAdditionalFieldServiceImpl implements TestAdditionalFieldServic
                     throw new IllegalStateException(
                             "This field already has saved data and its type cannot be changed.");
                 }
-                if (payload.getOptions() != null && isStaticOptionFieldType(fieldType)
-                        && haveOptionsChanged(definition.getId(), payload.getOptions())) {
-                    throw new IllegalStateException(
-                            "This field already has saved data and its options cannot be changed.");
-                }
+            }
+            if (definition.getId() != null && payload.getOptions() != null && isStaticOptionFieldType(fieldType)) {
+                validateOptionChanges(definition.getId(), payload.getOptions(), hasSavedValues);
             }
             definition.setFieldKey(normalizedFieldKey);
             definition.setDisplayName(payload.getDisplayName().trim());
@@ -264,7 +262,7 @@ public class TestAdditionalFieldServiceImpl implements TestAdditionalFieldServic
                 definitionDAO.update(definition);
             }
 
-            if (isStaticOptionFieldType(fieldType) && !hasSavedValues) {
+            if (isStaticOptionFieldType(fieldType) && payload.getOptions() != null) {
                 upsertOptionsForDefinition(definition.getId(), payload.getOptions(), currentUserId);
             } else if (!isStaticOptionFieldType(fieldType)) {
                 deactivateAllOptions(definition.getId(), currentUserId);
@@ -422,14 +420,15 @@ public class TestAdditionalFieldServiceImpl implements TestAdditionalFieldServic
 
             boolean keyProvided = fieldValues != null && fieldValues.containsKey(fieldDefinition.getFieldKey());
             String rawValue = keyProvided ? fieldValues.get(fieldDefinition.getFieldKey()) : null;
-            String normalizedValue = normalizeAndValidateValue(fieldDefinition, rawValue);
+            String normalizedValue = normalizeAndValidateValue(fieldDefinition, rawValue,
+                    existingValue.map(AnalysisAdditionalFieldValue::getFieldValue).orElse(null));
 
             if (!keyProvided && existingValue.isPresent()) {
                 normalizedValue = StringUtils.trimToNull(existingValue.get().getFieldValue());
             }
 
             if (normalizedValue == null && StringUtils.isNotBlank(fieldDefinition.getDefaultValue())) {
-                normalizedValue = normalizeAndValidateValue(fieldDefinition, fieldDefinition.getDefaultValue());
+                normalizedValue = normalizeAndValidateValue(fieldDefinition, fieldDefinition.getDefaultValue(), null);
             }
 
             userFieldOptionResolver.validateAssignment(fieldDefinition.getFieldType(),
@@ -523,9 +522,8 @@ public class TestAdditionalFieldServiceImpl implements TestAdditionalFieldServic
         if (hasSavedValues && requestedFieldType != existingFieldType) {
             throw new IllegalStateException("This field already has saved data and its type cannot be changed.");
         }
-        if (hasSavedValues && payload.getOptions() != null && isStaticOptionFieldType(requestedFieldType)
-                && haveOptionsChanged(fieldId, payload.getOptions())) {
-            throw new IllegalStateException("This field already has saved data and its options cannot be changed.");
+        if (payload.getOptions() != null && isStaticOptionFieldType(requestedFieldType)) {
+            validateOptionChanges(fieldId, payload.getOptions(), hasSavedValues);
         }
 
         if (StringUtils.isNotBlank(payload.getDisplayName())) {
@@ -566,7 +564,7 @@ public class TestAdditionalFieldServiceImpl implements TestAdditionalFieldServic
         definitionDAO.update(definition);
 
         if (payload.getOptions() != null && !payload.getOptions().isEmpty()
-                && isStaticOptionFieldType(parseFieldType(definition.getFieldType())) && !hasSavedValues) {
+                && isStaticOptionFieldType(parseFieldType(definition.getFieldType()))) {
             upsertOptionsForDefinition(definition.getId(), payload.getOptions(), currentUserId);
         }
 
@@ -635,6 +633,10 @@ public class TestAdditionalFieldServiceImpl implements TestAdditionalFieldServic
 
         TestAdditionalFieldOption option = optionDAO.get(optionId)
                 .orElseThrow(() -> new IllegalArgumentException("Option not found: " + optionId));
+
+        if (payload != null && hasSavedValues(option.getFieldDefinitionId())) {
+            validateSavedOptionIdentity(option, payload);
+        }
 
         if (payload.getOptionKey() != null) {
             String normalizedOptionKey = normalizeOptionKey(payload.getOptionKey(), payload.getOptionLabel());
@@ -1001,6 +1003,9 @@ public class TestAdditionalFieldServiceImpl implements TestAdditionalFieldServic
             if (optionPayload.getId() != null) {
                 TestAdditionalFieldOption existing = optionDAO.get(optionPayload.getId()).orElseThrow(
                         () -> new IllegalArgumentException("Option not found for update: " + optionPayload.getId()));
+                if (!definitionId.equals(existing.getFieldDefinitionId())) {
+                    throw new IllegalArgumentException("Option does not belong to selected field: " + existing.getId());
+                }
 
                 existing.setOptionKey(normalizedOptionKey);
                 existing.setOptionLabel(optionPayload.getOptionLabel().trim());
@@ -1030,27 +1035,47 @@ public class TestAdditionalFieldServiceImpl implements TestAdditionalFieldServic
         }
     }
 
-    private boolean haveOptionsChanged(Integer fieldId, List<TestAdditionalFieldOptionPayload> requestedOptions) {
-        List<String> existing = optionDAO.findByDefinitionId(fieldId, true).stream().filter(option -> option != null)
-                .filter(option -> option.getActive() == null || option.getActive())
-                .sorted((left, right) -> Integer.compare(
-                        left.getSortOrder() == null ? Integer.MAX_VALUE : left.getSortOrder(),
-                        right.getSortOrder() == null ? Integer.MAX_VALUE : right.getSortOrder()))
-                .map(option -> option.getOptionKey() + "|" + StringUtils.trimToEmpty(option.getOptionLabel()))
-                .collect(Collectors.toList());
+    private void validateOptionChanges(Integer fieldId, List<TestAdditionalFieldOptionPayload> options,
+            boolean hasSavedValues) {
+        Map<Integer, TestAdditionalFieldOption> existingById = optionDAO.findByDefinitionId(fieldId, true).stream()
+                .collect(Collectors.toMap(TestAdditionalFieldOption::getId, option -> option));
+        Set<Integer> requestedIds = new HashSet<>();
+        Set<String> requestedKeys = new HashSet<>();
+        for (TestAdditionalFieldOptionPayload payload : options) {
+            if (payload == null || StringUtils.isBlank(payload.getOptionLabel())) {
+                continue;
+            }
+            String key = normalizeOptionKey(payload.getOptionKey(), payload.getOptionLabel());
+            if (!requestedKeys.add(key)) {
+                throw new IllegalArgumentException("Duplicate option key in request payload: " + key);
+            }
+            if (payload.getId() != null) {
+                TestAdditionalFieldOption existing = existingById.get(payload.getId());
+                if (existing == null || !fieldId.equals(existing.getFieldDefinitionId())
+                        || !requestedIds.add(payload.getId())) {
+                    throw new IllegalArgumentException("Invalid option for selected field: " + payload.getId());
+                }
+                if (hasSavedValues) {
+                    validateSavedOptionIdentity(existing, payload);
+                }
+            }
+        }
+        if (hasSavedValues && !requestedIds.containsAll(existingById.keySet())) {
+            throw new IllegalStateException(
+                    "This field already has saved data. Deactivate existing options instead of removing them.");
+        }
+    }
 
-        List<String> requested = requestedOptions == null ? Collections.emptyList()
-                : requestedOptions.stream().filter(option -> option != null)
-                        .filter(option -> StringUtils.isNotBlank(option.getOptionLabel()))
-                        .filter(option -> !Boolean.FALSE.equals(option.getActive()))
-                        .sorted((left, right) -> Integer.compare(
-                                left.getSortOrder() == null ? Integer.MAX_VALUE : left.getSortOrder(),
-                                right.getSortOrder() == null ? Integer.MAX_VALUE : right.getSortOrder()))
-                        .map(option -> normalizeOptionKey(option.getOptionKey(), option.getOptionLabel()) + "|"
-                                + StringUtils.trimToEmpty(option.getOptionLabel()))
-                        .collect(Collectors.toList());
-
-        return !existing.equals(requested);
+    private void validateSavedOptionIdentity(TestAdditionalFieldOption existing,
+            TestAdditionalFieldOptionPayload payload) {
+        boolean keyChanged = payload.getOptionKey() != null && !existing.getOptionKey()
+                .equals(normalizeOptionKey(payload.getOptionKey(), payload.getOptionLabel()));
+        boolean labelChanged = StringUtils.isNotBlank(payload.getOptionLabel())
+                && !existing.getOptionLabel().equals(payload.getOptionLabel().trim());
+        if (keyChanged || labelChanged) {
+            throw new IllegalStateException(
+                    "This field already has saved data and existing option keys and labels cannot be changed.");
+        }
     }
 
     private void deactivateAllOptions(Integer definitionId, String currentUserId) {
@@ -1062,7 +1087,8 @@ public class TestAdditionalFieldServiceImpl implements TestAdditionalFieldServic
         }
     }
 
-    private String normalizeAndValidateValue(TestAdditionalFieldPayload fieldDefinition, String rawValue) {
+    private String normalizeAndValidateValue(TestAdditionalFieldPayload fieldDefinition, String rawValue,
+            String existingValue) {
         String trimmedValue = StringUtils.trimToNull(rawValue);
         if (trimmedValue == null) {
             return null;
@@ -1092,12 +1118,12 @@ public class TestAdditionalFieldServiceImpl implements TestAdditionalFieldServic
             return trimmedValue.toLowerCase();
         case SELECT:
         case RADIO:
-            validateSingleOption(fieldDefinition, trimmedValue);
+            validateSingleOption(fieldDefinition, trimmedValue, existingValue);
             return trimmedValue;
         case USER:
             return trimmedValue;
         case MULTISELECT:
-            return normalizeAndValidateMultiSelect(fieldDefinition, trimmedValue);
+            return normalizeAndValidateMultiSelect(fieldDefinition, trimmedValue, existingValue);
         case DOCUMENT:
             return normalizeAndValidateDocument(fieldDefinition, trimmedValue);
         default:
@@ -1345,7 +1371,7 @@ public class TestAdditionalFieldServiceImpl implements TestAdditionalFieldServic
         }
     }
 
-    private void validateSingleOption(TestAdditionalFieldPayload fieldDefinition, String value) {
+    private void validateSingleOption(TestAdditionalFieldPayload fieldDefinition, String value, String existingValue) {
         // For USER fields, options are resolved dynamically from active system users
         // and are not stored in the database. Validating against the in-memory options
         // list is unreliable at save time (the list may be empty or the user may have
@@ -1360,7 +1386,7 @@ public class TestAdditionalFieldServiceImpl implements TestAdditionalFieldServic
                 .filter(option -> Boolean.TRUE.equals(option.getActive()))
                 .map(TestAdditionalFieldOptionPayload::getOptionKey).collect(Collectors.toSet());
 
-        if (!validOptions.contains(value)) {
+        if (!validOptions.contains(value) && !value.equals(StringUtils.trimToNull(existingValue))) {
             throw new LIMSRuntimeException("Invalid option selected for field: " + fieldDefinition.getDisplayName());
         }
     }
@@ -1382,10 +1408,19 @@ public class TestAdditionalFieldServiceImpl implements TestAdditionalFieldServic
         return payloads;
     }
 
-    private String normalizeAndValidateMultiSelect(TestAdditionalFieldPayload fieldDefinition, String value) {
+    private String normalizeAndValidateMultiSelect(TestAdditionalFieldPayload fieldDefinition, String value,
+            String existingValue) {
         Set<String> validOptions = fieldDefinition.getOptions().stream()
                 .filter(option -> Boolean.TRUE.equals(option.getActive()))
                 .map(TestAdditionalFieldOptionPayload::getOptionKey).collect(Collectors.toSet());
+
+        // Retired selections may be retained only on the record that already stored
+        // them.
+        for (String selection : StringUtils.defaultString(existingValue).split(",")) {
+            if (StringUtils.isNotBlank(selection)) {
+                validOptions.add(selection.trim());
+            }
+        }
 
         LinkedHashSet<String> normalizedOptions = new LinkedHashSet<>();
         for (String option : value.split(",")) {

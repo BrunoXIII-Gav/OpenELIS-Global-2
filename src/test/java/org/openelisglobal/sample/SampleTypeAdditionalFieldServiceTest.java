@@ -59,7 +59,7 @@ public class SampleTypeAdditionalFieldServiceTest {
         SampleTypeAdditionalFieldOption blue = option(101, 10, "blue", "Blue", 2, true);
 
         when(definitionDAO.findBySampleTypeId(1, false)).thenReturn(Collections.singletonList(definition));
-        when(optionDAO.findByDefinitionIds(Collections.singletonList(10), true)).thenReturn(Arrays.asList(red, blue));
+        when(optionDAO.findByDefinitionIds(Collections.singletonList(10), false)).thenReturn(Arrays.asList(red, blue));
 
         List<SampleTypeAdditionalFieldPayload> payloads = service.getFieldsForSampleType("1", false);
 
@@ -222,7 +222,7 @@ public class SampleTypeAdditionalFieldServiceTest {
 
         when(definitionDAO.findBySampleTypeIds(Arrays.asList(1, 2), true))
                 .thenReturn(Arrays.asList(definition1, definition2));
-        when(optionDAO.findByDefinitionIds(Arrays.asList(1, 2), true)).thenReturn(Collections.emptyList());
+        when(optionDAO.findByDefinitionIds(Arrays.asList(1, 2), false)).thenReturn(Collections.emptyList());
 
         Map<String, List<SampleTypeAdditionalFieldPayload>> result = service
                 .getActiveFieldsForSampleTypes(Arrays.asList("1", "2", "1", "", " "));

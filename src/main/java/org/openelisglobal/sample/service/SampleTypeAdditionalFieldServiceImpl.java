@@ -73,7 +73,7 @@ public class SampleTypeAdditionalFieldServiceImpl implements SampleTypeAdditiona
 
         List<Integer> definitionIds = definitions.stream().map(SampleTypeAdditionalFieldDefinition::getId)
                 .collect(Collectors.toList());
-        List<SampleTypeAdditionalFieldOption> options = optionDAO.findByDefinitionIds(definitionIds, !includeInactive);
+        List<SampleTypeAdditionalFieldOption> options = optionDAO.findByDefinitionIds(definitionIds, false);
 
         return mapDefinitionsToPayload(definitions, options, resolveUserOptions);
     }
@@ -108,7 +108,7 @@ public class SampleTypeAdditionalFieldServiceImpl implements SampleTypeAdditiona
 
         List<Integer> definitionIds = definitions.stream().map(SampleTypeAdditionalFieldDefinition::getId)
                 .collect(Collectors.toList());
-        List<SampleTypeAdditionalFieldOption> options = optionDAO.findByDefinitionIds(definitionIds, true);
+        List<SampleTypeAdditionalFieldOption> options = optionDAO.findByDefinitionIds(definitionIds, false);
 
         Map<Integer, List<SampleTypeAdditionalFieldPayload>> bySampleType = mapDefinitionsToPayload(definitions,
                 options, true).stream()
@@ -205,9 +205,8 @@ public class SampleTypeAdditionalFieldServiceImpl implements SampleTypeAdditiona
         if (hasSavedValues && requestedFieldType != existingFieldType) {
             throw new IllegalStateException("This field already has saved data and its type cannot be changed.");
         }
-        if (hasSavedValues && payload.getOptions() != null && isStaticOptionFieldType(requestedFieldType)
-                && haveOptionsChanged(fieldId, payload.getOptions())) {
-            throw new IllegalStateException("This field already has saved data and its options cannot be changed.");
+        if (payload.getOptions() != null && isStaticOptionFieldType(requestedFieldType)) {
+            validateOptionChanges(fieldId, payload.getOptions(), hasSavedValues);
         }
 
         if (StringUtils.isNotBlank(payload.getDisplayName())) {
@@ -257,7 +256,7 @@ public class SampleTypeAdditionalFieldServiceImpl implements SampleTypeAdditiona
         definitionDAO.update(definition);
 
         if (payload.getOptions() != null && !payload.getOptions().isEmpty()
-                && isStaticOptionFieldType(parseFieldType(definition.getFieldType())) && !hasSavedValues) {
+                && isStaticOptionFieldType(parseFieldType(definition.getFieldType()))) {
             upsertOptionsForDefinition(definition.getId(), payload.getOptions(), currentUserId);
         }
 
@@ -331,6 +330,10 @@ public class SampleTypeAdditionalFieldServiceImpl implements SampleTypeAdditiona
 
         SampleTypeAdditionalFieldOption option = optionDAO.get(optionId)
                 .orElseThrow(() -> new IllegalArgumentException("Option not found: " + optionId));
+
+        if (payload != null && hasSavedValues(option.getFieldDefinitionId())) {
+            validateSavedOptionIdentity(option, payload);
+        }
 
         if (payload.getOptionKey() != null) {
             String normalizedOptionKey = normalizeOptionKey(payload.getOptionKey(), payload.getOptionLabel());
@@ -413,7 +416,8 @@ public class SampleTypeAdditionalFieldServiceImpl implements SampleTypeAdditiona
                     .findBySampleItemIdAndFieldDefinitionId(sampleItemNumericId, fieldDefinition.getId());
             if (!fieldValues.containsKey(fieldDefinition.getFieldKey()) && previous.isPresent())
                 continue;
-            String normalizedValue = normalizeAndValidateValue(fieldDefinition, rawValue);
+            String normalizedValue = normalizeAndValidateValue(fieldDefinition, rawValue,
+                    previous.map(SampleItemAdditionalFieldValue::getFieldValue).orElse(null));
             if (userFieldOptionResolver.isUserFieldType(fieldDefinition.getFieldType())) {
                 String previousValue = previous.map(SampleItemAdditionalFieldValue::getFieldValue).orElse(null);
                 if (!java.util.Objects.equals(normalizedValue, previousValue)
@@ -697,6 +701,9 @@ public class SampleTypeAdditionalFieldServiceImpl implements SampleTypeAdditiona
             if (optionPayload.getId() != null) {
                 SampleTypeAdditionalFieldOption existing = optionDAO.get(optionPayload.getId()).orElseThrow(
                         () -> new IllegalArgumentException("Option not found for update: " + optionPayload.getId()));
+                if (!definitionId.equals(existing.getFieldDefinitionId())) {
+                    throw new IllegalArgumentException("Option does not belong to selected field: " + existing.getId());
+                }
 
                 existing.setOptionKey(normalizeOptionKey(optionPayload.getOptionKey(), optionPayload.getOptionLabel()));
                 existing.setOptionLabel(optionPayload.getOptionLabel().trim());
@@ -726,30 +733,51 @@ public class SampleTypeAdditionalFieldServiceImpl implements SampleTypeAdditiona
         }
     }
 
-    private boolean haveOptionsChanged(Integer fieldId, List<SampleTypeAdditionalFieldOptionPayload> requestedOptions) {
-        List<String> existing = optionDAO.findByDefinitionId(fieldId, true).stream().filter(option -> option != null)
-                .filter(option -> option.getActive() == null || option.getActive())
-                .sorted((left, right) -> Integer.compare(
-                        left.getSortOrder() == null ? Integer.MAX_VALUE : left.getSortOrder(),
-                        right.getSortOrder() == null ? Integer.MAX_VALUE : right.getSortOrder()))
-                .map(option -> option.getOptionKey() + "|" + StringUtils.trimToEmpty(option.getOptionLabel()))
-                .collect(Collectors.toList());
-
-        List<String> requested = requestedOptions == null ? Collections.emptyList()
-                : requestedOptions.stream().filter(option -> option != null)
-                        .filter(option -> StringUtils.isNotBlank(option.getOptionLabel()))
-                        .filter(option -> !Boolean.FALSE.equals(option.getActive()))
-                        .sorted((left, right) -> Integer.compare(
-                                left.getSortOrder() == null ? Integer.MAX_VALUE : left.getSortOrder(),
-                                right.getSortOrder() == null ? Integer.MAX_VALUE : right.getSortOrder()))
-                        .map(option -> normalizeOptionKey(option.getOptionKey(), option.getOptionLabel()) + "|"
-                                + StringUtils.trimToEmpty(option.getOptionLabel()))
-                        .collect(Collectors.toList());
-
-        return !existing.equals(requested);
+    private void validateOptionChanges(Integer fieldId, List<SampleTypeAdditionalFieldOptionPayload> options,
+            boolean hasSavedValues) {
+        Map<Integer, SampleTypeAdditionalFieldOption> existingById = optionDAO.findByDefinitionId(fieldId, true)
+                .stream().collect(Collectors.toMap(SampleTypeAdditionalFieldOption::getId, option -> option));
+        Set<Integer> requestedIds = new HashSet<>();
+        Set<String> requestedKeys = new HashSet<>();
+        for (SampleTypeAdditionalFieldOptionPayload payload : options) {
+            if (payload == null || StringUtils.isBlank(payload.getOptionLabel())) {
+                continue;
+            }
+            String key = normalizeOptionKey(payload.getOptionKey(), payload.getOptionLabel());
+            if (!requestedKeys.add(key)) {
+                throw new IllegalArgumentException("Duplicate option key in request payload: " + key);
+            }
+            if (payload.getId() != null) {
+                SampleTypeAdditionalFieldOption existing = existingById.get(payload.getId());
+                if (existing == null || !fieldId.equals(existing.getFieldDefinitionId())
+                        || !requestedIds.add(payload.getId())) {
+                    throw new IllegalArgumentException("Invalid option for selected field: " + payload.getId());
+                }
+                if (hasSavedValues) {
+                    validateSavedOptionIdentity(existing, payload);
+                }
+            }
+        }
+        if (hasSavedValues && !requestedIds.containsAll(existingById.keySet())) {
+            throw new IllegalStateException(
+                    "This field already has saved data. Deactivate existing options instead of removing them.");
+        }
     }
 
-    private String normalizeAndValidateValue(SampleTypeAdditionalFieldPayload fieldDefinition, String rawValue) {
+    private void validateSavedOptionIdentity(SampleTypeAdditionalFieldOption existing,
+            SampleTypeAdditionalFieldOptionPayload payload) {
+        boolean keyChanged = payload.getOptionKey() != null && !existing.getOptionKey()
+                .equals(normalizeOptionKey(payload.getOptionKey(), payload.getOptionLabel()));
+        boolean labelChanged = StringUtils.isNotBlank(payload.getOptionLabel())
+                && !existing.getOptionLabel().equals(payload.getOptionLabel().trim());
+        if (keyChanged || labelChanged) {
+            throw new IllegalStateException(
+                    "This field already has saved data and existing option keys and labels cannot be changed.");
+        }
+    }
+
+    private String normalizeAndValidateValue(SampleTypeAdditionalFieldPayload fieldDefinition, String rawValue,
+            String existingValue) {
         String trimmedValue = StringUtils.trimToNull(rawValue);
         if (trimmedValue == null) {
             return null;
@@ -779,12 +807,12 @@ public class SampleTypeAdditionalFieldServiceImpl implements SampleTypeAdditiona
             return trimmedValue.toLowerCase();
         case SELECT:
         case RADIO:
-            validateSingleOption(fieldDefinition, trimmedValue);
+            validateSingleOption(fieldDefinition, trimmedValue, existingValue);
             return trimmedValue;
         case USER:
             return trimmedValue;
         case MULTISELECT:
-            return normalizeAndValidateMultiSelect(fieldDefinition, trimmedValue);
+            return normalizeAndValidateMultiSelect(fieldDefinition, trimmedValue, existingValue);
         default:
             return trimmedValue;
         }
@@ -862,7 +890,8 @@ public class SampleTypeAdditionalFieldServiceImpl implements SampleTypeAdditiona
         }
     }
 
-    private void validateSingleOption(SampleTypeAdditionalFieldPayload fieldDefinition, String value) {
+    private void validateSingleOption(SampleTypeAdditionalFieldPayload fieldDefinition, String value,
+            String existingValue) {
         // For USER fields, options are resolved dynamically from active system users
         // and are not stored in the database. Validating against the in-memory options
         // list is unreliable at save time (the list may be empty or the user may have
@@ -877,7 +906,7 @@ public class SampleTypeAdditionalFieldServiceImpl implements SampleTypeAdditiona
                 .filter(option -> Boolean.TRUE.equals(option.getActive()))
                 .map(SampleTypeAdditionalFieldOptionPayload::getOptionKey).collect(Collectors.toSet());
 
-        if (!validOptions.contains(value)) {
+        if (!validOptions.contains(value) && !value.equals(StringUtils.trimToNull(existingValue))) {
             throw new LIMSRuntimeException("Invalid option selected for field: " + fieldDefinition.getDisplayName());
         }
     }
@@ -899,10 +928,19 @@ public class SampleTypeAdditionalFieldServiceImpl implements SampleTypeAdditiona
         return payloads;
     }
 
-    private String normalizeAndValidateMultiSelect(SampleTypeAdditionalFieldPayload fieldDefinition, String value) {
+    private String normalizeAndValidateMultiSelect(SampleTypeAdditionalFieldPayload fieldDefinition, String value,
+            String existingValue) {
         Set<String> validOptions = fieldDefinition.getOptions().stream()
                 .filter(option -> Boolean.TRUE.equals(option.getActive()))
                 .map(SampleTypeAdditionalFieldOptionPayload::getOptionKey).collect(Collectors.toSet());
+
+        // Retired selections may be retained only on the record that already stored
+        // them.
+        for (String selection : StringUtils.defaultString(existingValue).split(",")) {
+            if (StringUtils.isNotBlank(selection)) {
+                validOptions.add(selection.trim());
+            }
+        }
 
         LinkedHashSet<String> normalizedOptions = new LinkedHashSet<>();
         for (String option : value.split(",")) {
