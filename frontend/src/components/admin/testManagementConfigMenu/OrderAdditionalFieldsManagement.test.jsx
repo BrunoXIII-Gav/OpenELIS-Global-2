@@ -50,7 +50,7 @@ beforeEach(() => {
   });
 });
 
-const openEditor = () => {
+const openEditor = (displayName = "Consentimiento") => {
   const view = render(
     <IntlProvider locale="es" messages={messages}>
       <NotificationContext.Provider
@@ -64,10 +64,66 @@ const openEditor = () => {
       </NotificationContext.Provider>
     </IntlProvider>,
   );
-  const row = view.getByText("Consentimiento").closest("tr");
+  const row = view.getByText(displayName).closest("tr");
   fireEvent.click(within(row).getByText(messages["button.edit"]));
   return view;
 };
+
+test("used selection fields allow new options and deactivation while preserving saved options", () => {
+  const field = {
+    ...source,
+    displayName: "Selección de programa",
+    fieldType: "SELECT",
+    hasSavedValues: true,
+    options: [
+      {
+        id: 10,
+        optionKey: "old-option",
+        optionLabel: "Anterior",
+        active: true,
+      },
+      { id: 11, optionKey: "retired", optionLabel: "Retirada", active: false },
+    ],
+  };
+  getFromOpenElisServer.mockImplementation((url, callback) => {
+    callback(url.includes("?includeInactive") ? [field] : []);
+  });
+  const view = openEditor(field.displayName);
+  const oldLabel = view.getByDisplayValue("Anterior");
+  expect(oldLabel.readOnly).toBe(true);
+  expect(view.getByDisplayValue("Retirada")).toBeDefined();
+  expect(
+    view.getAllByText(messages["additional.fields.optionRemove"])[0].disabled,
+  ).toBe(true);
+
+  fireEvent.click(view.getByText(messages["additional.fields.optionAdd"]));
+  const newLabel = view.container.querySelector(
+    "#order-additional-option-label-2",
+  );
+  expect(newLabel.readOnly).toBe(false);
+  fireEvent.change(newLabel, { target: { value: "Nueva" } });
+  fireEvent.click(
+    view.container.querySelector("#order-additional-option-active-0"),
+  );
+  fireEvent.click(
+    view.container.querySelector('[data-cy="create-order-additional-field"]'),
+  );
+  const payload = JSON.parse(putToOpenElisServerFullResponse.mock.calls[0][1]);
+  expect(payload.options).toEqual([
+    expect.objectContaining({
+      id: 10,
+      optionKey: "old-option",
+      optionLabel: "Anterior",
+      active: false,
+    }),
+    expect.objectContaining({ id: 11, optionLabel: "Retirada", active: false }),
+    expect.objectContaining({
+      optionKey: "NUEVA",
+      optionLabel: "Nueva",
+      active: true,
+    }),
+  ]);
+});
 
 test("editing a boolean rule preserves its operator and does not require a comparison value", () => {
   const view = openEditor();

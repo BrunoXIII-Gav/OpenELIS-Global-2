@@ -156,6 +156,55 @@ beforeAll(() => {
   Element.prototype.scrollIntoView = jest.fn();
 });
 
+test("used result fields retain saved options and allow adding and retiring choices only in edit mode", async () => {
+  const selection = {
+    ...field("selection", "Procedure choices", "A", 1, 1),
+    fieldType: "SELECT",
+    hasSavedValues: true,
+    options: [
+      {
+        id: 10,
+        optionKey: "old-choice",
+        optionLabel: "Existing choice",
+        active: true,
+      },
+      {
+        id: 11,
+        optionKey: "retired",
+        optionLabel: "Retired choice",
+        active: false,
+      },
+    ],
+  };
+  const { card, onNext, container } = renderForm({
+    additionalFields: [selection],
+  });
+  const fieldCard = card(selection.displayName);
+  expect(within(fieldCard).getByText("Add option").disabled).toBe(true);
+  await click(within(fieldCard).getByText("Edit"));
+  expect(screen.getByDisplayValue("Existing choice").readOnly).toBe(true);
+  expect(screen.getByDisplayValue("Retired choice")).toBeDefined();
+  expect(within(fieldCard).getAllByText("Remove option")[0].disabled).toBe(
+    true,
+  );
+  await click(within(fieldCard).getByText("Add option"));
+  const newOption = container.querySelector(
+    "#additional-field-0-option-label-2",
+  );
+  expect(newOption.readOnly).toBe(false);
+  await change(newOption, { target: { value: "New choice" } });
+  await click(container.querySelector("#additional-field-0-option-active-0"));
+  await click(container.querySelector("#additional-field-0-option-active-1"));
+  await click(within(fieldCard).getByText("Ok"));
+  await click(screen.getByText("Next", { selector: "button" }));
+  await wait(() => expect(onNext).toHaveBeenCalled());
+  expect(onNext.mock.calls[0][0].additionalFields[0].options).toEqual([
+    expect.objectContaining({ id: 10, optionKey: "old-choice", active: false }),
+    expect.objectContaining({ id: 11, optionKey: "retired", active: true }),
+    expect.objectContaining({ optionLabel: "New choice", active: true }),
+  ]);
+});
+
 test("alternate-flow exception defaults off, works without a parent dependency, and coexists with parent completion", async () => {
   const view = renderForm({
     activeParentDependency: true,

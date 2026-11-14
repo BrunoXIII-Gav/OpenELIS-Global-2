@@ -2645,9 +2645,6 @@ export const StepThreeTestResultTypeAndLoinc = ({
           const handleAddFieldOption = (fieldIndex) => {
             const nextFields = [...normalizedAdditionalFields];
             const target = { ...(nextFields[fieldIndex] || {}) };
-            if (target.hasSavedValues === true) {
-              return;
-            }
             const options = Array.isArray(target.options) ? target.options : [];
             target.options = [
               ...options,
@@ -2660,7 +2657,10 @@ export const StepThreeTestResultTypeAndLoinc = ({
           const handleRemoveFieldOption = (fieldIndex, optionIndex) => {
             const nextFields = [...normalizedAdditionalFields];
             const target = { ...(nextFields[fieldIndex] || {}) };
-            if (target.hasSavedValues === true) {
+            if (
+              target.hasSavedValues === true &&
+              target.options?.[optionIndex]?.id != null
+            ) {
               return;
             }
             const options = Array.isArray(target.options) ? target.options : [];
@@ -2679,7 +2679,11 @@ export const StepThreeTestResultTypeAndLoinc = ({
           ) => {
             const nextFields = [...normalizedAdditionalFields];
             const target = { ...(nextFields[fieldIndex] || {}) };
-            if (target.hasSavedValues === true) {
+            if (
+              target.hasSavedValues === true &&
+              target.options?.[optionIndex]?.id != null &&
+              key !== "active"
+            ) {
               return;
             }
             const options = Array.isArray(target.options)
@@ -3961,6 +3965,18 @@ export const StepThreeTestResultTypeAndLoinc = ({
                                           options={field?.options || []}
                                           locked={
                                             !isEditable || structureLockedByData
+                                          }
+                                          allowOptionManagement={isEditable}
+                                          onOptionActiveChange={(
+                                            optionIndex,
+                                            active,
+                                          ) =>
+                                            handleFieldOptionChange(
+                                              fieldIndex,
+                                              optionIndex,
+                                              "active",
+                                              active,
+                                            )
                                           }
                                           onAddOption={() =>
                                             handleAddFieldOption(fieldIndex)

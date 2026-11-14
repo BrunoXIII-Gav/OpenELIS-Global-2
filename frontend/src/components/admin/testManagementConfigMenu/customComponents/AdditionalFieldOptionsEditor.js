@@ -1,14 +1,16 @@
 import React from "react";
-import { Button, Tag, TextInput } from "@carbon/react";
+import { Button, Checkbox, Tag, TextInput } from "@carbon/react";
 import { FormattedMessage, useIntl } from "react-intl";
 
 const AdditionalFieldOptionsEditor = ({
   idPrefix,
   options = [],
   locked = false,
+  allowOptionManagement = false,
   onAddOption,
   onOptionLabelChange,
   onRemoveOption,
+  onOptionActiveChange,
 }) => {
   const intl = useIntl();
 
@@ -69,7 +71,9 @@ const AdditionalFieldOptionsEditor = ({
                 defaultMessage: "Example: Option A",
               })}
               value={option?.optionLabel || ""}
-              readOnly={locked}
+              readOnly={
+                locked && (!allowOptionManagement || option?.id != null)
+              }
               onChange={(event) =>
                 onOptionLabelChange(optionIndex, event.target.value)
               }
@@ -90,11 +94,24 @@ const AdditionalFieldOptionsEditor = ({
               <Tag type="gray">{option?.optionKey || "..."}</Tag>
             </div>
           </div>
+          {allowOptionManagement ? (
+            <Checkbox
+              id={`${idPrefix}-option-active-${optionIndex}`}
+              labelText={intl.formatMessage({
+                id: "additional.fields.optionActive",
+                defaultMessage: "Active option",
+              })}
+              checked={option?.active !== false}
+              onChange={(_event, { checked }) =>
+                onOptionActiveChange(optionIndex, checked)
+              }
+            />
+          ) : null}
           <Button
             type="button"
             kind="ghost"
             size="sm"
-            disabled={locked}
+            disabled={locked && (!allowOptionManagement || option?.id != null)}
             onClick={() => onRemoveOption(optionIndex)}
           >
             <FormattedMessage
@@ -109,7 +126,7 @@ const AdditionalFieldOptionsEditor = ({
         type="button"
         kind="secondary"
         size="sm"
-        disabled={locked}
+        disabled={locked && !allowOptionManagement}
         onClick={onAddOption}
       >
         <FormattedMessage

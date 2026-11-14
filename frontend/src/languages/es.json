@@ -2553,6 +2553,7 @@
   "additional.fields.optionLabel.placeholder": "Ejemplo: Opción A",
   "additional.fields.optionKeyPreview": "Clave guardada",
   "additional.fields.optionRemove": "Eliminar opción",
+  "additional.fields.optionActive": "Opción activa",
   "additional.fields.optionAdd": "Agregar opción",
   "professionalProfile.fields.options.empty": "Aún no se han agregado opciones.",
   "professionalProfile.fields.optionLabel": "Etiqueta de la opción",

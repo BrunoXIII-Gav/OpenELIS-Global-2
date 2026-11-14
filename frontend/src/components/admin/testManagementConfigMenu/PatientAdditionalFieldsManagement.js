@@ -185,9 +185,9 @@ const PatientAdditionalFieldsManagement = () => {
           ? String(field.sortOrder)
           : "",
       options: Array.isArray(field?.options)
-        ? field.options
-            .filter((option) => option?.active !== false)
-            .map((option, index) => normalizeOptionForUi(option, index))
+        ? field.options.map((option, index) =>
+            normalizeOptionForUi(option, index),
+          )
         : [],
       userTask: userTaskFromMetadata(
         parseFieldMetadata(field?.metadataJson),
@@ -279,6 +279,15 @@ const PatientAdditionalFieldsManagement = () => {
             : option.optionKey,
         };
       }),
+    }));
+  };
+
+  const updateOptionActive = (optionIndex, active) => {
+    setNewField((previous) => ({
+      ...previous,
+      options: (previous.options || []).map((option, index) =>
+        index === optionIndex ? { ...option, active } : option,
+      ),
     }));
   };
 
@@ -830,6 +839,8 @@ const PatientAdditionalFieldsManagement = () => {
                   idPrefix="patient-additional"
                   options={newField.options || []}
                   locked={structureLocked}
+                  allowOptionManagement
+                  onOptionActiveChange={updateOptionActive}
                   onAddOption={addOption}
                   onOptionLabelChange={updateOptionLabel}
                   onRemoveOption={removeOption}
