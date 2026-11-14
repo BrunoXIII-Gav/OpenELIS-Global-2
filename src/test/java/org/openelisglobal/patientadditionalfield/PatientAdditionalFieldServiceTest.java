@@ -66,7 +66,7 @@ public class PatientAdditionalFieldServiceTest {
         PatientAdditionalFieldOption blue = option(101, 10, "blue", "Blue", 2, true);
 
         when(definitionDAO.findAll(true)).thenReturn(Collections.singletonList(definition));
-        when(optionDAO.findByDefinitionIds(Collections.singletonList(10), true)).thenReturn(Arrays.asList(red, blue));
+        when(optionDAO.findByDefinitionIds(Collections.singletonList(10), false)).thenReturn(Arrays.asList(red, blue));
 
         List<PatientAdditionalFieldPayload> payloads = service.getFields(false);
 
@@ -197,7 +197,7 @@ public class PatientAdditionalFieldServiceTest {
         when(authorization.getRestrictedFieldTagKeys("17", "patients")).thenReturn(Set.of());
         when(definitionDAO.findAll(true))
                 .thenReturn(List.of(definition(10, "responsable", "Responsable", "USER", false, true, 1, null, null)));
-        when(optionDAO.findByDefinitionIds(List.of(10), true)).thenReturn(List.of());
+        when(optionDAO.findByDefinitionIds(List.of(10), false)).thenReturn(List.of());
         when(valueDAO.findByPatientId(200)).thenReturn(List.of(valueEntity(1, 200, 10, "17")));
 
         assertEquals(Map.of("responsable", "17"), service.getPatientValues("200", null));

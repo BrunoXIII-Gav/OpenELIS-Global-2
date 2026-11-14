@@ -2508,6 +2508,7 @@
   "additional.fields.optionLabel.placeholder": "Example: Option A",
   "additional.fields.optionKeyPreview": "Saved key",
   "additional.fields.optionRemove": "Remove option",
+  "additional.fields.optionActive": "Active option",
   "additional.fields.optionAdd": "Add option",
   "professionalProfile.fields.options.empty": "No options added yet.",
   "professionalProfile.fields.optionLabel": "Option label",

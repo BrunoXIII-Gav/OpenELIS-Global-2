@@ -196,9 +196,9 @@ const SampleTypeAdditionalFields = () => {
           ? String(field.maxLength)
           : "",
       options: Array.isArray(field?.options)
-        ? field.options
-            .filter((option) => option?.active !== false)
-            .map((option, index) => normalizeOptionForUi(option, index))
+        ? field.options.map((option, index) =>
+            normalizeOptionForUi(option, index),
+          )
         : [],
       userTask: userTaskFromMetadata(metadata, "sample-management"),
       userProfileCodes: resolveUserProfileCodes(field.fieldType, metadata),
@@ -238,6 +238,15 @@ const SampleTypeAdditionalFields = () => {
             : option.optionKey,
         };
       }),
+    }));
+  };
+
+  const updateOptionActive = (optionIndex, active) => {
+    setFormState((previous) => ({
+      ...previous,
+      options: (previous.options || []).map((option, index) =>
+        index === optionIndex ? { ...option, active } : option,
+      ),
     }));
   };
 
@@ -779,6 +788,8 @@ const SampleTypeAdditionalFields = () => {
                 idPrefix="sample-additional"
                 options={formState.options || []}
                 locked={structureLocked}
+                allowOptionManagement
+                onOptionActiveChange={updateOptionActive}
                 onAddOption={addOption}
                 onOptionLabelChange={updateOptionLabel}
                 onRemoveOption={removeOption}

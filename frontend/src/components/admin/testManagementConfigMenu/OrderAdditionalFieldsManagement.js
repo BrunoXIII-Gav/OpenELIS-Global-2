@@ -312,9 +312,9 @@ const OrderAdditionalFieldsManagement = () => {
           ? String(field.sortOrder)
           : "",
       options: Array.isArray(field?.options)
-        ? field.options
-            .filter((option) => option?.active !== false)
-            .map((option, index) => normalizeOptionForUi(option, index))
+        ? field.options.map((option, index) =>
+            normalizeOptionForUi(option, index),
+          )
         : [],
       rulesLogic: String(rules.logic || "ALL").toUpperCase(),
       visibleWhen,
@@ -567,6 +567,15 @@ const OrderAdditionalFieldsManagement = () => {
           ...option,
           sortOrder: index + 1,
         })),
+    }));
+  };
+
+  const updateOptionActive = (optionIndex, active) => {
+    setNewField((previous) => ({
+      ...previous,
+      options: (previous.options || []).map((option, index) =>
+        index === optionIndex ? { ...option, active } : option,
+      ),
     }));
   };
 
@@ -1401,9 +1410,11 @@ const OrderAdditionalFieldsManagement = () => {
                   idPrefix="order-additional"
                   options={newField.options || []}
                   locked={structureLocked}
+                  allowOptionManagement
                   onAddOption={addOption}
                   onOptionLabelChange={updateOptionLabel}
                   onRemoveOption={removeOption}
+                  onOptionActiveChange={updateOptionActive}
                 />
               ) : null}
               {newField.fieldType === "USER" ? (

@@ -108,7 +108,9 @@ public class OrderAdditionalFieldServiceImpl implements OrderAdditionalFieldServ
 
         List<Integer> definitionIds = definitions.stream().map(OrderAdditionalFieldDefinition::getId)
                 .collect(Collectors.toList());
-        List<OrderAdditionalFieldOption> options = optionDAO.findByDefinitionIds(definitionIds, !includeInactive);
+        // Include retired options so existing orders and reports can still resolve
+        // their labels.
+        List<OrderAdditionalFieldOption> options = optionDAO.findByDefinitionIds(definitionIds, false);
 
         return mapDefinitionsToPayload(definitions, options, resolveUserOptions);
     }
@@ -166,9 +168,8 @@ public class OrderAdditionalFieldServiceImpl implements OrderAdditionalFieldServ
         if (hasSavedValues && requestedFieldType != existingFieldType) {
             throw new IllegalStateException("This field already has saved data and its type cannot be changed.");
         }
-        if (hasSavedValues && payload.getOptions() != null && isOptionFieldType(requestedFieldType)
-                && haveOptionsChanged(fieldId, payload.getOptions())) {
-            throw new IllegalStateException("This field already has saved data and its options cannot be changed.");
+        if (payload.getOptions() != null && isOptionFieldType(requestedFieldType)) {
+            validateOptionChanges(fieldId, payload.getOptions(), hasSavedValues);
         }
 
         if (StringUtils.isNotBlank(payload.getDisplayName())) {
@@ -218,8 +219,7 @@ public class OrderAdditionalFieldServiceImpl implements OrderAdditionalFieldServ
         definition.setSysUserId(currentUserId);
         definitionDAO.update(definition);
 
-        if (payload.getOptions() != null && isOptionFieldType(parseFieldType(definition.getFieldType()))
-                && !hasSavedValues) {
+        if (payload.getOptions() != null && isOptionFieldType(parseFieldType(definition.getFieldType()))) {
             upsertOptionsForDefinition(definition.getId(), payload.getOptions(), currentUserId);
         }
 
@@ -287,6 +287,10 @@ public class OrderAdditionalFieldServiceImpl implements OrderAdditionalFieldServ
 
         OrderAdditionalFieldOption option = optionDAO.get(optionId)
                 .orElseThrow(() -> new IllegalArgumentException("Option not found: " + optionId));
+
+        if (hasSavedValues(option.getFieldDefinitionId())) {
+            validateSavedOptionIdentity(option, payload);
+        }
 
         if (payload.getOptionKey() != null) {
             String normalizedOptionKey = normalizeOptionKey(payload.getOptionKey(), payload.getOptionLabel());
@@ -463,7 +467,8 @@ public class OrderAdditionalFieldServiceImpl implements OrderAdditionalFieldServ
                 rawValue = definition.getDefaultValue();
             }
 
-            String normalizedValue = normalizeAndValidateValue(definition, rawValue);
+            String normalizedValue = normalizeAndValidateValue(definition, rawValue,
+                    existing.map(SampleOrderAdditionalFieldValue::getFieldValue).orElse(null));
             if (required && fieldType == FieldType.BOOLEAN && !"true".equals(normalizedValue)) {
                 throw new LIMSRuntimeException(
                         "Order field is required: " + StringUtils.defaultString(definition.getDisplayName()));
@@ -960,27 +965,47 @@ public class OrderAdditionalFieldServiceImpl implements OrderAdditionalFieldServ
         }
     }
 
-    private boolean haveOptionsChanged(Integer fieldId, List<OrderAdditionalFieldOptionPayload> requestedOptions) {
-        List<String> existing = optionDAO.findByDefinitionId(fieldId, true).stream().filter(option -> option != null)
-                .filter(option -> option.getActive() == null || option.getActive())
-                .sorted((left, right) -> Integer.compare(
-                        left.getSortOrder() == null ? Integer.MAX_VALUE : left.getSortOrder(),
-                        right.getSortOrder() == null ? Integer.MAX_VALUE : right.getSortOrder()))
-                .map(option -> option.getOptionKey() + "|" + StringUtils.trimToEmpty(option.getOptionLabel()))
-                .collect(Collectors.toList());
+    private void validateOptionChanges(Integer fieldId, List<OrderAdditionalFieldOptionPayload> options,
+            boolean hasSavedValues) {
+        Map<Integer, OrderAdditionalFieldOption> existingById = optionDAO.findByDefinitionId(fieldId, true).stream()
+                .collect(Collectors.toMap(OrderAdditionalFieldOption::getId, option -> option));
+        Set<Integer> requestedIds = new HashSet<>();
+        Set<String> requestedKeys = new HashSet<>();
+        for (OrderAdditionalFieldOptionPayload payload : options) {
+            if (payload == null || StringUtils.isBlank(payload.getOptionLabel())) {
+                continue;
+            }
+            String key = normalizeOptionKey(payload.getOptionKey(), payload.getOptionLabel());
+            if (!requestedKeys.add(key)) {
+                throw new IllegalArgumentException("Duplicate option key in request payload: " + key);
+            }
+            if (payload.getId() != null) {
+                OrderAdditionalFieldOption existing = existingById.get(payload.getId());
+                if (existing == null || !fieldId.equals(existing.getFieldDefinitionId())
+                        || !requestedIds.add(payload.getId())) {
+                    throw new IllegalArgumentException("Invalid option for selected field: " + payload.getId());
+                }
+                if (hasSavedValues) {
+                    validateSavedOptionIdentity(existing, payload);
+                }
+            }
+        }
+        if (hasSavedValues && !requestedIds.containsAll(existingById.keySet())) {
+            throw new IllegalStateException(
+                    "This field already has saved data. Deactivate existing options instead of removing them.");
+        }
+    }
 
-        List<String> requested = requestedOptions == null ? Collections.emptyList()
-                : requestedOptions.stream().filter(option -> option != null)
-                        .filter(option -> StringUtils.isNotBlank(option.getOptionLabel()))
-                        .filter(option -> !Boolean.FALSE.equals(option.getActive()))
-                        .sorted((left, right) -> Integer.compare(
-                                left.getSortOrder() == null ? Integer.MAX_VALUE : left.getSortOrder(),
-                                right.getSortOrder() == null ? Integer.MAX_VALUE : right.getSortOrder()))
-                        .map(option -> normalizeOptionKey(option.getOptionKey(), option.getOptionLabel()) + "|"
-                                + StringUtils.trimToEmpty(option.getOptionLabel()))
-                        .collect(Collectors.toList());
-
-        return !existing.equals(requested);
+    private void validateSavedOptionIdentity(OrderAdditionalFieldOption existing,
+            OrderAdditionalFieldOptionPayload payload) {
+        boolean keyChanged = payload.getOptionKey() != null && !existing.getOptionKey()
+                .equals(normalizeOptionKey(payload.getOptionKey(), payload.getOptionLabel()));
+        boolean labelChanged = StringUtils.isNotBlank(payload.getOptionLabel())
+                && !existing.getOptionLabel().equals(payload.getOptionLabel().trim());
+        if (keyChanged || labelChanged) {
+            throw new IllegalStateException(
+                    "This field already has saved data and existing option keys and labels cannot be changed.");
+        }
     }
 
     private void deactivateAllOptions(Integer fieldId, String currentUserId) {
@@ -1262,7 +1287,8 @@ public class OrderAdditionalFieldServiceImpl implements OrderAdditionalFieldServ
         }
     }
 
-    private String normalizeAndValidateValue(OrderAdditionalFieldPayload definition, String rawValue) {
+    private String normalizeAndValidateValue(OrderAdditionalFieldPayload definition, String rawValue,
+            String existingValue) {
         String trimmedValue = StringUtils.trimToNull(rawValue);
         if (trimmedValue == null) {
             return null;
@@ -1292,12 +1318,12 @@ public class OrderAdditionalFieldServiceImpl implements OrderAdditionalFieldServ
             return trimmedValue.toLowerCase();
         case SELECT:
         case RADIO:
-            validateSingleOption(definition, trimmedValue);
+            validateSingleOption(definition, trimmedValue, existingValue);
             return trimmedValue;
         case USER:
             return trimmedValue;
         case MULTISELECT:
-            return normalizeAndValidateMultiSelect(definition, trimmedValue);
+            return normalizeAndValidateMultiSelect(definition, trimmedValue, existingValue);
         case DOCUMENT:
             return null;
         default:
@@ -1396,23 +1422,32 @@ public class OrderAdditionalFieldServiceImpl implements OrderAdditionalFieldServ
         }
     }
 
-    private void validateSingleOption(OrderAdditionalFieldPayload definition, String value) {
+    private void validateSingleOption(OrderAdditionalFieldPayload definition, String value, String existingValue) {
         List<OrderAdditionalFieldOptionPayload> options = definition.getOptions() == null ? Collections.emptyList()
                 : definition.getOptions();
         Set<String> validOptionKeys = options.stream().filter(option -> Boolean.TRUE.equals(option.getActive()))
                 .map(OrderAdditionalFieldOptionPayload::getOptionKey).collect(Collectors.toSet());
 
-        if (!validOptionKeys.contains(value)) {
+        if (!validOptionKeys.contains(value) && !value.equals(StringUtils.trimToNull(existingValue))) {
             throw new IllegalArgumentException(
                     String.format("Invalid option '%s' for field '%s'", value, definition.getFieldKey()));
         }
     }
 
-    private String normalizeAndValidateMultiSelect(OrderAdditionalFieldPayload definition, String value) {
+    private String normalizeAndValidateMultiSelect(OrderAdditionalFieldPayload definition, String value,
+            String existingValue) {
         List<OrderAdditionalFieldOptionPayload> options = definition.getOptions() == null ? Collections.emptyList()
                 : definition.getOptions();
         Set<String> validOptionKeys = options.stream().filter(option -> Boolean.TRUE.equals(option.getActive()))
                 .map(OrderAdditionalFieldOptionPayload::getOptionKey).collect(Collectors.toSet());
+
+        // Retired selections may be retained only on the order that already stored
+        // them.
+        for (String selection : StringUtils.defaultString(existingValue).split(",")) {
+            if (StringUtils.isNotBlank(selection)) {
+                validOptionKeys.add(selection.trim());
+            }
+        }
 
         Set<String> normalizedSelections = new LinkedHashSet<>();
         for (String rawSelection : value.split(",")) {

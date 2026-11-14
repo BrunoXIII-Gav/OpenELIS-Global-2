@@ -1,3 +1,4 @@
+import { getAdditionalFieldOptions } from "../utils/additionalFieldOptions";
 import {
   captureAdditionalFieldBaseline,
   buildAdditionalFieldPatch,
@@ -109,7 +110,7 @@ const readFileAsBase64 = (file) =>
     reader.readAsDataURL(file);
   });
 
-const AdditionalFieldEditor = ({
+export const AdditionalFieldEditor = ({
   inputId,
   fieldLabel,
   fieldType,
@@ -120,6 +121,10 @@ const AdditionalFieldEditor = ({
   disabled = false,
 }) => {
   const [draftValue, setDraftValue] = useState(value || "");
+  const options = getAdditionalFieldOptions(
+    { fieldType, options: activeOptions },
+    value,
+  );
 
   useEffect(() => {
     setDraftValue(value || "");
@@ -303,12 +308,13 @@ const AdditionalFieldEditor = ({
           <HistoricalUserSelectItem
             fieldType={fieldType}
             value={draftValue}
-            options={activeOptions}
+            options={options}
           />
-          {activeOptions.map((option) => (
+          {options.map((option) => (
             <SelectItem
               key={`${inputId}-${option.optionKey}`}
               value={option.optionKey}
+              disabled={option.active === false}
               text={option.optionLabel || option.optionKey}
             />
           ))}
@@ -331,12 +337,13 @@ const AdditionalFieldEditor = ({
               commitValue(valueSelected);
             }}
           >
-            {activeOptions.map((option) => (
+            {options.map((option) => (
               <RadioButton
                 key={`${inputId}-${option.optionKey}`}
                 id={`${inputId}-${option.optionKey}`}
                 labelText={option.optionLabel || option.optionKey}
                 value={option.optionKey}
+                disabled={option.active === false}
               />
             ))}
           </RadioButtonGroup>
@@ -371,10 +378,11 @@ const AdditionalFieldEditor = ({
             }}
             style={{ width: "100%", minHeight: "5rem" }}
           >
-            {activeOptions.map((option) => (
+            {options.map((option) => (
               <option
                 key={`${inputId}-${option.optionKey}`}
                 value={option.optionKey}
+                disabled={option.active === false}
               >
                 {option.optionLabel || option.optionKey}
               </option>
@@ -3059,9 +3067,7 @@ export function SearchResults(props) {
   const renderAdditionalFieldInput = (data, fieldDefinition) => {
     const fieldType = fieldDefinition?.fieldType || "TEXT";
     const fieldKey = fieldDefinition?.fieldKey;
-    const activeOptions = Array.isArray(fieldDefinition?.options)
-      ? fieldDefinition.options.filter((option) => option?.active !== false)
-      : [];
+    const activeOptions = fieldDefinition?.options || [];
     const fieldValue =
       data?.additionalFieldValues &&
       Object.prototype.hasOwnProperty.call(data.additionalFieldValues, fieldKey)

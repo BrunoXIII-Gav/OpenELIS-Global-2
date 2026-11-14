@@ -147,6 +147,63 @@ beforeEach(() => {
 });
 afterEach(() => jest.restoreAllMocks());
 
+test.each(["SELECT", "MULTISELECT"])(
+  "%s keeps the sample's historical selection when modifying an order",
+  async (fieldType) => {
+    const row = {
+      ...tests[0],
+      additionalFields: [
+        {
+          id: 10,
+          fieldKey: "procedure",
+          displayName: "Procedure",
+          fieldType,
+          options: [
+            {
+              optionKey: "old",
+              optionLabel: "Historical choice",
+              active: false,
+            },
+            { optionKey: "new", optionLabel: "New choice", active: true },
+            {
+              optionKey: "retired",
+              optionLabel: "Other retired choice",
+              active: false,
+            },
+          ],
+        },
+      ],
+      additionalFieldValues: { procedure: "old" },
+    };
+    const originalGet = getFromOpenElisServer.getMockImplementation();
+    getFromOpenElisServer.mockImplementation((url, callback) => {
+      if (url.startsWith("/rest/sample-type-tests"))
+        callback({
+          sampleTypeId: "1",
+          tests: [],
+          panels: [],
+          additionalFields: row.additionalFields,
+        });
+      else originalGet(url, callback);
+    });
+    const page = open([row]);
+    await wait(() => expect(page.getByText("Historical choice")).toBeTruthy());
+    const historical =
+      fieldType === "SELECT"
+        ? page.getByRole("option", { name: "Historical choice" })
+        : page.getByLabelText("Historical choice");
+    expect(historical.disabled).toBe(true);
+    expect(
+      fieldType === "SELECT" ? historical.selected : historical.checked,
+    ).toBe(true);
+    expect(page.queryByText("Other retired choice")).toBeNull();
+    const payload = JSON.parse(page.getByTestId("order-payload").textContent);
+    expect(payload.existingTests[0].additionalFieldValues.procedure).toBe(
+      "old",
+    );
+  },
+);
+
 test("real EditSample preserves the saved CUG for both the field and the consent PDF request", async () => {
   const page = open([tests[0]]);
   await wait(() =>

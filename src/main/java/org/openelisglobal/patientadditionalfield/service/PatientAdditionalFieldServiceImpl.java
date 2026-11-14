@@ -82,7 +82,7 @@ public class PatientAdditionalFieldServiceImpl implements PatientAdditionalField
         }
         List<Integer> definitionIds = definitions.stream().map(PatientAdditionalFieldDefinition::getId)
                 .collect(Collectors.toList());
-        List<PatientAdditionalFieldOption> options = optionDAO.findByDefinitionIds(definitionIds, !includeInactive);
+        List<PatientAdditionalFieldOption> options = optionDAO.findByDefinitionIds(definitionIds, false);
         return mapDefinitionsToPayload(definitions, options, resolveUserOptions);
     }
 
@@ -182,9 +182,8 @@ public class PatientAdditionalFieldServiceImpl implements PatientAdditionalField
         if (hasSavedValues && requestedFieldType != existingFieldType) {
             throw new IllegalStateException("This field already has saved data and its type cannot be changed.");
         }
-        if (hasSavedValues && payload.getOptions() != null && isOptionFieldType(requestedFieldType)
-                && haveOptionsChanged(fieldId, payload.getOptions())) {
-            throw new IllegalStateException("This field already has saved data and its options cannot be changed.");
+        if (payload.getOptions() != null && isOptionFieldType(requestedFieldType)) {
+            validateOptionChanges(fieldId, payload.getOptions(), hasSavedValues);
         }
 
         if (StringUtils.isNotBlank(payload.getFieldKey())) {
@@ -232,8 +231,12 @@ public class PatientAdditionalFieldServiceImpl implements PatientAdditionalField
         definitionDAO.update(definition);
 
         FieldType currentType = parseFieldType(definition.getFieldType());
-        if (payload.getOptions() != null && isOptionFieldType(currentType) && !hasSavedValues) {
-            replaceOptionsForDefinition(fieldId, payload.getOptions(), currentUserId);
+        if (payload.getOptions() != null && isOptionFieldType(currentType)) {
+            if (hasSavedValues) {
+                upsertOptionsForDefinition(fieldId, payload.getOptions(), currentUserId);
+            } else {
+                replaceOptionsForDefinition(fieldId, payload.getOptions(), currentUserId);
+            }
         }
         return getFieldById(fieldId, true);
     }
@@ -287,6 +290,10 @@ public class PatientAdditionalFieldServiceImpl implements PatientAdditionalField
         }
         PatientAdditionalFieldOption option = optionDAO.get(optionId)
                 .orElseThrow(() -> new IllegalArgumentException("Option not found: " + optionId));
+        if (payload != null && hasSavedValues(option.getFieldDefinitionId())) {
+            validateSavedOptionIdentity(option, payload);
+        }
+
         if (payload != null && StringUtils.isNotBlank(payload.getOptionKey())) {
             String normalizedOptionKey = normalizeOptionKey(payload.getOptionKey(), payload.getOptionLabel());
             optionDAO.findByDefinitionIdAndOptionKey(option.getFieldDefinitionId(), normalizedOptionKey)
@@ -374,7 +381,8 @@ public class PatientAdditionalFieldServiceImpl implements PatientAdditionalField
                     .findByPatientIdAndFieldDefinitionId(numericPatientId, fieldDefinition.getId());
             if (!fieldValues.containsKey(fieldDefinition.getFieldKey()) && existing.isPresent())
                 continue;
-            String normalizedValue = normalizeAndValidateValue(fieldDefinition, rawValue);
+            String normalizedValue = normalizeAndValidateValue(fieldDefinition, rawValue,
+                    existing.map(PatientAdditionalFieldValue::getFieldValue).orElse(null));
 
             if (userFieldOptionResolver.isUserFieldType(fieldDefinition.getFieldType())
                     && StringUtils.isNotBlank(normalizedValue) && !java.util.Objects.equals(normalizedValue,
@@ -628,27 +636,91 @@ public class PatientAdditionalFieldServiceImpl implements PatientAdditionalField
                 currentUserId);
     }
 
-    private boolean haveOptionsChanged(Integer fieldId, List<PatientAdditionalFieldOptionPayload> requestedOptions) {
-        List<String> existing = optionDAO.findByDefinitionId(fieldId, true).stream().filter(option -> option != null)
-                .filter(option -> option.getActive() == null || option.getActive())
-                .sorted((left, right) -> Integer.compare(
-                        left.getSortOrder() == null ? Integer.MAX_VALUE : left.getSortOrder(),
-                        right.getSortOrder() == null ? Integer.MAX_VALUE : right.getSortOrder()))
-                .map(option -> option.getOptionKey() + "|" + StringUtils.trimToEmpty(option.getOptionLabel()))
-                .collect(Collectors.toList());
+    private void upsertOptionsForDefinition(Integer definitionId, List<PatientAdditionalFieldOptionPayload> options,
+            String currentUserId) {
+        if (options == null) {
+            return;
+        }
 
-        List<String> requested = requestedOptions == null ? Collections.emptyList()
-                : requestedOptions.stream().filter(option -> option != null)
-                        .filter(option -> StringUtils.isNotBlank(option.getOptionLabel()))
-                        .filter(option -> !Boolean.FALSE.equals(option.getActive()))
-                        .sorted((left, right) -> Integer.compare(
-                                left.getSortOrder() == null ? Integer.MAX_VALUE : left.getSortOrder(),
-                                right.getSortOrder() == null ? Integer.MAX_VALUE : right.getSortOrder()))
-                        .map(option -> normalizeOptionKey(option.getOptionKey(), option.getOptionLabel()) + "|"
-                                + StringUtils.trimToEmpty(option.getOptionLabel()))
-                        .collect(Collectors.toList());
+        Set<Integer> updatedOptionIds = new HashSet<>();
+        for (PatientAdditionalFieldOptionPayload optionPayload : options) {
+            if (optionPayload == null || StringUtils.isBlank(optionPayload.getOptionLabel())) {
+                continue;
+            }
 
-        return !existing.equals(requested);
+            if (optionPayload.getId() != null) {
+                PatientAdditionalFieldOption existing = optionDAO.get(optionPayload.getId()).orElseThrow(
+                        () -> new IllegalArgumentException("Option not found for update: " + optionPayload.getId()));
+
+                existing.setOptionKey(normalizeOptionKey(optionPayload.getOptionKey(), optionPayload.getOptionLabel()));
+                existing.setOptionLabel(optionPayload.getOptionLabel().trim());
+                if (optionPayload.getSortOrder() != null) {
+                    existing.setSortOrder(optionPayload.getSortOrder());
+                }
+                if (optionPayload.getActive() != null) {
+                    existing.setActive(optionPayload.getActive());
+                }
+                existing.setSysUserId(currentUserId);
+                optionDAO.update(existing);
+                updatedOptionIds.add(existing.getId());
+                continue;
+            }
+
+            PatientAdditionalFieldOptionPayload created = createOption(definitionId, optionPayload, currentUserId);
+            updatedOptionIds.add(created.getId());
+        }
+
+        List<PatientAdditionalFieldOption> existingOptions = optionDAO.findByDefinitionId(definitionId, true);
+        for (PatientAdditionalFieldOption existingOption : existingOptions) {
+            if (!updatedOptionIds.contains(existingOption.getId())) {
+                existingOption.setActive(false);
+                existingOption.setSysUserId(currentUserId);
+                optionDAO.update(existingOption);
+            }
+        }
+    }
+
+    private void validateOptionChanges(Integer fieldId, List<PatientAdditionalFieldOptionPayload> options,
+            boolean hasSavedValues) {
+        Map<Integer, PatientAdditionalFieldOption> existingById = optionDAO.findByDefinitionId(fieldId, true).stream()
+                .collect(Collectors.toMap(PatientAdditionalFieldOption::getId, option -> option));
+        Set<Integer> requestedIds = new HashSet<>();
+        Set<String> requestedKeys = new HashSet<>();
+        for (PatientAdditionalFieldOptionPayload payload : options) {
+            if (payload == null || StringUtils.isBlank(payload.getOptionLabel())) {
+                continue;
+            }
+            String key = normalizeOptionKey(payload.getOptionKey(), payload.getOptionLabel());
+            if (!requestedKeys.add(key)) {
+                throw new IllegalArgumentException("Duplicate option key in request payload: " + key);
+            }
+            if (payload.getId() != null) {
+                PatientAdditionalFieldOption existing = existingById.get(payload.getId());
+                if (existing == null || !fieldId.equals(existing.getFieldDefinitionId())
+                        || !requestedIds.add(payload.getId())) {
+                    throw new IllegalArgumentException("Invalid option for selected field: " + payload.getId());
+                }
+                if (hasSavedValues) {
+                    validateSavedOptionIdentity(existing, payload);
+                }
+            }
+        }
+        if (hasSavedValues && !requestedIds.containsAll(existingById.keySet())) {
+            throw new IllegalStateException(
+                    "This field already has saved data. Deactivate existing options instead of removing them.");
+        }
+    }
+
+    private void validateSavedOptionIdentity(PatientAdditionalFieldOption existing,
+            PatientAdditionalFieldOptionPayload payload) {
+        boolean keyChanged = payload.getOptionKey() != null && !existing.getOptionKey()
+                .equals(normalizeOptionKey(payload.getOptionKey(), payload.getOptionLabel()));
+        boolean labelChanged = StringUtils.isNotBlank(payload.getOptionLabel())
+                && !existing.getOptionLabel().equals(payload.getOptionLabel().trim());
+        if (keyChanged || labelChanged) {
+            throw new IllegalStateException(
+                    "This field already has saved data and existing option keys and labels cannot be changed.");
+        }
     }
 
     private void deactivateAllOptions(Integer fieldId, String currentUserId) {
@@ -660,7 +732,8 @@ public class PatientAdditionalFieldServiceImpl implements PatientAdditionalField
         }
     }
 
-    private String normalizeAndValidateValue(PatientAdditionalFieldPayload fieldDefinition, String rawValue) {
+    private String normalizeAndValidateValue(PatientAdditionalFieldPayload fieldDefinition, String rawValue,
+            String existingValue) {
         String trimmedValue = StringUtils.trimToNull(rawValue);
         if (trimmedValue == null) {
             return null;
@@ -689,12 +762,12 @@ public class PatientAdditionalFieldServiceImpl implements PatientAdditionalField
             return trimmedValue.toLowerCase();
         case SELECT:
         case RADIO:
-            validateSingleOption(fieldDefinition, trimmedValue);
+            validateSingleOption(fieldDefinition, trimmedValue, existingValue);
             return trimmedValue;
         case USER:
             return trimmedValue;
         case MULTISELECT:
-            return normalizeAndValidateMultiSelect(fieldDefinition, trimmedValue);
+            return normalizeAndValidateMultiSelect(fieldDefinition, trimmedValue, existingValue);
         default:
             return trimmedValue;
         }
@@ -766,19 +839,29 @@ public class PatientAdditionalFieldServiceImpl implements PatientAdditionalField
         }
     }
 
-    private void validateSingleOption(PatientAdditionalFieldPayload fieldDefinition, String value) {
+    private void validateSingleOption(PatientAdditionalFieldPayload fieldDefinition, String value,
+            String existingValue) {
         Set<String> validOptions = fieldDefinition.getOptions().stream()
                 .filter(option -> Boolean.TRUE.equals(option.getActive()))
                 .map(PatientAdditionalFieldOptionPayload::getOptionKey).collect(Collectors.toSet());
-        if (!validOptions.contains(value)) {
+        if (!validOptions.contains(value) && !value.equals(StringUtils.trimToNull(existingValue))) {
             throw new LIMSRuntimeException("Invalid option selected for field: " + fieldDefinition.getDisplayName());
         }
     }
 
-    private String normalizeAndValidateMultiSelect(PatientAdditionalFieldPayload fieldDefinition, String value) {
+    private String normalizeAndValidateMultiSelect(PatientAdditionalFieldPayload fieldDefinition, String value,
+            String existingValue) {
         Set<String> validOptions = fieldDefinition.getOptions().stream()
                 .filter(option -> Boolean.TRUE.equals(option.getActive()))
                 .map(PatientAdditionalFieldOptionPayload::getOptionKey).collect(Collectors.toSet());
+        // Retired selections may be retained only on the record that already stored
+        // them.
+        for (String selection : StringUtils.defaultString(existingValue).split(",")) {
+            if (StringUtils.isNotBlank(selection)) {
+                validOptions.add(selection.trim());
+            }
+        }
+
         LinkedHashSet<String> normalizedOptions = new LinkedHashSet<>();
         for (String option : value.split(",")) {
             String trimmed = StringUtils.trimToNull(option);

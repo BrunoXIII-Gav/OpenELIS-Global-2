@@ -91,6 +91,33 @@ const selector = (container, id) =>
 const optionIds = (select) =>
   Array.from(select.options).map((entry) => entry.value);
 
+test.each(["RECEPTION", "COLLECTION"])(
+  "%s retains a retired sample choice and hides other inactive choices",
+  (displaySection) => {
+    const item = sample("54", [], { responsable: "old" });
+    item.additionalFields = [
+      {
+        ...field([
+          { optionKey: "old", optionLabel: "Historical choice", active: false },
+          option("new", "New choice"),
+          {
+            optionKey: "retired",
+            optionLabel: "Other retired choice",
+            active: false,
+          },
+        ]),
+        fieldType: "SELECT",
+        displaySection,
+      },
+    ];
+    const view = show([item]);
+    const historical = view.getByRole("option", { name: "Historical choice" });
+    expect(historical.disabled).toBe(true);
+    expect(historical.selected).toBe(true);
+    expect(view.queryByText("Other retired choice")).toBeNull();
+  },
+);
+
 test("sample-specific candidates are not replaced by the general directory", () => {
   const { container } = show([
     sample("54", [option("113", "Usuario habilitado")]),

@@ -68,6 +68,52 @@ beforeEach(() => {
   });
 });
 
+test.each(["SELECT", "RADIO", "MULTISELECT"])(
+  "%s retains retired selections on existing orders and hides them on new orders",
+  (fieldType) => {
+    const sampleOrderItems = {
+      additionalFields: [
+        {
+          fieldKey: "selection",
+          displayName: "Selection",
+          fieldType,
+          options: [
+            {
+              optionKey: "old",
+              optionLabel: "Historical choice",
+              active: false,
+            },
+            { optionKey: "new", optionLabel: "New choice", active: true },
+            {
+              optionKey: "retired",
+              optionLabel: "Other retired choice",
+              active: false,
+            },
+          ],
+        },
+      ],
+      additionalFieldValues: { selection: "old" },
+    };
+    getFromOpenElisServer.mockImplementation((url, callback) => {
+      callback(url === "/rest/SamplePatientEntry" ? { sampleOrderItems } : []);
+    });
+    const view = renderOrder(true, sampleOrderItems);
+    const historical =
+      fieldType === "SELECT"
+        ? view.getByRole("option", { name: "Historical choice" })
+        : view.getByLabelText("Historical choice");
+    expect(historical.disabled).toBe(true);
+    expect(
+      fieldType === "SELECT" ? historical.selected : historical.checked,
+    ).toBe(true);
+    expect(view.queryByText("Other retired choice")).toBeNull();
+    view.unmount();
+    const newOrder = renderOrder(false, sampleOrderItems);
+    expect(newOrder.queryByText("Historical choice")).toBeNull();
+    expect(newOrder.getByText("New choice")).toBeDefined();
+  },
+);
+
 test("new orders hide the laboratory number and Generate without requesting a proposal", () => {
   const view = renderOrder();
   expect(view.container.querySelector("#labNo")).toBeNull();

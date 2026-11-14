@@ -1,3 +1,4 @@
+import { getAdditionalFieldOptions } from "../utils/additionalFieldOptions";
 import PatientCugPrefixField from "./PatientCugPrefixField";
 import HistoricalUserSelectItem from "../common/HistoricalUserSelectItem";
 import React, { useState, useRef, useEffect, useContext } from "react";
@@ -745,9 +746,10 @@ function CreatePatientForm(props) {
       currentValue !== undefined && currentValue !== null
         ? currentValue
         : field.defaultValue || "";
-    const options = Array.isArray(field.options)
-      ? field.options.filter((option) => option && option.active)
-      : [];
+    const options = getAdditionalFieldOptions(
+      field,
+      isExistingPatient ? currentValue : "",
+    );
     const required = field.required;
     const label = (
       <>
@@ -902,6 +904,7 @@ function CreatePatientForm(props) {
                 <SelectItem
                   key={`${field.fieldKey}-${option.optionKey}`}
                   value={option.optionKey}
+                  disabled={option.active === false}
                   text={option.optionLabel}
                 />
               ))}
@@ -929,7 +932,7 @@ function CreatePatientForm(props) {
                   id={`patient-dynamic-${field.fieldKey}-${option.optionKey}`}
                   labelText={option.optionLabel}
                   value={option.optionKey}
-                  disabled={isReadOnly}
+                  disabled={isReadOnly || option.active === false}
                 />
               ))}
             </RadioButtonGroup>
@@ -952,7 +955,7 @@ function CreatePatientForm(props) {
                   id={`patient-dynamic-${field.fieldKey}-${option.optionKey}`}
                   labelText={option.optionLabel}
                   checked={selectedValues.has(option.optionKey)}
-                  disabled={isReadOnly}
+                  disabled={isReadOnly || option.active === false}
                   onChange={(_event, { checked }) => {
                     const nextValues = new Set(selectedValues);
                     if (checked) {

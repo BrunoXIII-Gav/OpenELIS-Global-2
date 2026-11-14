@@ -195,6 +195,54 @@ describe("SampleType additional fields", () => {
     });
   });
 
+  test("new samples offer only active choices and save the newly selected option", async () => {
+    const originalGet = getFromOpenElisServer.getMockImplementation();
+    getFromOpenElisServer.mockImplementation((url, callback) => {
+      if (url === "/rest/sample-type-tests?sampleType=1")
+        callback({
+          sampleTypeId: "1",
+          tests: [],
+          panels: [],
+          additionalFields: [
+            {
+              id: 10,
+              fieldKey: "procedure",
+              displayName: "Procedure",
+              fieldType: "SELECT",
+              active: true,
+              options: [
+                {
+                  optionKey: "old",
+                  optionLabel: "Retired choice",
+                  active: false,
+                },
+                { optionKey: "new", optionLabel: "New choice", active: true },
+              ],
+            },
+          ],
+        });
+      else originalGet(url, callback);
+    });
+    const view = renderComponent();
+    fireEvent.change(view.container.querySelector("#sampleId_0"), {
+      target: { value: "1" },
+    });
+    await wait(() => expect(view.getByText("New choice")).toBeTruthy());
+    expect(view.queryByText("Retired choice")).toBeNull();
+    fireEvent.change(view.getByLabelText("Procedure"), {
+      target: { value: "new" },
+    });
+    await wait(() =>
+      expect(view.props.sampleTypeObject).toHaveBeenCalledWith(
+        expect.objectContaining({
+          sampleXML: expect.objectContaining({
+            additionalFieldValues: { procedure: "new" },
+          }),
+        }),
+      ),
+    );
+  });
+
   test("displays a read-only suggested CUG without creating a reservation", async () => {
     postToOpenElisServerJsonResponse.mockImplementation(
       (url, payload, callback) => callback({ cugCode: "5001.2" }),
