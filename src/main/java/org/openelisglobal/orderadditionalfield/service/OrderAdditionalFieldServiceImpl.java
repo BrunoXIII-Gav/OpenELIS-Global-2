@@ -26,6 +26,7 @@ import org.openelisglobal.common.documentupload.TemporaryDocumentUploadService;
 import org.openelisglobal.common.exception.LIMSRuntimeException;
 import org.openelisglobal.common.service.UserFieldOptionResolver;
 import org.openelisglobal.orderadditionalfield.bean.OrderAdditionalFieldFilePayload;
+import org.openelisglobal.orderadditionalfield.bean.OrderAdditionalFieldFileReference;
 import org.openelisglobal.orderadditionalfield.bean.OrderAdditionalFieldOptionPayload;
 import org.openelisglobal.orderadditionalfield.bean.OrderAdditionalFieldPayload;
 import org.openelisglobal.orderadditionalfield.bean.OrderFixedFieldConfigPayload;
@@ -40,6 +41,8 @@ import org.openelisglobal.orderadditionalfield.valueholder.OrderAdditionalFieldO
 import org.openelisglobal.orderadditionalfield.valueholder.OrderFixedFieldConfig;
 import org.openelisglobal.orderadditionalfield.valueholder.SampleOrderAdditionalFieldFile;
 import org.openelisglobal.orderadditionalfield.valueholder.SampleOrderAdditionalFieldValue;
+import org.openelisglobal.reportdefinition.service.ReportDefinitionService;
+import org.openelisglobal.reports.service.ConsentTemplateService;
 import org.openelisglobal.sample.bean.SampleOrderItem;
 import org.springframework.beans.BeanWrapperImpl;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -98,6 +101,9 @@ public class OrderAdditionalFieldServiceImpl implements OrderAdditionalFieldServ
     @Autowired
     private UserFieldOptionResolver userFieldOptionResolver;
 
+    @Autowired
+    private ReportDefinitionService reportDefinitionService;
+
     @Override
     @Transactional(readOnly = true)
     public List<OrderAdditionalFieldPayload> getFields(boolean includeInactive, boolean resolveUserOptions) {
@@ -116,6 +122,32 @@ public class OrderAdditionalFieldServiceImpl implements OrderAdditionalFieldServ
     }
 
     @Override
+    @Transactional(readOnly = true)
+    public Map<String, String> getVisibleConsentTemplates(String sampleId, Map<String, String> fieldValues,
+            Map<String, String> fixedFieldValues, boolean requiredOnly) {
+        List<OrderAdditionalFieldPayload> fields = getFields(false);
+        Map<String, String> effective = new HashMap<>();
+        if (sampleId != null)
+            effective.putAll(getSampleValues(sampleId, fields));
+        if (fieldValues != null)
+            effective.putAll(fieldValues);
+        Map<String, String> context = buildEvaluationContext(fields, effective);
+        if (fixedFieldValues != null)
+            context.putAll(fixedFieldValues);
+        Map<String, String> result = new java.util.LinkedHashMap<>();
+        for (OrderAdditionalFieldPayload field : fields) {
+            if (!"DOCUMENT".equals(field.getFieldType()))
+                continue;
+            OrderDocumentConfig document = OrderDocumentConfig.parse(field.getMetadataJson());
+            FieldMetadata metadata = parseFieldMetadata(field.getMetadataJson());
+            if (document.isConsent() && shouldFieldBeVisible(field, metadata, context)
+                    && (!requiredOnly || isFieldRequired(field, metadata, context)))
+                result.put(field.getFieldKey(), document.templateId());
+        }
+        return result;
+    }
+
+    @Override
     public OrderAdditionalFieldPayload createField(OrderAdditionalFieldPayload payload, String currentUserId) {
         validatePayloadRequiredValues(payload);
 
@@ -128,6 +160,8 @@ public class OrderAdditionalFieldServiceImpl implements OrderAdditionalFieldServ
         }
 
         FieldType fieldType = parseFieldType(payload.getFieldType());
+        if (fieldType == FieldType.DOCUMENT)
+            validateDocumentConfiguration(payload.getMetadataJson());
         validateSearchConfiguration(payload, fieldType);
 
         OrderAdditionalFieldDefinition definition = new OrderAdditionalFieldDefinition();
@@ -165,6 +199,15 @@ public class OrderAdditionalFieldServiceImpl implements OrderAdditionalFieldServ
         FieldType requestedFieldType = payload.getFieldType() == null ? existingFieldType
                 : parseFieldType(payload.getFieldType());
 
+        if (requestedFieldType == FieldType.DOCUMENT && payload.getMetadataJson() != null) {
+            OrderDocumentConfig requestedDocument = OrderDocumentConfig.parse(payload.getMetadataJson());
+            OrderDocumentConfig previousDocument = OrderDocumentConfig.parse(definition.getMetadataJson());
+            if (hasSavedValues && !requestedDocument.mode().equals(previousDocument.mode()))
+                throw new IllegalStateException("order.document.error.modeLocked");
+            if (requestedDocument.isConsent() && (!previousDocument.isConsent()
+                    || !java.util.Objects.equals(previousDocument.templateId(), requestedDocument.templateId())))
+                validateDocumentConfiguration(payload.getMetadataJson());
+        }
         if (hasSavedValues && requestedFieldType != existingFieldType) {
             throw new IllegalStateException("This field already has saved data and its type cannot be changed.");
         }
@@ -450,6 +493,11 @@ public class OrderAdditionalFieldServiceImpl implements OrderAdditionalFieldServ
             }
 
             if (fieldType == FieldType.DOCUMENT) {
+                if (OrderDocumentConfig.parse(definition.getMetadataJson()).isConsent()) {
+                    if (safeFieldFiles.containsKey(definition.getFieldKey()))
+                        throw new IllegalArgumentException("order.document.error.uploadNotAllowed");
+                    continue;
+                }
                 handleDocumentField(sampleNumericId, definition, metadata, required,
                         safeFieldFiles.get(definition.getFieldKey()), existingFile, currentUserId);
                 existing.ifPresent(valueDAO::delete);
@@ -566,6 +614,50 @@ public class OrderAdditionalFieldServiceImpl implements OrderAdditionalFieldServ
     }
 
     @Override
+    @Transactional(readOnly = true)
+    public Map<String, OrderAdditionalFieldFilePayload> getReportImageFiles(String sampleId, Set<String> fieldKeys,
+            Map<String, OrderAdditionalFieldFileReference> references, Map<String, String> fieldValues,
+            Map<String, String> fixedFieldValues) {
+        List<OrderAdditionalFieldPayload> fields = getFields(false);
+        Map<String, String> effective = new HashMap<>();
+        if (sampleId != null)
+            effective.putAll(getSampleValues(sampleId, fields));
+        if (fieldValues != null)
+            effective.putAll(fieldValues);
+        Map<String, String> context = buildEvaluationContext(fields, effective);
+        if (fixedFieldValues != null)
+            context.putAll(fixedFieldValues);
+        Map<String, OrderAdditionalFieldFilePayload> result = new java.util.LinkedHashMap<>();
+        for (OrderAdditionalFieldPayload field : fields) {
+            if (Boolean.FALSE.equals(field.getActive()) || !fieldKeys.contains(field.getFieldKey())
+                    || !"DOCUMENT".equals(field.getFieldType())
+                    || !OrderDocumentConfig.canSupplyImage(field.getMetadataJson()))
+                continue;
+            FieldMetadata metadata = parseFieldMetadata(field.getMetadataJson());
+            if (!shouldFieldBeVisible(field, metadata, context))
+                continue;
+            OrderAdditionalFieldFileReference reference = references == null ? null
+                    : references.get(field.getFieldKey());
+            if (reference != null && Boolean.TRUE.equals(reference.getDeleteFile()))
+                continue;
+            OrderAdditionalFieldFilePayload file = null;
+            if (reference != null && StringUtils.isNotBlank(reference.getUploadToken())) {
+                OrderAdditionalFieldFilePayload upload = new OrderAdditionalFieldFilePayload();
+                upload.setUploadToken(reference.getUploadToken());
+                file = resolveDocumentPayload(upload, field);
+            } else if (sampleId != null) {
+                file = getSampleFile(sampleId, field.getFieldKey()).orElse(null);
+            }
+            if (file == null || !file.hasContent() || !("image/png".equalsIgnoreCase(file.getFileType())
+                    || "image/jpeg".equalsIgnoreCase(file.getFileType())))
+                continue;
+            validateDocumentFile(field, metadata, file);
+            result.put(field.getFieldKey(), file);
+        }
+        return result;
+    }
+
+    @Override
     public TemporaryDocumentUploadPayload prepareDocumentUpload(String fieldKey, String fileName, String fileType,
             long fileSize, byte[] content) {
         if (StringUtils.isBlank(fieldKey)) {
@@ -584,6 +676,8 @@ public class OrderAdditionalFieldServiceImpl implements OrderAdditionalFieldServ
         filePayload.setFileType(fileType);
         filePayload.setFileSize(fileSize);
         filePayload.setContent(content);
+        if (OrderDocumentConfig.parse(definition.getMetadataJson()).isConsent())
+            throw new IllegalArgumentException("order.document.error.uploadNotAllowed");
         validateDocumentFile(payload, parseFieldMetadata(definition.getMetadataJson()), filePayload);
 
         TemporaryDocumentUploadPayload temporaryPayload = new TemporaryDocumentUploadPayload();
@@ -1117,6 +1211,19 @@ public class OrderAdditionalFieldServiceImpl implements OrderAdditionalFieldServ
             throw new IllegalArgumentException(
                     String.format("File exceeds max size for field '%s': %d MB", definition.getFieldKey(), maxSizeMb));
         }
+    }
+
+    private void validateDocumentConfiguration(String metadataJson) {
+        OrderDocumentConfig document = OrderDocumentConfig.parse(metadataJson);
+        if (!document.isConsent())
+            return;
+        var template = reportDefinitionService.getMatch("id", document.templateId());
+        if (template.isEmpty() && ConsentTemplateService.DEFAULT_TEMPLATE_ID.equals(document.templateId()))
+            return;
+        if (template.isEmpty() || !"consent_template".equals(template.get().getCategory()))
+            throw new IllegalArgumentException("consent.template.error.notFound");
+        if (Boolean.FALSE.equals(template.get().getIsActive()))
+            throw new IllegalArgumentException("consent.template.error.inactive");
     }
 
     private String normalizeMetadataJson(String metadataJson) {

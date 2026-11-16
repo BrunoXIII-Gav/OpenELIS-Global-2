@@ -2,8 +2,47 @@ package org.openelisglobal.reports.form;
 
 import java.util.List;
 import java.util.Map;
+import org.openelisglobal.orderadditionalfield.bean.OrderAdditionalFieldFileReference;
 
 public class ConsentPreviewForm {
+
+    private Map<String, OrderAdditionalFieldFileReference> orderDocumentFiles;
+
+    public Map<String, OrderAdditionalFieldFileReference> getOrderDocumentFiles() {
+        return orderDocumentFiles;
+    }
+
+    public void setOrderDocumentFiles(Map<String, OrderAdditionalFieldFileReference> orderDocumentFiles) {
+        this.orderDocumentFiles = orderDocumentFiles;
+    }
+
+    private String templateId;
+    private String orderFieldKey;
+    private Map<String, String> orderFixedFieldValues;
+
+    public String getTemplateId() {
+        return templateId;
+    }
+
+    public void setTemplateId(String value) {
+        templateId = value;
+    }
+
+    public String getOrderFieldKey() {
+        return orderFieldKey;
+    }
+
+    public void setOrderFieldKey(String value) {
+        orderFieldKey = value;
+    }
+
+    public Map<String, String> getOrderFixedFieldValues() {
+        return orderFixedFieldValues;
+    }
+
+    public void setOrderFixedFieldValues(Map<String, String> value) {
+        orderFixedFieldValues = value;
+    }
 
     private String orderPatientId;
     private String orderAccessionNumber;
@@ -139,6 +178,25 @@ public class ConsentPreviewForm {
     }
 
     public static class ProviderInfo {
+        private String providerId;
+        private String personId;
+
+        public String getProviderId() {
+            return providerId;
+        }
+
+        public void setProviderId(String providerId) {
+            this.providerId = providerId;
+        }
+
+        public String getPersonId() {
+            return personId;
+        }
+
+        public void setPersonId(String personId) {
+            this.personId = personId;
+        }
+
         private String firstName;
         private String lastName;
         private String fullName;

@@ -59,6 +59,7 @@ import org.openelisglobal.sample.exception.SampleCugConflictException;
 import org.openelisglobal.sample.form.SamplePatientEntryForm;
 import org.openelisglobal.sample.service.OrderAuthorizationService;
 import org.openelisglobal.sample.service.OrderConsentDownloadService;
+import org.openelisglobal.sample.service.OrderDocumentConsentService;
 import org.openelisglobal.sample.service.OrderPatientContextService;
 import org.openelisglobal.sample.service.PatientManagementUpdate;
 import org.openelisglobal.sample.service.SamplePatientEntryService;
@@ -102,6 +103,9 @@ import org.springframework.web.servlet.support.RequestContextUtils;
 public class SamplePatientEntryRestController extends BaseSampleEntryController {
     @Autowired
     private OrderConsentDownloadService orderConsentDownloadService;
+
+    @Autowired
+    private OrderDocumentConsentService orderDocumentConsentService;
 
     @Autowired
     private OrderPatientContextService orderPatientContextService;
@@ -351,9 +355,12 @@ public class SamplePatientEntryRestController extends BaseSampleEntryController 
         }
 
         try (var consentPermit = orderConsentDownloadService.claim(request, getSysUserId(request),
-                form.getConsentDownloadToken(), patientInfo.getPatientPK(), null)) {
+                form.getConsentDownloadToken(), patientInfo.getPatientPK(), null);
+                var documentPermits = orderDocumentConsentService.claimRequired(request, getSysUserId(request),
+                        patientInfo.getPatientPK(), null, sampleOrder, form.getRememberSiteAndRequester())) {
             samplePatientService.persistData(updateData, patientUpdate, patientInfo, form, request);
             consentPermit.complete();
+            documentPermits.complete();
             orderPatientContextService.forgetRegistration(request, getSysUserId(request), updateData.getPatientId());
             try {
                 SamplePatientUpdateDataCreatedEvent event = new SamplePatientUpdateDataCreatedEvent(this, updateData,

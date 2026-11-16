@@ -47,7 +47,7 @@ public class OrderConsentDownloadRestControllerTest {
     public void setup() {
         receipts = spy(new OrderConsentDownloadServiceImpl());
         templates = mock(ConsentTemplateService.class);
-        when(templates.generateConsentPdf(any())).thenReturn(new byte[] { 37, 80, 68, 70 });
+        when(templates.generateConsentPdf(any(), eq("42"))).thenReturn(new byte[] { 37, 80, 68, 70 });
         var controller = new ConsentTemplateRestController();
         ReflectionTestUtils.setField(controller, "consentTemplateService", templates);
         ReflectionTestUtils.setField(controller, "orderConsentDownloadService", receipts);
@@ -56,6 +56,28 @@ public class OrderConsentDownloadRestControllerTest {
         var user = new UserSessionData();
         user.setSytemUserId(42);
         session.setAttribute(IActionConstants.USER_SESSION_DATA, user);
+    }
+
+    @Test
+    public void imageReferencesReachGenerationWithTheSessionUserAndDeniedReadsIssueNoReceipt() throws Exception {
+        reports.perform(
+                post("/rest/reports/consent-template/download").session(session).contentType(MediaType.APPLICATION_JSON)
+                        .content("{\"orderPatientId\":\"10\",\"selectedTests\":[\"Test\"],"
+                                + "\"orderDocumentFiles\":{\"patient_signature\":{\"uploadToken\":\"session-upload\"},"
+                                + "\"representative_signature\":{\"deleteFile\":true}}}"))
+                .andExpect(status().isOk());
+        var captured = org.mockito.ArgumentCaptor.forClass(org.openelisglobal.reports.form.ConsentPreviewForm.class);
+        verify(templates).generateConsentPdf(captured.capture(), eq("42"));
+        assertEquals("session-upload",
+                captured.getValue().getOrderDocumentFiles().get("patient_signature").getUploadToken());
+        assertTrue(captured.getValue().getOrderDocumentFiles().get("representative_signature").getDeleteFile());
+        when(templates.generateConsentPdf(any(), eq("42"))).thenThrow(
+                new org.springframework.security.access.AccessDeniedException("Order laboratory scope required"));
+        reports.perform(
+                post("/rest/reports/consent-template/download").session(session).contentType(MediaType.APPLICATION_JSON)
+                        .content("{\"orderAccessionNumber\":\"other-order\",\"selectedTests\":[\"Test\"]}"))
+                .andExpect(status().isForbidden());
+        verify(receipts, times(1)).recordDownload(any(), any(), any(), any());
     }
 
     @Test
@@ -80,13 +102,13 @@ public class OrderConsentDownloadRestControllerTest {
         reports.perform(post("/rest/reports/consent-template/download").session(session)
                 .contentType(MediaType.APPLICATION_JSON).content("{\"selectedTests\":[\"Test\"]}"))
                 .andExpect(status().isBadRequest());
-        when(templates.generateConsentPdf(any())).thenReturn(new byte[0]);
+        when(templates.generateConsentPdf(any(), eq("42"))).thenReturn(new byte[0]);
         reports.perform(
                 post("/rest/reports/consent-template/download").session(session).contentType(MediaType.APPLICATION_JSON)
                         .content("{\"orderPatientId\":\"10\",\"selectedTests\":[\"Test\"]}"))
                 .andExpect(status().isInternalServerError())
                 .andExpect(header().doesNotExist("X-OpenELIS-Consent-Token"));
-        when(templates.generateConsentPdf(any())).thenThrow(new IllegalStateException("PDF failed"));
+        when(templates.generateConsentPdf(any(), eq("42"))).thenThrow(new IllegalStateException("PDF failed"));
         reports.perform(
                 post("/rest/reports/consent-template/download").session(session).contentType(MediaType.APPLICATION_JSON)
                         .content("{\"orderPatientId\":\"10\",\"selectedTests\":[\"Test\"]}"))
@@ -123,6 +145,105 @@ public class OrderConsentDownloadRestControllerTest {
     }
 
     @Test
+    public void conditionalFieldDownloadIsBoundToItsTemplateAndRequiredByTheEditApi() throws Exception {
+        Object previousFactory = ReflectionTestUtils.getField(SpringContext.class, "factory");
+        var factory = mock(AutowireCapableBeanFactory.class);
+        var statuses = mock(IStatusService.class);
+        when(statuses.getStatusID(any(AnalysisStatus.class))).thenReturn("1");
+        when(statuses.getStatusID(any(SampleStatus.class))).thenReturn("1");
+        when(factory.getBean(IStatusService.class)).thenReturn(statuses);
+        var properties = mock(org.openelisglobal.common.util.DefaultConfigurationProperties.class);
+        when(properties.getPropertyValue(anyString())).thenReturn("");
+        when(factory.getBean(org.openelisglobal.common.util.DefaultConfigurationProperties.class))
+                .thenReturn(properties);
+        var accessionFactory = mock(
+                org.openelisglobal.common.provider.validation.AccessionNumberValidatorFactory.class);
+        when(accessionFactory.getGenerator(any()))
+                .thenReturn(mock(org.openelisglobal.common.provider.validation.IAccessionNumberGenerator.class));
+        when(factory.getBean(org.openelisglobal.common.provider.validation.AccessionNumberValidatorFactory.class))
+                .thenReturn(accessionFactory);
+        ReflectionTestUtils.setField(SpringContext.class, "factory", factory);
+        Object previousAccessionFactory = ReflectionTestUtils
+                .getField(org.openelisglobal.sample.util.AccessionNumberUtil.class, "accessionNumberValidatorFactory");
+        ReflectionTestUtils.setField(org.openelisglobal.sample.util.AccessionNumberUtil.class,
+                "accessionNumberValidatorFactory", accessionFactory);
+        try {
+            var authorization = mock(OrderAuthorizationService.class);
+            when(authorization.hasPermission("42", "update")).thenReturn(true);
+            when(authorization.canAccessAllTests(eq("42"), anyList(), eq("update"))).thenReturn(true);
+            var fields = mock(org.openelisglobal.orderadditionalfield.service.OrderAdditionalFieldService.class);
+            when(fields.getVisibleConsentTemplates(eq("5"), any(), any(), anyBoolean()))
+                    .thenReturn(java.util.Map.of("bank", "CONSENT-bank"));
+            var sampleService = mock(org.openelisglobal.sample.service.SampleService.class);
+            var sample = new org.openelisglobal.sample.valueholder.Sample();
+            sample.setId("5");
+            when(sampleService.getSampleByAccessionNumber("LAB2")).thenReturn(sample);
+            var active = new org.openelisglobal.reportdefinition.form.ConsentTemplateConfigForm();
+            active.setIsActive(true);
+            when(templates.getConfig("CONSENT-bank")).thenReturn(active);
+            var documents = new org.openelisglobal.sample.service.OrderDocumentConsentServiceImpl();
+            ReflectionTestUtils.setField(documents, "orderFields", fields);
+            ReflectionTestUtils.setField(documents, "templates", templates);
+            ReflectionTestUtils.setField(documents, "receipts", receipts);
+            ReflectionTestUtils.setField(documents, "authorization", authorization);
+            ReflectionTestUtils.setField(documents, "sampleService", sampleService);
+            var reportController = new ConsentTemplateRestController();
+            ReflectionTestUtils.setField(reportController, "consentTemplateService", templates);
+            ReflectionTestUtils.setField(reportController, "orderConsentDownloadService", receipts);
+            ReflectionTestUtils.setField(reportController, "orderDocumentConsentService", documents);
+            var downloads = MockMvcBuilders.standaloneSetup(reportController).setControllerAdvice(new ControllerSetup())
+                    .build();
+            downloads.perform(post("/rest/reports/consent-template/download").session(session)
+                    .contentType(MediaType.APPLICATION_JSON).content(
+                            "{\"orderAccessionNumber\":\"LAB2\",\"selectedTests\":[\"ADN\"],\"templateId\":\"CONSENT-bank\"}"))
+                    .andExpect(status().isBadRequest()).andExpect(header().doesNotExist("X-OpenELIS-Consent-Token"));
+            String token = downloads.perform(post("/rest/reports/consent-template/download").session(session)
+                    .contentType(MediaType.APPLICATION_JSON).content(
+                            "{\"orderAccessionNumber\":\"LAB2\",\"selectedTests\":[\"ADN\"],\"templateId\":\"CONSENT-bank\",\"orderFieldKey\":\"bank\"}"))
+                    .andExpect(status().isOk()).andReturn().getResponse().getHeader("X-OpenELIS-Consent-Token");
+            var edit = new SampleEditRestController();
+            var persistence = mock(SampleEditService.class);
+            ReflectionTestUtils.setField(edit, "orderAuthorizationService", authorization);
+            ReflectionTestUtils.setField(edit, "sampleEditService", persistence);
+            ReflectionTestUtils.setField(edit, "orderDocumentConsentService", documents);
+            ReflectionTestUtils.setField(edit, "formValidator", mock(SampleEditFormValidator.class));
+            ReflectionTestUtils.setField(edit, "fhirTransformService", mock(FhirTransformService.class));
+            var mvc = MockMvcBuilders.standaloneSetup(edit).setControllerAdvice(new ControllerSetup())
+                    .setMessageConverters(new AppConfig().jacksonMessageConverter()).setValidator(new Validator() {
+                        public boolean supports(Class<?> type) {
+                            return true;
+                        }
+
+                        public void validate(Object target, Errors errors) {
+                        }
+                    }).build();
+            mvc.perform(post("/rest/SampleEdit").session(session).contentType(MediaType.APPLICATION_JSON)
+                    .content("{\"accessionNumber\":\"LAB2\",\"sampleOrderItems\":{}}"))
+                    .andExpect(result -> assertEquals(
+                            result.getResponse().getContentAsString() + " " + result.getResolvedException(), 428,
+                            result.getResponse().getStatus()))
+                    .andExpect(jsonPath("$.fieldKey").value("bank"));
+            verifyZeroInteractions(persistence);
+            String body = "{\"accessionNumber\":\"LAB2\",\"sampleOrderItems\":{\"additionalFieldConsentTokens\":{\"bank\":\""
+                    + token + "\"}}}";
+            mvc.perform(post("/rest/SampleEdit").session(session).contentType(MediaType.APPLICATION_JSON).content(body))
+                    .andExpect(status().isOk());
+            verify(persistence).editSample(any(), any(), isNull(), eq(false), eq("42"));
+            mvc.perform(post("/rest/SampleEdit").session(session).contentType(MediaType.APPLICATION_JSON).content(body))
+                    .andExpect(status().is(428));
+            when(authorization.hasPermission("42", "update")).thenReturn(false);
+            downloads.perform(post("/rest/reports/consent-template/download").session(session)
+                    .contentType(MediaType.APPLICATION_JSON).content(
+                            "{\"orderAccessionNumber\":\"LAB2\",\"selectedTests\":[\"ADN\"],\"templateId\":\"CONSENT-bank\",\"orderFieldKey\":\"bank\"}"))
+                    .andExpect(status().isForbidden());
+        } finally {
+            ReflectionTestUtils.setField(org.openelisglobal.sample.util.AccessionNumberUtil.class,
+                    "accessionNumberValidatorFactory", previousAccessionFactory);
+            ReflectionTestUtils.setField(SpringContext.class, "factory", previousFactory);
+        }
+    }
+
+    @Test
     public void directEditApiAllowsAuthorizedUpdatesWithoutAConsentDownload() throws Exception {
         // Legacy controller initializes status IDs statically; provide only that
         // collaborator.
@@ -141,6 +262,10 @@ public class OrderConsentDownloadRestControllerTest {
             var persistence = mock(SampleEditService.class);
             ReflectionTestUtils.setField(controller, "orderAuthorizationService", authorization);
             ReflectionTestUtils.setField(controller, "sampleEditService", persistence);
+            var documentConsents = mock(org.openelisglobal.sample.service.OrderDocumentConsentService.class);
+            when(documentConsents.claimRequired(any(), any(), any(), any(), any(), any()))
+                    .thenReturn(mock(org.openelisglobal.sample.service.OrderConsentDownloadService.Permit.class));
+            ReflectionTestUtils.setField(controller, "orderDocumentConsentService", documentConsents);
             ReflectionTestUtils.setField(controller, "formValidator", mock(SampleEditFormValidator.class));
             ReflectionTestUtils.setField(controller, "fhirTransformService", mock(FhirTransformService.class));
             var request = new MockHttpServletRequest();

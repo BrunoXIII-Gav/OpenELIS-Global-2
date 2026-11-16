@@ -26,6 +26,20 @@ public class OrderConsentDownloadServiceTest {
     }
 
     @Test
+    public void fieldReceiptsCannotSatisfyOtherFieldsTemplatesOrTheGeneralConsent() {
+        String token = service.recordFieldDownload(request, "42", "10", null, "bank", "CONSENT-bank");
+        rejected(() -> service.claim(request, "42", token, "10", null));
+        rejected(() -> service.claimFieldDownload(request, "42", token, "10", null, "other", "CONSENT-bank"));
+        rejected(() -> service.claimFieldDownload(request, "42", token, "10", null, "bank", "CONSENT-other"));
+        String general = service.recordDownload(request, "42", "10", null);
+        rejected(() -> service.claimFieldDownload(request, "42", general, "10", null, "bank", "CONSENT-bank"));
+        try (var permit = service.claimFieldDownload(request, "42", token, "10", null, "bank", "CONSENT-bank")) {
+            permit.complete();
+        }
+        rejected(() -> service.claimFieldDownload(request, "42", token, "10", null, "bank", "CONSENT-bank"));
+    }
+
+    @Test
     public void clientFlagsOrForgedTokensCannotAuthorizeSaving() {
         rejected(() -> service.claim(request, "42", null, "10", null));
         rejected(() -> service.claim(request, "42", "true", "10", null));
