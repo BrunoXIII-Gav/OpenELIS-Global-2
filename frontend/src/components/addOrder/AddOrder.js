@@ -1,3 +1,4 @@
+import ConsentDownloadButton from "./ConsentDownloadButton";
 import {
   buildOrderConditionContext,
   getOrderFieldValue,
@@ -899,6 +900,42 @@ const AddOrder = (props) => {
         );
       }
       case "DOCUMENT":
+        if (documentConfig.mode === "CONSENT") {
+          return (
+            <Column key={field.fieldKey} lg={16} md={8} sm={4}>
+              <div>{label}</div>
+              <ConsentDownloadButton
+                orderFormValues={orderFormValues}
+                samples={props.consentSamples || samples || []}
+                patientId={isModifyOrder ? props.patientId : undefined}
+                fieldKey={field.fieldKey}
+                templateId={documentConfig.templateId}
+                label={documentConfig.buttonLabel}
+                disabled={readonly || !documentConfig.templateId}
+                onDownloaded={(token) =>
+                  setOrderFormValues((previous) => ({
+                    ...previous,
+                    sampleOrderItems: {
+                      ...previous.sampleOrderItems,
+                      additionalFieldConsentTokens: {
+                        ...previous.sampleOrderItems
+                          .additionalFieldConsentTokens,
+                        [field.fieldKey]: token,
+                      },
+                    },
+                  }))
+                }
+              />
+              {orderFormValues.sampleOrderItems.additionalFieldConsentTokens?.[
+                field.fieldKey
+              ] && (
+                <p>
+                  <FormattedMessage id="order.document.download.completed" />
+                </p>
+              )}
+            </Column>
+          );
+        }
         return (
           <Column key={field.fieldKey} lg={16} md={8} sm={4}>
             <div style={{ marginBottom: "0.5rem" }}>{label}</div>

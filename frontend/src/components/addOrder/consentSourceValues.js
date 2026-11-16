@@ -257,12 +257,14 @@ export const buildConsentSourceValues = (
     return typeof value === "object" ? "" : text(value);
   };
   return Object.fromEntries(
-    sources.map((source) => [
-      source.id,
-      source.scope === "samples"
-        ? uniqueLines(samples.map((sample) => resolve(source, sample)))
-        : text(resolve(source, form)),
-    ]),
+    sources
+      .filter((source) => source.valueType !== "image")
+      .map((source) => [
+        source.id,
+        source.scope === "samples"
+          ? uniqueLines(samples.map((sample) => resolve(source, sample)))
+          : text(resolve(source, form)),
+      ]),
   );
 };
 

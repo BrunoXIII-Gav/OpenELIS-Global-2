@@ -1,6 +1,8 @@
 import React, { useEffect, useMemo, useState } from "react";
 import {
   Button,
+  Checkbox,
+  TextInput,
   FileUploaderButton,
   Stack,
   InlineNotification,
@@ -21,6 +23,8 @@ import {
   getConsentTemplateConfig,
   getConsentTemplateOptions,
   saveConsentTemplateConfig,
+  getConsentTemplates,
+  saveConsentTemplate,
 } from "../../services/consentTemplateService";
 import "./ConsentTemplateConfig.scss";
 
@@ -40,6 +44,13 @@ const normalizeConfig = (config) => {
 const ConsentTemplateConfig = () => {
   const intl = useIntl();
   const [config, setConfig] = useState(defaultConfig);
+  const [templates, setTemplates] = useState([]);
+  const [creating, setCreating] = useState(false);
+  const requestVersion = React.useRef(0);
+  const refreshTemplates = () =>
+    getConsentTemplates((items) =>
+      setTemplates(Array.isArray(items) ? items : []),
+    );
   const [fieldOptions, setFieldOptions] = useState([]);
   const [sourceOptions, setSourceOptions] = useState([]);
   const [loading, setLoading] = useState(true);
@@ -57,6 +68,10 @@ const ConsentTemplateConfig = () => {
         setLoading(false);
       }
     };
+
+    getConsentTemplates((items) => {
+      if (isMounted) setTemplates(Array.isArray(items) ? items : []);
+    });
 
     getConsentTemplateOptions((options) => {
       if (!isMounted) {
@@ -91,6 +106,33 @@ const ConsentTemplateConfig = () => {
     return () => window.removeEventListener("focus", refresh);
   }, []);
 
+  const selectTemplate = (id) => {
+    const version = ++requestVersion.current;
+    setCreating(false);
+    setLoading(true);
+    setMessage(null);
+    getConsentTemplateConfig((data) => {
+      if (version !== requestVersion.current) return;
+      if (data?.id) {
+        setConfig(normalizeConfig(data));
+        setFieldOptions(data.parameters || []);
+      } else
+        setMessage({
+          kind: "error",
+          title: intl.formatMessage({ id: "consent.template.error.notFound" }),
+        });
+      setLoading(false);
+    }, id);
+  };
+
+  const createTemplate = () => {
+    ++requestVersion.current;
+    setCreating(true);
+    setConfig({ fields: {}, name: "", isActive: true });
+    setFieldOptions([]);
+    setMessage(null);
+  };
+
   const handleUpload = async (event) => {
     const file = event.target.files?.[0];
     if (!file) return;
@@ -101,6 +143,8 @@ const ConsentTemplateConfig = () => {
       setConfig((previous) => ({
         ...previous,
         ...template,
+        id: previous.id,
+        isActive: previous.isActive,
         name: previous.name,
         fields: Object.fromEntries(
           (template.parameters || []).map((parameter) => [
@@ -176,10 +220,28 @@ const ConsentTemplateConfig = () => {
   const handleSave = () => {
     setSaving(true);
     setMessage(null);
-    saveConsentTemplateConfig(config, (savedConfig, response) => {
+    if (creating && (!config.name?.trim() || !config.templateContent)) {
+      setSaving(false);
+      setMessage({
+        kind: "error",
+        title: intl.formatMessage({
+          id: !config.name?.trim()
+            ? "consent.template.error.name"
+            : "consent.template.error.file",
+        }),
+      });
+      return;
+    }
+    const save =
+      !creating && (!config.id || config.id === "RPT-CONSENT-TEMPLATE")
+        ? saveConsentTemplateConfig
+        : saveConsentTemplate;
+    save(config, (savedConfig, response) => {
       const ok = response?.ok;
       if (ok) {
         setConfig(normalizeConfig(savedConfig || config));
+        setCreating(false);
+        refreshTemplates();
         setMessage({
           kind: "success",
           title: intl.formatMessage({
@@ -223,6 +285,54 @@ const ConsentTemplateConfig = () => {
 
       {!loading && (
         <Stack gap={5}>
+          <Select
+            id="consent-template-selector"
+            labelText={intl.formatMessage({ id: "consent.template.select" })}
+            value={creating ? "" : config.id || "RPT-CONSENT-TEMPLATE"}
+            disabled={saving || parsing}
+            onChange={(event) => selectTemplate(event.target.value)}
+          >
+            {creating && (
+              <SelectItem
+                value=""
+                text={intl.formatMessage({ id: "consent.template.new" })}
+              />
+            )}
+            {templates.map((template) => (
+              <SelectItem
+                key={template.id}
+                value={template.id}
+                text={`${template.name}${template.isActive === false ? ` (${intl.formatMessage({ id: "label.inactive" })})` : ""}`}
+              />
+            ))}
+          </Select>
+          <Button
+            kind="tertiary"
+            disabled={saving || parsing}
+            onClick={createTemplate}
+          >
+            <FormattedMessage id="consent.template.new" />
+          </Button>
+          <TextInput
+            id="consent-template-name"
+            maxLength={200}
+            labelText={intl.formatMessage({ id: "consent.template.name" })}
+            value={config.name || ""}
+            disabled={saving || parsing}
+            onChange={(event) => {
+              const name = event.target.value;
+              setConfig((previous) => ({ ...previous, name }));
+            }}
+          />
+          <Checkbox
+            id="consent-template-active"
+            labelText={intl.formatMessage({ id: "label.active" })}
+            checked={config.isActive !== false}
+            disabled={saving || parsing}
+            onChange={(_event, { checked }) =>
+              setConfig((previous) => ({ ...previous, isActive: checked }))
+            }
+          />
           <p>
             <FormattedMessage id="consent.template.upload.help" />
           </p>
@@ -234,7 +344,13 @@ const ConsentTemplateConfig = () => {
             multiple={false}
           />
           <p>{config.templateFilename}</p>
-          <Button kind="tertiary" onClick={handleDownload} disabled={parsing}>
+          <Button
+            kind="tertiary"
+            onClick={handleDownload}
+            disabled={
+              parsing || saving || (creating && !config.templateContent)
+            }
+          >
             <FormattedMessage id="consent.template.download" />
           </Button>
           {parsing && (
@@ -279,13 +395,19 @@ const ConsentTemplateConfig = () => {
                           id: "consent.template.config.selectSource",
                         })}
                       />
-                      {sourceOptions.map((source) => (
-                        <SelectItem
-                          key={source.id}
-                          value={source.id}
-                          text={resolveOptionLabel(source)}
-                        />
-                      ))}
+                      {sourceOptions
+                        .filter(
+                          (source) =>
+                            (field.valueType === "image") ===
+                            (source.valueType === "image"),
+                        )
+                        .map((source) => (
+                          <SelectItem
+                            key={source.id}
+                            value={source.id}
+                            text={resolveOptionLabel(source)}
+                          />
+                        ))}
                     </Select>
                   </TableCell>
                 </TableRow>

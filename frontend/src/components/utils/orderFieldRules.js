@@ -48,6 +48,8 @@ export const isOrderFieldRequired = (field, context) => {
 export const hasRequiredOrderFieldValue = (field, items = {}) => {
   const type = String(field.fieldType || "TEXT").toUpperCase();
   if (type === "DOCUMENT") {
+    if (parseOrderFieldMetadata(field).document?.mode === "CONSENT")
+      return !!items.additionalFieldConsentTokens?.[field.fieldKey];
     const file = items.additionalFieldFiles?.[field.fieldKey];
     return !!(
       file &&
