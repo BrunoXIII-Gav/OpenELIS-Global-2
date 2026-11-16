@@ -41,11 +41,108 @@ public class ConsentJasperServiceTest {
     }
 
     @Test
+    public void nonPromptingParametersRemainAvailableForApplicationMappings() throws Exception {
+        String content = template(
+                "<parameter name=\"NOMBRE\" class=\"java.lang.String\" isForPrompting=\"false\"/>"
+                        + "<parameter name=\"CONFIRMADO\" class=\"java.lang.Boolean\" isForPrompting=\"false\"/>",
+                "$P{NOMBRE} + \" / \" + $P{CONFIRMADO}");
+        ConsentTemplateConfigForm parsed = service.parse("bank.jrxml", content);
+        assertEquals(2, parsed.getParameters().size());
+        PdfReader reader = new PdfReader(
+                service.render(parsed, Map.of("NOMBRE", "Paciente de prueba", "CONFIRMADO", "true")));
+        try {
+            assertTrue(PdfTextExtractor.getTextFromPage(reader, 1).contains("Paciente de prueba / true"));
+        } finally {
+            reader.close();
+        }
+    }
+
+    @Test
+    public void optionalSignatureStreamsAreDetectedAsImagesAndRemainOptional() throws Exception {
+        String content = template(
+                "<parameter name=\"NOMBRE\" class=\"java.lang.String\" isForPrompting=\"false\"/>"
+                        + "<parameter name=\"FIRMA\" class=\"java.io.InputStream\" isForPrompting=\"false\">"
+                        + "<defaultValueExpression><![CDATA[null]]></defaultValueExpression></parameter>",
+                "$P{NOMBRE} + ($P{FIRMA} == null ? \" / firma pendiente\" : \" / firmado\")");
+        ConsentTemplateConfigForm parsed = service.parse("bank.jrxml", content);
+        assertEquals(2, parsed.getParameters().size());
+        assertEquals("NOMBRE", parsed.getParameters().get(0).get("name"));
+        assertEquals("image", parsed.getParameters().get(1).get("valueType"));
+        assertEquals(content, parsed.getTemplateContent());
+        PdfReader reader = new PdfReader(service.render(parsed, Map.of("NOMBRE", "Paciente de prueba")));
+        try {
+            assertTrue(PdfTextExtractor.getTextFromPage(reader, 1).contains("Paciente de prueba / firma pendiente"));
+        } finally {
+            reader.close();
+        }
+    }
+
+    static byte[] signaturePng() throws Exception {
+        var image = new java.awt.image.BufferedImage(3, 2, java.awt.image.BufferedImage.TYPE_INT_RGB);
+        image.setRGB(1, 1, 0xffffff);
+        var bytes = new java.io.ByteArrayOutputStream();
+        javax.imageio.ImageIO.write(image, "png", bytes);
+        return bytes.toByteArray();
+    }
+
+    static String signatureTemplate() {
+        return template(
+                "<parameter name=\"FIRMA\" class=\"java.io.InputStream\" isForPrompting=\"false\"/>"
+                        + "<parameter name=\"PACIENTE_FIRMA\" class=\"java.io.InputStream\" isForPrompting=\"false\"/>",
+                "($P{FIRMA} == null ? \"sin firma\" : \"firma solicitante\")"
+                        + " + ($P{PACIENTE_FIRMA} == null ? \" / paciente sin firma\" : \" / paciente firmado\")")
+                .replace("</band>", "<image><reportElement x=\"0\" y=\"0\" width=\"20\" height=\"10\">"
+                        + "<printWhenExpression><![CDATA[$P{FIRMA} != null]]></printWhenExpression></reportElement>"
+                        + "<imageExpression><![CDATA[$P{FIRMA}]]></imageExpression></image></band>");
+    }
+
+    @Test
+    public void rendersSignatureBytesAsAnImageWithoutFillingOtherSignatures() throws Exception {
+        var config = service.parse("signature.jrxml", signatureTemplate());
+        // Text/base64 values must never be interpreted as an image input.
+        var unsigned = new PdfReader(service.render(config, Map.of("FIRMA", "untrusted-text")));
+        assertTrue(PdfTextExtractor.getTextFromPage(unsigned, 1).contains("sin firma / paciente sin firma"));
+        unsigned.close();
+        var signed = new PdfReader(service.render(config, Map.of(), Map.of("FIRMA", signaturePng())));
+        try {
+            assertTrue(PdfTextExtractor.getTextFromPage(signed, 1).contains("firma solicitante / paciente sin firma"));
+            var objects = signed.getPageN(1).getAsDict(com.itextpdf.text.pdf.PdfName.RESOURCES)
+                    .getAsDict(com.itextpdf.text.pdf.PdfName.XOBJECT);
+            assertNotNull(objects);
+            assertTrue(objects.getKeys().stream()
+                    .anyMatch(key -> com.itextpdf.text.pdf.PdfName.IMAGE
+                            .equals(((com.itextpdf.text.pdf.PdfDictionary) PdfReader.getPdfObject(objects.get(key)))
+                                    .getAsName(com.itextpdf.text.pdf.PdfName.SUBTYPE))));
+        } finally {
+            signed.close();
+        }
+    }
+
+    @Test
+    public void unmappedAliasesAndComputedParametersKeepTheirJasperDefaults() throws Exception {
+        String content = template("<parameter name=\"NOMBRE\" class=\"java.lang.String\" isForPrompting=\"false\"/>"
+                + "<parameter name=\"ALIAS\" class=\"java.lang.String\" isForPrompting=\"false\">"
+                + "<defaultValueExpression><![CDATA[$P{NOMBRE}]]></defaultValueExpression></parameter>"
+                + "<parameter name=\"GENERADO\" class=\"java.lang.String\" isForPrompting=\"false\">"
+                + "<defaultValueExpression><![CDATA[new String(\"generado\")]]></defaultValueExpression></parameter>",
+                "$P{ALIAS} + \" / \" + $P{GENERADO}");
+        ConsentTemplateConfigForm parsed = service.parse("bank.jrxml", content);
+        PdfReader reader = new PdfReader(service.render(parsed, Map.of("NOMBRE", "Paciente de prueba")));
+        try {
+            assertTrue(PdfTextExtractor.getTextFromPage(reader, 1).contains("Paciente de prueba / generado"));
+        } finally {
+            reader.close();
+        }
+    }
+
+    @Test
     public void defaultTemplatePreservesPageAndAllSelectedTests() throws Exception {
         String content = new String(getClass().getClassLoader()
                 .getResourceAsStream("reports/consent/consent-template.jrxml").readAllBytes(), StandardCharsets.UTF_8);
         ConsentTemplateConfigForm config = service.parse("consent-template.jrxml", content);
-        assertEquals(9, config.getParameters().size());
+        assertEquals(10, config.getParameters().size());
+        assertTrue(config.getParameters().stream()
+                .anyMatch(p -> "printedAt".equals(p.get("id")) && "true".equals(p.get("hasDefault"))));
         assertTrue(config.getParameters().stream().anyMatch(p -> "guardianName".equals(p.get("id"))));
         assertTrue(config.getParameters().stream().anyMatch(p -> "guardianDni".equals(p.get("id"))));
         String tests = java.util.stream.IntStream.rangeClosed(1, 12).mapToObj(i -> "Prueba " + i)
@@ -85,6 +182,12 @@ public class ConsentJasperServiceTest {
     public void rejectsUnsupportedTypes() {
         service.parse("bad.jrxml",
                 template("<parameter name=\"connection\" class=\"java.sql.Connection\"/>", "\"test\""));
+    }
+
+    @Test(expected = IllegalArgumentException.class)
+    public void nonPromptingDoesNotPermitUnsupportedDataSourceTypes() {
+        service.parse("bad.jrxml", template(
+                "<parameter name=\"connection\" class=\"java.sql.Connection\" isForPrompting=\"false\"/>", "\"test\""));
     }
 
     @Test(expected = IllegalArgumentException.class)
