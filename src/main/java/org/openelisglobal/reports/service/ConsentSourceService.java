@@ -12,6 +12,7 @@ import org.hl7.fhir.r4.model.Questionnaire.QuestionnaireItemType;
 import org.json.JSONArray;
 import org.openelisglobal.dataexchange.fhir.FhirUtil;
 import org.openelisglobal.orderadditionalfield.service.OrderAdditionalFieldService;
+import org.openelisglobal.orderadditionalfield.service.OrderDocumentConfig;
 import org.openelisglobal.patientadditionalfield.service.PatientAdditionalFieldService;
 import org.openelisglobal.professionalprofile.service.ProfessionalProfileDefinitionService;
 import org.openelisglobal.professionalprofile.service.ProfessionalProfileFieldConfigService;
@@ -71,6 +72,16 @@ public class ConsentSourceService {
             source.put("options",
                     f.getOptions().stream().map(o -> option(o.getOptionKey(), o.getOptionLabel())).toList());
             sources.add(source);
+            if ("DOCUMENT".equals(f.getFieldType()) && OrderDocumentConfig.canSupplyImage(f.getMetadataJson())) {
+                Map<String, Object> image = new LinkedHashMap<>();
+                image.put("id", "orderDocumentImage." + f.getFieldKey());
+                image.put("labelKey", "consent.template.source.documentImage");
+                image.put("label", f.getDisplayName());
+                image.put("valueType", "image");
+                image.put("format", "orderDocumentImage");
+                image.put("fieldKey", f.getFieldKey());
+                sources.add(image);
+            }
         });
         patientFields.getFields(false, true).stream().filter(f -> !Boolean.FALSE.equals(f.getActive())).forEach(f -> {
             Map<String, Object> source = additional("patientAdditional." + f.getFieldKey(), f.getDisplayName(),

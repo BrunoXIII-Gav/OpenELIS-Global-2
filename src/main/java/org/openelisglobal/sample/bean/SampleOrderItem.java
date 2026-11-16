@@ -271,6 +271,16 @@ public class SampleOrderItem implements Serializable {
 
     private Map<String, OrderAdditionalFieldFilePayload> additionalFieldFiles;
 
+    private Map<String, String> additionalFieldConsentTokens;
+
+    public Map<String, String> getAdditionalFieldConsentTokens() {
+        return additionalFieldConsentTokens;
+    }
+
+    public void setAdditionalFieldConsentTokens(Map<String, String> value) {
+        additionalFieldConsentTokens = value;
+    }
+
     private Map<String, String> additionalFieldReservationTokens;
 
     private List<OrderFixedFieldConfigPayload> fixedFieldConfigs;

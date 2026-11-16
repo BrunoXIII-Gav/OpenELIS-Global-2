@@ -77,6 +77,13 @@ const Index = () => {
     if (previousPatientId.current !== patientId) {
       previousPatientId.current = patientId;
       setConsentDownloadToken("");
+      setOrderFormValues((previous) => ({
+        ...previous,
+        sampleOrderItems: {
+          ...previous.sampleOrderItems,
+          additionalFieldConsentTokens: {},
+        },
+      }));
       setSamples((previous) =>
         previous.map((sample) => ({
           ...sample,
@@ -724,6 +731,24 @@ const Index = () => {
         }
 
         const errorCode = response.headers.get("X-OpenELIS-Error-Code");
+        if (errorCode === "order.document.download.required") {
+          const body = await response.json();
+          setOrderFormValues((previous) => ({
+            ...previous,
+            sampleOrderItems: {
+              ...previous.sampleOrderItems,
+              additionalFieldConsentTokens: {
+                ...previous.sampleOrderItems.additionalFieldConsentTokens,
+                [body.fieldKey]: "",
+              },
+            },
+          }));
+          showAlertMessage(
+            intl.formatMessage({ id: errorCode }),
+            NotificationKinds.error,
+          );
+          return;
+        }
         if (errorCode === "consent.download.requiredBeforeSubmit") {
           setConsentDownloadToken("");
           showAlertMessage(

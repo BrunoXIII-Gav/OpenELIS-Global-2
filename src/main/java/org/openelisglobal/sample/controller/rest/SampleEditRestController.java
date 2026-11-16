@@ -41,6 +41,7 @@ import org.openelisglobal.sample.exception.OrderTestHasResultsException;
 import org.openelisglobal.sample.form.SampleEditForm;
 import org.openelisglobal.sample.form.SampleEditForm.SampleEdit;
 import org.openelisglobal.sample.service.OrderAuthorizationService;
+import org.openelisglobal.sample.service.OrderDocumentConsentService;
 import org.openelisglobal.sample.service.OrderTestRemovalService;
 import org.openelisglobal.sample.service.SampleEditService;
 import org.openelisglobal.sample.service.SampleService;
@@ -124,6 +125,9 @@ public class SampleEditRestController extends BaseSampleEntryController {
     private UserRoleService userRoleService;
     @Autowired
     private SampleEditService sampleEditService;
+
+    @Autowired
+    private OrderDocumentConsentService orderDocumentConsentService;
     @Autowired
     private UserService userService;
     @Autowired
@@ -296,8 +300,10 @@ public class SampleEditRestController extends BaseSampleEntryController {
             updatedSample = updateAccessionNumberInSample(form);
         }
 
-        try {
+        try (var documentPermits = orderDocumentConsentService.claimRequired(request, getSysUserId(request), null,
+                form.getAccessionNumber(), form.getSampleOrderItems(), null)) {
             sampleEditService.editSample(form, request, updatedSample, sampleChanged, getSysUserId(request));
+            documentPermits.complete();
 
         } catch (OrderTestHasResultsException e) {
             throw e;

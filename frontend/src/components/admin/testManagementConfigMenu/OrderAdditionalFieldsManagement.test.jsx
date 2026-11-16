@@ -210,3 +210,50 @@ test("incomplete conditions prevent configuration from being saved", () => {
   );
   expect(putToOpenElisServerFullResponse).not.toHaveBeenCalled();
 });
+
+test("document fields select a configured template without duplicating its Jasper mappings", () => {
+  getFromOpenElisServer.mockImplementation((url, callback) => {
+    if (url === "/rest/reports/consent-template/options")
+      callback({ templates: [{ id: "CONSENT-bank", name: "Banco ADN" }] });
+    else
+      callback(
+        url.includes("?includeInactive")
+          ? [{ ...dependent, fieldType: "DOCUMENT" }]
+          : [],
+      );
+  });
+  const view = openEditor();
+  fireEvent.change(
+    view.container.querySelector("#order-additional-document-mode"),
+    { target: { value: "CONSENT" } },
+  );
+  expect(
+    view.container.querySelector("#order-additional-document-accept"),
+  ).toBeNull();
+  fireEvent.click(
+    view.container.querySelector('[data-cy="create-order-additional-field"]'),
+  );
+  expect(putToOpenElisServerFullResponse).not.toHaveBeenCalled();
+  fireEvent.change(
+    view.container.querySelector("#order-additional-document-template"),
+    { target: { value: "CONSENT-bank" } },
+  );
+  fireEvent.change(
+    view.container.querySelector("#order-additional-document-button-label"),
+    { target: { value: "Descargar banco" } },
+  );
+  fireEvent.click(
+    view.container.querySelector('[data-cy="create-order-additional-field"]'),
+  );
+  const metadata = JSON.parse(
+    JSON.parse(putToOpenElisServerFullResponse.mock.calls[0][1]).metadataJson,
+  );
+  expect(metadata.document).toEqual({
+    mode: "CONSENT",
+    templateId: "CONSENT-bank",
+    buttonLabel: "Descargar banco",
+  });
+  expect(metadata.rules.requiredWhen).toEqual([
+    { fieldKey: "genomic", operator: "istrue" },
+  ]);
+});

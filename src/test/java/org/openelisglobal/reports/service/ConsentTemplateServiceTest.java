@@ -21,6 +21,8 @@ public class ConsentTemplateServiceTest {
     private ReportDefinitionService definitions;
     private ConsentJasperService jasper;
     private ConsentSourceService sources;
+    private ConsentSignatureService signatures;
+    private ConsentDocumentImageService documentImages;
 
     @Before
     public void setup() {
@@ -28,14 +30,143 @@ public class ConsentTemplateServiceTest {
         definitions = mock(ReportDefinitionService.class);
         jasper = spy(new ConsentJasperService());
         sources = mock(ConsentSourceService.class);
+        signatures = mock(ConsentSignatureService.class);
+        documentImages = mock(ConsentDocumentImageService.class);
         ReflectionTestUtils.setField(service, "reportDefinitionService", definitions);
         ReflectionTestUtils.setField(service, "jasper", jasper);
         ReflectionTestUtils.setField(service, "sources", sources);
+        ReflectionTestUtils.setField(service, "signatures", signatures);
+        ReflectionTestUtils.setField(service, "documentImages", documentImages);
         when(definitions.getDefinitionsByCategory("consent_template")).thenReturn(Collections.emptyList());
         when(definitions.getMatch("id", "RPT-CONSENT-TEMPLATE")).thenReturn(Optional.empty());
         List<Map<String, Object>> catalog = List.of(Map.of("id", "orderAdditional.newField"));
         when(sources.getSources()).thenReturn(catalog);
         when(sources.getSources(false)).thenReturn(catalog);
+    }
+
+    @Test
+    public void documentImagesAndRequesterSignatureUseIndependentMappings() throws Exception {
+        var catalog = List.<Map<String, Object>>of(Map.of("id", "provider.signature", "valueType", "image"),
+                Map.of("id", "orderDocumentImage.patient_upload", "valueType", "image", "format", "orderDocumentImage",
+                        "fieldKey", "patient_upload"),
+                Map.of("id", "orderDocumentImage.representative_upload", "valueType", "image", "format",
+                        "orderDocumentImage", "fieldKey", "representative_upload"));
+        when(sources.getSources()).thenReturn(catalog);
+        when(sources.getSources(false)).thenReturn(catalog);
+        String content = ConsentJasperServiceTest.signatureTemplate();
+        var config = service.parseTemplate("signature.jrxml", content);
+        config.setFields(Map.of("FIRMA", "orderDocumentImage.representative_upload", "PACIENTE_FIRMA",
+                "orderDocumentImage.patient_upload"));
+        service.saveConfig("42", config);
+        var stored = ArgumentCaptor.forClass(ReportDefinition.class);
+        verify(definitions).insert(stored.capture());
+        when(definitions.getDefinitionsByCategory("consent_template")).thenReturn(List.of(stored.getValue()));
+        var form = new ConsentPreviewForm();
+        form.setSourceValues(Map.of("orderDocumentImage.patient_upload", "forged image"));
+        byte[] image = ConsentJasperServiceTest.signaturePng();
+        when(documentImages.resolveImages(form, "42", java.util.Set.of("patient_upload", "representative_upload")))
+                .thenReturn(Map.of("patient_upload", image, "representative_upload", image));
+        assertTrue(pdfText(service.generateConsentPdf(form, "42")).contains("firma solicitante / paciente firmado"));
+        when(documentImages.resolveImages(form, "42", java.util.Set.of("patient_upload", "representative_upload")))
+                .thenReturn(Map.of("patient_upload", image));
+        assertTrue(pdfText(service.generateConsentPdf(form, "42")).contains("sin firma / paciente firmado"));
+        verifyZeroInteractions(signatures);
+    }
+
+    @Test
+    public void savedImageMappingUsesServerSignatureAndIgnoresClientImageValues() throws Exception {
+        var catalog = List.<Map<String, Object>>of(Map.of("id", "provider.signature", "valueType", "image"));
+        when(sources.getSources()).thenReturn(catalog);
+        when(sources.getSources(false)).thenReturn(catalog);
+        var config = service.parseTemplate("signature.jrxml", ConsentJasperServiceTest.signatureTemplate());
+        config.setFields(Map.of("FIRMA", "provider.signature"));
+        service.saveConfig("42", config);
+        var stored = ArgumentCaptor.forClass(ReportDefinition.class);
+        verify(definitions).insert(stored.capture());
+        when(definitions.getDefinitionsByCategory("consent_template")).thenReturn(List.of(stored.getValue()));
+        var form = new ConsentPreviewForm();
+        var provider = new ConsentPreviewForm.ProviderInfo();
+        provider.setProviderId("selected-provider");
+        provider.setPersonId("selected-person");
+        form.setProvider(provider);
+        form.setSourceValues(Map.of("provider.signature", "forged image data"));
+        assertTrue(pdfText(service.generateConsentPdf(form)).contains("sin firma / paciente sin firma"));
+        when(signatures.getProviderSignature("selected-provider", "selected-person"))
+                .thenReturn(ConsentJasperServiceTest.signaturePng());
+        assertTrue(pdfText(service.generateConsentPdf(form)).contains("firma solicitante / paciente sin firma"));
+        provider.setProviderId("another-provider");
+        provider.setPersonId("another-person");
+        assertTrue(pdfText(service.generateConsentPdf(form)).contains("sin firma / paciente sin firma"));
+        verify(signatures).getProviderSignature("another-provider", "another-person");
+    }
+
+    @Test
+    public void imageAndTextSourcesCannotBeAssignedToEachOthersParameters() {
+        var catalog = List.<Map<String, Object>>of(Map.of("id", "provider.signature", "valueType", "image"),
+                Map.of("id", "provider.fullName"));
+        when(sources.getSources()).thenReturn(catalog);
+        var image = service.parseTemplate("signature.jrxml", ConsentJasperServiceTest.signatureTemplate());
+        image.setFields(Map.of("FIRMA", "provider.fullName"));
+        assertThrows(IllegalArgumentException.class, () -> service.saveConfig("42", image));
+        var text = service.parseTemplate("text.jrxml",
+                ConsentJasperServiceTest.template("<parameter name=\"name\" class=\"java.lang.String\"/>", "$P{name}"));
+        text.setFields(Map.of("name", "provider.signature"));
+        assertThrows(IllegalArgumentException.class, () -> service.saveConfig("42", text));
+    }
+
+    @Test
+    public void additionalTemplatesKeepIndependentMappingsAndNeverReplaceTheDefault() {
+        Map<String, ReportDefinition> stored = new java.util.LinkedHashMap<>();
+        when(definitions.getDefinitionsByCategory("consent_template"))
+                .thenAnswer(invocation -> new java.util.ArrayList<>(stored.values()));
+        when(definitions.getMatch(eq("id"), anyString()))
+                .thenAnswer(invocation -> Optional.ofNullable(stored.get(invocation.getArgument(1))));
+        doAnswer(invocation -> {
+            ReportDefinition definition = invocation.getArgument(0);
+            stored.put(definition.getId(), definition);
+            return definition.getId();
+        }).when(definitions).insert(any());
+        var primary = service.parseTemplate("primary.jrxml", ConsentJasperServiceTest
+                .template("<parameter name=\"general\" class=\"java.lang.String\"/>", "\"GENERAL: \" + $P{general}"));
+        primary.setName("General");
+        primary.setFields(Map.of("general", "orderAdditional.newField"));
+        service.saveConfig("42", primary);
+        var bank = service.parseTemplate("bank.jrxml", ConsentJasperServiceTest
+                .template("<parameter name=\"bank\" class=\"java.lang.String\"/>", "\"BANK: \" + $P{bank}"));
+        bank.setName("Bank");
+        bank.setFields(Map.of("bank", "orderAdditional.newField"));
+        var saved = service.saveTemplate("42", null, bank);
+        assertNotEquals("RPT-CONSENT-TEMPLATE", saved.getId());
+        assertEquals(Map.of("general", "orderAdditional.newField"), service.getConfig().getFields());
+        assertEquals(Map.of("bank", "orderAdditional.newField"), service.getConfig(saved.getId()).getFields());
+        assertEquals(2, service.getTemplates(false).size());
+        assertNull(service.getTemplates(false).get(1).getTemplateContent());
+        var values = new ConsentPreviewForm();
+        values.setSourceValues(Map.of("orderAdditional.newField", "Ana"));
+        values.setTemplateId(saved.getId());
+        assertTrue(pdfText(service.generateConsentPdf(values)).contains("BANK: Ana"));
+        values.setTemplateId(null);
+        assertTrue(pdfText(service.generateConsentPdf(values)).contains("GENERAL: Ana"));
+        var deactivation = new ConsentTemplateConfigForm();
+        deactivation.setIsActive(false);
+        service.saveTemplate("42", saved.getId(), deactivation);
+        assertEquals(bank.getTemplateContent(), service.getConfig(saved.getId()).getTemplateContent());
+        assertEquals(bank.getFields(), service.getConfig(saved.getId()).getFields());
+        assertEquals(1, service.getTemplates(false).size());
+        assertEquals(2, service.getTemplates(true).size());
+        ConsentPreviewForm download = new ConsentPreviewForm();
+        download.setTemplateId(saved.getId());
+        assertThrows(IllegalArgumentException.class, () -> service.generateConsentPdf(download));
+    }
+
+    @Test
+    public void templateLookupRejectsUnknownIdsAndOtherReportCategories() {
+        var report = new ReportDefinition();
+        report.setId("other-report");
+        report.setCategory("results");
+        when(definitions.getMatch("id", "other-report")).thenReturn(Optional.of(report));
+        assertThrows(IllegalArgumentException.class, () -> service.getConfig("other-report"));
+        assertThrows(IllegalArgumentException.class, () -> service.getConfig("missing"));
     }
 
     @Test
@@ -71,6 +202,23 @@ public class ConsentTemplateServiceTest {
         assertEquals("", service.saveConfig("42", config).getFields().get("patientName"));
     }
 
+    @Test
+    public void unmappedReportParametersKeepTheirDefaultExpressions() {
+        var config = service.parseTemplate("defaults.jrxml",
+                ConsentJasperServiceTest.template("<parameter name=\"name\" class=\"java.lang.String\"/>"
+                        + "<parameter name=\"caption\" class=\"java.lang.String\" isForPrompting=\"false\">"
+                        + "<defaultValueExpression><![CDATA[\"Texto calculado\"]]></defaultValueExpression></parameter>",
+                        "$P{caption} + \" / \" + $P{name}"));
+        config.setFields(Map.of("name", "orderAdditional.newField", "caption", ""));
+        service.saveConfig("42", config);
+        var stored = ArgumentCaptor.forClass(ReportDefinition.class);
+        verify(definitions).insert(stored.capture());
+        when(definitions.getDefinitionsByCategory("consent_template")).thenReturn(List.of(stored.getValue()));
+        var values = new ConsentPreviewForm();
+        values.setSourceValues(Map.of("orderAdditional.newField", "Ana"));
+        assertTrue(pdfText(service.generateConsentPdf(values)).contains("Texto calculado / Ana"));
+    }
+
     @Test(expected = IllegalArgumentException.class)
     public void rejectsInternalIdsAsDataSources() {
         ConsentTemplateConfigForm config = service.parseTemplate("consent.jrxml",
@@ -104,6 +252,19 @@ public class ConsentTemplateServiceTest {
         assertTrue(text.contains("Responsable visible / true"));
         assertFalse(text.contains("secret-id"));
         reader.close();
+    }
+
+    private String pdfText(byte[] pdf) {
+        try {
+            var reader = new com.itextpdf.text.pdf.PdfReader(pdf);
+            try {
+                return com.itextpdf.text.pdf.parser.PdfTextExtractor.getTextFromPage(reader, 1);
+            } finally {
+                reader.close();
+            }
+        } catch (Exception e) {
+            throw new AssertionError(e);
+        }
     }
 
 }

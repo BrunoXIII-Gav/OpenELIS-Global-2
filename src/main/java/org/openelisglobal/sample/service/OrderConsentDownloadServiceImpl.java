@@ -26,7 +26,22 @@ public class OrderConsentDownloadServiceImpl implements OrderConsentDownloadServ
 
     @Override
     public String recordDownload(HttpServletRequest request, String userId, String patientId, String accessionNumber) {
-        String target = target(patientId, accessionNumber);
+        return recordReceipt(request, userId, target(patientId, accessionNumber));
+    }
+
+    @Override
+    public String recordFieldDownload(HttpServletRequest request, String userId, String patientId,
+            String accessionNumber, String fieldKey, String templateId) {
+        return recordReceipt(request, userId, fieldTarget(patientId, accessionNumber, fieldKey, templateId));
+    }
+
+    private String fieldTarget(String patientId, String accessionNumber, String fieldKey, String templateId) {
+        if (StringUtils.isBlank(fieldKey) || StringUtils.isBlank(templateId))
+            throw new ConsentDownloadRequiredException();
+        return target(patientId, accessionNumber) + ":field:" + fieldKey + ":template:" + templateId;
+    }
+
+    private String recordReceipt(HttpServletRequest request, String userId, String target) {
         if (StringUtils.isBlank(userId))
             throw new ConsentDownloadRequiredException();
         HttpSession session = request.getSession();
@@ -51,19 +66,29 @@ public class OrderConsentDownloadServiceImpl implements OrderConsentDownloadServ
         if (session == null)
             throw new ConsentDownloadRequiredException();
         synchronized (session) {
-            matchingReceipt(receipts(session), userId, token, patientId, accessionNumber);
+            matchingReceipt(receipts(session), userId, token, target(patientId, accessionNumber));
         }
     }
 
     @Override
     public Permit claim(HttpServletRequest request, String userId, String token, String patientId,
             String accessionNumber) {
+        return claimReceipt(request, userId, token, target(patientId, accessionNumber));
+    }
+
+    @Override
+    public Permit claimFieldDownload(HttpServletRequest request, String userId, String token, String patientId,
+            String accessionNumber, String fieldKey, String templateId) {
+        return claimReceipt(request, userId, token, fieldTarget(patientId, accessionNumber, fieldKey, templateId));
+    }
+
+    private Permit claimReceipt(HttpServletRequest request, String userId, String token, String target) {
         HttpSession session = request.getSession(false);
         if (session == null)
             throw new ConsentDownloadRequiredException();
         synchronized (session) {
             Map<String, Receipt> receipts = receipts(session);
-            Receipt receipt = matchingReceipt(receipts, userId, token, patientId, accessionNumber);
+            Receipt receipt = matchingReceipt(receipts, userId, token, target);
             String lease = UUID.randomUUID().toString();
             receipts.put(token, new Receipt(receipt.userId(), receipt.target(), receipt.expiresAt(), lease));
             session.setAttribute(SESSION_KEY, receipts);
@@ -81,11 +106,10 @@ public class OrderConsentDownloadServiceImpl implements OrderConsentDownloadServ
         }
     }
 
-    private Receipt matchingReceipt(Map<String, Receipt> receipts, String userId, String token, String patientId,
-            String accessionNumber) {
+    private Receipt matchingReceipt(Map<String, Receipt> receipts, String userId, String token, String target) {
         Receipt receipt = receipts.get(token);
-        if (receipt == null || !receipt.userId().equals(userId)
-                || !receipt.target().equals(target(patientId, accessionNumber)) || receipt.lease() != null)
+        if (receipt == null || !receipt.userId().equals(userId) || !receipt.target().equals(target)
+                || receipt.lease() != null)
             throw new ConsentDownloadRequiredException();
         return receipt;
     }

@@ -2,10 +2,41 @@ import config from "../config.json";
 import {
   getFromOpenElisServer,
   putToOpenElisServerFullResponse,
+  postToOpenElisServerFullResponse,
 } from "../components/utils/Utils";
 
-export const getConsentTemplateConfig = (callback) => {
-  getFromOpenElisServer("/rest/reports/consent-template", callback);
+export const getConsentTemplateConfig = (callback, templateId) => {
+  getFromOpenElisServer(
+    templateId
+      ? `/rest/reports/consent-template/templates/${encodeURIComponent(templateId)}`
+      : "/rest/reports/consent-template",
+    callback,
+  );
+};
+
+export const getConsentTemplates = (callback) => {
+  getFromOpenElisServer("/rest/reports/consent-template/templates", callback);
+};
+
+export const saveConsentTemplate = (payload, callback) => {
+  const endpoint = "/rest/reports/consent-template/templates";
+  const submit = payload.id
+    ? putToOpenElisServerFullResponse
+    : postToOpenElisServerFullResponse;
+  submit(
+    payload.id ? `${endpoint}/${encodeURIComponent(payload.id)}` : endpoint,
+    JSON.stringify(payload),
+    (response) => {
+      if (!response) {
+        callback(null, response);
+        return;
+      }
+      response
+        .json()
+        .then((json) => callback(json, response))
+        .catch(() => callback(null, response));
+    },
+  );
 };
 
 export const getConsentTemplateOptions = (callback) => {

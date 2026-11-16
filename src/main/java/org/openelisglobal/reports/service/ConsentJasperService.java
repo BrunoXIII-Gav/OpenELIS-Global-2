@@ -58,8 +58,7 @@ public class ConsentJasperService {
                 if ("queryString".equals(kind) && !element.getTextContent().isBlank()) {
                     throw new IllegalArgumentException("consent.template.error.query");
                 }
-                if (!("parameter".equals(kind) || "field".equals(kind))
-                        || "false".equals(element.getAttribute("isForPrompting"))) {
+                if (!("parameter".equals(kind) || "field".equals(kind))) {
                     continue;
                 }
                 String name = element.getAttribute("name");
@@ -67,14 +66,34 @@ public class ConsentJasperService {
                 if (type.isBlank()) {
                     type = "java.lang.String";
                 }
-                if (name.isBlank() || name.startsWith("REPORT_") || !SUPPORTED_TYPES.contains(type)) {
+                if (name.isBlank() || name.startsWith("REPORT_")) {
+                    throw new IllegalArgumentException("consent.template.error.type");
+                }
+                // Image parameters receive server-resolved bytes through a separate path.
+                // isForPrompting only controls Jasper's own parameter dialog.
+                boolean image = "parameter".equals(kind) && "java.io.InputStream".equals(type);
+                if (!image && !SUPPORTED_TYPES.contains(type)) {
                     throw new IllegalArgumentException("consent.template.error.type");
                 }
                 String id = "field".equals(kind) ? "field:" + name : name;
                 if (definitions.stream().anyMatch(d -> id.equals(d.get("id")))) {
                     throw new IllegalArgumentException("consent.template.error.invalid");
                 }
-                definitions.add(Map.of("id", id, "name", name, "className", type, "kind", kind));
+                Map<String, String> definition = new LinkedHashMap<>(
+                        Map.of("id", id, "name", name, "className", type, "kind", kind));
+                if (image) {
+                    definition.put("valueType", "image");
+                }
+                if ("parameter".equals(kind)) {
+                    for (Node child = element.getFirstChild(); child != null; child = child.getNextSibling()) {
+                        if (child instanceof Element && "defaultValueExpression".equals(child.getLocalName())
+                                && !child.getTextContent().isBlank()) {
+                            definition.put("hasDefault", "true");
+                            break;
+                        }
+                    }
+                }
+                definitions.add(definition);
             }
             if (definitions.isEmpty()) {
                 throw new IllegalArgumentException("consent.template.error.noFields");
@@ -96,10 +115,25 @@ public class ConsentJasperService {
     }
 
     public byte[] render(ConsentTemplateConfigForm config, Map<String, String> values) {
+        return render(config, values, Map.of());
+    }
+
+    public byte[] render(ConsentTemplateConfigForm config, Map<String, String> values, Map<String, byte[]> images) {
         try {
             Map<String, Object> parameters = new LinkedHashMap<>();
             Map<String, Object> row = new LinkedHashMap<>();
             for (Map<String, String> definition : config.getParameters()) {
+                if ("image".equals(definition.get("valueType"))) {
+                    byte[] image = images.get(definition.get("id"));
+                    if (image != null && image.length > 0) {
+                        parameters.put(definition.get("name"), new ByteArrayInputStream(image));
+                    }
+                    continue;
+                }
+                if ("parameter".equals(definition.get("kind")) && "true".equals(definition.get("hasDefault"))
+                        && !values.containsKey(definition.get("id"))) {
+                    continue;
+                }
                 String value = values.getOrDefault(definition.get("id"), "");
                 Object converted = convert(value, definition.get("className"));
                 ("field".equals(definition.get("kind")) ? row : parameters).put(definition.get("name"), converted);

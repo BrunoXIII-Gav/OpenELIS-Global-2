@@ -1,3 +1,4 @@
+import { getConsentTemplateOptions } from "../../../services/consentTemplateService";
 import UserFieldPermissionConfig, {
   userTaskFromMetadata,
 } from "./customComponents/UserFieldPermissionConfig.js";
@@ -108,6 +109,9 @@ const defaultNewField = {
   rulesLogic: "ALL",
   visibleWhen: [],
   requiredWhen: [],
+  documentMode: "UPLOAD",
+  documentTemplateId: "",
+  documentButtonLabel: "",
   documentAccept: "application/pdf",
   documentMaxSizeMb: "5",
   showInSampleReception: false,
@@ -144,6 +148,14 @@ const OrderAdditionalFieldsManagement = () => {
     useContext(NotificationContext);
 
   const [fields, setFields] = useState([]);
+  const [consentTemplates, setConsentTemplates] = useState([]);
+  useEffect(() => {
+    getConsentTemplateOptions((response) =>
+      setConsentTemplates(
+        Array.isArray(response?.templates) ? response.templates : [],
+      ),
+    );
+  }, []);
   const [fixedConfigs, setFixedConfigs] = useState([]);
   const [newField, setNewField] = useState(defaultNewField);
   const [editingFieldId, setEditingFieldId] = useState(null);
@@ -319,6 +331,9 @@ const OrderAdditionalFieldsManagement = () => {
       rulesLogic: String(rules.logic || "ALL").toUpperCase(),
       visibleWhen,
       requiredWhen,
+      documentMode: documentMetadata.mode || "UPLOAD",
+      documentTemplateId: documentMetadata.templateId || "",
+      documentButtonLabel: documentMetadata.buttonLabel || "",
       documentAccept: Array.isArray(documentMetadata.accept)
         ? documentMetadata.accept.join(", ")
         : "application/pdf",
@@ -454,8 +469,23 @@ const OrderAdditionalFieldsManagement = () => {
     if ((formValue.fieldType || "").toUpperCase() === "DOCUMENT") {
       const acceptedMimeTypes = parseCsvValues(formValue.documentAccept);
       const maxSizeMb = Number.parseInt(formValue.documentMaxSizeMb, 10);
-      if (acceptedMimeTypes.length > 0 || Number.isFinite(maxSizeMb)) {
-        metadata.document = {};
+      if (
+        formValue.documentMode === "CONSENT" &&
+        !formValue.documentTemplateId
+      ) {
+        return {
+          metadataJson: null,
+          errorMessageId: "order.document.error.templateRequired",
+        };
+      }
+      if (formValue.documentMode === "CONSENT") {
+        metadata.document = {
+          mode: "CONSENT",
+          templateId: formValue.documentTemplateId,
+          buttonLabel: formValue.documentButtonLabel?.trim() || "",
+        };
+      } else if (acceptedMimeTypes.length > 0 || Number.isFinite(maxSizeMb)) {
+        metadata.document = { mode: "UPLOAD" };
         if (acceptedMimeTypes.length > 0) {
           metadata.document.accept = acceptedMimeTypes;
         }
@@ -1478,43 +1508,133 @@ const OrderAdditionalFieldsManagement = () => {
                   <Heading>
                     <FormattedMessage id="order.additional.fields.document.title" />
                   </Heading>
-                  <Grid fullWidth className="order-field-config__form-grid">
-                    <Column lg={8} md={4} sm={4}>
-                      <TextInput
-                        id="order-additional-document-accept"
+                  <Select
+                    id="order-additional-document-mode"
+                    labelText={intl.formatMessage({
+                      id: "order.document.mode",
+                    })}
+                    value={newField.documentMode}
+                    disabled={structureLocked}
+                    onChange={(event) => {
+                      const value = event.target.value;
+                      setNewField((previous) => ({
+                        ...previous,
+                        documentMode: value,
+                      }));
+                    }}
+                  >
+                    <SelectItem
+                      value="UPLOAD"
+                      text={intl.formatMessage({
+                        id: "order.document.mode.upload",
+                      })}
+                    />
+                    <SelectItem
+                      value="CONSENT"
+                      text={intl.formatMessage({
+                        id: "order.document.mode.consent",
+                      })}
+                    />
+                  </Select>
+                  {newField.documentMode === "CONSENT" ? (
+                    <>
+                      <Select
+                        id="order-additional-document-template"
                         labelText={intl.formatMessage({
-                          id: "order.additional.fields.document.accept",
+                          id: "order.document.template",
                         })}
+                        value={newField.documentTemplateId}
                         helperText={intl.formatMessage({
-                          id: "order.additional.fields.document.accept.helper",
+                          id: "order.document.template.helper",
                         })}
-                        value={newField.documentAccept}
-                        onChange={(event) =>
+                        onChange={(event) => {
+                          const value = event.target.value;
                           setNewField((previous) => ({
                             ...previous,
-                            documentAccept: event.target.value,
-                          }))
-                        }
-                      />
-                    </Column>
-                    <Column lg={8} md={4} sm={4}>
+                            documentTemplateId: value,
+                          }));
+                        }}
+                      >
+                        <SelectItem
+                          value=""
+                          text={intl.formatMessage({ id: "label.select" })}
+                        />
+                        {newField.documentTemplateId &&
+                          !consentTemplates.some(
+                            (t) => t.id === newField.documentTemplateId,
+                          ) && (
+                            <SelectItem
+                              value={newField.documentTemplateId}
+                              text={intl.formatMessage({
+                                id: "order.document.template.unavailable",
+                              })}
+                              disabled
+                            />
+                          )}
+                        {consentTemplates.map((t) => (
+                          <SelectItem key={t.id} value={t.id} text={t.name} />
+                        ))}
+                      </Select>
                       <TextInput
-                        id="order-additional-document-max-size"
+                        id="order-additional-document-button-label"
                         labelText={intl.formatMessage({
-                          id: "order.additional.fields.document.maxSizeMb",
+                          id: "order.document.buttonLabel",
                         })}
-                        type="number"
-                        min="1"
-                        value={newField.documentMaxSizeMb}
-                        onChange={(event) =>
+                        value={newField.documentButtonLabel}
+                        placeholder={intl.formatMessage({
+                          id: "consent.download.button",
+                        })}
+                        onChange={(event) => {
+                          const value = event.target.value;
                           setNewField((previous) => ({
                             ...previous,
-                            documentMaxSizeMb: event.target.value,
-                          }))
-                        }
+                            documentButtonLabel: value,
+                          }));
+                        }}
                       />
-                    </Column>
-                  </Grid>
+                      <p>
+                        <FormattedMessage id="order.document.required.helper" />
+                      </p>
+                    </>
+                  ) : (
+                    <Grid fullWidth className="order-field-config__form-grid">
+                      <Column lg={8} md={4} sm={4}>
+                        <TextInput
+                          id="order-additional-document-accept"
+                          labelText={intl.formatMessage({
+                            id: "order.additional.fields.document.accept",
+                          })}
+                          helperText={intl.formatMessage({
+                            id: "order.additional.fields.document.accept.helper",
+                          })}
+                          value={newField.documentAccept}
+                          onChange={(event) =>
+                            setNewField((previous) => ({
+                              ...previous,
+                              documentAccept: event.target.value,
+                            }))
+                          }
+                        />
+                      </Column>
+                      <Column lg={8} md={4} sm={4}>
+                        <TextInput
+                          id="order-additional-document-max-size"
+                          labelText={intl.formatMessage({
+                            id: "order.additional.fields.document.maxSizeMb",
+                          })}
+                          type="number"
+                          min="1"
+                          value={newField.documentMaxSizeMb}
+                          onChange={(event) =>
+                            setNewField((previous) => ({
+                              ...previous,
+                              documentMaxSizeMb: event.target.value,
+                            }))
+                          }
+                        />
+                      </Column>
+                    </Grid>
+                  )}
                 </Stack>
               )}
 

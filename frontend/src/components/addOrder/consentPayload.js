@@ -31,6 +31,12 @@ export const buildConsentPayload = (
   };
   const normalizedForm = { ...form, patientProperties: patient };
   const order = form.sampleOrderItems || {};
+  const fixedFieldKeys = new Set([
+    ...(order.fixedFieldConfigs || []).map((field) => field.fieldKey),
+    ...sources
+      .filter((source) => source.scope === "order")
+      .map((source) => source.fieldKey),
+  ]);
   const selectedTests = [
     ...new Set(
       samples
@@ -41,6 +47,34 @@ export const buildConsentPayload = (
     ),
   ];
   return {
+    orderDocumentFiles: Object.fromEntries(
+      sources
+        .filter((source) => source.format === "orderDocumentImage")
+        .filter((source) => order.additionalFieldFiles?.[source.fieldKey])
+        .map((source) => {
+          const file = order.additionalFieldFiles[source.fieldKey];
+          return [
+            source.fieldKey,
+            {
+              uploadToken: file.uploadToken || "",
+              deleteFile: file.deleteFile === true,
+            },
+          ];
+        }),
+    ),
+    orderFixedFieldValues: {
+      ...Object.fromEntries(
+        Object.entries(order)
+          .filter(
+            ([key, value]) =>
+              fixedFieldKeys.has(key) &&
+              (value == null ||
+                ["string", "number", "boolean"].includes(typeof value)),
+          )
+          .map(([key, value]) => [key, value == null ? "" : String(value)]),
+      ),
+      rememberSiteAndRequester: String(!!form.rememberSiteAndRequester),
+    },
     sourceValues: buildConsentSourceValues(
       sources,
       normalizedForm,
@@ -56,6 +90,8 @@ export const buildConsentPayload = (
       nationalId: patient.nationalId || "",
     },
     provider: {
+      providerId: order.providerId || "",
+      personId: order.providerPersonId || "",
       firstName: order.providerFirstName || "",
       lastName: order.providerLastName || "",
       fullName: fullName(order.providerFirstName, order.providerLastName),

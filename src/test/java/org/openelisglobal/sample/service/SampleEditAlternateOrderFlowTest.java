@@ -478,6 +478,10 @@ public class SampleEditAlternateOrderFlowTest {
                 anyString());
         ReflectionTestUtils.setField(controller, "orderAuthorizationService", authorization);
         ReflectionTestUtils.setField(controller, "sampleEditService", edit);
+        var documents = mock(OrderDocumentConsentService.class);
+        when(documents.claimRequired(any(), any(), any(), any(), any(), any()))
+                .thenReturn(mock(OrderConsentDownloadService.Permit.class));
+        ReflectionTestUtils.setField(controller, "orderDocumentConsentService", documents);
         ReflectionTestUtils.setField(controller, "formValidator",
                 mock(org.openelisglobal.sample.validator.SampleEditFormValidator.class));
         var mvc = org.springframework.test.web.servlet.setup.MockMvcBuilders.standaloneSetup(controller)

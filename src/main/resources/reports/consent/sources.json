@@ -1,5 +1,11 @@
 [
   {
+    "id": "provider.signature",
+    "labelKey": "consent.template.source.providerSignature",
+    "valueType": "image",
+    "format": "serverImage"
+  },
+  {
     "id": "patient.fullName",
     "labelKey": "consent.template.source.patientFullName",
     "format": "patientName"

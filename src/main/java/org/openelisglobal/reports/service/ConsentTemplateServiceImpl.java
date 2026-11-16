@@ -35,7 +35,7 @@ public class ConsentTemplateServiceImpl implements ConsentTemplateService {
     private static final Logger logger = LoggerFactory.getLogger(ConsentTemplateServiceImpl.class);
 
     private static final String CATEGORY = "consent_template";
-    private static final String REPORT_ID = "RPT-CONSENT-TEMPLATE";
+    private static final String REPORT_ID = DEFAULT_TEMPLATE_ID;
     private static final String TEMPLATE_RESOURCE = "reports/consent/consent-template.jrxml";
 
     private static final String FIELDS_KEY = "fields";
@@ -63,6 +63,12 @@ public class ConsentTemplateServiceImpl implements ConsentTemplateService {
     private ConsentSourceService sources;
 
     @Autowired
+    private ConsentSignatureService signatures;
+
+    @Autowired
+    private ConsentDocumentImageService documentImages;
+
+    @Autowired
     private ReportDefinitionService reportDefinitionService;
 
     @Override
@@ -79,8 +85,79 @@ public class ConsentTemplateServiceImpl implements ConsentTemplateService {
         } else {
             form.setFields(normalizeFieldSources(form.getFields()));
         }
+        form.setId(REPORT_ID);
         applyTemplate(form);
         return form;
+    }
+
+    @Override
+    @Transactional(readOnly = true)
+    public ConsentTemplateConfigForm getConfig(String templateId) {
+        if (StringUtils.isBlank(templateId) || REPORT_ID.equals(templateId))
+            return getConfig();
+        ReportDefinition definition = reportDefinitionService.getMatch("id", templateId)
+                .filter(d -> CATEGORY.equals(d.getCategory()))
+                .orElseThrow(() -> new IllegalArgumentException("consent.template.error.notFound"));
+        ConsentTemplateConfigForm form = toForm(definition);
+        if (form == null)
+            throw new IllegalArgumentException("consent.template.error.invalid");
+        form.setFields(normalizeFieldSources(form.getFields()));
+        applyTemplate(form);
+        return form;
+    }
+
+    @Override
+    @Transactional(readOnly = true)
+    public List<ConsentTemplateConfigForm> getTemplates(boolean includeInactive) {
+        List<ConsentTemplateConfigForm> result = new ArrayList<>();
+        ConsentTemplateConfigForm primary = getConfig();
+        if (includeInactive || !Boolean.FALSE.equals(primary.getIsActive()))
+            result.add(summary(primary));
+        List<ReportDefinition> definitions = reportDefinitionService.getDefinitionsByCategory(CATEGORY);
+        if (definitions != null)
+            for (ReportDefinition definition : definitions) {
+                if (definition == null || definition.getId() == null || !definition.getId().startsWith("CONSENT-"))
+                    continue;
+                ConsentTemplateConfigForm form = toForm(definition);
+                if (form != null && (includeInactive || !Boolean.FALSE.equals(form.getIsActive())))
+                    result.add(summary(form));
+            }
+        return result;
+    }
+
+    private ConsentTemplateConfigForm summary(ConsentTemplateConfigForm form) {
+        ConsentTemplateConfigForm summary = new ConsentTemplateConfigForm();
+        summary.setId(form.getId());
+        summary.setName(form.getName());
+        summary.setIsActive(form.getIsActive());
+        return summary;
+    }
+
+    @Override
+    @Transactional
+    public ConsentTemplateConfigForm saveTemplate(String sysUserId, String templateId, ConsentTemplateConfigForm form) {
+        if (form == null)
+            throw new IllegalArgumentException("consent.template.error.name");
+        if (StringUtils.isBlank(templateId)) {
+            if (StringUtils.isBlank(form.getTemplateContent()))
+                throw new IllegalArgumentException("consent.template.error.file");
+            templateId = "CONSENT-" + java.util.UUID.randomUUID();
+        } else {
+            ConsentTemplateConfigForm previous = getConfig(templateId);
+            if (StringUtils.isBlank(form.getName()))
+                form.setName(previous.getName());
+            if (StringUtils.isBlank(form.getTemplateContent()))
+                form.setTemplateContent(previous.getTemplateContent());
+            if (StringUtils.isBlank(form.getTemplateFilename()))
+                form.setTemplateFilename(previous.getTemplateFilename());
+            if (form.getFields() == null)
+                form.setFields(previous.getFields());
+            if (form.getIsActive() == null)
+                form.setIsActive(previous.getIsActive());
+        }
+        if (StringUtils.isBlank(form.getName()) || form.getName().trim().length() > 200)
+            throw new IllegalArgumentException("consent.template.error.name");
+        return saveDefinition(sysUserId, form, templateId);
     }
 
     private void applyTemplate(ConsentTemplateConfigForm form) {
@@ -114,28 +191,36 @@ public class ConsentTemplateServiceImpl implements ConsentTemplateService {
     @Override
     @Transactional(readOnly = true)
     public Map<String, Object> getOptions() {
-        return Map.of("sources", sources.getSources());
+        return Map.of("sources", sources.getSources(), "templates", getTemplates(false));
     }
 
     @Override
     @Transactional
     public ConsentTemplateConfigForm saveConfig(String sysUserId, ConsentTemplateConfigForm form) {
+        return saveDefinition(sysUserId, form, REPORT_ID);
+    }
+
+    private ConsentTemplateConfigForm saveDefinition(String sysUserId, ConsentTemplateConfigForm form,
+            String templateId) {
         if (form == null) {
             return null;
         }
         applyTemplate(form);
         Map<String, String> fields = form.getFields();
-        Set<String> allowed = new LinkedHashSet<>();
-        sources.getSources().forEach(source -> allowed.add((String) source.get("id")));
-        if (fields.values().stream().anyMatch(value -> StringUtils.isNotBlank(value) && !allowed.contains(value))) {
-            throw new IllegalArgumentException("consent.template.error.source");
+        Map<String, Map<String, Object>> catalog = new LinkedHashMap<>();
+        sources.getSources().forEach(source -> catalog.put((String) source.get("id"), source));
+        for (Map<String, String> parameter : form.getParameters()) {
+            String source = fields.get(parameter.get("id"));
+            if (StringUtils.isNotBlank(source)) {
+                validateSourceType(parameter, catalog.get(source));
+            }
         }
-        Optional<ReportDefinition> existingDefinition = reportDefinitionService.getMatch("id", REPORT_ID);
+        Optional<ReportDefinition> existingDefinition = reportDefinitionService.getMatch("id", templateId);
         ReportDefinition definition = existingDefinition.orElse(null);
         boolean isCreate = definition == null;
         if (isCreate) {
             definition = new ReportDefinition();
-            definition.setId(REPORT_ID);
+            definition.setId(templateId);
             definition.setCreatedDate(Timestamp.from(Instant.now()));
             definition.setCreatedBy(sysUserId);
         }
@@ -163,11 +248,18 @@ public class ConsentTemplateServiceImpl implements ConsentTemplateService {
     @Override
     @Transactional(readOnly = true)
     public byte[] generateConsentPdf(ConsentPreviewForm form) {
-        ConsentTemplateConfigForm config = getConfig();
+        return generateConsentPdf(form, null);
+    }
+
+    @Override
+    @Transactional(readOnly = true)
+    public byte[] generateConsentPdf(ConsentPreviewForm form, String userId) {
+        ConsentTemplateConfigForm config = getConfig(form == null ? null : form.getTemplateId());
         if (Boolean.FALSE.equals(config.getIsActive())) {
             throw new IllegalArgumentException("consent.template.error.inactive");
         }
         Map<String, String> resolved = new LinkedHashMap<>();
+        Map<String, byte[]> images = new LinkedHashMap<>();
         Set<String> allowed = new LinkedHashSet<>();
         Map<String, Map<String, Object>> catalog = new LinkedHashMap<>();
         sources.getSources(false).forEach(source -> {
@@ -175,7 +267,37 @@ public class ConsentTemplateServiceImpl implements ConsentTemplateService {
             catalog.put((String) source.get("id"), source);
         });
         config.getFields().values().stream().filter(v -> v.startsWith("questionnaire.")).forEach(allowed::add);
+        byte[] providerSignature = null;
+        if (config.getFields().containsValue("provider.signature") && form != null && form.getProvider() != null) {
+            providerSignature = signatures.getProviderSignature(form.getProvider().getProviderId(),
+                    form.getProvider().getPersonId());
+        }
+        final byte[] signatureImage = providerSignature;
+        Set<String> documentFieldKeys = config.getFields().values().stream().map(catalog::get)
+                .filter(java.util.Objects::nonNull).filter(s -> "orderDocumentImage".equals(s.get("format")))
+                .map(s -> (String) s.get("fieldKey")).collect(java.util.stream.Collectors.toSet());
+        Map<String, byte[]> attachedImages = documentFieldKeys.isEmpty() ? Map.of()
+                : documentImages.resolveImages(form, userId, documentFieldKeys);
         config.getFields().forEach((target, source) -> {
+            if (StringUtils.isBlank(source)) {
+                return;
+            }
+            Map<String, String> parameter = config.getParameters().stream().filter(p -> target.equals(p.get("id")))
+                    .findFirst().orElseThrow();
+            if (catalog.containsKey(source)) {
+                validateSourceType(parameter, catalog.get(source));
+            }
+            if ("image".equals(parameter.get("valueType"))) {
+                if (allowed.contains(source) && "provider.signature".equals(source) && signatureImage != null) {
+                    images.put(target, signatureImage);
+                } else if (allowed.contains(source) && catalog.containsKey(source)
+                        && "orderDocumentImage".equals(catalog.get(source).get("format"))) {
+                    byte[] image = attachedImages.get(catalog.get(source).get("fieldKey"));
+                    if (image != null)
+                        images.put(target, image);
+                }
+                return;
+            }
             String value = "";
             if (allowed.contains(source)) {
                 if (form != null && form.getSourceValues() != null && form.getSourceValues().containsKey(source)) {
@@ -194,7 +316,13 @@ public class ConsentTemplateServiceImpl implements ConsentTemplateService {
             }
             resolved.put(target, value);
         });
-        return jasper.render(config, resolved);
+        return jasper.render(config, resolved, images);
+    }
+
+    private void validateSourceType(Map<String, String> parameter, Map<String, Object> source) {
+        if (source == null || "image".equals(parameter.get("valueType")) != "image".equals(source.get("valueType"))) {
+            throw new IllegalArgumentException("consent.template.error.source");
+        }
     }
 
     private String resolveLegacyDisplayValue(String source, ConsentPreviewForm form, Map<String, Object> definition) {
@@ -231,7 +359,7 @@ public class ConsentTemplateServiceImpl implements ConsentTemplateService {
         }
         ReportDefinition selected = null;
         for (ReportDefinition candidate : definitions) {
-            if (candidate == null) {
+            if (candidate == null || (candidate.getId() != null && candidate.getId().startsWith("CONSENT-"))) {
                 continue;
             }
             if (selected == null) {

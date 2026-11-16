@@ -6,6 +6,31 @@ import {
   isOrderFieldVisible,
 } from "./orderFieldRules";
 
+test("a required consent download uses its own receipt rather than an attached file", () => {
+  const field = {
+    fieldKey: "bank",
+    fieldType: "DOCUMENT",
+    metadataJson: JSON.stringify({
+      document: { mode: "CONSENT", templateId: "CONSENT-bank" },
+    }),
+  };
+  expect(
+    hasRequiredOrderFieldValue(field, {
+      additionalFieldFiles: { bank: { fileName: "signed.pdf" } },
+    }),
+  ).toBe(false);
+  expect(
+    hasRequiredOrderFieldValue(field, {
+      additionalFieldConsentTokens: { other: "receipt" },
+    }),
+  ).toBe(false);
+  expect(
+    hasRequiredOrderFieldValue(field, {
+      additionalFieldConsentTokens: { bank: "receipt" },
+    }),
+  ).toBe(true);
+});
+
 test.each([
   ["equals", " routine ", { value: "ROUTINE" }, true],
   ["notequals", "routine", { value: "urgent" }, true],

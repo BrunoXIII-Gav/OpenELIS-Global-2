@@ -10,6 +10,12 @@ public interface OrderConsentDownloadService {
 
     Permit claim(HttpServletRequest request, String userId, String token, String patientId, String accessionNumber);
 
+    String recordFieldDownload(HttpServletRequest request, String userId, String patientId, String accessionNumber,
+            String fieldKey, String templateId);
+
+    Permit claimFieldDownload(HttpServletRequest request, String userId, String token, String patientId,
+            String accessionNumber, String fieldKey, String templateId);
+
     interface Permit extends AutoCloseable {
         void complete();
 

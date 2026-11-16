@@ -9,6 +9,7 @@ import org.openelisglobal.reportdefinition.form.ConsentTemplateConfigForm;
 import org.openelisglobal.reports.form.ConsentPreviewForm;
 import org.openelisglobal.reports.service.ConsentTemplateService;
 import org.openelisglobal.sample.service.OrderConsentDownloadService;
+import org.openelisglobal.sample.service.OrderDocumentConsentService;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -17,8 +18,10 @@ import org.springframework.http.HttpHeaders;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.MediaType;
 import org.springframework.http.ResponseEntity;
+import org.springframework.security.access.AccessDeniedException;
 import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.web.bind.annotation.GetMapping;
+import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.PutMapping;
 import org.springframework.web.bind.annotation.RequestBody;
@@ -38,6 +41,9 @@ public class ConsentTemplateRestController extends BaseRestController {
 
     @Autowired
     private OrderConsentDownloadService orderConsentDownloadService;
+
+    @Autowired
+    private OrderDocumentConsentService orderDocumentConsentService;
 
     @PreAuthorize("@accessControl.hasPermission(T(org.openelisglobal.common.constants.SystemPermission).ADMINISTRATION)")
     @GetMapping
@@ -69,6 +75,44 @@ public class ConsentTemplateRestController extends BaseRestController {
         }
     }
 
+    @PreAuthorize("@accessControl.hasPermission(T(org.openelisglobal.common.constants.SystemPermission).ADMINISTRATION)")
+    @GetMapping("/templates")
+    public ResponseEntity<?> getTemplates() {
+        return ResponseEntity.ok(consentTemplateService.getTemplates(true));
+    }
+
+    @PreAuthorize("@accessControl.hasPermission(T(org.openelisglobal.common.constants.SystemPermission).ADMINISTRATION)")
+    @GetMapping("/templates/{templateId}")
+    public ResponseEntity<?> getTemplate(@PathVariable String templateId) {
+        try {
+            return ResponseEntity.ok(consentTemplateService.getConfig(templateId));
+        } catch (IllegalArgumentException e) {
+            return ResponseEntity.badRequest().body(Map.of("error", e.getMessage()));
+        }
+    }
+
+    @PreAuthorize("@accessControl.hasPermission(T(org.openelisglobal.common.constants.SystemPermission).ADMINISTRATION)")
+    @PostMapping("/templates")
+    public ResponseEntity<?> createTemplate(HttpServletRequest request, @RequestBody ConsentTemplateConfigForm form) {
+        try {
+            return ResponseEntity.status(HttpStatus.CREATED)
+                    .body(consentTemplateService.saveTemplate(getSysUserId(request), null, form));
+        } catch (IllegalArgumentException e) {
+            return ResponseEntity.badRequest().body(Map.of("error", e.getMessage()));
+        }
+    }
+
+    @PreAuthorize("@accessControl.hasPermission(T(org.openelisglobal.common.constants.SystemPermission).ADMINISTRATION)")
+    @PutMapping("/templates/{templateId}")
+    public ResponseEntity<?> updateTemplate(HttpServletRequest request, @PathVariable String templateId,
+            @RequestBody ConsentTemplateConfigForm form) {
+        try {
+            return ResponseEntity.ok(consentTemplateService.saveTemplate(getSysUserId(request), templateId, form));
+        } catch (IllegalArgumentException e) {
+            return ResponseEntity.badRequest().body(Map.of("error", e.getMessage()));
+        }
+    }
+
     @GetMapping("/options")
     public ResponseEntity<?> getOptions() {
         try {
@@ -81,9 +125,9 @@ public class ConsentTemplateRestController extends BaseRestController {
     }
 
     @PostMapping(value = "/preview", produces = MediaType.APPLICATION_PDF_VALUE)
-    public ResponseEntity<?> previewConsent(@RequestBody ConsentPreviewForm form) {
+    public ResponseEntity<?> previewConsent(HttpServletRequest request, @RequestBody ConsentPreviewForm form) {
         try {
-            byte[] pdf = consentTemplateService.generateConsentPdf(form);
+            byte[] pdf = consentTemplateService.generateConsentPdf(form, getSysUserId(request));
             if (pdf == null || pdf.length == 0) {
                 return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR)
                         .body("Error generating consent template PDF");
@@ -92,6 +136,8 @@ public class ConsentTemplateRestController extends BaseRestController {
             headers.setContentType(MediaType.APPLICATION_PDF);
             headers.add("Content-Disposition", "inline; filename=consent-template.pdf");
             return new ResponseEntity<>(pdf, headers, HttpStatus.OK);
+        } catch (AccessDeniedException e) {
+            throw e;
         } catch (Exception e) {
             logger.error("Error generating consent template PDF", e);
             return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR)
@@ -106,19 +152,35 @@ public class ConsentTemplateRestController extends BaseRestController {
                         && !StringUtils.isNumeric(form.getOrderPatientId()))) {
             return ResponseEntity.badRequest().build();
         }
+        boolean fieldConsent = StringUtils.isNotBlank(form.getOrderFieldKey())
+                || StringUtils.isNotBlank(form.getTemplateId());
+        if (fieldConsent && (StringUtils.isBlank(form.getOrderFieldKey()) || StringUtils.isBlank(form.getTemplateId())))
+            return ResponseEntity.badRequest().build();
         byte[] pdf;
         try {
-            pdf = consentTemplateService.generateConsentPdf(form);
+            if (fieldConsent)
+                orderDocumentConsentService.validateDownload(getSysUserId(request), form);
+            pdf = consentTemplateService.generateConsentPdf(form, getSysUserId(request));
+        } catch (AccessDeniedException e) {
+            throw e;
+        } catch (IllegalArgumentException e) {
+            return ResponseEntity.badRequest().body(Map.of("error", e.getMessage()));
         } catch (Exception e) {
             logger.error("Error generating consent template PDF", e);
             return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR).build();
         }
         if (pdf == null || pdf.length == 0)
             return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR).build();
-        String token = orderConsentDownloadService.recordDownload(request, getSysUserId(request),
-                form.getOrderPatientId(), form.getOrderAccessionNumber());
+        String token = fieldConsent ? orderConsentDownloadService.recordFieldDownload(request, getSysUserId(request),
+                form.getOrderPatientId(), form.getOrderAccessionNumber(), form.getOrderFieldKey(), form.getTemplateId())
+                : orderConsentDownloadService.recordDownload(request, getSysUserId(request), form.getOrderPatientId(),
+                        form.getOrderAccessionNumber());
         return ResponseEntity.ok().contentType(MediaType.APPLICATION_PDF)
-                .header(HttpHeaders.CONTENT_DISPOSITION, "attachment; filename=consent-template.pdf")
+                .header(HttpHeaders.CONTENT_DISPOSITION,
+                        ContentDisposition.attachment()
+                                .filename(fieldConsent ? form.getOrderFieldKey() + ".pdf" : "consent-template.pdf",
+                                        StandardCharsets.UTF_8)
+                                .build().toString())
                 .header("X-OpenELIS-Consent-Token", token).body(pdf);
     }
 
@@ -142,8 +204,8 @@ public class ConsentTemplateRestController extends BaseRestController {
 
     @PreAuthorize("@accessControl.hasPermission(T(org.openelisglobal.common.constants.SystemPermission).ADMINISTRATION)")
     @GetMapping(value = "/download-template", produces = MediaType.APPLICATION_OCTET_STREAM_VALUE)
-    public ResponseEntity<?> downloadTemplate() {
-        ConsentTemplateConfigForm config = consentTemplateService.getConfig();
+    public ResponseEntity<?> downloadTemplate(@RequestParam(required = false) String templateId) {
+        ConsentTemplateConfigForm config = consentTemplateService.getConfig(templateId);
         return ResponseEntity.ok()
                 .header(HttpHeaders.CONTENT_DISPOSITION, ContentDisposition.attachment()
                         .filename(config.getTemplateFilename(), StandardCharsets.UTF_8).build().toString())

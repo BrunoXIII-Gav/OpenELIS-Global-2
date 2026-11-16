@@ -29,6 +29,8 @@ public class ConsentSourceServiceTest {
         ReflectionTestUtils.setField(service, "sampleTypes", mock(TypeOfSampleService.class));
         ReflectionTestUtils.setField(service, "units", mock(UnitOfMeasureService.class));
         when(orders.getFields(false, true)).thenReturn(List.of());
+        assertTrue(service.getSources().stream().anyMatch(s -> "provider.signature".equals(s.get("id"))
+                && "image".equals(s.get("valueType")) && !s.containsKey("path")));
         assertFalse(service.getSources().stream().anyMatch(s -> "orderAdditional.future".equals(s.get("id"))));
         OrderAdditionalFieldPayload field = new OrderAdditionalFieldPayload();
         field.setFieldKey("future");
@@ -41,5 +43,21 @@ public class ConsentSourceServiceTest {
         assertEquals("Nuevo dato visible", source.get("label"));
         assertEquals("sampleOrderItems.additionalFieldValues.future", source.get("path"));
         assertFalse(service.getSources().stream().anyMatch(s -> String.valueOf(s.get("id")).contains("patientPK")));
+        field.setFieldType("DOCUMENT");
+        field.setMetadataJson("{\"document\":{\"accept\":[\"image/png\",\"image/jpeg\",\"application/pdf\"]}}");
+        var image = service.getSources().stream().filter(s -> "orderDocumentImage.future".equals(s.get("id")))
+                .findFirst().orElseThrow();
+        assertEquals("image", image.get("valueType"));
+        assertEquals("future", image.get("fieldKey"));
+        assertEquals("Nuevo dato visible", image.get("label"));
+        assertTrue(service.getSources().stream().anyMatch(s -> "orderAdditional.future".equals(s.get("id"))));
+        field.setMetadataJson("{\"document\":{\"accept\":[\"application/pdf\"]}}");
+        assertFalse(service.getSources().stream().anyMatch(s -> "orderDocumentImage.future".equals(s.get("id"))));
+        field.setMetadataJson(
+                "{\"document\":{\"mode\":\"CONSENT\",\"templateId\":\"bank\",\"accept\":[\"image/png\"]}}");
+        assertFalse(service.getSources().stream().anyMatch(s -> "orderDocumentImage.future".equals(s.get("id"))));
+        field.setMetadataJson("{\"document\":{\"accept\":[\"image/png\"]}}");
+        field.setActive(false);
+        assertFalse(service.getSources().stream().anyMatch(s -> "orderDocumentImage.future".equals(s.get("id"))));
     }
 }

@@ -207,6 +207,19 @@ const ModifyOrder = () => {
       }
       try {
         const errorBody = JSON.parse(detailedMessage);
+        if (errorBody.code === "order.document.download.required") {
+          setOrderFormValues((previous) => ({
+            ...previous,
+            sampleOrderItems: {
+              ...previous.sampleOrderItems,
+              additionalFieldConsentTokens: {
+                ...previous.sampleOrderItems.additionalFieldConsentTokens,
+                [errorBody.fieldKey]: "",
+              },
+            },
+          }));
+          detailedMessage = intl.formatMessage({ id: errorBody.code });
+        }
         if (errorBody.code === "order.edit.test.hasResults") {
           detailedMessage = intl.formatMessage({
             id: "order.edit.test.hasResults",
@@ -412,6 +425,13 @@ const ModifyOrder = () => {
                       orderFormValues={orderFormValues}
                       setOrderFormValues={setOrderFormValues}
                       samples={samples}
+                      patientId={patientId}
+                      consentSamples={samples.filter(
+                        (sample) =>
+                          !removedExistingSampleItemIds.includes(
+                            String(sample.existingSampleItemId),
+                          ),
+                      )}
                       error={elementError}
                       isModifyOrder={true}
                       changed={changed}

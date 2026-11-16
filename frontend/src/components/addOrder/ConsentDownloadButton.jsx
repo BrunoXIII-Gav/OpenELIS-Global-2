@@ -16,6 +16,9 @@ const ConsentDownloadButton = ({
   patientId,
   disabled = false,
   onDownloaded,
+  templateId,
+  fieldKey,
+  label,
 }) => {
   const intl = useIntl();
   const { configurationProperties } = useContext(ConfigurationContext);
@@ -48,7 +51,12 @@ const ConsentDownloadButton = ({
           String(patient.patientPK) !== String(patientId)
         )
           throw new Error("Patient details unavailable");
-        form = { ...form, patientProperties: patient };
+        form = {
+          ...form,
+          patientProperties: fieldKey
+            ? { ...patient, ...form.patientProperties }
+            : patient,
+        };
       }
       const payload = buildConsentPayload(
         options.sources,
@@ -63,6 +71,10 @@ const ConsentDownloadButton = ({
       }
       payload.orderPatientId = patientId || form.patientProperties?.patientPK;
       payload.orderAccessionNumber = form.accessionNumber || "";
+      if (fieldKey) {
+        payload.orderFieldKey = fieldKey;
+        payload.templateId = templateId;
+      }
       const { blob, token } = await new Promise((resolve, reject) =>
         postToOpenElisServerForBlob(
           "/rest/reports/consent-template/download",
@@ -80,7 +92,7 @@ const ConsentDownloadButton = ({
       const link = document.createElement("a");
       try {
         link.href = url;
-        link.download = "consent-template.pdf";
+        link.download = fieldKey ? `${fieldKey}.pdf` : "consent-template.pdf";
         document.body.appendChild(link);
         link.click();
       } finally {
@@ -108,7 +120,7 @@ const ConsentDownloadButton = ({
       onClick={download}
       disabled={disabled || downloading}
     >
-      <FormattedMessage id="consent.download.button" />
+      {label || <FormattedMessage id="consent.download.button" />}
     </Button>
   );
 };

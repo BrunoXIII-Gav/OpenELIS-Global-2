@@ -12,6 +12,7 @@ import org.openelisglobal.common.propertyeditor.CaseInsensitiveEnumPropertyEdito
 import org.openelisglobal.externalconnections.valueholder.ExternalConnection.AuthType;
 import org.openelisglobal.externalconnections.valueholder.ExternalConnection.ProgrammedConnection;
 import org.openelisglobal.sample.exception.ConsentDownloadRequiredException;
+import org.openelisglobal.sample.exception.OrderDocumentConsentRequiredException;
 import org.springframework.beans.propertyeditors.StringTrimmerEditor;
 import org.springframework.beans.propertyeditors.URIEditor;
 import org.springframework.core.Ordered;
@@ -55,6 +56,13 @@ public class ControllerSetup extends ResponseEntityExceptionHandler {
         return ResponseEntity.status(HttpStatus.PRECONDITION_REQUIRED)
                 .header("X-OpenELIS-Error-Code", ConsentDownloadRequiredException.CODE)
                 .body(Map.of("code", ConsentDownloadRequiredException.CODE));
+    }
+
+    @ExceptionHandler(OrderDocumentConsentRequiredException.class)
+    protected ResponseEntity<Object> handleOrderDocumentConsentRequired(OrderDocumentConsentRequiredException ex) {
+        return ResponseEntity.status(HttpStatus.PRECONDITION_REQUIRED)
+                .header("X-OpenELIS-Error-Code", OrderDocumentConsentRequiredException.CODE)
+                .body(Map.of("code", OrderDocumentConsentRequiredException.CODE, "fieldKey", ex.getFieldKey()));
     }
 
     @ExceptionHandler(value = { RuntimeException.class })
