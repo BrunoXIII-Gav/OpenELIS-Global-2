@@ -4774,5 +4774,14 @@
   "order.document.error.modeLocked": "Cette action ne peut pas être modifiée car le champ contient des documents enregistrés.",
   "order.document.error.uploadNotAllowed": "Ce champ génère un consentement et ne permet pas de joindre des fichiers.",
   "order.document.error.unavailable": "Le consentement est indisponible pour le champ et les conditions sélectionnés.",
-  "order.document.error.orderNotFound": "Demande introuvable."
+  "order.document.error.orderNotFound": "Demande introuvable.",
+  "order.additional.fields.fixed.requesterSearch": "Rechercher le prescripteur",
+  "order.additional.fields.fixed.requesterProfileFields": "Champs du profil du prescripteur",
+  "order.additional.fields.statusFilter": "Filtrer par statut",
+  "order.additional.fields.filter.active": "Actifs",
+  "order.additional.fields.filter.inactive": "Inactifs",
+  "order.additional.fields.filter.all": "Tous",
+  "order.additional.fields.noOrder": "Sans ordre",
+  "professionalProfile.fields.moveUp": "Monter {field}",
+  "professionalProfile.fields.moveDown": "Descendre {field}"
 }

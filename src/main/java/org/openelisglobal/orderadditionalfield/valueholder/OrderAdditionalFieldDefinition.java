@@ -40,7 +40,7 @@ public class OrderAdditionalFieldDefinition extends BaseObject<Integer> {
     @Column(name = "active", nullable = false)
     private Boolean active;
 
-    @Column(name = "sort_order", nullable = false)
+    @Column(name = "sort_order")
     private Integer sortOrder;
 
     @Column(name = "default_value", length = 500)

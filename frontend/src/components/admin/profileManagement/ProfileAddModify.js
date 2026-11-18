@@ -14,6 +14,7 @@ import {
   TextInput,
 } from "@carbon/react";
 import { useHistory, useLocation } from "react-router-dom";
+import { ArrowUp, ArrowDown } from "@carbon/icons-react";
 import { FormattedMessage, useIntl } from "react-intl";
 import PageBreadCrumb from "../../common/PageBreadCrumb.js";
 import { NotificationContext } from "../../layout/Layout.js";
@@ -350,6 +351,16 @@ function ProfileAddModify() {
         (field, fieldIndex) => fieldIndex !== index || field.hasSavedValues,
       ),
     }));
+  };
+
+  const moveField = (index, offset) => {
+    setFormData((previous) => {
+      const target = index + offset;
+      if (target < 0 || target >= previous.fields.length) return previous;
+      const fields = [...previous.fields];
+      [fields[index], fields[target]] = [fields[target], fields[index]];
+      return { ...previous, fields };
+    });
   };
 
   const addSpecialtyOption = () => {
@@ -724,6 +735,34 @@ function ProfileAddModify() {
                 }}
               >
                 <Grid fullWidth>
+                  <Column lg={16} md={8} sm={4}>
+                    <Button
+                      type="button"
+                      kind="ghost"
+                      size="sm"
+                      hasIconOnly
+                      renderIcon={ArrowUp}
+                      iconDescription={intl.formatMessage(
+                        { id: "professionalProfile.fields.moveUp" },
+                        { field: field.displayName || field.fieldKey },
+                      )}
+                      disabled={index === 0}
+                      onClick={() => moveField(index, -1)}
+                    />
+                    <Button
+                      type="button"
+                      kind="ghost"
+                      size="sm"
+                      hasIconOnly
+                      renderIcon={ArrowDown}
+                      iconDescription={intl.formatMessage(
+                        { id: "professionalProfile.fields.moveDown" },
+                        { field: field.displayName || field.fieldKey },
+                      )}
+                      disabled={index === formData.fields.length - 1}
+                      onClick={() => moveField(index, 1)}
+                    />
+                  </Column>
                   <Column lg={4} md={4} sm={4}>
                     <TextInput
                       id={`field-display-name-${index}`}

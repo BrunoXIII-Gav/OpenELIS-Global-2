@@ -1,0 +1,16 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<databaseChangeLog xmlns="http://www.liquibase.org/xml/ns/dbchangelog"
+    xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+    xsi:schemaLocation="http://www.liquibase.org/xml/ns/dbchangelog http://www.liquibase.org/xml/ns/dbchangelog/dbchangelog-3.1.xsd">
+    <changeSet id="105-order-inactive-fields-without-sort-order" author="openelis">
+        <dropNotNullConstraint tableName="order_additional_field_def" columnName="sort_order" columnDataType="INTEGER"/>
+        <update tableName="order_additional_field_def">
+            <column name="sort_order" valueComputed="NULL"/>
+            <where>active = false</where>
+        </update>
+        <rollback>
+            <addNotNullConstraint tableName="order_additional_field_def" columnName="sort_order"
+                columnDataType="INTEGER" defaultNullValue="0"/>
+        </rollback>
+    </changeSet>
+</databaseChangeLog>

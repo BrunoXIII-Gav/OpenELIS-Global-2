@@ -116,6 +116,16 @@
     min-inline-size: max-content;
   }
 
+  &__sort-order {
+    min-inline-size: calc(
+      spacing.$spacing-11 + spacing.$spacing-05 + spacing.$spacing-05
+    );
+
+    .cds--text-input {
+      min-inline-size: spacing.$spacing-11;
+    }
+  }
+
   &__list > h3 {
     margin-block-end: spacing.$spacing-05;
   }

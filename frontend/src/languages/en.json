@@ -4870,5 +4870,14 @@
   "order.document.error.modeLocked": "The action cannot be changed because this field has stored documents.",
   "order.document.error.uploadNotAllowed": "This field generates a consent and does not accept uploaded files.",
   "order.document.error.unavailable": "The consent is not available for the selected field and conditions.",
-  "order.document.error.orderNotFound": "Order not found."
+  "order.document.error.orderNotFound": "Order not found.",
+  "order.additional.fields.fixed.requesterSearch": "Search requester",
+  "order.additional.fields.fixed.requesterProfileFields": "Requester profile fields",
+  "order.additional.fields.statusFilter": "Filter by status",
+  "order.additional.fields.filter.active": "Active",
+  "order.additional.fields.filter.inactive": "Inactive",
+  "order.additional.fields.filter.all": "All",
+  "order.additional.fields.noOrder": "No order",
+  "professionalProfile.fields.moveUp": "Move {field} up",
+  "professionalProfile.fields.moveDown": "Move {field} down"
 }

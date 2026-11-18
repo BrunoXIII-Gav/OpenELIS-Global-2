@@ -4955,5 +4955,14 @@
   "order.document.error.modeLocked": "No se puede cambiar la acción porque este campo tiene documentos guardados.",
   "order.document.error.uploadNotAllowed": "Este campo genera un consentimiento y no permite adjuntar archivos.",
   "order.document.error.unavailable": "El consentimiento no está disponible para el campo y las condiciones seleccionadas.",
-  "order.document.error.orderNotFound": "No se encontró la orden."
+  "order.document.error.orderNotFound": "No se encontró la orden.",
+  "order.additional.fields.fixed.requesterSearch": "Buscar solicitante",
+  "order.additional.fields.fixed.requesterProfileFields": "Campos adicionales del solicitante",
+  "order.additional.fields.statusFilter": "Filtrar por estado",
+  "order.additional.fields.filter.active": "Activos",
+  "order.additional.fields.filter.inactive": "Inactivos",
+  "order.additional.fields.filter.all": "Todos",
+  "order.additional.fields.noOrder": "Sin orden",
+  "professionalProfile.fields.moveUp": "Subir {field}",
+  "professionalProfile.fields.moveDown": "Bajar {field}"
 }
