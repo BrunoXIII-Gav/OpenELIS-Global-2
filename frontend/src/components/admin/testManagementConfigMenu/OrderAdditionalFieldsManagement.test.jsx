@@ -50,8 +50,8 @@ beforeEach(() => {
   });
 });
 
-const openEditor = (displayName = "Consentimiento") => {
-  const view = render(
+const openManagement = () =>
+  render(
     <IntlProvider locale="es" messages={messages}>
       <NotificationContext.Provider
         value={{
@@ -64,10 +64,98 @@ const openEditor = (displayName = "Consentimiento") => {
       </NotificationContext.Provider>
     </IntlProvider>,
   );
+
+const openEditor = (displayName = "Consentimiento") => {
+  const view = openManagement();
   const row = view.getByText(displayName).closest("tr");
   fireEvent.click(within(row).getByText(messages["button.edit"]));
   return view;
 };
+
+test("the status filter defaults to active fields and inactive fields have no order controls", () => {
+  getFromOpenElisServer.mockImplementation((url, callback) => {
+    callback(
+      url.includes("?includeInactive")
+        ? [source, { ...dependent, active: false, sortOrder: 99 }]
+        : [],
+    );
+  });
+  const view = openManagement();
+  expect(view.queryByText("Consentimiento")).toBeNull();
+  fireEvent.change(view.container.querySelector("#order-field-status-filter"), {
+    target: { value: "inactive" },
+  });
+  const row = view.getByText("Consentimiento").closest("tr");
+  expect(view.queryByText("Diagnóstico genómico")).toBeNull();
+  expect(row.querySelector('input[type="number"]')).toBeNull();
+  expect(
+    within(row).getByText(messages["button.save"]).closest("button").disabled,
+  ).toBe(true);
+  fireEvent.click(within(row).getByText(messages["button.edit"]));
+  expect(
+    view.container.querySelector("#order-additional-sort-order").disabled,
+  ).toBe(true);
+  expect(
+    view.container.querySelector("#order-additional-sort-order").value,
+  ).toBe("");
+});
+
+test("activation lets the server append the field instead of sending its old order", () => {
+  getFromOpenElisServer.mockImplementation((url, callback) => {
+    callback(
+      url.includes("?includeInactive")
+        ? [{ ...dependent, active: false, sortOrder: 2 }]
+        : [],
+    );
+  });
+  const view = openManagement();
+  fireEvent.change(view.container.querySelector("#order-field-status-filter"), {
+    target: { value: "inactive" },
+  });
+  fireEvent.click(view.getByText(messages["order.additional.fields.enable"]));
+  expect(JSON.parse(putToOpenElisServerFullResponse.mock.calls[0][1])).toEqual({
+    active: true,
+    options: [],
+  });
+});
+
+test("requester search and dynamic profile fields have configurable order entries", () => {
+  getFromOpenElisServer.mockImplementation((url, callback) => {
+    callback(
+      url.endsWith("/order-additional-fields/fixed")
+        ? [
+            { fieldKey: "requesterSearch", visible: true, sortOrder: 2 },
+            { fieldKey: "requesterProfileFields", visible: true, sortOrder: 3 },
+          ]
+        : [],
+    );
+  });
+  const view = openManagement();
+  expect(
+    view.getByText(messages["order.additional.fields.fixed.requesterSearch"]),
+  ).toBeDefined();
+  expect(
+    view.getByText(
+      messages["order.additional.fields.fixed.requesterProfileFields"],
+    ),
+  ).toBeDefined();
+  fireEvent.change(
+    view.container.querySelector("#fixed-sort-requesterSearch"),
+    { target: { value: "7" } },
+  );
+  fireEvent.click(
+    view.container.querySelector('[data-cy="save-fixed-order-fields"]'),
+  );
+  expect(JSON.parse(putToOpenElisServerFullResponse.mock.calls[0][1])).toEqual(
+    expect.arrayContaining([
+      expect.objectContaining({ fieldKey: "requesterSearch", sortOrder: 7 }),
+      expect.objectContaining({
+        fieldKey: "requesterProfileFields",
+        sortOrder: 3,
+      }),
+    ]),
+  );
+});
 
 test("used selection fields allow new options and deactivation while preserving saved options", () => {
   const field = {

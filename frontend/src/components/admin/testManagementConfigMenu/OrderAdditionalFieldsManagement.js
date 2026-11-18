@@ -57,6 +57,10 @@ const GENERIC_USER_FIELD_TYPE = "USER";
 const USER_DISPLAY_MODE_INITIALS = "INITIALS";
 const USER_DISPLAY_MODE_NAME = "NAME";
 const USER_DISPLAY_MODE_BOTH = "BOTH";
+const REQUESTER_LAYOUT_FIELDS = new Set([
+  "requesterSearch",
+  "requesterProfileFields",
+]);
 
 const CONDITION_LOGIC_OPTIONS = ["ALL", "ANY"];
 
@@ -148,6 +152,7 @@ const OrderAdditionalFieldsManagement = () => {
     useContext(NotificationContext);
 
   const [fields, setFields] = useState([]);
+  const [statusFilter, setStatusFilter] = useState("active");
   const [consentTemplates, setConsentTemplates] = useState([]);
   useEffect(() => {
     getConsentTemplateOptions((response) =>
@@ -166,6 +171,9 @@ const OrderAdditionalFieldsManagement = () => {
   const [savingSampleFixed, setSavingSampleFixed] = useState(false);
 
   const structureLocked = editingFieldId !== null && newField.hasSavedValues;
+  const editingInactiveField = fields.some(
+    (field) => field.id === editingFieldId && field.active === false,
+  );
 
   const loadFields = () => {
     getFromOpenElisServer(
@@ -218,11 +226,31 @@ const OrderAdditionalFieldsManagement = () => {
     [fixedConfigs],
   );
 
+  const filteredFields = useMemo(
+    () =>
+      fields
+        .filter(
+          (field) =>
+            statusFilter === "all" ||
+            (statusFilter === "active"
+              ? field.active !== false
+              : field.active === false),
+        )
+        .sort(
+          (left, right) =>
+            (left.active === false ? Infinity : Number(left.sortOrder ?? 0)) -
+              (right.active === false
+                ? Infinity
+                : Number(right.sortOrder ?? 0)) || left.id - right.id,
+        ),
+    [fields, statusFilter],
+  );
+
   const conditionFieldOptions = useMemo(() => {
     const map = new Map();
 
     fixedRows.forEach((config) => {
-      if (!config?.fieldKey) {
+      if (!config?.fieldKey || REQUESTER_LAYOUT_FIELDS.has(config.fieldKey)) {
         return;
       }
       map.set(config.fieldKey, {
@@ -320,7 +348,9 @@ const OrderAdditionalFieldsManagement = () => {
           ? String(field.maxLength)
           : "",
       sortOrder:
-        field?.sortOrder !== null && field?.sortOrder !== undefined
+        field?.active !== false &&
+        field?.sortOrder !== null &&
+        field?.sortOrder !== undefined
           ? String(field.sortOrder)
           : "",
       options: Array.isArray(field?.options)
@@ -638,7 +668,10 @@ const OrderAdditionalFieldsManagement = () => {
       maxLength: newField.maxLength
         ? Number.parseInt(newField.maxLength, 10)
         : null,
-      sortOrder: normalizeSortOrder(newField.sortOrder),
+      sortOrder:
+        sourceField?.active === false
+          ? null
+          : normalizeSortOrder(newField.sortOrder),
       metadataJson: metadataBuildResult.metadataJson,
       options: OPTION_FIELD_TYPES.has(newField.fieldType)
         ? normalizeOptionsForPayload(newField.options)
@@ -726,19 +759,7 @@ const OrderAdditionalFieldsManagement = () => {
       return;
     }
 
-    const payload = {
-      active: true,
-      displayName: field.displayName,
-      fieldType: field.fieldType,
-      required: field.required,
-      searchable: field.searchable,
-      searchUnique: field.searchUnique,
-      defaultValue: field.defaultValue,
-      maxLength: field.maxLength,
-      sortOrder: normalizeSortOrder(field.sortOrder),
-      metadataJson: field.metadataJson,
-      options: field.options || [],
-    };
+    const payload = { active: true, options: field.options || [] };
 
     putToOpenElisServerFullResponse(
       `/rest/order-additional-fields/${field.id}`,
@@ -761,7 +782,7 @@ const OrderAdditionalFieldsManagement = () => {
   };
 
   const saveFieldSortOrder = (field) => {
-    if (!field?.id) {
+    if (!field?.id || field.active === false) {
       return;
     }
 
@@ -1075,7 +1096,13 @@ const OrderAdditionalFieldsManagement = () => {
                 <TableBody>
                   {fixedRows.map((config) => (
                     <TableRow key={config.fieldKey}>
-                      <TableCell>{config.fieldKey}</TableCell>
+                      <TableCell>
+                        {REQUESTER_LAYOUT_FIELDS.has(config.fieldKey)
+                          ? intl.formatMessage({
+                              id: `order.additional.fields.fixed.${config.fieldKey}`,
+                            })
+                          : config.fieldKey}
+                      </TableCell>
                       <TableCell>
                         <Checkbox
                           id={`fixed-visible-${config.fieldKey}`}
@@ -1093,6 +1120,9 @@ const OrderAdditionalFieldsManagement = () => {
                       <TableCell>
                         <Checkbox
                           id={`fixed-required-${config.fieldKey}`}
+                          disabled={REQUESTER_LAYOUT_FIELDS.has(
+                            config.fieldKey,
+                          )}
                           labelText=""
                           checked={!!config.required}
                           onChange={(_event, { checked }) =>
@@ -1121,6 +1151,9 @@ const OrderAdditionalFieldsManagement = () => {
                       <TableCell>
                         <Checkbox
                           id={`fixed-sample-reception-${config.fieldKey}`}
+                          disabled={REQUESTER_LAYOUT_FIELDS.has(
+                            config.fieldKey,
+                          )}
                           labelText=""
                           checked={!!config.showInSampleReception}
                           onChange={(_event, { checked }) =>
@@ -1272,11 +1305,12 @@ const OrderAdditionalFieldsManagement = () => {
                 <Column lg={8} md={4} sm={4}>
                   <TextInput
                     id="order-additional-sort-order"
+                    disabled={editingInactiveField}
                     labelText={intl.formatMessage({
                       id: "order.additional.fields.sortOrder",
                     })}
                     type="number"
-                    value={newField.sortOrder}
+                    value={editingInactiveField ? "" : newField.sortOrder}
                     onChange={(event) =>
                       setNewField((previous) => ({
                         ...previous,
@@ -1703,13 +1737,40 @@ const OrderAdditionalFieldsManagement = () => {
               <Heading>
                 <FormattedMessage id="order.additional.fields.group.fields" />
               </Heading>
+              <Select
+                id="order-field-status-filter"
+                labelText={intl.formatMessage({
+                  id: "order.additional.fields.statusFilter",
+                })}
+                value={statusFilter}
+                onChange={(event) => setStatusFilter(event.target.value)}
+              >
+                <SelectItem
+                  value="active"
+                  text={intl.formatMessage({
+                    id: "order.additional.fields.filter.active",
+                  })}
+                />
+                <SelectItem
+                  value="inactive"
+                  text={intl.formatMessage({
+                    id: "order.additional.fields.filter.inactive",
+                  })}
+                />
+                <SelectItem
+                  value="all"
+                  text={intl.formatMessage({
+                    id: "order.additional.fields.filter.all",
+                  })}
+                />
+              </Select>
               <DataTable
-                rows={(fields || []).map((field) => ({
+                rows={filteredFields.map((field) => ({
                   id: String(field.id),
                   displayName: field.displayName,
                   fieldKey: field.fieldKey,
                   fieldType: getAdditionalFieldTypeLabel(intl, field.fieldType),
-                  sortOrder: field.sortOrder,
+                  sortOrder: field.active === false ? null : field.sortOrder,
                   required: field.required,
                   searchable: field.searchable,
                   searchUnique: field.searchUnique,
@@ -1823,6 +1884,11 @@ const OrderAdditionalFieldsManagement = () => {
                             <TableHeader
                               key={header.key}
                               {...getHeaderProps({ header })}
+                              className={
+                                header.key === "sortOrder"
+                                  ? "order-field-config__sort-order"
+                                  : undefined
+                              }
                             >
                               {header.header}
                             </TableHeader>
@@ -1839,27 +1905,37 @@ const OrderAdditionalFieldsManagement = () => {
                               <TableCell>{row.cells[0].value}</TableCell>
                               <TableCell>{row.cells[1].value}</TableCell>
                               <TableCell>{row.cells[2].value}</TableCell>
-                              <TableCell>
-                                <TextInput
-                                  id={`custom-field-sort-order-${row.id}`}
-                                  labelText=""
-                                  type="number"
-                                  value={String(row.cells[3].value ?? "")}
-                                  onChange={(event) => {
-                                    const nextSortOrder = event.target.value;
-                                    setFields((previous) =>
-                                      previous.map((field) => {
-                                        if (String(field.id) !== row.id) {
-                                          return field;
-                                        }
-                                        return {
-                                          ...field,
-                                          sortOrder: nextSortOrder,
-                                        };
-                                      }),
-                                    );
-                                  }}
-                                />
+                              <TableCell className="order-field-config__sort-order">
+                                {sourceField?.active === false ? (
+                                  <span
+                                    aria-label={intl.formatMessage({
+                                      id: "order.additional.fields.noOrder",
+                                    })}
+                                  >
+                                    —
+                                  </span>
+                                ) : (
+                                  <TextInput
+                                    id={`custom-field-sort-order-${row.id}`}
+                                    labelText=""
+                                    type="number"
+                                    value={String(row.cells[3].value ?? "")}
+                                    onChange={(event) => {
+                                      const nextSortOrder = event.target.value;
+                                      setFields((previous) =>
+                                        previous.map((field) => {
+                                          if (String(field.id) !== row.id) {
+                                            return field;
+                                          }
+                                          return {
+                                            ...field,
+                                            sortOrder: nextSortOrder,
+                                          };
+                                        }),
+                                      );
+                                    }}
+                                  />
+                                )}
                               </TableCell>
                               <TableCell>
                                 {row.cells[4].value ? (
@@ -1971,6 +2047,7 @@ const OrderAdditionalFieldsManagement = () => {
                                     kind="tertiary"
                                     size="sm"
                                     disabled={
+                                      sourceField?.active === false ||
                                       savingSortFieldId === sourceField?.id
                                     }
                                     onClick={() =>

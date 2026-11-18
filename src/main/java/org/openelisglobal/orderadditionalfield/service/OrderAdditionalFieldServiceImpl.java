@@ -75,6 +75,7 @@ public class OrderAdditionalFieldServiceImpl implements OrderAdditionalFieldServ
             new FixedFieldDefault("providerLastName", 110), new FixedFieldDefault("providerDni", 120),
             new FixedFieldDefault("providerSpecialty", 130), new FixedFieldDefault("providerWorkPhone", 140),
             new FixedFieldDefault("providerFax", 150), new FixedFieldDefault("providerEmail", 160),
+            new FixedFieldDefault("requesterSearch", 75), new FixedFieldDefault("requesterProfileFields", 161),
             new FixedFieldDefault("paymentOptionSelection", 170), new FixedFieldDefault("testLocationCode", 180),
             new FixedFieldDefault("otherLocationCode", 190), new FixedFieldDefault("rememberSiteAndRequester", 200));
     private static final Set<String> FIXED_FIELD_KEYS = FIXED_FIELD_DEFAULTS.stream().map(f -> f.fieldKey.toLowerCase())
@@ -170,8 +171,9 @@ public class OrderAdditionalFieldServiceImpl implements OrderAdditionalFieldServ
         definition.setFieldType(fieldType.name());
         definition.setRequired(Boolean.TRUE.equals(payload.getRequired()));
         definition.setActive(payload.getActive() == null || payload.getActive());
-        definition.setSortOrder(
-                payload.getSortOrder() == null ? getNextSortOrder() : Math.max(payload.getSortOrder(), 0));
+        definition.setSortOrder(Boolean.TRUE.equals(definition.getActive())
+                ? (payload.getSortOrder() == null ? getNextSortOrder(null) : Math.max(payload.getSortOrder(), 0))
+                : null);
         definition.setDefaultValue(StringUtils.defaultIfBlank(payload.getDefaultValue(), null));
         definition.setMaxLength(payload.getMaxLength());
         userFieldOptionResolver.validateConfiguration(definition.getFieldType(), payload.getMetadataJson(), "orders");
@@ -230,10 +232,15 @@ public class OrderAdditionalFieldServiceImpl implements OrderAdditionalFieldServ
         if (payload.getRequired() != null) {
             definition.setRequired(payload.getRequired());
         }
+        boolean wasActive = Boolean.TRUE.equals(definition.getActive());
         if (payload.getActive() != null) {
             definition.setActive(payload.getActive());
         }
-        if (payload.getSortOrder() != null) {
+        if (!Boolean.TRUE.equals(definition.getActive())) {
+            definition.setSortOrder(null);
+        } else if (!wasActive) {
+            definition.setSortOrder(getNextSortOrder(fieldId));
+        } else if (payload.getSortOrder() != null) {
             definition.setSortOrder(Math.max(payload.getSortOrder(), 0));
         }
         if (payload.getDefaultValue() != null) {
@@ -278,6 +285,7 @@ public class OrderAdditionalFieldServiceImpl implements OrderAdditionalFieldServ
         OrderAdditionalFieldDefinition definition = definitionDAO.get(fieldId)
                 .orElseThrow(() -> new IllegalArgumentException("Field definition not found: " + fieldId));
         definition.setActive(false);
+        definition.setSortOrder(null);
         definition.setSysUserId(currentUserId);
         definitionDAO.update(definition);
 
@@ -828,7 +836,7 @@ public class OrderAdditionalFieldServiceImpl implements OrderAdditionalFieldServ
         payload.setFieldType(definition.getFieldType());
         payload.setRequired(definition.getRequired());
         payload.setActive(definition.getActive());
-        payload.setSortOrder(definition.getSortOrder());
+        payload.setSortOrder(Boolean.TRUE.equals(definition.getActive()) ? definition.getSortOrder() : null);
         payload.setDefaultValue(definition.getDefaultValue());
         payload.setMaxLength(definition.getMaxLength());
         payload.setMetadataJson(definition.getMetadataJson());
@@ -970,10 +978,15 @@ public class OrderAdditionalFieldServiceImpl implements OrderAdditionalFieldServ
         return userFieldOptionResolver.isUserFieldType(fieldType);
     }
 
-    private Integer getNextSortOrder() {
-        List<OrderAdditionalFieldDefinition> existing = definitionDAO.findAll(false);
-        return existing.stream().map(OrderAdditionalFieldDefinition::getSortOrder).filter(value -> value != null)
-                .max(Integer::compareTo).map(max -> max + 1).orElse(1);
+    private Integer getNextSortOrder(Integer excludedFieldId) {
+        int additionalMax = definitionDAO.findAll(true).stream().filter(field -> Boolean.TRUE.equals(field.getActive()))
+                .filter(field -> !java.util.Objects.equals(field.getId(), excludedFieldId))
+                .map(OrderAdditionalFieldDefinition::getSortOrder).filter(value -> value != null)
+                .max(Integer::compareTo).orElse(0);
+        int fixedMax = getFixedFieldConfigs().stream().filter(config -> !Boolean.FALSE.equals(config.getVisible()))
+                .map(OrderFixedFieldConfigPayload::getSortOrder).filter(value -> value != null).max(Integer::compareTo)
+                .orElse(0);
+        return Math.max(additionalMax, fixedMax) + 1;
     }
 
     private Integer getNextOptionSortOrder(Integer fieldId) {

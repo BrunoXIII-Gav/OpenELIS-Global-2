@@ -13,6 +13,7 @@ import org.openelisglobal.orderadditionalfield.bean.OrderAdditionalFieldOptionPa
 import org.openelisglobal.orderadditionalfield.bean.OrderAdditionalFieldPayload;
 import org.openelisglobal.orderadditionalfield.dao.OrderAdditionalFieldDefinitionDAO;
 import org.openelisglobal.orderadditionalfield.dao.OrderAdditionalFieldOptionDAO;
+import org.openelisglobal.orderadditionalfield.dao.OrderFixedFieldConfigDAO;
 import org.openelisglobal.orderadditionalfield.dao.SampleOrderAdditionalFieldFileDAO;
 import org.openelisglobal.orderadditionalfield.dao.SampleOrderAdditionalFieldValueDAO;
 import org.openelisglobal.orderadditionalfield.valueholder.OrderAdditionalFieldDefinition;
@@ -93,6 +94,24 @@ public class OrderAdditionalFieldOptionsTest {
         savedOption.setActive(false);
         service.updateField(1, fieldPayload("SELECT", List.of(optionPayload(10, "old", "Old", true))), "12");
         assertTrue(savedOption.getActive());
+    }
+
+    @Test
+    public void activatingAUsedSelectionFieldPreservesItsOptions() {
+        ReflectionTestUtils.setField(service, "fixedFieldConfigDAO", mock(OrderFixedFieldConfigDAO.class));
+        definition.setActive(false);
+        savedOption.setActive(false);
+        var payload = new OrderAdditionalFieldPayload();
+        payload.setActive(true);
+        payload.setOptions(List.of(optionPayload(10, "old", "Old", false)));
+
+        var result = service.updateField(1, payload, "12");
+
+        assertTrue(result.getActive());
+        assertNotNull(result.getSortOrder());
+        assertFalse(savedOption.getActive());
+        verify(optionDAO, never()).delete(any());
+        verify(optionDAO, never()).insert(any());
     }
 
     @Test

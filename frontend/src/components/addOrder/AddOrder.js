@@ -36,7 +36,13 @@ import { FormattedMessage, useIntl } from "react-intl";
 import { ConfigurationContext } from "../layout/Layout";
 import config from "../../config.json";
 
+const REQUESTER_LAYOUT_DEFAULTS = [
+  { fieldKey: "requesterSearch", sortOrder: 75 },
+  { fieldKey: "requesterProfileFields", sortOrder: 161 },
+];
+
 const DEFAULT_FIXED_FIELD_ORDER = [
+  ...REQUESTER_LAYOUT_DEFAULTS,
   { fieldKey: "priority", sortOrder: 10 },
   { fieldKey: "requestDate", sortOrder: 20 },
   { fieldKey: "requestTime", sortOrder: 30 },
@@ -62,7 +68,6 @@ const DEFAULT_FIXED_FIELD_ORDER = [
 const DEFAULT_DOCUMENT_MAX_SIZE_MB = 5;
 const BYTES_PER_MEGABYTE = 1024 * 1024;
 const RETIRED_PROVIDER_FIXED_FIELDS = new Set(["providercmp", "providerrne"]);
-const REQUESTER_PROFILE_FIELD_SORT_ORDER_BASE = 160;
 const DEFAULT_ORDER_PRIORITIES = [
   { id: "ROUTINE", value: "ROUTINE" },
   { id: "STAT", value: "STAT" },
@@ -1032,9 +1037,13 @@ const AddOrder = (props) => {
   const getEffectiveFixedFieldConfigs = () => {
     const configs = orderFormValues?.sampleOrderItems?.fixedFieldConfigs;
     if (Array.isArray(configs) && configs.length > 0) {
-      return configs.filter(
-        (config) => !isRetiredProviderFixedField(config?.fieldKey),
-      );
+      return [
+        ...configs,
+        ...REQUESTER_LAYOUT_DEFAULTS.filter(
+          (fallback) =>
+            !configs.some((config) => config.fieldKey === fallback.fieldKey),
+        ),
+      ].filter((config) => !isRetiredProviderFixedField(config?.fieldKey));
     }
     return DEFAULT_FIXED_FIELD_ORDER.filter(
       (config) => !isRetiredProviderFixedField(config?.fieldKey),
@@ -1057,7 +1066,9 @@ const AddOrder = (props) => {
         : normalizeProviderProfileFieldValue(field.currentValue);
     const options = (field.options || []).filter((option) => option.active);
     const required = field.required === true;
-    const readonly = isProviderFieldLocked(field.fieldKey);
+    const readonly =
+      isProviderFieldLocked(field.fieldKey) ||
+      isFieldReadonly("requesterProfileFields");
     const label = (
       <>
         {field.displayName}
@@ -1225,40 +1236,12 @@ const AddOrder = (props) => {
         sortOrder: Number(field?.sortOrder ?? 0),
       }));
 
-    const requesterProfileFields = (
-      orderFormValues?.sampleOrderItems?.providerProfileFields || []
-    )
-      .filter(
-        (field) =>
-          field &&
-          field.active !== false &&
-          field.systemField !== true &&
-          field.showInOrderEntry === true &&
-          field.fieldKey,
-      )
-      .map((field, index) => ({
-        type: "requesterProfile",
-        field,
-        sortOrder: REQUESTER_PROFILE_FIELD_SORT_ORDER_BASE + (index + 1) / 100,
-      }));
-
-    const staticFields = [
-      { type: "static", fieldKey: "requesterSearch", sortOrder: 75 },
-    ];
-
     const typeRank = {
       fixed: 0,
-      static: 1,
-      requesterProfile: 2,
       custom: 2,
     };
 
-    return [
-      ...fixedFields,
-      ...staticFields,
-      ...requesterProfileFields,
-      ...customFields,
-    ].sort((left, right) => {
+    return [...fixedFields, ...customFields].sort((left, right) => {
       if (left.sortOrder !== right.sortOrder) {
         return left.sortOrder - right.sortOrder;
       }
@@ -1270,13 +1253,9 @@ const AddOrder = (props) => {
       }
 
       const leftKey =
-        left.type === "custom" || left.type === "requesterProfile"
-          ? left.field.fieldKey
-          : left.fieldKey;
+        left.type === "custom" ? left.field.fieldKey : left.fieldKey;
       const rightKey =
-        right.type === "custom" || right.type === "requesterProfile"
-          ? right.field.fieldKey
-          : right.fieldKey;
+        right.type === "custom" ? right.field.fieldKey : right.fieldKey;
       return String(leftKey || "").localeCompare(String(rightKey || ""));
     });
   };
@@ -1292,8 +1271,12 @@ const AddOrder = (props) => {
         value={buildRequesterDisplayValue()}
         onSelect={handleProviderSelectOptions}
         onChange={clearProviderId}
-        disabled={isOrderReadOnly || isProviderSelectionLocked}
-        readOnly={isOrderReadOnly || isProviderSelectionLocked}
+        disabled={
+          isFieldReadonly("requesterSearch") || isProviderSelectionLocked
+        }
+        readOnly={
+          isFieldReadonly("requesterSearch") || isProviderSelectionLocked
+        }
         label={
           <>
             <FormattedMessage id="order.search.requester.label" />
@@ -1317,6 +1300,27 @@ const AddOrder = (props) => {
 
   const renderFixedOrderField = (fieldKey) => {
     switch (fieldKey) {
+      case "requesterSearch":
+        return renderRequesterSearchField();
+      case "requesterProfileFields":
+        return (
+          <React.Fragment key={fieldKey}>
+            {(orderFormValues?.sampleOrderItems?.providerProfileFields || [])
+              .filter(
+                (field) =>
+                  field &&
+                  field.active !== false &&
+                  field.systemField !== true &&
+                  field.showInOrderEntry === true &&
+                  field.fieldKey,
+              )
+              .sort(
+                (left, right) =>
+                  Number(left.sortOrder ?? 0) - Number(right.sortOrder ?? 0),
+              )
+              .map(renderProviderProfileField)}
+          </React.Fragment>
+        );
       case "priority":
         return (
           <Column key={fieldKey} lg={16} md={8} sm={4}>
@@ -1826,12 +1830,6 @@ const AddOrder = (props) => {
   const renderOrderedOrderField = (descriptor) => {
     if (descriptor.type === "custom") {
       return renderDynamicField(descriptor.field);
-    }
-    if (descriptor.type === "requesterProfile") {
-      return renderProviderProfileField(descriptor.field);
-    }
-    if (descriptor.type === "static") {
-      return renderRequesterSearchField();
     }
     return renderFixedOrderField(descriptor.fieldKey);
   };
